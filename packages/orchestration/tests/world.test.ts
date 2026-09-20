@@ -4,13 +4,16 @@ import {
   createFixtureWorld,
   fixtureFarquharPrivate,
   fixtureAgentTurnInput,
+  fixtureOptionCatalogue,
   fixtureStageConfig,
+  fixtureStageParticipants,
   fixtureTemenggongPrivate,
 } from '../src/fixtures'
 import { FakeLlmClient } from '../src/llm/fake'
 import type { LlmRequest } from '../src/llm/types'
 import { findLeakedText } from '../src/privacy'
 import { ReplyInbox, ReplyRateLimiter, submitPlayerMessage } from '../src/world/reply'
+import { StageDecisions } from '../src/stage/options'
 import { buildAgentTurnInput, runStage, type StageConfig } from '../src/world/stage-runtime'
 import { applyAction, visibleTranscript, type WorldState } from '../src/world/state'
 
@@ -162,6 +165,33 @@ describe('room-scoped visibility (K3)', () => {
     })
     expect(world.evidenceKnown['agent-temenggong']).toEqual(['evidence-tally-book'])
     expect(world.evidenceKnown['agent-farquhar']).toEqual([])
+  })
+
+  it('does not put another actor\u2019s evidence-gated option in a character prompt', async () => {
+    const world = createFixtureWorld()
+    const hiddenOption = {
+      id: 'option-read-tally',
+      label: 'Read the harbour master\u2019s secret tally',
+      preconditions: [
+        {
+          kind: 'knows_evidence' as const,
+          actorId: 'agent-harbour-master',
+          evidenceId: 'evidence-tally-book',
+        },
+      ],
+    }
+    const client = new FakeLlmClient({ replies: [JSON.stringify({ say: '', actions: [{ type: 'yield' }] })] })
+
+    await runStage(client, world, {
+      ...fixtureStageConfig,
+      maxTicks: 1,
+      decision: {
+        catalogue: [...fixtureOptionCatalogue, hiddenOption],
+        ledger: new StageDecisions(fixtureStageParticipants),
+      },
+    })
+
+    expect(client.requests.every((request) => !request.user.includes(hiddenOption.label))).toBe(true)
   })
 })
 
