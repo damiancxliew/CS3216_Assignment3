@@ -140,6 +140,29 @@ await published.assetsReady                               // optional — nobody
 - `src/play/walkthrough.ts` is the runtime stand-in behind I2/I3: walks objectives in dependency order,
   picks an available option, follows branches to an ending; `enumeratePaths()` lists every route.
 
+## Spec → runtime adapter (the I1 ⇄ K1–K7 seam)
+
+[`src/runtime/adapter.ts`](src/runtime/adapter.ts) maps an `AdventureSpec` stage onto
+`packages/orchestration` inputs: `toStageRuntime(spec, i)` → `WorldSeed` (rooms, agents + player,
+placement), `StageConfig` (shared context, stage brief, one private context per agent), the K6
+`OptionDefinition[]` catalogue and the timer-expiry `fallbackNext`; `toResolverInput()` builds the K1/K7
+`ResolverInput`. Type-only imports, so no runtime dependency.
+
+`tests/integration/spec-to-runtime.test.ts` plays the I1 fixture through the **real** `createWorld →
+runStage → deriveOptions → StageDecisions.commit → fakeResolver` to an ending with no LLM (C0's
+"I1 → I3 stub → I4 fake resolution" from this side).
+
+Where the runtime cannot express the spec, the bundle says so in `warnings[]` instead of dropping it:
+
+| Spec | Runtime today | Mapping / ask |
+| --- | --- | --- |
+| `privateContext.persona` | no field | carried as `motivations[0]` = `Persona: …` |
+| `privateContext.hiddenInterests` | `secrets[]` | one entry |
+| option `preconditions` = objective ids targeting **evidence** | `knows_evidence` | mapped |
+| option `preconditions` = objective ids targeting an **agent** ("speak with X") | no predicate | **ask Kevin for `{ kind: 'spoke_with', actorId, otherActorId }`**; dropped with a warning until then |
+| `decision.requires` (gates the whole decision) | per-option only | pushed onto every option |
+| evidence placed in rooms | `evidenceKnown` only | client marks `knows_evidence` on interaction |
+
 ## D7/D8 — eval harness
 
 ```bash

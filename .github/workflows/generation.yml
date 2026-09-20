@@ -3,9 +3,9 @@ name: generation
 on:
   push:
     branches: [main]
-    paths: ['packages/generation/**', '.github/workflows/generation.yml']
+    paths: ['packages/generation/**', 'packages/orchestration/**', '.github/workflows/generation.yml']
   pull_request:
-    paths: ['packages/generation/**', '.github/workflows/generation.yml']
+    paths: ['packages/generation/**', 'packages/orchestration/**', '.github/workflows/generation.yml']
 
 jobs:
   check:
@@ -21,5 +21,7 @@ jobs:
           cache: npm
           cache-dependency-path: packages/generation/package-lock.json
       - run: npm ci
+      # the spec -> runtime integration test drives packages/orchestration for real
+      - run: npm ci --prefix ../orchestration
       - run: npm run typecheck
       - run: npm test
