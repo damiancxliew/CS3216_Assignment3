@@ -4,6 +4,7 @@ import { fixtureResolverInput, fixtureTimerExpiryInput } from '../src/fixtures'
 import { auditClientPayload } from '../src/privacy'
 import { publicResolution, sanitizeEffects, validateResolutionRecord } from '../src/resolution'
 import { resolveStageSync } from '../src/resolver/fake'
+import { playerOdds } from '../src/resolver/odds'
 import { ResolverInputError, type ResolverInput } from '../src/resolver/types'
 
 describe('K1 — deterministic fake resolver', () => {
@@ -17,9 +18,27 @@ describe('K1 — deterministic fake resolver', () => {
   it('produces the same record when agents arrive in a different order', () => {
     const reordered: ResolverInput = {
       ...fixtureResolverInput,
-      agents: [...fixtureResolverInput.agents].reverse(),
+      agents: fixtureResolverInput.agents
+        .map((agent, index) => ({
+          ...agent,
+          commitment:
+            index === 0
+              ? { optionId: 'option-sign-treaty', how: 'committed' as const }
+              : { optionId: 'option-other', how: 'committed' as const },
+        }))
+        .reverse(),
     }
-    expect(resolveStageSync(reordered)).toEqual(resolveStageSync(fixtureResolverInput))
+    const committed: ResolverInput = {
+      ...fixtureResolverInput,
+      agents: fixtureResolverInput.agents.map((agent, index) => ({
+        ...agent,
+        commitment:
+          index === 0
+            ? { optionId: 'option-sign-treaty', how: 'committed' as const }
+            : { optionId: 'option-other', how: 'committed' as const },
+      })),
+    }
+    expect(resolveStageSync(reordered)).toEqual(resolveStageSync(committed))
   })
 
   it('emits a schema-valid I4 payload', () => {
@@ -193,6 +212,15 @@ describe('FR-21 — server authority', () => {
     }
   })
 
+  it('keeps odds details out of the serialized public resolution', () => {
+    const { record } = resolveStageSync(fixtureResolverInput)
+    const serialized = JSON.stringify(publicResolution(record)).toLowerCase()
+    expect(serialized).not.toContain('roll')
+    expect(serialized).not.toContain('probability')
+    expect(serialized).not.toContain('modifier')
+    expect(serialized).not.toContain('rationale')
+  })
+
   it('gives every projected effect a text equivalent (FR-15c)', () => {
     const { record } = resolveStageSync(fixtureResolverInput)
     for (const effect of publicResolution(record).effects) {
@@ -203,5 +231,131 @@ describe('FR-21 — server authority', () => {
   it('rejects a non-ISO resolvedAt value', () => {
     const { record } = resolveStageSync(fixtureResolverInput)
     expect(validateResolutionRecord({ ...record, resolvedAt: 'not-a-date' })).toMatchObject({ ok: false })
+  })
+})
+
+describe('K7 — explainable player odds', () => {
+  const committedAgents = fixtureResolverInput.agents.map((agent, index) => ({
+    ...agent,
+    commitment:
+      index === 0
+        ? { optionId: 'option-sign-treaty', how: 'committed' as const }
+        : { optionId: 'option-other', how: 'committed' as const },
+  }))
+
+  it('repeats a fixed-seed resolution with commitments byte-for-byte', () => {
+    const input = { ...fixtureResolverInput, agents: committedAgents }
+    expect(resolveStageSync(input)).toEqual(resolveStageSync(input))
+  })
+
+  it('keeps probability inside the non-degenerate bounds at both extremes', () => {
+    const opposed = playerOdds({
+      ...fixtureResolverInput,
+      evidenceCollected: 0,
+      agents: Array.from({ length: 8 }, (_, index) => ({
+        id: `opposed-${index}`,
+        name: `Opposed ${index}`,
+        disposition: -5,
+        commitment: { optionId: 'option-other', how: 'committed' as const },
+      })),
+    })
+    const backing = playerOdds({
+      ...fixtureResolverInput,
+      evidenceCollected: 4,
+      agents: Array.from({ length: 8 }, (_, index) => ({
+        id: `backing-${index}`,
+        name: `Backing ${index}`,
+        disposition: 5,
+        commitment: { optionId: 'option-sign-treaty', how: 'committed' as const },
+      })),
+    })
+
+    expect(opposed.probability).toBeGreaterThanOrEqual(0.05)
+    expect(opposed.probability).toBeLessThanOrEqual(0.95)
+    expect(backing.probability).toBeGreaterThanOrEqual(0.05)
+    expect(backing.probability).toBeLessThanOrEqual(0.95)
+  })
+
+  it('caps the agent-stance contribution and emits the exact applied sum', () => {
+    const odds = playerOdds({
+      ...fixtureResolverInput,
+      agents: Array.from({ length: 8 }, (_, index) => ({
+        id: `opposed-${index}`,
+        name: `Opposed ${index}`,
+        disposition: 0,
+        commitment: { optionId: 'option-other', how: 'committed' as const },
+      })),
+    })
+    const contribution = odds.modifiers
+      .filter((modifier) => modifier.source === 'agent_stance')
+      .reduce((sum, modifier) => sum + modifier.delta, 0)
+
+    expect(contribution).toBeCloseTo(-0.15, 10)
+    expect(Math.abs(contribution)).toBeLessThanOrEqual(0.15)
+  })
+
+  it('warms backing agents on success and hardens opposing agents, with the mirror on failure', () => {
+    const input = {
+      ...fixtureResolverInput,
+      agents: [
+        {
+          id: 'agent-backer',
+          name: 'Backer',
+          disposition: 0,
+          commitment: { optionId: 'option-sign-treaty', how: 'committed' as const },
+        },
+        {
+          id: 'agent-opposer',
+          name: 'Opposer',
+          disposition: 0,
+          commitment: { optionId: 'option-other', how: 'committed' as const },
+        },
+      ],
+    }
+    const success = Array.from({ length: 100 }, (_, index) => resolveStageSync({ ...input, seed: `success-${index}` })).find(
+      ({ record }) => record.rolls[0]?.success,
+    )
+    const failure = Array.from({ length: 100 }, (_, index) => resolveStageSync({ ...input, seed: `failure-${index}` })).find(
+      ({ record }) => record.rolls[0]?.success === false,
+    )
+
+    expect(success).toBeDefined()
+    expect(success?.record.outcome.agentDeltas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ agentId: 'agent-backer', dispositionDelta: expect.any(Number) }),
+        expect.objectContaining({ agentId: 'agent-opposer', dispositionDelta: expect.any(Number) }),
+      ]),
+    )
+    expect(success?.record.outcome.agentDeltas.find((delta) => delta.agentId === 'agent-backer')?.dispositionDelta).toBeGreaterThan(0)
+    expect(success?.record.outcome.agentDeltas.find((delta) => delta.agentId === 'agent-opposer')?.dispositionDelta).toBeLessThan(0)
+    expect(failure).toBeDefined()
+    expect(failure?.record.outcome.agentDeltas.find((delta) => delta.agentId === 'agent-backer')?.dispositionDelta).toBeLessThan(0)
+    expect(failure?.record.outcome.agentDeltas.find((delta) => delta.agentId === 'agent-opposer')?.dispositionDelta).toBeGreaterThan(0)
+  })
+
+  it('does not align commitments when the stage expires on the timer', () => {
+    const input = {
+      ...fixtureTimerExpiryInput,
+      agents: committedAgents,
+    }
+    const { record } = resolveStageSync(input)
+    expect(record.trigger).toBe('timer_expiry')
+    expect(record.rationale).not.toContain('agent_stance')
+    expect(record.outcome.agentDeltas).toHaveLength(committedAgents.length)
+  })
+
+  it('treats a committed unknown option as opposed without throwing', () => {
+    const input = {
+      ...fixtureResolverInput,
+      agents: [
+        {
+          ...fixtureResolverInput.agents[0]!,
+          commitment: { optionId: 'option-that-does-not-exist', how: 'committed' as const },
+        },
+      ],
+    }
+    const { record } = resolveStageSync(input)
+    expect(record.rationale).toContain('agent_stance')
+    expect(playerOdds(input).modifiers.find((modifier) => modifier.source === 'agent_stance')?.delta).toBe(-0.04)
   })
 })

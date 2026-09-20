@@ -23,6 +23,7 @@ import {
   type WorldDelta,
 } from '../resolution'
 import { createRng } from '../rng'
+import { commitmentAlignment, playerOdds, STANCE_DISPOSITION, type Odds } from './odds'
 import {
   resolverInputSchema,
   ResolverInputError,
@@ -31,26 +32,6 @@ import {
   type ResolverInput,
   type ResolverResult,
 } from './types'
-
-/** Starting odds per stance. Deliberately close to even: history is not a dice game with a
- * favourite, and a cooperative move that always works removes the point of D10. */
-const STANCE_BASE_PROBABILITY: Record<DecisionStance, number> = {
-  cooperative: 0.6,
-  neutral: 0.55,
-  evasive: 0.5,
-  antagonistic: 0.45,
-}
-
-/** Odds when the timer expired and nobody committed (D12/FR-16). Passing is rarely rewarded. */
-const PASS_PROBABILITY = 0.3
-
-/** How a stance moves a stakeholder's standing, before jitter. */
-const STANCE_DISPOSITION: Record<DecisionStance, { success: number; failure: number }> = {
-  cooperative: { success: 2, failure: -1 },
-  neutral: { success: 1, failure: -1 },
-  evasive: { success: 0, failure: -1 },
-  antagonistic: { success: -1, failure: -2 },
-}
 
 const STANCE_EFFECTS: Record<DecisionStance, { success: SceneEffect['id'][]; failure: SceneEffect['id'][] }> = {
   cooperative: { success: ['confetti', 'crowd_cheer'], failure: ['smoke', 'crowd_flee'] },
@@ -63,22 +44,24 @@ const clamp = (value: number, min: number, max: number): number => Math.min(max,
 
 const round = (value: number): number => Number(value.toFixed(4))
 
-function successProbability(input: ResolverInput): number {
-  if (input.decision === null) return PASS_PROBABILITY
-  const base = STANCE_BASE_PROBABILITY[input.decision.stance]
-  const averageDisposition =
-    input.agents.length === 0 ? 0 : input.agents.reduce((sum, agent) => sum + agent.disposition, 0) / input.agents.length
-  // Evidence is the one lever the player earns rather than rolls: knowing more makes a move likelier
-  // to land, which is what makes investigation worth the stage time.
-  const evidenceBonus = 0.04 * Math.min(input.evidenceCollected, 4)
-  return round(clamp(base + 0.03 * averageDisposition + evidenceBonus, 0.05, 0.95))
-}
-
 function resolveNext(input: ResolverInput): NextStep {
   return input.decision === null ? input.fallbackNext : input.decision.branchTarget
 }
 
-function buildAnnouncement(input: ResolverInput, success: boolean, deltas: readonly AgentDelta[]): string {
+function largestModifierClause(odds: Odds): string {
+  const largest = [...odds.modifiers].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0]
+  if (largest === undefined) return 'The course set the tone.'
+  if (largest.source === 'disposition') {
+    return largest.delta >= 0 ? "The room's standing carried weight." : "The room's standing told against you."
+  }
+  if (largest.source === 'evidence') return 'The papers you found carried it.'
+  if (largest.detail.endsWith(' backed the course')) {
+    return `${largest.detail.slice(0, -' backed the course'.length)}'s support carried the room.`
+  }
+  return `${largest.detail.slice(0, -' opposed the course'.length)}'s refusal cost you.`
+}
+
+function buildAnnouncement(input: ResolverInput, success: boolean, deltas: readonly AgentDelta[], odds: Odds): string {
   const byName = new Map(input.agents.map((agent) => [agent.id, agent.name]))
   const swung = [...deltas].sort((a, b) => {
     const magnitude = Math.abs(b.dispositionDelta) - Math.abs(a.dispositionDelta)
@@ -96,12 +79,12 @@ function buildAnnouncement(input: ResolverInput, success: boolean, deltas: reado
     const head = success
       ? 'The stage closes without your word, and the other parties settle it in a way you can live with.'
       : 'The stage closes without your word, and the other parties settle it without you in mind.'
-    return `${head} ${reaction}`
+    return `${head} ${largestModifierClause(odds)} ${reaction}`
   }
   const head = success
     ? `You commit to: ${input.decision.label}. It carries.`
     : `You commit to: ${input.decision.label}. It does not hold.`
-  return `${head} ${reaction}`
+  return `${head} ${largestModifierClause(odds)} ${reaction}`
 }
 
 function buildEffects(input: ResolverInput, success: boolean): { effects: SceneEffect[]; dropped: number } {
@@ -138,10 +121,12 @@ function normalizeInput(rawInput: ResolverInput): ResolverInput {
         ? parsed.data.evidenceCollected
         : 0,
     agents: parsed.data.agents.map((agent) => ({
-      ...agent,
+      id: agent.id,
+      name: agent.name,
       disposition: Number.isFinite(agent.disposition)
         ? Math.min(5, Math.max(-5, Math.round(agent.disposition)))
         : 0,
+      ...(agent.commitment === undefined ? {} : { commitment: agent.commitment }),
     })),
     ...(candidateEffects === undefined ? {} : { candidateEffects }),
   }
@@ -171,7 +156,8 @@ export function resolveStageSync(rawInput: ResolverInput): ResolverResult {
   }
 
   const rng = createRng(`${input.seed}|${input.attemptId}|${input.stageId}|${input.decision?.optionId ?? 'pass'}`)
-  const probability = successProbability(input)
+  const odds = playerOdds(input)
+  const probability = odds.probability
   const value = round(rng.next())
   const success = value < probability
   const rolls: Roll[] = [
@@ -185,12 +171,22 @@ export function resolveStageSync(rawInput: ResolverInput): ResolverResult {
   ]
 
   const stance = input.decision?.stance ?? 'evasive'
-  const base = STANCE_DISPOSITION[stance][success ? 'success' : 'failure']
   const allAgentDeltas: AgentDelta[] = [...input.agents]
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     .map((agent) => {
       const agentRng = createRng(`${input.seed}|${input.attemptId}|${input.stageId}|${agent.id}`)
       const jitter = agentRng.int(-1, 1)
+      const alignment = commitmentAlignment(input, agent)
+      const base =
+        alignment > 0
+          ? success
+            ? 2
+            : -1
+          : alignment < 0
+            ? success
+              ? -2
+              : 1
+            : STANCE_DISPOSITION[stance][success ? 'success' : 'failure']
       const disposition = clamp(agent.disposition + clamp(base + jitter, -3, 3), -5, 5)
       return { agentId: agent.id, dispositionDelta: disposition - agent.disposition, disposition }
     })
@@ -222,7 +218,7 @@ export function resolveStageSync(rawInput: ResolverInput): ResolverResult {
     trigger: input.trigger,
     actions,
     outcome: {
-      announcement: buildAnnouncement(input, success, agentDeltas),
+      announcement: buildAnnouncement(input, success, agentDeltas, odds),
       effects,
       agentDeltas,
       worldDeltas,
@@ -240,7 +236,9 @@ export function resolveStageSync(rawInput: ResolverInput): ResolverResult {
           ? 'Reads the outcome as an opening worth using next stage.'
           : 'Reads the outcome as a slight, and will remember it next stage.',
     })),
-    rationale: `stance=${stance} trigger=${input.trigger} p=${probability} roll=${value} success=${success} evidence=${input.evidenceCollected}; branch is spec-authored (${next.kind}).`,
+    rationale: `stance=${stance} trigger=${input.trigger} p=${probability} roll=${value} success=${success} evidence=${input.evidenceCollected} oddsBase=${odds.base} oddsModifiers=${odds.modifiers
+      .map((modifier) => `${modifier.source}=${modifier.delta}`)
+      .join(',')} ; branch is spec-authored (${next.kind}).`,
   }
 
   const validated = validateResolutionRecord(record)
