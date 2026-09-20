@@ -36,6 +36,7 @@ export interface Utterance {
   roomId: string
   speakerId: string
   speakerName: string
+  addresseeId: string | null
   body: string
 }
 
@@ -152,6 +153,7 @@ export function applyAction(world: WorldState, entry: ActorAction): ApplyResult 
         roomId: here,
         speakerId: actorId,
         speakerName: actor.name,
+        addresseeId: action.addresseeId,
         body: action.body,
       })
       world.events.push({ tick: world.tick, actorId, kind: 'speak', roomId: here, detail: action.body })

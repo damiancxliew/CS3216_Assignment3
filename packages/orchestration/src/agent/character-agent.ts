@@ -31,6 +31,8 @@ export interface AgentTurnOptions {
   budget?: ActionBudget
   /** Actions this agent has already spent this stage (FR-12b). */
   spent?: number
+  /** Actions remaining across the whole stage (FR-12b). */
+  stageRemaining?: number
   metrics?: StructuredCallMetrics
   /** Version of the option set this agent was shown. Stamped onto any decision it proposes (K6). */
   optionsVersion?: string | undefined
@@ -102,6 +104,7 @@ export async function runAgentTurn(
     { actorKind: 'agent', actorId: agentId },
     options.budget ?? DEFAULT_ACTION_BUDGET,
     options.spent ?? 0,
+    options.stageRemaining,
   )
 
   const saySurvived = filtered.actions.some((entry) => entry.action.type === 'speak')
