@@ -4,6 +4,8 @@
  */
 import type { AgentPrivateContext, AgentPublicProfile, AgentTurnInput } from './agent/types'
 import type { ResolverInput } from './resolver/types'
+import { createWorld, type WorldState } from './world/state'
+import type { StageAgent, StageConfig } from './world/stage-runtime'
 
 export const fixtureResolverInput: ResolverInput = {
   attemptId: 'attempt-demo',
@@ -102,4 +104,69 @@ export const fixtureAgentTurnInput: AgentTurnInput = {
   ],
   playerMessage: 'Would you sign, if the payment were yearly?',
   actionsRemaining: 4,
+}
+
+/* ----------------------------------------------------------------------- stage world (K3–K5) */
+
+export const fixtureHarbourMasterProfile: AgentPublicProfile = {
+  id: 'agent-harbour-master',
+  name: 'The harbour master',
+  publicRole: 'keeper of the anchorage tallies',
+}
+
+export const fixtureHarbourMasterPrivate: AgentPrivateContext = {
+  agentId: 'agent-harbour-master',
+  motivations: ['Keep the tally book from being read by anyone from the Company'],
+  secrets: ['Two prahus left unrecorded last month with rice for Riau'],
+  knowledgeHorizon: 'anything after February 1819, and anything said in rooms you were not in',
+  notes: [],
+}
+
+/**
+ * Two rooms, one of which can be shut. The closed side room is how the K3 test establishes that a
+ * fact stated behind a door never reaches the agent who stayed in the hall.
+ */
+export function createFixtureWorld(): WorldState {
+  return createWorld({
+    rooms: [
+      {
+        id: 'room-audience-hall',
+        name: 'Audience hall',
+        description: 'A raised timber hall open to the river breeze, mats laid for visitors.',
+        doorOpen: true,
+      },
+      {
+        id: 'room-tally-shed',
+        name: 'Tally shed',
+        description: 'A low shed by the landing stage, stacked with anchorage ledgers.',
+        doorOpen: true,
+      },
+    ],
+    actors: [
+      { ...fixtureTemenggongProfile, kind: 'agent' },
+      { ...fixtureFarquharProfile, kind: 'agent' },
+      { ...fixtureHarbourMasterProfile, kind: 'agent' },
+      { id: 'player', name: 'You', publicRole: 'a visitor newly come ashore', kind: 'player' },
+    ],
+    placement: {
+      'agent-temenggong': 'room-audience-hall',
+      'agent-farquhar': 'room-audience-hall',
+      'agent-harbour-master': 'room-tally-shed',
+      player: 'room-audience-hall',
+    },
+    evidenceKnown: { 'agent-harbour-master': ['evidence-tally-book'] },
+  })
+}
+
+export const fixtureStageAgents: Record<string, StageAgent> = {
+  'agent-temenggong': { privateContext: fixtureTemenggongPrivate, relevant: true },
+  'agent-farquhar': { privateContext: fixtureFarquharPrivate, relevant: true },
+  // Not part of this stage: FR-12b says it is never called, not that it is called cheaply.
+  'agent-harbour-master': { privateContext: fixtureHarbourMasterPrivate, relevant: false },
+}
+
+export const fixtureStageConfig: StageConfig = {
+  sharedContext: fixtureAgentTurnInput.sharedContext,
+  stageBrief: fixtureAgentTurnInput.stageBrief,
+  agents: fixtureStageAgents,
 }
