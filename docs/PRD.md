@@ -24,7 +24,7 @@ and makes decisions whose consequences are resolved probabilistically and carrie
 | D1 | **Desktop web, 2D top-down tile map.** Both click-to-travel and WASD/arrow movement. | Secondary-school students have laptops in class, phones are locked away. Movement is kept because "it's cooler" and cheap — the PoC already does both. |
 | D2 | **Single player in the MVP.** The player is modelled as just another agent, so multiplayer stays possible later. | Multiplayer adds decision-resolution complexity and breaks historical grounding ("I'm Hitler but I play nice"). Excluded in `specs.md` §8 too. |
 | D3 | **The LLM generates a *spec*, not the map.** A deterministic, seeded compiler turns the spec + predefined tiles into the map. | Guarantees playability/reachability; already proven by `PoC/src/core.ts`. |
-| D4 | **Hybrid assets:** predefined tileset (grass, wall, floor, water, path) + on-the-fly image-generated landmarks/portraits (e.g. a Merlion, a period building). | Cheap, cohesive, and demonstrates multimodal I/O for Milestone 7/10. |
+| D4 | **Hybrid assets, generation only where the curated set falls short.** The predefined tileset (grass, wall, floor, water, path) and stock portraits cover the common case; an image is generated only when nothing existing fits — a period-specific landmark, a named stakeholder's portrait. Cap **≤8 generated images per adventure**, cached by prompt hash, and **non-blocking for publish**. | Decided 20 Sep (Di Heng): "use image generation when appropriate, else can use existing assets". Keeps the visual style cohesive, keeps cost bounded and measurable for Milestone 12, and still demonstrates multimodal I/O for Milestone 7/10. |
 | D5 | **Stages, not days.** An adventure has **at most 3 stages**; each stage is one map + one decision point; stages can branch. Stages are proposed by the LLM at ingest and are **editable by the teacher**. | "This whole stage is one event… after you make the decision you progress to the next stage." |
 | D6 | **A round = one decision, not one chat.** Unlimited chat within a stage; the stage ends when the decision is made, the objective is met, or the stage timer expires. | "One round is one decision, not one chat." Real-time pressure is not the point (`specs.md` §5.6). |
 | D7 | **Rooms with doors.** Everyone in a room shares one chat and one shared context. NPC agents can move between rooms and talk to each other. Any occupant may close the door to exclude others. | Parliament analogy: conversations are not always 1-on-1, and some must be private. |
@@ -90,8 +90,12 @@ Hard rules:
 - FR-4 Schema validation + up to two bounded repair round-trips. An invalid spec is never published.
 - FR-5 Teacher edits any field, regenerates a single element by ID, and sees which objectives/decisions
   are affected. Publish freezes an immutable version.
-- FR-6 Asset pipeline: map tiles come from the curated set; up to N landmark/portrait images are
-  generated per adventure, cached by prompt hash, and reviewed by the teacher before publish.
+- FR-6 Asset pipeline (D4): map tiles always come from the curated set. Generation is requested only
+  when no curated asset matches the spec's need, capped at 8 images per adventure and cached by
+  prompt hash (a repeated subject across stages costs nothing).
+- FR-6a Image generation never blocks publish. Pending or failed images fall back to the curated
+  placeholder for that entity, the adventure stays playable, and the teacher can review, regenerate
+  or accept the placeholder afterwards. A rejected or filtered image (FR-23) falls back the same way.
 
 ### 5.2 Map compilation
 
@@ -229,18 +233,21 @@ Inherits `specs.md` §10, plus meeting-specific ones:
 4. A stakeholder who was lied to behaves measurably differently in a later stage (demo-able).
 5. A full adventure completes in ≤15 min and under the per-attempt token budget.
 
-## 10. Open decisions (need an owner and an answer before Mon EOD)
+## 10. Decisions log (all resolved 20 Sep)
 
 1. ~~Phaser 3 vs the existing Canvas renderer.~~ **Resolved 20 Sep — Phaser 3** (D16, §7.1). Owner: Yi Hao.
 2. ~~Do NPC agents act autonomously between player turns?~~ **Resolved 20 Sep — fully autonomous,
    symmetric with the player, no shared state** (D17, FR-12a/b). Owner: Kevin.
 3. ~~Timer on or off by default, per stage or per adventure?~~ **Resolved 20 Sep — on by default, per
    stage, length set by the teacher in settings** (D12, FR-16). Owner: Damian.
-4. **How many generated images per adventure** (cost cap) and are they blocking for publish? Owner: Di Heng.
+4. ~~How many generated images per adventure, and are they blocking for publish?~~ **Resolved 20 Sep
+   — generate only where no curated asset fits, ≤8 per adventure, cached, non-blocking for publish**
+   (D4, FR-6/FR-6a). Owner: Di Heng.
 5. ~~Free-text decisions in the MVP or options-only?~~ **Resolved 20 Sep — options-only, free text
    clarifies only** (D18, FR-14). Owner: Kevin.
 6. ~~Provider mix for the model tiers.~~ **Resolved 20 Sep — OpenAI only, tiered per use case**
-   (D14). Owner: Yi Hao. Remaining sub-task: pin the exact model per tier with measured latency/cost
-   for Milestone 9.
+   (D14). Owner: Yi Hao.
 
-Only item 4 is still open.
+Nothing is blocking. Two sub-tasks carry into the build: pin the exact OpenAI model per tier with
+measured latency/cost for Milestone 9 (Yi Hao), and tune the agent tick rate against the measured
+token budget (Kevin).

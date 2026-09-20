@@ -55,7 +55,9 @@ He built the PoC, so he owns the port.
   allows (optional M21).
 - Planner LLM: documents → adventure spec (stages, stakeholders, rooms, evidence, objectives, decision
   options), schema validation, bounded repair, missing-information report.
-- Asset generation: landmark/portrait images, prompt-hash cache, cost cap, teacher review gate.
+- Asset generation (PRD D4/FR-6): curated tiles and stock portraits first, generate only where
+  nothing fits, ≤8 images per adventure, prompt-hash cache, **non-blocking for publish** with a
+  curated placeholder fallback and post-publish teacher review/regenerate.
 - **Eval harness**: a fixed set of 5–8 source documents, automated checks for spec validity, map
   playability, source-span grounding, and persona adherence; results table for the write-up.
 - Owns: FR-1 – FR-6, FR-24 (generation metrics).
@@ -109,7 +111,7 @@ Put all four in `AGENTS.md` as the shared contract, with a stub implementation e
 | **Sun 20** | Contracts frozen, repo scaffolded | Draft Resolver + agent prompt contracts; agent tick loop design | Scaffold Next.js monorepo; port `core.ts`; Phaser scene rendering the PoC map | Spec schema v1 draft; upload + extraction spike | Supabase project, schema, auth, shared OpenAI key in Vercel env, deploy of an empty app + analytics |
 | **Mon 21** | Vertical slice: one hardcoded stage playable end-to-end | Single agent answering in-room with private context | Finish Phaser port (tweened movement, camera follow, click-to-travel); rooms + doors in the compiler; chat panel against a stub API | Planner prompt → valid spec for one test document | Turn API wired to DB; attempt create/resume |
 | **Tue 22** | Generation → playable | Multi-agent + autonomous tick + Resolver updating decision options | Render a compiled generated map; decision panel | Repair loop, source spans, missing-info report; 3 test documents passing | Teacher console: upload, progress, stage editor |
-| **Wed 23** | Stages, consequences, endings | Stage resolution, probabilistic outcomes, branching, spectator; timer expiry → pass → resolve | Stage transition as a Phaser scene swap; journal; accessible list | Asset generation + cache; eval harness v1 with results | Publish/versioning, sharing link, timer settings UI, ending/debrief screen |
+| **Wed 23** | Stages, consequences, endings | Stage resolution, probabilistic outcomes, branching, spectator; timer expiry → pass → resolve | Stage transition as a Phaser scene swap; journal; accessible list | Asset generation + cache + placeholder fallback; eval harness v1 with results | Publish/versioning, sharing link, timer settings UI, ending/debrief screen |
 | **Thu 24** | Freeze + polish | Prompt-injection tests, token budget, latency pass | UI polish, Playwright happy path | Eval results table + a second full document set | Landing page, README, analytics screenshots |
 | **Fri 25** | Submit by 23:59 | M7–M10, M13 write-up | M12, M15–M17 write-up | M11 write-up | M0–M6, M14, M18–M20 write-up, pitch PDF, demo video, packaging |
 
