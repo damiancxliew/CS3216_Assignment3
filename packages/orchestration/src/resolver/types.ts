@@ -8,7 +8,7 @@
  */
 import { z } from 'zod'
 
-import { actorActionSchema, type ActorAction } from '../actions'
+import type { ActorAction } from '../actions'
 import { nextStepSchema, type NextStep, type ResolutionRecord, type ResolutionTrigger } from '../resolution'
 
 /** Decision stances, mirrored from the Adventure Spec v2 (I1) catalogue. */
@@ -84,12 +84,12 @@ export const resolverInputSchema = z.object({
   stageId: id,
   seed: z.string().min(1).max(256),
   stageIndex: z.number().int().nonnegative(),
-  resolvedAt: z.string().datetime(),
+  resolvedAt: z.string().datetime({ offset: true }),
   trigger: z.enum(['decision', 'timer_expiry', 'stage_objective']),
   decision: z
     .object({
       optionId: id,
-      label: z.string().min(1).max(2000),
+      label: z.string().min(1).max(287),
       stance: z.enum(DECISION_STANCES),
       branchTarget: branchTargetSchema,
     })
@@ -108,7 +108,7 @@ export const resolverInputSchema = z.object({
         .optional(),
     }),
   ),
-  actions: z.array(actorActionSchema),
+  actions: z.array(z.object({ actorKind: z.enum(['player', 'agent']), actorId: id, action: z.unknown() })),
   evidenceCollected: recoverableNumber,
   candidateEffects: z.array(z.unknown()).optional(),
 })

@@ -120,9 +120,11 @@ function normalizeInput(rawInput: ResolverInput): ResolverInput {
     )
   }
 
-  const { candidateEffects, ...rest } = parsed.data
+  const { candidateEffects, actions: rawActions, ...rest } = parsed.data
+  const actions = rawActions as ResolverInput['actions']
   return {
     ...rest,
+    actions,
     evidenceCollected:
       Number.isFinite(parsed.data.evidenceCollected) && parsed.data.evidenceCollected >= 0
         ? parsed.data.evidenceCollected
@@ -161,6 +163,8 @@ export function resolveStageSync(rawInput: ResolverInput): ResolverResult {
     if (parsed.ok) actions.push({ ...candidate, action: parsed.action })
     else droppedActions += 1
   }
+  const acceptedActions = actions.slice(0, 256)
+  droppedActions += Math.max(0, actions.length - acceptedActions.length)
 
   const rng = createRng(`${input.seed}|${input.attemptId}|${input.stageId}|${input.decision?.optionId ?? 'pass'}`)
   const odds = playerOdds(input)
@@ -223,7 +227,7 @@ export function resolveStageSync(rawInput: ResolverInput): ResolverResult {
     stageId: input.stageId,
     resolvedAt: input.resolvedAt,
     trigger: input.trigger,
-    actions,
+    actions: acceptedActions,
     outcome: {
       announcement: buildAnnouncement(input, success, agentDeltas, odds),
       effects,
