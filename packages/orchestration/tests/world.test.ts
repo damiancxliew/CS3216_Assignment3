@@ -187,6 +187,7 @@ describe('room-scoped visibility (K3)', () => {
         roomId: 'room-tally-shed',
         speakerId: 'agent-temenggong',
         speakerName: 'Temenggong Abdul Rahman',
+        addresseeId: null,
         body: 'Temenggong Abdul Rahman knocks.',
       },
     ])

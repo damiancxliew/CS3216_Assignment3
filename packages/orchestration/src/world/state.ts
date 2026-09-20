@@ -219,6 +219,7 @@ export function applyAction(world: WorldState, entry: ActorAction): ApplyResult 
         roomId: target.id,
         speakerId: actorId,
         speakerName: actor.name,
+        addresseeId: null,
         body,
       })
       world.events.push({ tick: world.tick, actorId, kind: 'knock', roomId: target.id, detail: body })
