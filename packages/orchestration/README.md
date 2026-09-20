@@ -77,6 +77,17 @@ ticks the stage-relevant agents over it while the player is elsewhere (FR-12a).
 - `StageTelemetry` reports actions per actor, tokens, drops, refusals, degraded ticks, repair rate
   and which cap ended the stage.
 
+### Answering a human (`src/world/reply.ts`)
+
+The per-agent action cap bounds *autonomous* chatter. A turn the player addressed is not charged
+against it — a character going silent mid-conversation reads as a broken game, not as a rail.
+What bounds those replies is a rate per agent (`ReplyRateLimiter`, one model-backed reply every
+`minIntervalMs` with a small burst), so cost scales with how long a stage runs rather than with how
+many humans are in it, and the stage timer stays the only thing that ends a stage. The limit sits
+well above human typing speed, so only scripted traffic reaches it. Crossing it degrades quality,
+never availability: the character answers from a cheap non-LLM path with a short in-fiction
+deflection, chosen by hash so a replay is identical. The stage token ceiling is the same backstop.
+
 ## Options and the stage decision (`src/stage/options.ts`, K6)
 
 An option is a label plus preconditions drawn from a closed set of comparisons (`actor_in_room`,
