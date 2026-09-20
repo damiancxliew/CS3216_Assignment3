@@ -7,7 +7,7 @@ import {
   fixtureStageParticipants,
 } from '../src/fixtures'
 import { FakeLlmClient } from '../src/llm/fake'
-import { deriveOptions, StageDecisions } from '../src/stage/options'
+import { deriveOptions, isHiddenFrom, parseOptionsVersion, StageDecisions } from '../src/stage/options'
 import { runStage } from '../src/world/stage-runtime'
 import { applyAction, type WorldState } from '../src/world/state'
 
@@ -62,25 +62,119 @@ describe('option maintenance (K6)', () => {
       optionsVersion: offered.version,
     })
 
-    expect(result).toEqual({ ok: false, reason: 'stale_option_set', detail: expect.any(String) })
+    expect(result).toEqual({ ok: false, reason: 'option_unavailable', detail: expect.any(String) })
     // Rejection, not mutation: the actor is still pending and nothing was recorded.
     expect(decisions.pending()).toContain('player')
     expect(decisions.all()).toEqual([])
   })
 
-  it('rejects an unavailable option even when the version happens to match', () => {
+  it('rejects an option that becomes unavailable after it was offered', () => {
     const world = createFixtureWorld()
+    const offered = deriveOptions(world, fixtureOptionCatalogue)
     shutTheHall(world)
-    const live = deriveOptions(world, fixtureOptionCatalogue)
 
     const result = ledger().commit(world, fixtureOptionCatalogue, {
       actorId: 'player',
       actorKind: 'player',
       optionId: 'option-press-farquhar',
-      optionsVersion: live.version,
+      optionsVersion: offered.version,
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('option_unavailable')
+  })
+
+  it('allows a commit when an unrelated option disappears', () => {
+    const world = createFixtureWorld()
+    const offered = deriveOptions(world, fixtureOptionCatalogue)
+    applyAction(world, {
+      actorKind: 'agent',
+      actorId: 'agent-farquhar',
+      action: { type: 'move_room', toRoomId: 'room-tally-shed' },
+    })
+
+    const result = ledger().commit(world, fixtureOptionCatalogue, {
+      actorId: 'player',
+      actorKind: 'player',
+      optionId: 'option-sign-treaty',
+      optionsVersion: offered.version,
+    })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects an option whose submitted availability bit was unset', () => {
+    const world = createFixtureWorld()
+    shutTheHall(world)
+    const offered = deriveOptions(world, fixtureOptionCatalogue)
+    applyAction(world, {
+      actorKind: 'agent',
+      actorId: 'agent-farquhar',
+      action: { type: 'open_door', roomId: 'room-audience-hall' },
+    })
+
+    const result = ledger().commit(world, fixtureOptionCatalogue, {
+      actorId: 'player',
+      actorKind: 'player',
+      optionId: 'option-press-farquhar',
+      optionsVersion: offered.version,
+    })
+
+    expect(result).toEqual({ ok: false, reason: 'stale_option_set', detail: expect.any(String) })
+  })
+
+  it('rejects a version minted against a different catalogue', () => {
+    const world = createFixtureWorld()
+    const offered = deriveOptions(world, fixtureOptionCatalogue.slice(0, -1))
+    const result = ledger().commit(world, fixtureOptionCatalogue, {
+      actorId: 'player',
+      actorKind: 'player',
+      optionId: 'option-sign-treaty',
+      optionsVersion: offered.version,
+    })
+
+    expect(result).toEqual({ ok: false, reason: 'stale_option_set', detail: expect.any(String) })
+  })
+
+  it('hides evidence-gated options from other viewers and does not reveal the label', () => {
+    const option = {
+      id: 'option-read-tally',
+      label: 'Read the harbour master\u2019s secret tally',
+      preconditions: [
+        {
+          kind: 'knows_evidence' as const,
+          actorId: 'agent-harbour-master',
+          evidenceId: 'evidence-tally-book',
+        },
+      ],
+    }
+    const world = createFixtureWorld()
+    expect(deriveOptions(world, [option], 'agent-harbour-master').options).toEqual([
+      { id: option.id, label: option.label },
+    ])
+    expect(deriveOptions(world, [option], 'agent-temenggong').options).toEqual([])
+    expect(isHiddenFrom(option, 'agent-temenggong')).toBe(true)
+
+    const result = ledger().commit(world, [option], {
+      actorId: 'agent-temenggong',
+      actorKind: 'agent',
+      optionId: option.id,
+      optionsVersion: deriveOptions(world, [option], 'agent-temenggong').version,
+    })
+    expect(result).toEqual({
+      ok: false,
+      reason: 'unknown_option',
+      detail: expect.not.stringContaining(option.label),
+    })
+  })
+
+  it('parses long option masks without numeric bitmask overflow', () => {
+    const catalogue = Array.from({ length: 40 }, (_, index) => ({
+      id: `option-${index}`,
+      label: `Option ${index}`,
+      preconditions: [],
+    }))
+    const parsed = parseOptionsVersion(deriveOptions(createFixtureWorld(), catalogue).version)
+    expect(parsed?.bits.slice(0, 40)).toEqual(Array(40).fill(true))
   })
 
   it('accepts a commit against the live set, once', () => {
@@ -190,7 +284,13 @@ describe('agents decide by the player\u2019s rules', () => {
     // Temenggong's commit is evaluated against the set as it stands when it lands.
     const client = new FakeLlmClient({
       replies: [
-        JSON.stringify({ say: '', actions: [{ type: 'close_door', roomId: 'room-audience-hall' }] }),
+        JSON.stringify({
+          say: '',
+          actions: [
+            { type: 'close_door', roomId: 'room-audience-hall' },
+            { type: 'commit_decision', optionId: 'option-press-farquhar' },
+          ],
+        }),
         JSON.stringify({ say: '', actions: [{ type: 'commit_decision', optionId: 'option-press-farquhar' }] }),
       ],
     })
