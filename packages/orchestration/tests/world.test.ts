@@ -33,6 +33,69 @@ function closedDoorExchange(): WorldState {
 }
 
 describe('room-scoped visibility (K3)', () => {
+  it('delivers a player message only to its addressee', () => {
+    const world = createFixtureWorld()
+    applyAction(world, {
+      actorKind: 'player',
+      actorId: 'player',
+      action: {
+        type: 'speak',
+        roomId: 'room-audience-hall',
+        body: 'Temenggong, what would the treaty cost?',
+        addresseeId: 'agent-temenggong',
+      },
+    })
+
+    expect(buildAgentTurnInput(world, 'agent-temenggong', fixtureStageConfig, 3).playerMessage).toBe(
+      'Temenggong, what would the treaty cost?',
+    )
+    expect(buildAgentTurnInput(world, 'agent-farquhar', fixtureStageConfig, 3).playerMessage).toBeNull()
+  })
+
+  it('keeps an addressed player message until that agent answers', () => {
+    const world = createFixtureWorld()
+    applyAction(world, {
+      actorKind: 'player',
+      actorId: 'player',
+      action: {
+        type: 'speak',
+        roomId: 'room-audience-hall',
+        body: 'Temenggong, what would the treaty cost?',
+        addresseeId: 'agent-temenggong',
+      },
+    })
+    applyAction(world, speak('agent-farquhar', 'room-audience-hall', 'The Company is listening.'))
+    expect(buildAgentTurnInput(world, 'agent-temenggong', fixtureStageConfig, 3).playerMessage).toBe(
+      'Temenggong, what would the treaty cost?',
+    )
+
+    applyAction(world, speak('agent-temenggong', 'room-audience-hall', 'I will answer in time.'))
+    expect(buildAgentTurnInput(world, 'agent-temenggong', fixtureStageConfig, 3).playerMessage).toBeNull()
+  })
+
+  it('keeps ambient player speech visible without treating it as a player message', () => {
+    const world = createFixtureWorld()
+    applyAction(world, {
+      actorKind: 'player',
+      actorId: 'player',
+      action: {
+        type: 'speak',
+        roomId: 'room-audience-hall',
+        body: 'The river is unusually quiet today.',
+        addresseeId: null,
+      },
+    })
+
+    expect(buildAgentTurnInput(world, 'agent-temenggong', fixtureStageConfig, 3).playerMessage).toBeNull()
+    expect(buildAgentTurnInput(world, 'agent-farquhar', fixtureStageConfig, 3).playerMessage).toBeNull()
+    expect(visibleTranscript(world, 'agent-temenggong').map((line) => line.body)).toContain(
+      'The river is unusually quiet today.',
+    )
+    expect(visibleTranscript(world, 'agent-farquhar').map((line) => line.body)).toContain(
+      'The river is unusually quiet today.',
+    )
+  })
+
   it('an agent cannot recall a fact stated in a closed room it was absent from', () => {
     const world = closedDoorExchange()
     expect(visibleTranscript(world, 'agent-temenggong').map((line) => line.body)).toContain(SECRET_BEHIND_THE_DOOR)
@@ -128,6 +191,28 @@ function steppingClock(times: readonly number[]): () => number {
 }
 
 describe('autonomous tick (K4)', () => {
+  it('skips a configured agent that is absent from the world', async () => {
+    const world = createFixtureWorld()
+    const client = scriptedClient({ 'Temenggong Abdul Rahman': [say('I remain here.')] })
+    const config: StageConfig = {
+      ...fixtureStageConfig,
+      maxTicks: 1,
+      agents: {
+        'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']!,
+        'agent-ghost': {
+          privateContext: fixtureTemenggongPrivate,
+          relevant: true,
+        },
+      },
+    }
+
+    const { telemetry } = await runStage(client, world, config)
+
+    expect(telemetry.agentsTicked).toEqual(['agent-temenggong'])
+    expect(telemetry.agentsSkipped['agent-ghost']).toBe('not_in_world')
+    expect(world.transcript.some((line) => line.speakerId === 'agent-temenggong')).toBe(true)
+  })
+
   it('produces an agent-to-agent exchange and a world delta while the player is idle', async () => {
     const world = createFixtureWorld()
     const client = scriptedClient({
@@ -296,13 +381,111 @@ describe('budget rails (K5)', () => {
 
   it('stops the stage when the token ceiling is reached', async () => {
     const world = createFixtureWorld()
-    const { telemetry } = await runStage(chatty(), world, {
+    const client = chatty()
+    const { telemetry } = await runStage(client, world, {
       ...fixtureStageConfig,
       maxTicks: 6,
       tokenBudget: 1,
     })
     expect(telemetry.stoppedBy).toBe('token_budget')
     expect(telemetry.agentsTicked).toEqual(['agent-temenggong'])
+    expect(client.requests).toHaveLength(1)
+  })
+
+  it('never exceeds the stage-wide cap within one agent batch', async () => {
+    const world = createFixtureWorld()
+    const client = scriptedClient({
+      'Temenggong Abdul Rahman': [
+        say('One line.', [
+          { type: 'record_private_note', note: 'one' },
+          { type: 'record_private_note', note: 'two' },
+          { type: 'record_private_note', note: 'three' },
+        ]),
+      ],
+    })
+    const { telemetry } = await runStage(client, world, {
+      ...fixtureStageConfig,
+      maxTicks: 1,
+      agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
+      budget: { maxActions: 3, maxActionsPerActor: 10 },
+    })
+    expect(telemetry.totalActions).toBe(3)
+    expect(telemetry.stoppedBy).toBe('action_budget')
+  })
+
+  it('reports budget exhaustion when every remaining agent is out of actions', async () => {
+    const world = createFixtureWorld()
+    const client = scriptedClient({
+      'Temenggong Abdul Rahman': [say('One.'), say('Two.')],
+    })
+    const { telemetry } = await runStage(client, world, {
+      ...fixtureStageConfig,
+      maxTicks: 4,
+      agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
+      budget: { maxActions: 10, maxActionsPerActor: 1 },
+    })
+    expect(telemetry.stoppedBy).toBe('budget_exhausted')
+    expect(telemetry.agentsSkipped).toEqual({})
+  })
+
+  it('reports max ticks when configured with no ticks', async () => {
+    const world = createFixtureWorld()
+    const { telemetry } = await runStage(
+      new FakeLlmClient({ replies: [JSON.stringify({ say: '', actions: [{ type: 'yield' }] })] }),
+      world,
+      { ...fixtureStageConfig, maxTicks: 0 },
+    )
+    expect(telemetry.stoppedBy).toBe('max_ticks')
+    expect(telemetry.ticks).toBe(0)
+  })
+
+  it('does not count refusals from before the stage', async () => {
+    const world = createFixtureWorld()
+    applyAction(world, {
+      actorKind: 'player',
+      actorId: 'player',
+      action: { type: 'move_room', toRoomId: 'room-does-not-exist' },
+    })
+    const { telemetry } = await runStage(
+      new FakeLlmClient({ replies: [JSON.stringify({ say: '', actions: [{ type: 'yield' }] })] }),
+      world,
+      { ...fixtureStageConfig, maxTicks: 1 },
+    )
+    expect(telemetry.refusedActions).toBe(0)
+  })
+
+  it('ends early when every proposed action is refused', async () => {
+    const world = createFixtureWorld()
+    const { telemetry } = await runStage(
+      scriptedClient({
+        'Temenggong Abdul Rahman': [say('', [{ type: 'move_room', toRoomId: 'room-does-not-exist' }])],
+      }),
+      world,
+      {
+        ...fixtureStageConfig,
+        maxTicks: 5,
+        agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
+      },
+    )
+    expect(telemetry.ticks).toBe(1)
+    expect(telemetry.stoppedBy).toBe('all_yielded')
+    expect(telemetry.refusedActions).toBe(1)
+  })
+
+  it('lists an agent only in agentsTicked after it later exhausts its budget', async () => {
+    const world = createFixtureWorld()
+    const { telemetry } = await runStage(
+      scriptedClient({ 'Temenggong Abdul Rahman': [say('One.')] }),
+      world,
+      {
+        ...fixtureStageConfig,
+        maxTicks: 3,
+        agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
+        budget: { maxActions: 10, maxActionsPerActor: 1 },
+      },
+    )
+    expect(telemetry.agentsTicked).toEqual(['agent-temenggong'])
+    expect(telemetry.agentsSkipped).toEqual({})
   })
 
   it('gives each agent only its own private context across a whole run (FR-21)', async () => {

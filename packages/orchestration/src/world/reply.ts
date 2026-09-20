@@ -228,6 +228,7 @@ function deflect(
   degradedBy: 'rate_limit' | 'token_budget',
   mode: ReplyMode,
   attempt: number,
+  addresseeId: string | null,
 ): ReplyResult {
   const say = deflectionFor(input.self.name, input.playerMessage ?? '', attempt)
   return {
@@ -241,7 +242,7 @@ function deflect(
         {
           actorKind: 'agent',
           actorId: input.self.id,
-          action: { type: 'speak', roomId: input.room.id, body: say, addresseeId: null },
+          action: { type: 'speak', roomId: input.room.id, body: say, addresseeId },
         },
       ],
       dropped: [],
@@ -271,6 +272,7 @@ export async function replyToPlayer(
       'rate_limit',
       mode,
       options.inbox.nextDeflection(input.self.id),
+      options.speakerId ?? null,
     )
   }
   return answerNow(client, world, input, options, mode)
@@ -377,7 +379,15 @@ async function answerNow(
 ): Promise<ReplyResult> {
   const result: ReplyResult =
     mode === 'deflect'
-      ? deflect(input, 'token_budget', mode, options.inbox.nextDeflection(input.self.id))
+      ? deflect(
+          input,
+          'token_budget',
+          mode,
+          options.inbox.nextDeflection(input.self.id),
+          input.addressedBy?.length === 1
+            ? input.addressedBy[0]?.speakerId ?? null
+            : options.speakerId ?? null,
+        )
       : {
           source: 'model',
           mode,
