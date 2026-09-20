@@ -39,6 +39,11 @@ export interface TranscriptLine {
   body: string
 }
 
+/** A line the agent heard in some other room, earlier. Carries the room so recall stays honest. */
+export interface RecalledLine extends TranscriptLine {
+  roomName: string
+}
+
 export interface RoomView {
   id: string
   name: string
@@ -59,6 +64,8 @@ export interface AgentTurnInput {
   room: RoomView
   /** This room's transcript only (FR-11). Lines from rooms the agent was not in never appear. */
   transcript: readonly TranscriptLine[]
+  /** Earlier lines from other rooms this agent was standing in at the time (K3). */
+  recalled?: readonly RecalledLine[]
   /** What the player just said in this room, if anything. Untrusted text (FR-20). */
   playerMessage: string | null
   /** Actions the agent has left this stage (FR-12b). Zero means it should yield. */
@@ -79,12 +86,13 @@ export const agentActionProposalSchema = z.discriminatedUnion('type', [
 ])
 
 /**
- * The agent's structured reply. `say` is the in-room line; `actions` are *proposals* that still go
+ * The agent's structured reply. `say` is the in-room line, empty when the character stays silent;
+ * `actions` are *proposals* that still go
  * through the allow-list before the world executes any of them (FR-20). The model is never asked
  * for rationale: unspoken reasoning is exactly the thing that must not exist in a payload (FR-21).
  */
 export const agentReplySchema = z.object({
-  say: z.string().min(1).max(600),
+  say: z.string().max(600),
   actions: z.array(agentActionProposalSchema).max(3),
 })
 export type AgentReply = z.infer<typeof agentReplySchema>

@@ -88,6 +88,16 @@ export function buildAgentUserPrompt(input: AgentTurnInput): string {
     ),
   ]
 
+  const recalled = input.recalled ?? []
+  if (recalled.length > 0) {
+    sections.push(
+      block(
+        'WHAT YOU HEARD EARLIER, ELSEWHERE',
+        recalled.map((line) => `${line.roomName} — ${line.speakerName}: ${line.body}`).join('\n'),
+      ),
+    )
+  }
+
   if (playerMessage !== null) {
     sections.push(block('SPOKEN TO YOU JUST NOW', playerMessage))
   }

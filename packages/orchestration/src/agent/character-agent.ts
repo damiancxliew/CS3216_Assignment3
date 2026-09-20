@@ -31,6 +31,8 @@ export interface AgentTurnOptions {
   budget?: ActionBudget
   /** Actions this agent has already spent this stage (FR-12b). */
   spent?: number
+  /** Actions remaining across the whole stage (FR-12b). */
+  stageRemaining?: number
   metrics?: StructuredCallMetrics
 }
 
@@ -77,15 +79,17 @@ export async function runAgentTurn(
   }
 
   const { say, actions: proposals } = result.value
-  const spoken = { type: 'speak', roomId: input.room.id, body: say, addresseeId: null }
   // The spoken line is itself an action, so it is budgeted and allow-listed like any other and is
-  // never a privileged side channel.
-  const candidates = [spoken, ...proposals.filter((proposal) => proposal.type !== 'speak')]
+  // never a privileged side channel. A silent character proposes no line at all.
+  const spoken =
+    say.trim() === '' ? [] : [{ type: 'speak', roomId: input.room.id, body: say, addresseeId: null }]
+  const candidates = [...spoken, ...proposals.filter((proposal) => proposal.type !== 'speak')]
   const filtered = filterActions(
     candidates,
     { actorKind: 'agent', actorId: agentId },
     options.budget ?? DEFAULT_ACTION_BUDGET,
     options.spent ?? 0,
+    options.stageRemaining,
   )
 
   const saySurvived = filtered.actions.some((entry) => entry.action.type === 'speak')

@@ -62,6 +62,21 @@ structured-output path, then push every proposed action through the allow-list a
   line is itself a budgeted, allow-listed action rather than a privileged side channel.
 - **Degradation.** An unrepairable reply costs the agent its tick, not the turn: it yields.
 
+## Stage runtime (`src/world/`, K3–K5)
+
+`createWorld` / `applyAction` hold the server-authoritative state for one stage, and `runStage`
+ticks the stage-relevant agents over it while the player is elsewhere (FR-12a).
+
+- **Visibility is computed, not promised.** Every utterance carries a sequence number and presence
+  is stored as `[fromSeq, toSeq)` intervals, so `visibleTranscript` answers "could this actor have
+  heard this" from recorded facts. An agent that walks in afterwards gets nothing backfilled, and a
+  closed door blocks movement, which is what makes a room private (D7).
+- **Budget rails** (FR-12b): per-actor cap, stage-wide cap and a token ceiling. An agent that is
+  out of budget, or that the stage does not concern, is not called at all — `telemetry.agentsSkipped`
+  records which and why. `yield` is free.
+- `StageTelemetry` reports actions per actor, tokens, drops, refusals, degraded ticks, repair rate
+  and which cap ended the stage.
+
 ### LLM seam (`src/llm/`)
 
 The runtime talks to an `LlmClient`, so the whole suite still runs on `FakeLlmClient` with no key in
