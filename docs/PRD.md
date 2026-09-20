@@ -47,8 +47,9 @@ and makes decisions whose consequences are resolved probabilistically and carrie
 Unchanged from `specs.md` §3/§6. Concretely for the MVP:
 
 **Teacher:** sign in → create adventure → upload PDF/paste text + setting + learning objectives +
-student role → review the LLM-proposed **stage plan, stakeholders and personas** → edit/regenerate any
-element → preview as player → publish (immutable version) → share link → review attempts.
+**student age/reading level** + student role → review the LLM-proposed **stage plan, stakeholders
+and personas** → edit/regenerate any element → preview as player → publish (immutable version) →
+share link → review attempts.
 
 **Student:** open link → sign in → read role brief → spawn in stage 1 map → walk/click between rooms →
 chat with stakeholders (shared room chat; close the door for privacy) → collect evidence into the
@@ -84,6 +85,9 @@ Hard rules:
 
 - FR-1 Accept pasted text and text-based PDF; extract server-side, chunk with page references, store a
   content hash. Enforce size/token limits. Treat source text as untrusted data, not instructions.
+- FR-1a The teacher supplies the **student age/reading level** with the sources (`specs.md` §4.1). It
+  is a required field on the adventure, is part of the planner's input, and constrains dialogue
+  vocabulary, text length and how graphically conflict is depicted (FR-23).
 - FR-2 Planner LLM returns a **structured adventure spec**: setting summary, shared historical context,
   1–3 stages, 3–4 stakeholders with public position + private motivation + knowledge horizon, rooms per
   stage, evidence items with source spans, objectives, and per-stage decision options with branch targets.
@@ -177,14 +181,16 @@ Hard rules:
 - FR-21 No private NPC context, unrevealed events, or resolver rationale in any client payload.
 - FR-22 Rate limits and per-attempt token budget; latency of a dialogue call must not freeze movement
   or other UI.
-- FR-23 Age-appropriate conflict handling; content filter on generated dialogue and images.
+- FR-23 Age-appropriate conflict handling calibrated to the adventure's declared reading level
+  (FR-1a); content filter on generated dialogue and images.
 - FR-24 Telemetry: generation validity/repair rate, latency per stage, tokens and cost per completed
   adventure, completion/abandonment.
 
 ## 6. Data model (v2 sketch)
 
 ```
-adventure(id, owner_id, title, setting, status, published_version, content_hash, default_timer_seconds)
+adventure(id, owner_id, title, setting, learning_objectives, reading_level, student_role, status,
+          published_version, content_hash, default_timer_seconds)
 source(id, adventure_id, kind, title, storage_key, page_map)
 spec_version(id, adventure_id, version, json, generator_version, created_by)
 stage(id, spec_version_id, index, title, shared_context, timer_seconds, branch_map, ambient_overlay, overlay_intensity)  -- timer_seconds null = inherit adventure default, 0 = disabled

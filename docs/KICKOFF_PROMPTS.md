@@ -10,7 +10,7 @@ without colliding.
 How to use them:
 
 1. Start a session on `github.com/damiancxliew/CS3216_Assignment3`.
-2. Paste your prompt verbatim; edit the two placeholders (`<your branch>` and anything in `TODO:`).
+2. Paste your prompt verbatim — they are complete as written, nothing to fill in.
 3. Let it read `docs/PRD.md`, `docs/TEAM_PLAN.md` and `docs/EXECUTION_SPEC.md` **before** it writes
    code — the prompts already instruct this.
 4. One PR per task group, not one giant PR. Small PRs are how four people stay unblocked.
@@ -124,11 +124,15 @@ I own ingest, the generation pipeline and the evals. My tasks are D1-D8 in EXECU
 A task is done when its validation in that table passes.
 
 Start with, in this order:
-1. The I1 adventure spec v2 schema — the PoC's Blueprint v1 extended with stages[], rooms[],
-   agents[].privateContext, decisionOptions[].branchTarget, assetEligibility[] and ambientOverlay.
+1. The I1 adventure spec v2 schema — the successor to the PoC's Blueprint v1 (call it v2
+   everywhere), extended with stages[], rooms[], agents[].privateContext,
+   decisionOptions[].branchTarget, assetEligibility[] and ambientOverlay.
    This is the C0 critical path tonight: Kevin, Yi Hao and Damian all build against it. Commit one
    hand-authored valid spec as a fixture alongside it.
-2. D1 — PDF/text upload and server-side extraction with page-accurate source spans.
+2. D1 — PDF/text upload and server-side extraction with page-accurate source spans, plus the
+   student age/reading level as a required adventure field (FR-1a). It feeds the planner and
+   constrains vocabulary and how graphically conflict is depicted, so an adventure must not be
+   creatable without it.
 3. D3 — the planner prompt turning documents into a schema-valid spec.
 
 Non-negotiable constraints, from the PRD:
@@ -145,6 +149,10 @@ Non-negotiable constraints, from the PRD:
   the curated placeholder and the adventure stays playable. Prove it by stubbing the image service
   to fail and completing a full playthrough.
 - Source documents are untrusted input. They are delimited data, never promoted to instructions.
+
+Record the generation-side FR-24 metrics (D8): spec validity rate, repair rate, generation latency,
+tokens and cost per generated adventure. Damian owns the runtime-side metrics; do not duplicate
+them.
 
 The eval harness (D7) is worth real marks (M11) and is easy to leave until Thursday — do not. Get a
 runnable harness over 3 documents up by Tuesday, even a crude one, and grow it. Record validity
@@ -192,6 +200,9 @@ Non-negotiable constraints, from the PRD:
   player's decision is recorded as a pass and the Resolver resolves without them.
 - The ending/debrief must visually separate documented history (with citations) from simulated
   assumption, and show where the simulation diverged.
+- I own the runtime half of FR-24 (P11): latency per stage, tokens and cost per completed attempt,
+  completion and abandonment. M19's insight and M6's pricing are argued from these numbers, so they
+  have to be real. Di Heng owns the generation-side metrics.
 
 Do not touch: the Resolver/agent runtime, the Phaser renderer, or the generation pipeline. Stub what
 you need behind the frozen interfaces in EXECUTION_SPEC §2. Do not modify specs.md.

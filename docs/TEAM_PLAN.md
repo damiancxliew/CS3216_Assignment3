@@ -72,7 +72,8 @@ He built the PoC, so he owns the port.
   post-publish teacher review/regenerate.
 - **Eval harness**: a fixed set of 5–8 source documents, automated checks for spec validity, map
   playability, source-span grounding, and persona adherence; results table for the write-up.
-- Owns: FR-1 – FR-6, FR-24 (generation metrics).
+- Owns: FR-1, FR-1a, FR-2 – FR-6, and the **generation half of FR-24** (spec validity rate, repair
+  rate, tokens and cost per generated adventure).
 - Write-up: **M11, M12 (generation side), M21 (optional)**.
 
 ### Damian — Platform, teacher/student product surface, launch
@@ -88,6 +89,9 @@ He built the PoC, so he owns the port.
 - Student surface: adventure list, resume with recap, ending/debrief screen with the documented-history
   vs simulation-assumption split (FR-19).
 - Deployment on Vercel, env/secret management, analytics instrumented **on day 1** (M19 needs real data).
+- **Runtime half of FR-24**: latency per stage, tokens and cost per completed attempt, completion and
+  abandonment rates. Di Heng owns the generation-side metrics; these are the play-side ones and they
+  are what M19's insight and M6's pricing are argued from.
 - Landing page (hero / features / pricing, SEO + OG tags), Product Hunt kit, README, submission packaging.
 - Owns: FR-18, FR-19, FR-23, persistence and access control.
 - Write-up: **M0, M1, M2, M3, M4, M5, M6, M14, M18, M19, M20** — the product/GTM half. Kevin reviews.
@@ -104,8 +108,9 @@ He built the PoC, so he owns the port.
 
 These four contracts unblock everyone in parallel; agree them before writing code.
 
-1. **Adventure spec schema v1** (Di Heng ⇄ Kevin ⇄ Yi Hao) — the planner's output and the compiler's
-   input. Extend the PoC's Blueprint v1 with `stages[]`, `rooms[]`, `agents[].privateContext`,
+1. **Adventure spec v2** (Di Heng ⇄ Kevin ⇄ Yi Hao) — the planner's output and the compiler's
+   input; "v2" because it succeeds the PoC's Blueprint v1, and that is the name used everywhere
+   including `EXECUTION_SPEC.md` I1. Extend Blueprint v1 with `stages[]`, `rooms[]`, `agents[].privateContext`,
    `decisionOptions[].branchTarget`.
 2. **Map artifact schema** (Yi Hao) — the compiler's output consumed by renderer and server.
 3. **Turn API** (Kevin ⇄ Damian) — `POST /attempt/:id/message`, `POST /attempt/:id/decision`,
@@ -121,7 +126,7 @@ Put all four in `AGENTS.md` as the shared contract, with a stub implementation e
 
 | Day | Goal | Kevin | Yi Hao | Di Heng | Damian |
 | --- | --- | --- | --- | --- | --- |
-| **Sun 20** | Contracts frozen, repo scaffolded | Draft Resolver + agent prompt contracts; agent tick loop design | Scaffold Next.js monorepo; port `core.ts`; Phaser scene rendering the PoC map; freeze the overlay/effect id list | Spec schema v1 draft; upload + extraction spike | Supabase project, schema, auth, shared OpenAI key in Vercel env, deploy of an empty app + analytics |
+| **Sun 20** | Contracts frozen, repo scaffolded | Draft Resolver + agent prompt contracts; agent tick loop design | Scaffold Next.js monorepo; port `core.ts`; Phaser scene rendering the PoC map; freeze the overlay/effect id list | Adventure spec v2 draft + fixture; upload + extraction spike | Supabase project, schema, auth, shared OpenAI key in Vercel env, deploy of an empty app + analytics |
 | **Mon 21** | Vertical slice: one hardcoded stage playable end-to-end | Single agent answering in-room with private context | Finish Phaser port (tweened movement, camera follow, click-to-travel); rooms + doors in the compiler; chat panel against a stub API | Planner prompt → valid spec for one test document | Turn API wired to DB; attempt create/resume |
 | **Tue 22** | Generation → playable | Multi-agent + autonomous tick + Resolver updating decision options | Render a compiled generated map; decision panel | Repair loop, source spans, missing-info report; 3 test documents passing | Teacher console: upload, progress, stage editor |
 | **Wed 23** | Stages, consequences, endings | Stage resolution, probabilistic outcomes, branching, spectator; timer expiry → pass → resolve; Resolver emits `effects[]` | Stage transition as a Phaser scene swap with the effect catalogue + ambient overlays wired in; journal; accessible list | Asset generation + cache + placeholder fallback; eval harness v1 with results | Publish/versioning, sharing link, timer settings UI, ending/debrief screen |

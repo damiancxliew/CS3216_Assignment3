@@ -41,7 +41,7 @@ same night.
 
 | # | Contract | Author | Consumers | Stub required |
 | --- | --- | --- | --- | --- |
-| I1 | **Adventure spec v2** — planner output, compiler input. PoC Blueprint v1 + `stages[]`, `rooms[]`, `agents[].privateContext`, `decisionOptions[].branchTarget`, `assetEligibility[]`, `ambientOverlay` | Di Heng | Kevin, Yi Hao, Damian | One hand-authored valid spec committed as a fixture |
+| I1 | **Adventure spec v2** (the successor to the PoC's Blueprint v1 — always call it v2, never "schema v1") — planner output, compiler input. Blueprint v1 + `stages[]`, `rooms[]`, `agents[].privateContext`, `decisionOptions[].branchTarget`, `assetEligibility[]`, `ambientOverlay` | Di Heng | Kevin, Yi Hao, Damian | One hand-authored valid spec committed as a fixture |
 | I2 | **Map artifact** — compiler output, consumed by the renderer and the server | Yi Hao | Kevin, Damian | Compiled artifact for the I1 fixture |
 | I3 | **Turn API** — `POST /attempt/:id/message`, `POST /attempt/:id/decision`, `GET /attempt/:id/state`. Responses are always a *public projection* | Kevin ⇄ Damian | Yi Hao | Route handlers returning canned public state |
 | I4 | **Resolution payload** — structured outcome the Resolver writes and the DB stores, incl. `effects[]` from the frozen catalogue | Kevin | Damian, Yi Hao | Deterministic fake resolver returning a valid payload |
@@ -96,14 +96,14 @@ checkpoint; if it cannot be demonstrated or asserted by a test, it is not done.
 
 | # | Unit | Done when | Proof |
 | --- | --- | --- | --- |
-| D1 | Upload + extraction | PDF/text extracted server-side with page references and size limits | 3 real documents extract with page-accurate spans |
+| D1 | Upload + extraction | PDF/text extracted server-side with page references and size limits; **student age/reading level captured as a required adventure field** (FR-1a) | 3 real documents extract with page-accurate spans; an adventure cannot be created without a reading level |
 | D2 | Chunking + retrieval (pgvector) | Generated claims carry a source span | Spot-check: every evidence item resolves to a real page span in the source |
-| D3 | Planner → spec v2 | Documents produce a schema-valid spec | 5 documents ⇒ 5 valid specs after ≤1 repair round |
+| D3 | Planner → adventure spec v2 | Documents produce a schema-valid spec | 5 documents ⇒ 5 valid specs within the FR-4 budget of ≤2 repair round-trips |
 | D4 | Repair + missing-info report | Invalid output is repaired or reported, never silently accepted | Corrupted-output fixture produces a report rather than a publish |
 | D5 | Asset generation (D4/FR-6) | Only generation-eligible entities generate; ≤8 per adventure; prompt-hash cache | Test: a terrain request fails validation; a repeated subject is a cache hit; counter caps at 8 |
 | D6 | Non-blocking publish (FR-6a) | Pending/failed/filtered images fall back to the curated placeholder | Publish with the image service stubbed to fail ⇒ adventure still playable end to end |
 | D7 | Eval harness (M11) | 5–8 documents, automated checks for spec validity, playability, grounding, persona adherence | Results table committed, re-runnable with one command |
-| D8 | Generation metrics (FR-24) | Validity rate, repair rate, latency, tokens and cost per adventure recorded | Numbers in the M12 write-up come from this, not from estimates |
+| D8 | Generation metrics (FR-24, generation half) | Spec validity rate, repair rate, generation latency, tokens and cost per generated adventure recorded | Numbers in the M12 write-up come from this, not from estimates. Damian owns the runtime half (P11) |
 
 ### 3.4 Damian — Platform, product surface, launch
 
@@ -119,6 +119,7 @@ checkpoint; if it cannot be demonstrated or asserted by a test, it is not done.
 | P8 | Ending/debrief (FR-19) | Consequences, evidence, real history with citations, divergence, reflection questions | Documented history and simulated assumption are visually distinct |
 | P9 | Deploy + analytics **Sunday** | App on Vercel with analytics live on day 1 | Real events in the dashboard by Monday morning — M19 needs days, not hours |
 | P10 | Landing page, README, Product Hunt kit, packaging | Public URL with SEO/OG; submission bundle assembled | Link opens; OG preview renders; submission checklist complete |
+| P11 | Runtime telemetry (FR-24, runtime half) | Latency per stage, tokens and cost per completed attempt, completion and abandonment recorded | A completed attempt produces all four numbers; M19's insight and M6's pricing cite them |
 
 ---
 
