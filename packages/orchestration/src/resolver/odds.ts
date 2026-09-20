@@ -78,7 +78,7 @@ export function playerOdds(input: ResolverInput): Odds {
   if (input.decision === null) {
     return { base: PASS_PROBABILITY, modifiers: [], probability: PASS_PROBABILITY }
   }
-  const base = input.decision === null ? PASS_PROBABILITY : STANCE_BASE_PROBABILITY[input.decision.stance]
+  const base = STANCE_BASE_PROBABILITY[input.decision.stance]
   const meanDisposition =
     input.agents.length === 0 ? 0 : input.agents.reduce((sum, agent) => sum + agent.disposition, 0) / input.agents.length
   const modifiers: OddsModifier[] = [

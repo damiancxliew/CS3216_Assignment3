@@ -71,6 +71,7 @@ describe('K1 — deterministic fake resolver', () => {
     expect(record.trigger).toBe('timer_expiry')
     expect(record.outcome.next).toEqual(fixtureTimerExpiryInput.fallbackNext)
     expect(record.outcome.announcement).toContain('without your word')
+    expect(record.outcome.announcement).not.toContain('The course set the tone.')
     expect(record.rationale).toContain('stance=evasive')
     expect(record.outcome.effects.map((effect) => effect.id)).toEqual([
       record.rolls[0]?.success ? 'smoke' : 'crowd_flee',

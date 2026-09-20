@@ -98,7 +98,7 @@ function buildAnnouncement(input: ResolverInput, success: boolean, deltas: reado
     const head = success
       ? 'The stage closes without your word, and the other parties settle it in a way you can live with.'
       : 'The stage closes without your word, and the other parties settle it without you in mind.'
-    return `${head} ${largestModifierClause(odds, success)} ${reaction}`
+    return `${head} ${reaction}`
   }
   const head = success
     ? `You commit to: ${input.decision.label}. It carries.`
