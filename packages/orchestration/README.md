@@ -46,6 +46,29 @@ Scene effects are **not** actions: only the Resolver emits them, and they are co
 Changing either list is a group decision — the compiler, the renderer, the Turn API and the DB all
 encode them.
 
+## Character-agent runtime (`src/agent/`, K2)
+
+`runAgentTurn(client, input)` is one agent's tick: build the prompt, call the model through the
+structured-output path, then push every proposed action through the allow-list and the budget.
+
+- **Private-context isolation.** `AgentTurnInput` carries exactly one `privateContext` — the
+  agent's own — and the prompt builder reads no other source, so another character's motivations
+  have nowhere to enter from. Asserted in `tests/agent.test.ts`, on the request the client actually
+  received.
+- **Data is not instruction** (FR-20). Source text, transcripts and player messages are wrapped in
+  `<<<LABEL … >>>` blocks; the system prompt declares those blocks quoted material before any of it
+  is shown, and delimiters inside untrusted text are neutralised.
+- **Budget** (FR-12b). An agent with no actions left yields without making a call at all; the spoken
+  line is itself a budgeted, allow-listed action rather than a privileged side channel.
+- **Degradation.** An unrepairable reply costs the agent its tick, not the turn: it yields.
+
+### LLM seam (`src/llm/`)
+
+Nothing in this package imports the OpenAI SDK; the runtime talks to an `LlmClient`, so the whole
+suite runs on `FakeLlmClient` with no key in CI. Every call goes through `callStructured`, which
+validates against the response schema and repairs at most twice (FR-4/D14).
+`StructuredCallMetrics.repairRate` is the number M11/M12 ask for.
+
 ## Stubs
 
 `fakeResolver` / `resolveStageSync` (K1) resolve a stage from fixed inputs with no LLM, no clock and
