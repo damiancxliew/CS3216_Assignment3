@@ -101,6 +101,7 @@ export const agentActionProposalSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move_room'), toRoomId: id }),
   z.object({ type: z.literal('open_door'), roomId: id }),
   z.object({ type: z.literal('close_door'), roomId: id }),
+  z.object({ type: z.literal('knock'), roomId: id }),
   z.object({ type: z.literal('share_evidence'), roomId: id, evidenceId: id }),
   z.object({ type: z.literal('record_private_note'), note: z.string().min(1).max(600) }),
   // No `optionsVersion`: the runtime stamps the version of the list it actually showed this agent.

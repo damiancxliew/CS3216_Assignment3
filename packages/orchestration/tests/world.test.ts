@@ -12,7 +12,14 @@ import type { LlmRequest } from '../src/llm/types'
 import { findLeakedText } from '../src/privacy'
 import { ReplyInbox, ReplyRateLimiter, submitPlayerMessage } from '../src/world/reply'
 import { buildAgentTurnInput, runStage, type StageConfig } from '../src/world/stage-runtime'
-import { applyAction, visibleTranscript, type WorldState } from '../src/world/state'
+import {
+  applyAction,
+  createWorld,
+  validateWorldSeed,
+  visibleTranscript,
+  type WorldSeed,
+  type WorldState,
+} from '../src/world/state'
 
 const SECRET_BEHIND_THE_DOOR = 'The Dutch envoy is already ashore at Karimun.'
 
@@ -99,6 +106,106 @@ describe('room-scoped visibility (K3)', () => {
     })
     expect(world.evidenceKnown['agent-temenggong']).toEqual(['evidence-tally-book'])
     expect(world.evidenceKnown['agent-farquhar']).toEqual([])
+  })
+
+  it('a knock is heard only by occupants of the target room', () => {
+    const world = createFixtureWorld()
+    const result = applyAction(world, {
+      actorKind: 'agent',
+      actorId: 'agent-temenggong',
+      action: { type: 'knock', roomId: 'room-tally-shed' },
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(world.transcript).toEqual([
+      {
+        tick: 0,
+        seq: 1,
+        roomId: 'room-tally-shed',
+        speakerId: 'agent-temenggong',
+        speakerName: 'Temenggong Abdul Rahman',
+        body: 'Temenggong Abdul Rahman knocks.',
+      },
+    ])
+    expect(visibleTranscript(world, 'agent-harbour-master').map((line) => line.body)).toEqual([
+      'Temenggong Abdul Rahman knocks.',
+    ])
+    expect(visibleTranscript(world, 'agent-farquhar')).toEqual([])
+    expect(visibleTranscript(world, 'player')).toEqual([])
+    expect(visibleTranscript(world, 'agent-temenggong')).toEqual([])
+    expect(world.events.at(-1)).toMatchObject({ actorId: 'agent-temenggong', kind: 'knock', roomId: 'room-tally-shed' })
+
+    const playerResult = applyAction(world, {
+      actorKind: 'player',
+      actorId: 'player',
+      action: { type: 'knock', roomId: 'room-tally-shed' },
+    })
+    expect(playerResult).toEqual({ ok: true })
+    expect(visibleTranscript(world, 'agent-harbour-master').map((line) => line.body)).toEqual([
+      'Temenggong Abdul Rahman knocks.',
+      'You knocks.',
+    ])
+  })
+
+  it('refuses a knock on the actor\u2019s own or an unknown room', () => {
+    const world = createFixtureWorld()
+    const ownRoom = applyAction(world, {
+      actorKind: 'agent',
+      actorId: 'agent-temenggong',
+      action: { type: 'knock', roomId: 'room-audience-hall' },
+    })
+    const unknownRoom = applyAction(world, {
+      actorKind: 'player',
+      actorId: 'player',
+      action: { type: 'knock', roomId: 'room-nowhere' },
+    })
+
+    expect(ownRoom).toEqual({ ok: false, reason: 'cannot knock from inside your own room' })
+    expect(unknownRoom).toEqual({ ok: false, reason: 'no such room "room-nowhere"' })
+    expect(world.transcript).toEqual([])
+    expect(world.events.slice(-2)).toEqual([
+      {
+        tick: 0,
+        actorId: 'agent-temenggong',
+        kind: 'refused',
+        roomId: 'room-audience-hall',
+        detail: 'cannot knock from inside your own room',
+      },
+      {
+        tick: 0,
+        actorId: 'player',
+        kind: 'refused',
+        roomId: 'room-nowhere',
+        detail: 'no such room "room-nowhere"',
+      },
+    ])
+  })
+
+  it('rejects an empty closed room at seed construction', () => {
+    const seed: WorldSeed = {
+      rooms: [
+        { id: 'room-open', name: 'Open', description: '', doorOpen: true },
+        { id: 'room-sealed', name: 'Sealed', description: '', doorOpen: false },
+      ],
+      actors: [{ id: 'actor', name: 'Actor', publicRole: 'visitor', kind: 'agent' }],
+      placement: { actor: 'room-open' },
+    }
+
+    expect(validateWorldSeed(seed)).toEqual([
+      { roomId: 'room-sealed', detail: 'closed room "room-sealed" has no actor placed inside' },
+    ])
+    expect(() => createWorld(seed)).toThrow('room-sealed')
+  })
+
+  it('accepts a closed room with an occupant at seed construction', () => {
+    const seed: WorldSeed = {
+      rooms: [{ id: 'room-sealed', name: 'Sealed', description: '', doorOpen: false }],
+      actors: [{ id: 'actor', name: 'Actor', publicRole: 'visitor', kind: 'agent' }],
+      placement: { actor: 'room-sealed' },
+    }
+
+    expect(createWorld(seed).location).toEqual({ actor: 'room-sealed' })
+    expect(validateWorldSeed(seed)).toEqual([])
   })
 })
 
