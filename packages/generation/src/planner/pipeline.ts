@@ -42,6 +42,8 @@ export interface CallMetrics {
   issueCount: number
   schemaIssues: number
   groundingIssues: number
+  /** The issues fed back to the model after this call (first 40), kept for the eval write-up. */
+  issues: SpecIssue[]
 }
 
 /** D8 — generation metrics for one adventure. */
@@ -219,7 +221,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
     metrics.usage = addUsage(metrics.usage, response.usage)
     const callCost = estimateCostUsd(response.model, response.usage)
     metrics.costUsd = metrics.costUsd === null || callCost === null ? null : metrics.costUsd + callCost
-    const call: CallMetrics = { purpose, model: response.model, latencyMs: response.latencyMs, usage: response.usage, costUsd: callCost, issueCount: 0, schemaIssues: 0, groundingIssues: 0 }
+    const call: CallMetrics = { purpose, model: response.model, latencyMs: response.latencyMs, usage: response.usage, costUsd: callCost, issueCount: 0, schemaIssues: 0, groundingIssues: 0, issues: [] }
     metrics.calls.push(call)
 
     if (response.refusal !== null) {
@@ -230,6 +232,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
     if (response.json === null) {
       call.issueCount = 1
       const issue = { path: '$', message: 'output was not valid JSON' }
+      call.issues = [issue]
       if (attempt === config.maxRepairs) return finish({ status: 'failed', reason: 'unparseable', issues: [issue], missingInformation: [], lastOutput, metrics })
       userTurn = `${user}\n\n${buildRepairPrompt(lastOutput ?? '', [issue], attempt + 1, config.maxRepairs)}`
       continue
@@ -240,6 +243,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
     call.issueCount = candidate.issues.length
     call.schemaIssues = candidate.schemaIssues
     call.groundingIssues = candidate.groundingIssues
+    call.issues = candidate.issues.slice(0, 40)
 
     if (candidate.spec) {
       metrics.valid = true

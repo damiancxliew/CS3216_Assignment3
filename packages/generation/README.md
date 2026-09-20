@@ -85,6 +85,49 @@ selection; the Resolver (Kevin) emits `effects[]`. `privateContext` must never r
 span's `quote` against the extracted page text (whitespace/punctuation tolerant, no paraphrase).
 The fixture resolves 100%; the planner pipeline runs this on every generated spec.
 
+## D3/D4 — planner
+
+```ts
+import { generateAdventure, OpenAiLlmClient } from '@adventure/generation'
+
+const result = await generateAdventure({
+  teacher: { setting, learningObjectives, studentRole, readingLevel: { band: 'lower-secondary', ageMin: 13, ageMax: 14 }, stageCount: 3 },
+  documents,                     // ExtractedDocument[] from extractDocument()
+  llm: new OpenAiLlmClient(),    // or FakeLlmClient in tests
+})
+// result.status === 'ok'     -> { spec, missingInformation, warnings, metrics }
+// result.status === 'failed' -> { reason, issues[], missingInformation, lastOutput, metrics }  (never a spec)
+```
+
+- `readingLevel` is required on the teacher input; the run fails before any model call without it (FR-1a).
+- The planner returns the narrative half only. `version`, `id`, `sources` and `readingLevel` are merged in
+  server-side, so the model cannot invent a source or lower the reading level.
+- Validation = Zod shape → cross-references → span grounding against the extracted pages. Path-addressed
+  issues go back to the model for at most **2 repair turns** (FR-4); after that the run fails with the issues
+  and the `missingInformation` list for the teacher console.
+- Documents are sent as `<<<DOCUMENT>>>`/`<<<PAGE n>>>`-delimited data in the user turn, never in the system
+  prompt; delimiter lookalikes in the source are defanged (FR-20).
+- `metrics` (D8): attempts, repairs, per-call latency, tokens (input/cached/output/reasoning), cost from the
+  pricing table in [`src/llm/client.ts`](src/llm/client.ts).
+- Models: `DEFAULT_MODELS` in `src/llm/client.ts`, overridable with `LLM_MODEL_FRONTIER|MID|CHEAP`.
+
+Try it on a file: `OPENAI_API_KEY=… npm run generate -- path/to/doc.pdf --setting "…" --band upper-secondary`.
+
+## D7/D8 — eval harness
+
+```bash
+npm run eval                                   # all corpus cases, real model
+npm run eval -- --cases mason-1787 --effort low --label planner-v1-low
+npm run eval -- --fake                         # offline smoke run
+```
+
+Corpus in [`evals/corpus.ts`](evals/corpus.ts) (documents in `fixtures/eval-corpus/`), checks in
+[`evals/checks.ts`](evals/checks.ts), results in [`evals/RESULTS.md`](evals/RESULTS.md) (regenerated from
+every `evals/results/<label>/summary.json`). Per case: validity, repairs, latency, tokens, cost, grounding
+ratio, documented-vs-assumed share, branching (≥2 endings and a forking final stage), stance diversity,
+reading-level word budgets, asset rules, private-context leak, and playability (spec-level until the I2
+compiler is passed in via the `compile` hook). Across cases: max pairwise structural similarity (PRD §9.1).
+
 ## D1 — extraction
 
 [`src/ingest/extract.ts`](src/ingest/extract.ts): `extractDocument({ id, title, kind, bytes | text })`
