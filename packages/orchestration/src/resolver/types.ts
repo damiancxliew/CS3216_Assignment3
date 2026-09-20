@@ -80,7 +80,7 @@ const branchTargetSchema = z.discriminatedUnion('kind', [
 export const resolverInputSchema = z.object({
   attemptId: id,
   stageId: id,
-  seed: id,
+  seed: z.string().min(1).max(256),
   stageIndex: z.number().int().nonnegative(),
   resolvedAt: z.string().datetime(),
   trigger: z.enum(['decision', 'timer_expiry', 'stage_objective']),
