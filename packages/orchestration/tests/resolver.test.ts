@@ -121,6 +121,39 @@ describe('K1 — deterministic fake resolver', () => {
     expect(telemetry.droppedActions).toBe(1)
     expect(record.actions.some((a) => a.action.type === 'commit_decision')).toBe(false)
   })
+
+  it('drops an unknown action payload without rejecting the input', () => {
+    const { telemetry } = resolveStageSync({
+      ...fixtureResolverInput,
+      actions: [{ actorKind: 'agent', actorId: 'agent-temenggong', action: { type: 'unknown' } }] as unknown as ResolverInput['actions'],
+    })
+    expect(telemetry.droppedActions).toBe(1)
+  })
+
+  it('accepts timestamps with numeric offsets', () => {
+    expect(
+      resolveStageSync({
+        ...fixtureResolverInput,
+        resolvedAt: '2026-09-20T21:00:00+08:00',
+      }).record.resolvedAt,
+    ).toBe('2026-09-20T21:00:00+08:00')
+  })
+
+  it('rejects an overlong decision label at the input boundary', () => {
+    expect(() =>
+      resolveStageSync({
+        ...fixtureResolverInput,
+        decision: { ...fixtureResolverInput.decision!, label: 'x'.repeat(288) },
+      }),
+    ).toThrow(ResolverInputError)
+  })
+
+  it('caps accepted actions and counts output overflow as dropped', () => {
+    const actions = Array.from({ length: 300 }, () => fixtureResolverInput.actions[0]!)
+    const { record, telemetry } = resolveStageSync({ ...fixtureResolverInput, actions })
+    expect(record.actions).toHaveLength(256)
+    expect(telemetry.droppedActions).toBe(44)
+  })
 })
 
 describe('K8 — effects allow-list (FR-15b)', () => {
