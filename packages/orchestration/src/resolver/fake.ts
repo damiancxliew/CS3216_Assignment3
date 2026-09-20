@@ -49,16 +49,23 @@ function resolveNext(input: ResolverInput): NextStep {
 }
 
 function largestModifierClause(odds: Odds): string {
-  const largest = [...odds.modifiers].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0]
+  const largest = [...odds.modifiers].sort((a, b) => {
+    const magnitude = Math.abs(b.delta) - Math.abs(a.delta)
+    if (magnitude !== 0) return magnitude
+    const source = a.source.localeCompare(b.source)
+    if (source !== 0) return source
+    return (a.agentName ?? '').localeCompare(b.agentName ?? '')
+  })[0]
   if (largest === undefined) return 'The course set the tone.'
+  if (largest.delta === 0) return 'The course set the tone.'
   if (largest.source === 'disposition') {
     return largest.delta >= 0 ? "The room's standing carried weight." : "The room's standing told against you."
   }
   if (largest.source === 'evidence') return 'The papers you found carried it.'
-  if (largest.detail.endsWith(' backed the course')) {
-    return `${largest.detail.slice(0, -' backed the course'.length)}'s support carried the room.`
-  }
-  return `${largest.detail.slice(0, -' opposed the course'.length)}'s refusal cost you.`
+  if (largest.agentName === undefined) return 'The course set the tone.'
+  return largest.delta > 0
+    ? `${largest.agentName}'s support carried the room.`
+    : `${largest.agentName}'s refusal cost you.`
 }
 
 function buildAnnouncement(input: ResolverInput, success: boolean, deltas: readonly AgentDelta[], odds: Odds): string {

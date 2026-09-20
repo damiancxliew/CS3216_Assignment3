@@ -289,9 +289,34 @@ describe('K7 — explainable player odds', () => {
     const contribution = odds.modifiers
       .filter((modifier) => modifier.source === 'agent_stance')
       .reduce((sum, modifier) => sum + modifier.delta, 0)
+    const roundedContribution = odds.modifiers
+      .filter((modifier) => modifier.source === 'agent_stance')
+      .reduce((sum, modifier) => sum + Number(modifier.delta.toFixed(4)), 0)
+    const appliedContribution =
+      odds.probability -
+      odds.base -
+      odds.modifiers
+        .filter((modifier) => modifier.source !== 'agent_stance')
+        .reduce((sum, modifier) => sum + modifier.delta, 0)
 
     expect(contribution).toBeCloseTo(-0.15, 10)
+    expect(roundedContribution).toBeCloseTo(appliedContribution, 10)
     expect(Math.abs(contribution)).toBeLessThanOrEqual(0.15)
+  })
+
+  it('uses a neutral announcement clause when no modifier changes the odds', () => {
+    const input = {
+      ...fixtureResolverInput,
+      evidenceCollected: 0,
+      agents: fixtureResolverInput.agents.map((agent) => ({ ...agent, disposition: 0 })),
+    }
+    const { record } = resolveStageSync(input)
+
+    expect(record.outcome.announcement).toContain('The course set the tone.')
+    expect(record.outcome.announcement).not.toContain('standing')
+    expect(record.outcome.announcement).not.toContain('papers')
+    expect(record.outcome.announcement).not.toContain('refusal')
+    expect(record.outcome.announcement).not.toContain('support')
   })
 
   it('warms backing agents on success and hardens opposing agents, with the mirror on failure', () => {

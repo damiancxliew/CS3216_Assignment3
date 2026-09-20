@@ -11,6 +11,7 @@ export interface OddsModifier {
   source: ModifierSource
   detail: string
   delta: number
+  agentName?: string
 }
 
 export interface Odds {
@@ -57,11 +58,20 @@ function stanceModifiers(input: ResolverInput): OddsModifier[] {
 
   const total = raw.reduce((sum, entry) => sum + 0.04 * entry.alignment, 0)
   const scale = Math.abs(total) > 0.15 ? 0.15 / Math.abs(total) : 1
-  return raw.map(({ agent, alignment }) => ({
-    source: 'agent_stance',
+  const scaled = raw.map(({ agent, alignment }) => ({
+    source: 'agent_stance' as const,
     detail: `${agent.name} ${alignment > 0 ? 'backed' : 'opposed'} the course`,
-    delta: 0.04 * alignment * scale,
+    agentName: agent.name,
+    delta: round(0.04 * alignment * scale),
   }))
+  if (scale !== 1) {
+    const roundedTotal = scaled.reduce((sum, modifier) => sum + modifier.delta, 0)
+    const correction = round(round(Math.sign(total) * 0.15) - roundedTotal)
+    const last = scaled.length - 1
+    const modifier = scaled[last]
+    if (modifier !== undefined) modifier.delta = round(modifier.delta + correction)
+  }
+  return scaled
 }
 
 export function playerOdds(input: ResolverInput): Odds {
@@ -72,12 +82,12 @@ export function playerOdds(input: ResolverInput): Odds {
     {
       source: 'disposition',
       detail: `mean room standing ${meanDisposition}`,
-      delta: 0.03 * meanDisposition,
+      delta: round(0.03 * meanDisposition),
     },
     {
       source: 'evidence',
       detail: `${Math.min(input.evidenceCollected, 4)} evidence found`,
-      delta: 0.04 * Math.min(input.evidenceCollected, 4),
+      delta: round(0.04 * Math.min(input.evidenceCollected, 4)),
     },
     ...stanceModifiers(input),
   ]
