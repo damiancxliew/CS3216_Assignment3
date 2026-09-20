@@ -15,7 +15,7 @@ import { runAgentTurn, type AgentTurnResult } from '../agent/character-agent'
 import type { AgentPrivateContext, AgentPublicProfile, AgentTurnInput, RecalledLine, TranscriptLine } from '../agent/types'
 import { StructuredCallMetrics } from '../llm/structured'
 import type { LlmClient } from '../llm/types'
-import { advanceTick, applyAction, occupantsOf, visibleTranscript, type WorldState } from './state'
+import { advanceTick, applyAction, occupantsOf, visibleTranscript, type ApplyResult, type WorldState } from './state'
 
 export interface StageAgent {
   privateContext: AgentPrivateContext
@@ -50,14 +50,14 @@ export interface StageTelemetry {
   totalTokens: number
   agentsTicked: string[]
   /** Agents the stage never called, with why. Evidence that the rail did something. */
-  agentsSkipped: Record<string, 'not_stage_relevant' | 'budget_exhausted'>
+  agentsSkipped: Record<string, 'not_stage_relevant' | 'budget_exhausted' | 'not_in_world'>
   droppedActions: DroppedAction[]
   refusedActions: number
   degradedTicks: number
   /** Share of model calls that needed a repair round (M11/M12). */
   repairRate: number
   /** Which cap ended the stage, if one did. */
-  stoppedBy: 'max_ticks' | 'action_budget' | 'token_budget' | 'all_yielded'
+  stoppedBy: 'max_ticks' | 'action_budget' | 'token_budget' | 'budget_exhausted' | 'all_yielded'
 }
 
 export interface StageRunResult {
@@ -91,8 +91,21 @@ export function buildAgentTurnInput(
 
   const heard = visibleTranscript(world, agentId)
   const window = config.transcriptWindow ?? 12
-  const here: TranscriptLine[] = heard
+  const roomLines = heard
     .filter((line) => line.roomId === roomId)
+    .sort((left, right) => left.seq - right.seq)
+  const lastSelfSeq = roomLines
+    .filter((line) => line.speakerId === agentId)
+    .at(-1)?.seq ?? -Infinity
+  const playerMessage = [...roomLines]
+    .reverse()
+    .find(
+      (line) =>
+        line.seq > lastSelfSeq &&
+        line.addresseeId === agentId &&
+        world.actors[line.speakerId]?.kind === 'player',
+    )?.body ?? null
+  const here: TranscriptLine[] = roomLines
     .slice(-window)
     .map((line) => ({ speakerId: line.speakerId, speakerName: line.speakerName, body: line.body }))
   const recalled: RecalledLine[] = heard
@@ -104,10 +117,6 @@ export function buildAgentTurnInput(
       body: line.body,
       roomName: world.rooms[line.roomId]?.name ?? line.roomId,
     }))
-
-  const lastHere = here[here.length - 1]
-  const playerMessage =
-    lastHere !== undefined && world.actors[lastHere.speakerId]?.kind === 'player' ? lastHere.body : null
 
   return {
     self: toProfile(world, agentId),
@@ -163,11 +172,7 @@ export async function runStage(
     completionTokens: 0,
     totalTokens: 0,
     agentsTicked: [],
-    agentsSkipped: Object.fromEntries(
-      Object.entries(config.agents)
-        .filter(([, agent]) => !agent.relevant)
-        .map(([agentId]) => [agentId, 'not_stage_relevant' as const]),
-    ),
+    agentsSkipped: {},
     droppedActions: [],
     refusedActions: 0,
     degradedTicks: 0,
@@ -176,16 +181,34 @@ export async function runStage(
   }
 
   const turns: AgentTurnResult[] = []
+  const lastSkipReason: Record<string, 'not_stage_relevant' | 'budget_exhausted' | 'not_in_world'> =
+    Object.fromEntries(
+      Object.entries(config.agents)
+        .filter(([, agent]) => !agent.relevant)
+        .map(([agentId]) => [agentId, 'not_stage_relevant' as const]),
+    )
+  const tickedAgents = new Set<string>()
   const spent = (actorId: string): number => telemetry.actionsByActor[actorId] ?? 0
   const overTokenBudget = (): boolean =>
     config.tokenBudget !== undefined && telemetry.totalTokens >= config.tokenBudget
+
+  if (maxTicks <= 0) {
+    telemetry.stoppedBy = 'max_ticks'
+    return finish()
+  }
 
   for (let tick = 0; tick < maxTicks; tick += 1) {
     if (tick > 0) advanceTick(world)
     telemetry.ticks = tick + 1
     let acted = false
+    let called = false
+    let budgetSkipped = false
 
     for (const agentId of relevantIds) {
+      if (world.actors[agentId] === undefined || world.location[agentId] === undefined) {
+        lastSkipReason[agentId] = 'not_in_world'
+        continue
+      }
       if (overTokenBudget()) {
         telemetry.stoppedBy = 'token_budget'
         return finish()
@@ -200,33 +223,53 @@ export async function runStage(
         budget.maxActions - telemetry.totalActions,
       )
       if (remaining <= 0) {
-        telemetry.agentsSkipped[agentId] = 'budget_exhausted'
+        lastSkipReason[agentId] = 'budget_exhausted'
+        budgetSkipped = true
         continue
       }
 
       const input = buildAgentTurnInput(world, agentId, config, remaining)
-      const turn = await runAgentTurn(client, input, { budget, spent: spent(agentId), metrics })
+      const turn = await runAgentTurn(client, input, {
+        budget,
+        spent: spent(agentId),
+        stageRemaining: budget.maxActions - telemetry.totalActions,
+        metrics,
+      })
       turns.push(turn)
-      if (!telemetry.agentsTicked.includes(agentId)) telemetry.agentsTicked.push(agentId)
+      called = true
+      if (!tickedAgents.has(agentId)) {
+        tickedAgents.add(agentId)
+        telemetry.agentsTicked.push(agentId)
+      }
       telemetry.promptTokens += turn.usage.promptTokens
       telemetry.completionTokens += turn.usage.completionTokens
       telemetry.totalTokens = telemetry.promptTokens + telemetry.completionTokens
       telemetry.droppedActions.push(...turn.dropped)
       if (turn.degraded) telemetry.degradedTicks += 1
+      // A call may overshoot the ceiling; finish after applying that call, without starting another.
+      const tokenBudgetReached = overTokenBudget()
 
       for (const entry of turn.actions) {
-        const charged = chargeAndApply(world, entry)
-        if (charged) {
+        const result = chargeAndApply(world, entry)
+        if (entry.action.type !== 'yield') {
           telemetry.actionsByActor[agentId] = spent(agentId) + 1
           telemetry.totalActions += 1
-          acted = true
+          if (result.ok) acted = true
+          else telemetry.refusedActions += 1
         }
       }
-      telemetry.refusedActions = world.events.filter((event) => event.kind === 'refused').length
+      if (tokenBudgetReached) {
+        telemetry.stoppedBy = 'token_budget'
+        return finish()
+      }
     }
 
+    if (telemetry.totalActions >= budget.maxActions) {
+      telemetry.stoppedBy = 'action_budget'
+      return finish()
+    }
     if (!acted) {
-      telemetry.stoppedBy = 'all_yielded'
+      telemetry.stoppedBy = called || !budgetSkipped ? 'all_yielded' : 'budget_exhausted'
       return finish()
     }
     if (tick === maxTicks - 1) telemetry.stoppedBy = 'max_ticks'
@@ -235,14 +278,16 @@ export async function runStage(
   return finish()
 
   function finish(): StageRunResult {
+    telemetry.agentsSkipped = Object.fromEntries(
+      Object.entries(lastSkipReason).filter(([agentId]) => !tickedAgents.has(agentId)),
+    ) as StageTelemetry['agentsSkipped']
     telemetry.repairRate = metrics.repairRate
     return { world, turns, telemetry }
   }
 }
 
-/** Apply an action and report whether it costs budget. A yield is free (FR-12b); a refusal is not. */
-function chargeAndApply(world: WorldState, entry: ActorAction): boolean {
-  if (entry.action.type === 'yield') return false
-  applyAction(world, entry)
-  return true
+/** Apply one action. A yield is free (FR-12b); a refusal is not. */
+function chargeAndApply(world: WorldState, entry: ActorAction): ApplyResult {
+  if (entry.action.type === 'yield') return { ok: true }
+  return applyAction(world, entry)
 }
