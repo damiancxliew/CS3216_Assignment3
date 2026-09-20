@@ -51,6 +51,12 @@ Two things the schema enforces rather than the application:
   `attempt.stage_deadline_at`, held server-side; the client only renders a countdown
   derived from the server's `secondsRemaining`, so a refresh or a client clock change
   cannot buy extra time.
+- **Actor-kind-neutral decisions (D18/FR-14).** `stage_commitment` records one row per
+  actor per stage of an attempt — `actor_kind` is `player` or `agent`, and
+  `option_id is null` means a pass (declined, or the timer expired first). A stage
+  closes when every actor has a row; orchestration owns closure, this table is the
+  record. A client may read *that* an actor committed but never *what* they chose:
+  `option_id` is withheld at the column grant, not merely omitted by the API.
 
 ## Turn API (I3)
 
@@ -60,6 +66,11 @@ build tonight:
 - `GET /api/attempt/:id/state`
 - `POST /api/attempt/:id/message` — `{ roomId, body }`
 - `POST /api/attempt/:id/decision` — `{ optionId }`, `409` on a stale option
+
+State carries a `commitments` array — every actor that must commit before the stage
+closes, human or agent, with a `committed` boolean only. The stub ticks its agents as
+soon as the human is in rather than waiting the clock out, and records a pass for the
+player when the deadline passes.
 
 Every response is parsed through the public Zod schemas in
 `apps/web/src/lib/turn-api/contract.ts` before it is returned, and

@@ -9,6 +9,7 @@
  * (I4) behind the same response shapes.
  */
 import type {
+  PublicActorCommitment,
   PublicAttemptState,
   PublicEffect,
   PublicMessage,
@@ -24,6 +25,17 @@ const STUB_AGENT_GENERAL = "00000000-0000-4000-8000-000000000031";
 
 const STUB_TIMER_SECONDS = 600;
 
+const PLAYER_ACTOR_ID = "player";
+
+/** Canned agent votes, ticked as soon as the human is in (D18/FR-14). */
+const AGENT_VOTES: Record<string, { name: string; optionId: string | null }> = {
+  [STUB_AGENT_ENVOY]: { name: "Envoy Marisel", optionId: "option-abstain" },
+  [STUB_AGENT_GENERAL]: {
+    name: "General Orvan",
+    optionId: "option-support-blockade",
+  },
+};
+
 type StubAttempt = {
   createdAt: number;
   deadlineAt: number;
@@ -32,6 +44,8 @@ type StubAttempt = {
   announcements: { id: string; body: string; createdAt: string }[];
   pendingEffects: PublicEffect[];
   committedOptionId: string | null;
+  /** actor id → chosen option, or null for a pass. Never projected publicly. */
+  commitments: Map<string, string | null>;
   status: PublicAttemptState["status"];
 };
 
@@ -66,6 +80,7 @@ function seed(attemptId: string): StubAttempt {
     announcements: [],
     pendingEffects: [],
     committedOptionId: null,
+    commitments: new Map(),
     status: "active",
   };
   attempts.set(attemptId, attempt);
@@ -73,37 +88,79 @@ function seed(attemptId: string): StubAttempt {
 }
 
 function get(attemptId: string): StubAttempt {
-  return attempts.get(attemptId) ?? seed(attemptId);
+  const attempt = attempts.get(attemptId) ?? seed(attemptId);
+  enforceDeadline(attempt);
+  return attempt;
+}
+
+/**
+ * The deadline is server-held: once it passes, an actor that has not committed
+ * is recorded as a pass and the stage resolves without them (D12/FR-16). A
+ * refresh or a client clock change cannot postpone this.
+ */
+function enforceDeadline(attempt: StubAttempt) {
+  if (Date.now() < attempt.deadlineAt) return;
+  if (attempt.commitments.has(PLAYER_ACTOR_ID)) return;
+  attempt.commitments.set(PLAYER_ACTOR_ID, null);
+  tickAgents(attempt);
+  attempt.revision += 1;
+}
+
+/** Agents decide under the same rules as players; they are ticked immediately
+ *  once every human is in rather than waiting the clock out. */
+function tickAgents(attempt: StubAttempt) {
+  for (const [agentId, vote] of Object.entries(AGENT_VOTES)) {
+    if (!attempt.commitments.has(agentId)) {
+      attempt.commitments.set(agentId, vote.optionId);
+    }
+  }
+}
+
+function commitments(attempt: StubAttempt): PublicActorCommitment[] {
+  return [
+    {
+      actorKind: "player" as const,
+      actorId: PLAYER_ACTOR_ID,
+      actorName: "You",
+      committed: attempt.commitments.has(PLAYER_ACTOR_ID),
+    },
+    ...Object.entries(AGENT_VOTES).map(([agentId, vote]) => ({
+      actorKind: "agent" as const,
+      actorId: agentId,
+      actorName: vote.name,
+      committed: attempt.commitments.has(agentId),
+    })),
+  ];
 }
 
 function options(attempt: StubAttempt) {
   const talkedToGeneral = attempt.transcript.some(
     (m) => m.authorId === STUB_AGENT_GENERAL,
   );
+  const open = !attempt.commitments.has(PLAYER_ACTOR_ID);
+  const closedReason = "Your decision for this stage is already recorded.";
   return [
     {
       id: "option-support-blockade",
       label: "Vote for the blockade",
-      available: attempt.committedOptionId === null,
-      unavailableReason:
-        attempt.committedOptionId === null ? null : "The stage is already resolved.",
+      available: open,
+      unavailableReason: open ? null : closedReason,
     },
     {
       id: "option-broker-truce",
       label: "Broker a truce between the envoy and the general",
-      available: attempt.committedOptionId === null && talkedToGeneral,
-      unavailableReason: talkedToGeneral
-        ? attempt.committedOptionId === null
+      available: open && talkedToGeneral,
+      unavailableReason: open
+        ? talkedToGeneral
           ? null
-          : "The stage is already resolved."
-        : "You have not spoken to the general yet.",
+          : "You have not spoken to the general yet."
+        : closedReason,
     },
     {
       id: "option-abstain",
       label: "Abstain and keep listening",
-      available: attempt.committedOptionId === null,
-      unavailableReason:
-        attempt.committedOptionId === null ? null : "The stage is already resolved.",
+      available: open,
+      unavailableReason: open ? null : closedReason,
     },
   ];
 }
@@ -134,7 +191,11 @@ export function stubState(attemptId: string): PublicAttemptState {
           title: "Hear both delegations",
           met: attempt.transcript.some((m) => m.authorId === STUB_AGENT_GENERAL),
         },
-        { id: "objective-decide", title: "Cast your position", met: attempt.committedOptionId !== null },
+        {
+        id: "objective-decide",
+        title: "Cast your position",
+        met: attempt.commitments.has(PLAYER_ACTOR_ID),
+      },
       ],
     },
     timer: {
@@ -190,6 +251,7 @@ export function stubState(attemptId: string): PublicAttemptState {
       },
     ],
     options: options(attempt),
+    commitments: commitments(attempt),
     announcements: attempt.announcements,
     pendingEffects: attempt.pendingEffects,
     revision: attempt.revision,
@@ -247,6 +309,8 @@ export function stubCommitDecision(attemptId: string, optionId: string) {
 
   attempt.revision += 1;
   attempt.committedOptionId = optionId;
+  attempt.commitments.set(PLAYER_ACTOR_ID, optionId);
+  tickAgents(attempt);
 
   const announcement =
     optionId === "option-support-blockade"
@@ -286,6 +350,12 @@ export function stubCommitDecision(attemptId: string, optionId: string) {
     },
     state: stubState(attemptId),
   };
+}
+
+/** Test helper: move the server-held deadline into the past. */
+export function expireStubDeadline(attemptId: string) {
+  const attempt = attempts.get(attemptId) ?? seed(attemptId);
+  attempt.deadlineAt = Date.now() - 1;
 }
 
 /** Test helper: forget all canned attempts. */

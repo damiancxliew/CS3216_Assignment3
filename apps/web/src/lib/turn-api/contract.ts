@@ -92,6 +92,19 @@ export const publicTimerSchema = z.object({
   secondsRemaining: z.number().nullable(),
 });
 
+/**
+ * Decisions are actor-kind-neutral (D18/FR-14): agents commit or pass under the
+ * same rules as players, and the stage closes once every actor has. The client
+ * learns *that* an actor has committed so it can render "waiting on N", never
+ * *what* they chose — the choice is only revealed through the resolution.
+ */
+export const publicActorCommitmentSchema = z.object({
+  actorKind: z.enum(["player", "agent"]),
+  actorId: z.string(),
+  actorName: z.string(),
+  committed: z.boolean(),
+});
+
 export const publicStageSchema = z.object({
   id: z.string(),
   index: z.number(),
@@ -126,6 +139,8 @@ export const publicAttemptStateSchema = z.object({
     }),
   ),
   options: z.array(publicDecisionOptionSchema),
+  /** Every actor that must commit before this stage closes, players included. */
+  commitments: z.array(publicActorCommitmentSchema),
   announcements: z.array(
     z.object({ id: z.string(), body: z.string(), createdAt: z.string() }),
   ),
@@ -177,6 +192,7 @@ export const apiErrorSchema = z.object({
 
 export type PublicAttemptState = z.infer<typeof publicAttemptStateSchema>;
 export type PublicMessage = z.infer<typeof publicMessageSchema>;
+export type PublicActorCommitment = z.infer<typeof publicActorCommitmentSchema>;
 export type PublicEffect = z.infer<typeof publicEffectSchema>;
 export type MessageResponse = z.infer<typeof messageResponseSchema>;
 export type DecisionResponse = z.infer<typeof decisionResponseSchema>;

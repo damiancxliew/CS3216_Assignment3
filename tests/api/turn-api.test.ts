@@ -9,7 +9,7 @@ import {
   messageResponseSchema,
   publicAttemptStateSchema,
 } from "@/lib/turn-api/contract";
-import { resetStub } from "@/lib/turn-api/stub";
+import { expireStubDeadline, resetStub } from "@/lib/turn-api/stub";
 
 const ATTEMPT_ID = "attempt-under-test";
 const CHAMBER = "00000000-0000-4000-8000-000000000020";
@@ -115,6 +115,46 @@ describe("POST /api/attempt/:id/decision", () => {
     );
 
     expect(response.status).toBe(200);
+  });
+});
+
+describe("actor-kind-neutral decisions (D18/FR-14)", () => {
+  it("lists every actor that must commit, agents included", async () => {
+    const body = await (await getState(new Request("http://t/state"), params)).json();
+
+    expect(body.commitments.map((c: { actorKind: string }) => c.actorKind)).toEqual([
+      "player",
+      "agent",
+      "agent",
+    ]);
+    expect(
+      body.commitments.every((c: { committed: boolean }) => !c.committed),
+    ).toBe(true);
+  });
+
+  it("ticks the agents as soon as the human is in, and never reveals their choice", async () => {
+    const body = decisionResponseSchema.parse(
+      await (
+        await postDecision(
+          post("http://t/decision", { optionId: "option-abstain" }),
+          params,
+        )
+      ).json(),
+    );
+
+    expect(body.state.commitments.every((c) => c.committed)).toBe(true);
+    expect(JSON.stringify(body.state.commitments)).not.toContain("option-");
+  });
+
+  it("records a pass for an actor who has not committed when the timer expires", async () => {
+    expireStubDeadline(ATTEMPT_ID);
+    const body = publicAttemptStateSchema.parse(
+      await (await getState(new Request("http://t/state"), params)).json(),
+    );
+
+    expect(body.timer.secondsRemaining).toBe(0);
+    expect(body.commitments.every((c) => c.committed)).toBe(true);
+    expect(body.options.every((o) => !o.available)).toBe(true);
   });
 });
 

@@ -32,6 +32,8 @@ type Fixture = {
   roomMessageId: string;
   privateMessageId: string;
   resolutionId: string;
+  playerCommitmentId: string;
+  agentCommitmentId: string;
 };
 
 async function insert<T extends Record<string, unknown>>(
@@ -182,6 +184,22 @@ async function seedAdventure(title: string, teacherId: string, studentId: string
     rolls: { d100: 73 },
   });
 
+  const playerCommitment = await insert("stage_commitment", {
+    attempt_id: attempt.id,
+    stage_id: stage.id,
+    actor_kind: "player",
+    player_id: studentId,
+    option_id: decisionOption.id,
+  });
+
+  const agentCommitment = await insert("stage_commitment", {
+    attempt_id: attempt.id,
+    stage_id: stage.id,
+    actor_kind: "agent",
+    agent_id: agent.id,
+    option_id: decisionOption.id,
+  });
+
   return {
     teacherId,
     adventureId: adventure.id,
@@ -201,6 +219,8 @@ async function seedAdventure(title: string, teacherId: string, studentId: string
     roomMessageId: roomMessage.id,
     privateMessageId: privateMessage.id,
     resolutionId: resolution.id,
+    playerCommitmentId: playerCommitment.id,
+    agentCommitmentId: agentCommitment.id,
   } satisfies Fixture;
 }
 
@@ -346,6 +366,38 @@ describe("message", () => {
   it("is invisible across attempts", async () => {
     expect((await rows(studentB, "message", fixtureA.roomMessageId)).count).toBe(0);
     expect((await rows(teacherB, "message", fixtureA.roomMessageId)).count).toBe(0);
+  });
+});
+
+describe("stage_commitment (D18/FR-14)", () => {
+  it("shows player and agent commitments to the owning student and teacher only", async () => {
+    for (const id of [fixtureA.playerCommitmentId, fixtureA.agentCommitmentId]) {
+      expect((await rows(studentA, "stage_commitment", id)).count).toBe(1);
+      expect((await rows(teacherA, "stage_commitment", id)).count).toBe(1);
+      expect((await rows(studentB, "stage_commitment", id)).count).toBe(0);
+      expect((await rows(teacherB, "stage_commitment", id)).count).toBe(0);
+    }
+  });
+
+  it("never exposes which option an actor chose, even on your own attempt", async () => {
+    for (const client of [studentA, teacherA]) {
+      const { data, error } = await client
+        .from("stage_commitment")
+        .select("option_id")
+        .eq("attempt_id", fixtureA.attemptId);
+      expect(error).not.toBeNull();
+      expect(data ?? []).toHaveLength(0);
+    }
+  });
+
+  it("cannot be written by a client", async () => {
+    const { error } = await studentA.from("stage_commitment").insert({
+      attempt_id: fixtureA.attemptId,
+      stage_id: fixtureA.stageId,
+      actor_kind: "player",
+      player_id: fixtureA.studentId,
+    });
+    expect(error).not.toBeNull();
   });
 });
 
