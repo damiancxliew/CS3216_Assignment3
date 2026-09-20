@@ -288,10 +288,18 @@ export async function flushReplies(
   options: CoalescingOptions,
 ): Promise<{ agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[]> {
   const flushed: { agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[] = []
+  const overTokenBudget =
+    options.tokenBudget !== undefined && (options.tokensSpent ?? 0) >= options.tokenBudget
   for (const agentId of options.inbox.dueAgents(options.nowMs)) {
     const answered = options.inbox.drain(agentId, options.nowMs)
     if (answered.length === 0) continue
-    const reply = await answerNow(client, world, withMessages(inputFor(agentId), answered), options, false)
+    const reply = await answerNow(
+      client,
+      world,
+      withMessages(inputFor(agentId), answered),
+      options,
+      overTokenBudget,
+    )
     flushed.push({ agentId, reply, answered })
   }
   return flushed

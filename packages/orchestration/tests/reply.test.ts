@@ -160,6 +160,25 @@ describe('answering a human (FR-12b, revised)', () => {
     expect(client.requests).toHaveLength(2)
   })
 
+  it('holds the flush to the stage token ceiling too, so held messages are not a way past it', async () => {
+    const world = createFixtureWorld()
+    const client = new FakeLlmClient({ replies: [reply('unreachable')] })
+    const inbox = new ReplyInbox()
+    inbox.add('agent-temenggong', { speakerId: 'player-ann', speakerName: 'Ann', body: 'Will you sign?' })
+
+    const flushed = await flushReplies(client, world, () => askedInTheHall, {
+      limiter: new ReplyRateLimiter(),
+      inbox,
+      nowMs: 5_000,
+      tokenBudget: 100,
+      tokensSpent: 100,
+    })
+
+    expect(flushed[0]?.reply).toMatchObject({ source: 'deflection', degradedBy: 'token_budget' })
+    expect(client.requests).toHaveLength(0)
+    expect(flushed[0]?.reply.turn.say.trim()).not.toBe('')
+  })
+
   it('puts both speakers to the character and tells it to answer them together', async () => {
     const world = createFixtureWorld()
     const client = new FakeLlmClient({ replies: [reply('Ann, the Sultan says nothing yet. Bo, the dues stand.')] })
