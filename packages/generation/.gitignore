@@ -3,3 +3,4 @@ coverage/
 .env
 .env.local
 evals/results/*.local.*
+evals/results/manual/

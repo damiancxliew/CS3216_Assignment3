@@ -11,7 +11,8 @@
     "./spec": "./src/spec/index.ts",
     "./ingest": "./src/ingest/index.ts",
     "./planner": "./src/planner/index.ts",
-    "./fixtures": "./src/fixtures.ts"
+    "./fixtures": "./src/fixtures.ts",
+    "./llm": "./src/llm/index.ts"
   },
   "scripts": {
     "test": "vitest run",
