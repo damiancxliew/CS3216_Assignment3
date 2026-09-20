@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#262b29">
+    <title>Harbor Inquiry Atlas</title>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">Interactive cartographic prototype</p>
+          <h1 id="adventure-title">Harbor Inquiry Atlas</h1>
+          <p id="adventure-setting" class="setting-line"></p>
+        </div>
+        <div class="trust-labels" aria-label="Prototype disclosures">
+          <span>Authored simulation</span>
+          <span>No live AI</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="brief-strip" aria-labelledby="role-heading">
+          <div class="brief-mark" aria-hidden="true">I</div>
+          <div>
+            <p class="section-kicker">Your commission</p>
+            <h2 id="role-heading"><span id="player-name"></span>, <span id="player-role"></span></h2>
+            <p id="role-brief"></p>
+          </div>
+          <p id="adventure-description" class="brief-context"></p>
+        </section>
+
+        <section class="onboarding" aria-labelledby="onboarding-title">
+          <div>
+            <p class="section-kicker">Field instructions</p>
+            <h2 id="onboarding-title">Walk the map. Gather testimony. Make your recommendation.</h2>
+          </div>
+          <ol>
+            <li><strong>Move</strong> with WASD, arrow keys, or click a clear tile.</li>
+            <li><strong>Investigate</strong> with E/Enter near a marker, or use the accessible list.</li>
+            <li><strong>Decide</strong> after completing the required objectives.</li>
+          </ol>
+        </section>
+
+        <div class="workspace">
+          <section class="map-column" aria-labelledby="map-heading">
+            <article class="map-card">
+              <header class="panel-heading map-heading">
+                <div>
+                  <p class="section-kicker">Survey sheet</p>
+                  <h2 id="map-heading">The investigation map</h2>
+                </div>
+                <dl class="map-meta">
+                  <div><dt>Scene</dt><dd id="map-name"></dd></div>
+                  <div><dt>Map ID</dt><dd id="map-id"></dd></div>
+                </dl>
+              </header>
+              <div class="canvas-frame">
+                <canvas id="game-map" tabindex="0" aria-label="Interactive historical adventure map. Focus this map and use arrow keys or WASD to move; press E or Enter to interact.">
+                  Use the accessible interaction list beside the map to explore without Canvas controls.
+                </canvas>
+                <p class="canvas-hint">Click to travel · Focus map for keyboard controls</p>
+              </div>
+              <div class="legend" aria-label="Map legend">
+                <span><i class="legend-symbol player-symbol" aria-hidden="true"></i>Player</span>
+                <span><i class="legend-symbol npc-symbol" aria-hidden="true"></i>Person</span>
+                <span><i class="legend-symbol evidence-symbol" aria-hidden="true"></i>Evidence</span>
+                <span><i class="legend-symbol decision-symbol" aria-hidden="true"></i>Decision</span>
+                <span><i class="legend-swatch path-swatch" aria-hidden="true"></i>Path</span>
+                <span><i class="legend-swatch water-swatch" aria-hidden="true"></i>Water</span>
+              </div>
+            </article>
+
+            <div id="status" class="status-panel" role="status" aria-live="polite" aria-atomic="true"></div>
+
+            <article class="panel workshop" aria-labelledby="workshop-title">
+              <header class="panel-heading">
+                <div>
+                  <p class="section-kicker">Map workshop</p>
+                  <h2 id="workshop-title">Generate or import</h2>
+                </div>
+                <span class="local-label">Stays in this browser</span>
+              </header>
+              <div class="seed-row">
+                <label for="seed-input">Map seed</label>
+                <input id="seed-input" name="seed" type="text" autocomplete="off" spellcheck="false" maxlength="80">
+                <button id="generate-map" type="button">Generate map</button>
+              </div>
+              <label for="blueprint-json">Blueprint JSON</label>
+              <textarea id="blueprint-json" rows="8" spellcheck="false" aria-describedby="blueprint-help"></textarea>
+              <p id="blueprint-help" class="field-help">Import replaces the current adventure only after validation. Maximum size: 100KB.</p>
+              <div class="button-row">
+                <button id="import-blueprint" type="button">Import blueprint</button>
+                <button id="export-blueprint" class="secondary-button" type="button">Export blueprint</button>
+              </div>
+            </article>
+          </section>
+
+          <aside class="field-notes" aria-label="Investigation notes and controls">
+            <article class="panel objectives-panel" aria-labelledby="objectives-title">
+              <header class="panel-heading">
+                <div>
+                  <p class="section-kicker">Investigation</p>
+                  <h2 id="objectives-title">Objectives</h2>
+                </div>
+                <span id="objective-count" class="count-stamp"></span>
+              </header>
+              <p id="current-task" class="current-task"></p>
+              <ol id="objectives" class="objective-list"></ol>
+            </article>
+
+            <article class="panel interaction-panel" aria-labelledby="interaction-title">
+              <header class="panel-heading">
+                <div>
+                  <p class="section-kicker">Accessible route</p>
+                  <h2 id="interaction-title">Interaction list</h2>
+                </div>
+              </header>
+              <p class="panel-intro">These controls provide the same effects without map movement.</p>
+              <ul id="interaction-list" class="interaction-list"></ul>
+            </article>
+
+            <article class="panel decision-panel" aria-labelledby="decision-title">
+              <header class="panel-heading">
+                <div>
+                  <p class="section-kicker">Council table</p>
+                  <h2 id="decision-title">Final choice</h2>
+                </div>
+              </header>
+              <p id="decision-status" class="decision-status"></p>
+              <div id="decision-options" class="decision-options"></div>
+            </article>
+
+            <article class="panel journal-panel" aria-labelledby="journal-title">
+              <header class="panel-heading">
+                <div>
+                  <p class="section-kicker">Collected record</p>
+                  <h2 id="journal-title">Journal</h2>
+                </div>
+                <span id="journal-count" class="count-stamp"></span>
+              </header>
+              <ol id="journal" class="journal-list"></ol>
+            </article>
+          </aside>
+        </div>
+      </main>
+
+      <footer>
+        <p>This local prototype uses authored public content. Source labels describe blueprint declarations and do not verify historical accuracy.</p>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
