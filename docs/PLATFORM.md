@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node 20+
+- Node 22+ (`@supabase/supabase-js` needs the native `WebSocket` global)
 - Docker (for the local Supabase stack)
 - Supabase CLI (installed as a dev dependency, so `npx supabase` works)
 
