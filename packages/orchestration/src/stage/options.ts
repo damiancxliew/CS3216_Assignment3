@@ -224,8 +224,8 @@ export class StageDecisions {
         detail: `the options changed since "${submission.optionId}" was offered; re-read the option list`,
       }
     }
-    // Belt and braces: the version alone would catch this, but an option whose preconditions fail
-    // must never be committed even if some future change makes two states share a fingerprint.
+    // The mask says what was on the table when the actor read it; this says what is on the table
+    // now. An option whose preconditions have since failed must never be committed (FR-14).
     if (!isAvailable(world, definition)) {
       return {
         ok: false,
