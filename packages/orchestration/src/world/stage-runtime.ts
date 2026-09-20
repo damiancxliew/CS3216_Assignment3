@@ -140,7 +140,7 @@ export function buildAgentTurnInput(
     }))
 
   const decision = config.decision
-  const options = decision === undefined ? undefined : deriveOptions(world, decision.catalogue).options
+  const options = decision === undefined ? undefined : deriveOptions(world, decision.catalogue, agentId).options
   // Once every human is in, the stage waits on the characters alone; making the table sit out the
   // timer for them is bad play, so they are told to decide now.
   const mustDecide =
@@ -264,7 +264,9 @@ export async function runStage(
 
       const input = buildAgentTurnInput(world, agentId, config, remaining)
       const optionsVersion =
-        config.decision === undefined ? undefined : deriveOptions(world, config.decision.catalogue).version
+        config.decision === undefined
+          ? undefined
+          : deriveOptions(world, config.decision.catalogue, agentId).version
       const turn = await runAgentTurn(client, input, {
         budget,
         spent: spent(agentId),

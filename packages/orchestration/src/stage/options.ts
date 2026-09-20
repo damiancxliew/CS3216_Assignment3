@@ -42,8 +42,8 @@ export interface PublicOption {
 
 export interface OptionSet {
   /**
-   * Fingerprint of the available ids. Changes the instant the world changes the set, which is
-   * what makes a stale submission detectable without storing per-actor snapshots.
+   * Catalogue identity followed by a per-option availability mask. The mask is scoped to the
+   * viewer when one is supplied; without a viewer this is an omniscient server-internal view.
    */
   version: string
   options: PublicOption[]
@@ -70,10 +70,79 @@ export function isAvailable(world: WorldState, option: OptionDefinition): boolea
   return option.preconditions.every((precondition) => evaluatePrecondition(world, precondition))
 }
 
-/** Derive the live option set from world state. Pure: the same world always yields the same set. */
-export function deriveOptions(world: WorldState, catalogue: readonly OptionDefinition[]): OptionSet {
-  const available = catalogue.filter((option) => isAvailable(world, option))
-  const version = hashSeed(available.map((option) => option.id).join('|')).toString(16)
+/** Whether a viewer must not be shown an option because it depends on another actor's evidence. */
+export function isHiddenFrom(option: OptionDefinition, viewerId?: string): boolean {
+  if (viewerId === undefined) return false
+
+  const hiddenBy = (precondition: OptionPrecondition): boolean => {
+    switch (precondition.kind) {
+      case 'knows_evidence':
+        return precondition.actorId !== viewerId
+      case 'not':
+        return hiddenBy(precondition.precondition)
+      default:
+        return false
+    }
+  }
+
+  return option.preconditions.some(hiddenBy)
+}
+
+function catalogueFingerprint(catalogue: readonly OptionDefinition[]): string {
+  return hashSeed(catalogue.map((option) => option.id).join('|')).toString(16)
+}
+
+function availabilityMask(
+  world: WorldState,
+  catalogue: readonly OptionDefinition[],
+  viewerId?: string,
+): boolean[] {
+  return catalogue.map((option) => !isHiddenFrom(option, viewerId) && isAvailable(world, option))
+}
+
+function encodeMask(bits: readonly boolean[]): string {
+  const nibbleCount = Math.max(1, Math.ceil(bits.length / 4))
+  let encoded = ''
+  for (let nibbleIndex = 0; nibbleIndex < nibbleCount; nibbleIndex += 1) {
+    let nibble = 0
+    for (let bit = 0; bit < 4; bit += 1) {
+      if (bits[nibbleIndex * 4 + bit] === true) nibble |= 1 << bit
+    }
+    encoded += nibble.toString(16)
+  }
+  return encoded
+}
+
+/** Parse a catalogue fingerprint and per-option availability mask, or null when malformed. */
+export function parseOptionsVersion(version: string): { catalogueFingerprint: string; bits: boolean[] } | null {
+  const match = /^([0-9a-f]+):([0-9a-f]+)$/i.exec(version)
+  if (match === null) return null
+  const [, fingerprint, mask] = match
+  if (fingerprint === undefined || mask === undefined) return null
+
+  const bits: boolean[] = []
+  for (const nibble of mask.toLowerCase()) {
+    const value = Number.parseInt(nibble, 16)
+    for (let bit = 0; bit < 4; bit += 1) bits.push((value & (1 << bit)) !== 0)
+  }
+  return { catalogueFingerprint: fingerprint.toLowerCase(), bits }
+}
+
+/**
+ * Derive the live option set from world state. Pure: the same world and viewer always yield the
+ * same set. Omitting `viewerId` is an explicit omniscient server-internal view; no option is
+ * hidden in that mode.
+ */
+export function deriveOptions(
+  world: WorldState,
+  catalogue: readonly OptionDefinition[],
+  viewerId?: string,
+): OptionSet {
+  const available = catalogue.filter(
+    (option) => !isHiddenFrom(option, viewerId) && isAvailable(world, option),
+  )
+  const bits = availabilityMask(world, catalogue, viewerId)
+  const version = `${catalogueFingerprint(catalogue)}:${encodeMask(bits)}`
   return { version, options: available.map((option) => ({ id: option.id, label: option.label })) }
 }
 
@@ -131,8 +200,8 @@ export class StageDecisions {
       return { ok: false, reason: 'already_decided', detail: `"${submission.actorId}" has already decided` }
     }
 
-    const live = deriveOptions(world, catalogue)
-    if (live.version !== submission.optionsVersion) {
+    const parsed = parseOptionsVersion(submission.optionsVersion)
+    if (parsed === null || parsed.catalogueFingerprint !== catalogueFingerprint(catalogue)) {
       return {
         ok: false,
         reason: 'stale_option_set',
@@ -143,6 +212,17 @@ export class StageDecisions {
     const definition = catalogue.find((option) => option.id === submission.optionId)
     if (definition === undefined) {
       return { ok: false, reason: 'unknown_option', detail: `no option "${submission.optionId}"` }
+    }
+    if (isHiddenFrom(definition, submission.actorId)) {
+      return { ok: false, reason: 'unknown_option', detail: `no option "${submission.optionId}"` }
+    }
+    const optionIndex = catalogue.indexOf(definition)
+    if (parsed.bits[optionIndex] !== true) {
+      return {
+        ok: false,
+        reason: 'stale_option_set',
+        detail: `the options changed since "${submission.optionId}" was offered; re-read the option list`,
+      }
     }
     // Belt and braces: the version alone would catch this, but an option whose preconditions fail
     // must never be committed even if some future change makes two states share a fingerprint.
