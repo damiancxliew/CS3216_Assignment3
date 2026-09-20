@@ -254,10 +254,12 @@ export function filterActions(
   actor: { actorKind: ActorKind; actorId: string },
   budget: ActionBudget = DEFAULT_ACTION_BUDGET,
   spentByActor = 0,
+  stageRemaining = Number.POSITIVE_INFINITY,
 ): FilterResult {
   const actions: ActorAction[] = []
   const dropped: DroppedAction[] = []
   let spent = spentByActor
+  let stageSpent = 0
 
   for (const candidate of candidates) {
     const result = parseAction(candidate, actor.actorKind)
@@ -266,15 +268,21 @@ export function filterActions(
       continue
     }
     const costs = result.action.type !== 'yield'
-    if (costs && spent >= budget.maxActionsPerActor) {
+    if (costs && (spent >= budget.maxActionsPerActor || stageSpent >= stageRemaining)) {
       dropped.push({
         reason: 'budget_exhausted',
         type: result.action.type,
-        detail: `actor "${actor.actorId}" is at its cap of ${budget.maxActionsPerActor} actions for this stage`,
+        detail:
+          spent >= budget.maxActionsPerActor
+            ? `actor "${actor.actorId}" is at its cap of ${budget.maxActionsPerActor} actions for this stage`
+            : `stage is at its cap of ${stageRemaining} remaining actions`,
       })
       continue
     }
-    if (costs) spent += 1
+    if (costs) {
+      spent += 1
+      stageSpent += 1
+    }
     actions.push({ actorKind: actor.actorKind, actorId: actor.actorId, action: result.action })
   }
 

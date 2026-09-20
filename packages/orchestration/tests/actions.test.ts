@@ -131,6 +131,24 @@ describe('budget rails (FR-12b)', () => {
     expect(result.dropped[0]?.reason).toBe('budget_exhausted')
   })
 
+  it('caps a batch at the stage-wide remainder', () => {
+    const result = filterActions(
+      Array.from({ length: 3 }, (_, index) => ({
+        type: 'speak',
+        roomId: 'room-hall',
+        body: `Thought ${index}.`,
+        addresseeId: null,
+      })),
+      actor,
+      { maxActions: 10, maxActionsPerActor: 10 },
+      0,
+      2,
+    )
+    expect(result.actions).toHaveLength(2)
+    expect(result.dropped).toHaveLength(1)
+    expect(result.dropped[0]?.reason).toBe('budget_exhausted')
+  })
+
   it('reports a drop rate for telemetry (FR-24)', () => {
     const result = filterActions([{ type: 'yield' }, { type: 'teleport' }], actor)
     expect(result.dropRate).toBe(0.5)
