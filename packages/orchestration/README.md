@@ -64,10 +64,15 @@ structured-output path, then push every proposed action through the allow-list a
 
 ### LLM seam (`src/llm/`)
 
-Nothing in this package imports the OpenAI SDK; the runtime talks to an `LlmClient`, so the whole
-suite runs on `FakeLlmClient` with no key in CI. Every call goes through `callStructured`, which
-validates against the response schema and repairs at most twice (FR-4/D14).
+The runtime talks to an `LlmClient`, so the whole suite still runs on `FakeLlmClient` with no key in
+CI. Every call goes through `callStructured`, which validates against the response schema and
+repairs at most twice (FR-4/D14).
 `StructuredCallMetrics.repairRate` is the number M11/M12 ask for.
+
+`createOpenAiClient` is an opt-in Responses API adapter. It is inert when `OPENAI_API_KEY` is not
+set, so construction and tests remain key-free; a call made without the key raises
+`MissingApiKeyError`. Set `OPENAI_API_KEY` to enable the adapter, and keep `FakeLlmClient` as the
+default where deterministic behavior is required.
 
 ## Stubs
 
