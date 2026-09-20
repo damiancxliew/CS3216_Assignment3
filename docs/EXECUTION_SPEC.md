@@ -9,7 +9,8 @@ Deadline **Fri 25 Sep 2026, 23:59**. Feature freeze **Thu 24 Sep, 12:00**.
 Team: **Kevin** (orchestration), **Yi Hao** (game client + compiler), **Di Heng** (ingest +
 generation), **Damian** (platform + launch).
 
-Read the rules in §1 before picking up a task. Everything after that is a checklist.
+To start your slice, paste your prompt from [`KICKOFF_PROMPTS.md`](KICKOFF_PROMPTS.md) into your own
+session. Read the rules in §1 before picking up a task. Everything after that is a checklist.
 
 ---
 
