@@ -45,7 +45,26 @@ export function buildAgentSystemPrompt(input: AgentTurnInput): string {
     input.actionsRemaining <= 0
       ? '- You have no actions left this scene: propose only {"type":"yield"}.'
       : `- You have ${input.actionsRemaining} action(s) left this scene. Yield if nothing is worth doing.`,
+    ...decisionRules(input),
   ].join('\n')
+}
+
+/**
+ * Deciding is the same act for a character as for the player (D18 as revised): pick an id from the
+ * list, or pass. The model is never invited to invent an option, which is the whole point of
+ * options-only decisions.
+ */
+function decisionRules(input: AgentTurnInput): string[] {
+  const options = input.options ?? []
+  if (options.length === 0) return []
+  const rules = [
+    '- When you decide, you pick one of the listed options by its id and nothing else. You may not',
+    '  invent an option, reword one, or describe a different course of action as a decision.',
+  ]
+  if (input.mustDecide === true) {
+    rules.push('- Everyone else has decided. Decide now: commit to one option, or pass.')
+  }
+  return rules
 }
 
 /**
@@ -94,6 +113,16 @@ export function buildAgentUserPrompt(input: AgentTurnInput): string {
       block(
         'WHAT YOU HEARD EARLIER, ELSEWHERE',
         recalled.map((line) => `${line.roomName} — ${line.speakerName}: ${line.body}`).join('\n'),
+      ),
+    )
+  }
+
+  const options = input.options ?? []
+  if (options.length > 0) {
+    sections.push(
+      block(
+        'OPTIONS ON THE TABLE (pick by id, or pass)',
+        options.map((option) => `${option.id}: ${option.label}`).join('\n'),
       ),
     )
   }

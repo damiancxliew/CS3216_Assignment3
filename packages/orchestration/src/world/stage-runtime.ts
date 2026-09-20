@@ -15,6 +15,13 @@ import { runAgentTurn, type AgentTurnResult } from '../agent/character-agent'
 import type { AgentPrivateContext, AgentPublicProfile, AgentTurnInput, RecalledLine, TranscriptLine } from '../agent/types'
 import { StructuredCallMetrics } from '../llm/structured'
 import type { LlmClient } from '../llm/types'
+import {
+  deriveOptions,
+  type Decision,
+  type DecisionRejection,
+  type OptionDefinition,
+  type StageDecisions,
+} from '../stage/options'
 import { advanceTick, applyAction, occupantsOf, visibleTranscript, type ApplyResult, type WorldState } from './state'
 
 export interface StageAgent {
@@ -26,9 +33,20 @@ export interface StageAgent {
   relevant: boolean
 }
 
+/**
+ * The stage decision (K6). Agents decide by the player's rules, so the loop routes their
+ * `commit_decision` through the same ledger and the same staleness check a human's commit goes
+ * through; the options themselves are re-derived every tick from world state (FR-14).
+ */
+export interface StageDecisionConfig {
+  catalogue: readonly OptionDefinition[]
+  ledger: StageDecisions
+}
+
 export interface StageConfig {
   sharedContext: string
   stageBrief: string
+  decision?: StageDecisionConfig
   /** agentId -> per-stage configuration. Only agents listed here can act. */
   agents: Record<string, StageAgent>
   budget?: ActionBudget
@@ -56,8 +74,11 @@ export interface StageTelemetry {
   degradedTicks: number
   /** Share of model calls that needed a repair round (M11/M12). */
   repairRate: number
+  decisions: Decision[]
+  /** Decisions the ledger refused, with why. A stale commit is rejected, never applied (FR-14). */
+  rejectedDecisions: { actorId: string; reason: DecisionRejection }[]
   /** Which cap ended the stage, if one did. */
-  stoppedBy: 'max_ticks' | 'action_budget' | 'token_budget' | 'budget_exhausted' | 'all_yielded'
+  stoppedBy: 'max_ticks' | 'action_budget' | 'token_budget' | 'budget_exhausted' | 'all_yielded' | 'all_decided'
 }
 
 export interface StageRunResult {
@@ -118,6 +139,13 @@ export function buildAgentTurnInput(
       roomName: world.rooms[line.roomId]?.name ?? line.roomId,
     }))
 
+  const decision = config.decision
+  const options = decision === undefined ? undefined : deriveOptions(world, decision.catalogue, agentId).options
+  // Once every human is in, the stage waits on the characters alone; making the table sit out the
+  // timer for them is bad play, so they are told to decide now.
+  const mustDecide =
+    decision !== undefined && decision.ledger.humansDecided() && !decision.ledger.has(agentId)
+
   return {
     self: toProfile(world, agentId),
     privateContext: {
@@ -142,6 +170,8 @@ export function buildAgentTurnInput(
     recalled,
     playerMessage,
     actionsRemaining,
+    options,
+    mustDecide,
   }
 }
 
@@ -177,6 +207,8 @@ export async function runStage(
     refusedActions: 0,
     degradedTicks: 0,
     repairRate: 0,
+    decisions: [],
+    rejectedDecisions: [],
     stoppedBy: 'all_yielded',
   }
 
@@ -217,6 +249,8 @@ export async function runStage(
         telemetry.stoppedBy = 'action_budget'
         return finish()
       }
+      // An actor that has committed or passed is out of the stage.
+      if (config.decision?.ledger.has(agentId) === true) continue
 
       const remaining = Math.min(
         budget.maxActionsPerActor - spent(agentId),
@@ -229,11 +263,16 @@ export async function runStage(
       }
 
       const input = buildAgentTurnInput(world, agentId, config, remaining)
+      const optionsVersion =
+        config.decision === undefined
+          ? undefined
+          : deriveOptions(world, config.decision.catalogue, agentId).version
       const turn = await runAgentTurn(client, input, {
         budget,
         spent: spent(agentId),
         stageRemaining: budget.maxActions - telemetry.totalActions,
         metrics,
+        optionsVersion,
       })
       turns.push(turn)
       called = true
@@ -250,12 +289,15 @@ export async function runStage(
       const tokenBudgetReached = overTokenBudget()
 
       for (const entry of turn.actions) {
-        const result = chargeAndApply(world, entry)
+        const result = chargeAndApply(world, entry, config, telemetry)
         if (entry.action.type !== 'yield') {
           telemetry.actionsByActor[agentId] = spent(agentId) + 1
           telemetry.totalActions += 1
-          if (result.ok) acted = true
-          else telemetry.refusedActions += 1
+          if (result.ok || entry.action.type === 'commit_decision' || entry.action.type === 'pass') {
+            acted = true
+          } else {
+            telemetry.refusedActions += 1
+          }
         }
       }
       if (tokenBudgetReached) {
@@ -264,6 +306,10 @@ export async function runStage(
       }
     }
 
+    if (config.decision?.ledger.settled() === true) {
+      telemetry.stoppedBy = 'all_decided'
+      return finish()
+    }
     if (telemetry.totalActions >= budget.maxActions) {
       telemetry.stoppedBy = 'action_budget'
       return finish()
@@ -286,8 +332,37 @@ export async function runStage(
   }
 }
 
-/** Apply one action. A yield is free (FR-12b); a refusal is not. */
-function chargeAndApply(world: WorldState, entry: ActorAction): ApplyResult {
+/**
+ * Apply an action and report whether it costs budget. A yield is free (FR-12b); a refusal is not,
+ * and neither is a rejected decision — attempting is spending, or a stale commit would be a free
+ * retry loop.
+ */
+function chargeAndApply(
+  world: WorldState,
+  entry: ActorAction,
+  config: StageConfig,
+  telemetry: StageTelemetry,
+): ApplyResult {
   if (entry.action.type === 'yield') return { ok: true }
+
+  const decision = config.decision
+  if (decision !== undefined && (entry.action.type === 'commit_decision' || entry.action.type === 'pass')) {
+    const result =
+      entry.action.type === 'pass'
+        ? decision.ledger.pass(entry.actorId)
+        : decision.ledger.commit(world, decision.catalogue, {
+            actorId: entry.actorId,
+            actorKind: entry.actorKind,
+            optionId: entry.action.optionId,
+            optionsVersion: entry.action.optionsVersion,
+          })
+    if (result.ok) {
+      telemetry.decisions.push(result.decision)
+      return { ok: true }
+    }
+    telemetry.rejectedDecisions.push({ actorId: entry.actorId, reason: result.reason })
+    return { ok: false, reason: result.reason }
+  }
+
   return applyAction(world, entry)
 }

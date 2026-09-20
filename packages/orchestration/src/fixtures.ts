@@ -2,8 +2,10 @@
  * Canned inputs so every other slice can exercise I4 without an LLM, a database or the I1 spec.
  * The shape mirrors what the server will assemble from an Adventure Spec v2 stage.
  */
+import type { ActorKind } from './actions'
 import type { AgentPrivateContext, AgentPublicProfile, AgentTurnInput } from './agent/types'
 import type { ResolverInput } from './resolver/types'
+import type { OptionDefinition } from './stage/options'
 import { createWorld, type WorldState } from './world/state'
 import type { StageAgent, StageConfig } from './world/stage-runtime'
 
@@ -170,3 +172,37 @@ export const fixtureStageConfig: StageConfig = {
   stageBrief: fixtureAgentTurnInput.stageBrief,
   agents: fixtureStageAgents,
 }
+
+/* -------------------------------------------------------------------------- decisions (K6) */
+
+/**
+ * Options with preconditions that the fixture world can actually falsify: shutting the hall door
+ * or moving the Resident out is enough to take an option off the table, which is what the
+ * stale-option test needs.
+ */
+export const fixtureOptionCatalogue: OptionDefinition[] = [
+  {
+    id: 'option-sign-treaty',
+    label: 'Sign the treaty with the Temenggong',
+    preconditions: [{ kind: 'actors_together', actorId: 'player', otherActorId: 'agent-temenggong' }],
+  },
+  {
+    id: 'option-press-farquhar',
+    label: 'Press Farquhar to name the Company\u2019s figure in the open hall',
+    preconditions: [
+      { kind: 'actor_in_room', actorId: 'agent-farquhar', roomId: 'room-audience-hall' },
+      { kind: 'door_open', roomId: 'room-audience-hall', open: true },
+    ],
+  },
+  {
+    id: 'option-walk-away',
+    label: 'Leave the hall without agreeing to anything',
+    preconditions: [],
+  },
+]
+
+export const fixtureStageParticipants: { actorId: string; actorKind: ActorKind }[] = [
+  { actorId: 'player', actorKind: 'player' },
+  { actorId: 'agent-temenggong', actorKind: 'agent' },
+  { actorId: 'agent-farquhar', actorKind: 'agent' },
+]

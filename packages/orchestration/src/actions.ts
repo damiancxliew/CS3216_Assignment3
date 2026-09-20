@@ -11,8 +11,9 @@
  *      `filterActions` returns only the ones the world can execute, with a drop reason for each
  *      rejection so the drop rate is measurable (FR-24) instead of silent.
  *   2. **Decisions are options-only** (D18/FR-14). `commit_decision` carries an option id, never a
- *      free-text action, and only the player may emit it — an agent proposing one is dropped. Free
- *      text is `speak`: it is conversation, and it can only change which options exist.
+ *      free-text action. Free text is `speak`: it is conversation, and it can only change which
+ *      options exist. Any actor may decide — agents play by the player's rules here (revised
+ *      20 Sep, Kevin) — but only from the live option set, which `stage/options` enforces.
  *   3. **Scene effects are not actions.** Only the Resolver emits `effects[]` (FR-15b), and they
  *      are cosmetic; no entry in this list can be used to smuggle one in.
  */
@@ -26,12 +27,15 @@ export const AGENT_ACTION_TYPES = [
   'close_door',
   'share_evidence',
   'record_private_note',
+  'commit_decision',
+  'pass',
   'yield',
 ] as const
 export type AgentActionType = (typeof AGENT_ACTION_TYPES)[number]
 
-/** Actions the player may take. The player is modelled as another agent (D2/D17); the stage
- * decision is the one thing only they can do (D18), and `pass` is what the timer records for them
+/** Actions the player may take. The player is modelled as another agent (D2/D17), and the engine
+ * keeps that abstraction whole: the only asymmetry left is `record_private_note`, which exists
+ * because a model has no memory between ticks and a human does. `pass` is what the timer records
  * on expiry (D12/FR-16). */
 export const PLAYER_ACTION_TYPES = [
   'speak',
@@ -105,13 +109,17 @@ export const recordPrivateNoteActionSchema = z.object({
   note: z.string().trim().min(1).max(600),
 })
 
-/** The stage decision (D18/FR-14): an id from the Resolver-maintained option list, nothing else. */
+/** The stage decision (D18/FR-14): an id from the Resolver-maintained option list, nothing else.
+ * `optionsVersion` is the version of the option set the actor was looking at; a commit carrying a
+ * stale version is rejected rather than applied (FR-14). */
 export const commitDecisionActionSchema = z.object({
   type: z.literal('commit_decision'),
   optionId: id,
+  optionsVersion: z.string().min(1).max(64),
 })
 
-/** Recorded for the player when the stage timer expires (D12/FR-16): not deciding is a decision. */
+/** Declining the stage decision. Recorded for any actor that has not decided when the timer
+ * expires (D12/FR-16): not deciding is a decision. */
 export const passActionSchema = z.object({
   type: z.literal('pass'),
 })

@@ -10,6 +10,7 @@
 import { z } from 'zod'
 
 import { AGENT_ACTION_TYPES } from '../actions'
+import type { PublicOption } from '../stage/options'
 
 export interface AgentPublicProfile {
   id: string
@@ -70,6 +71,14 @@ export interface AgentTurnInput {
   playerMessage: string | null
   /** Actions the agent has left this stage (FR-12b). Zero means it should yield. */
   actionsRemaining: number
+  /**
+   * The decision options live right now (K6). Agents decide under the player's rules, so they see
+   * the same list and the same labels; the version is stamped on their commit by the runtime, not
+   * by the model, so a stale commit is caught rather than invented.
+   */
+  options?: readonly PublicOption[] | undefined
+  /** Every human has decided: the stage is waiting on this agent alone, so it must decide now. */
+  mustDecide?: boolean
 }
 
 /** The action shapes an agent may propose, as a structured-output schema. */
@@ -82,6 +91,9 @@ export const agentActionProposalSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('close_door'), roomId: id }),
   z.object({ type: z.literal('share_evidence'), roomId: id, evidenceId: id }),
   z.object({ type: z.literal('record_private_note'), note: z.string().min(1).max(600) }),
+  // No `optionsVersion`: the runtime stamps the version of the list it actually showed this agent.
+  z.object({ type: z.literal('commit_decision'), optionId: id }),
+  z.object({ type: z.literal('pass') }),
   z.object({ type: z.literal('yield') }),
 ])
 
