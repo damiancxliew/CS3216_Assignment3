@@ -9,6 +9,8 @@ import {
   fixtureStageParticipants,
   fixtureTemenggongPrivate,
 } from '../src/fixtures'
+import { buildAgentPrompt } from '../src/agent/prompt'
+import { filterActions } from '../src/actions'
 import { FakeLlmClient } from '../src/llm/fake'
 import type { LlmRequest } from '../src/llm/types'
 import { findLeakedText } from '../src/privacy'
@@ -211,6 +213,24 @@ describe('room-scoped visibility (K3)', () => {
       'Temenggong Abdul Rahman knocks.',
       'You knocks.',
     ])
+  })
+
+  it('shows only public knock targets and preserves a listed target through filtering', () => {
+    const world = createFixtureWorld()
+    const input = buildAgentTurnInput(world, 'agent-temenggong', fixtureStageConfig, 3)
+    const prompt = buildAgentPrompt(input).user
+    expect(input.knockTargets).toEqual([{ id: 'room-tally-shed', name: 'Tally shed' }])
+    expect(prompt).toContain('Only valid knock targets: room-tally-shed (Tally shed)')
+    expect(prompt).not.toContain('The harbour master')
+
+    const filtered = filterActions(
+      [{ type: 'knock', roomId: 'room-tally-shed' }],
+      { actorKind: 'agent', actorId: 'agent-temenggong' },
+    )
+    expect(filtered.dropped).toEqual([])
+    expect(filtered.actions).toHaveLength(1)
+    expect(applyAction(world, filtered.actions[0]!)).toEqual({ ok: true })
+    expect(world.events.at(-1)).toMatchObject({ kind: 'knock', roomId: 'room-tally-shed' })
   })
 
   it('refuses a knock on the actor\u2019s own or an unknown room', () => {

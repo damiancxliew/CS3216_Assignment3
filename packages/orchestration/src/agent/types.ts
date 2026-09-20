@@ -70,6 +70,8 @@ export interface AgentTurnInput {
   /** Current stage brief, as the characters would understand it. */
   stageBrief: string
   room: RoomView
+  /** Public room ids and names the agent may target with a knock; no other room state is included. */
+  knockTargets?: readonly { id: string; name: string }[]
   /** This room's transcript only (FR-11). Lines from rooms the agent was not in never appear. */
   transcript: readonly TranscriptLine[]
   /** Earlier lines from other rooms this agent was standing in at the time (K3). */
