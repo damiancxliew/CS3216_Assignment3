@@ -37,8 +37,8 @@ reason, never executed and never fatal to the turn.
 | `open_door` / `close_door` | ✓ | ✓ | `roomId` — privacy is a door, not a flag (D7) |
 | `share_evidence` | ✓ | ✓ | `roomId`, `evidenceId` |
 | `record_private_note` | ✓ | — | `note` — agent memory; server-side only (FR-21) |
-| `commit_decision` | — | ✓ | `optionId` — options-only, never free text (D18/FR-14) |
-| `pass` | — | ✓ | recorded by the server on timer expiry (D12/FR-16) |
+| `commit_decision` | ✓ | ✓ | `optionId`, `optionsVersion` — options-only, never free text (D18/FR-14) |
+| `pass` | ✓ | ✓ | also recorded by the server on timer expiry (D12/FR-16) |
 | `yield` | ✓ | ✓ | idle; costs no budget (FR-12b) |
 
 Scene effects are **not** actions: only the Resolver emits them, and they are cosmetic (FR-15b).
@@ -76,6 +76,20 @@ ticks the stage-relevant agents over it while the player is elsewhere (FR-12a).
   records which and why. `yield` is free.
 - `StageTelemetry` reports actions per actor, tokens, drops, refusals, degraded ticks, repair rate
   and which cap ended the stage.
+
+## Options and the stage decision (`src/stage/options.ts`, K6)
+
+An option is a label plus preconditions drawn from a closed set of comparisons (`actor_in_room`,
+`actors_together`, `door_open`, `knows_evidence`, `not`), so authored data can never execute.
+Availability is never stored: `deriveOptions` recomputes the live set — and a fingerprint of it —
+from world state, and `StageDecisions.commit` checks a submission against a set derived at the
+moment it lands. A commit naming an option the world has moved past is rejected with a reason and
+changes nothing (FR-14). Clients and agents see ids and labels only; preconditions stay server-side.
+
+Decisions are actor-kind-neutral (revised 20 Sep): an agent commits or passes by exactly the rules a
+player does, through the same ledger. The stage ends when everyone has decided (`all_decided`) or
+when `expire()` passes for whoever is left on the timer; once every human is in, the remaining
+agents are told to decide on their next tick rather than making the table wait out the clock.
 
 ### LLM seam (`src/llm/`)
 

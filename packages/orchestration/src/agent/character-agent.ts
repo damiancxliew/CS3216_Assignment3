@@ -32,6 +32,18 @@ export interface AgentTurnOptions {
   /** Actions this agent has already spent this stage (FR-12b). */
   spent?: number
   metrics?: StructuredCallMetrics
+  /** Version of the option set this agent was shown. Stamped onto any decision it proposes (K6). */
+  optionsVersion?: string | undefined
+}
+
+/**
+ * Stamp the option-set version the agent was actually shown onto its decision. The model never
+ * supplies it: a version it invented would make the staleness check meaningless, and a version it
+ * copied from the prompt would only be the same value by a longer route.
+ */
+function stamp(proposal: { type: string }, options: AgentTurnOptions): unknown {
+  if (proposal.type !== 'commit_decision') return proposal
+  return { ...proposal, optionsVersion: options.optionsVersion ?? '' }
 }
 
 function yieldTurn(agentId: string, partial: Partial<AgentTurnResult> = {}): AgentTurnResult {
@@ -81,7 +93,10 @@ export async function runAgentTurn(
   // never a privileged side channel. A silent character proposes no line at all.
   const spoken =
     say.trim() === '' ? [] : [{ type: 'speak', roomId: input.room.id, body: say, addresseeId: null }]
-  const candidates = [...spoken, ...proposals.filter((proposal) => proposal.type !== 'speak')]
+  const candidates = [
+    ...spoken,
+    ...proposals.filter((proposal) => proposal.type !== 'speak').map((proposal) => stamp(proposal, options)),
+  ]
   const filtered = filterActions(
     candidates,
     { actorKind: 'agent', actorId: agentId },
