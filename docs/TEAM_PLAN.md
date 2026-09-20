@@ -64,6 +64,9 @@ He built the PoC, so he owns the port.
 - Auth (Google sign-in), adventure sharing links, publish/immutable versioning.
 - Teacher console: upload form, generation progress, stage/stakeholder editor, targeted regeneration,
   preview-as-player, publish.
+- Adventure settings incl. **per-stage timer length** (adventure-wide default, per-stage override,
+  disable per stage — PRD D12/FR-16). The deadline is server-held on `attempt.stage_deadline_at`; the
+  client only renders the countdown, so a refresh or a clock fiddle cannot buy time.
 - Student surface: adventure list, resume with recap, ending/debrief screen with the documented-history
   vs simulation-assumption split (FR-19).
 - Deployment on Vercel, env/secret management, analytics instrumented **on day 1** (M19 needs real data).
@@ -102,7 +105,7 @@ Put all four in `AGENTS.md` as the shared contract, with a stub implementation e
 | **Sun 20** | Contracts frozen, repo scaffolded | Draft Resolver + agent prompt contracts; answer open decisions 2 & 5 | Scaffold Next.js monorepo; port `core.ts`; Phaser scene rendering the PoC map | Spec schema v1 draft; upload + extraction spike | Supabase project, schema, auth, Vercel deploy of an empty app + analytics |
 | **Mon 21** | Vertical slice: one hardcoded stage playable end-to-end | Single agent answering in-room with private context | Finish Phaser port (tweened movement, camera follow, click-to-travel); rooms + doors in the compiler; chat panel against a stub API | Planner prompt → valid spec for one test document | Turn API wired to DB; attempt create/resume |
 | **Tue 22** | Generation → playable | Multi-agent + Resolver updating decision options | Render a compiled generated map; decision panel | Repair loop, source spans, missing-info report; 3 test documents passing | Teacher console: upload, progress, stage editor |
-| **Wed 23** | Stages, consequences, endings | Stage resolution, probabilistic outcomes, branching, spectator | Stage transition as a Phaser scene swap; journal; accessible list | Asset generation + cache; eval harness v1 with results | Publish/versioning, sharing link, ending/debrief screen |
+| **Wed 23** | Stages, consequences, endings | Stage resolution, probabilistic outcomes, branching, spectator; timer expiry → pass → resolve | Stage transition as a Phaser scene swap; journal; accessible list | Asset generation + cache; eval harness v1 with results | Publish/versioning, sharing link, timer settings UI, ending/debrief screen |
 | **Thu 24** | Freeze + polish | Prompt-injection tests, token budget, latency pass | UI polish, Playwright happy path | Eval results table + a second full document set | Landing page, README, analytics screenshots |
 | **Fri 25** | Submit by 23:59 | M7–M10, M13 write-up | M12, M15–M17 write-up | M11 write-up | M0–M6, M14, M18–M20 write-up, pitch PDF, demo video, packaging |
 

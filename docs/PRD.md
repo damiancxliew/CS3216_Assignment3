@@ -26,13 +26,13 @@ and makes decisions whose consequences are resolved probabilistically and carrie
 | D3 | **The LLM generates a *spec*, not the map.** A deterministic, seeded compiler turns the spec + predefined tiles into the map. | Guarantees playability/reachability; already proven by `PoC/src/core.ts`. |
 | D4 | **Hybrid assets:** predefined tileset (grass, wall, floor, water, path) + on-the-fly image-generated landmarks/portraits (e.g. a Merlion, a period building). | Cheap, cohesive, and demonstrates multimodal I/O for Milestone 7/10. |
 | D5 | **Stages, not days.** An adventure has **at most 3 stages**; each stage is one map + one decision point; stages can branch. Stages are proposed by the LLM at ingest and are **editable by the teacher**. | "This whole stage is one event… after you make the decision you progress to the next stage." |
-| D6 | **A round = one decision, not one chat.** Unlimited chat within a stage; the stage ends when the decision is made, the objective is met, or the optional timer expires. | "One round is one decision, not one chat." Real-time pressure is not the point (`specs.md` §5.6). |
+| D6 | **A round = one decision, not one chat.** Unlimited chat within a stage; the stage ends when the decision is made, the objective is met, or the stage timer expires. | "One round is one decision, not one chat." Real-time pressure is not the point (`specs.md` §5.6). |
 | D7 | **Rooms with doors.** Everyone in a room shares one chat and one shared context. NPC agents can move between rooms and talk to each other. Any occupant may close the door to exclude others. | Parliament analogy: conversations are not always 1-on-1, and some must be private. |
 | D8 | **Compartmentalised context.** One shared historical context for everyone + one private context per agent (persona, motivations, hidden interests, knowledge horizon). Private context is never sent to the client. | "They all know what led up to this point, but not what the other person is thinking." |
 | D9 | **A Resolver/Orchestrator LLM** sits above the agents: it watches each conversation, updates the decision options available to the player, resolves the round once all parties have decided, writes the new world state, and advances/branches the stage. | Diagram: agents → decisions → Resolver → shared context/state → game engine. |
 | D10 | **Outcomes are probabilistic, actions are not.** The player chooses *what they do*; whether it works is resolved by the Resolver against context (a peace treaty can be backstabbed; an attack can fail). | "Stochastic… it is probabilistic. Because we want to highlight the complexity of history." |
 | D11 | **Consequences are not previewed.** No repercussion preview before committing; learning happens in the post-game debrief. | "They should learn from their mistakes." |
-| D12 | **Not deciding is a decision.** On timer expiry the player passes and the world resolves without them. | Explicit in the meeting. |
+| D12 | **Timer on by default, per stage, teacher-configurable.** Each stage has its own countdown whose length the host sets in adventure settings; on expiry the player passes, the Resolver resolves the stage without their decision, and play advances to the next stage. | Decided 20 Sep (Damian). Keeps a class period bounded (D15) while letting the teacher lengthen a research-heavy stage; "not deciding is a decision" was explicit in the meeting. |
 | D13 | **Elimination → spectator mode.** If the player's faction is destroyed, they keep watching the world resolve instead of being kicked out. | Diagram has a `Spectator` node. |
 | D14 | **Model tiering:** strongest model for the Resolver/Orchestrator and ingest planning, mid-tier for character agents, cheapest for incidental text. Schema-validated (typesafe) structured output everywhere. | Cost control; cache is not shared across models, so tiering must be per-call and deliberate. |
 | D15 | **Target session length:** ~15 min in class, ~30 min self-directed. | Classroom periods are short. |
@@ -116,7 +116,11 @@ Hard rules:
 - FR-15 Resolution: the Resolver takes all parties' actions + full state and produces a structured
   outcome — per-agent state deltas, world/context updates, public announcement, private notes, next
   stage or ending. Outcomes are probabilistic and never previewed to the player.
-- FR-16 Timer per stage is optional and teacher-set; expiry = pass.
+- FR-16 Each stage has a countdown timer, on by default. Its length is a per-stage setting the teacher
+  edits before publishing (with an adventure-wide default and the option to disable it for a stage).
+  The remaining time is always visible to the player. On expiry the stage closes to new actions, the
+  player's decision is recorded as a pass, the Resolver resolves the stage from the other parties'
+  actions, and play advances to the next stage or the ending.
 - FR-17 Eliminated players continue as spectators and see the remaining resolution.
 - FR-18 Persistence: attempts, journals, chat logs, and context snapshots are saved server-side and
   resumable with a recap.
@@ -137,17 +141,17 @@ Hard rules:
 ## 6. Data model (v2 sketch)
 
 ```
-adventure(id, owner_id, title, setting, status, published_version, content_hash)
+adventure(id, owner_id, title, setting, status, published_version, content_hash, default_timer_seconds)
 source(id, adventure_id, kind, title, storage_key, page_map)
 spec_version(id, adventure_id, version, json, generator_version, created_by)
-stage(id, spec_version_id, index, title, shared_context, timer_seconds, branch_map)
+stage(id, spec_version_id, index, title, shared_context, timer_seconds, branch_map)  -- timer_seconds null = inherit adventure default, 0 = disabled
 room(id, stage_id, name, purpose, door_default)
 agent(id, stage_id, name, role, public_position, private_context, model_tier, start_room_id)
 evidence(id, stage_id, room_id, text, source_span)
 objective(id, stage_id, title, requires[], target_id)
 decision_option(id, stage_id, label, preconditions, branch_target)
 map_artifact(id, stage_id, seed, json)          -- compiler output, immutable
-attempt(id, adventure_id, published_version, student_id, current_stage, status)
+attempt(id, adventure_id, published_version, student_id, current_stage, status, stage_deadline_at)
 attempt_state(attempt_id, world_state json, journal json, player_pos, updated_at)
 agent_memory(attempt_id, agent_id, transcript json, private_notes json)
 message(id, attempt_id, room_id, author_type, author_id, body, visibility, created_at)
@@ -216,7 +220,8 @@ Inherits `specs.md` §10, plus meeting-specific ones:
 1. ~~Phaser 3 vs the existing Canvas renderer.~~ **Resolved 20 Sep — Phaser 3** (D16, §7.1). Owner: Yi Hao.
 2. **Do NPC agents act autonomously between player turns**, or only when spoken to plus a scripted
    Resolver-driven "offscreen event"? Full autonomy is the expensive option. Owner: Kevin.
-3. **Timer on or off by default**, and is it per stage or per adventure? Owner: Damian.
+3. ~~Timer on or off by default, per stage or per adventure?~~ **Resolved 20 Sep — on by default, per
+   stage, length set by the teacher in settings** (D12, FR-16). Owner: Damian.
 4. **How many generated images per adventure** (cost cap) and are they blocking for publish? Owner: Di Heng.
 5. **Free-text decisions in the MVP** or options-only with free text as the stretch? Owner: Kevin.
 6. Provider mix for the model tiers, and whether cross-model prompt caching loss is acceptable. Owner: Yi Hao.
