@@ -1,0 +1,218 @@
+/**
+ * I3 — Turn API contract (EXECUTION_SPEC §2).
+ *
+ * `POST /api/attempt/:id/message`, `POST /api/attempt/:id/decision` and
+ * `GET /api/attempt/:id/state` all answer with a *public projection* of attempt
+ * state. Private agent context, unrevealed events, probability rolls and
+ * Resolver rationale are absent from these types by construction (FR-21), so a
+ * handler cannot leak them without changing this file.
+ */
+import { z } from "zod";
+
+export const AMBIENT_OVERLAYS = [
+  "clear",
+  "clouds",
+  "rain",
+  "fog",
+  "night",
+  "dust",
+  "snow",
+] as const;
+
+export const SCENE_EFFECTS = [
+  "explosion",
+  "fire",
+  "smoke",
+  "confetti",
+  "flash",
+  "rubble",
+  "crowd_cheer",
+  "crowd_flee",
+] as const;
+
+export const publicRoomSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  purpose: z.string().nullable(),
+  doorOpen: z.boolean(),
+  occupantIds: z.array(z.string()),
+});
+
+/** Only the public half of an agent: `private_context` lives server-side. */
+export const publicAgentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: z.string().nullable(),
+  publicPosition: z.string().nullable(),
+  roomId: z.string().nullable(),
+  portraitUrl: z.string().nullable(),
+});
+
+export const publicMessageSchema = z.object({
+  id: z.string(),
+  roomId: z.string().nullable(),
+  authorType: z.enum(["player", "agent", "system"]),
+  authorId: z.string().nullable(),
+  authorName: z.string().nullable(),
+  body: z.string(),
+  createdAt: z.string(),
+});
+
+/**
+ * Options are re-derived from state on every response (FR-14), so a stale
+ * option is rejected rather than executed. `available: false` carries a
+ * player-facing reason only — never a precondition dump.
+ */
+export const publicDecisionOptionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  available: z.boolean(),
+  unavailableReason: z.string().nullable(),
+});
+
+export const publicEffectSchema = z.object({
+  id: z.enum(SCENE_EFFECTS),
+  at: z
+    .union([z.object({ x: z.number(), y: z.number() }), z.string()])
+    .nullable(),
+  intensity: z.union([z.literal(1), z.literal(2), z.literal(3)]).nullable(),
+  /** Text equivalent for the accessible path (FR-15c). */
+  text: z.string(),
+});
+
+/**
+ * Timers (D12/FR-16). The deadline is server-held; the client renders a
+ * countdown from `deadlineAt` against `serverNow`, so a refresh or a client
+ * clock change cannot buy extra time.
+ */
+export const publicTimerSchema = z.object({
+  enabled: z.boolean(),
+  deadlineAt: z.string().nullable(),
+  serverNow: z.string(),
+  secondsRemaining: z.number().nullable(),
+});
+
+export const publicStageSchema = z.object({
+  id: z.string(),
+  index: z.number(),
+  title: z.string(),
+  sharedContext: z.string(),
+  ambientOverlay: z.enum(AMBIENT_OVERLAYS),
+  overlayIntensity: z.number(),
+  objectives: z.array(
+    z.object({ id: z.string(), title: z.string(), met: z.boolean() }),
+  ),
+});
+
+export const publicAttemptStateSchema = z.object({
+  attemptId: z.string(),
+  adventureId: z.string(),
+  publishedVersion: z.number(),
+  status: z.enum(["active", "spectating", "completed", "abandoned"]),
+  stage: publicStageSchema,
+  timer: publicTimerSchema,
+  mapArtifactId: z.string().nullable(),
+  playerPos: z.object({ x: z.number(), y: z.number() }).nullable(),
+  currentRoomId: z.string().nullable(),
+  rooms: z.array(publicRoomSchema),
+  agents: z.array(publicAgentSchema),
+  transcript: z.array(publicMessageSchema),
+  journal: z.array(
+    z.object({
+      id: z.string(),
+      text: z.string(),
+      sourceSpan: z.string().nullable(),
+      collectedAt: z.string(),
+    }),
+  ),
+  options: z.array(publicDecisionOptionSchema),
+  announcements: z.array(
+    z.object({ id: z.string(), body: z.string(), createdAt: z.string() }),
+  ),
+  pendingEffects: z.array(publicEffectSchema),
+  /** Monotonic per-attempt revision; the client discards out-of-order replies. */
+  revision: z.number(),
+});
+
+export const messageRequestSchema = z.object({
+  roomId: z.string().min(1),
+  body: z.string().min(1).max(2000),
+});
+
+export const messageResponseSchema = z.object({
+  accepted: z.literal(true),
+  newMessages: z.array(publicMessageSchema),
+  state: publicAttemptStateSchema,
+});
+
+export const decisionRequestSchema = z.object({
+  optionId: z.string().min(1),
+});
+
+export const decisionResponseSchema = z.object({
+  accepted: z.literal(true),
+  /** Public announcement only — the roll and the rationale stay server-side. */
+  resolution: z.object({
+    announcement: z.string(),
+    effects: z.array(publicEffectSchema),
+    nextStageId: z.string().nullable(),
+    ending: z.boolean(),
+  }),
+  state: publicAttemptStateSchema,
+});
+
+export const apiErrorSchema = z.object({
+  error: z.object({
+    code: z.enum([
+      "unauthorized",
+      "not_found",
+      "invalid_request",
+      "stale_option",
+      "stage_closed",
+      "rate_limited",
+    ]),
+    message: z.string(),
+  }),
+});
+
+export type PublicAttemptState = z.infer<typeof publicAttemptStateSchema>;
+export type PublicMessage = z.infer<typeof publicMessageSchema>;
+export type PublicEffect = z.infer<typeof publicEffectSchema>;
+export type MessageResponse = z.infer<typeof messageResponseSchema>;
+export type DecisionResponse = z.infer<typeof decisionResponseSchema>;
+export type ApiError = z.infer<typeof apiErrorSchema>;
+
+/** Keys that must never appear anywhere in a client payload (FR-21). */
+export const FORBIDDEN_RESPONSE_KEYS = [
+  "privateContext",
+  "private_context",
+  "privateNotes",
+  "private_notes",
+  "rolls",
+  "roll",
+  "rationale",
+  "resolverRationale",
+  "knowledgeHorizon",
+  "knowledge_horizon",
+  "hiddenState",
+  "seed",
+] as const;
+
+/** Walks a payload and returns every forbidden key found, at any depth. */
+export function findForbiddenKeys(payload: unknown, path = "$"): string[] {
+  if (Array.isArray(payload)) {
+    return payload.flatMap((item, i) => findForbiddenKeys(item, `${path}[${i}]`));
+  }
+  if (payload !== null && typeof payload === "object") {
+    return Object.entries(payload as Record<string, unknown>).flatMap(
+      ([key, value]) => {
+        const here = `${path}.${key}`;
+        const hit = (FORBIDDEN_RESPONSE_KEYS as readonly string[]).includes(key)
+          ? [here]
+          : [];
+        return [...hit, ...findForbiddenKeys(value, here)];
+      },
+    );
+  }
+  return [];
+}
