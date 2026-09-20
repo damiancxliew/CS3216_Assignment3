@@ -1,0 +1,32 @@
+{
+  "name": "@adventure/orchestration",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Resolver/Orchestrator, character-agent runtime and safety rails (K1-K11)",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./actions": "./src/actions.ts",
+    "./resolution": "./src/resolution.ts",
+    "./resolver": "./src/resolver/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
