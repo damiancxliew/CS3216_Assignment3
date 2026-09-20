@@ -39,6 +39,7 @@ and makes decisions whose consequences are resolved probabilistically and carrie
 | D16 | **Phaser 3 for the game view.** The PoC's Canvas renderer is replaced; `core.ts` stays the authority for movement, pathfinding and collision, and Phaser only renders and tweens what it returns. | Decided 20 Sep (Yi Hao), resolving the meeting's assumption. Buys sprite atlases, tweened walking, camera follow and a scene manager for the ≤3 stages; the cost is ~1 day of porting plus e2e rework (see §7.1). |
 | D17 | **NPC agents act autonomously between player turns.** Each is modelled exactly like the player — own private context, own goals, free movement between rooms, same door mechanic for privacy, no shared state or information — differing only in that the stage decision belongs to the player. | Decided 20 Sep (Kevin). Symmetry is the point: the world must keep moving whether or not the student is in the room, and an NPC who can scheme behind a closed door is what makes the debrief interesting. Costs more tokens than reactive agents; FR-12b holds the budget controls that keep it affordable. |
 | D18 | **Decisions are options-only; free text clarifies, it does not propose.** The player picks from the Resolver-maintained option list; free text is conversation with stakeholders and may cause the Resolver to add, remove or reword options, but never becomes an action directly. | Decided 20 Sep (Kevin). Removes the interpret-then-confirm round trip and the whole class of "the model invented an action the world cannot execute" failures, which also shrinks the action allow-list attack surface (FR-20). Free-text *proposals* move to the stretch list. |
+| D19 | **Curated atmosphere layer: ambient overlays + a predefined effect library.** Per-stage ambient overlays (clouds, rain, fog, night tint, dust) set by the spec or the teacher, and a fixed catalogue of one-shot effects (explosion, fire, smoke, confetti, flash, rubble) that the Resolver may trigger by ID on a stage transition, an ending, or a material consequence. Effects are **cosmetic only** and can never change state. | Requested 20 Sep (Yi Hao). Cheap drama: the outcome of a stage currently reads as a text panel, and a burning skyline or confetti makes consequence legible instantly. Curated and enumerated rather than generated, so it costs no inference, cannot drift in style, and the Resolver picking `effect: "explosion"` from a closed list is inside the existing allow-list discipline (FR-20). |
 
 ## 3. Users and core flows
 
@@ -95,12 +96,12 @@ Hard rules:
   entities (character portraits, named landmarks, story props) and only when no curated asset
   matches, capped at 8 images per adventure and cached by prompt hash (a subject reused across
   stages costs nothing).
-- FR-6b The spec marks which entities are eligible for generation; anything not on that list resolves
-  to a curated asset or fails validation. This keeps "generate a whole tileset" out of reach of both
-  the planner and a prompt-injected source document.
 - FR-6a Image generation never blocks publish. Pending or failed images fall back to the curated
   placeholder for that entity, the adventure stays playable, and the teacher can review, regenerate
   or accept the placeholder afterwards. A rejected or filtered image (FR-23) falls back the same way.
+- FR-6b The spec marks which entities are eligible for generation; anything not on that list resolves
+  to a curated asset or fails validation. This keeps "generate a whole tileset" out of reach of both
+  the planner and a prompt-injected source document.
 
 ### 5.2 Map compilation
 
@@ -138,6 +139,25 @@ Hard rules:
 - FR-15 Resolution: the Resolver takes all parties' actions + full state and produces a structured
   outcome — per-agent state deltas, world/context updates, public announcement, private notes, next
   stage or ending. Outcomes are probabilistic and never previewed to the player.
+- FR-15a Atmosphere (D19). Each stage carries an **ambient overlay** — one of a curated set (`clear`,
+  `clouds`, `rain`, `fog`, `night`, `dust`, `snow`) with an intensity — proposed by the planner from
+  the setting and editable by the teacher. It renders as a Phaser layer above the tilemap and below
+  the UI, and it is purely visual: it never changes movement, visibility rules or pathfinding.
+- FR-15b One-shot **scene effects** come from a closed catalogue (`explosion`, `fire`, `smoke`,
+  `confetti`, `flash`, `rubble`, `crowd_cheer`, `crowd_flee`) and are emitted by the Resolver as part
+  of the structured outcome (FR-15), optionally anchored to a location or entity:
+
+  ```ts
+  outcome.effects: Array<{ id: EffectId; at?: { x: number; y: number } | EntityId; intensity?: 1 | 2 | 3 }>
+  ```
+
+  An unknown `id` is dropped by the allow-list (FR-20) rather than failing the turn. Effects fire on
+  stage transitions, endings and material consequences; the stage advances regardless of whether the
+  animation played, so a skipped or reduced-motion effect can never desync state.
+- FR-15c Effects and overlays are assets, not inference: they ship as curated sprite sheets/particle
+  configs, cost nothing per run, and are exempt from the FR-6 image budget. A `prefers-reduced-motion`
+  user gets a static frame or tint instead of the animation, and every effect has a text equivalent in
+  the transcript so the accessible path (FR-10) loses no information.
 - FR-16 Each stage has a countdown timer, on by default. Its length is a per-stage setting the teacher
   edits before publishing (with an adventure-wide default and the option to disable it for a stage).
   The remaining time is always visible to the player. On expiry the stage closes to new actions, the
@@ -166,7 +186,7 @@ Hard rules:
 adventure(id, owner_id, title, setting, status, published_version, content_hash, default_timer_seconds)
 source(id, adventure_id, kind, title, storage_key, page_map)
 spec_version(id, adventure_id, version, json, generator_version, created_by)
-stage(id, spec_version_id, index, title, shared_context, timer_seconds, branch_map)  -- timer_seconds null = inherit adventure default, 0 = disabled
+stage(id, spec_version_id, index, title, shared_context, timer_seconds, branch_map, ambient_overlay, overlay_intensity)  -- timer_seconds null = inherit adventure default, 0 = disabled
 room(id, stage_id, name, purpose, door_default)
 agent(id, stage_id, name, role, public_position, private_context, model_tier, start_room_id)
 evidence(id, stage_id, room_id, text, source_span)
@@ -178,6 +198,8 @@ attempt_state(attempt_id, world_state json, journal json, player_pos, updated_at
 agent_memory(attempt_id, agent_id, transcript json, private_notes json)
 message(id, attempt_id, room_id, author_type, author_id, body, visibility, created_at)
 resolution(id, attempt_id, stage_id, actions json, outcome json, rolls json, created_at)
+  -- outcome.effects[] holds the curated effect ids fired for this resolution (FR-15b), so a
+  -- resumed attempt can replay or skip them without re-running the Resolver
 ```
 
 ## 7. Tech stack
@@ -220,7 +242,8 @@ server stops being authoritative and the deterministic guarantees in FR-7 – FR
 3–4 stakeholders; rooms with doors and shared chat; autonomous NPC agents with private context,
 including agent-to-agent exchanges behind closed doors; free movement; room chat; Resolver-updated
 decision options; options-only decisions; probabilistic resolution; per-stage timers; persistence +
-resume; ending debrief with source/simulation labelling; landing page; analytics; eval harness.
+resume; ending debrief with source/simulation labelling; ambient overlays and the curated scene-effect
+library on stage transitions and endings; landing page; analytics; eval harness.
 
 **Out (say so explicitly in the write-up):** multiplayer, voice, combat, free-text decision
 *proposals* (options-only in the MVP — D18), mobile layout, classroom management/grading, arbitrary
@@ -252,7 +275,10 @@ Inherits `specs.md` §10, plus meeting-specific ones:
    clarifies only** (D18, FR-14). Owner: Kevin.
 6. ~~Provider mix for the model tiers.~~ **Resolved 20 Sep — OpenAI only, tiered per use case**
    (D14). Owner: Yi Hao.
+7. Ambient overlays and scene effects (D19, FR-15a–c) added 20 Sep on Yi Hao's request. Owner:
+   Yi Hao (renderer + catalogue), Kevin (Resolver emits the effect ids).
 
-Nothing is blocking. Two sub-tasks carry into the build: pin the exact OpenAI model per tier with
-measured latency/cost for Milestone 9 (Yi Hao), and tune the agent tick rate against the measured
-token budget (Kevin).
+Nothing is blocking. Three sub-tasks carry into the build: pin the exact OpenAI model per tier with
+measured latency/cost for Milestone 9 (Yi Hao), tune the agent tick rate against the measured token
+budget (Kevin), and fix the effect-catalogue ids before Kevin writes the Resolver outcome schema on
+Monday — the list is a frozen interface, not a growing one.

@@ -27,6 +27,8 @@ The hardest and highest-risk slice; it is also the thing the coolness score ride
   only stage-relevant agents ticked, yield when idle — or it eats the token budget.
 - Probabilistic outcome model: action succeeds/fails/partially succeeds based on context, with the roll
   recorded server-side and never previewed to the player (PRD D10/D11).
+- Resolver emits `outcome.effects[]` from the frozen effect catalogue (FR-15b); unknown ids are
+  dropped by the allow-list rather than failing the turn.
 - Model tiering + structured outputs (Zod schemas) + retry/repair policy.
 - Prompt-injection guards and the action allow-list.
 - Owns: FR-12 – FR-17, FR-20, FR-21.
@@ -44,8 +46,14 @@ He built the PoC, so he owns the port.
   and playability guarantees (FR-7 – FR-9).
 - Client: movement (WASD + click-to-travel), room chat panel with chat bubbles, decision panel, journal,
   spectator mode, accessible interaction list.
+- **Atmosphere layer** (PRD D19/FR-15a–c): curated ambient overlays (clouds, rain, fog, night, dust,
+  snow) as a Phaser layer above the tilemap, plus the one-shot effect catalogue (explosion, fire,
+  smoke, confetti, flash, rubble, crowd reactions) played on stage transitions, endings and Resolver
+  outcomes. Cosmetic only — never gates state — with a reduced-motion static fallback and a text
+  equivalent in the transcript. **Freeze the effect ids on Sunday**: Kevin's outcome schema encodes
+  them, so the list has to be closed before Monday.
 - Latency handling: dialogue calls must never freeze movement (FR-22).
-- Owns: FR-7 – FR-11, FR-17 (client side), FR-22.
+- Owns: FR-7 – FR-11, FR-15a–c (rendering), FR-17 (client side), FR-22.
 - Write-up: **M15, M16, M17, M12**.
 
 ### Di Heng — Ingest, generation pipeline and evals
@@ -100,7 +108,8 @@ These four contracts unblock everyone in parallel; agree them before writing cod
 2. **Map artifact schema** (Yi Hao) — the compiler's output consumed by renderer and server.
 3. **Turn API** (Kevin ⇄ Damian) — `POST /attempt/:id/message`, `POST /attempt/:id/decision`,
    `GET /attempt/:id/state`; response is always a *public projection* of state.
-4. **Resolution payload** (Kevin ⇄ Damian) — the structured outcome the Resolver writes and the DB stores.
+4. **Resolution payload** (Kevin ⇄ Damian) — the structured outcome the Resolver writes and the DB
+   stores, including `effects[]` drawn from the frozen effect catalogue (Yi Hao owns the id list).
 
 Put all four in `AGENTS.md` as the shared contract, with a stub implementation each, by Sunday night.
 
@@ -110,10 +119,10 @@ Put all four in `AGENTS.md` as the shared contract, with a stub implementation e
 
 | Day | Goal | Kevin | Yi Hao | Di Heng | Damian |
 | --- | --- | --- | --- | --- | --- |
-| **Sun 20** | Contracts frozen, repo scaffolded | Draft Resolver + agent prompt contracts; agent tick loop design | Scaffold Next.js monorepo; port `core.ts`; Phaser scene rendering the PoC map | Spec schema v1 draft; upload + extraction spike | Supabase project, schema, auth, shared OpenAI key in Vercel env, deploy of an empty app + analytics |
+| **Sun 20** | Contracts frozen, repo scaffolded | Draft Resolver + agent prompt contracts; agent tick loop design | Scaffold Next.js monorepo; port `core.ts`; Phaser scene rendering the PoC map; freeze the overlay/effect id list | Spec schema v1 draft; upload + extraction spike | Supabase project, schema, auth, shared OpenAI key in Vercel env, deploy of an empty app + analytics |
 | **Mon 21** | Vertical slice: one hardcoded stage playable end-to-end | Single agent answering in-room with private context | Finish Phaser port (tweened movement, camera follow, click-to-travel); rooms + doors in the compiler; chat panel against a stub API | Planner prompt → valid spec for one test document | Turn API wired to DB; attempt create/resume |
 | **Tue 22** | Generation → playable | Multi-agent + autonomous tick + Resolver updating decision options | Render a compiled generated map; decision panel | Repair loop, source spans, missing-info report; 3 test documents passing | Teacher console: upload, progress, stage editor |
-| **Wed 23** | Stages, consequences, endings | Stage resolution, probabilistic outcomes, branching, spectator; timer expiry → pass → resolve | Stage transition as a Phaser scene swap; journal; accessible list | Asset generation + cache + placeholder fallback; eval harness v1 with results | Publish/versioning, sharing link, timer settings UI, ending/debrief screen |
+| **Wed 23** | Stages, consequences, endings | Stage resolution, probabilistic outcomes, branching, spectator; timer expiry → pass → resolve; Resolver emits `effects[]` | Stage transition as a Phaser scene swap with the effect catalogue + ambient overlays wired in; journal; accessible list | Asset generation + cache + placeholder fallback; eval harness v1 with results | Publish/versioning, sharing link, timer settings UI, ending/debrief screen |
 | **Thu 24** | Freeze + polish | Prompt-injection tests, token budget, latency pass | UI polish, Playwright happy path | Eval results table + a second full document set | Landing page, README, analytics screenshots |
 | **Fri 25** | Submit by 23:59 | M7–M10, M13 write-up | M12, M15–M17 write-up | M11 write-up | M0–M6, M14, M18–M20 write-up, pitch PDF, demo video, packaging |
 
@@ -144,7 +153,7 @@ Put all four in `AGENTS.md` as the shared contract, with a stub implementation e
 | 14 | Name + logo | Damian | Name rationale + alternatives |
 | 15 | Tech stack choices + alternatives | Yi Hao | PRD §7 |
 | 16 | 3 common workflows | Yi Hao | Teacher generate-review-publish; student explore-chat-decide; resume |
-| 17 | AI-specific UI decisions | Yi Hao | Resolver-maintained option list (why options, not free text — D18), surfacing what NPCs did offscreen, source-vs-simulation labelling, generation progress + repair states, regenerate-this-element |
+| 17 | AI-specific UI decisions | Yi Hao | Resolver-maintained option list (why options, not free text — D18), surfacing what NPCs did offscreen (effects as non-verbal consequence signalling — D19), source-vs-simulation labelling, generation progress + repair states, regenerate-this-element |
 | 18 | Landing page, SEO, OG | Damian | Live URL |
 | 19 | Analytics + insights | Damian | Screenshot + what we changed because of it |
 | 20 | Product Hunt kit | Damian | Copy, assets, first comment |
@@ -168,4 +177,5 @@ M22 is essentially already in scope; M21 is the cheapest remaining optional. Do 
 | Analytics has no data by Friday | Deploy and instrument on **Sunday**, not Thursday (M19 needs a few days of events) |
 | Everyone blocked on one schema | Freeze the four contracts Sunday night with stubs behind each |
 | Phaser port overruns and blocks the vertical slice | The port is renderer-only — `core.ts`, the compiler and their tests are untouched. If Phaser is not rendering the PoC map by Sunday night, ship Monday's slice on the existing Canvas renderer and finish the port after the slice is green |
+| Effects become a time sink | The catalogue is fixed and curated, sized at ~6–8 sprite-sheet effects plus tinted overlays; they are cosmetic, so if Wednesday runs long they can ship as a static tint and the game is unaffected |
 | Scope creep into multiplayer | Explicitly out (PRD D2); the player-as-agent abstraction keeps the door open without paying for it now |
