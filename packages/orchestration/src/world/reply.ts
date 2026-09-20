@@ -5,16 +5,21 @@
  * turn the player addressed, it makes a character go silent mid-conversation, which reads as a
  * broken game rather than as a rail. So a player-addressed reply is not charged against that cap.
  *
- * What bounds it instead is a *rate* per agent: at most one model-backed reply every
- * `minIntervalMs`, with a small burst. Cost then scales with how long a stage runs, not with how
- * many humans are in it — a table dogpiling one character cannot multiply the spend, and the stage
- * timer stays the only thing that ends a stage.
+ * Two rails replace it, and they bound different things:
  *
- * Crossing the rate limit never produces silence, and it does not build a queue of replies either.
- * Messages that arrive while an agent is out of rate are *coalesced*: when a slot refills, the
- * character answers all of them in one call, to the room. One call per window however many people
- * spoke, and a scene that sounds like a conversation rather than a serialised queue. The cheap
- * in-fiction deflection is the last resort — a genuine flood, or the stage token ceiling.
+ *   1. **A rate per speaker** (`ReplyRateLimiter`). Keyed by whoever is talking, human or agent
+ *      alike — the engine does not distinguish actors, and neither does this. It stops one person
+ *      spamming a character, and it is set well above human typing speed, so a player at the
+ *      keyboard never meets it.
+ *   2. **A coalescing window per character** (`ReplyInbox`). A speaker-keyed rate alone does not
+ *      bound cost: five players each under their own limit still make five calls on one character.
+ *      So messages arriving inside a character's window are answered *together*, in one call, to
+ *      the room — one call per window however many people spoke, and a scene that sounds like a
+ *      conversation rather than a serialised queue. A lone player never waits: with nobody else
+ *      talking the window is already clear.
+ *
+ * Neither rail produces silence. Past the inbox bound or the stage token ceiling, the character
+ * still answers, from a cheap non-LLM path with a short in-fiction deflection.
  */
 import { runAgentTurn, type AgentTurnResult } from '../agent/character-agent'
 import type { AgentTurnInput } from '../agent/types'
@@ -24,9 +29,9 @@ import { hashSeed } from '../rng'
 import { applyAction, type WorldState } from './state'
 
 export interface ReplyRateLimit {
-  /** Minimum gap between two model-backed replies from one agent. */
+  /** Minimum gap between two messages from one speaker. */
   minIntervalMs: number
-  /** Replies an agent may make back-to-back before the interval starts biting. */
+  /** Messages a speaker may send back-to-back before the interval starts biting. */
   burst: number
 }
 
@@ -37,31 +42,30 @@ export interface ReplyRateLimit {
 export const DEFAULT_REPLY_RATE_LIMIT: ReplyRateLimit = { minIntervalMs: 1_500, burst: 3 }
 
 /**
- * Per-agent token bucket. Shared across every human talking to that agent, which is the point:
- * the cap is on the character's voice, not on any one player's turn, so nobody can be rate-limited
- * out of the game by someone else's spending.
+ * Per-speaker token bucket: one bucket per actor, human or agent, so nobody's spending can
+ * rate-limit anyone else. Anti-spam, not a play resource — it is never shown and never spent.
  */
 export class ReplyRateLimiter {
   private readonly allowance = new Map<string, { tokens: number; lastMs: number }>()
 
   constructor(private readonly limit: ReplyRateLimit = DEFAULT_REPLY_RATE_LIMIT) {}
 
-  /** Take one reply slot for this agent, if the rate allows. Never blocks, never waits. */
-  take(agentId: string, nowMs: number): boolean {
+  /** Take one slot for this speaker, if the rate allows. Never blocks, never waits. */
+  take(speakerId: string, nowMs: number): boolean {
     const { minIntervalMs, burst } = this.limit
-    const state = this.allowance.get(agentId) ?? { tokens: burst, lastMs: nowMs }
+    const state = this.allowance.get(speakerId) ?? { tokens: burst, lastMs: nowMs }
     const refilled = Math.min(burst, state.tokens + (nowMs - state.lastMs) / minIntervalMs)
     if (refilled < 1) {
-      this.allowance.set(agentId, { tokens: refilled, lastMs: nowMs })
+      this.allowance.set(speakerId, { tokens: refilled, lastMs: nowMs })
       return false
     }
-    this.allowance.set(agentId, { tokens: refilled - 1, lastMs: nowMs })
+    this.allowance.set(speakerId, { tokens: refilled - 1, lastMs: nowMs })
     return true
   }
 
-  /** Reply slots the agent has right now. Diagnostics only — never shown to a player or a model. */
-  tokensFor(agentId: string, nowMs: number): number {
-    const state = this.allowance.get(agentId)
+  /** Slots this speaker has right now. Diagnostics only — never shown to a player or a model. */
+  tokensFor(speakerId: string, nowMs: number): number {
+    const state = this.allowance.get(speakerId)
     if (state === undefined) return this.limit.burst
     return Math.min(this.limit.burst, state.tokens + (nowMs - state.lastMs) / this.limit.minIntervalMs)
   }
@@ -91,26 +95,45 @@ export interface PendingMessage {
   body: string
 }
 
+export interface CoalescingWindow {
+  /** How long a character's answers are batched for. Short: it is latency for a second speaker. */
+  windowMs: number
+  /** Messages one character will quote back at once. Past it the oldest are dropped. */
+  maxPerAgent: number
+}
+
+export const DEFAULT_COALESCING_WINDOW: CoalescingWindow = { windowMs: 1_000, maxPerAgent: 8 }
+
 /**
- * Messages waiting on a character that is momentarily out of rate. Bounded per agent: past the
- * bound the oldest are dropped, because answering a flood in full is neither affordable nor
- * playable — and a dropped message still gets an answer, it is just not quoted back.
+ * Messages waiting on a character whose window is still open, and the window itself.
+ *
+ * This is what keeps cost off the player count: however many people speak inside a window, the
+ * character answers once. It is not a cap on anyone — nothing is refused here, only batched — and
+ * a character with a clear window answers immediately, which is the single-player case.
  */
 export class ReplyInbox {
   private readonly waiting = new Map<string, PendingMessage[]>()
+  private readonly lastAnsweredMs = new Map<string, number>()
 
-  constructor(private readonly maxPerAgent = 8) {}
+  constructor(private readonly window: CoalescingWindow = DEFAULT_COALESCING_WINDOW) {}
+
+  /** May this character answer now, or is it still inside the window of its last reply? */
+  isClear(agentId: string, nowMs: number): boolean {
+    const last = this.lastAnsweredMs.get(agentId)
+    return last === undefined || nowMs - last >= this.window.windowMs
+  }
 
   add(agentId: string, message: PendingMessage): void {
     const queue = this.waiting.get(agentId) ?? []
     queue.push(message)
-    this.waiting.set(agentId, queue.slice(-this.maxPerAgent))
+    this.waiting.set(agentId, queue.slice(-this.window.maxPerAgent))
   }
 
-  /** Take everything waiting on this agent. The caller answers all of it in one reply. */
-  drain(agentId: string): PendingMessage[] {
+  /** Take everything waiting on this character and open a new window. Answered in one reply. */
+  drain(agentId: string, nowMs: number): PendingMessage[] {
     const queue = this.waiting.get(agentId) ?? []
     this.waiting.delete(agentId)
+    this.lastAnsweredMs.set(agentId, nowMs)
     return queue
   }
 
@@ -118,14 +141,21 @@ export class ReplyInbox {
     return this.waiting.get(agentId) ?? []
   }
 
-  /** Agents with someone waiting on them. The turn loop flushes these as rate allows. */
+  /** Characters people are waiting on. */
   waitingAgents(): string[] {
     return [...this.waiting.keys()]
+  }
+
+  /** Characters people are waiting on whose window has closed: the turn loop answers these. */
+  dueAgents(nowMs: number): string[] {
+    return this.waitingAgents().filter((agentId) => this.isClear(agentId, nowMs))
   }
 }
 
 export interface ReplyOptions {
   limiter: ReplyRateLimiter
+  /** Who is speaking. The rate is theirs, whether they are a human or another character. */
+  speakerId?: string
   /** Server clock, passed in so the path stays testable and deterministic. */
   nowMs: number
   metrics?: StructuredCallMetrics
@@ -179,7 +209,7 @@ export async function replyToPlayer(
   const overTokenBudget =
     options.tokenBudget !== undefined && (options.tokensSpent ?? 0) >= options.tokenBudget
 
-  if (!overTokenBudget && !options.limiter.take(input.self.id, options.nowMs)) {
+  if (!overTokenBudget && !options.limiter.take(options.speakerId ?? 'player', options.nowMs)) {
     const deflected = deflect(input, 'rate_limit')
     for (const entry of deflected.turn.actions) applyAction(world, entry)
     return deflected
@@ -193,8 +223,11 @@ export interface CoalescingOptions extends ReplyOptions {
 
 export type SubmitResult =
   | { status: 'answered'; reply: ReplyResult; answered: readonly PendingMessage[] }
-  /** Held for the next slot, when it will be answered together with whatever else arrives. */
-  | { status: 'held'; waiting: number }
+  /**
+   * Held: either the speaker is over their rate, or the character is mid-window. Either way the
+   * message is answered on the next flush, together with whatever else arrives before then.
+   */
+  | { status: 'held'; waiting: number; heldBy: 'speaker_rate' | 'coalescing_window' }
 
 /** Put the waiting messages to the character as one thing to answer, not as a queue to work through. */
 function withMessages(input: AgentTurnInput, messages: readonly PendingMessage[]): AgentTurnInput {
@@ -207,12 +240,12 @@ function withMessages(input: AgentTurnInput, messages: readonly PendingMessage[]
 }
 
 /**
- * A human speaks to a character. Answered straight away when the agent has a reply slot — and the
- * answer covers everyone who spoke since its last one, in a single call. Otherwise the message is
- * held, and `flushReplies` picks it up when a slot refills.
+ * Someone speaks to a character. Answered straight away when the speaker is within their rate and
+ * the character's window is clear — and that answer covers everyone who spoke since its last one,
+ * in a single call. Otherwise the message is held for `flushReplies`, which is a delay, never a
+ * refusal: nothing said to a character goes unanswered.
  *
- * A solo player never waits: with nobody else talking there is always a slot, so coalescing costs
- * latency only in the case it exists for, several people talking at once.
+ * A lone player never waits, since neither rail is ever met with one speaker in a clear window.
  */
 export async function submitPlayerMessage(
   client: LlmClient,
@@ -225,20 +258,28 @@ export async function submitPlayerMessage(
   const overTokenBudget =
     options.tokenBudget !== undefined && (options.tokensSpent ?? 0) >= options.tokenBudget
 
-  if (!overTokenBudget && !options.limiter.take(agentId, options.nowMs)) {
+  const hold = (heldBy: 'speaker_rate' | 'coalescing_window'): SubmitResult => {
     options.inbox.add(agentId, message)
-    return { status: 'held', waiting: options.inbox.pendingFor(agentId).length }
+    return { status: 'held', waiting: options.inbox.pendingFor(agentId).length, heldBy }
   }
 
-  const answered = [...options.inbox.drain(agentId), message]
+  if (!overTokenBudget) {
+    // The speaker's own rate is checked first: spamming should cost the spammer's slots, not the
+    // character's window, so one person hammering cannot also delay the people around them.
+    if (!options.limiter.take(message.speakerId, options.nowMs)) return hold('speaker_rate')
+    if (!options.inbox.isClear(agentId, options.nowMs)) return hold('coalescing_window')
+  }
+
+  const answered = [...options.inbox.drain(agentId, options.nowMs), message]
   const reply = await answerNow(client, world, withMessages(input, answered), options, overTokenBudget)
   return { status: 'answered', reply, answered }
 }
 
 /**
- * Answer the characters people are waiting on, as their rate allows. Called by the turn loop on a
- * tick; agents with no slot yet stay held rather than being answered cheaply, because a held
- * message becomes part of a real reply a moment later.
+ * Answer the characters people are waiting on whose window has closed — one call each, however
+ * many are waiting on them. Called by the turn loop on a tick. Characters still mid-window keep
+ * their messages rather than being answered cheaply: a held message becomes part of a real reply a
+ * moment later, which is better than a deflection now.
  */
 export async function flushReplies(
   client: LlmClient,
@@ -247,9 +288,8 @@ export async function flushReplies(
   options: CoalescingOptions,
 ): Promise<{ agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[]> {
   const flushed: { agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[] = []
-  for (const agentId of options.inbox.waitingAgents()) {
-    if (!options.limiter.take(agentId, options.nowMs)) continue
-    const answered = options.inbox.drain(agentId)
+  for (const agentId of options.inbox.dueAgents(options.nowMs)) {
+    const answered = options.inbox.drain(agentId, options.nowMs)
     if (answered.length === 0) continue
     const reply = await answerNow(client, world, withMessages(inputFor(agentId), answered), options, false)
     flushed.push({ agentId, reply, answered })

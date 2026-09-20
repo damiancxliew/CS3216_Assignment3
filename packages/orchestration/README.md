@@ -81,17 +81,20 @@ ticks the stage-relevant agents over it while the player is elsewhere (FR-12a).
 
 The per-agent action cap bounds *autonomous* chatter. A turn the player addressed is not charged
 against it — a character going silent mid-conversation reads as a broken game, not as a rail.
-What bounds those replies is a rate per agent (`ReplyRateLimiter`, one model-backed reply every
-`minIntervalMs` with a small burst), so cost scales with how long a stage runs rather than with how
-many humans are in it, and the stage timer stays the only thing that ends a stage. The limit sits
-well above human typing speed, so only scripted traffic reaches it.
+Two rails replace it, bounding different things:
 
-Crossing it does not build a queue either. Messages that arrive while a character is out of rate
-are held in a `ReplyInbox` and answered *together* on the next slot (`submitPlayerMessage` →
-`flushReplies`): one call per window however many people spoke, and the character answers the room
-rather than working through a backlog. A solo player never waits, since with nobody else talking
-there is always a slot. The cheap in-fiction deflection (hashed, so a replay is identical) is the
-last resort — a genuine flood, or the stage token ceiling.
+- **A rate per speaker** (`ReplyRateLimiter`), keyed by whoever is talking — human or agent alike,
+  since the engine does not distinguish actors. It stops one person spamming a character, and sits
+  well above human typing speed, so a player at the keyboard never meets it.
+- **A coalescing window per character** (`ReplyInbox`). A speaker-keyed rate alone does not bound
+  cost — five players each within their own limit still make five calls on one character — so
+  messages arriving inside a character's window are answered *together*, in one call, to the room:
+  one call per window however many people spoke. A lone player never waits, since the window is
+  already clear.
+
+Held is a delay, never a refusal (`submitPlayerMessage` → `flushReplies`): nothing said to a
+character goes unanswered. The cheap in-fiction deflection (hashed, so a replay is identical) is
+the last resort — the inbox bound, or the stage token ceiling.
 
 ## Options and the stage decision (`src/stage/options.ts`, K6)
 
