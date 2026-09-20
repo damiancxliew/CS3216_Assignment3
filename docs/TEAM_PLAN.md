@@ -32,8 +32,10 @@ The hardest and highest-risk slice; it is also the thing the coolness score ride
 
 He built the PoC, so he owns the port.
 
-- Decide Phaser vs Canvas (PRD §10.1) and port `PoC/src/core.ts` into a shared package usable by both
-  browser and server.
+- **Port the renderer to Phaser 3** (decided 20 Sep — PRD D16). Keep `core.ts` pure and authoritative;
+  Phaser renders and tweens, one scene per stage, DOM panels stay outside the canvas, e2e asserts
+  through the DOM plus a `GameState` test hook. Constraints in PRD §7.1.
+- Port `PoC/src/core.ts` into a shared package usable by both browser and server.
 - Extend the compiler from one scene to **rooms with doors** and up to 3 stages; keep the determinism
   and playability guarantees (FR-7 – FR-9).
 - Client: movement (WASD + click-to-travel), room chat panel with chat bubbles, decision panel, journal,
@@ -97,10 +99,10 @@ Put all four in `AGENTS.md` as the shared contract, with a stub implementation e
 
 | Day | Goal | Kevin | Yi Hao | Di Heng | Damian |
 | --- | --- | --- | --- | --- | --- |
-| **Sun 20** | Contracts frozen, repo scaffolded | Draft Resolver + agent prompt contracts; answer open decisions 2 & 5 | Phaser-vs-Canvas call; scaffold Next.js monorepo; port `core.ts` | Spec schema v1 draft; upload + extraction spike | Supabase project, schema, auth, Vercel deploy of an empty app + analytics |
-| **Mon 21** | Vertical slice: one hardcoded stage playable end-to-end | Single agent answering in-room with private context | Rooms + doors in the compiler; movement + chat panel against a stub API | Planner prompt → valid spec for one test document | Turn API wired to DB; attempt create/resume |
+| **Sun 20** | Contracts frozen, repo scaffolded | Draft Resolver + agent prompt contracts; answer open decisions 2 & 5 | Scaffold Next.js monorepo; port `core.ts`; Phaser scene rendering the PoC map | Spec schema v1 draft; upload + extraction spike | Supabase project, schema, auth, Vercel deploy of an empty app + analytics |
+| **Mon 21** | Vertical slice: one hardcoded stage playable end-to-end | Single agent answering in-room with private context | Finish Phaser port (tweened movement, camera follow, click-to-travel); rooms + doors in the compiler; chat panel against a stub API | Planner prompt → valid spec for one test document | Turn API wired to DB; attempt create/resume |
 | **Tue 22** | Generation → playable | Multi-agent + Resolver updating decision options | Render a compiled generated map; decision panel | Repair loop, source spans, missing-info report; 3 test documents passing | Teacher console: upload, progress, stage editor |
-| **Wed 23** | Stages, consequences, endings | Stage resolution, probabilistic outcomes, branching, spectator | Stage transition in client; journal; accessible list | Asset generation + cache; eval harness v1 with results | Publish/versioning, sharing link, ending/debrief screen |
+| **Wed 23** | Stages, consequences, endings | Stage resolution, probabilistic outcomes, branching, spectator | Stage transition as a Phaser scene swap; journal; accessible list | Asset generation + cache; eval harness v1 with results | Publish/versioning, sharing link, ending/debrief screen |
 | **Thu 24** | Freeze + polish | Prompt-injection tests, token budget, latency pass | UI polish, Playwright happy path | Eval results table + a second full document set | Landing page, README, analytics screenshots |
 | **Fri 25** | Submit by 23:59 | M7–M10, M13 write-up | M12, M15–M17 write-up | M11 write-up | M0–M6, M14, M18–M20 write-up, pitch PDF, demo video, packaging |
 
@@ -153,4 +155,5 @@ M22 is essentially already in scope; M21 is the cheapest remaining optional. Do 
 | Cost blowup during demos | Per-attempt token budget, cheap tier for chat, prompt-hash cache for images, cap generated images per adventure |
 | Analytics has no data by Friday | Deploy and instrument on **Sunday**, not Thursday (M19 needs a few days of events) |
 | Everyone blocked on one schema | Freeze the four contracts Sunday night with stubs behind each |
+| Phaser port overruns and blocks the vertical slice | The port is renderer-only — `core.ts`, the compiler and their tests are untouched. If Phaser is not rendering the PoC map by Sunday night, ship Monday's slice on the existing Canvas renderer and finish the port after the slice is green |
 | Scope creep into multiplayer | Explicitly out (PRD D2); the player-as-agent abstraction keeps the door open without paying for it now |

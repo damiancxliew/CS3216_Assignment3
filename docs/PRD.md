@@ -36,6 +36,7 @@ and makes decisions whose consequences are resolved probabilistically and carrie
 | D13 | **Elimination → spectator mode.** If the player's faction is destroyed, they keep watching the world resolve instead of being kicked out. | Diagram has a `Spectator` node. |
 | D14 | **Model tiering:** strongest model for the Resolver/Orchestrator and ingest planning, mid-tier for character agents, cheapest for incidental text. Schema-validated (typesafe) structured output everywhere. | Cost control; cache is not shared across models, so tiering must be per-call and deliberate. |
 | D15 | **Target session length:** ~15 min in class, ~30 min self-directed. | Classroom periods are short. |
+| D16 | **Phaser 3 for the game view.** The PoC's Canvas renderer is replaced; `core.ts` stays the authority for movement, pathfinding and collision, and Phaser only renders and tweens what it returns. | Decided 20 Sep (Yi Hao), resolving the meeting's assumption. Buys sprite atlases, tweened walking, camera follow and a scene manager for the ≤3 stages; the cost is ~1 day of porting plus e2e rework (see §7.1). |
 
 ## 3. Users and core flows
 
@@ -153,12 +154,12 @@ message(id, attempt_id, room_id, author_type, author_id, body, visibility, creat
 resolution(id, attempt_id, stage_id, actions json, outcome json, rolls json, created_at)
 ```
 
-## 7. Tech stack (proposal — needs the team's sign-off, see §10)
+## 7. Tech stack
 
 | Layer | Proposal | Notes / alternatives considered |
 | --- | --- | --- |
 | Frontend | Next.js (App Router) + React + TypeScript strict | Needed anyway for the landing page, SEO and OG tags (Milestone 18) |
-| Game view | Keep the PoC's Canvas 2D renderer, or Phaser 3 | The PoC is **plain Canvas 2D**, not Phaser, despite what was said in the meeting. Decision needed — see §10.1 |
+| Game view | **Phaser 3** (D16), replacing the PoC's Canvas 2D renderer | Alternative considered: keeping plain Canvas, which works today but needs manual tweening, camera and sprite animation. See §7.1 for the porting constraints |
 | Game core | Port `PoC/src/core.ts` (pure, synchronous, browser+Node) as a shared package | Runs identically client- and server-side, which is what makes the server authoritative |
 | Backend | Next.js route handlers + a job runner for generation | Generation is long-running; needs progress polling |
 | DB | Postgres (Supabase) + pgvector for source retrieval | Supabase also covers auth and storage in one dependency |
@@ -167,6 +168,25 @@ resolution(id, attempt_id, stage_id, actions json, outcome json, rolls json, cre
 | Hosting | Vercel | Preview deploys per PR |
 | Testing | Vitest (core + prompt/eval harness), Playwright (browser) | Already set up on `PoC` |
 | Analytics | GA4 or PostHog | Milestone 19 requires real data — instrument on day 1 |
+
+### 7.1 Phaser porting constraints (D16)
+
+Phaser wants to own the game loop and the entity lifecycle. It must not also own the rules, or the
+server stops being authoritative and the deterministic guarantees in FR-7 – FR-9 are lost.
+
+- `core.ts` stays pure and remains the single source of truth for tile occupancy, `findPath`,
+  collision, interaction range and save identity. Phaser's arcade physics is **not** used for
+  movement or collision.
+- The Phaser scene is a view over the compiled map artifact: it reads tiles and entity positions and
+  tweens sprites toward the tile positions `core.ts` returns. Input is captured by Phaser and
+  dispatched as the same `movePlayer` / `interact` calls the PoC already uses.
+- One Phaser scene per stage; stage transitions are scene swaps, which is most of what D16 buys.
+- The accessible interaction list (FR-10) and the chat/decision/journal panels stay DOM, outside the
+  Phaser canvas, and remain the keyboard-complete path through the game.
+- Playwright cannot see inside the canvas, so e2e assertions go through the DOM panels plus a test
+  hook exposing the current `GameState`; do not rewrite the e2e suite as coordinate clicks.
+- Budget: ~1 day, and it is on the critical path for nothing but the client — the compiler and core
+  tests are unaffected because the port is renderer-only.
 
 ## 8. MVP scope (what ships by 25 Sep)
 
@@ -193,8 +213,7 @@ Inherits `specs.md` §10, plus meeting-specific ones:
 
 ## 10. Open decisions (need an owner and an answer before Mon EOD)
 
-1. **Phaser 3 vs the existing Canvas renderer.** The PoC does not use Phaser. Porting costs a day;
-   staying on Canvas costs sprite/animation polish. Owner: Yi Hao.
+1. ~~Phaser 3 vs the existing Canvas renderer.~~ **Resolved 20 Sep — Phaser 3** (D16, §7.1). Owner: Yi Hao.
 2. **Do NPC agents act autonomously between player turns**, or only when spoken to plus a scripted
    Resolver-driven "offscreen event"? Full autonomy is the expensive option. Owner: Kevin.
 3. **Timer on or off by default**, and is it per stage or per adventure? Owner: Damian.
