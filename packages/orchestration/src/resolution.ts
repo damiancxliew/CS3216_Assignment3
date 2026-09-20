@@ -92,7 +92,7 @@ export const resolutionRecordSchema = z.object({
   version: z.literal(RESOLUTION_VERSION),
   attemptId: id,
   stageId: id,
-  resolvedAt: z.string().min(1),
+  resolvedAt: z.string().datetime(),
   trigger: z.enum(RESOLUTION_TRIGGERS),
   /** Everything the parties did this stage, already allow-listed (FR-20). */
   actions: z.array(actorActionSchema).max(256),

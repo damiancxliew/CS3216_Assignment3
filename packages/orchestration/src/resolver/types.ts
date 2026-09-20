@@ -6,8 +6,10 @@
  * the fake Resolver (K1) and the LLM Resolver (K7/K9) be interchangeable behind one interface, and
  * what lets every other slice build against I4 tonight without an OpenAI key.
  */
-import type { ActorAction } from '../actions'
-import type { NextStep, ResolutionRecord, ResolutionTrigger } from '../resolution'
+import { z } from 'zod'
+
+import { actorActionSchema, type ActorAction } from '../actions'
+import { nextStepSchema, type NextStep, type ResolutionRecord, type ResolutionTrigger } from '../resolution'
 
 /** Decision stances, mirrored from the Adventure Spec v2 (I1) catalogue. */
 export const DECISION_STANCES = ['cooperative', 'antagonistic', 'neutral', 'evasive'] as const
@@ -54,6 +56,7 @@ export interface ResolverTelemetry {
   /** Candidate actions or effects the allow-list dropped, for FR-24. */
   droppedActions: number
   droppedEffects: number
+  droppedAgentDeltas: number
   /** LLM repair round-trips used (FR-4/D14). Always 0 for the deterministic fake Resolver. */
   repairRounds: number
 }
@@ -65,4 +68,49 @@ export interface ResolverResult {
 
 export interface Resolver {
   resolveStage(input: ResolverInput): Promise<ResolverResult>
+}
+
+const id = z.string().min(1).max(64)
+const recoverableNumber = z.custom<number>((value) => typeof value === 'number')
+const branchTargetSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('stage'), stageId: id }),
+  z.object({ kind: z.literal('ending'), endingId: id }),
+])
+
+export const resolverInputSchema = z.object({
+  attemptId: id,
+  stageId: id,
+  seed: id,
+  stageIndex: z.number().int().nonnegative(),
+  resolvedAt: z.string().datetime(),
+  trigger: z.enum(['decision', 'timer_expiry', 'stage_objective']),
+  decision: z
+    .object({
+      optionId: id,
+      label: z.string().min(1).max(2000),
+      stance: z.enum(DECISION_STANCES),
+      branchTarget: branchTargetSchema,
+    })
+    .nullable(),
+  fallbackNext: nextStepSchema,
+  agents: z.array(
+    z.object({
+      id,
+      name: z.string().min(1).max(200),
+      disposition: recoverableNumber,
+    }),
+  ),
+  actions: z.array(actorActionSchema),
+  evidenceCollected: recoverableNumber,
+  candidateEffects: z.array(z.unknown()).optional(),
+})
+
+export class ResolverInputError extends Error {
+  readonly issues: string[]
+
+  constructor(issues: string[]) {
+    super(`invalid resolver input: ${issues.join('; ')}`)
+    this.name = 'ResolverInputError'
+    this.issues = issues
+  }
 }
