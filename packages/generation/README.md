@@ -113,6 +113,33 @@ const result = await generateAdventure({
 
 Try it on a file: `OPENAI_API_KEY=… npm run generate -- path/to/doc.pdf --setting "…" --band upper-secondary`.
 
+## D5/D6 — assets and non-blocking publish
+
+```ts
+import { publishAdventure, OpenAiImageService, resolveAssetUrl } from '@adventure/generation'
+
+const published = publishAdventure(specJson, { images: new OpenAiImageService(), cache, store })
+// returns synchronously: published.spec is deep-frozen, published.assets is all `pending`
+// and every record already points at its curated placeholder. Persist both (P4).
+resolveAssetUrl(published.assets, 'raffles', 'portrait') // placeholder now, generated url once ready
+await published.assetsReady                               // optional — nobody has to wait
+```
+
+- Only `spec.assetEligibility[]` reaches the image model, and `assertGeneratable()` re-checks the kind at
+  the service boundary: terrain/structural/UI kinds throw `not-generatable` even if a caller bypasses the
+  spec (FR-6b).
+- Hard cap of 8 generated images per adventure; prompt-hash cache (`sha256(style version, model, kind,
+  size, quality, prompt)`) so a repeated subject — across stages or adventures — costs nothing and does not
+  count towards the cap.
+- Every failure (`failed`, `filtered`, `skipped-cap`) resolves to the placeholder for its kind; the manifest is
+  always complete and `generateAssets` never throws for a single image (FR-6a).
+- The D6 proof is `tests/publish.test.ts`: image service stubbed to fail (and to hang forever) → publish
+  returns, every branch plays to its ending via the spec-level walkthrough, every entity resolves an image.
+- Real run: `gpt-image-1-mini`, medium, 1024² portrait = 15s, $0.011 → 8 images ≈ $0.09/adventure.
+  `npm run assets -- fixtures/singapore-1819.spec.json --max 1` to try it.
+- `src/play/walkthrough.ts` is the runtime stand-in behind I2/I3: walks objectives in dependency order,
+  picks an available option, follows branches to an ending; `enumeratePaths()` lists every route.
+
 ## D7/D8 — eval harness
 
 ```bash

@@ -12,7 +12,10 @@
     "./ingest": "./src/ingest/index.ts",
     "./planner": "./src/planner/index.ts",
     "./fixtures": "./src/fixtures.ts",
-    "./llm": "./src/llm/index.ts"
+    "./llm": "./src/llm/index.ts",
+    "./assets": "./src/assets/index.ts",
+    "./play": "./src/play/index.ts",
+    "./publish": "./src/publish/index.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -22,7 +25,8 @@
     "schema": "vite-node scripts/write-json-schema.ts",
     "schema:check": "vitest run tests/json-schema.test.ts",
     "eval": "vite-node evals/run.ts --",
-    "generate": "vite-node scripts/generate.ts --"
+    "generate": "vite-node scripts/generate.ts --",
+    "assets": "vite-node scripts/assets.ts --"
   },
   "dependencies": {
     "openai": "~7.15.0",

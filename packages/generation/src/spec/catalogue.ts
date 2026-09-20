@@ -66,6 +66,9 @@ export const CURATED_PLACEHOLDERS = {
   prop: 'placeholder-prop',
 } as const satisfies Record<GeneratableAssetKind, string>
 
+/** Fallback for anything that is not a generatable kind (defence in depth). */
+export const GENERIC_PLACEHOLDER = 'placeholder-generic'
+
 /** Hard cap on generated images per adventure (PRD D4). */
 export const MAX_GENERATED_ASSETS = 8
 
