@@ -77,6 +77,37 @@ ticks the stage-relevant agents over it while the player is elsewhere (FR-12a).
 - `StageTelemetry` reports actions per actor, tokens, drops, refusals, degraded ticks, repair rate
   and which cap ended the stage.
 
+### Answering a human (`src/world/reply.ts`)
+
+The per-agent action cap bounds *autonomous* chatter. A turn the player addressed is not charged
+against it — a character going silent mid-conversation reads as a broken game, not as a rail.
+Two rails replace it, bounding different things:
+
+- **A rate per speaker** (`ReplyRateLimiter`), keyed by whoever is talking — human or agent alike,
+  since the engine does not distinguish actors. It stops one person spamming a character, and sits
+  well above human typing speed, so a player at the keyboard never meets it.
+- **A coalescing window per character** (`ReplyInbox`). A speaker-keyed rate alone does not bound
+  cost — five players each within their own limit still make five calls on one character — so
+  messages arriving inside a character's window are answered *together*, in one call, to the room:
+  one call per window however many people spoke. A lone player never waits, since the window is
+  already clear.
+
+Held is a delay, never a refusal (`submitPlayerMessage` → `flushReplies`): nothing said to a
+character goes unanswered. The stage tick flushes windows, and stage close flushes anything still
+held. A full reply uses the normal character-agent tier; at 80% of the caller-supplied token
+ceiling it adds a one-sentence rule, at 95% it also uses the cheap tier, and at 100% it uses a
+short in-fiction deflection without a model call. Rate-limit deflection remains a separate rail.
+Deflection lines are deterministic and vary by character and attempt, but are not added to the
+world transcript.
+
+`ReplyInbox` keeps the first held message and the newest messages up to its bound. Further messages
+are counted by `droppedHeld`, and `StageTelemetry` reports flushed replies, answered held messages
+and dropped held messages, plus unroutable reply targets. The limiter and inbox are in-memory process-local maps: with N
+serverless instances, each rail can allow N times the intended rate or window, and a cold start
+loses held messages. Distributed state is out of scope for this PoC. `tokensSpent` is
+caller-supplied, so the ceiling is only as reliable as the caller's bookkeeping; `runStage`
+threads its telemetry total through the reply path as the reference implementation.
+
 ## Options and the stage decision (`src/stage/options.ts`, K6)
 
 An option is a label plus preconditions drawn from a closed set of comparisons (`actor_in_room`,

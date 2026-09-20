@@ -13,6 +13,10 @@
  */
 import type { AgentTurnInput } from './types'
 
+export interface AgentPromptOptions {
+  brief?: boolean
+}
+
 const BLOCK_OPEN = '<<<'
 const BLOCK_CLOSE = '>>>'
 
@@ -25,7 +29,7 @@ function block(label: string, text: string): string {
   return `${BLOCK_OPEN}${label}\n${quote(text)}\n${BLOCK_CLOSE}`
 }
 
-export function buildAgentSystemPrompt(input: AgentTurnInput): string {
+export function buildAgentSystemPrompt(input: AgentTurnInput, options: AgentPromptOptions = {}): string {
   const { self, privateContext } = input
   return [
     `You are ${self.name}, ${self.publicRole}. Stay in character and speak in the first person.`,
@@ -42,10 +46,12 @@ export function buildAgentSystemPrompt(input: AgentTurnInput): string {
     '  outright only when your character would genuinely choose to.',
     '- You propose actions; you do not narrate their outcome. What happens is decided elsewhere.',
     '- You give no reasoning, no stage directions and no commentary outside your spoken line.',
+    ...(options.brief === true ? ['- Answer in one short sentence.'] : []),
     input.actionsRemaining <= 0
       ? '- You have no actions left this scene: propose only {"type":"yield"}.'
       : `- You have ${input.actionsRemaining} action(s) left this scene. Yield if nothing is worth doing.`,
     ...decisionRules(input),
+    ...groupRules(input),
   ].join('\n')
 }
 
@@ -65,6 +71,19 @@ function decisionRules(input: AgentTurnInput): string[] {
     rules.push('- Everyone else has decided. Decide now: commit to one option, or pass.')
   }
   return rules
+}
+
+/**
+ * Several people talked over each other before the character could answer. It replies once, to the
+ * room, rather than working through a queue: one call, and a scene that sounds like a conversation.
+ */
+function groupRules(input: AgentTurnInput): string[] {
+  const addressedBy = input.addressedBy ?? []
+  if (addressedBy.length < 2) return []
+  return [
+    `- ${addressedBy.length} people have just spoken to you at once. Answer them together in one`,
+    '  short line, naming whom you answer if it is not obvious. Do not reply to each in turn.',
+  ]
 }
 
 /**
@@ -127,7 +146,15 @@ export function buildAgentUserPrompt(input: AgentTurnInput): string {
     )
   }
 
-  if (playerMessage !== null) {
+  const addressedBy = input.addressedBy ?? []
+  if (addressedBy.length > 0) {
+    sections.push(
+      block(
+        'SPOKEN TO YOU JUST NOW, BY SEVERAL PEOPLE',
+        addressedBy.map((line) => `${line.speakerName}: ${line.body}`).join('\n'),
+      ),
+    )
+  } else if (playerMessage !== null) {
     sections.push(block('SPOKEN TO YOU JUST NOW', playerMessage))
   }
   sections.push(`Room id for any action you propose: ${room.id}`)
@@ -141,6 +168,6 @@ export interface AgentPrompt {
   user: string
 }
 
-export function buildAgentPrompt(input: AgentTurnInput): AgentPrompt {
-  return { system: buildAgentSystemPrompt(input), user: buildAgentUserPrompt(input) }
+export function buildAgentPrompt(input: AgentTurnInput, options: AgentPromptOptions = {}): AgentPrompt {
+  return { system: buildAgentSystemPrompt(input, options), user: buildAgentUserPrompt(input) }
 }

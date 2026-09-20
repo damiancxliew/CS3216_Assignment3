@@ -34,6 +34,13 @@ export interface AgentPrivateContext {
   notes: readonly string[]
 }
 
+/** One thing a human said to this character, awaiting an answer. */
+export interface AddressedLine {
+  speakerId: string
+  speakerName: string
+  body: string
+}
+
 export interface TranscriptLine {
   speakerId: string
   speakerName: string
@@ -69,6 +76,11 @@ export interface AgentTurnInput {
   recalled?: readonly RecalledLine[]
   /** What the player just said in this room, if anything. Untrusted text (FR-20). */
   playerMessage: string | null
+  /**
+   * Several humans spoke to this character before it could answer. They are put to it together so
+   * one reply serves the room, rather than each speaker being answered in turn. Untrusted text.
+   */
+  addressedBy?: readonly AddressedLine[] | undefined
   /** Actions the agent has left this stage (FR-12b). Zero means it should yield. */
   actionsRemaining: number
   /**

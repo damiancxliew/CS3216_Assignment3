@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createFixtureWorld,
   fixtureFarquharPrivate,
+  fixtureAgentTurnInput,
   fixtureOptionCatalogue,
   fixtureStageConfig,
   fixtureStageParticipants,
@@ -11,6 +12,7 @@ import {
 import { FakeLlmClient } from '../src/llm/fake'
 import type { LlmRequest } from '../src/llm/types'
 import { findLeakedText } from '../src/privacy'
+import { ReplyInbox, ReplyRateLimiter, submitPlayerMessage } from '../src/world/reply'
 import { StageDecisions } from '../src/stage/options'
 import { buildAgentTurnInput, runStage, type StageConfig } from '../src/world/stage-runtime'
 import { applyAction, visibleTranscript, type WorldState } from '../src/world/state'
@@ -108,6 +110,7 @@ describe('room-scoped visibility (K3)', () => {
   it('keeps it out of the absent agent\u2019s prompt, not just out of the query', () => {
     const world = closedDoorExchange()
     const input = buildAgentTurnInput(world, 'agent-farquhar', fixtureStageConfig, 3)
+    if (input === null) throw new Error('fixture agent should be routable')
     expect(findLeakedText(input, [SECRET_BEHIND_THE_DOOR])).toEqual([])
   })
 
@@ -134,6 +137,7 @@ describe('room-scoped visibility (K3)', () => {
     applyAction(world, speak('agent-farquhar', 'room-audience-hall', 'The Company asks only for ground.'))
     applyAction(world, { actorKind: 'agent', actorId: 'agent-temenggong', action: { type: 'move_room', toRoomId: 'room-tally-shed' } })
     const input = buildAgentTurnInput(world, 'agent-temenggong', fixtureStageConfig, 3)
+    if (input === null) throw new Error('fixture agent should be routable')
     expect(input.transcript).toEqual([])
     expect(input.recalled).toEqual([
       {
@@ -206,6 +210,16 @@ function scriptedClient(script: Record<string, string[]>): FakeLlmClient {
 
 const say = (body: string, actions: unknown[] = []) => JSON.stringify({ say: body, actions })
 
+function steppingClock(times: readonly number[]): () => number {
+  let index = 0
+  return () => {
+    const value = times[Math.min(index, times.length - 1)]
+    index += 1
+    if (value === undefined) throw new Error('stepping clock needs at least one timestamp')
+    return value
+  }
+}
+
 describe('autonomous tick (K4)', () => {
   it('skips a configured agent that is absent from the world', async () => {
     const world = createFixtureWorld()
@@ -259,6 +273,116 @@ describe('autonomous tick (K4)', () => {
     expect(telemetry.ticks).toBe(1)
     expect(telemetry.stoppedBy).toBe('all_yielded')
     expect(telemetry.totalActions).toBe(0)
+  })
+
+  it('flushes a held reply on the next stage tick and counts its tokens', async () => {
+    const world = createFixtureWorld()
+    const client = new FakeLlmClient({
+      replies: [say('Initial answer.'), say('Held answer.'), say('Tick one.'), say('Tick two.')],
+    })
+    const inbox = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 8 })
+    const limiter = new ReplyRateLimiter()
+    await submitPlayerMessage(
+      client,
+      world,
+      { ...fixtureAgentTurnInput, playerMessage: null },
+      { speakerId: 'player', speakerName: 'You', body: 'First question' },
+      { inbox, limiter, nowMs: 0 },
+    )
+    await submitPlayerMessage(
+      client,
+      world,
+      { ...fixtureAgentTurnInput, playerMessage: null },
+      { speakerId: 'player-two', speakerName: 'Ann', body: 'Held question' },
+      { inbox, limiter, nowMs: 10 },
+    )
+
+    const result = await runStage(client, world, {
+      ...fixtureStageConfig,
+      agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
+      maxTicks: 2,
+      replies: { inbox, limiter, now: steppingClock([500, 1_100]) },
+    })
+
+    expect(result.telemetry.repliesFlushed).toBe(1)
+    expect(result.telemetry.heldMessagesAnswered).toBe(1)
+    expect(result.telemetry.totalTokens).toBeGreaterThan(0)
+    expect(world.transcript.some((line) => line.body === 'Held answer.')).toBe(true)
+  })
+
+  it('reports only held-message drops that occurred during this stage', async () => {
+    const world = createFixtureWorld()
+    const inbox = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 1 })
+    inbox.add('agent-temenggong', { speakerId: 'player', speakerName: 'You', body: 'Earlier' })
+    inbox.add('agent-temenggong', { speakerId: 'player', speakerName: 'You', body: 'Earlier overflow' })
+
+    const result = await runStage(new FakeLlmClient({ replies: [say('', [{ type: 'yield' }])] }), world, {
+      ...fixtureStageConfig,
+      agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
+      maxTicks: 1,
+      replies: { inbox, limiter: new ReplyRateLimiter(), now: () => 1_000 },
+    })
+
+    expect(result.telemetry.heldMessagesDropped).toBe(0)
+  })
+
+  it('force-flushes a held reply when the stage closes', async () => {
+    const world = createFixtureWorld()
+    const client = new FakeLlmClient({
+      replies: [say('Initial answer.'), say('', [{ type: 'yield' }]), say('Closing answer.')],
+    })
+    const inbox = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 8 })
+    const limiter = new ReplyRateLimiter()
+    await submitPlayerMessage(
+      client,
+      world,
+      { ...fixtureAgentTurnInput, playerMessage: null },
+      { speakerId: 'player', speakerName: 'You', body: 'First question' },
+      { inbox, limiter, nowMs: 0 },
+    )
+    await submitPlayerMessage(
+      client,
+      world,
+      { ...fixtureAgentTurnInput, playerMessage: null },
+      { speakerId: 'player-two', speakerName: 'Ann', body: 'Held question' },
+      { inbox, limiter, nowMs: 10 },
+    )
+
+    const result = await runStage(client, world, {
+      ...fixtureStageConfig,
+      agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
+      maxTicks: 1,
+      replies: { inbox, limiter, now: steppingClock([500]) },
+    })
+
+    expect(result.telemetry.repliesFlushed).toBe(1)
+    expect(result.telemetry.heldMessagesAnswered).toBe(1)
+    expect(world.transcript.some((line) => line.body === 'Closing answer.')).toBe(true)
+  })
+
+  it('keeps an unroutable held reply and reports it without stopping the stage', async () => {
+    const world = createFixtureWorld()
+    const inbox = new ReplyInbox()
+    const limiter = new ReplyRateLimiter()
+    inbox.add('agent-not-in-stage', {
+      speakerId: 'player',
+      speakerName: 'You',
+      body: 'A question for someone elsewhere',
+    })
+
+    const result = await runStage(
+      new FakeLlmClient({ replies: [say('', [{ type: 'yield' }])] }),
+      world,
+      {
+        ...fixtureStageConfig,
+        maxTicks: 1,
+        replies: { inbox, limiter, now: steppingClock([500]) },
+      },
+    )
+
+    expect(result.telemetry.repliesUnroutable).toBe(1)
+    expect(inbox.waitingAgents()).toEqual(['agent-not-in-stage'])
+    expect(result.telemetry.stoppedBy).toBe('all_yielded')
   })
 })
 
