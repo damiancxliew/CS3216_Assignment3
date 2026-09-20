@@ -102,7 +102,7 @@ world transcript.
 
 `ReplyInbox` keeps the first held message and the newest messages up to its bound. Further messages
 are counted by `droppedHeld`, and `StageTelemetry` reports flushed replies, answered held messages
-and dropped held messages. The limiter and inbox are in-memory process-local maps: with N
+and dropped held messages, plus unroutable reply targets. The limiter and inbox are in-memory process-local maps: with N
 serverless instances, each rail can allow N times the intended rate or window, and a cold start
 loses held messages. Distributed state is out of scope for this PoC. `tokensSpent` is
 caller-supplied, so the ceiling is only as reliable as the caller's bookkeeping; `runStage`

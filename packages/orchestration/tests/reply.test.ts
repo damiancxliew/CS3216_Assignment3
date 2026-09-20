@@ -23,10 +23,16 @@ async function conversation(count: number, gapMs: number): Promise<ReplyResult[]
   const world = createFixtureWorld()
   const client = new FakeLlmClient({ replies: [reply('The anchorage is not the Company\u2019s to name a price for.')] })
   const limiter = new ReplyRateLimiter()
+  const inbox = new ReplyInbox()
   const results: ReplyResult[] = []
   for (let i = 0; i < count; i += 1) {
     results.push(
-      await replyToPlayer(client, world, askedInTheHall, { limiter, speakerId: 'player-kevin', nowMs: i * gapMs }),
+      await replyToPlayer(client, world, askedInTheHall, {
+        limiter,
+        inbox,
+        speakerId: 'player-kevin',
+        nowMs: i * gapMs,
+      }),
     )
   }
   return results
@@ -84,6 +90,7 @@ describe('answering a human (FR-12b, revised)', () => {
     const client = new FakeLlmClient({ replies: [reply('unreachable')] })
     const result = await replyToPlayer(client, world, askedInTheHall, {
       limiter: new ReplyRateLimiter(),
+      inbox: new ReplyInbox(),
       nowMs: 0,
       tokenBudget: 100,
       tokensSpent: 100,
@@ -98,6 +105,7 @@ describe('answering a human (FR-12b, revised)', () => {
     const client = new FakeLlmClient({ replies: [reply('One short answer.')] })
     const result = await replyToPlayer(client, createFixtureWorld(), askedInTheHall, {
       limiter: new ReplyRateLimiter(),
+      inbox: new ReplyInbox(),
       nowMs: 0,
       tokenBudget: 100,
       tokensSpent: 85,
@@ -111,6 +119,7 @@ describe('answering a human (FR-12b, revised)', () => {
     const client = new FakeLlmClient({ replies: [reply('A short answer.')] })
     const result = await replyToPlayer(client, createFixtureWorld(), askedInTheHall, {
       limiter: new ReplyRateLimiter(),
+      inbox: new ReplyInbox(),
       nowMs: 0,
       tokenBudget: 100,
       tokensSpent: 96,
@@ -124,6 +133,7 @@ describe('answering a human (FR-12b, revised)', () => {
     const client = new FakeLlmClient({ replies: [reply('unreachable')] })
     const result = await replyToPlayer(client, createFixtureWorld(), askedInTheHall, {
       limiter: new ReplyRateLimiter(),
+      inbox: new ReplyInbox(),
       nowMs: 0,
       tokenBudget: 100,
       tokensSpent: 100,
@@ -142,6 +152,7 @@ describe('answering a human (FR-12b, revised)', () => {
 
     const result = await replyToPlayer(client, world, spentOut, {
       limiter: new ReplyRateLimiter(),
+      inbox: new ReplyInbox(),
       nowMs: 0,
     })
 
@@ -152,7 +163,11 @@ describe('answering a human (FR-12b, revised)', () => {
   it('puts the reply in the room, where presence decides who heard it', async () => {
     const world = createFixtureWorld()
     const client = new FakeLlmClient({ replies: [reply('The river mouth is ours to give or keep.')] })
-    await replyToPlayer(client, world, askedInTheHall, { limiter: new ReplyRateLimiter(), nowMs: 0 })
+    await replyToPlayer(client, world, askedInTheHall, {
+      limiter: new ReplyRateLimiter(),
+      inbox: new ReplyInbox(),
+      nowMs: 0,
+    })
 
     expect(world.transcript.map((line) => [line.roomId, line.body])).toEqual([
       ['room-audience-hall', 'The river mouth is ours to give or keep.'],
@@ -280,6 +295,22 @@ describe('answering a human (FR-12b, revised)', () => {
     expect(inbox.droppedHeld()).toBe(2)
   })
 
+  it('keeps the first message when the bound is one or two', () => {
+    const one = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 1 })
+    for (const body of ['first', 'second', 'third']) {
+      one.add('agent-temenggong', { speakerId: 'player', speakerName: 'You', body })
+    }
+    expect(one.drain('agent-temenggong', 0).map((message) => message.body)).toEqual(['first'])
+    expect(one.droppedHeld()).toBe(2)
+
+    const two = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 2 })
+    for (const body of ['first', 'second', 'third']) {
+      two.add('agent-temenggong', { speakerId: 'player', speakerName: 'You', body })
+    }
+    expect(two.drain('agent-temenggong', 0).map((message) => message.body)).toEqual(['first', 'third'])
+    expect(two.droppedHeld()).toBe(1)
+  })
+
   it('opens a fresh window per character, so a busy one does not delay a quiet one', () => {
     const inbox = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 8 })
     inbox.drain('agent-temenggong', 0)
@@ -297,7 +328,7 @@ describe('answering a human (FR-12b, revised)', () => {
           new FakeLlmClient({ replies: [reply('unreachable')] }),
           createFixtureWorld(),
           askedInTheHall,
-          { limiter: limiter(), nowMs: 0 },
+          { limiter: limiter(), inbox: new ReplyInbox(), nowMs: 0 },
         )
       ).turn.say
 
@@ -308,13 +339,32 @@ describe('answering a human (FR-12b, revised)', () => {
   })
 
   it('varies consecutive deflections while replaying the same sequence', async () => {
-    const inbox = new ReplyInbox()
-    const options = { limiter: new ReplyRateLimiter({ minIntervalMs: 1_000, burst: 0 }), inbox, nowMs: 0 }
-    const first = await replyToPlayer(new FakeLlmClient({ replies: [reply('unreachable')] }), createFixtureWorld(), askedInTheHall, options)
-    const second = await replyToPlayer(new FakeLlmClient({ replies: [reply('unreachable')] }), createFixtureWorld(), askedInTheHall, options)
-    expect(second.turn.say).not.toBe(first.turn.say)
-    expect(deflectionFor(askedInTheHall.self.name, askedInTheHall.playerMessage ?? '', 0)).toBe(first.turn.say)
-    expect(deflectionFor(askedInTheHall.self.name, askedInTheHall.playerMessage ?? '', 1)).toBe(second.turn.say)
+    const runSequence = async (): Promise<string[]> => {
+      const inbox = new ReplyInbox()
+      const limiter = new ReplyRateLimiter({ minIntervalMs: 1_000, burst: 0 })
+      const world = createFixtureWorld()
+      const client = new FakeLlmClient({ replies: [reply('unreachable')] })
+      const lines: string[] = []
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        lines.push(
+          (
+            await replyToPlayer(client, world, askedInTheHall, {
+              limiter,
+              inbox,
+              nowMs: 0,
+            })
+          ).turn.say,
+        )
+      }
+      return lines
+    }
+
+    const first = await runSequence()
+    const second = await runSequence()
+    expect(first[0]).not.toBe(first[1])
+    expect(first).toEqual(second)
+    expect(first[0]).toBe(deflectionFor(askedInTheHall.self.name, askedInTheHall.playerMessage ?? '', 0))
+    expect(first[1]).toBe(deflectionFor(askedInTheHall.self.name, askedInTheHall.playerMessage ?? '', 1))
   })
 
   it('does not add deflections to the world transcript', async () => {
@@ -323,7 +373,11 @@ describe('answering a human (FR-12b, revised)', () => {
       new FakeLlmClient({ replies: [reply('unreachable')] }),
       world,
       askedInTheHall,
-      { limiter: new ReplyRateLimiter({ minIntervalMs: 1_000, burst: 0 }), nowMs: 0 },
+      {
+        limiter: new ReplyRateLimiter({ minIntervalMs: 1_000, burst: 0 }),
+        inbox: new ReplyInbox(),
+        nowMs: 0,
+      },
     )
     expect(world.transcript).toEqual([])
     expect(result.turn.say.trim()).not.toBe('')

@@ -44,6 +44,7 @@ describe('room-scoped visibility (K3)', () => {
   it('keeps it out of the absent agent\u2019s prompt, not just out of the query', () => {
     const world = closedDoorExchange()
     const input = buildAgentTurnInput(world, 'agent-farquhar', fixtureStageConfig, 3)
+    if (input === null) throw new Error('fixture agent should be routable')
     expect(findLeakedText(input, [SECRET_BEHIND_THE_DOOR])).toEqual([])
   })
 
@@ -70,6 +71,7 @@ describe('room-scoped visibility (K3)', () => {
     applyAction(world, speak('agent-farquhar', 'room-audience-hall', 'The Company asks only for ground.'))
     applyAction(world, { actorKind: 'agent', actorId: 'agent-temenggong', action: { type: 'move_room', toRoomId: 'room-tally-shed' } })
     const input = buildAgentTurnInput(world, 'agent-temenggong', fixtureStageConfig, 3)
+    if (input === null) throw new Error('fixture agent should be routable')
     expect(input.transcript).toEqual([])
     expect(input.recalled).toEqual([
       {
@@ -114,6 +116,16 @@ function scriptedClient(script: Record<string, string[]>): FakeLlmClient {
 }
 
 const say = (body: string, actions: unknown[] = []) => JSON.stringify({ say: body, actions })
+
+function steppingClock(times: readonly number[]): () => number {
+  let index = 0
+  return () => {
+    const value = times[Math.min(index, times.length - 1)]
+    index += 1
+    if (value === undefined) throw new Error('stepping clock needs at least one timestamp')
+    return value
+  }
+}
 
 describe('autonomous tick (K4)', () => {
   it('produces an agent-to-agent exchange and a world delta while the player is idle', async () => {
@@ -170,16 +182,11 @@ describe('autonomous tick (K4)', () => {
       { inbox, limiter, nowMs: 10 },
     )
 
-    let flushClock = 500
     const result = await runStage(client, world, {
       ...fixtureStageConfig,
       agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
       maxTicks: 2,
-      replies: { inbox, limiter, now: () => {
-        const current = flushClock
-        flushClock = 1_100
-        return current
-      } },
+      replies: { inbox, limiter, now: steppingClock([500, 1_100]) },
     })
 
     expect(result.telemetry.repliesFlushed).toBe(1)
@@ -214,12 +221,37 @@ describe('autonomous tick (K4)', () => {
       ...fixtureStageConfig,
       agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
       maxTicks: 1,
-      replies: { inbox, limiter, now: () => 500 },
+      replies: { inbox, limiter, now: steppingClock([500]) },
     })
 
     expect(result.telemetry.repliesFlushed).toBe(1)
     expect(result.telemetry.heldMessagesAnswered).toBe(1)
     expect(world.transcript.some((line) => line.body === 'Closing answer.')).toBe(true)
+  })
+
+  it('keeps an unroutable held reply and reports it without stopping the stage', async () => {
+    const world = createFixtureWorld()
+    const inbox = new ReplyInbox()
+    const limiter = new ReplyRateLimiter()
+    inbox.add('agent-not-in-stage', {
+      speakerId: 'player',
+      speakerName: 'You',
+      body: 'A question for someone elsewhere',
+    })
+
+    const result = await runStage(
+      new FakeLlmClient({ replies: [say('', [{ type: 'yield' }])] }),
+      world,
+      {
+        ...fixtureStageConfig,
+        maxTicks: 1,
+        replies: { inbox, limiter, now: steppingClock([500]) },
+      },
+    )
+
+    expect(result.telemetry.repliesUnroutable).toBe(1)
+    expect(inbox.waitingAgents()).toEqual(['agent-not-in-stage'])
+    expect(result.telemetry.stoppedBy).toBe('all_yielded')
   })
 })
 

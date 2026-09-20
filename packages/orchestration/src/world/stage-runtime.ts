@@ -84,6 +84,7 @@ export interface StageTelemetry {
   repliesFlushed: number
   heldMessagesAnswered: number
   heldMessagesDropped: number
+  repliesUnroutable: number
   /** Share of model calls that needed a repair round (M11/M12). */
   repairRate: number
   decisions: Decision[]
@@ -115,12 +116,13 @@ export function buildAgentTurnInput(
   agentId: string,
   config: StageConfig,
   actionsRemaining: number,
-): AgentTurnInput {
+): AgentTurnInput | null {
   const stageAgent = config.agents[agentId]
-  if (stageAgent === undefined) throw new Error(`agent "${agentId}" is not in this stage`)
-  const roomId = world.location[agentId] ?? ''
+  if (stageAgent === undefined) return null
+  const roomId = world.location[agentId]
+  if (roomId === undefined) return null
   const room = world.rooms[roomId]
-  if (room === undefined) throw new Error(`agent "${agentId}" is nowhere`)
+  if (room === undefined || world.actors[agentId] === undefined) return null
 
   const heard = visibleTranscript(world, agentId)
   const window = config.transcriptWindow ?? 12
@@ -216,6 +218,7 @@ export async function runStage(
     repliesFlushed: 0,
     heldMessagesAnswered: 0,
     heldMessagesDropped: 0,
+    repliesUnroutable: 0,
     repairRate: 0,
     decisions: [],
     rejectedDecisions: [],
@@ -226,6 +229,7 @@ export async function runStage(
   const spent = (actorId: string): number => telemetry.actionsByActor[actorId] ?? 0
   const overTokenBudget = (): boolean =>
     config.tokenBudget !== undefined && telemetry.totalTokens >= config.tokenBudget
+  const unroutableReplyAgents = new Set<string>()
   const flushHeld = async (force: boolean): Promise<void> => {
     const replies = config.replies
     if (replies === undefined) return
@@ -235,15 +239,19 @@ export async function runStage(
       inbox: replies.inbox,
       nowMs: replies.now(),
       force,
+      metrics,
+      tokensSpent: telemetry.totalTokens,
+      ...(config.tokenBudget === undefined ? {} : { tokenBudget: config.tokenBudget }),
     }
-    options.metrics = metrics
-    options.tokensSpent = telemetry.totalTokens
-    if (config.tokenBudget !== undefined) options.tokenBudget = config.tokenBudget
 
     const flushed = await flushReplies(
       client,
       world,
-      (agentId) => buildAgentTurnInput(world, agentId, config, 1),
+      (agentId) => {
+        const input = buildAgentTurnInput(world, agentId, config, 1)
+        if (input === null) unroutableReplyAgents.add(agentId)
+        return input
+      },
       options,
     )
     for (const result of flushed) {
@@ -255,6 +263,7 @@ export async function runStage(
       telemetry.totalTokens = telemetry.promptTokens + telemetry.completionTokens
     }
     telemetry.heldMessagesDropped = replies.inbox.droppedHeld()
+    telemetry.repliesUnroutable = unroutableReplyAgents.size
   }
 
   for (let tick = 0; tick < maxTicks; tick += 1) {
@@ -286,6 +295,7 @@ export async function runStage(
       if (config.decision?.ledger.has(agentId) === true) continue
 
       const input = buildAgentTurnInput(world, agentId, config, remaining)
+      if (input === null) continue
       const optionsVersion =
         config.decision === undefined ? undefined : deriveOptions(world, config.decision.catalogue).version
       const turn = await runAgentTurn(client, input, {

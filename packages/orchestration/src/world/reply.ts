@@ -139,8 +139,13 @@ export class ReplyInbox {
     queue.push(message)
     const max = this.window.maxPerAgent
     if (queue.length > max) {
+      const first = queue[0]
       this.dropped.set(agentId, (this.dropped.get(agentId) ?? 0) + queue.length - max)
-      this.waiting.set(agentId, [queue[0]!, ...queue.slice(-(max - 1))])
+      if (max <= 1) {
+        this.waiting.set(agentId, first === undefined ? [] : [first])
+      } else {
+        this.waiting.set(agentId, first === undefined ? [] : [first, ...queue.slice(-(max - 1))])
+      }
     } else {
       this.waiting.set(agentId, queue)
     }
@@ -198,7 +203,7 @@ export function replyMode(tokenBudget: number | undefined, tokensSpent: number |
 
 export interface ReplyOptions {
   limiter: ReplyRateLimiter
-  inbox?: ReplyInbox
+  inbox: ReplyInbox
   /** Who is speaking. The rate is theirs, whether they are a human or another character. */
   speakerId?: string
   /** Server clock, passed in so the path stays testable and deterministic. */
@@ -265,14 +270,13 @@ export async function replyToPlayer(
       input,
       'rate_limit',
       mode,
-      options.inbox?.nextDeflection(input.self.id) ?? 0,
+      options.inbox.nextDeflection(input.self.id),
     )
   }
   return answerNow(client, world, input, options, mode)
 }
 
 export interface CoalescingOptions extends ReplyOptions {
-  inbox: ReplyInbox
   force?: boolean
 }
 
@@ -338,7 +342,7 @@ export async function submitPlayerMessage(
 export async function flushReplies(
   client: LlmClient,
   world: WorldState,
-  inputFor: (agentId: string) => AgentTurnInput,
+  inputFor: (agentId: string) => AgentTurnInput | null,
   options: CoalescingOptions,
 ): Promise<{ agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[]> {
   const flushed: { agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[] = []
@@ -347,12 +351,14 @@ export async function flushReplies(
     ? options.inbox.waitingAgents()
     : options.inbox.dueAgents(options.nowMs)
   for (const agentId of agentIds) {
+    const input = inputFor(agentId)
+    if (input === null) continue
     const answered = options.inbox.drain(agentId, options.nowMs)
     if (answered.length === 0) continue
     const reply = await answerNow(
       client,
       world,
-      withMessages(inputFor(agentId), answered),
+      withMessages(input, answered),
       options,
       mode,
     )
@@ -371,20 +377,20 @@ async function answerNow(
 ): Promise<ReplyResult> {
   const result: ReplyResult =
     mode === 'deflect'
-    ? deflect(input, 'token_budget', mode, options.inbox?.nextDeflection(input.self.id) ?? 0)
-    : {
-        source: 'model',
-        mode,
-        turn: await runAgentTurn(
-          client,
-          { ...input, actionsRemaining: 1 },
-          {
-            ...(options.metrics === undefined ? {} : { metrics: options.metrics }),
-            ...(mode === 'cheap' ? { modelTier: 'cheap' as const } : {}),
-            ...(mode === 'brief' || mode === 'cheap' ? { brief: true } : {}),
-          },
-        ),
-      }
+      ? deflect(input, 'token_budget', mode, options.inbox.nextDeflection(input.self.id))
+      : {
+          source: 'model',
+          mode,
+          turn: await runAgentTurn(
+            client,
+            { ...input, actionsRemaining: 1 },
+            {
+              ...(options.metrics === undefined ? {} : { metrics: options.metrics }),
+              ...(mode === 'cheap' ? { modelTier: 'cheap' as const } : {}),
+              ...(mode === 'brief' || mode === 'cheap' ? { brief: true } : {}),
+            },
+          ),
+        }
 
   if (result.source === 'model') {
     for (const entry of result.turn.actions) {
