@@ -23,7 +23,7 @@ import {
   type WorldDelta,
 } from '../resolution'
 import { createRng } from '../rng'
-import { commitmentAlignment, playerOdds, STANCE_DISPOSITION, type Odds } from './odds'
+import { commitmentAlignment, playerOdds, STANCE_DISPOSITION, type ModifierSource, type Odds } from './odds'
 import {
   resolverInputSchema,
   ResolverInputError,
@@ -48,7 +48,7 @@ function resolveNext(input: ResolverInput): NextStep {
   return input.decision === null ? input.fallbackNext : input.decision.branchTarget
 }
 
-function largestModifierClause(odds: Odds): string {
+function largestModifierClause(odds: Odds, success: boolean): string {
   const largest = [...odds.modifiers].sort((a, b) => {
     const magnitude = Math.abs(b.delta) - Math.abs(a.delta)
     if (magnitude !== 0) return magnitude
@@ -59,13 +59,25 @@ function largestModifierClause(odds: Odds): string {
   if (largest === undefined) return 'The course set the tone.'
   if (largest.delta === 0) return 'The course set the tone.'
   if (largest.source === 'disposition') {
-    return largest.delta >= 0 ? "The room's standing carried weight." : "The room's standing told against you."
+    return largest.delta >= 0
+      ? success
+        ? "The room's standing carried weight."
+        : "The room's standing was not enough."
+      : success
+        ? "It held despite the room's standing."
+        : "The room's standing told against you."
   }
-  if (largest.source === 'evidence') return 'The papers you found carried it.'
+  if (largest.source === 'evidence') {
+    return success ? 'The papers you found carried it.' : 'Even the papers you found were not enough.'
+  }
   if (largest.agentName === undefined) return 'The course set the tone.'
   return largest.delta > 0
-    ? `${largest.agentName}'s support carried the room.`
-    : `${largest.agentName}'s refusal cost you.`
+    ? success
+      ? `${largest.agentName}'s support carried the room.`
+      : `${largest.agentName}'s support was not enough.`
+    : success
+      ? `It held despite ${largest.agentName}'s refusal.`
+      : `${largest.agentName}'s refusal cost you.`
 }
 
 function buildAnnouncement(input: ResolverInput, success: boolean, deltas: readonly AgentDelta[], odds: Odds): string {
@@ -86,12 +98,28 @@ function buildAnnouncement(input: ResolverInput, success: boolean, deltas: reado
     const head = success
       ? 'The stage closes without your word, and the other parties settle it in a way you can live with.'
       : 'The stage closes without your word, and the other parties settle it without you in mind.'
-    return `${head} ${largestModifierClause(odds)} ${reaction}`
+    return `${head} ${largestModifierClause(odds, success)} ${reaction}`
   }
   const head = success
     ? `You commit to: ${input.decision.label}. It carries.`
     : `You commit to: ${input.decision.label}. It does not hold.`
-  return `${head} ${largestModifierClause(odds)} ${reaction}`
+  return `${head} ${largestModifierClause(odds, success)} ${reaction}`
+}
+
+function oddsRationale(odds: Odds): string {
+  const aggregates = new Map<ModifierSource, { delta: number; count: number }>()
+  for (const modifier of odds.modifiers) {
+    const aggregate = aggregates.get(modifier.source) ?? { delta: 0, count: 0 }
+    aggregate.delta += modifier.delta
+    aggregate.count += 1
+    aggregates.set(modifier.source, aggregate)
+  }
+  return [...aggregates.entries()]
+    .map(([source, aggregate]) => {
+      const count = source === 'agent_stance' ? `(n=${aggregate.count})` : ''
+      return `${source}:${round(aggregate.delta)}${count}`
+    })
+    .join(',')
 }
 
 function buildEffects(input: ResolverInput, success: boolean): { effects: SceneEffect[]; dropped: number } {
@@ -247,9 +275,7 @@ export function resolveStageSync(rawInput: ResolverInput): ResolverResult {
           ? 'Reads the outcome as an opening worth using next stage.'
           : 'Reads the outcome as a slight, and will remember it next stage.',
     })),
-    rationale: `stance=${stance} trigger=${input.trigger} p=${probability} roll=${value} success=${success} evidence=${input.evidenceCollected} oddsBase=${odds.base} oddsModifiers=${odds.modifiers
-      .map((modifier) => `${modifier.source}=${modifier.delta}`)
-      .join(',')} ; branch is spec-authored (${next.kind}).`,
+    rationale: `stance=${stance} trigger=${input.trigger} p=${probability} roll=${value} success=${success} evidence=${input.evidenceCollected} oddsBase=${odds.base} oddsModifiers=${oddsRationale(odds)} ; branch is spec-authored (${next.kind}).`,
   }
 
   const validated = validateResolutionRecord(record)

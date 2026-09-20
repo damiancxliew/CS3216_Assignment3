@@ -4,7 +4,7 @@ import { fixtureResolverInput, fixtureTimerExpiryInput } from '../src/fixtures'
 import { auditClientPayload } from '../src/privacy'
 import { publicResolution, sanitizeEffects, validateResolutionRecord } from '../src/resolution'
 import { resolveStageSync } from '../src/resolver/fake'
-import { playerOdds } from '../src/resolver/odds'
+import { PASS_PROBABILITY, playerOdds } from '../src/resolver/odds'
 import { ResolverInputError, type ResolverInput } from '../src/resolver/types'
 
 describe('K1 — deterministic fake resolver', () => {
@@ -75,6 +75,15 @@ describe('K1 — deterministic fake resolver', () => {
     expect(record.outcome.effects.map((effect) => effect.id)).toEqual([
       record.rolls[0]?.success ? 'smoke' : 'crowd_flee',
     ])
+  })
+
+  it('keeps timer expiry at the flat pass probability despite standing and evidence', () => {
+    const odds = playerOdds({
+      ...fixtureTimerExpiryInput,
+      evidenceCollected: 4,
+      agents: fixtureTimerExpiryInput.agents.map((agent) => ({ ...agent, disposition: 5 })),
+    })
+    expect(odds).toEqual({ base: PASS_PROBABILITY, modifiers: [], probability: PASS_PROBABILITY })
   })
 
   it('normalizes recoverable evidence and disposition values', () => {
@@ -350,6 +359,50 @@ describe('K7 — explainable player odds', () => {
     expect(record.outcome.announcement).not.toContain('papers')
     expect(record.outcome.announcement).not.toContain('refusal')
     expect(record.outcome.announcement).not.toContain('support')
+  })
+
+  it('describes evidence as an odds influence even when the roll fails', () => {
+    const input = { ...fixtureResolverInput, evidenceCollected: 4 }
+    const seed = Array.from({ length: 100 }, (_, index) => `evidence-failure-${index}`).find(
+      (candidate) => !resolveStageSync({ ...input, seed: candidate }).record.rolls[0]?.success,
+    )
+    if (seed === undefined) throw new Error('fixture should produce a failing seed')
+    const announcement = resolveStageSync({ ...input, seed }).record.outcome.announcement
+    expect(announcement).toContain('Even the papers you found were not enough.')
+    expect(announcement).not.toContain('The papers you found carried it.')
+  })
+
+  it('describes an opposing agent as resistance even when the roll succeeds', () => {
+    const input = {
+      ...fixtureResolverInput,
+      evidenceCollected: 0,
+      agents: fixtureResolverInput.agents.map((agent, index) => ({
+        ...agent,
+        disposition: 0,
+        ...(index === 0
+          ? { commitment: { optionId: 'option-other', how: 'committed' as const } }
+          : {}),
+      })),
+    }
+    const seed = Array.from({ length: 100 }, (_, index) => `opposed-success-${index}`).find(
+      (candidate) => resolveStageSync({ ...input, seed: candidate }).record.rolls[0]?.success,
+    )
+    if (seed === undefined) throw new Error('fixture should produce a succeeding seed')
+    const announcement = resolveStageSync({ ...input, seed }).record.outcome.announcement
+    expect(announcement).toContain("It held despite Temenggong Abdul Rahman's refusal.")
+    expect(announcement).not.toContain("Temenggong Abdul Rahman's refusal cost you.")
+  })
+
+  it('keeps rationale bounded with many committed agents', () => {
+    const agents = Array.from({ length: 120 }, (_, index) => ({
+      id: `agent-${index}`,
+      name: `Agent ${index}`,
+      disposition: 0,
+      commitment: { optionId: 'option-other', how: 'committed' as const },
+    }))
+    const { record } = resolveStageSync({ ...fixtureResolverInput, agents })
+    expect(record.rationale.length).toBeLessThanOrEqual(2000)
+    expect(record.rationale).toContain('agent_stance:-0.15(n=120)')
   })
 
   it('warms backing agents on success and hardens opposing agents, with the mirror on failure', () => {
