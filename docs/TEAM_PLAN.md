@@ -55,9 +55,11 @@ He built the PoC, so he owns the port.
   allows (optional M21).
 - Planner LLM: documents → adventure spec (stages, stakeholders, rooms, evidence, objectives, decision
   options), schema validation, bounded repair, missing-information report.
-- Asset generation (PRD D4/FR-6): curated tiles and stock portraits first, generate only where
-  nothing fits, ≤8 images per adventure, prompt-hash cache, **non-blocking for publish** with a
-  curated placeholder fallback and post-publish teacher review/regenerate.
+- Asset generation (PRD D4/FR-6): **scene/story-specific entities only** — character portraits, named
+  landmarks, story props. Terrain, structural and UI art are curated and not generatable at all; the
+  spec marks which entities are eligible and anything else fails validation. ≤8 images per adventure,
+  prompt-hash cache, **non-blocking for publish** with a curated placeholder fallback and
+  post-publish teacher review/regenerate.
 - **Eval harness**: a fixed set of 5–8 source documents, automated checks for spec validity, map
   playability, source-span grounding, and persona adherence; results table for the write-up.
 - Owns: FR-1 – FR-6, FR-24 (generation metrics).
