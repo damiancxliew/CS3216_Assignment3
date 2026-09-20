@@ -34,9 +34,11 @@ and makes decisions whose consequences are resolved probabilistically and carrie
 | D11 | **Consequences are not previewed.** No repercussion preview before committing; learning happens in the post-game debrief. | "They should learn from their mistakes." |
 | D12 | **Timer on by default, per stage, teacher-configurable.** Each stage has its own countdown whose length the host sets in adventure settings; on expiry the player passes, the Resolver resolves the stage without their decision, and play advances to the next stage. | Decided 20 Sep (Damian). Keeps a class period bounded (D15) while letting the teacher lengthen a research-heavy stage; "not deciding is a decision" was explicit in the meeting. |
 | D13 | **Elimination → spectator mode.** If the player's faction is destroyed, they keep watching the world resolve instead of being kicked out. | Diagram has a `Spectator` node. |
-| D14 | **Model tiering:** strongest model for the Resolver/Orchestrator and ingest planning, mid-tier for character agents, cheapest for incidental text. Schema-validated (typesafe) structured output everywhere. | Cost control; cache is not shared across models, so tiering must be per-call and deliberate. |
+| D14 | **OpenAI as the single provider, tiered per use case:** strongest model for the Resolver/Orchestrator and ingest planning, mid-tier for character agents, cheapest for incidental text, plus an OpenAI image model for assets. Schema-validated (typesafe) structured output everywhere. | Decided 20 Sep (Yi Hao). One SDK, one key, one billing view, and native structured outputs — no time in a 6-day sprint for a provider abstraction. Cost control comes from tiering, not from shopping around. Caches are per-model, so tier deliberately per call, not per request path. |
 | D15 | **Target session length:** ~15 min in class, ~30 min self-directed. | Classroom periods are short. |
 | D16 | **Phaser 3 for the game view.** The PoC's Canvas renderer is replaced; `core.ts` stays the authority for movement, pathfinding and collision, and Phaser only renders and tweens what it returns. | Decided 20 Sep (Yi Hao), resolving the meeting's assumption. Buys sprite atlases, tweened walking, camera follow and a scene manager for the ≤3 stages; the cost is ~1 day of porting plus e2e rework (see §7.1). |
+| D17 | **NPC agents act autonomously between player turns.** Each is modelled exactly like the player — own private context, own goals, free movement between rooms, same door mechanic for privacy, no shared state or information — differing only in that the stage decision belongs to the player. | Decided 20 Sep (Kevin). Symmetry is the point: the world must keep moving whether or not the student is in the room, and an NPC who can scheme behind a closed door is what makes the debrief interesting. Costs more tokens than reactive agents; FR-12b holds the budget controls that keep it affordable. |
+| D18 | **Decisions are options-only; free text clarifies, it does not propose.** The player picks from the Resolver-maintained option list; free text is conversation with stakeholders and may cause the Resolver to add, remove or reword options, but never becomes an action directly. | Decided 20 Sep (Kevin). Removes the interpret-then-confirm round trip and the whole class of "the model invented an action the world cannot execute" failures, which also shrinks the action allow-list attack surface (FR-20). Free-text *proposals* move to the stretch list. |
 
 ## 3. Users and core flows
 
@@ -48,7 +50,7 @@ element → preview as player → publish (immutable version) → share link →
 
 **Student:** open link → sign in → read role brief → spawn in stage 1 map → walk/click between rooms →
 chat with stakeholders (shared room chat; close the door for privacy) → collect evidence into the
-journal → make the stage decision (pick an option or propose in natural language) → watch the Resolver
+journal → make the stage decision (pick from the current option list) → watch the Resolver
 apply consequences → stages 2–3 → ending + debrief.
 
 ## 4. System architecture (MVC as drawn)
@@ -107,12 +109,23 @@ Hard rules:
   above characters plus a transcript panel. Closing the door blocks entry and hides the transcript from
   non-occupants.
 - FR-12 Character agents hold their own context window: shared historical context + private persona +
-  what they have personally seen/been told. They may move between rooms and talk to each other; the
-  player only learns of that through in-world consequences or hearsay.
-- FR-13 The Resolver observes every exchange and updates the player's available decision options after
-  each material conversation (an angered stakeholder removes the cooperative option, etc.).
-- FR-14 Decisions: pick a generated option or type a free-text proposal. Free text is interpreted into
-  an allowed action and **the interpretation is shown for confirmation** before commit.
+  what they have personally seen/been told. No agent reads another agent's context or any transcript
+  it was not present for.
+- FR-12a Agents are **autonomous** (D17): on each tick an agent may move to another room, open or
+  close a door, start or join a conversation, or act on its goals, whether or not the player is
+  present. Agent-to-agent exchanges run behind closed doors as real exchanges, not narration, and the
+  player learns of them only through in-world consequences, hearsay, or by being in the room.
+- FR-12b Autonomy runs on a budgeted tick, not free-running: at most N agent actions per stage, only
+  agents relevant to the current stage are ticked, an agent with nothing to do yields, and the
+  per-attempt token budget (FR-23) caps the total. Ticks are server-side and continue while the
+  player is elsewhere on the map.
+- FR-13 The Resolver observes every exchange — including agent-to-agent ones — and updates the
+  player's available decision options after each material development (an angered stakeholder removes
+  the cooperative option, a secret deal between two NPCs adds a new one).
+- FR-14 Decisions are **options-only** (D18): the player commits by picking from the current option
+  list. Free text is for talking to stakeholders; it can change which options exist, but is never
+  itself an action. Options carry preconditions and are re-derived from state, so a stale option can
+  never be committed.
 - FR-15 Resolution: the Resolver takes all parties' actions + full state and produces a structured
   outcome — per-agent state deltas, world/context updates, public announcement, private notes, next
   stage or ending. Outcomes are probabilistic and never previewed to the player.
@@ -168,7 +181,7 @@ resolution(id, attempt_id, stage_id, actions json, outcome json, rolls json, cre
 | Backend | Next.js route handlers + a job runner for generation | Generation is long-running; needs progress polling |
 | DB | Postgres (Supabase) + pgvector for source retrieval | Supabase also covers auth and storage in one dependency |
 | Auth | Supabase Auth with Google sign-in (teacher + student identity) | Assignment requires meaningful use of identity |
-| LLM | Tiered: frontier model for planner/Resolver, mid-tier for agents, image model for assets | Structured outputs + schema validation (Zod) on every call |
+| LLM | **OpenAI only** (D14), tiered: frontier model for planner/Resolver, mid-tier for character agents, cheapest for incidental text, OpenAI image model for assets | Structured outputs + schema validation (Zod) on every call. Alternatives considered: a multi-provider router (rejected — abstraction cost in a 6-day sprint) and single-model-everywhere (rejected — the Resolver needs the frontier model, the agents do not). Exact model per tier is pinned by Yi Hao with measured latency/cost for Milestone 9 |
 | Hosting | Vercel | Preview deploys per PR |
 | Testing | Vitest (core + prompt/eval harness), Playwright (browser) | Already set up on `PoC` |
 | Analytics | GA4 or PostHog | Milestone 19 requires real data — instrument on day 1 |
@@ -195,12 +208,13 @@ server stops being authoritative and the deterministic guarantees in FR-7 – FR
 ## 8. MVP scope (what ships by 25 Sep)
 
 **In:** teacher sign-in, upload/paste → generated spec → stage editor → publish; 1–3 stages;
-3–4 stakeholders; rooms with doors and shared chat; NPC agents with private context; free movement;
-room chat; Resolver-updated decision options; probabilistic resolution; persistence + resume; ending
-debrief with source/simulation labelling; landing page; analytics; eval harness.
+3–4 stakeholders; rooms with doors and shared chat; autonomous NPC agents with private context,
+including agent-to-agent exchanges behind closed doors; free movement; room chat; Resolver-updated
+decision options; options-only decisions; probabilistic resolution; per-stage timers; persistence +
+resume; ending debrief with source/simulation labelling; landing page; analytics; eval harness.
 
-**Out (say so explicitly in the write-up):** multiplayer, voice, combat, agent-vs-agent autonomous
-scheming beyond scripted opportunities, mobile layout, classroom management/grading, arbitrary
+**Out (say so explicitly in the write-up):** multiplayer, voice, combat, free-text decision
+*proposals* (options-only in the MVP — D18), mobile layout, classroom management/grading, arbitrary
 historical periods, generated game code.
 
 ## 9. Success criteria
@@ -218,10 +232,15 @@ Inherits `specs.md` §10, plus meeting-specific ones:
 ## 10. Open decisions (need an owner and an answer before Mon EOD)
 
 1. ~~Phaser 3 vs the existing Canvas renderer.~~ **Resolved 20 Sep — Phaser 3** (D16, §7.1). Owner: Yi Hao.
-2. **Do NPC agents act autonomously between player turns**, or only when spoken to plus a scripted
-   Resolver-driven "offscreen event"? Full autonomy is the expensive option. Owner: Kevin.
+2. ~~Do NPC agents act autonomously between player turns?~~ **Resolved 20 Sep — fully autonomous,
+   symmetric with the player, no shared state** (D17, FR-12a/b). Owner: Kevin.
 3. ~~Timer on or off by default, per stage or per adventure?~~ **Resolved 20 Sep — on by default, per
    stage, length set by the teacher in settings** (D12, FR-16). Owner: Damian.
 4. **How many generated images per adventure** (cost cap) and are they blocking for publish? Owner: Di Heng.
-5. **Free-text decisions in the MVP** or options-only with free text as the stretch? Owner: Kevin.
-6. Provider mix for the model tiers, and whether cross-model prompt caching loss is acceptable. Owner: Yi Hao.
+5. ~~Free-text decisions in the MVP or options-only?~~ **Resolved 20 Sep — options-only, free text
+   clarifies only** (D18, FR-14). Owner: Kevin.
+6. ~~Provider mix for the model tiers.~~ **Resolved 20 Sep — OpenAI only, tiered per use case**
+   (D14). Owner: Yi Hao. Remaining sub-task: pin the exact model per tier with measured latency/cost
+   for Milestone 9.
+
+Only item 4 is still open.

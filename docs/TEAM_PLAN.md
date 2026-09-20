@@ -20,7 +20,11 @@ The hardest and highest-risk slice; it is also the thing the coolness score ride
   resolves a stage from all parties' actions into structured deltas (per-agent state, world context,
   public announcement, branch target).
 - Character-agent runtime: one context window per agent (shared historical context + private persona +
-  personal memory), agent-to-agent exchanges, room-scoped visibility.
+  personal memory), room-scoped visibility, no cross-agent state.
+- **Autonomous agent tick** (PRD D17/FR-12a–b): agents move, open/close doors and hold agent-to-agent
+  conversations whether or not the player is present, symmetric with the player except that the stage
+  decision is the player's. Ship it with the budget rails from day one — capped actions per stage,
+  only stage-relevant agents ticked, yield when idle — or it eats the token budget.
 - Probabilistic outcome model: action succeeds/fails/partially succeeds based on context, with the roll
   recorded server-side and never previewed to the player (PRD D10/D11).
 - Model tiering + structured outputs (Zod schemas) + retry/repair policy.
@@ -102,9 +106,9 @@ Put all four in `AGENTS.md` as the shared contract, with a stub implementation e
 
 | Day | Goal | Kevin | Yi Hao | Di Heng | Damian |
 | --- | --- | --- | --- | --- | --- |
-| **Sun 20** | Contracts frozen, repo scaffolded | Draft Resolver + agent prompt contracts; answer open decisions 2 & 5 | Scaffold Next.js monorepo; port `core.ts`; Phaser scene rendering the PoC map | Spec schema v1 draft; upload + extraction spike | Supabase project, schema, auth, Vercel deploy of an empty app + analytics |
+| **Sun 20** | Contracts frozen, repo scaffolded | Draft Resolver + agent prompt contracts; agent tick loop design | Scaffold Next.js monorepo; port `core.ts`; Phaser scene rendering the PoC map | Spec schema v1 draft; upload + extraction spike | Supabase project, schema, auth, shared OpenAI key in Vercel env, deploy of an empty app + analytics |
 | **Mon 21** | Vertical slice: one hardcoded stage playable end-to-end | Single agent answering in-room with private context | Finish Phaser port (tweened movement, camera follow, click-to-travel); rooms + doors in the compiler; chat panel against a stub API | Planner prompt → valid spec for one test document | Turn API wired to DB; attempt create/resume |
-| **Tue 22** | Generation → playable | Multi-agent + Resolver updating decision options | Render a compiled generated map; decision panel | Repair loop, source spans, missing-info report; 3 test documents passing | Teacher console: upload, progress, stage editor |
+| **Tue 22** | Generation → playable | Multi-agent + autonomous tick + Resolver updating decision options | Render a compiled generated map; decision panel | Repair loop, source spans, missing-info report; 3 test documents passing | Teacher console: upload, progress, stage editor |
 | **Wed 23** | Stages, consequences, endings | Stage resolution, probabilistic outcomes, branching, spectator; timer expiry → pass → resolve | Stage transition as a Phaser scene swap; journal; accessible list | Asset generation + cache; eval harness v1 with results | Publish/versioning, sharing link, timer settings UI, ending/debrief screen |
 | **Thu 24** | Freeze + polish | Prompt-injection tests, token budget, latency pass | UI polish, Playwright happy path | Eval results table + a second full document set | Landing page, README, analytics screenshots |
 | **Fri 25** | Submit by 23:59 | M7–M10, M13 write-up | M12, M15–M17 write-up | M11 write-up | M0–M6, M14, M18–M20 write-up, pitch PDF, demo video, packaging |
@@ -128,7 +132,7 @@ Put all four in `AGENTS.md` as the shared contract, with a stub implementation e
 | 6 | Pricing/monetisation | Damian | Per-seat/per-class tiers vs inference cost per adventure (use real numbers from M12) |
 | 7 | How and why LLMs | Kevin | PRD §2, §4 |
 | 8 | 2–3 prompts explained | Kevin | Planner prompt, persona prompt, resolver prompt + techniques |
-| 9 | Model/provider justification vs 2 alternatives | Kevin | Tiering table with measured latency/cost |
+| 9 | Model/provider justification vs 2 alternatives | Kevin + Yi Hao | OpenAI-only decision (D14) + per-tier model table with measured latency/cost; alternatives = multi-provider router, single model everywhere |
 | 10 | AI interaction patterns | Kevin | Structured outputs, multi-agent orchestration, RAG, tool/action allow-list, repair loop |
 | 11 | Eval dataset + strategy + results | Di Heng | Eval harness output, before/after prompt change |
 | 12 | Production optimisation + metrics | Yi Hao + Di Heng | Caching, tiering, streaming, parallel agent calls; latency/cost deltas |
@@ -136,7 +140,7 @@ Put all four in `AGENTS.md` as the shared contract, with a stub implementation e
 | 14 | Name + logo | Damian | Name rationale + alternatives |
 | 15 | Tech stack choices + alternatives | Yi Hao | PRD §7 |
 | 16 | 3 common workflows | Yi Hao | Teacher generate-review-publish; student explore-chat-decide; resume |
-| 17 | AI-specific UI decisions | Yi Hao | Interpretation-confirm on free-text decisions, source-vs-simulation labelling, generation progress + repair states, regenerate-this-element |
+| 17 | AI-specific UI decisions | Yi Hao | Resolver-maintained option list (why options, not free text — D18), surfacing what NPCs did offscreen, source-vs-simulation labelling, generation progress + repair states, regenerate-this-element |
 | 18 | Landing page, SEO, OG | Damian | Live URL |
 | 19 | Analytics + insights | Damian | Screenshot + what we changed because of it |
 | 20 | Product Hunt kit | Damian | Copy, assets, first comment |
@@ -153,6 +157,7 @@ M22 is essentially already in scope; M21 is the cheapest remaining optional. Do 
 | Risk | Mitigation |
 | --- | --- |
 | Resolver is the critical path and the hardest piece | Kevin ships a dumb deterministic resolver on Mon so the rest of the game works; the LLM version swaps in behind the same interface |
+| Autonomous agents blow the token budget or wander pointlessly | Budget rails are part of the first implementation, not a later optimisation (FR-12b): capped actions per stage, only stage-relevant agents ticked, idle agents yield. If cost is still wrong on Wed, drop the tick rate rather than the mechanic |
 | Generated adventures are unplayable | Deterministic compiler + independent validator + bounded repair; never publish an invalid map (already proven in the PoC) |
 | Latency makes the game feel dead | Stream dialogue, pre-warm agents on room entry, resolve stages asynchronously with an in-world "the day ends" beat |
 | Cost blowup during demos | Per-attempt token budget, cheap tier for chat, prompt-hash cache for images, cap generated images per adventure |
