@@ -8,6 +8,7 @@ Sources: meeting transcript (Kevin, Yi Hao, Di Heng, Damian), the Excalidraw arc
 `specs.md`, and the `PoC` branch (`AGENTS.md`, `MAP_GENERATION_PLAN.md`, `src/core.ts`).
 
 Deadline: **Fri 25 Sep 2026, 23:59** (CS3216 Assignment 3). Everything below is scoped against that.
+Execution is split in [`TEAM_PLAN.md`](TEAM_PLAN.md) and gated in [`EXECUTION_SPEC.md`](EXECUTION_SPEC.md).
 
 ---
 
