@@ -20,6 +20,12 @@
  *
  * Neither rail produces silence. Past the inbox bound or the stage token ceiling, the character
  * still answers, from a cheap non-LLM path with a short in-fiction deflection.
+ *
+ * The limiter and inbox are process-local maps. In a serverless deployment, N instances therefore
+ * provide N independent rate limits and windows, and a cold start loses held messages. This PoC
+ * exposes those losses through `droppedHeld`; distributed state is deliberately out of scope.
+ * `tokensSpent` is supplied by the caller, so the ceiling is only as reliable as its bookkeeping.
+ * `runStage` is the reference caller and threads its telemetry total through the reply path.
  */
 import { runAgentTurn, type AgentTurnResult } from '../agent/character-agent'
 import type { AgentTurnInput } from '../agent/types'
@@ -54,7 +60,8 @@ export class ReplyRateLimiter {
   take(speakerId: string, nowMs: number): boolean {
     const { minIntervalMs, burst } = this.limit
     const state = this.allowance.get(speakerId) ?? { tokens: burst, lastMs: nowMs }
-    const refilled = Math.min(burst, state.tokens + (nowMs - state.lastMs) / minIntervalMs)
+    const elapsed = Math.max(0, nowMs - state.lastMs)
+    const refilled = Math.min(burst, state.tokens + elapsed / minIntervalMs)
     if (refilled < 1) {
       this.allowance.set(speakerId, { tokens: refilled, lastMs: nowMs })
       return false
@@ -67,7 +74,8 @@ export class ReplyRateLimiter {
   tokensFor(speakerId: string, nowMs: number): number {
     const state = this.allowance.get(speakerId)
     if (state === undefined) return this.limit.burst
-    return Math.min(this.limit.burst, state.tokens + (nowMs - state.lastMs) / this.limit.minIntervalMs)
+    const elapsed = Math.max(0, nowMs - state.lastMs)
+    return Math.min(this.limit.burst, state.tokens + elapsed / this.limit.minIntervalMs)
   }
 }
 
@@ -83,8 +91,9 @@ const DEFLECTIONS = [
   'has said all they mean to say for the moment.',
 ] as const
 
-export function deflectionFor(agentName: string, prompt: string): string {
-  const line = DEFLECTIONS[hashSeed(`${agentName}|${prompt}`) % DEFLECTIONS.length] ?? DEFLECTIONS[0]
+export function deflectionFor(agentName: string, prompt: string, attempt = 0): string {
+  const line =
+    DEFLECTIONS[hashSeed(`${agentName}|${prompt}|${attempt}`) % DEFLECTIONS.length] ?? DEFLECTIONS[0]
   return `${agentName} ${line}`
 }
 
@@ -98,7 +107,7 @@ export interface PendingMessage {
 export interface CoalescingWindow {
   /** How long a character's answers are batched for. Short: it is latency for a second speaker. */
   windowMs: number
-  /** Messages one character will quote back at once. Past it the oldest are dropped. */
+  /** Messages one character will quote back at once. Past it, only the first and newest remain. */
   maxPerAgent: number
 }
 
@@ -114,19 +123,27 @@ export const DEFAULT_COALESCING_WINDOW: CoalescingWindow = { windowMs: 1_000, ma
 export class ReplyInbox {
   private readonly waiting = new Map<string, PendingMessage[]>()
   private readonly lastAnsweredMs = new Map<string, number>()
+  private readonly dropped = new Map<string, number>()
+  private readonly deflections = new Map<string, number>()
 
   constructor(private readonly window: CoalescingWindow = DEFAULT_COALESCING_WINDOW) {}
 
   /** May this character answer now, or is it still inside the window of its last reply? */
   isClear(agentId: string, nowMs: number): boolean {
     const last = this.lastAnsweredMs.get(agentId)
-    return last === undefined || nowMs - last >= this.window.windowMs
+    return last === undefined || Math.max(0, nowMs - last) >= this.window.windowMs
   }
 
   add(agentId: string, message: PendingMessage): void {
     const queue = this.waiting.get(agentId) ?? []
     queue.push(message)
-    this.waiting.set(agentId, queue.slice(-this.window.maxPerAgent))
+    const max = this.window.maxPerAgent
+    if (queue.length > max) {
+      this.dropped.set(agentId, (this.dropped.get(agentId) ?? 0) + queue.length - max)
+      this.waiting.set(agentId, [queue[0]!, ...queue.slice(-(max - 1))])
+    } else {
+      this.waiting.set(agentId, queue)
+    }
   }
 
   /** Take everything waiting on this character and open a new window. Answered in one reply. */
@@ -150,10 +167,38 @@ export class ReplyInbox {
   dueAgents(nowMs: number): string[] {
     return this.waitingAgents().filter((agentId) => this.isClear(agentId, nowMs))
   }
+
+  /** Number of held messages discarded due to the per-character bound. */
+  droppedHeld(agentId?: string): number {
+    if (agentId !== undefined) return this.dropped.get(agentId) ?? 0
+    return [...this.dropped.values()].reduce((total, count) => total + count, 0)
+  }
+
+  /** Return and advance the deterministic deflection sequence for one character. */
+  nextDeflection(agentId: string): number {
+    const attempt = this.deflections.get(agentId) ?? 0
+    this.deflections.set(agentId, attempt + 1)
+    return attempt
+  }
+}
+
+export type ReplyMode = 'full' | 'brief' | 'cheap' | 'deflect'
+
+export const REPLY_DEGRADE_AT = { brief: 0.8, cheap: 0.95 } as const
+
+export function replyMode(tokenBudget: number | undefined, tokensSpent: number | undefined): ReplyMode {
+  if (tokenBudget === undefined) return 'full'
+  if (tokenBudget <= 0) return 'deflect'
+  const ratio = (tokensSpent ?? 0) / tokenBudget
+  if (ratio >= 1) return 'deflect'
+  if (ratio >= REPLY_DEGRADE_AT.cheap) return 'cheap'
+  if (ratio >= REPLY_DEGRADE_AT.brief) return 'brief'
+  return 'full'
 }
 
 export interface ReplyOptions {
   limiter: ReplyRateLimiter
+  inbox?: ReplyInbox
   /** Who is speaking. The rate is theirs, whether they are a human or another character. */
   speakerId?: string
   /** Server clock, passed in so the path stays testable and deterministic. */
@@ -168,14 +213,21 @@ export interface ReplyResult {
   turn: AgentTurnResult
   /** How the line was produced. `deflection` costs no model call. */
   source: 'model' | 'deflection'
+  mode: ReplyMode
   /** Why it was degraded, when it was. Server-side telemetry (FR-24), never sent to a client. */
   degradedBy?: 'rate_limit' | 'token_budget'
 }
 
-function deflect(input: AgentTurnInput, degradedBy: 'rate_limit' | 'token_budget'): ReplyResult {
-  const say = deflectionFor(input.self.name, input.playerMessage ?? '')
+function deflect(
+  input: AgentTurnInput,
+  degradedBy: 'rate_limit' | 'token_budget',
+  mode: ReplyMode,
+  attempt: number,
+): ReplyResult {
+  const say = deflectionFor(input.self.name, input.playerMessage ?? '', attempt)
   return {
     source: 'deflection',
+    mode,
     degradedBy,
     turn: {
       agentId: input.self.id,
@@ -206,19 +258,22 @@ export async function replyToPlayer(
   input: AgentTurnInput,
   options: ReplyOptions,
 ): Promise<ReplyResult> {
-  const overTokenBudget =
-    options.tokenBudget !== undefined && (options.tokensSpent ?? 0) >= options.tokenBudget
+  const mode = replyMode(options.tokenBudget, options.tokensSpent)
 
-  if (!overTokenBudget && !options.limiter.take(options.speakerId ?? 'player', options.nowMs)) {
-    const deflected = deflect(input, 'rate_limit')
-    for (const entry of deflected.turn.actions) applyAction(world, entry)
-    return deflected
+  if (mode !== 'deflect' && !options.limiter.take(options.speakerId ?? 'player', options.nowMs)) {
+    return deflect(
+      input,
+      'rate_limit',
+      mode,
+      options.inbox?.nextDeflection(input.self.id) ?? 0,
+    )
   }
-  return answerNow(client, world, input, options, overTokenBudget)
+  return answerNow(client, world, input, options, mode)
 }
 
 export interface CoalescingOptions extends ReplyOptions {
   inbox: ReplyInbox
+  force?: boolean
 }
 
 export type SubmitResult =
@@ -255,15 +310,14 @@ export async function submitPlayerMessage(
   options: CoalescingOptions,
 ): Promise<SubmitResult> {
   const agentId = input.self.id
-  const overTokenBudget =
-    options.tokenBudget !== undefined && (options.tokensSpent ?? 0) >= options.tokenBudget
+  const mode = replyMode(options.tokenBudget, options.tokensSpent)
 
   const hold = (heldBy: 'speaker_rate' | 'coalescing_window'): SubmitResult => {
     options.inbox.add(agentId, message)
     return { status: 'held', waiting: options.inbox.pendingFor(agentId).length, heldBy }
   }
 
-  if (!overTokenBudget) {
+  if (mode !== 'deflect') {
     // The speaker's own rate is checked first: spamming should cost the spammer's slots, not the
     // character's window, so one person hammering cannot also delay the people around them.
     if (!options.limiter.take(message.speakerId, options.nowMs)) return hold('speaker_rate')
@@ -271,7 +325,7 @@ export async function submitPlayerMessage(
   }
 
   const answered = [...options.inbox.drain(agentId, options.nowMs), message]
-  const reply = await answerNow(client, world, withMessages(input, answered), options, overTokenBudget)
+  const reply = await answerNow(client, world, withMessages(input, answered), options, mode)
   return { status: 'answered', reply, answered }
 }
 
@@ -288,9 +342,11 @@ export async function flushReplies(
   options: CoalescingOptions,
 ): Promise<{ agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[]> {
   const flushed: { agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[] = []
-  const overTokenBudget =
-    options.tokenBudget !== undefined && (options.tokensSpent ?? 0) >= options.tokenBudget
-  for (const agentId of options.inbox.dueAgents(options.nowMs)) {
+  const mode = replyMode(options.tokenBudget, options.tokensSpent)
+  const agentIds = options.force
+    ? options.inbox.waitingAgents()
+    : options.inbox.dueAgents(options.nowMs)
+  for (const agentId of agentIds) {
     const answered = options.inbox.drain(agentId, options.nowMs)
     if (answered.length === 0) continue
     const reply = await answerNow(
@@ -298,7 +354,7 @@ export async function flushReplies(
       world,
       withMessages(inputFor(agentId), answered),
       options,
-      overTokenBudget,
+      mode,
     )
     flushed.push({ agentId, reply, answered })
   }
@@ -311,21 +367,29 @@ async function answerNow(
   world: WorldState,
   input: AgentTurnInput,
   options: ReplyOptions,
-  overTokenBudget: boolean,
+  mode: ReplyMode,
 ): Promise<ReplyResult> {
-  const result: ReplyResult = overTokenBudget
-    ? deflect(input, 'token_budget')
+  const result: ReplyResult =
+    mode === 'deflect'
+    ? deflect(input, 'token_budget', mode, options.inbox?.nextDeflection(input.self.id) ?? 0)
     : {
         source: 'model',
+        mode,
         turn: await runAgentTurn(
           client,
           { ...input, actionsRemaining: 1 },
-          options.metrics === undefined ? {} : { metrics: options.metrics },
+          {
+            ...(options.metrics === undefined ? {} : { metrics: options.metrics }),
+            ...(mode === 'cheap' ? { modelTier: 'cheap' as const } : {}),
+            ...(mode === 'brief' || mode === 'cheap' ? { brief: true } : {}),
+          },
         ),
       }
 
-  for (const entry of result.turn.actions) {
-    if (entry.action.type !== 'yield') applyAction(world, entry)
+  if (result.source === 'model') {
+    for (const entry of result.turn.actions) {
+      if (entry.action.type !== 'yield') applyAction(world, entry)
+    }
   }
   return result
 }

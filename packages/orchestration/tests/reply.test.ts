@@ -4,9 +4,11 @@ import { createFixtureWorld, fixtureAgentTurnInput } from '../src/fixtures'
 import { FakeLlmClient } from '../src/llm/fake'
 import {
   DEFAULT_REPLY_RATE_LIMIT,
+  deflectionFor,
   flushReplies,
   ReplyInbox,
   ReplyRateLimiter,
+  replyMode,
   replyToPlayer,
   submitPlayerMessage,
   type ReplyResult,
@@ -60,6 +62,13 @@ describe('answering a human (FR-12b, revised)', () => {
     expect(limiter.take('player-kevin', 1_100)).toBe(true)
   })
 
+  it('does not refill a bucket when the clock moves backwards', () => {
+    const limiter = new ReplyRateLimiter({ minIntervalMs: 1_000, burst: 1 })
+    expect(limiter.take('player-kevin', 1_000)).toBe(true)
+    expect(limiter.take('player-kevin', 500)).toBe(false)
+    expect(limiter.tokensFor('player-kevin', 500)).toBe(0)
+  })
+
   it('rate-limits the speaker, not the character: one spammer does not mute the room', () => {
     const limiter = new ReplyRateLimiter({ minIntervalMs: 1_000, burst: 1 })
     expect(limiter.take('player-kevin', 0)).toBe(true)
@@ -83,6 +92,46 @@ describe('answering a human (FR-12b, revised)', () => {
     expect(result).toMatchObject({ source: 'deflection', degradedBy: 'token_budget' })
     expect(result.turn.say.trim()).not.toBe('')
     expect(client.requests).toEqual([])
+  })
+
+  it('uses the brevity rule at 85% of the token budget', async () => {
+    const client = new FakeLlmClient({ replies: [reply('One short answer.')] })
+    const result = await replyToPlayer(client, createFixtureWorld(), askedInTheHall, {
+      limiter: new ReplyRateLimiter(),
+      nowMs: 0,
+      tokenBudget: 100,
+      tokensSpent: 85,
+    })
+
+    expect(result.mode).toBe('brief')
+    expect(client.requests[0]?.system).toContain('Answer in one short sentence.')
+  })
+
+  it('uses the cheap model tier at 96% of the token budget', async () => {
+    const client = new FakeLlmClient({ replies: [reply('A short answer.')] })
+    const result = await replyToPlayer(client, createFixtureWorld(), askedInTheHall, {
+      limiter: new ReplyRateLimiter(),
+      nowMs: 0,
+      tokenBudget: 100,
+      tokensSpent: 96,
+    })
+
+    expect(result.mode).toBe('cheap')
+    expect(client.requests[0]?.modelTier).toBe('cheap')
+  })
+
+  it('deflects without a model call at the token ceiling', async () => {
+    const client = new FakeLlmClient({ replies: [reply('unreachable')] })
+    const result = await replyToPlayer(client, createFixtureWorld(), askedInTheHall, {
+      limiter: new ReplyRateLimiter(),
+      nowMs: 0,
+      tokenBudget: 100,
+      tokensSpent: 100,
+    })
+
+    expect(result.mode).toBe('deflect')
+    expect(result.turn.say.trim()).not.toBe('')
+    expect(client.requests).toHaveLength(0)
   })
 
   it('is not charged against the agent\u2019s stage action cap', async () => {
@@ -218,18 +267,24 @@ describe('answering a human (FR-12b, revised)', () => {
     expect(inbox.waitingAgents()).toEqual([])
   })
 
-  it('drops the oldest held messages rather than growing without bound', () => {
-    const inbox = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 2 })
-    for (const body of ['first', 'second', 'third']) {
+  it('keeps the first and newest held messages, counting overflow', () => {
+    const inbox = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 3 })
+    for (const body of ['first', 'second', 'third', 'fourth', 'fifth']) {
       inbox.add('agent-temenggong', { speakerId: 'player', speakerName: 'You', body })
     }
-    expect(inbox.drain('agent-temenggong', 0).map((message) => message.body)).toEqual(['second', 'third'])
+    expect(inbox.drain('agent-temenggong', 0).map((message) => message.body)).toEqual([
+      'first',
+      'fourth',
+      'fifth',
+    ])
+    expect(inbox.droppedHeld()).toBe(2)
   })
 
   it('opens a fresh window per character, so a busy one does not delay a quiet one', () => {
     const inbox = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 8 })
     inbox.drain('agent-temenggong', 0)
     expect(inbox.isClear('agent-temenggong', 500)).toBe(false)
+    expect(inbox.isClear('agent-temenggong', -500)).toBe(false)
     expect(inbox.isClear('agent-farquhar', 500)).toBe(true)
     expect(inbox.isClear('agent-temenggong', 1_000)).toBe(true)
   })
@@ -250,5 +305,35 @@ describe('answering a human (FR-12b, revised)', () => {
       expect(first).toBe(second)
       expect(first).toContain(fixtureAgentTurnInput.self.name)
     })
+  })
+
+  it('varies consecutive deflections while replaying the same sequence', async () => {
+    const inbox = new ReplyInbox()
+    const options = { limiter: new ReplyRateLimiter({ minIntervalMs: 1_000, burst: 0 }), inbox, nowMs: 0 }
+    const first = await replyToPlayer(new FakeLlmClient({ replies: [reply('unreachable')] }), createFixtureWorld(), askedInTheHall, options)
+    const second = await replyToPlayer(new FakeLlmClient({ replies: [reply('unreachable')] }), createFixtureWorld(), askedInTheHall, options)
+    expect(second.turn.say).not.toBe(first.turn.say)
+    expect(deflectionFor(askedInTheHall.self.name, askedInTheHall.playerMessage ?? '', 0)).toBe(first.turn.say)
+    expect(deflectionFor(askedInTheHall.self.name, askedInTheHall.playerMessage ?? '', 1)).toBe(second.turn.say)
+  })
+
+  it('does not add deflections to the world transcript', async () => {
+    const world = createFixtureWorld()
+    const result = await replyToPlayer(
+      new FakeLlmClient({ replies: [reply('unreachable')] }),
+      world,
+      askedInTheHall,
+      { limiter: new ReplyRateLimiter({ minIntervalMs: 1_000, burst: 0 }), nowMs: 0 },
+    )
+    expect(world.transcript).toEqual([])
+    expect(result.turn.say.trim()).not.toBe('')
+  })
+
+  it('classifies token spend at each degradation boundary', () => {
+    expect(replyMode(undefined, 100)).toBe('full')
+    expect(replyMode(100, 79)).toBe('full')
+    expect(replyMode(100, 80)).toBe('brief')
+    expect(replyMode(100, 95)).toBe('cheap')
+    expect(replyMode(100, 100)).toBe('deflect')
   })
 })

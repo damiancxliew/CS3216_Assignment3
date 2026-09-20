@@ -22,6 +22,7 @@ import {
   type OptionDefinition,
   type StageDecisions,
 } from '../stage/options'
+import { flushReplies, type CoalescingOptions, type ReplyInbox, type ReplyRateLimiter } from './reply'
 import { advanceTick, applyAction, occupantsOf, visibleTranscript, type WorldState } from './state'
 
 export interface StageAgent {
@@ -43,6 +44,13 @@ export interface StageDecisionConfig {
   ledger: StageDecisions
 }
 
+export interface StageReplyConfig {
+  inbox: ReplyInbox
+  limiter: ReplyRateLimiter
+  /** Server clock. Injected so a run stays reproducible. */
+  now: () => number
+}
+
 export interface StageConfig {
   sharedContext: string
   stageBrief: string
@@ -54,6 +62,7 @@ export interface StageConfig {
   maxTicks?: number
   /** Prompt + completion tokens the whole stage may spend (FR-12b, M9). */
   tokenBudget?: number
+  replies?: StageReplyConfig
   /** Lines the agent is shown from its current room, most recent first. */
   transcriptWindow?: number
 }
@@ -72,6 +81,9 @@ export interface StageTelemetry {
   droppedActions: DroppedAction[]
   refusedActions: number
   degradedTicks: number
+  repliesFlushed: number
+  heldMessagesAnswered: number
+  heldMessagesDropped: number
   /** Share of model calls that needed a repair round (M11/M12). */
   repairRate: number
   decisions: Decision[]
@@ -201,6 +213,9 @@ export async function runStage(
     droppedActions: [],
     refusedActions: 0,
     degradedTicks: 0,
+    repliesFlushed: 0,
+    heldMessagesAnswered: 0,
+    heldMessagesDropped: 0,
     repairRate: 0,
     decisions: [],
     rejectedDecisions: [],
@@ -211,20 +226,51 @@ export async function runStage(
   const spent = (actorId: string): number => telemetry.actionsByActor[actorId] ?? 0
   const overTokenBudget = (): boolean =>
     config.tokenBudget !== undefined && telemetry.totalTokens >= config.tokenBudget
+  const flushHeld = async (force: boolean): Promise<void> => {
+    const replies = config.replies
+    if (replies === undefined) return
+
+    const options: CoalescingOptions = {
+      limiter: replies.limiter,
+      inbox: replies.inbox,
+      nowMs: replies.now(),
+      force,
+    }
+    options.metrics = metrics
+    options.tokensSpent = telemetry.totalTokens
+    if (config.tokenBudget !== undefined) options.tokenBudget = config.tokenBudget
+
+    const flushed = await flushReplies(
+      client,
+      world,
+      (agentId) => buildAgentTurnInput(world, agentId, config, 1),
+      options,
+    )
+    for (const result of flushed) {
+      turns.push(result.reply.turn)
+      telemetry.repliesFlushed += 1
+      telemetry.heldMessagesAnswered += result.answered.length
+      telemetry.promptTokens += result.reply.turn.usage.promptTokens
+      telemetry.completionTokens += result.reply.turn.usage.completionTokens
+      telemetry.totalTokens = telemetry.promptTokens + telemetry.completionTokens
+    }
+    telemetry.heldMessagesDropped = replies.inbox.droppedHeld()
+  }
 
   for (let tick = 0; tick < maxTicks; tick += 1) {
     if (tick > 0) advanceTick(world)
+    await flushHeld(false)
     telemetry.ticks = tick + 1
     let acted = false
 
     for (const agentId of relevantIds) {
       if (overTokenBudget()) {
         telemetry.stoppedBy = 'token_budget'
-        return finish()
+        return await finish()
       }
       if (telemetry.totalActions >= budget.maxActions) {
         telemetry.stoppedBy = 'action_budget'
-        return finish()
+        return await finish()
       }
 
       const remaining = Math.min(
@@ -269,18 +315,19 @@ export async function runStage(
 
     if (config.decision?.ledger.settled() === true) {
       telemetry.stoppedBy = 'all_decided'
-      return finish()
+      return await finish()
     }
     if (!acted) {
       telemetry.stoppedBy = 'all_yielded'
-      return finish()
+      return await finish()
     }
     if (tick === maxTicks - 1) telemetry.stoppedBy = 'max_ticks'
   }
 
-  return finish()
+  return await finish()
 
-  function finish(): StageRunResult {
+  async function finish(): Promise<StageRunResult> {
+    await flushHeld(true)
     telemetry.repairRate = metrics.repairRate
     return { world, turns, telemetry }
   }

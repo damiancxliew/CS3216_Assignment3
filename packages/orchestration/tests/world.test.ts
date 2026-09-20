@@ -3,12 +3,14 @@ import { describe, expect, it } from 'vitest'
 import {
   createFixtureWorld,
   fixtureFarquharPrivate,
+  fixtureAgentTurnInput,
   fixtureStageConfig,
   fixtureTemenggongPrivate,
 } from '../src/fixtures'
 import { FakeLlmClient } from '../src/llm/fake'
 import type { LlmRequest } from '../src/llm/types'
 import { findLeakedText } from '../src/privacy'
+import { ReplyInbox, ReplyRateLimiter, submitPlayerMessage } from '../src/world/reply'
 import { buildAgentTurnInput, runStage, type StageConfig } from '../src/world/stage-runtime'
 import { applyAction, visibleTranscript, type WorldState } from '../src/world/state'
 
@@ -144,6 +146,80 @@ describe('autonomous tick (K4)', () => {
     expect(telemetry.ticks).toBe(1)
     expect(telemetry.stoppedBy).toBe('all_yielded')
     expect(telemetry.totalActions).toBe(0)
+  })
+
+  it('flushes a held reply on the next stage tick and counts its tokens', async () => {
+    const world = createFixtureWorld()
+    const client = new FakeLlmClient({
+      replies: [say('Initial answer.'), say('Held answer.'), say('Tick one.'), say('Tick two.')],
+    })
+    const inbox = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 8 })
+    const limiter = new ReplyRateLimiter()
+    await submitPlayerMessage(
+      client,
+      world,
+      { ...fixtureAgentTurnInput, playerMessage: null },
+      { speakerId: 'player', speakerName: 'You', body: 'First question' },
+      { inbox, limiter, nowMs: 0 },
+    )
+    await submitPlayerMessage(
+      client,
+      world,
+      { ...fixtureAgentTurnInput, playerMessage: null },
+      { speakerId: 'player-two', speakerName: 'Ann', body: 'Held question' },
+      { inbox, limiter, nowMs: 10 },
+    )
+
+    let flushClock = 500
+    const result = await runStage(client, world, {
+      ...fixtureStageConfig,
+      agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
+      maxTicks: 2,
+      replies: { inbox, limiter, now: () => {
+        const current = flushClock
+        flushClock = 1_100
+        return current
+      } },
+    })
+
+    expect(result.telemetry.repliesFlushed).toBe(1)
+    expect(result.telemetry.heldMessagesAnswered).toBe(1)
+    expect(result.telemetry.totalTokens).toBeGreaterThan(0)
+    expect(world.transcript.some((line) => line.body === 'Held answer.')).toBe(true)
+  })
+
+  it('force-flushes a held reply when the stage closes', async () => {
+    const world = createFixtureWorld()
+    const client = new FakeLlmClient({
+      replies: [say('Initial answer.'), say('', [{ type: 'yield' }]), say('Closing answer.')],
+    })
+    const inbox = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 8 })
+    const limiter = new ReplyRateLimiter()
+    await submitPlayerMessage(
+      client,
+      world,
+      { ...fixtureAgentTurnInput, playerMessage: null },
+      { speakerId: 'player', speakerName: 'You', body: 'First question' },
+      { inbox, limiter, nowMs: 0 },
+    )
+    await submitPlayerMessage(
+      client,
+      world,
+      { ...fixtureAgentTurnInput, playerMessage: null },
+      { speakerId: 'player-two', speakerName: 'Ann', body: 'Held question' },
+      { inbox, limiter, nowMs: 10 },
+    )
+
+    const result = await runStage(client, world, {
+      ...fixtureStageConfig,
+      agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
+      maxTicks: 1,
+      replies: { inbox, limiter, now: () => 500 },
+    })
+
+    expect(result.telemetry.repliesFlushed).toBe(1)
+    expect(result.telemetry.heldMessagesAnswered).toBe(1)
+    expect(world.transcript.some((line) => line.body === 'Closing answer.')).toBe(true)
   })
 })
 

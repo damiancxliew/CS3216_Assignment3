@@ -93,8 +93,20 @@ Two rails replace it, bounding different things:
   already clear.
 
 Held is a delay, never a refusal (`submitPlayerMessage` → `flushReplies`): nothing said to a
-character goes unanswered. The cheap in-fiction deflection (hashed, so a replay is identical) is
-the last resort — the inbox bound, or the stage token ceiling.
+character goes unanswered. The stage tick flushes windows, and stage close flushes anything still
+held. A full reply uses the normal character-agent tier; at 80% of the caller-supplied token
+ceiling it adds a one-sentence rule, at 95% it also uses the cheap tier, and at 100% it uses a
+short in-fiction deflection without a model call. Rate-limit deflection remains a separate rail.
+Deflection lines are deterministic and vary by character and attempt, but are not added to the
+world transcript.
+
+`ReplyInbox` keeps the first held message and the newest messages up to its bound. Further messages
+are counted by `droppedHeld`, and `StageTelemetry` reports flushed replies, answered held messages
+and dropped held messages. The limiter and inbox are in-memory process-local maps: with N
+serverless instances, each rail can allow N times the intended rate or window, and a cold start
+loses held messages. Distributed state is out of scope for this PoC. `tokensSpent` is
+caller-supplied, so the ceiling is only as reliable as the caller's bookkeeping; `runStage`
+threads its telemetry total through the reply path as the reference implementation.
 
 ## Options and the stage decision (`src/stage/options.ts`, K6)
 

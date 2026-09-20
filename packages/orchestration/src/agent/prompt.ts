@@ -13,6 +13,10 @@
  */
 import type { AgentTurnInput } from './types'
 
+export interface AgentPromptOptions {
+  brief?: boolean
+}
+
 const BLOCK_OPEN = '<<<'
 const BLOCK_CLOSE = '>>>'
 
@@ -25,7 +29,7 @@ function block(label: string, text: string): string {
   return `${BLOCK_OPEN}${label}\n${quote(text)}\n${BLOCK_CLOSE}`
 }
 
-export function buildAgentSystemPrompt(input: AgentTurnInput): string {
+export function buildAgentSystemPrompt(input: AgentTurnInput, options: AgentPromptOptions = {}): string {
   const { self, privateContext } = input
   return [
     `You are ${self.name}, ${self.publicRole}. Stay in character and speak in the first person.`,
@@ -42,6 +46,7 @@ export function buildAgentSystemPrompt(input: AgentTurnInput): string {
     '  outright only when your character would genuinely choose to.',
     '- You propose actions; you do not narrate their outcome. What happens is decided elsewhere.',
     '- You give no reasoning, no stage directions and no commentary outside your spoken line.',
+    ...(options.brief === true ? ['- Answer in one short sentence.'] : []),
     input.actionsRemaining <= 0
       ? '- You have no actions left this scene: propose only {"type":"yield"}.'
       : `- You have ${input.actionsRemaining} action(s) left this scene. Yield if nothing is worth doing.`,
@@ -163,6 +168,6 @@ export interface AgentPrompt {
   user: string
 }
 
-export function buildAgentPrompt(input: AgentTurnInput): AgentPrompt {
-  return { system: buildAgentSystemPrompt(input), user: buildAgentUserPrompt(input) }
+export function buildAgentPrompt(input: AgentTurnInput, options: AgentPromptOptions = {}): AgentPrompt {
+  return { system: buildAgentSystemPrompt(input, options), user: buildAgentUserPrompt(input) }
 }
