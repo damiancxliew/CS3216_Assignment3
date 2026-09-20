@@ -310,6 +310,22 @@ describe('autonomous tick (K4)', () => {
     expect(world.transcript.some((line) => line.body === 'Held answer.')).toBe(true)
   })
 
+  it('reports only held-message drops that occurred during this stage', async () => {
+    const world = createFixtureWorld()
+    const inbox = new ReplyInbox({ windowMs: 1_000, maxPerAgent: 1 })
+    inbox.add('agent-temenggong', { speakerId: 'player', speakerName: 'You', body: 'Earlier' })
+    inbox.add('agent-temenggong', { speakerId: 'player', speakerName: 'You', body: 'Earlier overflow' })
+
+    const result = await runStage(new FakeLlmClient({ replies: [say('', [{ type: 'yield' }])] }), world, {
+      ...fixtureStageConfig,
+      agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
+      maxTicks: 1,
+      replies: { inbox, limiter: new ReplyRateLimiter(), now: () => 1_000 },
+    })
+
+    expect(result.telemetry.heldMessagesDropped).toBe(0)
+  })
+
   it('force-flushes a held reply when the stage closes', async () => {
     const world = createFixtureWorld()
     const client = new FakeLlmClient({

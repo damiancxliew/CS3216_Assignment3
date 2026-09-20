@@ -228,6 +228,7 @@ export async function runStage(
     rejectedDecisions: [],
     stoppedBy: 'all_yielded',
   }
+  const droppedHeldAtStart = config.replies?.inbox.droppedHeld() ?? 0
 
   const turns: AgentTurnResult[] = []
   const lastSkipReason: Record<string, 'not_stage_relevant' | 'budget_exhausted' | 'not_in_world'> =
@@ -280,7 +281,7 @@ export async function runStage(
       telemetry.completionTokens += result.reply.turn.usage.completionTokens
       telemetry.totalTokens = telemetry.promptTokens + telemetry.completionTokens
     }
-    telemetry.heldMessagesDropped = replies.inbox.droppedHeld()
+    telemetry.heldMessagesDropped = replies.inbox.droppedHeld() - droppedHeldAtStart
     telemetry.repliesUnroutable = unroutableReplyAgents.size
   }
 

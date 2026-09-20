@@ -63,10 +63,10 @@ export class ReplyRateLimiter {
     const elapsed = Math.max(0, nowMs - state.lastMs)
     const refilled = Math.min(burst, state.tokens + elapsed / minIntervalMs)
     if (refilled < 1) {
-      this.allowance.set(speakerId, { tokens: refilled, lastMs: nowMs })
+      this.allowance.set(speakerId, { tokens: refilled, lastMs: Math.max(state.lastMs, nowMs) })
       return false
     }
-    this.allowance.set(speakerId, { tokens: refilled - 1, lastMs: nowMs })
+    this.allowance.set(speakerId, { tokens: refilled - 1, lastMs: Math.max(state.lastMs, nowMs) })
     return true
   }
 
@@ -159,6 +159,17 @@ export class ReplyInbox {
     return queue
   }
 
+  lastAnsweredAt(agentId: string): number | undefined {
+    return this.lastAnsweredMs.get(agentId)
+  }
+
+  restore(agentId: string, messages: readonly PendingMessage[], previousLastAnsweredMs: number | undefined): void {
+    const waiting = this.waiting.get(agentId) ?? []
+    this.waiting.set(agentId, [...messages, ...waiting])
+    if (previousLastAnsweredMs === undefined) this.lastAnsweredMs.delete(agentId)
+    else this.lastAnsweredMs.set(agentId, previousLastAnsweredMs)
+  }
+
   pendingFor(agentId: string): readonly PendingMessage[] {
     return this.waiting.get(agentId) ?? []
   }
@@ -220,15 +231,16 @@ export interface ReplyResult {
   source: 'model' | 'deflection'
   mode: ReplyMode
   /** Why it was degraded, when it was. Server-side telemetry (FR-24), never sent to a client. */
-  degradedBy?: 'rate_limit' | 'token_budget'
+  degradedBy?: 'rate_limit' | 'token_budget' | 'malformed_reply'
 }
 
 function deflect(
   input: AgentTurnInput,
-  degradedBy: 'rate_limit' | 'token_budget',
+  degradedBy: 'rate_limit' | 'token_budget' | 'malformed_reply',
   mode: ReplyMode,
   attempt: number,
   addresseeId: string | null,
+  usage: AgentTurnResult['usage'] = { promptTokens: 0, completionTokens: 0 },
 ): ReplyResult {
   const say = deflectionFor(input.self.name, input.playerMessage ?? '', attempt)
   return {
@@ -248,7 +260,7 @@ function deflect(
       dropped: [],
       degraded: false,
       repairRounds: 0,
-      usage: { promptTokens: 0, completionTokens: 0 },
+      usage,
     },
   }
 }
@@ -330,9 +342,15 @@ export async function submitPlayerMessage(
     if (!options.inbox.isClear(agentId, options.nowMs)) return hold('coalescing_window')
   }
 
+  const previousLastAnsweredMs = options.inbox.lastAnsweredAt(agentId)
   const answered = [...options.inbox.drain(agentId, options.nowMs), message]
-  const reply = await answerNow(client, world, withMessages(input, answered), options, mode)
-  return { status: 'answered', reply, answered }
+  try {
+    const reply = await answerNow(client, world, withMessages(input, answered), options, mode)
+    return { status: 'answered', reply, answered }
+  } catch (error) {
+    options.inbox.restore(agentId, answered, previousLastAnsweredMs)
+    throw error
+  }
 }
 
 /**
@@ -348,23 +366,30 @@ export async function flushReplies(
   options: CoalescingOptions,
 ): Promise<{ agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[]> {
   const flushed: { agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[] = []
-  const mode = replyMode(options.tokenBudget, options.tokensSpent)
+  let tokensSpent = options.tokensSpent ?? 0
   const agentIds = options.force
     ? options.inbox.waitingAgents()
     : options.inbox.dueAgents(options.nowMs)
   for (const agentId of agentIds) {
     const input = inputFor(agentId)
     if (input === null) continue
+    const previousLastAnsweredMs = options.inbox.lastAnsweredAt(agentId)
     const answered = options.inbox.drain(agentId, options.nowMs)
     if (answered.length === 0) continue
-    const reply = await answerNow(
-      client,
-      world,
-      withMessages(input, answered),
-      options,
-      mode,
-    )
-    flushed.push({ agentId, reply, answered })
+    try {
+      const reply = await answerNow(
+        client,
+        world,
+        withMessages(input, answered),
+        options,
+        replyMode(options.tokenBudget, tokensSpent),
+      )
+      flushed.push({ agentId, reply, answered })
+      tokensSpent += reply.turn.usage.promptTokens + reply.turn.usage.completionTokens
+    } catch (error) {
+      options.inbox.restore(agentId, answered, previousLastAnsweredMs)
+      throw error
+    }
   }
   return flushed
 }
@@ -377,6 +402,10 @@ async function answerNow(
   options: ReplyOptions,
   mode: ReplyMode,
 ): Promise<ReplyResult> {
+  const addresseeId =
+    input.addressedBy?.length === 1
+      ? input.addressedBy[0]?.speakerId ?? null
+      : options.speakerId ?? null
   const result: ReplyResult =
     mode === 'deflect'
       ? deflect(
@@ -384,24 +413,29 @@ async function answerNow(
           'token_budget',
           mode,
           options.inbox.nextDeflection(input.self.id),
-          input.addressedBy?.length === 1
-            ? input.addressedBy[0]?.speakerId ?? null
-            : options.speakerId ?? null,
+          addresseeId,
         )
       : {
           source: 'model',
           mode,
-          turn: await runAgentTurn(
-            client,
-            { ...input, actionsRemaining: 1 },
-            {
-              ...(options.metrics === undefined ? {} : { metrics: options.metrics }),
-              ...(mode === 'cheap' ? { modelTier: 'cheap' as const } : {}),
-              ...(mode === 'brief' || mode === 'cheap' ? { brief: true } : {}),
-            },
-          ),
+          turn: await runAgentTurn(client, { ...input, actionsRemaining: 1 }, {
+            budget: { maxActions: 2, maxActionsPerActor: 2 },
+            ...(options.metrics === undefined ? {} : { metrics: options.metrics }),
+            ...(mode === 'cheap' ? { modelTier: 'cheap' as const } : {}),
+            ...(mode === 'brief' || mode === 'cheap' ? { brief: true } : {}),
+          }),
         }
 
+  if (result.source === 'model' && (result.turn.degraded || result.turn.say.trim() === '')) {
+    return deflect(
+      input,
+      'malformed_reply',
+      mode,
+      options.inbox.nextDeflection(input.self.id),
+      addresseeId,
+      result.turn.usage,
+    )
+  }
   if (result.source === 'model') {
     for (const entry of result.turn.actions) {
       if (entry.action.type !== 'yield') applyAction(world, entry)

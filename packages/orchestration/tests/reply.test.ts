@@ -72,7 +72,8 @@ describe('answering a human (FR-12b, revised)', () => {
     const limiter = new ReplyRateLimiter({ minIntervalMs: 1_000, burst: 1 })
     expect(limiter.take('player-kevin', 1_000)).toBe(true)
     expect(limiter.take('player-kevin', 500)).toBe(false)
-    expect(limiter.tokensFor('player-kevin', 500)).toBe(0)
+    expect(limiter.take('player-kevin', 1_500)).toBe(false)
+    expect(limiter.take('player-kevin', 2_000)).toBe(true)
   })
 
   it('rate-limits the speaker, not the character: one spammer does not mute the room', () => {
@@ -158,6 +159,121 @@ describe('answering a human (FR-12b, revised)', () => {
 
     expect(result.source).toBe('model')
     expect(result.turn.say).toBe('I will hear the terms.')
+  })
+
+  it('allows one world action alongside an addressed reply and drops the rest', async () => {
+    const world = createFixtureWorld()
+    const client = new FakeLlmClient({
+      replies: [
+        JSON.stringify({
+          say: 'Follow me.',
+          actions: [
+            { type: 'move_room', toRoomId: 'room-tally-shed' },
+            { type: 'open_door', roomId: 'room-audience-hall' },
+            { type: 'record_private_note', note: 'The player wants to walk.' },
+          ],
+        }),
+      ],
+    })
+
+    const result = await replyToPlayer(client, world, askedInTheHall, {
+      limiter: new ReplyRateLimiter(),
+      inbox: new ReplyInbox(),
+      nowMs: 0,
+    })
+
+    expect(result.turn.actions.map((entry) => entry.action.type)).toEqual(['speak', 'move_room'])
+    expect(result.turn.dropped).toHaveLength(2)
+    expect(result.turn.dropped.every((drop) => drop.reason === 'budget_exhausted')).toBe(true)
+    expect(world.location['agent-temenggong']).toBe('room-tally-shed')
+  })
+
+  it('restores a failed immediate reply so a later flush can answer it', async () => {
+    const inbox = new ReplyInbox()
+    const message = { speakerId: 'player', speakerName: 'You', body: 'Will you sign?' }
+    const throwingClient = { complete: async () => { throw new Error('temporary failure') } }
+
+    await expect(
+      submitPlayerMessage(throwingClient, createFixtureWorld(), { ...fixtureAgentTurnInput, playerMessage: null }, message, {
+        limiter: new ReplyRateLimiter(),
+        inbox,
+        nowMs: 0,
+      }),
+    ).rejects.toThrow('temporary failure')
+    expect(inbox.pendingFor('agent-temenggong')).toEqual([message])
+
+    const retry = await flushReplies(
+      new FakeLlmClient({ replies: [reply('I will consider it.')] }),
+      createFixtureWorld(),
+      () => ({ ...fixtureAgentTurnInput, playerMessage: null }),
+      { limiter: new ReplyRateLimiter(), inbox, nowMs: 1_000 },
+    )
+    expect(retry[0]?.answered).toEqual([message])
+    expect(inbox.pendingFor('agent-temenggong')).toEqual([])
+  })
+
+  it('restores a failed flush batch in front of messages that arrived meanwhile', async () => {
+    const inbox = new ReplyInbox()
+    const first = { speakerId: 'player', speakerName: 'You', body: 'First' }
+    const second = { speakerId: 'player-two', speakerName: 'Ann', body: 'Second' }
+    inbox.add('agent-temenggong', first)
+    const throwingClient = { complete: async () => { throw new Error('temporary failure') } }
+    const input = { ...fixtureAgentTurnInput, playerMessage: null }
+
+    const flushPromise = flushReplies(throwingClient, createFixtureWorld(), () => input, {
+      limiter: new ReplyRateLimiter(),
+      inbox,
+      nowMs: 1_000,
+    })
+    inbox.add('agent-temenggong', second)
+    await expect(flushPromise).rejects.toThrow('temporary failure')
+    expect(inbox.pendingFor('agent-temenggong')).toEqual([first, second])
+  })
+
+  it('recomputes flush degradation after each reply consumes tokens', async () => {
+    const inbox = new ReplyInbox({ windowMs: 0, maxPerAgent: 8 })
+    inbox.add('agent-temenggong', { speakerId: 'player', speakerName: 'You', body: 'First' })
+    inbox.add('agent-farquhar', { speakerId: 'player', speakerName: 'You', body: 'Second' })
+    const client = new FakeLlmClient({ replies: [reply('A full answer.')] })
+    const inputFor = (agentId: string) =>
+      agentId === 'agent-temenggong'
+        ? { ...fixtureAgentTurnInput, playerMessage: null }
+        : {
+            ...fixtureAgentTurnInput,
+            self: { ...fixtureAgentTurnInput.self, id: 'agent-farquhar', name: 'William Farquhar' },
+            playerMessage: null,
+          }
+
+    const flushed = await flushReplies(client, createFixtureWorld(), inputFor, {
+      limiter: new ReplyRateLimiter(),
+      inbox,
+      nowMs: 1_000,
+      tokenBudget: 100,
+      tokensSpent: 90,
+    })
+
+    expect(flushed).toHaveLength(2)
+    expect(flushed[0]?.reply.source).toBe('model')
+    expect(flushed[1]?.reply).toMatchObject({ source: 'deflection', degradedBy: 'token_budget' })
+  })
+
+  it('deflects an unrepairable addressed reply while preserving model usage', async () => {
+    const client = { complete: async () => ({ content: 'not json', usage: { promptTokens: 7, completionTokens: 3 } }) }
+    const input = {
+      ...askedInTheHall,
+      addressedBy: [{ speakerId: 'player', speakerName: 'You', body: askedInTheHall.playerMessage ?? '' }],
+    }
+
+    const result = await replyToPlayer(client, createFixtureWorld(), input, {
+      limiter: new ReplyRateLimiter(),
+      inbox: new ReplyInbox(),
+      nowMs: 0,
+    })
+
+    expect(result).toMatchObject({ source: 'deflection', degradedBy: 'malformed_reply' })
+    expect(result.turn.say.trim()).not.toBe('')
+    expect(result.turn.usage).toEqual({ promptTokens: 21, completionTokens: 9 })
+    expect(result.turn.actions[0]?.action).toMatchObject({ type: 'speak', addresseeId: 'player' })
   })
 
   it('puts the reply in the room, where presence decides who heard it', async () => {
