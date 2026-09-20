@@ -46,6 +46,7 @@ export function buildAgentSystemPrompt(input: AgentTurnInput): string {
       ? '- You have no actions left this scene: propose only {"type":"yield"}.'
       : `- You have ${input.actionsRemaining} action(s) left this scene. Yield if nothing is worth doing.`,
     ...decisionRules(input),
+    ...groupRules(input),
   ].join('\n')
 }
 
@@ -65,6 +66,19 @@ function decisionRules(input: AgentTurnInput): string[] {
     rules.push('- Everyone else has decided. Decide now: commit to one option, or pass.')
   }
   return rules
+}
+
+/**
+ * Several people talked over each other before the character could answer. It replies once, to the
+ * room, rather than working through a queue: one call, and a scene that sounds like a conversation.
+ */
+function groupRules(input: AgentTurnInput): string[] {
+  const addressedBy = input.addressedBy ?? []
+  if (addressedBy.length < 2) return []
+  return [
+    `- ${addressedBy.length} people have just spoken to you at once. Answer them together in one`,
+    '  short line, naming whom you answer if it is not obvious. Do not reply to each in turn.',
+  ]
 }
 
 /**
@@ -127,7 +141,15 @@ export function buildAgentUserPrompt(input: AgentTurnInput): string {
     )
   }
 
-  if (playerMessage !== null) {
+  const addressedBy = input.addressedBy ?? []
+  if (addressedBy.length > 0) {
+    sections.push(
+      block(
+        'SPOKEN TO YOU JUST NOW, BY SEVERAL PEOPLE',
+        addressedBy.map((line) => `${line.speakerName}: ${line.body}`).join('\n'),
+      ),
+    )
+  } else if (playerMessage !== null) {
     sections.push(block('SPOKEN TO YOU JUST NOW', playerMessage))
   }
   sections.push(`Room id for any action you propose: ${room.id}`)

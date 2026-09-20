@@ -84,9 +84,14 @@ against it — a character going silent mid-conversation reads as a broken game,
 What bounds those replies is a rate per agent (`ReplyRateLimiter`, one model-backed reply every
 `minIntervalMs` with a small burst), so cost scales with how long a stage runs rather than with how
 many humans are in it, and the stage timer stays the only thing that ends a stage. The limit sits
-well above human typing speed, so only scripted traffic reaches it. Crossing it degrades quality,
-never availability: the character answers from a cheap non-LLM path with a short in-fiction
-deflection, chosen by hash so a replay is identical. The stage token ceiling is the same backstop.
+well above human typing speed, so only scripted traffic reaches it.
+
+Crossing it does not build a queue either. Messages that arrive while a character is out of rate
+are held in a `ReplyInbox` and answered *together* on the next slot (`submitPlayerMessage` →
+`flushReplies`): one call per window however many people spoke, and the character answers the room
+rather than working through a backlog. A solo player never waits, since with nobody else talking
+there is always a slot. The cheap in-fiction deflection (hashed, so a replay is identical) is the
+last resort — a genuine flood, or the stage token ceiling.
 
 ## Options and the stage decision (`src/stage/options.ts`, K6)
 

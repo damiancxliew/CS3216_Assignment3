@@ -10,8 +10,11 @@
  * many humans are in it — a table dogpiling one character cannot multiply the spend, and the stage
  * timer stays the only thing that ends a stage.
  *
- * Crossing the rate limit never produces silence. The character still answers, from a cheap
- * non-LLM path, with a short in-fiction deflection. Degraded, not unavailable.
+ * Crossing the rate limit never produces silence, and it does not build a queue of replies either.
+ * Messages that arrive while an agent is out of rate are *coalesced*: when a slot refills, the
+ * character answers all of them in one call, to the room. One call per window however many people
+ * spoke, and a scene that sounds like a conversation rather than a serialised queue. The cheap
+ * in-fiction deflection is the last resort — a genuine flood, or the stage token ceiling.
  */
 import { runAgentTurn, type AgentTurnResult } from '../agent/character-agent'
 import type { AgentTurnInput } from '../agent/types'
@@ -81,6 +84,46 @@ export function deflectionFor(agentName: string, prompt: string): string {
   return `${agentName} ${line}`
 }
 
+/** One thing a human said to a character, waiting to be answered. */
+export interface PendingMessage {
+  speakerId: string
+  speakerName: string
+  body: string
+}
+
+/**
+ * Messages waiting on a character that is momentarily out of rate. Bounded per agent: past the
+ * bound the oldest are dropped, because answering a flood in full is neither affordable nor
+ * playable — and a dropped message still gets an answer, it is just not quoted back.
+ */
+export class ReplyInbox {
+  private readonly waiting = new Map<string, PendingMessage[]>()
+
+  constructor(private readonly maxPerAgent = 8) {}
+
+  add(agentId: string, message: PendingMessage): void {
+    const queue = this.waiting.get(agentId) ?? []
+    queue.push(message)
+    this.waiting.set(agentId, queue.slice(-this.maxPerAgent))
+  }
+
+  /** Take everything waiting on this agent. The caller answers all of it in one reply. */
+  drain(agentId: string): PendingMessage[] {
+    const queue = this.waiting.get(agentId) ?? []
+    this.waiting.delete(agentId)
+    return queue
+  }
+
+  pendingFor(agentId: string): readonly PendingMessage[] {
+    return this.waiting.get(agentId) ?? []
+  }
+
+  /** Agents with someone waiting on them. The turn loop flushes these as rate allows. */
+  waitingAgents(): string[] {
+    return [...this.waiting.keys()]
+  }
+}
+
 export interface ReplyOptions {
   limiter: ReplyRateLimiter
   /** Server clock, passed in so the path stays testable and deterministic. */
@@ -123,8 +166,9 @@ function deflect(input: AgentTurnInput, degradedBy: 'rate_limit' | 'token_budget
 }
 
 /**
- * Answer a player. Always produces a line: a model-backed one while the agent is within its reply
- * rate and the stage is within its token ceiling, a cheap in-fiction deflection otherwise.
+ * Answer one player now, with no coalescing: a model-backed line while the agent is within its
+ * reply rate and the stage within its token ceiling, a cheap in-fiction deflection otherwise.
+ * Prefer `submitPlayerMessage` where several humans share a room; this is the single-player path.
  */
 export async function replyToPlayer(
   client: LlmClient,
@@ -135,20 +179,102 @@ export async function replyToPlayer(
   const overTokenBudget =
     options.tokenBudget !== undefined && (options.tokensSpent ?? 0) >= options.tokenBudget
 
-  const result = overTokenBudget
+  if (!overTokenBudget && !options.limiter.take(input.self.id, options.nowMs)) {
+    const deflected = deflect(input, 'rate_limit')
+    for (const entry of deflected.turn.actions) applyAction(world, entry)
+    return deflected
+  }
+  return answerNow(client, world, input, options, overTokenBudget)
+}
+
+export interface CoalescingOptions extends ReplyOptions {
+  inbox: ReplyInbox
+}
+
+export type SubmitResult =
+  | { status: 'answered'; reply: ReplyResult; answered: readonly PendingMessage[] }
+  /** Held for the next slot, when it will be answered together with whatever else arrives. */
+  | { status: 'held'; waiting: number }
+
+/** Put the waiting messages to the character as one thing to answer, not as a queue to work through. */
+function withMessages(input: AgentTurnInput, messages: readonly PendingMessage[]): AgentTurnInput {
+  const last = messages[messages.length - 1]
+  return {
+    ...input,
+    addressedBy: messages,
+    playerMessage: last?.body ?? input.playerMessage,
+  }
+}
+
+/**
+ * A human speaks to a character. Answered straight away when the agent has a reply slot — and the
+ * answer covers everyone who spoke since its last one, in a single call. Otherwise the message is
+ * held, and `flushReplies` picks it up when a slot refills.
+ *
+ * A solo player never waits: with nobody else talking there is always a slot, so coalescing costs
+ * latency only in the case it exists for, several people talking at once.
+ */
+export async function submitPlayerMessage(
+  client: LlmClient,
+  world: WorldState,
+  input: AgentTurnInput,
+  message: PendingMessage,
+  options: CoalescingOptions,
+): Promise<SubmitResult> {
+  const agentId = input.self.id
+  const overTokenBudget =
+    options.tokenBudget !== undefined && (options.tokensSpent ?? 0) >= options.tokenBudget
+
+  if (!overTokenBudget && !options.limiter.take(agentId, options.nowMs)) {
+    options.inbox.add(agentId, message)
+    return { status: 'held', waiting: options.inbox.pendingFor(agentId).length }
+  }
+
+  const answered = [...options.inbox.drain(agentId), message]
+  const reply = await answerNow(client, world, withMessages(input, answered), options, overTokenBudget)
+  return { status: 'answered', reply, answered }
+}
+
+/**
+ * Answer the characters people are waiting on, as their rate allows. Called by the turn loop on a
+ * tick; agents with no slot yet stay held rather than being answered cheaply, because a held
+ * message becomes part of a real reply a moment later.
+ */
+export async function flushReplies(
+  client: LlmClient,
+  world: WorldState,
+  inputFor: (agentId: string) => AgentTurnInput,
+  options: CoalescingOptions,
+): Promise<{ agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[]> {
+  const flushed: { agentId: string; reply: ReplyResult; answered: readonly PendingMessage[] }[] = []
+  for (const agentId of options.inbox.waitingAgents()) {
+    if (!options.limiter.take(agentId, options.nowMs)) continue
+    const answered = options.inbox.drain(agentId)
+    if (answered.length === 0) continue
+    const reply = await answerNow(client, world, withMessages(inputFor(agentId), answered), options, false)
+    flushed.push({ agentId, reply, answered })
+  }
+  return flushed
+}
+
+/** The shared tail of both paths: make the call (or deflect), then put the line in the room. */
+async function answerNow(
+  client: LlmClient,
+  world: WorldState,
+  input: AgentTurnInput,
+  options: ReplyOptions,
+  overTokenBudget: boolean,
+): Promise<ReplyResult> {
+  const result: ReplyResult = overTokenBudget
     ? deflect(input, 'token_budget')
-    : !options.limiter.take(input.self.id, options.nowMs)
-      ? deflect(input, 'rate_limit')
-      : {
-          source: 'model' as const,
-          // The reply is deliberately not charged against the stage action cap: `actionsRemaining`
-          // here is what this one reply may do, not what the agent has left for the stage.
-          turn: await runAgentTurn(
-            client,
-            { ...input, actionsRemaining: 1 },
-            options.metrics === undefined ? {} : { metrics: options.metrics },
-          ),
-        }
+    : {
+        source: 'model',
+        turn: await runAgentTurn(
+          client,
+          { ...input, actionsRemaining: 1 },
+          options.metrics === undefined ? {} : { metrics: options.metrics },
+        ),
+      }
 
   for (const entry of result.turn.actions) {
     if (entry.action.type !== 'yield') applyAction(world, entry)
