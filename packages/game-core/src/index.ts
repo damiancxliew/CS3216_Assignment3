@@ -1,16 +1,21 @@
+export { closeSpatialDoor, moveActor, projectActorPositions, walkActorTowardRoom } from './actors.js'
 export { compileStage } from './compiler.js'
 export { validateCompiledStage, validateStageLayout, validateStageMap } from './validation.js'
 export { areInSameRoom, canStep, findPath, isInPhysicalInteractionRange, isWalkable, spaceAt } from './spatial.js'
 export { MAP_SCHEMA_VERSION, GENERATOR_VERSION } from './types.js'
 export type {
+  ActorPositions,
   CompiledStage,
   DoorState,
   DoorStates,
   MapDoor,
   MapRoom,
   Point,
+  PublicActorPosition,
   RoomSize,
+  RoomWalkResult,
   Space,
+  SpatialState,
   StageLayoutInput,
   StageMap,
   Tile,

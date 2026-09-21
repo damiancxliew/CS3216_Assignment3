@@ -6,6 +6,22 @@ export type Tile = 'grass' | 'path' | 'wall' | 'floor' | 'door'
 export type RoomSize = 'small' | 'medium' | 'large'
 export type DoorState = 'open' | 'closed'
 export type DoorStates = Readonly<Record<string, DoorState>>
+export type ActorPositions = Readonly<Record<string, Point>>
+
+export interface SpatialState {
+  doors: DoorStates
+  actors: ActorPositions
+}
+
+export interface RoomWalkResult {
+  state: SpatialState
+  status: 'moving' | 'arrived' | 'waiting_for_door' | 'unreachable'
+}
+
+export interface PublicActorPosition {
+  id: string
+  position: Point
+}
 
 export interface StageLayoutInput {
   stageId: string
