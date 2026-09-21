@@ -175,8 +175,19 @@ describe('room-scoped visibility (K3)', () => {
     expect(world.evidenceKnown['agent-temenggong']).toEqual(['evidence-tally-book'])
     expect(world.evidenceKnown['agent-farquhar']).toEqual([])
   })
+  function closeTallyShed(world: WorldState): void {
+    expect(
+      applyAction(world, {
+        actorKind: 'agent',
+        actorId: 'agent-harbour-master',
+        action: { type: 'close_door', roomId: 'room-tally-shed' },
+      }),
+    ).toEqual({ ok: true })
+  }
+
   it('a knock is heard only by occupants of the target room', () => {
     const world = createFixtureWorld()
+    closeTallyShed(world)
     const result = applyAction(world, {
       actorKind: 'agent',
       actorId: 'agent-temenggong',
@@ -215,8 +226,13 @@ describe('room-scoped visibility (K3)', () => {
     ])
   })
 
-  it('shows only public knock targets and preserves a listed target through filtering', () => {
+  it('shows only closed rooms as public knock targets and preserves a listed target through filtering', () => {
     const world = createFixtureWorld()
+    const openInput = buildAgentTurnInput(world, 'agent-temenggong', fixtureStageConfig, 3)
+    expect(openInput.knockTargets).toEqual([])
+    expect(buildAgentPrompt(openInput).user).toContain('Only valid knock targets: none')
+
+    closeTallyShed(world)
     const input = buildAgentTurnInput(world, 'agent-temenggong', fixtureStageConfig, 3)
     const prompt = buildAgentPrompt(input).user
     expect(input.knockTargets).toEqual([{ id: 'room-tally-shed', name: 'Tally shed' }])
@@ -233,7 +249,7 @@ describe('room-scoped visibility (K3)', () => {
     expect(world.events.at(-1)).toMatchObject({ kind: 'knock', roomId: 'room-tally-shed' })
   })
 
-  it('refuses a knock on the actor\u2019s own or an unknown room', () => {
+  it('refuses a knock on the actor\u2019s own room, an unknown room, or an open door', () => {
     const world = createFixtureWorld()
     const ownRoom = applyAction(world, {
       actorKind: 'agent',
@@ -245,11 +261,18 @@ describe('room-scoped visibility (K3)', () => {
       actorId: 'player',
       action: { type: 'knock', roomId: 'room-nowhere' },
     })
+    const openDoor = applyAction(world, {
+      actorKind: 'player',
+      actorId: 'player',
+      action: { type: 'knock', roomId: 'room-tally-shed' },
+    })
 
     expect(ownRoom).toEqual({ ok: false, reason: 'cannot knock from inside your own room' })
     expect(unknownRoom).toEqual({ ok: false, reason: 'no such room "room-nowhere"' })
+    expect(openDoor).toEqual({ ok: false, reason: 'door to "room-tally-shed" is already open' })
     expect(world.transcript).toEqual([])
-    expect(world.events.slice(-2)).toEqual([
+    expect(visibleTranscript(world, 'agent-harbour-master')).toEqual([])
+    expect(world.events.slice(-3)).toEqual([
       {
         tick: 0,
         actorId: 'agent-temenggong',
@@ -263,6 +286,13 @@ describe('room-scoped visibility (K3)', () => {
         kind: 'refused',
         roomId: 'room-nowhere',
         detail: 'no such room "room-nowhere"',
+      },
+      {
+        tick: 0,
+        actorId: 'player',
+        kind: 'refused',
+        roomId: 'room-tally-shed',
+        detail: 'door to "room-tally-shed" is already open',
       },
     ])
   })

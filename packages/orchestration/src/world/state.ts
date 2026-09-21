@@ -212,6 +212,7 @@ export function applyAction(world: WorldState, entry: ActorAction): ApplyResult 
       const target = world.rooms[action.roomId]
       if (target === undefined) return refuse(world, actorId, action.roomId, `no such room "${action.roomId}"`)
       if (action.roomId === here) return refuse(world, actorId, here, 'cannot knock from inside your own room')
+      if (target.doorOpen) return refuse(world, actorId, target.id, `door to "${target.id}" is already open`)
       const body = `${actor.name} knocks.`
       world.transcript.push({
         tick: world.tick,

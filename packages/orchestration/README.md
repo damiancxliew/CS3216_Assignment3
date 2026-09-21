@@ -35,7 +35,7 @@ reason, never executed and never fatal to the turn.
 | `speak` | ✓ | ✓ | `roomId`, `body`, `addresseeId` — conversation, scoped to one room (FR-11) |
 | `move_room` | ✓ | ✓ | `toRoomId` |
 | `open_door` / `close_door` | ✓ | ✓ | `roomId` — privacy is a door, not a flag (D7) |
-| `knock` | ✓ | ✓ | `roomId` — occupants of the target room hear it |
+| `knock` | ✓ | ✓ | `roomId` — must be a closed door; occupants of the target room hear it |
 | `share_evidence` | ✓ | ✓ | `roomId`, `evidenceId` |
 | `record_private_note` | ✓ | — | `note` — agent memory; server-side only (FR-21) |
 | `commit_decision` | ✓ | ✓ | `optionId`, `optionsVersion` — options-only, never free text (D18/FR-14) |
@@ -72,8 +72,10 @@ ticks the stage-relevant agents over it while the player is elsewhere (FR-12a).
   is stored as `[fromSeq, toSeq)` intervals, so `visibleTranscript` answers "could this actor have
   heard this" from recorded facts. An agent that walks in afterwards gets nothing backfilled, and a
   closed door blocks movement, which is what makes a room private (D7).
-- **Knocking.** `knock` writes an utterance to the target room, so only its occupants hear it; the
-  knocker does not gain visibility into that room. `createWorld` rejects a seed with a closed room
+- **Knocking.** `knock` is only valid on a closed door (an open door can simply be walked through,
+  so a knock there is refused). It writes an utterance to the target room, so only its occupants
+  hear it; the knocker does not gain visibility into that room. Agents are shown only closed rooms
+  as knock targets. `createWorld` rejects a seed with a closed room
   that has no actor placed inside, because nobody could open that door later.
 - **Budget rails** (FR-12b): per-actor cap, stage-wide cap and a token ceiling. An agent that is
   out of budget, or that the stage does not concern, is not called at all — `telemetry.agentsSkipped`
