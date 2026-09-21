@@ -12,7 +12,7 @@
  */
 import type { AgentPrivateContext, StageAgent, StageConfig } from '../../../orchestration/src/index'
 import type { NextStep, ResolverAgentView, ResolverDecisionView, ResolverInput } from '../../../orchestration/src/index'
-import type { OptionDefinition, OptionPrecondition } from '../../../orchestration/src/index'
+import type { Decision, OptionDefinition, OptionPrecondition } from '../../../orchestration/src/index'
 import type { ActorProfile, RoomState, WorldSeed } from '../../../orchestration/src/index'
 import type { AdventureSpec, Agent, DecisionOption, Stage } from '../spec/v2'
 
@@ -127,9 +127,12 @@ export interface ResolverInputParts {
   evidenceCollected: number
   /** Standing carried over from earlier stages, by agent id. */
   dispositions?: Record<string, number>
+  /** The K6 ledger at resolution time (`StageDecisions.all()`). Agents' entries become their `commitment` (K7). */
+  decisions?: readonly Decision[]
 }
 
 export function toResolverInput(spec: AdventureSpec, bundle: StageRuntimeBundle, parts: ResolverInputParts): ResolverInput {
+  const commitments = new Map((parts.decisions ?? []).map((d) => [d.actorId, { optionId: d.optionId, how: d.how }]))
   return {
     attemptId: parts.attemptId,
     stageId: bundle.stageId,
@@ -139,7 +142,10 @@ export function toResolverInput(spec: AdventureSpec, bundle: StageRuntimeBundle,
     trigger: parts.optionId === null ? 'timer_expiry' : 'decision',
     decision: parts.optionId === null ? null : toDecisionView(spec, bundle.stageIndex, parts.optionId),
     fallbackNext: bundle.fallbackNext,
-    agents: bundle.resolverAgents.map((a) => ({ ...a, disposition: parts.dispositions?.[a.id] ?? a.disposition })),
+    agents: bundle.resolverAgents.map((a) => {
+      const commitment = commitments.get(a.id)
+      return { ...a, disposition: parts.dispositions?.[a.id] ?? a.disposition, ...(commitment ? { commitment } : {}) }
+    }),
     actions: parts.actions,
     evidenceCollected: parts.evidenceCollected,
   }
