@@ -95,19 +95,27 @@ export const resolverInputSchema = z.object({
     })
     .nullable(),
   fallbackNext: nextStepSchema,
-  agents: z.array(
-    z.object({
-      id,
-      name: z.string().min(1).max(200),
-      disposition: recoverableNumber,
-      commitment: z
-        .object({
-          optionId: id.nullable(),
-          how: z.enum(['committed', 'passed', 'timed_out']),
-        })
-        .optional(),
+  agents: z
+    .array(
+      z.object({
+        id,
+        name: z.string().min(1).max(200),
+        disposition: recoverableNumber,
+        commitment: z
+          .object({
+            optionId: id.nullable(),
+            how: z.enum(['committed', 'passed', 'timed_out']),
+          })
+          .optional(),
+      }),
+    )
+    .superRefine((agents, ctx) => {
+      const seen = new Set<string>()
+      agents.forEach((agent, index) => {
+        if (seen.has(agent.id)) ctx.addIssue({ code: 'custom', path: [index, 'id'], message: `duplicate agent id "${agent.id}"` })
+        seen.add(agent.id)
+      })
     }),
-  ),
   actions: z.array(z.object({ actorKind: z.enum(['player', 'agent']), actorId: id, action: z.unknown() })),
   evidenceCollected: recoverableNumber,
   candidateEffects: z.array(z.unknown()).optional(),

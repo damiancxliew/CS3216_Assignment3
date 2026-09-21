@@ -1,0 +1,1204 @@
+{
+  "version": 2,
+  "id": "at-the-agency-edge",
+  "title": "At the Agency Edge",
+  "setting": "Spotted Tail Agency, Nebraska, spring 1877",
+  "description": "You are an interpreter at Spotted Tail Agency in May 1877. Food is running short, new arrivals need shelter, and rumors about removal threaten a fragile peace. You must move between the acting agent, Lakota leaders, and agency employees, deciding how to carry each side’s words.",
+  "readingLevel": {
+    "band": "upper-secondary",
+    "ageMin": 15,
+    "ageMax": 16
+  },
+  "learningObjectives": [
+    "Describe conditions at the Spotted Tail Agency in 1877 as reported by the acting agent",
+    "Explain the competing pressures on Lakota leaders, the agent, and the U.S. government",
+    "Distinguish what the report documents from what the simulation assumes"
+  ],
+  "player": {
+    "name": "The Interpreter",
+    "role": "Interpreter working between the agency staff and the Lakota leaders",
+    "brief": "You translate councils, private talks, and official messages. Your words can sharpen conflict or hold a tense peace together."
+  },
+  "sources": [
+    {
+      "id": "spotted-tail-agency-1877",
+      "title": "spotted tail agency 1877",
+      "kind": "pdf",
+      "pageCount": 5,
+      "contentHash": "8a0e6d3b7025a53f6fc99118e501cf34f6193418e373cde2a93e576a5073f858"
+    }
+  ],
+  "sharedContext": {
+    "text": "J. M. Lee reports an agency under strain. He says beef is adequate, but flour, corn, and hard bread are nearly gone because more people have arrived from Red Cloud Agency and from the north. He also reports strong Lakota interest in farming, severe crowding and poverty among recent returnees, and deep opposition to removal toward the Missouri River. Your task is to interpret between leaders and staff while deciding what concerns to carry forward and what tone to give them.",
+    "spans": [
+      {
+        "sourceId": "spotted-tail-agency-1877",
+        "page": 1,
+        "quote": "In the other part of the ration, I am mostly getting very short"
+      },
+      {
+        "sourceId": "spotted-tail-agency-1877",
+        "page": 2,
+        "quote": "Since then their [sic] has been a great desire on the part of the Indians to farm"
+      },
+      {
+        "sourceId": "spotted-tail-agency-1877",
+        "page": 3,
+        "quote": "they are crowded two & three families together in one small tebe [tipi]"
+      },
+      {
+        "sourceId": "spotted-tail-agency-1877",
+        "page": 4,
+        "quote": "The Indians here (Brules) are very much avers to going to the Missouri River"
+      }
+    ],
+    "assumptionIds": [
+      "player-role-interpreter"
+    ]
+  },
+  "assumptions": [
+    {
+      "id": "player-role-interpreter",
+      "text": "The player is an interpreter trusted to move between agency staff and Lakota leaders.",
+      "rationale": "The teacher brief defines the student role, but the source document does not name such a person."
+    },
+    {
+      "id": "stage1-room-layout",
+      "text": "Stage 1 compresses the agency into an office, a record room, a warehouse, and a council yard so the player can inspect reports and speak to leaders.",
+      "rationale": "The document reports events and conditions, not a walkable map."
+    },
+    {
+      "id": "stage2-room-layout",
+      "text": "Stage 2 compresses later events into an office, a warehouse, a yard, and a guardhouse cell near Camp Sheridan.",
+      "rationale": "The document mentions Camp Sheridan and agency work but does not provide a layout."
+    },
+    {
+      "id": "private-motives-inference",
+      "text": "Private motives are inferred from each person’s actions, reported opinions, and position, not quoted directly from private testimony.",
+      "rationale": "The report is written by Lee and does not record inner thoughts."
+    },
+    {
+      "id": "spoken-dialogue-simulation",
+      "text": "Direct conversations in the simulation stand in for positions summarized in Lee’s report.",
+      "rationale": "The source reports councils and decisions, but not full dialogue."
+    },
+    {
+      "id": "two-strike-as-active-intermediary",
+      "text": "Two Strike is used as a speaking representative of chiefs drawn into Indian soldiery and agency politics.",
+      "rationale": "He is named in the report, but his exact words are not preserved."
+    },
+    {
+      "id": "mcgirk-confrontation-scene",
+      "text": "The player can speak with Moses McGirk after his confinement before any escort removes him from the reservation.",
+      "rationale": "The source records confinement and Lee’s decision, but not whether an interpreter met him."
+    },
+    {
+      "id": "council-message-choice",
+      "text": "The player can shape how a council message is translated and emphasized to Lee and the government.",
+      "rationale": "The source records competing views but not this exact choice point."
+    }
+  ],
+  "stakeholders": [
+    {
+      "id": "j-m-lee",
+      "name": "J. M. Lee",
+      "role": "Acting Indian Agent",
+      "summary": {
+        "text": "Lee reports shortages, argues that farming should be encouraged, and warns that moving the agency would damage peace and drive people back north.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 1,
+            "quote": "I have the honor to report the condition of Affairs at this Agency during the past month"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 2,
+            "quote": "this desire should be in no way interfered with or discouraged"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "the consequences will be, if the move should be carried out, that the greater part of the results"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "spotted-tail",
+      "name": "Spotted Tail",
+      "role": "Brule leader at the agency",
+      "summary": {
+        "text": "Spotted Tail appears as a leading Brule voice. Lee names him among leaders present at the agency, involved in annuity issues, school objections, and enlistment in Indian soldiery.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 2,
+            "quote": "some of the Indians, of which Spotted Tail is one, object very much"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "I issued the remaining portion of the annuity goods to Spotted Tail"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "the Chiefs Spotted Tail, Two Strike, and Swift Bear"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "two-strike",
+      "name": "Two Strike",
+      "role": "Chief enlisted among Indian soldiers",
+      "summary": {
+        "text": "Two Strike is one of the chiefs enlisted by military authorities. His position sits between Lakota leadership, military expectations, and agency discipline.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "the Chiefs Spotted Tail, Two Strike, and Swift Bear with some other Headmen"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "The discipline of this Indian soldiery is at present very crude"
+          }
+        ],
+        "assumptionIds": [
+          "two-strike-as-active-intermediary"
+        ]
+      }
+    },
+    {
+      "id": "moses-mcgirk",
+      "name": "Moses McGirk",
+      "role": "Agency employee under accusation",
+      "summary": {
+        "text": "McGirk is confined after Lee accuses him of trading and stealing supplies meant for Indians coming in from the north. Lee chooses removal over prosecution.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "the confinement at the post guardhouse at Camp Sheridan of Moses McGirk"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "trading tobacco, sugar, & coffee to the Indians"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "I have decided not to take any action in the matter"
+          }
+        ],
+        "assumptionIds": []
+      }
+    }
+  ],
+  "defaultTimerSeconds": 480,
+  "ambientOverlay": {
+    "id": "clouds",
+    "intensity": 2
+  },
+  "stages": [
+    {
+      "id": "stage-council-of-shortages",
+      "index": 0,
+      "title": "Council of Shortages",
+      "sharedContext": {
+        "text": "Lee needs a message prepared for Washington while councils at the agency press their own demands. Food stocks are low, more people have arrived, and rumors of removal are feeding distrust. Before you translate the next council message, learn what each side fears most.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 1,
+            "quote": "unless quickly supplied, I shall have neither flour, H[ar]d Bread, or Corn"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 2,
+            "quote": "which makes a grand total of 7133 Indians, Hlf Breeds, & Whites"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "the stereotype request is, to ask the Great Father to let them remain"
+          }
+        ],
+        "assumptionIds": [
+          "stage1-room-layout",
+          "spoken-dialogue-simulation",
+          "council-message-choice"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": {
+        "id": "clouds",
+        "intensity": 2
+      },
+      "spawnRoomId": "council-yard",
+      "rooms": [
+        {
+          "id": "council-yard",
+          "name": "Council Yard",
+          "purpose": "Open place where leaders and agency staff meet before formal talks.",
+          "kind": "courtyard",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Council Fire Ring",
+            "description": "A worn meeting place where requests are repeated and weighed."
+          }
+        },
+        {
+          "id": "agency-office",
+          "name": "Agency Office",
+          "purpose": "Lee drafts reports and instructions here.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Report Desk",
+            "description": "A desk stacked with letters, reports, and supply notes."
+          }
+        },
+        {
+          "id": "record-room",
+          "name": "Record Room",
+          "purpose": "Copies of reports and treaty-related papers are stored here.",
+          "kind": "archive",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Weekly Ledger Shelf",
+            "description": "Shelves hold copied reports that shape official decisions."
+          }
+        },
+        {
+          "id": "ration-warehouse",
+          "name": "Ration Warehouse",
+          "purpose": "Food and issue goods are counted and distributed here.",
+          "kind": "warehouse",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Empty Flour Bins",
+            "description": "Several bins stand nearly bare, showing the strain on supplies."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-lee-stage1",
+          "stakeholderId": "j-m-lee",
+          "startRoomId": "agency-office",
+          "publicPosition": {
+            "text": "Lee is preparing a report that asks for faster supply deliveries and argues against any rushed move of the agency.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 1,
+                "quote": "I trust that steps have been taken to force the freight contractor"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "I would respectfully but earnestly recommend that the operations tending towards the removal"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Methodical, overworked, and conscious that every shortage can become a political failure.",
+            "motivations": "Keep rations moving, prevent unrest, and persuade Washington to delay removal for one year.",
+            "hiddenInterests": "He wants proof that the government can still command events at the agency without provoking another break north.",
+            "knowledgeHorizon": "He knows his own reports, supply counts, and recent councils, but not what Crazy Horse will finally do.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 1,
+                "quote": "I have telegraphed to you fully"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "it would not only stop the coming in of “Crazy Horse” with his band"
+              }
+            ],
+            "assumptionIds": [
+              "private-motives-inference"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-spotted-tail-stage1",
+          "stakeholderId": "spotted-tail",
+          "startRoomId": "council-yard",
+          "publicPosition": {
+            "text": "Spotted Tail’s side wants security in rations and opposes removal to the Missouri River.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "The Indians here (Brules) are very much avers to going to the Missouri River"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "the stereotype request is, to ask the Great Father to let them remain"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "A senior leader balancing survival, dignity, and the risk that younger people may leave if trust fails.",
+            "motivations": "Keep his people fed, avoid a move he distrusts, and preserve influence with those newly returned from the north.",
+            "hiddenInterests": "He does not want the agency to mistake compliance in one matter for consent in all matters, especially removal and schooling.",
+            "knowledgeHorizon": "He knows the pressures inside Lakota councils better than Lee does, but not Washington’s final decisions.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "Spotted Tail is one, object very much that the children should be"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "they are willing to leave this Agency & move to some point more north"
+              }
+            ],
+            "assumptionIds": [
+              "private-motives-inference",
+              "spoken-dialogue-simulation"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-two-strike-stage1",
+          "stakeholderId": "two-strike",
+          "startRoomId": "ration-warehouse",
+          "publicPosition": {
+            "text": "Two Strike stands close to the agency effort to keep order, but he also sees the pressure created by hungry arrivals and restless younger men.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "the Chiefs Spotted Tail, Two Strike, and Swift Bear"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "The large accession of the wild & restless spirits make any movement"
+              }
+            ],
+            "assumptionIds": [
+              "two-strike-as-active-intermediary"
+            ]
+          },
+          "privateContext": {
+            "persona": "Practical and alert to danger, he measures every promise against whether it can actually hold people in place.",
+            "motivations": "Prevent another break in peace while keeping standing among Lakota leaders.",
+            "hiddenInterests": "He does not want Indian soldiery to look like simple obedience if the government cannot keep its own promises about food and location.",
+            "knowledgeHorizon": "He knows the mood among chiefs and soldiers at the agency, but only rumors about bands still outside.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "an additional proof that their demonstrations & promises are made"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "would effectually stop all further hopes for peace during the coming summer"
+              }
+            ],
+            "assumptionIds": [
+              "private-motives-inference",
+              "spoken-dialogue-simulation"
+            ]
+          },
+          "modelTier": "mid"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ration-shortage-report",
+          "name": "Ration Shortage Report",
+          "roomId": "record-room",
+          "content": {
+            "text": "A copied passage from Lee’s report warns that flour, hard bread, and corn may run out within the week unless freight arrives quickly.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 1,
+                "quote": "unless quickly supplied, I shall have neither flour, H[ar]d Bread, or Corn on hand"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 1,
+                "quote": "owing to the large accessions [groups of Indians coming] both from Red Cloud Agency & the north"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "farming-note",
+          "name": "Note on Farming Requests",
+          "roomId": "agency-office",
+          "content": {
+            "text": "Lee records that many Lakota are asking for tools and aid so they can farm, and he argues that this effort should be encouraged rather than interrupted.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "Since then their [sic] has been a great desire on the part of the Indians to farm"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "all encouragement & help should be given them in the execution of this laudable desire"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "removal-warning-memo",
+          "name": "Removal Warning Memo",
+          "roomId": "record-room",
+          "content": {
+            "text": "This copied section says removal would likely drive many people away, discourage Crazy Horse from coming in, and damage peace.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "it would not only stop the coming in of “Crazy Horse” with his band"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "all those Indians that have come in from the north recently will return there"
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "read-ration-shortage",
+          "title": "Read Lee’s warning about food supplies",
+          "requires": [],
+          "targetId": "ration-shortage-report"
+        },
+        {
+          "id": "hear-lee-on-removal",
+          "title": "Ask Lee why he fears a move now",
+          "requires": [
+            "read-ration-shortage"
+          ],
+          "targetId": "agent-lee-stage1"
+        },
+        {
+          "id": "hear-spotted-tail-request",
+          "title": "Hear Spotted Tail’s position on staying near the agency",
+          "requires": [],
+          "targetId": "agent-spotted-tail-stage1"
+        },
+        {
+          "id": "compare-council-pressures",
+          "title": "Compare the council’s request with Lee’s warning",
+          "requires": [
+            "hear-lee-on-removal",
+            "hear-spotted-tail-request"
+          ],
+          "targetId": "removal-warning-memo"
+        }
+      ],
+      "decision": {
+        "id": "stage1-decision",
+        "title": "Translate the Council Message",
+        "prompt": "Lee wants a clear message for Washington, but the leaders want their fears about removal heard plainly. How will you frame the next council message?",
+        "roomId": "council-yard",
+        "requires": [
+          "compare-council-pressures"
+        ],
+        "options": [
+          {
+            "id": "press-delay-and-supplies",
+            "label": "Translate the plea for steady rations and a delay in removal.",
+            "stance": "cooperative",
+            "preconditions": [
+              "compare-council-pressures"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-trust-and-discipline"
+            }
+          },
+          {
+            "id": "stress-government-demands",
+            "label": "Emphasize treaty compliance and play down objections to removal.",
+            "stance": "antagonistic",
+            "preconditions": [
+              "compare-council-pressures"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-breakdown-at-council"
+            }
+          },
+          {
+            "id": "narrow-the-message",
+            "label": "Carry only the supply crisis and avoid the removal dispute for now.",
+            "stance": "evasive",
+            "preconditions": [
+              "compare-council-pressures"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-trust-and-discipline"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-trust-and-discipline",
+      "index": 1,
+      "title": "Trust and Discipline",
+      "sharedContext": {
+        "text": "A second crisis tests whether the agency deserves trust. Lee has confined employee Moses McGirk for trading and theft from supplies intended for Indians coming in from the north. At the same time, Indian soldiers are being used to hold order, recover property, and show that recent returnees mean to remain peacefully. What should your interpretation encourage now: quiet control, public accountability, or mercy?",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "trading tobacco, sugar, & coffee to the Indians"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "20 of the Indians recently returned from the north were induced to enter the service"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "police force can be organized which will be a great help to the Agent"
+          }
+        ],
+        "assumptionIds": [
+          "stage2-room-layout",
+          "spoken-dialogue-simulation",
+          "mcgirk-confrontation-scene"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": {
+        "id": "night",
+        "intensity": 1
+      },
+      "spawnRoomId": "issue-yard",
+      "rooms": [
+        {
+          "id": "issue-yard",
+          "name": "Issue Yard",
+          "purpose": "Supplies and confiscated stock pass through this yard under watch.",
+          "kind": "courtyard",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Soldiers' Hitching Rail",
+            "description": "A rail where recovered animals and agency teams are briefly tied."
+          }
+        },
+        {
+          "id": "lee-office-stage2",
+          "name": "Lee's Office",
+          "purpose": "Orders, testimony, and final decisions are gathered here.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Telegraph Table",
+            "description": "A side table where urgent messages are drafted before sending."
+          }
+        },
+        {
+          "id": "north-warehouse",
+          "name": "North Warehouse",
+          "purpose": "Issue goods and suspected stolen stores are held here.",
+          "kind": "warehouse",
+          "size": "large",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Sugar Sack",
+            "description": "A heavy sack set aside as evidence in the McGirk case."
+          }
+        },
+        {
+          "id": "camp-sheridan-cell",
+          "name": "Camp Sheridan Guardhouse Cell",
+          "purpose": "Temporary confinement for McGirk.",
+          "kind": "cell",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Iron Door",
+            "description": "A plain military lock separates the prisoner from the yard."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-lee-stage2",
+          "stakeholderId": "j-m-lee",
+          "startRoomId": "lee-office-stage2",
+          "publicPosition": {
+            "text": "Lee says McGirk was confined for trading and theft, yet he plans removal from the reservation rather than formal action. He also values Indian soldiery as a tool of order.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "I have decided not to take any action in the matter"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "police force can be organized which will be a great help to the Agent"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Firm but calculating, he weighs justice against the risk of scandal, delay, and further mistrust.",
+            "motivations": "Protect supply discipline, preserve peace, and avoid a drawn-out case that may distract from larger agency dangers.",
+            "hiddenInterests": "He wants the agency to appear governable even when its own employee has abused the system.",
+            "knowledgeHorizon": "He knows the evidence he gathered and the reasons for restraint, but he cannot predict how Lakota leaders will read leniency toward a white employee.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "the evidence being only circumstantial, the amount of the stores stolen only small"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "this man’s extreme poverty"
+              }
+            ],
+            "assumptionIds": [
+              "private-motives-inference"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-two-strike-stage2",
+          "stakeholderId": "two-strike",
+          "startRoomId": "issue-yard",
+          "publicPosition": {
+            "text": "Two Strike serves in the fragile Indian soldiery that enforces orders, watches property claims, and signals peaceful intent to both soldiers and hostile bands.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "the Chiefs Spotted Tail, Two Strike, and Swift Bear with some other Headmen"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "most of them comply promptly with all orders given to them"
+              }
+            ],
+            "assumptionIds": [
+              "two-strike-as-active-intermediary"
+            ]
+          },
+          "privateContext": {
+            "persona": "Watchful and politically exposed, he knows every act of enforcement can either build trust or confirm suspicion.",
+            "motivations": "Show that Lakota soldiers can keep order without becoming tools against their own people.",
+            "hiddenInterests": "He wants white misconduct punished clearly enough that Lakota cooperation does not look one-sided.",
+            "knowledgeHorizon": "He knows how soldiers and leaders will talk about this case, but not how Washington values such local justice.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "it commits them in the eyes of the more hostile Indians"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "No confidence on the part of the more hostile Indians can be refused in them any more"
+              }
+            ],
+            "assumptionIds": [
+              "private-motives-inference",
+              "spoken-dialogue-simulation"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-mcgirk-stage2",
+          "stakeholderId": "moses-mcgirk",
+          "startRoomId": "camp-sheridan-cell",
+          "publicPosition": {
+            "text": "McGirk is under guard after accusations that he traded and stole supplies meant for incoming Indians.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "trading tobacco, sugar, & coffee to the Indians, that was entrusted to his care"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "one sack of sugar weighing about 100 lbs having been found in the lodge"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Defensive, embarrassed, and aware that poverty may win pity but not trust.",
+            "motivations": "Avoid prosecution and leave the reservation with as little punishment as possible.",
+            "hiddenInterests": "He hopes his poverty and the uncertain evidence will matter more than the damage his actions did to confidence in the agency.",
+            "knowledgeHorizon": "He knows what he handled and what was found, but not how leaders will interpret leniency toward him.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "the evidence being only circumstantial"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "this man’s extreme poverty"
+              }
+            ],
+            "assumptionIds": [
+              "private-motives-inference",
+              "mcgirk-confrontation-scene"
+            ]
+          },
+          "modelTier": "cheap"
+        },
+        {
+          "id": "agent-spotted-tail-stage2",
+          "stakeholderId": "spotted-tail",
+          "startRoomId": "issue-yard",
+          "publicPosition": {
+            "text": "Spotted Tail watches whether promises, supplies, and discipline are enforced fairly. His people need proof that treaty words and agency justice still mean something.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "so awaken anew the saying that treaties are only made to be broken"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "the Chiefs Spotted Tail, Two Strike, and Swift Bear"
+              }
+            ],
+            "assumptionIds": [
+              "spoken-dialogue-simulation"
+            ]
+          },
+          "privateContext": {
+            "persona": "Reserved but exacting, he judges the agency less by speeches than by whether hunger and misconduct are answered fairly.",
+            "motivations": "Protect his people’s standing while forcing the agency to show consistency.",
+            "hiddenInterests": "He wants to know whether cooperation with the agency brings real security or only tighter control.",
+            "knowledgeHorizon": "He knows the political meaning of the case inside Lakota councils, but not every detail of Lee’s evidence.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "their profession is honestly meant"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "I have at present no means to relieve or help them"
+              }
+            ],
+            "assumptionIds": [
+              "private-motives-inference",
+              "spoken-dialogue-simulation"
+            ]
+          },
+          "modelTier": "frontier"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "mcgirk-confinement-report",
+          "name": "McGirk Confinement Report",
+          "roomId": "lee-office-stage2",
+          "content": {
+            "text": "Lee’s report states that McGirk was confined for trading supplies to Indians and for suspected theft from the warehouse.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "the confinement at the post guardhouse at Camp Sheridan of Moses McGirk"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "also for stealing sugar etc. out of the warehouse"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "indian-soldier-note",
+          "name": "Note on Indian Soldiers",
+          "roomId": "issue-yard",
+          "content": {
+            "text": "This section praises recent enlistments as proof of good faith and as a way to bind influential men to the agency.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "20 of the Indians recently returned from the north were induced to enter the service"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "it commits them in the eyes of the more hostile Indians and compels them to remain"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "lodge-conditions-memo",
+          "name": "Lodge Conditions Memo",
+          "roomId": "north-warehouse",
+          "content": {
+            "text": "A copied passage describes the poverty and crowding among recent returnees, strengthening the case that stolen supplies mattered greatly.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "they are crowded two & three families together in one small tebe [tipi]"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "their lack of ammunition and the none success [non-success] of hunting buffalo"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "sugar-sack-evidence",
+          "name": "Sugar Sack from the Lodge",
+          "roomId": "north-warehouse",
+          "content": {
+            "text": "A sack of sugar has been set aside as physical evidence linked to McGirk’s alleged theft.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "one sack of sugar weighing about 100 lbs having been found in the lodge"
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "inspect-mcgirk-report",
+          "title": "Read the charge against McGirk",
+          "requires": [],
+          "targetId": "mcgirk-confinement-report"
+        },
+        {
+          "id": "question-mcgirk",
+          "title": "Speak with McGirk after reading the charge",
+          "requires": [
+            "inspect-mcgirk-report"
+          ],
+          "targetId": "agent-mcgirk-stage2"
+        },
+        {
+          "id": "inspect-soldier-note",
+          "title": "Read why Indian soldiers matter to agency policy",
+          "requires": [],
+          "targetId": "indian-soldier-note"
+        },
+        {
+          "id": "hear-two-strike",
+          "title": "Ask Two Strike what fair discipline would signal",
+          "requires": [
+            "inspect-soldier-note"
+          ],
+          "targetId": "agent-two-strike-stage2"
+        },
+        {
+          "id": "weigh-trust",
+          "title": "Connect the theft case to the wider struggle for trust",
+          "requires": [
+            "question-mcgirk",
+            "hear-two-strike"
+          ],
+          "targetId": "lodge-conditions-memo"
+        }
+      ],
+      "decision": {
+        "id": "stage2-decision",
+        "title": "Interpret the Meaning of Justice",
+        "prompt": "Lee can quietly expel McGirk, or this case can be used to make a public point about fairness and trust. Your interpretation will shape what each side hears from the other.",
+        "roomId": "lee-office-stage2",
+        "requires": [
+          "weigh-trust"
+        ],
+        "options": [
+          {
+            "id": "back-quiet-expulsion",
+            "label": "Support quiet expulsion and keep the focus on preserving order and supplies.",
+            "stance": "neutral",
+            "preconditions": [
+              "weigh-trust"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-historical-quiet-expulsion"
+            }
+          },
+          {
+            "id": "demand-public-accountability",
+            "label": "Urge Lee to pursue a clearer public accounting of the theft and its effects.",
+            "stance": "cooperative",
+            "preconditions": [
+              "weigh-trust"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-public-reckoning"
+            }
+          },
+          {
+            "id": "minimize-the-case",
+            "label": "Advise that the case be softened because the evidence is uncertain and the man is poor.",
+            "stance": "evasive",
+            "preconditions": [
+              "weigh-trust"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-leniency-undercuts-trust"
+            }
+          },
+          {
+            "id": "turn-the-case-into-threat",
+            "label": "Press the affair as proof that tighter control over Lakota movements is necessary.",
+            "stance": "antagonistic",
+            "preconditions": [
+              "weigh-trust"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-breakdown-at-council"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "endings": [
+    {
+      "id": "ending-breakdown-at-council",
+      "title": "Breakdown at Council",
+      "summary": "Your translation gave priority to federal demands and muted Lakota objections. The council hardens, and you lose the chance to build a common case about rations and removal.",
+      "historicalOutcome": {
+        "text": "Lee’s actual report did the opposite. He urgently requested supplies and strongly warned that removal would damage peace, drive recent returnees away, and stop Crazy Horse from coming in.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 1,
+            "quote": "again respectfully urge that I be kept in supplies"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "I would respectfully but earnestly recommend that the operations tending towards the removal"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "it would not only stop the coming in of “Crazy Horse” with his band"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending departs from the record by having the interpreter reinforce removal pressure rather than Lee’s documented plea for delay and steady supplies.",
+      "reflectionQuestions": [
+        "How did translation shape whose priorities sounded legitimate?",
+        "Why would removal rumors matter as much as food shortages?",
+        "What in this scene came from the document, and what was added by the simulation?"
+      ]
+    },
+    {
+      "id": "ending-historical-quiet-expulsion",
+      "title": "Quiet Expulsion, Fragile Peace",
+      "summary": "You support Lee’s restrained course. McGirk is removed rather than prosecuted, and the agency tries to keep attention on rations, order, and holding recent arrivals in place. The peace remains uneasy rather than secure.",
+      "historicalOutcome": {
+        "text": "This ending matches the document most closely. Lee confined McGirk, judged the evidence circumstantial and the theft small, and chose to have him sent off the reservation. In the same report, he praised Indian soldiery as a way to hold order and urged that removal be postponed.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "the evidence being only circumstantial, the amount of the stores stolen only small"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "to have him sent under proper escort off the reservation"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "police force can be organized which will be a great help to the Agent"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending closely matches the record.",
+      "reflectionQuestions": [
+        "Why might Lee have chosen removal over prosecution?",
+        "Would quiet discipline build trust, or merely postpone a deeper conflict?",
+        "How does the report connect justice inside the agency to larger military and political goals?"
+      ]
+    },
+    {
+      "id": "ending-public-reckoning",
+      "title": "Public Reckoning",
+      "summary": "You push for a clearer accounting. The case against McGirk becomes a test of whether agency justice applies to employees as well as to Lakota people. Trust may improve, but open conflict inside the agency also grows.",
+      "historicalOutcome": {
+        "text": "Lee did not describe a public prosecution. He wrote that the evidence was circumstantial and that he decided not to take formal action, instead requesting McGirk’s removal from the reservation.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "I have decided not to take any action in the matter"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "but to have him sent under proper escort off the reservation"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending diverges by escalating the case into a more public and formal reckoning than the document records.",
+      "reflectionQuestions": [
+        "What might Lakota leaders learn from a public case that they would not learn from quiet expulsion?",
+        "What risks would a formal case create for Lee?",
+        "How should historians separate a source’s record from a plausible alternative outcome?"
+      ]
+    },
+    {
+      "id": "ending-leniency-undercuts-trust",
+      "title": "Leniency Undercuts Trust",
+      "summary": "You stress uncertainty and poverty so strongly that the theft seems excused. McGirk’s fate matters less than the lesson others take from it: promises about fair dealing now sound weaker.",
+      "historicalOutcome": {
+        "text": "Lee did mention both circumstantial evidence and McGirk’s poverty, but he still ordered confinement and sought his removal from the reservation.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "this man’s extreme poverty"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "On the 26th of April I have caused the confinement"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "have him sent under proper escort off the reservation"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending diverges by letting sympathy overwhelm discipline more than the document suggests Lee allowed.",
+      "reflectionQuestions": [
+        "How can mercy and accountability pull in opposite directions?",
+        "Why would theft of food and sugar carry special weight in this setting?",
+        "Does poverty explain misconduct, excuse it, or neither?"
+      ]
+    }
+  ],
+  "assetEligibility": [
+    {
+      "id": "asset-portrait-lee",
+      "kind": "portrait",
+      "entityId": "j-m-lee",
+      "subject": "J. M. Lee",
+      "prompt": "Portrait of J. M. Lee, acting Indian agent at Spotted Tail Agency in 1877, formal frontier administrative clothing, serious expression, documentary tone."
+    },
+    {
+      "id": "asset-portrait-spotted-tail",
+      "kind": "portrait",
+      "entityId": "spotted-tail",
+      "subject": "Spotted Tail",
+      "prompt": "Portrait of Spotted Tail as a Brule leader in 1877, dignified bearing, council setting implied, historically respectful documentary style."
+    },
+    {
+      "id": "asset-portrait-two-strike",
+      "kind": "portrait",
+      "entityId": "two-strike",
+      "subject": "Two Strike",
+      "prompt": "Portrait of Two Strike, Lakota chief involved with Indian soldiery, alert and practical expression, documentary historical style."
+    },
+    {
+      "id": "asset-portrait-mcgirk",
+      "kind": "portrait",
+      "entityId": "moses-mcgirk",
+      "subject": "Moses McGirk",
+      "prompt": "Portrait of Moses McGirk, agency employee under guard in 1877, worn clothing, anxious expression, documentary historical style."
+    },
+    {
+      "id": "asset-landmark-office1",
+      "kind": "landmark",
+      "entityId": "agency-office",
+      "subject": "Agency Office",
+      "prompt": "Interior of an 1877 agency office with report desk, ledgers, ration papers, and a tense administrative atmosphere."
+    },
+    {
+      "id": "asset-landmark-cell",
+      "kind": "landmark",
+      "entityId": "camp-sheridan-cell",
+      "subject": "Camp Sheridan Guardhouse Cell",
+      "prompt": "Small 1877 military guardhouse cell near an agency post, plain iron door, sparse and austere."
+    },
+    {
+      "id": "asset-prop-ration-report",
+      "kind": "prop",
+      "entityId": "ration-shortage-report",
+      "subject": "Ration Shortage Report",
+      "prompt": "Folded 1877 agency report page warning of shortages in flour, hard bread, and corn, ink handwriting and official tone."
+    },
+    {
+      "id": "asset-prop-sugar-sack",
+      "kind": "prop",
+      "entityId": "sugar-sack-evidence",
+      "subject": "Sugar Sack from the Lodge",
+      "prompt": "Heavy sack of sugar set aside as evidence in an 1877 agency theft case, worn cloth bag, practical documentary style."
+    }
+  ]
+}

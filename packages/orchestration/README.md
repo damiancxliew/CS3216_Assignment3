@@ -35,10 +35,11 @@ reason, never executed and never fatal to the turn.
 | `speak` | ✓ | ✓ | `roomId`, `body`, `addresseeId` — conversation, scoped to one room (FR-11) |
 | `move_room` | ✓ | ✓ | `toRoomId` |
 | `open_door` / `close_door` | ✓ | ✓ | `roomId` — privacy is a door, not a flag (D7) |
+| `knock` | ✓ | ✓ | `roomId` — must be a closed door; occupants of the target room hear it |
 | `share_evidence` | ✓ | ✓ | `roomId`, `evidenceId` |
 | `record_private_note` | ✓ | — | `note` — agent memory; server-side only (FR-21) |
-| `commit_decision` | — | ✓ | `optionId` — options-only, never free text (D18/FR-14) |
-| `pass` | — | ✓ | recorded by the server on timer expiry (D12/FR-16) |
+| `commit_decision` | ✓ | ✓ | `optionId`, `optionsVersion` — options-only, never free text (D18/FR-14) |
+| `pass` | ✓ | ✓ | also recorded by the server on timer expiry (D12/FR-16) |
 | `yield` | ✓ | ✓ | idle; costs no budget (FR-12b) |
 
 Scene effects are **not** actions: only the Resolver emits them, and they are cosmetic (FR-15b).
@@ -62,12 +63,82 @@ structured-output path, then push every proposed action through the allow-list a
   line is itself a budgeted, allow-listed action rather than a privileged side channel.
 - **Degradation.** An unrepairable reply costs the agent its tick, not the turn: it yields.
 
+## Stage runtime (`src/world/`, K3–K5)
+
+`createWorld` / `applyAction` hold the server-authoritative state for one stage, and `runStage`
+ticks the stage-relevant agents over it while the player is elsewhere (FR-12a).
+
+- **Visibility is computed, not promised.** Every utterance carries a sequence number and presence
+  is stored as `[fromSeq, toSeq)` intervals, so `visibleTranscript` answers "could this actor have
+  heard this" from recorded facts. An agent that walks in afterwards gets nothing backfilled, and a
+  closed door blocks movement, which is what makes a room private (D7).
+- **Knocking.** `knock` is only valid on a closed door (an open door can simply be walked through,
+  so a knock there is refused). It writes an utterance to the target room, so only its occupants
+  hear it; the knocker does not gain visibility into that room. Agents are shown only closed rooms
+  as knock targets. `createWorld` rejects a seed with a closed room
+  that has no actor placed inside, because nobody could open that door later.
+- **Budget rails** (FR-12b): per-actor cap, stage-wide cap and a token ceiling. An agent that is
+  out of budget, or that the stage does not concern, is not called at all — `telemetry.agentsSkipped`
+  records which and why. `yield` is free.
+- `StageTelemetry` reports actions per actor, tokens, drops, refusals, degraded ticks, repair rate
+  and which cap ended the stage.
+
+### Answering a human (`src/world/reply.ts`)
+
+The per-agent action cap bounds *autonomous* chatter. A turn the player addressed is not charged
+against it — a character going silent mid-conversation reads as a broken game, not as a rail.
+Two rails replace it, bounding different things:
+
+- **A rate per speaker** (`ReplyRateLimiter`), keyed by whoever is talking — human or agent alike,
+  since the engine does not distinguish actors. It stops one person spamming a character, and sits
+  well above human typing speed, so a player at the keyboard never meets it.
+- **A coalescing window per character** (`ReplyInbox`). A speaker-keyed rate alone does not bound
+  cost — five players each within their own limit still make five calls on one character — so
+  messages arriving inside a character's window are answered *together*, in one call, to the room:
+  one call per window however many people spoke. A lone player never waits, since the window is
+  already clear.
+
+Held is a delay, never a refusal (`submitPlayerMessage` → `flushReplies`): nothing said to a
+character goes unanswered. The stage tick flushes windows, and stage close flushes anything still
+held. A full reply uses the normal character-agent tier; at 80% of the caller-supplied token
+ceiling it adds a one-sentence rule, at 95% it also uses the cheap tier, and at 100% it uses a
+short in-fiction deflection without a model call. Rate-limit deflection remains a separate rail.
+Deflection lines are deterministic and vary by character and attempt, but are not added to the
+world transcript.
+
+`ReplyInbox` keeps the first held message and the newest messages up to its bound. Further messages
+are counted by `droppedHeld`, and `StageTelemetry` reports flushed replies, answered held messages
+and dropped held messages, plus unroutable reply targets. The limiter and inbox are in-memory process-local maps: with N
+serverless instances, each rail can allow N times the intended rate or window, and a cold start
+loses held messages. Distributed state is out of scope for this PoC. `tokensSpent` is
+caller-supplied, so the ceiling is only as reliable as the caller's bookkeeping; `runStage`
+threads its telemetry total through the reply path as the reference implementation.
+
+## Options and the stage decision (`src/stage/options.ts`, K6)
+
+An option is a label plus preconditions drawn from a closed set of comparisons (`actor_in_room`,
+`actors_together`, `door_open`, `knows_evidence`, `not`), so authored data can never execute.
+Availability is never stored: `deriveOptions` recomputes the live set — and a fingerprint of it —
+from world state, and `StageDecisions.commit` checks a submission against a set derived at the
+moment it lands. A commit naming an option the world has moved past is rejected with a reason and
+changes nothing (FR-14). Clients and agents see ids and labels only; preconditions stay server-side.
+
+Decisions are actor-kind-neutral (revised 20 Sep): an agent commits or passes by exactly the rules a
+player does, through the same ledger. The stage ends when everyone has decided (`all_decided`) or
+when `expire()` passes for whoever is left on the timer; once every human is in, the remaining
+agents are told to decide on their next tick rather than making the table wait out the clock.
+
 ### LLM seam (`src/llm/`)
 
-Nothing in this package imports the OpenAI SDK; the runtime talks to an `LlmClient`, so the whole
-suite runs on `FakeLlmClient` with no key in CI. Every call goes through `callStructured`, which
-validates against the response schema and repairs at most twice (FR-4/D14).
+The runtime talks to an `LlmClient`, so the whole suite still runs on `FakeLlmClient` with no key in
+CI. Every call goes through `callStructured`, which validates against the response schema and
+repairs at most twice (FR-4/D14).
 `StructuredCallMetrics.repairRate` is the number M11/M12 ask for.
+
+`createOpenAiClient` is an opt-in Responses API adapter. It is inert when `OPENAI_API_KEY` is not
+set, so construction and tests remain key-free; a call made without the key raises
+`MissingApiKeyError`. Set `OPENAI_API_KEY` to enable the adapter, and keep `FakeLlmClient` as the
+default where deterministic behavior is required.
 
 ## Stubs
 

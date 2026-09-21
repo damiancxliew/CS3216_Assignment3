@@ -15,8 +15,11 @@ describe('action allow-list (FR-20)', () => {
       move_room: { type: 'move_room', toRoomId: 'room-archive' },
       open_door: { type: 'open_door', roomId: 'room-hall' },
       close_door: { type: 'close_door', roomId: 'room-hall' },
+      knock: { type: 'knock', roomId: 'room-hall' },
       share_evidence: { type: 'share_evidence', roomId: 'room-hall', evidenceId: 'evidence-ledger' },
       record_private_note: { type: 'record_private_note', note: 'The clerk is lying about the ledger.' },
+      commit_decision: { type: 'commit_decision', optionId: 'option-sign', optionsVersion: 'v1' },
+      pass: { type: 'pass' },
       yield: { type: 'yield' },
     }
     for (const type of AGENT_ACTION_TYPES) {
@@ -43,10 +46,25 @@ describe('action allow-list (FR-20)', () => {
     }
   })
 
-  it('refuses an agent-emitted decision: decisions are the player\u2019s and options-only (D18)', () => {
-    const asAgent = parseAction({ type: 'commit_decision', optionId: 'option-sign' }, 'agent')
-    expect(asAgent).toMatchObject({ ok: false, dropped: { reason: 'actor_not_permitted' } })
-    expect(parseAction({ type: 'commit_decision', optionId: 'option-sign' }, 'player')).toMatchObject({ ok: true })
+  it('lets either kind of actor decide, by the same rules (revised D18, 20 Sep)', () => {
+    const decision = { type: 'commit_decision', optionId: 'option-sign', optionsVersion: 'v1' }
+    expect(parseAction(decision, 'agent')).toMatchObject({ ok: true })
+    expect(parseAction(decision, 'player')).toMatchObject({ ok: true })
+    expect(parseAction({ type: 'pass' }, 'agent')).toMatchObject({ ok: true })
+    expect(parseAction({ type: 'pass' }, 'player')).toMatchObject({ ok: true })
+  })
+
+  it('lets either kind of actor knock', () => {
+    const knock = { type: 'knock', roomId: 'room-hall' }
+    expect(parseAction(knock, 'agent')).toMatchObject({ ok: true })
+    expect(parseAction(knock, 'player')).toMatchObject({ ok: true })
+  })
+
+  it('refuses a decision that names no option set: staleness has to be checkable (K6)', () => {
+    expect(parseAction({ type: 'commit_decision', optionId: 'option-sign' }, 'player')).toMatchObject({
+      ok: false,
+      dropped: { reason: 'malformed_payload' },
+    })
   })
 
   it('refuses a player-emitted private note: only agents write agent memory', () => {
@@ -97,9 +115,37 @@ describe('budget rails (FR-12b)', () => {
     expect(result.dropped).toHaveLength(0)
   })
 
+  it('charges a knock as an action, unlike yield', () => {
+    const result = filterActions(
+      [{ type: 'knock', roomId: 'room-hall' }, { type: 'knock', roomId: 'room-hall' }, { type: 'yield' }],
+      actor,
+      { maxActions: 3, maxActionsPerActor: 1 },
+    )
+    expect(result.actions.map((entry) => entry.action.type)).toEqual(['knock', 'yield'])
+    expect(result.dropped).toMatchObject([{ reason: 'budget_exhausted', type: 'knock' }])
+  })
+
   it('counts a budget already spent earlier in the stage', () => {
     const result = filterActions([{ type: 'move_room', toRoomId: 'room-archive' }], actor, DEFAULT_ACTION_BUDGET, DEFAULT_ACTION_BUDGET.maxActionsPerActor)
     expect(result.actions).toHaveLength(0)
+    expect(result.dropped[0]?.reason).toBe('budget_exhausted')
+  })
+
+  it('caps a batch at the stage-wide remainder', () => {
+    const result = filterActions(
+      Array.from({ length: 3 }, (_, index) => ({
+        type: 'speak',
+        roomId: 'room-hall',
+        body: `Thought ${index}.`,
+        addresseeId: null,
+      })),
+      actor,
+      { maxActions: 10, maxActionsPerActor: 10 },
+      0,
+      2,
+    )
+    expect(result.actions).toHaveLength(2)
+    expect(result.dropped).toHaveLength(1)
     expect(result.dropped[0]?.reason).toBe('budget_exhausted')
   })
 

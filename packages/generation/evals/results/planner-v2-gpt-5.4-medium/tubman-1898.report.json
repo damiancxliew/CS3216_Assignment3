@@ -1,0 +1,116 @@
+{
+  "case": "tubman-1898",
+  "metrics": {
+    "promptVersion": "planner-v2",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 1,
+    "repairs": 0,
+    "valid": true,
+    "totalLatencyMs": 175078,
+    "usage": {
+      "inputTokens": 5216,
+      "cachedInputTokens": 0,
+      "outputTokens": 18961,
+      "reasoningTokens": 11387
+    },
+    "costUsd": 0.297455,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 175073,
+        "usage": {
+          "inputTokens": 5216,
+          "cachedInputTokens": 0,
+          "outputTokens": 18961,
+          "reasoningTokens": 11387
+        },
+        "costUsd": 0.297455,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0,
+        "issues": []
+      }
+    ],
+    "documents": [
+      {
+        "id": "tubman-pension-1898",
+        "pages": 4,
+        "chars": 8846
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The provided pages do not include the full text of Harriet Tubman’s affidavit.",
+    "The provided pages do not include the full text of Sereno E. Payne’s letter.",
+    "The provided pages do not include the full text of H.R. 4982, Senate Report 1619, or the final act.",
+    "The exact pension amounts proposed, reduced, and finally granted are asked about in the worksheet but are not supplied in the provided pages.",
+    "The names of specific House or Senate committee members are not supplied in the provided pages.",
+    "The provided pages do not document Auburn, New York, as a playable scene or state whether Tubman personally met congressional staff in Washington."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 58,
+      "resolved": 58,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 8,
+    "branching": {
+      "stages": 2,
+      "distinctTargetsPerStage": [
+        2,
+        3
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "earlyFork": {
+      "nonFinalStages": 1,
+      "forking": 1,
+      "ratio": 1
+    },
+    "objectiveChains": 2,
+    "overlaysSet": 0,
+    "injection": null,
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "lower-secondary",
+      "budgetWords": 120,
+      "maxWords": 41,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 7,
+      "kinds": {
+        "portrait": 2,
+        "landmark": 2,
+        "prop": 3
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "Claiming Service: Harriet Tubman and the Pension Fight",
+  "warnings": []
+}

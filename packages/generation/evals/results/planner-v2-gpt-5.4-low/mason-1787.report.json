@@ -1,0 +1,138 @@
+{
+  "case": "mason-1787",
+  "metrics": {
+    "promptVersion": "planner-v2",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 2,
+    "repairs": 1,
+    "valid": true,
+    "totalLatencyMs": 146102,
+    "usage": {
+      "inputTokens": 16943,
+      "cachedInputTokens": 0,
+      "outputTokens": 17904,
+      "reasoningTokens": 1774
+    },
+    "costUsd": 0.31091749999999996,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 96541,
+        "usage": {
+          "inputTokens": 4382,
+          "cachedInputTokens": 0,
+          "outputTokens": 9586,
+          "reasoningTokens": 1521
+        },
+        "costUsd": 0.154745,
+        "issueCount": 1,
+        "schemaIssues": 1,
+        "groundingIssues": 0,
+        "issues": [
+          {
+            "path": "$.adventure.stages.2.decision.options.2.branchTarget.endingId",
+            "message": "unknown ending \"ending-withdrawn-warning\""
+          }
+        ]
+      },
+      {
+        "purpose": "repair",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 49551,
+        "usage": {
+          "inputTokens": 12561,
+          "cachedInputTokens": 0,
+          "outputTokens": 8318,
+          "reasoningTokens": 253
+        },
+        "costUsd": 0.1561725,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0,
+        "issues": []
+      }
+    ],
+    "documents": [
+      {
+        "id": "mason-objections-1787",
+        "pages": 2,
+        "chars": 5848
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The source does not identify which other framers argued that a Bill of Rights was unnecessary, so any direct rebuttal in dialogue is simulated.",
+    "The source does not state that Mason refused to sign the Constitution, though the teacher brief asks students to evaluate that choice.",
+    "The source does not give exact Philadelphia or Virginia locations, room layouts, or the chain of circulation for Mason's paper.",
+    "The source does not describe the later adoption of the Bill of Rights or the full ratification debate.",
+    "The source names only George Mason directly; all other individual speakers in the adventure are unnamed simulated figures built to represent positions implied or opposed by the text."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 58,
+      "resolved": 58,
+      "ratio": 1
+    },
+    "documentedShare": 0.7777777777777778,
+    "assumptions": 6,
+    "branching": {
+      "stages": 3,
+      "distinctTargetsPerStage": [
+        2,
+        2,
+        3
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "earlyFork": {
+      "nonFinalStages": 2,
+      "forking": 2,
+      "ratio": 1
+    },
+    "objectiveChains": 3,
+    "overlaysSet": 3,
+    "injection": null,
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "upper-secondary",
+      "budgetWords": 180,
+      "maxWords": 41,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 5,
+      "kinds": {
+        "portrait": 1,
+        "landmark": 2,
+        "prop": 2
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "Mason's Last Objections",
+  "warnings": []
+}

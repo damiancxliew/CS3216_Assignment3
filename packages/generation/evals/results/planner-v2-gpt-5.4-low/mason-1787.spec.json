@@ -1,0 +1,1236 @@
+{
+  "version": 2,
+  "id": "mason-s-last-objections",
+  "title": "Mason's Last Objections",
+  "setting": "Philadelphia and Virginia, autumn 1787, after the Constitutional Convention",
+  "description": "As a clerk carrying messages for the Virginia delegation, you move between rooms, notes, and uneasy conversations after the Convention. George Mason has written a sharp list of objections to the proposed Constitution. Your task is not to win a debate by force, but to understand what Mason fears, what others dismiss, and how the argument should be carried forward.",
+  "readingLevel": {
+    "band": "upper-secondary",
+    "ageMin": 15,
+    "ageMax": 16
+  },
+  "learningObjectives": [
+    "Explain George Mason's main objections to the proposed Constitution.",
+    "Describe why some framers wanted a Bill of Rights and others thought it unnecessary.",
+    "Evaluate whether Mason was right to refuse to sign."
+  ],
+  "player": {
+    "name": "Unnamed clerk",
+    "role": "Clerk to the Virginia delegation",
+    "brief": "You carry papers, hear arguments, and decide which concerns reach the next conversation first."
+  },
+  "sources": [
+    {
+      "id": "mason-objections-1787",
+      "title": "mason objections 1787",
+      "kind": "pdf",
+      "pageCount": 2,
+      "contentHash": "7a00a4344ba8b79d2baa91ef9b32f54ee94f006ce70ba539a1d56015317e4aba"
+    }
+  ],
+  "sharedContext": {
+    "text": "It is September 1787. George Mason has drafted objections to the proposed Constitution. His paper attacks the absence of a declaration of rights, the weakness of representation, the power of the Senate, the reach of the federal judiciary, and several other dangers. You serve the Virginia delegation as a clerk. Your choices shape which parts of Mason's case are heard clearly, distorted, or buried.",
+    "spans": [
+      {
+        "sourceId": "mason-objections-1787",
+        "page": 1,
+        "quote": "George Mason’s “Objections to This Constitution of Government” September 1787"
+      },
+      {
+        "sourceId": "mason-objections-1787",
+        "page": 1,
+        "quote": "There is no Declaration of Rights"
+      },
+      {
+        "sourceId": "mason-objections-1787",
+        "page": 1,
+        "quote": "there is not the substance but the shadow only of representation"
+      },
+      {
+        "sourceId": "mason-objections-1787",
+        "page": 2,
+        "quote": "There is no declaration of any kind, for preserving the liberty of the press"
+      }
+    ],
+    "assumptionIds": [
+      "assumption-player-role"
+    ]
+  },
+  "assumptions": [
+    {
+      "id": "assumption-player-role",
+      "text": "The player is an unnamed clerk attached to the Virginia delegation and trusted to carry messages and papers.",
+      "rationale": "The brief assigns the student this role, but the source document does not mention such a clerk."
+    },
+    {
+      "id": "assumption-rooming",
+      "text": "Conversations occur in plausible meeting places such as lodgings, offices, streets, and archives in Philadelphia and Virginia.",
+      "rationale": "The source lists objections, not physical locations or room layouts."
+    },
+    {
+      "id": "assumption-ally",
+      "text": "An unnamed Virginia ally supports Mason's concerns and presses for written safeguards.",
+      "rationale": "The source gives Mason's objections but does not identify every ally who might echo them."
+    },
+    {
+      "id": "assumption-federalist",
+      "text": "An unnamed supporter of the proposed Constitution argues that the new frame should be accepted without adding a declaration of rights first.",
+      "rationale": "The source does not preserve a direct rebuttal, but the adventure needs a counter-position for debate."
+    },
+    {
+      "id": "assumption-printer",
+      "text": "An unnamed printer or copyist can help circulate or soften political papers once they reach Virginia.",
+      "rationale": "The source does not describe how the objections were copied or distributed."
+    },
+    {
+      "id": "assumption-branching",
+      "text": "The clerk's handling of messages can alter who reads which arguments first and whether discussion stays broad, narrows to one grievance, or collapses.",
+      "rationale": "This is a counterfactual game structure, not a claim from the document."
+    }
+  ],
+  "stakeholders": [
+    {
+      "id": "george-mason",
+      "name": "George Mason",
+      "role": "Virginia delegate and author of objections",
+      "summary": {
+        "text": "Mason is the central critic in this episode. His written objections warn that the proposed government lacks a declaration of rights, weakens representation, strengthens the Senate and executive connection, and threatens liberties and state authority.",
+        "spans": [
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "George Mason’s “Objections to This Constitution of Government” September 1787"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "There is no Declaration of Rights"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "will destroy any balance in the government"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 2,
+            "quote": "This government will set out a moderate aristocracy"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "virginia-rights-ally",
+      "name": "Unnamed Virginia ally",
+      "role": "Rights-minded supporter within Virginia's political circle",
+      "summary": {
+        "text": "This ally backs Mason's warning that liberties need explicit protection and believes the objections should be presented carefully rather than as a mere outburst.",
+        "spans": [],
+        "assumptionIds": [
+          "assumption-ally"
+        ]
+      }
+    },
+    {
+      "id": "constitution-supporter",
+      "name": "Unnamed Constitution supporter",
+      "role": "Delegate or correspondent favoring prompt adoption",
+      "summary": {
+        "text": "This supporter accepts the proposed Constitution as a necessary national frame and treats Mason's objections as serious but overstated.",
+        "spans": [],
+        "assumptionIds": [
+          "assumption-federalist"
+        ]
+      }
+    },
+    {
+      "id": "virginia-printer",
+      "name": "Unnamed Virginia printer",
+      "role": "Copyist and local political intermediary",
+      "summary": {
+        "text": "This printer cares less about theory than about what can be copied, circulated, and defended in public argument.",
+        "spans": [],
+        "assumptionIds": [
+          "assumption-printer"
+        ]
+      }
+    }
+  ],
+  "defaultTimerSeconds": 480,
+  "ambientOverlay": {
+    "id": "clouds",
+    "intensity": 2
+  },
+  "stages": [
+    {
+      "id": "stage-philadelphia-lodgings",
+      "index": 0,
+      "title": "Philadelphia: The Paper Takes Shape",
+      "sharedContext": {
+        "text": "Mason's objections exist on paper, but not yet in a settled political form. In the lodgings, a supporter of the Constitution urges speed and silence, while Mason wants his warnings read as more than private frustration. You must decide whether to circulate the objections at once, test them against opposition first, or let them stall.",
+        "spans": [
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "George Mason’s “Objections to This Constitution of Government” September 1787"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "There is no Declaration of Rights"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "there is not the substance but the shadow only of representation"
+          }
+        ],
+        "assumptionIds": [
+          "assumption-rooming",
+          "assumption-branching"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": {
+        "id": "clouds",
+        "intensity": 2
+      },
+      "spawnRoomId": "phila-office",
+      "rooms": [
+        {
+          "id": "phila-office",
+          "name": "Delegation Office",
+          "purpose": "A table for drafts, sealing wax, and private discussion.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Drafting table",
+            "description": "A scarred table covered with folded sheets and fresh corrections."
+          }
+        },
+        {
+          "id": "phila-street",
+          "name": "Street Outside the Lodgings",
+          "purpose": "A place for hurried exchanges away from the desk.",
+          "kind": "street",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Coach lantern",
+            "description": "A hanging lantern swings above passing messengers."
+          }
+        },
+        {
+          "id": "phila-archive",
+          "name": "Copy Room",
+          "purpose": "A cramped room where fair copies can be made.",
+          "kind": "archive",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Copy press",
+            "description": "Ink stains mark the bench beside a stack of blank paper."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-mason-phila",
+          "stakeholderId": "george-mason",
+          "startRoomId": "phila-office",
+          "publicPosition": {
+            "text": "Mason insists the Constitution is dangerous because it lacks protections and concentrates power in the wrong hands.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "There is no Declaration of Rights"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "will destroy any balance in the government"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Severe, lucid, and impatient with vague reassurance.",
+            "motivations": "He wants his objections read as a principled warning, not dismissed as wounded pride.",
+            "hiddenInterests": "He may choose emphasis strategically, but he does not want the paper reduced to one complaint alone.",
+            "knowledgeHorizon": "He knows the arguments he has written; he cannot know how later readers in Virginia will rank them.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "There is no Declaration of Rights"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "This government will set out a moderate aristocracy"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-branching"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-supporter-phila",
+          "stakeholderId": "constitution-supporter",
+          "startRoomId": "phila-street",
+          "publicPosition": {
+            "text": "This supporter argues that the Union needs a stronger frame and that Mason's paper should not derail acceptance.",
+            "spans": [],
+            "assumptionIds": [
+              "assumption-federalist"
+            ]
+          },
+          "privateContext": {
+            "persona": "Confident, brisk, and alert to delay.",
+            "motivations": "He wants adoption momentum preserved and prefers not to reopen the whole settlement over added declarations.",
+            "hiddenInterests": "He will answer criticism, but he hopes the objections can be treated as secondary details.",
+            "knowledgeHorizon": "He can react to Mason's written points, but he has no access to Mason's inner resolve beyond what is said aloud.",
+            "spans": [],
+            "assumptionIds": [
+              "assumption-federalist",
+              "assumption-branching"
+            ]
+          },
+          "modelTier": "mid"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence-draft-rights",
+          "name": "Draft objection on rights",
+          "roomId": "phila-office",
+          "content": {
+            "text": "The first objection is blunt: Mason says state declarations are not enough if national law overrides them.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "There is no Declaration of Rights, and the laws of the general government being paramount to the laws and constitution of the several States"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "the Declarations of Rights in the separate States are no security"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-draft-representation",
+          "name": "Draft objection on representation",
+          "roomId": "phila-archive",
+          "content": {
+            "text": "Mason fears the House will look representative without truly knowing the people's conditions.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "there is not the substance but the shadow only of representation"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "which can never produce proper information in the legislature, or inspire confidence in the people"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-draft-senate",
+          "name": "Draft objection on Senate power",
+          "roomId": "phila-office",
+          "content": {
+            "text": "The paper presents the Senate as unusually powerful, durable, and connected to the executive.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "The Senate have the power of altering all money bills"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "will destroy any balance in the government, and enable them to accomplish what usurpations they please"
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj-read-rights-draft",
+          "title": "Read Mason's opening objection",
+          "requires": [],
+          "targetId": "evidence-draft-rights"
+        },
+        {
+          "id": "obj-read-senate-draft",
+          "title": "Read the warning about Senate power",
+          "requires": [],
+          "targetId": "evidence-draft-senate"
+        },
+        {
+          "id": "obj-hear-mason",
+          "title": "Hear Mason explain why the paper must travel",
+          "requires": [
+            "obj-read-rights-draft"
+          ],
+          "targetId": "agent-mason-phila"
+        },
+        {
+          "id": "obj-test-rebuttal",
+          "title": "Hear the Constitution supporter answer the objections",
+          "requires": [
+            "obj-hear-mason"
+          ],
+          "targetId": "agent-supporter-phila"
+        }
+      ],
+      "decision": {
+        "id": "decision-phila-circulation",
+        "title": "How will you move the objections forward?",
+        "prompt": "You have heard Mason and his critic. If you act now, you shape the first reading of the paper. Do you carry the objections as a broad warning, pause to gather more support, or let the critics narrow and delay them?",
+        "roomId": "phila-office",
+        "requires": [
+          "obj-read-rights-draft",
+          "obj-read-senate-draft",
+          "obj-hear-mason",
+          "obj-test-rebuttal"
+        ],
+        "options": [
+          {
+            "id": "opt-carry-full-objections",
+            "label": "Carry Mason's objections forward as a full case against dangerous powers.",
+            "stance": "cooperative",
+            "preconditions": [
+              "obj-hear-mason",
+              "obj-read-senate-draft"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-virginia-lodgings"
+            }
+          },
+          {
+            "id": "opt-seek-cautious-support",
+            "label": "Pause and seek a narrower discussion before wider circulation.",
+            "stance": "neutral",
+            "preconditions": [
+              "obj-test-rebuttal"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-virginia-lodgings"
+            }
+          },
+          {
+            "id": "opt-let-paper-stall",
+            "label": "Let the paper stall while supporters of the Constitution dismiss it as untimely.",
+            "stance": "evasive",
+            "preconditions": [
+              "obj-test-rebuttal"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-suppressed-paper"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-virginia-lodgings",
+      "index": 1,
+      "title": "Virginia: Which Objection Leads?",
+      "sharedContext": {
+        "text": "Back in Virginia, the question is no longer whether Mason objects. The question is which objection will define him. If the paper centers on rights, it may reach broad fears about liberty. If it centers on sectional commerce, it may sound narrower and more defensive. You must choose what argument to build first.",
+        "spans": [
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 2,
+            "quote": "There is no declaration of any kind, for preserving the liberty of the press, or the trial by jury in civil causes"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "the five Southern States, whose produce and circumstances are totally different from that of the eight Northern and Eastern States, may be ruined"
+          }
+        ],
+        "assumptionIds": [
+          "assumption-rooming",
+          "assumption-branching"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": {
+        "id": "rain",
+        "intensity": 1
+      },
+      "spawnRoomId": "va-chamber",
+      "rooms": [
+        {
+          "id": "va-chamber",
+          "name": "Virginia Meeting Chamber",
+          "purpose": "A room for sorting arguments before they spread further.",
+          "kind": "chamber",
+          "size": "medium",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Travel chest",
+            "description": "Packets from Philadelphia lie half-open beside a damp cloak."
+          }
+        },
+        {
+          "id": "va-courtyard",
+          "name": "Inner Courtyard",
+          "purpose": "A sheltered place for side conversations.",
+          "kind": "courtyard",
+          "size": "small",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Rain barrel",
+            "description": "Drops strike the barrel lid in a steady rhythm."
+          }
+        },
+        {
+          "id": "va-archive",
+          "name": "State Papers Closet",
+          "purpose": "A narrow archive for temporary bundles and copied extracts.",
+          "kind": "archive",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Bundle rack",
+            "description": "Twine-tied packets hang from wooden pegs."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-ally-va",
+          "stakeholderId": "virginia-rights-ally",
+          "startRoomId": "va-chamber",
+          "publicPosition": {
+            "text": "The ally urges that liberties, juries, and press freedom should stand at the front of Mason's case.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "There is no declaration of any kind, for preserving the liberty of the press, or the trial by jury in civil causes"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-ally"
+            ]
+          },
+          "privateContext": {
+            "persona": "Measured, persuasive, and careful with language.",
+            "motivations": "This ally wants explicit safeguards to become the memorable core of the objections.",
+            "hiddenInterests": "If the debate turns mainly sectional, the ally fears the wider liberty argument will be lost.",
+            "knowledgeHorizon": "The ally knows Mason's text and local sentiment but cannot know how every state will interpret the paper.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "There is no declaration of any kind, for preserving the liberty of the press, or the trial by jury in civil causes"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-ally",
+              "assumption-branching"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-supporter-va",
+          "stakeholderId": "constitution-supporter",
+          "startRoomId": "va-courtyard",
+          "publicPosition": {
+            "text": "The Constitution supporter says Mason's language is too sweeping and that adoption should not wait on every demanded protection.",
+            "spans": [],
+            "assumptionIds": [
+              "assumption-federalist"
+            ]
+          },
+          "privateContext": {
+            "persona": "Practical, skeptical, and willing to concede small defects.",
+            "motivations": "He wants objections reframed as amendable details rather than reasons to resist the plan itself.",
+            "hiddenInterests": "He is content if the debate narrows to one issue that can be postponed.",
+            "knowledgeHorizon": "He can contest the text before him, but his certainty about what the new government will become is speculative.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "it is at present impossible to foresee whether it will, in its operation, produce a monarchy, or a corrupt, tyrannical aristocracy"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-federalist",
+              "assumption-branching"
+            ]
+          },
+          "modelTier": "mid"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence-rights-press-jury",
+          "name": "Note on press and jury protections",
+          "roomId": "va-archive",
+          "content": {
+            "text": "This note sharpens the rights argument beyond the opening complaint by naming press liberty and civil juries.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "There is no declaration of any kind, for preserving the liberty of the press, or the trial by jury in civil causes; nor against the danger of standing armies in time of peace."
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-judiciary",
+          "name": "Note on the federal judiciary",
+          "roomId": "va-chamber",
+          "content": {
+            "text": "Mason fears distant courts will make justice costly and unequal.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "The Judiciary of the United States is so constructed and extended, as to absorb and destroy the judiciaries of the several States"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "enabling the rich to oppress and ruin the poor"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-commerce",
+          "name": "Note on commerce and sectional danger",
+          "roomId": "va-courtyard",
+          "content": {
+            "text": "This passage warns that simple majorities on commerce could hurt the South and enrich northern merchants.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "the five Southern States, whose produce and circumstances are totally different from that of the eight Northern and Eastern States, may be ruined"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "the merchants of the Northern and Eastern States not only to demand an exorbitant freight, but to monopolize the purchase of the commodities"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-slave-trade",
+          "name": "Note on the slave trade clause",
+          "roomId": "va-archive",
+          "content": {
+            "text": "Mason objects that the new frame protects further importation of enslaved people for years.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "The general legislature is restrained from prohibiting the further importation of slaves for twenty odd years"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "such importations render the United States weaker, more vulnerable, and less capable of defence"
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj-read-rights-note",
+          "title": "Read the note on press liberty and civil juries",
+          "requires": [],
+          "targetId": "evidence-rights-press-jury"
+        },
+        {
+          "id": "obj-read-commerce-note",
+          "title": "Read the warning about commerce and sectional imbalance",
+          "requires": [],
+          "targetId": "evidence-commerce"
+        },
+        {
+          "id": "obj-hear-rights-ally",
+          "title": "Hear the ally argue for a rights-centered case",
+          "requires": [
+            "obj-read-rights-note"
+          ],
+          "targetId": "agent-ally-va"
+        },
+        {
+          "id": "obj-hear-supporter-va",
+          "title": "Hear the Constitution supporter argue for delay or acceptance",
+          "requires": [
+            "obj-hear-rights-ally"
+          ],
+          "targetId": "agent-supporter-va"
+        }
+      ],
+      "decision": {
+        "id": "decision-va-emphasis",
+        "title": "Which objection should lead the case?",
+        "prompt": "A paper can carry many fears, but public debate usually remembers one. Should Mason's objections be framed chiefly as a demand for protected liberties, as a warning about sectional economic danger, or as a softened list that avoids direct confrontation?",
+        "roomId": "va-chamber",
+        "requires": [
+          "obj-read-rights-note",
+          "obj-read-commerce-note",
+          "obj-hear-rights-ally",
+          "obj-hear-supporter-va"
+        ],
+        "options": [
+          {
+            "id": "opt-lead-with-rights",
+            "label": "Build the next discussion around rights, juries, and press liberty.",
+            "stance": "cooperative",
+            "preconditions": [
+              "obj-hear-rights-ally"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-virginia-circulation"
+            }
+          },
+          {
+            "id": "opt-lead-with-commerce",
+            "label": "Push the sectional commerce warning to the front.",
+            "stance": "antagonistic",
+            "preconditions": [
+              "obj-read-commerce-note",
+              "obj-hear-supporter-va"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-sectional-quarrel"
+            }
+          },
+          {
+            "id": "opt-soften-the-paper",
+            "label": "Soften the objections into a cautious memorandum.",
+            "stance": "evasive",
+            "preconditions": [
+              "obj-hear-supporter-va"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-virginia-circulation"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-virginia-circulation",
+      "index": 2,
+      "title": "Virginia: Stand Firm or Soften",
+      "sharedContext": {
+        "text": "The objections are now ready for wider circulation. Mason's words can go forward as a hard warning about structure and liberty, or they can be trimmed into something easier to live with politically. A printer waits on wording. What you advise now will shape the tone of the final document that others read.",
+        "spans": [
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 2,
+            "quote": "This government will set out a moderate aristocracy"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "Nor are the people secured even in the enjoyment of the benefit of the common law."
+          }
+        ],
+        "assumptionIds": [
+          "assumption-rooming",
+          "assumption-branching",
+          "assumption-printer"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": {
+        "id": "night",
+        "intensity": 1
+      },
+      "spawnRoomId": "va-printer-office",
+      "rooms": [
+        {
+          "id": "va-printer-office",
+          "name": "Printer's Office",
+          "purpose": "The place where final wording can be copied and spread.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Hand press",
+            "description": "The press stands ready beside trays of type and damp proof sheets."
+          }
+        },
+        {
+          "id": "va-hall",
+          "name": "Passage Hall",
+          "purpose": "A waiting place between argument and action.",
+          "kind": "hall",
+          "size": "small",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Bench of proofs",
+            "description": "Loose sheets rest on the bench, weighted by a composing stick."
+          }
+        },
+        {
+          "id": "va-street",
+          "name": "Street by the Print Shop",
+          "purpose": "A final space for private counsel before publication.",
+          "kind": "street",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Shop sign",
+            "description": "A painted board creaks above the doorway in the evening air."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-mason-va",
+          "stakeholderId": "george-mason",
+          "startRoomId": "va-street",
+          "publicPosition": {
+            "text": "Mason's objections now sound like a broad warning against unchecked national power and unsecured liberties.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "This government will set out a moderate aristocracy"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "There is no declaration of any kind, for preserving the liberty of the press"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Tired but resolute, still exact in argument.",
+            "motivations": "He wants the record to show that liberty and constitutional structure both mattered to him.",
+            "hiddenInterests": "He will not welcome wording that makes his stand look merely tactical or regional.",
+            "knowledgeHorizon": "He knows what he believes the plan risks; he cannot know whether later generations will judge him prudent or obstinate.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "There is no Declaration of Rights"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "This government will set out a moderate aristocracy"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-branching"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-printer-va",
+          "stakeholderId": "virginia-printer",
+          "startRoomId": "va-printer-office",
+          "publicPosition": {
+            "text": "The printer asks for a version clear enough to copy and defend in public, not merely to satisfy private conscience.",
+            "spans": [],
+            "assumptionIds": [
+              "assumption-printer"
+            ]
+          },
+          "privateContext": {
+            "persona": "Unromantic, observant, and attentive to phrasing.",
+            "motivations": "He wants wording that readers will grasp quickly and repeat accurately.",
+            "hiddenInterests": "He prefers a text that can survive public controversy without confusing its audience.",
+            "knowledgeHorizon": "He knows circulation and tone, not the full constitutional theory behind every clause.",
+            "spans": [],
+            "assumptionIds": [
+              "assumption-printer",
+              "assumption-branching"
+            ]
+          },
+          "modelTier": "cheap"
+        },
+        {
+          "id": "agent-ally-final",
+          "stakeholderId": "virginia-rights-ally",
+          "startRoomId": "va-hall",
+          "publicPosition": {
+            "text": "The ally presses for a version that keeps rights at the center while preserving Mason's larger constitutional fears.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "There is no declaration of any kind, for preserving the liberty of the press, or the trial by jury in civil causes"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-ally"
+            ]
+          },
+          "privateContext": {
+            "persona": "Steady and strategic.",
+            "motivations": "The ally wants a clear public case that can travel beyond one state or one interest.",
+            "hiddenInterests": "Too much softening may save tempers, but it could empty the warning of force.",
+            "knowledgeHorizon": "The ally can judge this audience and this moment, not the entire future of the Constitution.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "There is no declaration of any kind, for preserving the liberty of the press, or the trial by jury in civil causes"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-ally",
+              "assumption-branching"
+            ]
+          },
+          "modelTier": "mid"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence-aristocracy",
+          "name": "Closing warning on aristocracy",
+          "roomId": "va-printer-office",
+          "content": {
+            "text": "Mason's most sweeping fear is that the new government may drift toward oligarchy or monarchy.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "This government will set out a moderate aristocracy"
+              },
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 2,
+                "quote": "it is at present impossible to foresee whether it will, in its operation, produce a monarchy, or a corrupt, tyrannical aristocracy"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-common-law",
+          "name": "Line on common law security",
+          "roomId": "va-hall",
+          "content": {
+            "text": "The rights complaint also reaches ordinary legal protection, not only formal declarations.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "Nor are the people secured even in the enjoyment of the benefit of the common law."
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-senate-executive",
+          "name": "Line on Senate and executive connection",
+          "roomId": "va-street",
+          "content": {
+            "text": "One structural fear is the dangerous closeness between the Senate and the executive branch.",
+            "spans": [
+              {
+                "sourceId": "mason-objections-1787",
+                "page": 1,
+                "quote": "the alarming dependence and connection between that branch of the legislature and the supreme Executive"
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj-read-aristocracy",
+          "title": "Read Mason's broadest warning about the future government",
+          "requires": [],
+          "targetId": "evidence-aristocracy"
+        },
+        {
+          "id": "obj-read-common-law",
+          "title": "Read the line on common law protection",
+          "requires": [],
+          "targetId": "evidence-common-law"
+        },
+        {
+          "id": "obj-speak-printer",
+          "title": "Ask the printer what kind of text will circulate best",
+          "requires": [
+            "obj-read-aristocracy"
+          ],
+          "targetId": "agent-printer-va"
+        },
+        {
+          "id": "obj-speak-mason-final",
+          "title": "Ask Mason what he refuses to soften",
+          "requires": [
+            "obj-speak-printer"
+          ],
+          "targetId": "agent-mason-va"
+        }
+      ],
+      "decision": {
+        "id": "decision-final-tone",
+        "title": "What final advice will you give?",
+        "prompt": "The text is ready to move. Should Mason stand firmly by his full warning, accept a limited amendments-first tone, or pull back from confrontation altogether? Each choice preserves some part of the argument and sacrifices another.",
+        "roomId": "va-printer-office",
+        "requires": [
+          "obj-read-aristocracy",
+          "obj-read-common-law",
+          "obj-speak-printer",
+          "obj-speak-mason-final"
+        ],
+        "options": [
+          {
+            "id": "opt-stand-firm",
+            "label": "Advise Mason to circulate the objections in their strongest form.",
+            "stance": "cooperative",
+            "preconditions": [
+              "obj-speak-mason-final",
+              "obj-read-aristocracy"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-mason-stands-firm"
+            }
+          },
+          {
+            "id": "opt-amendments-first",
+            "label": "Advise a narrower text centered on later amendments and explicit safeguards.",
+            "stance": "neutral",
+            "preconditions": [
+              "obj-read-common-law",
+              "obj-speak-printer"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-amendments-memorandum"
+            }
+          },
+          {
+            "id": "opt-withdraw-tone",
+            "label": "Advise Mason to retreat from public confrontation.",
+            "stance": "evasive",
+            "preconditions": [
+              "obj-speak-printer"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-suppressed-paper"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "endings": [
+    {
+      "id": "ending-suppressed-paper",
+      "title": "Ending: The Paper Is Smothered Early",
+      "summary": "You let the objections stall in Philadelphia. Mason's concerns never gain clear shape in Virginia, and the strongest criticisms are reduced to mutterings about inconvenience and temper.",
+      "historicalOutcome": {
+        "text": "This differs from the record preserved in Mason's written objections. In September 1787 he did set down a broad written critique, beginning with the absence of a declaration of rights and extending to representation and constitutional balance.",
+        "spans": [
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "George Mason’s “Objections to This Constitution of Government” September 1787"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "There is no Declaration of Rights"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "there is not the substance but the shadow only of representation"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "Counterfactual. The surviving source shows Mason's objections were written down in a substantial list, not suppressed before they took form.",
+      "reflectionQuestions": [
+        "What is lost when criticism is delayed until others define it for you?",
+        "Which of Mason's objections seems hardest to bury once written?",
+        "Does political timing matter as much as the argument itself?"
+      ]
+    },
+    {
+      "id": "ending-sectional-quarrel",
+      "title": "Ending: The Debate Shrinks to a Regional Quarrel",
+      "summary": "You push the commerce objection to the front. Mason's larger constitutional warnings are overshadowed by sectional fear. Some readers listen, but many treat the paper as a narrow southern complaint rather than a broader argument about liberty and structure.",
+      "historicalOutcome": {
+        "text": "The source shows Mason's objections were broader than commerce alone. He attacked the lack of rights protections, the structure of representation, Senate power, the judiciary, and more.",
+        "spans": [
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "There is no Declaration of Rights"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "The Judiciary of the United States is so constructed and extended, as to absorb and destroy the judiciaries of the several States"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "the five Southern States, whose produce and circumstances are totally different from that of the eight Northern and Eastern States, may be ruined"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "Counterfactual emphasis. Mason did include sectional commerce fears, but the surviving text presents them as one objection among many.",
+      "reflectionQuestions": [
+        "Why might a rights argument travel more widely than a regional economic one?",
+        "Is it fair to judge Mason only by the objection that sounds most self-interested?",
+        "How does emphasis change the meaning of a document without changing its words?"
+      ]
+    },
+    {
+      "id": "ending-mason-stands-firm",
+      "title": "Ending: Mason Stands Firm",
+      "summary": "You advise Mason to let the objections speak in full. Rights, representation, judicial reach, Senate power, and the danger of aristocracy remain part of one connected warning. The argument is harder to dismiss because it is not merely local or personal.",
+      "historicalOutcome": {
+        "text": "This ending best matches the surviving source. Mason's September 1787 objections present a wide critique: no declaration of rights, weak representation, dangerous Senate power, threatened state judiciaries, missing protections for press and juries, and the fear of aristocracy.",
+        "spans": [
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "There is no Declaration of Rights"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "there is not the substance but the shadow only of representation"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 2,
+            "quote": "There is no declaration of any kind, for preserving the liberty of the press, or the trial by jury in civil causes"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 2,
+            "quote": "This government will set out a moderate aristocracy"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending matches the surviving text most closely, though the game cannot prove how each conversation unfolded.",
+      "reflectionQuestions": [
+        "Which of Mason's objections seems most convincing from the source alone?",
+        "Why would some framers still prefer adoption without a bill of rights?",
+        "Was refusing to soften the critique an act of principle, poor strategy, or both?"
+      ]
+    },
+    {
+      "id": "ending-amendments-memorandum",
+      "title": "Ending: A Narrower Amendments Case",
+      "summary": "You steer the paper toward a limited public message: adopt protections later, and avoid the harshest predictions now. The result is more acceptable to cautious readers, but some of Mason's structural warnings lose force.",
+      "historicalOutcome": {
+        "text": "The surviving objections were not limited to a modest amendments note. Mason's text includes severe warnings about constitutional design as well as explicit liberties such as press freedom and civil juries.",
+        "spans": [
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 2,
+            "quote": "There is no declaration of any kind, for preserving the liberty of the press, or the trial by jury in civil causes"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 2,
+            "quote": "This government will set out a moderate aristocracy"
+          },
+          {
+            "sourceId": "mason-objections-1787",
+            "page": 1,
+            "quote": "will destroy any balance in the government"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "Counterfactual. It imagines Mason accepting a softer, amendments-first public tone than the surviving objections display.",
+      "reflectionQuestions": [
+        "Would a narrower demand for amendments have been wiser than a broad attack?",
+        "Can soft language preserve principle, or does it usually weaken it?",
+        "How should historians judge a statesman who raises both liberty concerns and structural fears at once?"
+      ]
+    }
+  ],
+  "assetEligibility": [
+    {
+      "id": "asset-george-mason",
+      "kind": "portrait",
+      "entityId": "george-mason",
+      "subject": "George Mason",
+      "prompt": "Portrait of George Mason in late 1787, serious expression, plain but dignified dress, upper-secondary classroom style."
+    },
+    {
+      "id": "asset-phila-office",
+      "kind": "landmark",
+      "entityId": "phila-office",
+      "subject": "Delegation Office",
+      "prompt": "Interior of a late eighteenth-century delegation office with drafting table, sealing wax, loose papers, and subdued autumn light."
+    },
+    {
+      "id": "asset-evidence-rights",
+      "kind": "prop",
+      "entityId": "evidence-draft-rights",
+      "subject": "Draft objection on rights",
+      "prompt": "Folded manuscript sheet with dense eighteenth-century handwriting and the opening objection about rights emphasized by layout, not modern markup."
+    },
+    {
+      "id": "asset-va-printer-office",
+      "kind": "landmark",
+      "entityId": "va-printer-office",
+      "subject": "Printer's Office",
+      "prompt": "Small Virginia print office at night with hand press, type trays, proof sheets, and candlelight."
+    },
+    {
+      "id": "asset-evidence-press-jury",
+      "kind": "prop",
+      "entityId": "evidence-rights-press-jury",
+      "subject": "Note on press and jury protections",
+      "prompt": "Close view of a handwritten political note mentioning liberty of the press and trial by jury in civil causes."
+    }
+  ]
+}

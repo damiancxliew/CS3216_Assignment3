@@ -1,0 +1,179 @@
+import { describe, expect, it } from 'vitest'
+
+import { loadFixtureJson, loadI1Documents, loadI1Spec } from '../src/fixtures'
+import { verifyGrounding } from '../src/ingest/spans'
+import { MAX_GENERATED_ASSETS } from '../src/spec/catalogue'
+import { publicProjection, resolveStageSettings, validateAdventureSpec } from '../src/spec/v2'
+
+type Json = Record<string, any>
+
+async function fixture(): Promise<Json> {
+  return structuredClone(await loadFixtureJson('singapore-1819.spec.json')) as Json
+}
+
+function expectInvalid(value: unknown, pathFragment: string, messageFragment?: string) {
+  const result = validateAdventureSpec(value)
+  expect(result.ok).toBe(false)
+  if (result.ok) return
+  const hit = result.issues.find((i) => i.path.includes(pathFragment) && (!messageFragment || i.message.includes(messageFragment)))
+  expect(hit, `expected an issue at *${pathFragment}* (${messageFragment ?? 'any'}), got:\n${result.issues.map((i) => `${i.path}: ${i.message}`).join('\n')}`).toBeDefined()
+}
+
+describe('I1 fixture', () => {
+  it('is a valid Adventure Spec v2', async () => {
+    const result = validateAdventureSpec(await loadFixtureJson('singapore-1819.spec.json'))
+    expect(result.ok, result.ok ? '' : JSON.stringify(result.issues, null, 2)).toBe(true)
+  })
+
+  it('exercises the full v2 surface: 3 stages, rooms with doors, private context, branch targets, assets, overlays', async () => {
+    const spec = await loadI1Spec()
+    expect(spec.stages).toHaveLength(3)
+    expect(spec.stages.every((s) => s.rooms.length >= 2)).toBe(true)
+    expect(spec.stages.some((s) => s.rooms.some((r) => r.doorDefault === 'closed'))).toBe(true)
+    expect(spec.stages.every((s) => s.agents.every((a) => a.privateContext.knowledgeHorizon.length > 0))).toBe(true)
+    const targets = spec.stages.flatMap((s) => s.decision.options.map((o) => o.branchTarget.kind))
+    expect(targets).toContain('stage')
+    expect(targets).toContain('ending')
+    expect(spec.assetEligibility.length).toBeGreaterThan(0)
+    expect(spec.assetEligibility.length).toBeLessThanOrEqual(MAX_GENERATED_ASSETS)
+    expect(spec.stages.map((s) => resolveStageSettings(spec, s).ambientOverlay.id)).toEqual(['clouds', 'rain', 'dust'])
+    expect(spec.stages.map((s) => resolveStageSettings(spec, s).timerSeconds)).toEqual([480, 600, 0])
+  })
+
+  it('every source span resolves to a real page of the source (D2 spot-check)', async () => {
+    const [spec, documents] = await Promise.all([loadI1Spec(), loadI1Documents()])
+    const report = verifyGrounding(spec, documents)
+    expect(report.total).toBeGreaterThan(30)
+    expect(report.failures, JSON.stringify(report.failures, null, 2)).toEqual([])
+    expect(spec.sources[0]?.contentHash).toBe(documents.get('handout')?.contentHash)
+  })
+
+  it('public projection carries no private context (FR-21)', async () => {
+    const json = JSON.stringify(publicProjection(await loadI1Spec()))
+    expect(json).not.toContain('privateContext')
+    expect(json).not.toContain('knowledgeHorizon')
+    expect(json).not.toContain('hiddenInterests')
+  })
+})
+
+describe('Adventure Spec v2 rejects', () => {
+  it('a missing reading level (FR-1a)', async () => {
+    const spec = await fixture()
+    delete spec.readingLevel
+    expectInvalid(spec, 'readingLevel')
+  })
+
+  it('a terrain/structural/UI asset request (FR-6b)', async () => {
+    const spec = await fixture()
+    spec.assetEligibility.push({ id: 'asset-grass', kind: 'terrain', entityId: 'bazaar', subject: 'grass tiles', prompt: 'seamless grass tileset' })
+    expectInvalid(spec, 'assetEligibility.6.kind')
+    spec.assetEligibility[6].kind = 'ui'
+    expectInvalid(spec, 'assetEligibility.6.kind')
+  })
+
+  it('more than 8 generated assets (D4)', async () => {
+    const spec = await fixture()
+    const rooms = ['landing-beach', 'ship-cabin', 'temenggong-hall', 'farquhar-tent', 'hussein-quarters']
+    rooms.forEach((room, i) => spec.assetEligibility.push({ id: `asset-extra-${i}`, kind: 'landmark', entityId: room, subject: room, prompt: 'x' }))
+    expect(spec.assetEligibility).toHaveLength(11)
+    expectInvalid(spec, 'assetEligibility')
+  })
+
+  it('an asset whose kind does not match its entity', async () => {
+    const spec = await fixture()
+    spec.assetEligibility[0].kind = 'landmark'
+    expectInvalid(spec, 'assetEligibility.0.entityId', 'landmark must reference a room')
+  })
+
+  it('ungrounded content: no span and no assumption (FR-3)', async () => {
+    const spec = await fixture()
+    spec.stakeholders[0].summary.spans = []
+    spec.stakeholders[0].summary.assumptionIds = []
+    expectInvalid(spec, 'stakeholders.0.summary.spans', 'at least one source span')
+  })
+
+  it('a span pointing past the end of the source', async () => {
+    const spec = await fixture()
+    spec.sharedContext.spans[0].page = 99
+    expectInvalid(spec, 'sharedContext.spans.0.page', 'beyond source')
+  })
+
+  it('a span citing an unknown source', async () => {
+    const spec = await fixture()
+    spec.sharedContext.spans[0].sourceId = 'wikipedia'
+    expectInvalid(spec, 'sharedContext.spans.0.sourceId', 'unknown source')
+  })
+
+  it('evidence without any source span', async () => {
+    const spec = await fixture()
+    spec.stages[0].evidence[0].content.spans = []
+    expectInvalid(spec, 'stages.0.evidence.0.content.spans')
+  })
+
+  it('an agent starting in a room from another stage', async () => {
+    const spec = await fixture()
+    spec.stages[0].agents[0].startRoomId = 'bazaar'
+    expectInvalid(spec, 'stages.0.agents.0.startRoomId', 'unknown room')
+  })
+
+  it('a backward branch target', async () => {
+    const spec = await fixture()
+    spec.stages[1].decision.options[0].branchTarget = { kind: 'stage', stageId: 'stage-landing' }
+    expectInvalid(spec, 'stages.1.decision.options.0.branchTarget.stageId', 'move forward')
+  })
+
+  it('a final-stage option that does not end the adventure', async () => {
+    const spec = await fixture()
+    spec.stages[2].decision.options[0].branchTarget = { kind: 'stage', stageId: 'stage-sultan' }
+    expectInvalid(spec, 'stages.2.decision.options.0.branchTarget')
+  })
+
+  it('an unreachable ending', async () => {
+    const spec = await fixture()
+    spec.stages[0].decision.options[2].branchTarget = { kind: 'stage', stageId: 'stage-sultan' }
+    expectInvalid(spec, 'endings.3.id', 'unreachable')
+  })
+
+  it('an objective cycle', async () => {
+    const spec = await fixture()
+    spec.stages[0].objectives[1].requires = ['obj-meet-temenggong']
+    expectInvalid(spec, 'stages.0.objectives', 'cycle')
+  })
+
+  it('an objective the decision never requires', async () => {
+    const spec = await fixture()
+    spec.stages[0].objectives.push({ id: 'obj-dead', title: 'Dead end', requires: [], targetId: 'ev-instructions' })
+    expectInvalid(spec, 'stages.0.objectives.3.id', 'not (transitively) required')
+  })
+
+  it('a stakeholder who never appears as an agent', async () => {
+    const spec = await fixture()
+    spec.stages[1].agents.splice(0, 1) // remove hussein
+    spec.stages[1].objectives[1].targetId = 'agent-temenggong-s1'
+    expectInvalid(spec, 'stakeholders.3.id', 'never appears')
+  })
+
+  it('duplicate ids anywhere in the spec', async () => {
+    const spec = await fixture()
+    spec.stages[1].rooms[0].id = 'landing-beach'
+    expectInvalid(spec, 'stages.1.rooms.0.id', 'duplicate id')
+  })
+
+  it('an unknown ambient overlay or effect-style id', async () => {
+    const spec = await fixture()
+    spec.stages[0].ambientOverlay = { id: 'thunderstorm', intensity: 2 }
+    expectInvalid(spec, 'stages.0.ambientOverlay.id')
+  })
+
+  it('a fourth stage', async () => {
+    const spec = await fixture()
+    spec.stages.push({ ...structuredClone(spec.stages[2]), id: 'stage-four', index: 3 })
+    expectInvalid(spec, 'stages')
+  })
+
+  it('non-object garbage without throwing', () => {
+    expect(validateAdventureSpec(null).ok).toBe(false)
+    expect(validateAdventureSpec('spec').ok).toBe(false)
+    expect(validateAdventureSpec({ version: 1 }).ok).toBe(false)
+  })
+})

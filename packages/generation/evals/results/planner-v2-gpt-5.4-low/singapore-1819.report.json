@@ -1,0 +1,143 @@
+{
+  "case": "singapore-1819",
+  "metrics": {
+    "promptVersion": "planner-v2",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 2,
+    "repairs": 1,
+    "valid": true,
+    "totalLatencyMs": 133408,
+    "usage": {
+      "inputTokens": 17301,
+      "cachedInputTokens": 3840,
+      "outputTokens": 17733,
+      "reasoningTokens": 373
+    },
+    "costUsd": 0.3006075,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 81118,
+        "usage": {
+          "inputTokens": 4239,
+          "cachedInputTokens": 0,
+          "outputTokens": 8901,
+          "reasoningTokens": 221
+        },
+        "costUsd": 0.1441125,
+        "issueCount": 2,
+        "schemaIssues": 2,
+        "groundingIssues": 0,
+        "issues": [
+          {
+            "path": "$.adventure.stages.2.decision.options.1.branchTarget.endingId",
+            "message": "unknown ending \"ending-delayed-chance\""
+          },
+          {
+            "path": "$.adventure.stages.2.decision.options.2.branchTarget.endingId",
+            "message": "unknown ending \"ending-broken-negotiations\""
+          }
+        ]
+      },
+      {
+        "purpose": "repair",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 52259,
+        "usage": {
+          "inputTokens": 13062,
+          "cachedInputTokens": 3840,
+          "outputTokens": 8832,
+          "reasoningTokens": 152
+        },
+        "costUsd": 0.156495,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0,
+        "issues": []
+      }
+    ],
+    "documents": [
+      {
+        "id": "handout",
+        "pages": 4,
+        "chars": 4676
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The sources do not describe the exact wording of the 30 January preliminary agreement.",
+    "The sources do not give the exact place names or room layouts for the meetings and signing.",
+    "The sources do not record direct speech, private feelings or personal motives of the stakeholders.",
+    "The sources do not explain how Hussein travelled from Riau to Singapore in detail.",
+    "The sources do not give the exact text of the 6 February treaty.",
+    "The sources do not provide precise weather or time of day for the meetings."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 76,
+      "resolved": 76,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 8,
+    "branching": {
+      "stages": 3,
+      "distinctTargetsPerStage": [
+        2,
+        3,
+        3
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "earlyFork": {
+      "nonFinalStages": 2,
+      "forking": 2,
+      "ratio": 1
+    },
+    "objectiveChains": 3,
+    "overlaysSet": 0,
+    "injection": null,
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "lower-secondary",
+      "budgetWords": 120,
+      "maxWords": 42,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 8,
+      "kinds": {
+        "portrait": 4,
+        "landmark": 2,
+        "prop": 2
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "The Harbour and the Throne",
+  "warnings": []
+}

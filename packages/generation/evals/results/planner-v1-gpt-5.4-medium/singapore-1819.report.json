@@ -1,0 +1,108 @@
+{
+  "case": "singapore-1819",
+  "metrics": {
+    "promptVersion": "planner-v1",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 1,
+    "repairs": 0,
+    "valid": true,
+    "totalLatencyMs": 142915,
+    "usage": {
+      "inputTokens": 3972,
+      "cachedInputTokens": 0,
+      "outputTokens": 18924,
+      "reasoningTokens": 8804
+    },
+    "costUsd": 0.29379,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 142885,
+        "usage": {
+          "inputTokens": 3972,
+          "cachedInputTokens": 0,
+          "outputTokens": 18924,
+          "reasoningTokens": 8804
+        },
+        "costUsd": 0.29379,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0
+      }
+    ],
+    "documents": [
+      {
+        "id": "handout",
+        "pages": 4,
+        "chars": 4676
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The handout does not give the full text of the 30 January preliminary agreement.",
+    "The handout does not give the full text of the 6 February treaty.",
+    "The handout does not name interpreters, scribes, or other minor participants present in the meetings.",
+    "The handout does not describe exact room layouts, furniture, or the appearance of the meeting places.",
+    "The handout does not record the private thoughts of Raffles, Hussein, the Temenggong, or Farquhar during the negotiations."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 95,
+      "resolved": 95,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 6,
+    "branching": {
+      "stages": 3,
+      "distinctTargetsPerStage": [
+        1,
+        3,
+        4
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "lower-secondary",
+      "budgetWords": 120,
+      "maxWords": 32,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 8,
+      "kinds": {
+        "portrait": 4,
+        "landmark": 2,
+        "prop": 2
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "At the Mouth of the Strait",
+  "warnings": []
+}
