@@ -1,0 +1,978 @@
+{
+  "label": "planner-v2-gpt-5.4-low",
+  "startedAt": "2026-09-21T09:59:30.172Z",
+  "promptVersion": "planner-v2",
+  "config": {
+    "model": "gpt-5.4",
+    "promptVersion": "planner-v2",
+    "maxOutputTokens": 32000,
+    "reasoningEffort": "low",
+    "maxRepairs": 2
+  },
+  "cases": [
+    {
+      "case": "singapore-1819",
+      "metrics": {
+        "promptVersion": "planner-v2",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 2,
+        "repairs": 1,
+        "valid": true,
+        "totalLatencyMs": 133408,
+        "usage": {
+          "inputTokens": 17301,
+          "cachedInputTokens": 3840,
+          "outputTokens": 17733,
+          "reasoningTokens": 373
+        },
+        "costUsd": 0.3006075,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 81118,
+            "usage": {
+              "inputTokens": 4239,
+              "cachedInputTokens": 0,
+              "outputTokens": 8901,
+              "reasoningTokens": 221
+            },
+            "costUsd": 0.1441125,
+            "issueCount": 2,
+            "schemaIssues": 2,
+            "groundingIssues": 0,
+            "issues": [
+              {
+                "path": "$.adventure.stages.2.decision.options.1.branchTarget.endingId",
+                "message": "unknown ending \"ending-delayed-chance\""
+              },
+              {
+                "path": "$.adventure.stages.2.decision.options.2.branchTarget.endingId",
+                "message": "unknown ending \"ending-broken-negotiations\""
+              }
+            ]
+          },
+          {
+            "purpose": "repair",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 52259,
+            "usage": {
+              "inputTokens": 13062,
+              "cachedInputTokens": 3840,
+              "outputTokens": 8832,
+              "reasoningTokens": 152
+            },
+            "costUsd": 0.156495,
+            "issueCount": 0,
+            "schemaIssues": 0,
+            "groundingIssues": 0,
+            "issues": []
+          }
+        ],
+        "documents": [
+          {
+            "id": "handout",
+            "pages": 4,
+            "chars": 4676
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 6,
+      "status": "ok",
+      "reason": null,
+      "checks": {
+        "grounding": {
+          "total": 76,
+          "resolved": 76,
+          "ratio": 1
+        },
+        "documentedShare": 1,
+        "assumptions": 8,
+        "branching": {
+          "stages": 3,
+          "distinctTargetsPerStage": [
+            2,
+            3,
+            3
+          ],
+          "endings": 4,
+          "reachableEndings": 4,
+          "ok": true
+        },
+        "earlyFork": {
+          "nonFinalStages": 2,
+          "forking": 2,
+          "ratio": 1
+        },
+        "objectiveChains": 3,
+        "overlaysSet": 0,
+        "injection": null,
+        "stances": {
+          "distinct": [
+            "antagonistic",
+            "cooperative",
+            "evasive",
+            "neutral"
+          ],
+          "ok": true
+        },
+        "readingLevel": {
+          "band": "lower-secondary",
+          "budgetWords": 120,
+          "maxWords": 42,
+          "overBudget": [],
+          "ok": true
+        },
+        "assets": {
+          "count": 8,
+          "kinds": {
+            "portrait": 4,
+            "landmark": 2,
+            "prop": 2
+          },
+          "ok": true
+        },
+        "privateContextLeak": [],
+        "playability": {
+          "level": "spec-level",
+          "ok": true,
+          "errors": []
+        },
+        "pass": true
+      },
+      "issues": 0,
+      "title": "The Harbour and the Throne"
+    },
+    {
+      "case": "mason-1787",
+      "metrics": {
+        "promptVersion": "planner-v2",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 2,
+        "repairs": 1,
+        "valid": true,
+        "totalLatencyMs": 146102,
+        "usage": {
+          "inputTokens": 16943,
+          "cachedInputTokens": 0,
+          "outputTokens": 17904,
+          "reasoningTokens": 1774
+        },
+        "costUsd": 0.31091749999999996,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 96541,
+            "usage": {
+              "inputTokens": 4382,
+              "cachedInputTokens": 0,
+              "outputTokens": 9586,
+              "reasoningTokens": 1521
+            },
+            "costUsd": 0.154745,
+            "issueCount": 1,
+            "schemaIssues": 1,
+            "groundingIssues": 0,
+            "issues": [
+              {
+                "path": "$.adventure.stages.2.decision.options.2.branchTarget.endingId",
+                "message": "unknown ending \"ending-withdrawn-warning\""
+              }
+            ]
+          },
+          {
+            "purpose": "repair",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 49551,
+            "usage": {
+              "inputTokens": 12561,
+              "cachedInputTokens": 0,
+              "outputTokens": 8318,
+              "reasoningTokens": 253
+            },
+            "costUsd": 0.1561725,
+            "issueCount": 0,
+            "schemaIssues": 0,
+            "groundingIssues": 0,
+            "issues": []
+          }
+        ],
+        "documents": [
+          {
+            "id": "mason-objections-1787",
+            "pages": 2,
+            "chars": 5848
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 5,
+      "status": "ok",
+      "reason": null,
+      "checks": {
+        "grounding": {
+          "total": 58,
+          "resolved": 58,
+          "ratio": 1
+        },
+        "documentedShare": 0.7777777777777778,
+        "assumptions": 6,
+        "branching": {
+          "stages": 3,
+          "distinctTargetsPerStage": [
+            2,
+            2,
+            3
+          ],
+          "endings": 4,
+          "reachableEndings": 4,
+          "ok": true
+        },
+        "earlyFork": {
+          "nonFinalStages": 2,
+          "forking": 2,
+          "ratio": 1
+        },
+        "objectiveChains": 3,
+        "overlaysSet": 3,
+        "injection": null,
+        "stances": {
+          "distinct": [
+            "antagonistic",
+            "cooperative",
+            "evasive",
+            "neutral"
+          ],
+          "ok": true
+        },
+        "readingLevel": {
+          "band": "upper-secondary",
+          "budgetWords": 180,
+          "maxWords": 41,
+          "overBudget": [],
+          "ok": true
+        },
+        "assets": {
+          "count": 5,
+          "kinds": {
+            "portrait": 1,
+            "landmark": 2,
+            "prop": 2
+          },
+          "ok": true
+        },
+        "privateContextLeak": [],
+        "playability": {
+          "level": "spec-level",
+          "ok": true,
+          "errors": []
+        },
+        "pass": true
+      },
+      "issues": 0,
+      "title": "Mason's Last Objections"
+    },
+    {
+      "case": "spotted-tail-1877",
+      "metrics": {
+        "promptVersion": "planner-v2",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 3,
+        "repairs": 2,
+        "valid": true,
+        "totalLatencyMs": 197095,
+        "usage": {
+          "inputTokens": 36201,
+          "cachedInputTokens": 5888,
+          "outputTokens": 26559,
+          "reasoningTokens": 1904
+        },
+        "costUsd": 0.4756395,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 104198,
+            "usage": {
+              "inputTokens": 6291,
+              "cachedInputTokens": 0,
+              "outputTokens": 9735,
+              "reasoningTokens": 1525
+            },
+            "costUsd": 0.1617525,
+            "issueCount": 1,
+            "schemaIssues": 1,
+            "groundingIssues": 0,
+            "issues": [
+              {
+                "path": "$.adventure.stages.1.decision.options.3.branchTarget.endingId",
+                "message": "unknown ending \"ending-discipline-without-trust\""
+              }
+            ]
+          },
+          {
+            "purpose": "repair",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 43844,
+            "usage": {
+              "inputTokens": 14617,
+              "cachedInputTokens": 5888,
+              "outputTokens": 8242,
+              "reasoningTokens": 32
+            },
+            "costUsd": 0.1469245,
+            "issueCount": 8,
+            "schemaIssues": 0,
+            "groundingIssues": 8,
+            "issues": [
+              {
+                "path": "$.adventure.sharedContext.spans.1",
+                "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 2: \"nment intends to fulfill its part of the treaty and that it is expected that the Indians on their part will do the same. Since then their [sic] has been a great desire on the part of the Indians to farm and I am daily beset with application\" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.stakeholders.2.summary.spans.1",
+                "message": "quote not found on page 4 of \"spotted-tail-agency-1877\" (it appears on page 3)"
+              },
+              {
+                "path": "$.adventure.endings.1.historicalOutcome.spans.2",
+                "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 4: \"Transcription Primary Sources for Teachers 2006 Created by the National Archives-Central Plains Region, Kansas City, MO, (816) 268-8000. 4 police force can be organized which will be a great help to the Agent in the execution of the wishes \" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.stages.0.evidence.1.content.spans.0",
+                "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 2: \"nment intends to fulfill its part of the treaty and that it is expected that the Indians on their part will do the same. Since then their [sic] has been a great desire on the part of the Indians to farm and I am daily beset with application\" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.stages.1.sharedContext.spans.2",
+                "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 4: \"Transcription Primary Sources for Teachers 2006 Created by the National Archives-Central Plains Region, Kansas City, MO, (816) 268-8000. 4 police force can be organized which will be a great help to the Agent in the execution of the wishes \" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.stages.1.agents.0.publicPosition.spans.1",
+                "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 4: \"Transcription Primary Sources for Teachers 2006 Created by the National Archives-Central Plains Region, Kansas City, MO, (816) 268-8000. 4 police force can be organized which will be a great help to the Agent in the execution of the wishes \" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.stages.1.agents.1.publicPosition.spans.1",
+                "message": "quote not found on page 4 of \"spotted-tail-agency-1877\" (it appears on page 3)"
+              },
+              {
+                "path": "$.adventure.stages.1.agents.1.privateContext.spans.1",
+                "message": "quote not found on page 4 of \"spotted-tail-agency-1877\" (it appears on page 3)"
+              }
+            ]
+          },
+          {
+            "purpose": "repair",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 49037,
+            "usage": {
+              "inputTokens": 15293,
+              "cachedInputTokens": 0,
+              "outputTokens": 8582,
+              "reasoningTokens": 347
+            },
+            "costUsd": 0.1669625,
+            "issueCount": 0,
+            "schemaIssues": 0,
+            "groundingIssues": 0,
+            "issues": []
+          }
+        ],
+        "documents": [
+          {
+            "id": "spotted-tail-agency-1877",
+            "pages": 5,
+            "chars": 13303
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 7,
+      "status": "ok",
+      "reason": null,
+      "checks": {
+        "grounding": {
+          "total": 73,
+          "resolved": 73,
+          "ratio": 1
+        },
+        "documentedShare": 1,
+        "assumptions": 8,
+        "branching": {
+          "stages": 2,
+          "distinctTargetsPerStage": [
+            2,
+            4
+          ],
+          "endings": 4,
+          "reachableEndings": 4,
+          "ok": true
+        },
+        "earlyFork": {
+          "nonFinalStages": 1,
+          "forking": 1,
+          "ratio": 1
+        },
+        "objectiveChains": 2,
+        "overlaysSet": 2,
+        "injection": null,
+        "stances": {
+          "distinct": [
+            "antagonistic",
+            "cooperative",
+            "evasive",
+            "neutral"
+          ],
+          "ok": true
+        },
+        "readingLevel": {
+          "band": "upper-secondary",
+          "budgetWords": 180,
+          "maxWords": 37,
+          "overBudget": [],
+          "ok": true
+        },
+        "assets": {
+          "count": 8,
+          "kinds": {
+            "portrait": 4,
+            "landmark": 2,
+            "prop": 2
+          },
+          "ok": true
+        },
+        "privateContextLeak": [],
+        "playability": {
+          "level": "spec-level",
+          "ok": true,
+          "errors": []
+        },
+        "pass": true
+      },
+      "issues": 0,
+      "title": "At the Agency Edge"
+    },
+    {
+      "case": "magna-carta-1297",
+      "metrics": {
+        "promptVersion": "planner-v2",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 3,
+        "repairs": 2,
+        "valid": false,
+        "totalLatencyMs": 227963,
+        "usage": {
+          "inputTokens": 45121,
+          "cachedInputTokens": 15872,
+          "outputTokens": 32047,
+          "reasoningTokens": 1777
+        },
+        "costUsd": 0.5577955,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 101046,
+            "usage": {
+              "inputTokens": 8103,
+              "cachedInputTokens": 0,
+              "outputTokens": 10787,
+              "reasoningTokens": 745
+            },
+            "costUsd": 0.1820625,
+            "issueCount": 3,
+            "schemaIssues": 0,
+            "groundingIssues": 3,
+            "issues": [
+              {
+                "path": "$.adventure.stages.2.sharedContext.spans.0",
+                "message": "quote not found verbatim on any page of \"magna-carta-1297-translation\"; the closest passage is on page 5: \"ers contained in our charter over the liberties of the forest, the archbishops, bishops, abbots, priors, earls, barons, knights, fee holders and all of our realm have given us a fifteenth part of all their movable goods. Moreover we grant t\" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.stages.2.agents.1.publicPosition.spans.0",
+                "message": "quote not found on page 3 of \"magna-carta-1297-translation\" (it appears on page 2)"
+              },
+              {
+                "path": "$.adventure.stages.2.evidence.0.content.spans.0",
+                "message": "quote not found verbatim on any page of \"magna-carta-1297-translation\"; the closest passage is on page 5: \"ers contained in our charter over the liberties of the forest, the archbishops, bishops, abbots, priors, earls, barons, knights, fee holders and all of our realm have given us a fifteenth part of all their movable goods. Moreover we grant t\" — copy from it verbatim or replace the span with an assumptionId"
+              }
+            ]
+          },
+          {
+            "purpose": "repair",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 62369,
+            "usage": {
+              "inputTokens": 18516,
+              "cachedInputTokens": 7936,
+              "outputTokens": 10590,
+              "reasoningTokens": 516
+            },
+            "costUsd": 0.187284,
+            "issueCount": 2,
+            "schemaIssues": 0,
+            "groundingIssues": 2,
+            "issues": [
+              {
+                "path": "$.adventure.stages.2.sharedContext.spans.0",
+                "message": "quote not found verbatim on any page of \"magna-carta-1297-translation\"; the closest passage is on page 5: \"ers contained in our charter over the liberties of the forest, the archbishops, bishops, abbots, priors, earls, barons, knights, fee holders and all of our realm have given us a fifteenth part of all their movable goods. Moreover we grant t\" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.stages.2.evidence.0.content.spans.0",
+                "message": "quote not found verbatim on any page of \"magna-carta-1297-translation\"; the closest passage is on page 5: \"ers contained in our charter over the liberties of the forest, the archbishops, bishops, abbots, priors, earls, barons, knights, fee holders and all of our realm have given us a fifteenth part of all their movable goods. Moreover we grant t\" — copy from it verbatim or replace the span with an assumptionId"
+              }
+            ]
+          },
+          {
+            "purpose": "repair",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 64517,
+            "usage": {
+              "inputTokens": 18502,
+              "cachedInputTokens": 7936,
+              "outputTokens": 10670,
+              "reasoningTokens": 516
+            },
+            "costUsd": 0.188449,
+            "issueCount": 1,
+            "schemaIssues": 0,
+            "groundingIssues": 1,
+            "issues": [
+              {
+                "path": "$.adventure.stages.2.sharedContext.spans.2",
+                "message": "quote not found verbatim on any page of \"magna-carta-1297-translation\"; the closest passage is on page 5: \"ers contained in our charter over the liberties of the forest, the archbishops, bishops, abbots, priors, earls, barons, knights, fee holders and all of our realm have given us a fifteenth part of all their movable goods. Moreover we grant t\" — copy from it verbatim or replace the span with an assumptionId"
+              }
+            ]
+          }
+        ],
+        "documents": [
+          {
+            "id": "magna-carta-1297-translation",
+            "pages": 6,
+            "chars": 19485
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 5,
+      "status": "failed",
+      "reason": "invalid-after-repair",
+      "checks": null,
+      "issues": 1,
+      "title": null
+    },
+    {
+      "case": "tubman-1898",
+      "metrics": {
+        "promptVersion": "planner-v2",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 1,
+        "repairs": 0,
+        "valid": true,
+        "totalLatencyMs": 68755,
+        "usage": {
+          "inputTokens": 5216,
+          "cachedInputTokens": 0,
+          "outputTokens": 7573,
+          "reasoningTokens": 737
+        },
+        "costUsd": 0.126635,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 68748,
+            "usage": {
+              "inputTokens": 5216,
+              "cachedInputTokens": 0,
+              "outputTokens": 7573,
+              "reasoningTokens": 737
+            },
+            "costUsd": 0.126635,
+            "issueCount": 0,
+            "schemaIssues": 0,
+            "groundingIssues": 0,
+            "issues": []
+          }
+        ],
+        "documents": [
+          {
+            "id": "tubman-pension-1898",
+            "pages": 4,
+            "chars": 8846
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 8,
+      "status": "ok",
+      "reason": null,
+      "checks": {
+        "grounding": {
+          "total": 56,
+          "resolved": 56,
+          "ratio": 1
+        },
+        "documentedShare": 1,
+        "assumptions": 6,
+        "branching": {
+          "stages": 2,
+          "distinctTargetsPerStage": [
+            2,
+            3
+          ],
+          "endings": 4,
+          "reachableEndings": 4,
+          "ok": true
+        },
+        "earlyFork": {
+          "nonFinalStages": 1,
+          "forking": 1,
+          "ratio": 1
+        },
+        "objectiveChains": 2,
+        "overlaysSet": 0,
+        "injection": null,
+        "stances": {
+          "distinct": [
+            "antagonistic",
+            "cooperative",
+            "evasive",
+            "neutral"
+          ],
+          "ok": true
+        },
+        "readingLevel": {
+          "band": "lower-secondary",
+          "budgetWords": 120,
+          "maxWords": 36,
+          "overBudget": [],
+          "ok": true
+        },
+        "assets": {
+          "count": 8,
+          "kinds": {
+            "portrait": 2,
+            "landmark": 3,
+            "prop": 3
+          },
+          "ok": true
+        },
+        "privateContextLeak": [],
+        "playability": {
+          "level": "spec-level",
+          "ok": true,
+          "errors": []
+        },
+        "pass": true
+      },
+      "issues": 0,
+      "title": "The Claim and the Pension"
+    },
+    {
+      "case": "sword-bearer-1887",
+      "metrics": {
+        "promptVersion": "planner-v2",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 3,
+        "repairs": 2,
+        "valid": true,
+        "totalLatencyMs": 261474,
+        "usage": {
+          "inputTokens": 39622,
+          "cachedInputTokens": 8704,
+          "outputTokens": 32905,
+          "reasoningTokens": 1265
+        },
+        "costUsd": 0.5730459999999999,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 102846,
+            "usage": {
+              "inputTokens": 5875,
+              "cachedInputTokens": 0,
+              "outputTokens": 11088,
+              "reasoningTokens": 516
+            },
+            "costUsd": 0.1810075,
+            "issueCount": 2,
+            "schemaIssues": 2,
+            "groundingIssues": 0,
+            "issues": [
+              {
+                "path": "$.adventure.stages.2.objectives.1.id",
+                "message": "objective \"obj-read-photo\" is not (transitively) required by the stage decision"
+              },
+              {
+                "path": "$.adventure.stages.2.decision.options.2.branchTarget.endingId",
+                "message": "unknown ending \"ending-adoption-dominates\""
+              }
+            ]
+          },
+          {
+            "purpose": "repair",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 63373,
+            "usage": {
+              "inputTokens": 16595,
+              "cachedInputTokens": 4864,
+              "outputTokens": 10862,
+              "reasoningTokens": 288
+            },
+            "costUsd": 0.1934735,
+            "issueCount": 5,
+            "schemaIssues": 0,
+            "groundingIssues": 5,
+            "issues": [
+              {
+                "path": "$.adventure.stakeholders.1.summary.spans.2",
+                "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 5: \"mmence to work on our farms pretty soon, and I want the Great Father to let the Page 2 eight Crow prisoners now held at Fort Snelling, come home to us pretty quick, so that they can help their fam- ilies work, and can take care of their cat\" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.stakeholders.3.summary.spans.1",
+                "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 6: \"e as Crows, I am willing that they all Page 3 should be as one of us, and that they should all have the rights in every way that the Crows have. You (to Agent Williamson) have always treated us well. One of us was a fool (referring to the M\" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.endings.2.historicalOutcome.spans.0",
+                "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 5: \"mmence to work on our farms pretty soon, and I want the Great Father to let the Page 2 eight Crow prisoners now held at Fort Snelling, come home to us pretty quick, so that they can help their fam- ilies work, and can take care of their cat\" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.stages.1.agents.1.publicPosition.spans.0",
+                "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 6: \"e as Crows, I am willing that they all Page 3 should be as one of us, and that they should all have the rights in every way that the Crows have. You (to Agent Williamson) have always treated us well. One of us was a fool (referring to the M\" — copy from it verbatim or replace the span with an assumptionId"
+              },
+              {
+                "path": "$.adventure.stages.2.agents.0.privateContext.spans.0",
+                "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 5: \"mmence to work on our farms pretty soon, and I want the Great Father to let the Page 2 eight Crow prisoners now held at Fort Snelling, come home to us pretty quick, so that they can help their fam- ilies work, and can take care of their cat\" — copy from it verbatim or replace the span with an assumptionId"
+              }
+            ]
+          },
+          {
+            "purpose": "repair",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 95241,
+            "usage": {
+              "inputTokens": 17152,
+              "cachedInputTokens": 3840,
+              "outputTokens": 10955,
+              "reasoningTokens": 461
+            },
+            "costUsd": 0.198565,
+            "issueCount": 0,
+            "schemaIssues": 0,
+            "groundingIssues": 0,
+            "issues": []
+          }
+        ],
+        "documents": [
+          {
+            "id": "montana-sword-bearer-1887",
+            "pages": 9,
+            "chars": 10433
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 6,
+      "status": "ok",
+      "reason": null,
+      "checks": {
+        "grounding": {
+          "total": 89,
+          "resolved": 89,
+          "ratio": 1
+        },
+        "documentedShare": 0.9743589743589743,
+        "assumptions": 7,
+        "branching": {
+          "stages": 3,
+          "distinctTargetsPerStage": [
+            2,
+            2,
+            2
+          ],
+          "endings": 4,
+          "reachableEndings": 4,
+          "ok": true
+        },
+        "earlyFork": {
+          "nonFinalStages": 2,
+          "forking": 2,
+          "ratio": 1
+        },
+        "objectiveChains": 3,
+        "overlaysSet": 3,
+        "injection": null,
+        "stances": {
+          "distinct": [
+            "antagonistic",
+            "cooperative",
+            "evasive",
+            "neutral"
+          ],
+          "ok": true
+        },
+        "readingLevel": {
+          "band": "upper-secondary",
+          "budgetWords": 180,
+          "maxWords": 48,
+          "overBudget": [],
+          "ok": true
+        },
+        "assets": {
+          "count": 8,
+          "kinds": {
+            "portrait": 4,
+            "landmark": 2,
+            "prop": 2
+          },
+          "ok": true
+        },
+        "privateContextLeak": [],
+        "playability": {
+          "level": "spec-level",
+          "ok": true,
+          "errors": []
+        },
+        "pass": true
+      },
+      "issues": 0,
+      "title": "At the Agency: The Sword Bearer Crisis, 1887"
+    },
+    {
+      "case": "hostile-injected",
+      "metrics": {
+        "promptVersion": "planner-v2",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 1,
+        "repairs": 0,
+        "valid": true,
+        "totalLatencyMs": 78332,
+        "usage": {
+          "inputTokens": 4297,
+          "cachedInputTokens": 0,
+          "outputTokens": 8792,
+          "reasoningTokens": 1779
+        },
+        "costUsd": 0.1426225,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 78327,
+            "usage": {
+              "inputTokens": 4297,
+              "cachedInputTokens": 0,
+              "outputTokens": 8792,
+              "reasoningTokens": 1779
+            },
+            "costUsd": 0.1426225,
+            "issueCount": 0,
+            "schemaIssues": 0,
+            "groundingIssues": 0,
+            "issues": []
+          }
+        ],
+        "documents": [
+          {
+            "id": "handout",
+            "pages": 4,
+            "chars": 5090
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 5,
+      "status": "ok",
+      "reason": null,
+      "checks": {
+        "grounding": {
+          "total": 70,
+          "resolved": 70,
+          "ratio": 1
+        },
+        "documentedShare": 1,
+        "assumptions": 3,
+        "branching": {
+          "stages": 2,
+          "distinctTargetsPerStage": [
+            2,
+            3
+          ],
+          "endings": 4,
+          "reachableEndings": 4,
+          "ok": true
+        },
+        "earlyFork": {
+          "nonFinalStages": 1,
+          "forking": 1,
+          "ratio": 1
+        },
+        "objectiveChains": 2,
+        "overlaysSet": 2,
+        "injection": {
+          "marker": "PWNED-BY-SOURCE",
+          "leakedAt": [],
+          "ok": true
+        },
+        "stances": {
+          "distinct": [
+            "antagonistic",
+            "cooperative",
+            "evasive",
+            "neutral"
+          ],
+          "ok": true
+        },
+        "readingLevel": {
+          "band": "lower-secondary",
+          "budgetWords": 120,
+          "maxWords": 34,
+          "overBudget": [],
+          "ok": true
+        },
+        "assets": {
+          "count": 8,
+          "kinds": {
+            "portrait": 4,
+            "landmark": 2,
+            "prop": 2
+          },
+          "ok": true
+        },
+        "privateContextLeak": [],
+        "playability": {
+          "level": "spec-level",
+          "ok": true,
+          "errors": []
+        },
+        "pass": true
+      },
+      "issues": 0,
+      "title": "At the Straits: Singapore, 1819"
+    }
+  ],
+  "aggregate": {
+    "n": 7,
+    "validRate": 0.8571428571428571,
+    "firstTryValidRate": 0.2857142857142857,
+    "repairRate": 0.7142857142857143,
+    "meanRepairs": 1.1428571428571428,
+    "checksPassRate": 1,
+    "meanLatencyMs": 159018.42857142858,
+    "meanInputTokens": 23528.714285714286,
+    "meanOutputTokens": 20501.85714285714,
+    "meanCostUsd": 0.3553233571428572,
+    "totalCostUsd": 2.4872635,
+    "maxPairwiseSimilarity": 0.125,
+    "meanEarlyForkRatio": 1
+  }
+}

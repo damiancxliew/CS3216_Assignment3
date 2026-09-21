@@ -17,7 +17,7 @@ import type { ExtractedDocument } from '../src/ingest/types'
 import { FakeLlmClient, type LlmClient } from '../src/llm/client'
 import { OpenAiLlmClient } from '../src/llm/openai'
 import { DEFAULT_PLANNER_CONFIG, type GenerationMetrics, type PlannerConfig, generateAdventure } from '../src/planner/pipeline'
-import { PROMPT_VERSION } from '../src/planner/prompt'
+import { PROMPT_VERSION, PROMPT_VERSIONS, type PromptVersion } from '../src/planner/prompt'
 import type { AdventureSpec } from '../src/spec/v2'
 import { type SpecChecks, checkSpec, structuralSimilarity } from './checks'
 import { CORPUS, type EvalCase } from './corpus'
@@ -54,6 +54,7 @@ export interface RunSummary {
     meanCostUsd: number | null
     totalCostUsd: number | null
     maxPairwiseSimilarity: number | null
+    meanEarlyForkRatio: number
   }
 }
 
@@ -88,7 +89,7 @@ export async function runCase(evalCase: EvalCase, llm: LlmClient, config: Partia
   const generation = await generateAdventure({ teacher: evalCase.teacher, documents, llm, config })
   const base = { case: evalCase.id, metrics: generation.metrics, missingInformation: generation.missingInformation.length }
   if (generation.status === 'ok') {
-    const checks = await checkSpec(generation.spec, new Map(documents.map((d) => [d.id, d])))
+    const checks = await checkSpec(generation.spec, new Map(documents.map((d) => [d.id, d])), undefined, evalCase.injectionMarker)
     await writeFile(join(outDir, `${evalCase.id}.spec.json`), `${JSON.stringify(generation.spec, null, 2)}\n`)
     const result: CaseResult = { ...base, status: 'ok', reason: null, checks, issues: 0, title: generation.spec.title }
     await writeFile(join(outDir, `${evalCase.id}.report.json`), `${JSON.stringify({ ...result, missingInformation: generation.missingInformation, warnings: generation.warnings }, null, 2)}\n`)
@@ -120,6 +121,7 @@ function aggregate(cases: CaseResult[], specs: AdventureSpec[]): RunSummary['agg
     meanCostUsd: costKnown ? mean(costs) : null,
     totalCostUsd: costKnown ? costs.reduce((a, b) => a + b, 0) : null,
     maxPairwiseSimilarity: maxSim,
+    meanEarlyForkRatio: mean(ok.map((c) => c.checks?.earlyFork?.ratio ?? 0)),
   }
 }
 
@@ -138,22 +140,22 @@ export function renderResultsMarkdown(summaries: RunSummary[]): string {
     '',
     '## Runs',
     '',
-    '| Run | Prompt | Model | Effort | n | Valid | First-try valid | Repair rate | Checks pass | Mean latency | Mean tokens in/out | Mean cost | Total cost | Max similarity |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    '| Run | Prompt | Model | Effort | n | Valid | First-try valid | Repair rate | Checks pass | Mean latency | Mean tokens in/out | Mean cost | Total cost | Max similarity | Early forks |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
   ]
   for (const s of summaries) {
     const a = s.aggregate
     lines.push(
-      `| ${s.label} | ${s.promptVersion} | ${s.config.model} | ${s.config.reasoningEffort ?? '-'} | ${a.n} | ${pct(a.validRate)} | ${pct(a.firstTryValidRate)} | ${pct(a.repairRate)} | ${pct(a.checksPassRate)} | ${secs(a.meanLatencyMs)} | ${Math.round(a.meanInputTokens)}/${Math.round(a.meanOutputTokens)} | ${usd(a.meanCostUsd)} | ${usd(a.totalCostUsd)} | ${a.maxPairwiseSimilarity === null ? '-' : a.maxPairwiseSimilarity.toFixed(2)} |`,
+      `| ${s.label} | ${s.promptVersion} | ${s.config.model} | ${s.config.reasoningEffort ?? '-'} | ${a.n} | ${pct(a.validRate)} | ${pct(a.firstTryValidRate)} | ${pct(a.repairRate)} | ${pct(a.checksPassRate)} | ${secs(a.meanLatencyMs)} | ${Math.round(a.meanInputTokens)}/${Math.round(a.meanOutputTokens)} | ${usd(a.meanCostUsd)} | ${usd(a.totalCostUsd)} | ${a.maxPairwiseSimilarity === null ? '-' : a.maxPairwiseSimilarity.toFixed(2)} | ${a.meanEarlyForkRatio === undefined ? '-' : pct(a.meanEarlyForkRatio)} |`,
     )
   }
   for (const s of summaries) {
-    lines.push('', `## ${s.label} — per case`, '', '| Case | Status | Attempts | Repairs | Latency | Tokens in/out (reasoning) | Cost | Grounding | Documented share | Branching | Stances | Reading | Assets | Pass |', '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |')
+    lines.push('', `## ${s.label} — per case`, '', '| Case | Status | Attempts | Repairs | Latency | Tokens in/out (reasoning) | Cost | Grounding | Documented share | Branching | Early forks | Chains/overlays | Stances | Reading | Assets | Injection | Pass |', '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |')
     for (const c of s.cases) {
       const m = c.metrics
       const k = c.checks
       lines.push(
-        `| ${c.case} | ${c.status}${c.reason ? ` (${c.reason})` : ''} | ${m.attempts} | ${m.repairs} | ${secs(m.totalLatencyMs)} | ${m.usage.inputTokens}/${m.usage.outputTokens} (${m.usage.reasoningTokens}) | ${usd(m.costUsd)} | ${k ? `${k.grounding.resolved}/${k.grounding.total}` : '-'} | ${k ? pct(k.documentedShare) : '-'} | ${k ? `${k.branching.reachableEndings} endings, forks ${k.branching.distinctTargetsPerStage.join('/')}${k.branching.ok ? '' : ' ✗'}` : '-'} | ${k ? k.stances.distinct.length + (k.stances.ok ? '' : ' ✗') : '-'} | ${k ? `${k.readingLevel.maxWords}/${k.readingLevel.budgetWords}w${k.readingLevel.ok ? '' : ' ✗'}` : '-'} | ${k ? `${k.assets.count}${k.assets.ok ? '' : ' ✗'}` : '-'} | ${k ? (k.pass ? 'yes' : 'no') : '-'} |`,
+        `| ${c.case} | ${c.status}${c.reason ? ` (${c.reason})` : ''} | ${m.attempts} | ${m.repairs} | ${secs(m.totalLatencyMs)} | ${m.usage.inputTokens}/${m.usage.outputTokens} (${m.usage.reasoningTokens}) | ${usd(m.costUsd)} | ${k ? `${k.grounding.resolved}/${k.grounding.total}` : '-'} | ${k ? pct(k.documentedShare) : '-'} | ${k ? `${k.branching.reachableEndings} endings, forks ${k.branching.distinctTargetsPerStage.join('/')}${k.branching.ok ? '' : ' ✗'}` : '-'} | ${k?.earlyFork ? `${k.earlyFork.forking}/${k.earlyFork.nonFinalStages}` : '-'} | ${k?.objectiveChains !== undefined ? `${k.objectiveChains}/${k.overlaysSet} of ${k.branching.stages}` : '-'} | ${k ? k.stances.distinct.length + (k.stances.ok ? '' : ' ✗') : '-'} | ${k ? `${k.readingLevel.maxWords}/${k.readingLevel.budgetWords}w${k.readingLevel.ok ? '' : ' ✗'}` : '-'} | ${k ? `${k.assets.count}${k.assets.ok ? '' : ' ✗'}` : '-'} | ${k ? (k.injection ? (k.injection.ok ? 'clean' : `LEAKED ${k.injection.leakedAt.length}`) : 'n/a') : '-'} | ${k ? (k.pass ? 'yes' : 'no') : '-'} |`,
       )
     }
   }
@@ -180,7 +182,7 @@ async function main(): Promise<void> {
     return i >= 0 ? args[i + 1] : undefined
   }
   const fake = args.includes('--fake')
-  const label = flag('label') ?? (fake ? 'fake' : `${PROMPT_VERSION}-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`)
+  const label = flag('label') ?? (fake ? 'fake' : `${flag('prompt') ?? PROMPT_VERSION}-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`)
   const selected = flag('cases')?.split(',')
   const cases = selected ? CORPUS.filter((c) => selected.includes(c.id)) : CORPUS
   if (cases.length === 0) throw new Error(`no cases match ${selected?.join(',')}`)
@@ -188,7 +190,9 @@ async function main(): Promise<void> {
     ...DEFAULT_PLANNER_CONFIG,
     ...(flag('model') ? { model: flag('model')! } : {}),
     ...(flag('effort') ? { reasoningEffort: flag('effort') as PlannerConfig['reasoningEffort'] } : {}),
+    ...(flag('prompt') ? { promptVersion: flag('prompt') as PromptVersion } : {}),
   }
+  if (!PROMPT_VERSIONS.includes(config.promptVersion)) throw new Error(`unknown prompt version ${config.promptVersion}; use one of ${PROMPT_VERSIONS.join(', ')}`)
   const llm = fake ? await fakeClient() : new OpenAiLlmClient()
   const outDir = join(RESULTS_DIR, label)
   await mkdir(outDir, { recursive: true })
@@ -204,7 +208,7 @@ async function main(): Promise<void> {
     const m = result.metrics
     console.log(`${result.status} in ${secs(m.totalLatencyMs)}, attempts ${m.attempts}, repairs ${m.repairs}, ${usd(m.costUsd)}${result.checks ? `, checks ${result.checks.pass ? 'pass' : 'FAIL'}` : ` (${result.reason})`}`)
   }
-  const summary: RunSummary = { label, startedAt: new Date().toISOString(), promptVersion: PROMPT_VERSION, config, cases: results, aggregate: aggregate(results, specs) }
+  const summary: RunSummary = { label, startedAt: new Date().toISOString(), promptVersion: config.promptVersion, config, cases: results, aggregate: aggregate(results, specs) }
   await writeFile(join(outDir, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`)
   await writeFile(join(import.meta.dirname, 'RESULTS.md'), renderResultsMarkdown(await loadSummaries()))
   const a = summary.aggregate

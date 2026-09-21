@@ -85,6 +85,10 @@ selection; the Resolver (Kevin) emits `effects[]`. `privateContext` must never r
 span's `quote` against the extracted page text (whitespace/punctuation tolerant, no paraphrase).
 The fixture resolves 100%; the planner pipeline runs this on every generated spec.
 
+## D2 — chunking and retrieval
+
+[`src/ingest/chunk.ts`](src/ingest/chunk.ts): `chunkDocument()` cuts each page into ~700-char sentence-aware windows with overlap that never cross a page boundary (the `source_chunk` row shape: body, page). `LexicalRetriever` is BM25 over the chunks, no network; `Embedder` is the seam for pgvector (`text-embedding-3-small`, 1536-d) once storage is wired. The pipeline uses retrieval in the repair loop: when a quote is not found verbatim on any page, the issue handed back to the planner names the page and the closest passage to copy from, instead of just "not found".
+
 ## D3/D4 — planner
 
 ```ts
@@ -167,11 +171,11 @@ Where the runtime cannot express the spec, the bundle says so in `warnings[]` in
 
 ```bash
 npm run eval                                   # all corpus cases, real model
-npm run eval -- --cases mason-1787 --effort low --label planner-v1-low
+npm run eval -- --cases mason-1787 --effort low --prompt planner-v1 --label planner-v1-low
 npm run eval -- --fake                         # offline smoke run
 ```
 
-Corpus in [`evals/corpus.ts`](evals/corpus.ts) (documents in `fixtures/eval-corpus/`), checks in
+Corpus in [`evals/corpus.ts`](evals/corpus.ts) — 6 documents plus one red-team case with an injected instruction block (documents in `fixtures/eval-corpus/`), checks in
 [`evals/checks.ts`](evals/checks.ts), results in [`evals/RESULTS.md`](evals/RESULTS.md) (regenerated from
 every `evals/results/<label>/summary.json`). Per case: validity, repairs, latency, tokens, cost, grounding
 ratio, documented-vs-assumed share, branching (≥2 endings and a forking final stage), stance diversity,

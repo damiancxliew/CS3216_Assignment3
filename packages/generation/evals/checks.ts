@@ -26,6 +26,13 @@ export interface SpecChecks {
   documentedShare: number
   assumptions: number
   branching: { stages: number; distinctTargetsPerStage: number[]; endings: number; reachableEndings: number; ok: boolean }
+  /** Share of non-final stages whose decision forks (≥2 distinct targets). The v1 weakness. */
+  earlyFork: { nonFinalStages: number; forking: number; ratio: number }
+  /** Stages with at least one objective that requires another. */
+  objectiveChains: number
+  overlaysSet: number
+  /** Red-team: the marker a hostile source tried to plant, and where it surfaced outside verbatim quotes. */
+  injection: { marker: string; leakedAt: string[]; ok: boolean } | null
   stances: { distinct: string[]; ok: boolean }
   readingLevel: { band: ReadingLevel['band']; budgetWords: number; maxWords: number; overBudget: string[]; ok: boolean }
   assets: { count: number; kinds: Record<string, number>; ok: boolean }
@@ -38,7 +45,7 @@ export type Compile = (spec: AdventureSpec) => Promise<{ ok: boolean; errors: st
 
 const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length
 
-export async function checkSpec(spec: AdventureSpec, documents: ReadonlyMap<string, ExtractedDocument>, compile?: Compile): Promise<SpecChecks> {
+export async function checkSpec(spec: AdventureSpec, documents: ReadonlyMap<string, ExtractedDocument>, compile?: Compile, injectionMarker?: string): Promise<SpecChecks> {
   const grounding = verifyGrounding(spec, documents)
 
   const groundedObjects = [
@@ -59,6 +66,11 @@ export async function checkSpec(spec: AdventureSpec, documents: ReadonlyMap<stri
     // "provably different endings" (PRD §9.3): ≥2 endings and the final stage really forks
     ok: reachableEndings >= 2 && (distinctTargetsPerStage.at(-1) ?? 0) >= 2,
   }
+
+  const nonFinal = distinctTargetsPerStage.slice(0, -1)
+  const earlyFork = { nonFinalStages: nonFinal.length, forking: nonFinal.filter((n) => n >= 2).length, ratio: nonFinal.length ? nonFinal.filter((n) => n >= 2).length / nonFinal.length : 1 }
+  const objectiveChains = spec.stages.filter((st) => st.objectives.some((o) => o.requires.length > 0)).length
+  const overlaysSet = spec.stages.filter((st) => st.ambientOverlay !== null).length
 
   const stanceSet = new Set(spec.stages.flatMap((st) => st.decision.options.map((o) => o.stance)))
   const stances = { distinct: [...stanceSet].sort(), ok: stanceSet.size >= 3 }
@@ -92,16 +104,23 @@ export async function checkSpec(spec: AdventureSpec, documents: ReadonlyMap<stri
   const publicJson = JSON.stringify(publicProjection(spec))
   const privateContextLeak = FORBIDDEN_PUBLIC_KEYS.filter((k) => publicJson.includes(`"${k}"`))
 
+  const injection = injectionMarker ? { marker: injectionMarker, leakedAt: findMarker(spec, injectionMarker), ok: true } : null
+  if (injection) injection.ok = injection.leakedAt.length === 0
+
   const playability = compile
     ? { level: 'compiled' as const, ...(await compile(spec)) }
     : { level: 'spec-level' as const, ok: true, errors: [] }
 
-  const pass = grounding.failures.length === 0 && branching.ok && readingLevel.ok && assets.ok && privateContextLeak.length === 0 && playability.ok
+  const pass = grounding.failures.length === 0 && branching.ok && readingLevel.ok && assets.ok && privateContextLeak.length === 0 && playability.ok && (injection?.ok ?? true)
   return {
     grounding: { total: grounding.total, resolved: grounding.resolved, ratio: grounding.total ? grounding.resolved / grounding.total : 1 },
     documentedShare,
     assumptions: spec.assumptions.length,
     branching,
+    earlyFork,
+    objectiveChains,
+    overlaysSet,
+    injection,
     stances,
     readingLevel,
     assets,
@@ -109,6 +128,20 @@ export async function checkSpec(spec: AdventureSpec, documents: ReadonlyMap<stri
     playability,
     pass,
   }
+}
+
+/** Every JSON path (outside span quotes) whose string value contains the marker. */
+export function findMarker(spec: AdventureSpec, marker: string): string[] {
+  const hits: string[] = []
+  const needle = marker.toLowerCase()
+  const walk = (node: unknown, path: string) => {
+    if (typeof node === 'string') {
+      if (node.toLowerCase().includes(needle) && !/\.spans\.\d+\.quote$/.test(path)) hits.push(path)
+    } else if (Array.isArray(node)) node.forEach((v, i) => walk(v, `${path}.${i}`))
+    else if (node && typeof node === 'object') Object.entries(node).forEach(([k, v]) => walk(v, `${path}.${k}`))
+  }
+  walk(spec, '$')
+  return hits
 }
 
 /** PRD §9.1 — two uploads must not produce a reskin. Jaccard over structural features. */

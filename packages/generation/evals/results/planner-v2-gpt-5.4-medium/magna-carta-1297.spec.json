@@ -1,0 +1,1480 @@
+{
+  "version": 2,
+  "id": "seal-of-liberties",
+  "title": "Seal of Liberties",
+  "setting": "Westminster, England, October 1297, during Edward I's confirmation of Magna Carta by letters patent.",
+  "description": "You are a clerk in the royal chancery as Edward I renews the Great Charter. The text before you confirms liberties for the Church, barons and freemen, yet it also records a tax grant to the king. Hear each interest, inspect key clauses, and decide how the confirmation should be framed: as a bargain for cooperation, a curb on royal power, or a narrow defence of rank and custom.",
+  "readingLevel": {
+    "band": "upper-secondary",
+    "ageMin": 15,
+    "ageMax": 16
+  },
+  "learningObjectives": [
+    "Explain what Magna Carta promised about justice, taxation and the rights of free men.",
+    "Describe why barons, church and king each wanted the charter confirmed or resisted.",
+    "Evaluate whose interests the charter protected."
+  ],
+  "player": {
+    "name": "Unnamed Chancery Clerk",
+    "role": "Royal chancery clerk",
+    "brief": "You hear petitions, compare clauses, and draft the notes that shape how the confirmation is understood."
+  },
+  "sources": [
+    {
+      "id": "magna-carta-1297-translation",
+      "title": "magna carta 1297 translation",
+      "kind": "pdf",
+      "pageCount": 6,
+      "contentHash": "867e88ea275ac4dac60a4d0cf1656e18535c891688ddb8b0b5a201691c823f7b"
+    }
+  ],
+  "sharedContext": {
+    "text": "Edward's letters say he has inspected the Great Charter and now confirms it again. The same record says the realm granted the king a fifteenth of movable goods for these liberties. Your task is to hear how crown, church, magnates and freemen read the charter, then decide what meaning your draft will carry into the final confirmation.",
+    "spans": [
+      {
+        "sourceId": "magna-carta-1297-translation",
+        "page": 1,
+        "quote": "We have inspected the great charter of the lord Henry, late King of England, our father,"
+      },
+      {
+        "sourceId": "magna-carta-1297-translation",
+        "page": 5,
+        "quote": "all of our realm have given us a fifteenth part of all their movable goods."
+      },
+      {
+        "sourceId": "magna-carta-1297-translation",
+        "page": 6,
+        "quote": "We, holding these aforesaid gifts and grants to be right and welcome, conceed and confirm them for ourselves and our heirs"
+      }
+    ],
+    "assumptionIds": [
+      "assume-player-clerk",
+      "assume-hearing-sequence"
+    ]
+  },
+  "assumptions": [
+    {
+      "id": "assume-player-clerk",
+      "text": "The player is an unnamed clerk in the royal chancery who can hear several parties and draft memoranda.",
+      "rationale": "The source is a charter, not a narrative. The teacher brief requires a playable student role."
+    },
+    {
+      "id": "assume-room-layouts",
+      "text": "The rooms and their order inside Westminster are simulated for play.",
+      "rationale": "The source gives dates and witnesses, but no floor plan or movement through rooms."
+    },
+    {
+      "id": "assume-group-envoys",
+      "text": "Collective interests such as the Church, barons and freemen speak through envoys or petitioners.",
+      "rationale": "The source names social groups and officeholders, but it does not script a live debate."
+    },
+    {
+      "id": "assume-private-motives",
+      "text": "Private motives, hidden interests and limits of knowledge are inferred from the clauses and from the bargain recorded in the charter.",
+      "rationale": "The source states rights and grants, not inner thoughts."
+    },
+    {
+      "id": "assume-hearing-sequence",
+      "text": "The adventure's sequence of hearing, drafting and sealing is a teaching structure built around the charter text.",
+      "rationale": "The document does not narrate each step of the 1297 confirmation."
+    },
+    {
+      "id": "assume-early-dismissal",
+      "text": "A clerk who presses an unwelcome interpretation too openly may be removed from the process.",
+      "rationale": "This creates an early branch, but no such dismissal is recorded in the source."
+    },
+    {
+      "id": "assume-breakdown",
+      "text": "Negotiations can stall in the simulation even though the surviving record ends in confirmation.",
+      "rationale": "Counterfactual endings are needed for branching and must be marked as invention."
+    },
+    {
+      "id": "assume-props",
+      "text": "Extracts, draft notes and display copies of clauses are represented as inspectable objects.",
+      "rationale": "The source is textual, but the game needs evidence items in rooms."
+    }
+  ],
+  "stakeholders": [
+    {
+      "id": "edward-i",
+      "name": "Edward I",
+      "role": "King of England",
+      "summary": {
+        "text": "Edward appears as the king who renews the charter. The letters patent say he confirms the grants for himself and his heirs and wants the charter observed in perpetuity. The same record also states that the realm has given him a fifteenth of movable goods for these liberties.",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 6,
+            "quote": "We, holding these aforesaid gifts and grants to be right and welcome, conceed and confirm them for ourselves and our heirs"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 6,
+            "quote": "the aforesaid charter is to be firmly and inviably observed in all and each of its articles in perpetuity"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 5,
+            "quote": "all of our realm have given us a fifteenth part of all their movable goods."
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "english-church",
+      "name": "English Church",
+      "role": "Clerical interest",
+      "summary": {
+        "text": "The Church stands first in the charter. Clause 1 declares that the English Church is to be free, and later the text preserves liberties and customs to archbishops, bishops, abbots and priors along with other holders of privilege.",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 1,
+            "quote": "the English Church is to be free and to have all its rights fully and its liberties entirely."
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 5,
+            "quote": "all liberties and free customs shall be preserved to archbishops, bishops, abbots, priors, Templars, Hospitallers, earls, barons and all others"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "earls-and-barons",
+      "name": "Earls and barons of the realm",
+      "role": "Lay magnates",
+      "summary": {
+        "text": "Earls and barons are among the chief beneficiaries named in the charter. Their heirs, reliefs and amercements receive explicit protection, and the text later preserves their liberties and customs as part of the wider settlement.",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 1,
+            "quote": "given and granted to the archbishops, bishops, abbots, priors, earls, barons and all of our realm these liberties"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 3,
+            "quote": "Earls and barons are not to be amerced save by their peers and only in accordance with the manner of their offence."
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 5,
+            "quote": "all liberties and free customs shall be preserved to archbishops, bishops, abbots, priors, Templars, Hospitallers, earls, barons and all others"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "freemen-and-merchants",
+      "name": "Freemen and merchants",
+      "role": "Wider lay subjects protected by the charter",
+      "summary": {
+        "text": "The charter does not speak only to elites. It grants liberties to all freemen of the realm, promises judgement by law rather than arbitrary force, and gives merchants safe conduct for trade unless war changes the situation.",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 1,
+            "quote": "all the freemen of our realm for ourselves and our heirs in perpetuity the liberties written below"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 4,
+            "quote": "No freeman is to be taken or imprisoned or disseised of his free tenement or of his liberties or free customs"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 4,
+            "quote": "All merchants, unless they have been previously and publicly forbidden, are to have safe and secure conduct"
+          }
+        ],
+        "assumptionIds": []
+      }
+    }
+  ],
+  "defaultTimerSeconds": 480,
+  "ambientOverlay": {
+    "id": "clear",
+    "intensity": 1
+  },
+  "stages": [
+    {
+      "id": "stage-petition-hall",
+      "index": 0,
+      "title": "The Petition Hall",
+      "sharedContext": {
+        "text": "The first hearing sets the tone. The Church can point to clause 1. Freemen can point to due process. The crown can point to the fifteenth granted for these liberties. Your opening memorandum will decide whether the confirmation sounds like a bargain, a restraint, or merely old custom restated.",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 1,
+            "quote": "the English Church is to be free and to have all its rights fully and its liberties entirely."
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 4,
+            "quote": "To no-one will we sell or deny of delay right or justice."
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 5,
+            "quote": "all of our realm have given us a fifteenth part of all their movable goods."
+          }
+        ],
+        "assumptionIds": [
+          "assume-player-clerk",
+          "assume-hearing-sequence"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": null,
+      "spawnRoomId": "petition-hall",
+      "rooms": [
+        {
+          "id": "westminster-courtyard",
+          "name": "Westminster Courtyard",
+          "purpose": "Arrival point for envoys, petitioners and messengers before the hearing.",
+          "kind": "courtyard",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Gate Bench",
+            "description": "A worn bench where waiting parties sort their papers before entering."
+          }
+        },
+        {
+          "id": "petition-hall",
+          "name": "Petition Hall",
+          "purpose": "Public hearing room where parties state what the charter must protect.",
+          "kind": "hall",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Reading Desk",
+            "description": "A long desk where extracts of the charter are read aloud to clerks."
+          }
+        },
+        {
+          "id": "clerks-office-1",
+          "name": "Clerks' Office",
+          "purpose": "A drafting room where notes are compared before they go forward.",
+          "kind": "office",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Drafting Table",
+            "description": "A crowded table layered with copied clauses and wax tablets."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "s1-edward-agent",
+          "stakeholderId": "edward-i",
+          "startRoomId": "petition-hall",
+          "publicPosition": {
+            "text": "The king's side presents this as inspection and renewal, not surrender. Edward has inspected the charter and now confirms it for himself and his heirs.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 1,
+                "quote": "We have inspected the great charter of the lord Henry, late King of England, our father,"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 6,
+                "quote": "conceed and confirm them for ourselves and our heirs"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Measured and ceremonious. He prefers language that makes confirmation look like stable kingship, not defeat.",
+            "motivations": "Secure a usable settlement that keeps the tax grant attached to the liberties.",
+            "hiddenInterests": "He wants the charter affirmed without encouraging subjects to treat every clause as a weapon against daily government.",
+            "knowledgeHorizon": "He knows the text being confirmed and the exchange recorded in the letters patent, but not how every local dispute will unfold afterward.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "all of our realm have given us a fifteenth part of all their movable goods."
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 6,
+                "quote": "the aforesaid charter is to be firmly and inviably observed in all and each of its articles in perpetuity"
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "s1-church-envoy",
+          "stakeholderId": "english-church",
+          "startRoomId": "petition-hall",
+          "publicPosition": {
+            "text": "The Church's envoy insists that any confirmation must begin where the charter begins: the English Church is to be free, with its rights and liberties intact.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 1,
+                "quote": "the English Church is to be free and to have all its rights fully and its liberties entirely."
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "all liberties and free customs shall be preserved to archbishops, bishops, abbots, priors"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Formal, patient and alert to wording that might narrow ecclesiastical freedom.",
+            "motivations": "Keep church liberty first in the settlement and prevent royal convenience from swallowing promised rights.",
+            "hiddenInterests": "The envoy is willing to support a broad confirmation if the Church's precedence is unmistakable.",
+            "knowledgeHorizon": "He knows the charter's ecclesiastical clauses and the public bargain, but cannot know how every sheriff or bailiff will behave after sealing.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 1,
+                "quote": "the English Church is to be free and to have all its rights fully and its liberties entirely."
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "all liberties and free customs shall be preserved to archbishops, bishops, abbots, priors"
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives",
+              "assume-group-envoys"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "s1-baron-agent",
+          "stakeholderId": "earls-and-barons",
+          "startRoomId": "westminster-courtyard",
+          "publicPosition": {
+            "text": "The baronial envoy argues that liberties are meaningless unless great men are judged by peers, customary burdens stay limited, and the king keeps to settled terms.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 3,
+                "quote": "Earls and barons are not to be amerced save by their peers and only in accordance with the manner of their offence."
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "Scutage furthermore is to be taken as it used to be in the time of King H(enry) our grandfather"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Proud, practical and suspicious of open-ended royal demands.",
+            "motivations": "Preserve rank, inheritance and predictable obligations under the crown.",
+            "hiddenInterests": "He wants the confirmation to bind royal officers, but he also wants magnate privilege to remain distinct from the claims of lesser people.",
+            "knowledgeHorizon": "He knows the clauses that protect peers, reliefs and customary burdens, but not what concessions the king may still expect beyond the text.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 1,
+                "quote": "If any of our earls or barons, or anyone else holding from us in chief by military service should die"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 3,
+                "quote": "Earls and barons are not to be amerced save by their peers"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "Scutage furthermore is to be taken as it used to be"
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives",
+              "assume-group-envoys"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "s1-freeman-agent",
+          "stakeholderId": "freemen-and-merchants",
+          "startRoomId": "westminster-courtyard",
+          "publicPosition": {
+            "text": "The petitioner for freemen says the charter must mean real protection in court: no freeman is to be taken or ruined except by lawful judgement or the law of the land.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 1,
+                "quote": "all the freemen of our realm for ourselves and our heirs in perpetuity the liberties written below"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "No freeman is to be taken or imprisoned or disseised of his free tenement or of his liberties or free customs"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "by lawful judgement of his peers or by the law of the land"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Earnest and sharp, less interested in ceremony than in what officials may actually do.",
+            "motivations": "Make sure confirmation protects ordinary freemen in disputes, arrests and legal delay.",
+            "hiddenInterests": "He fears that a settlement framed only around rank and taxation will leave broader justice untouched.",
+            "knowledgeHorizon": "He knows the clauses that mention freemen and merchants, but he cannot promise that all local officers will obey them.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "To no-one will we sell or deny of delay right or justice."
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "All merchants, unless they have been previously and publicly forbidden, are to have safe and secure conduct"
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives",
+              "assume-group-envoys"
+            ]
+          },
+          "modelTier": "cheap"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-church-freedom-clause",
+          "name": "Clause 1 Extract",
+          "roomId": "petition-hall",
+          "content": {
+            "text": "The first clause makes church liberty the charter's opening priority: the English Church is to be free and to keep its rights and liberties entire.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 1,
+                "quote": "the English Church is to be free and to have all its rights fully and its liberties entirely."
+              }
+            ],
+            "assumptionIds": [
+              "assume-props"
+            ]
+          }
+        },
+        {
+          "id": "ev-freemen-grant",
+          "name": "Grant to Freemen",
+          "roomId": "clerks-office-1",
+          "content": {
+            "text": "The charter says its liberties are granted not only to nobles but to all freemen of the realm and their heirs.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 1,
+                "quote": "all the freemen of our realm for ourselves and our heirs in perpetuity the liberties written below"
+              }
+            ],
+            "assumptionIds": [
+              "assume-props"
+            ]
+          }
+        },
+        {
+          "id": "ev-fifteenth-grant",
+          "name": "Note on the Fifteenth",
+          "roomId": "clerks-office-1",
+          "content": {
+            "text": "The text records a political bargain. For the grant of liberties, the realm has given the king a fifteenth of movable goods.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "all of our realm have given us a fifteenth part of all their movable goods."
+              }
+            ],
+            "assumptionIds": [
+              "assume-props"
+            ]
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "s1-read-fifteenth",
+          "title": "Read the note on the fifteenth",
+          "requires": [],
+          "targetId": "ev-fifteenth-grant"
+        },
+        {
+          "id": "s1-hear-church",
+          "title": "Hear the Church's claim first",
+          "requires": [
+            "s1-read-fifteenth"
+          ],
+          "targetId": "s1-church-envoy"
+        },
+        {
+          "id": "s1-hear-baron",
+          "title": "Hear the baronial reading of custom",
+          "requires": [
+            "s1-hear-church"
+          ],
+          "targetId": "s1-baron-agent"
+        }
+      ],
+      "decision": {
+        "id": "s1-framing-decision",
+        "title": "How should the opening memorandum frame the confirmation?",
+        "prompt": "Your first draft will guide everyone who reads the charter in this hearing. If you tie liberties to the tax grant, you may keep the process moving. If you stress hard legal limits first, you may sharpen the charter's force but test royal patience.",
+        "roomId": "clerks-office-1",
+        "requires": [
+          "s1-hear-baron"
+        ],
+        "options": [
+          {
+            "id": "s1-opt-mutual-grant",
+            "label": "Draft the opening around mutual grant and service.",
+            "stance": "cooperative",
+            "preconditions": [
+              "s1-hear-baron"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-reading-clauses"
+            }
+          },
+          {
+            "id": "s1-opt-rights-first",
+            "label": "Draft the opening around clause 29 and the danger of delay.",
+            "stance": "antagonistic",
+            "preconditions": [
+              "s1-hear-baron"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-dismissed"
+            }
+          },
+          {
+            "id": "s1-opt-ancient-custom",
+            "label": "Draft the opening as a restatement of ancient custom.",
+            "stance": "evasive",
+            "preconditions": [
+              "s1-hear-baron"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-reading-clauses"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-reading-clauses",
+      "index": 1,
+      "title": "Reading the Clauses",
+      "sharedContext": {
+        "text": "Now the issue is detail. Some clauses fix where pleas should be heard. Others limit amercements, officials and legal sale. The charter also preserves scutage as it was in the time of Henry II. Your digest must show whether confirmation means tighter justice or a safer version of old practice.",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 2,
+            "quote": "Common pleas are not to follow our court but are to be held in a certain fixed place."
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 4,
+            "quote": "To no-one will we sell or deny of delay right or justice."
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 5,
+            "quote": "Scutage furthermore is to be taken as it used to be in the time of King H(enry) our grandfather"
+          }
+        ],
+        "assumptionIds": [
+          "assume-hearing-sequence"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": null,
+      "spawnRoomId": "chancery-office-2",
+      "rooms": [
+        {
+          "id": "chancery-office-2",
+          "name": "Chancery Office",
+          "purpose": "Working room where clause summaries are assembled for circulation.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Wax Tablet Rack",
+            "description": "A rack of tablets used to compare competing summaries before copying."
+          }
+        },
+        {
+          "id": "roll-archive",
+          "name": "Roll Archive",
+          "purpose": "Storage room for rolls, copies and extracts consulted during drafting.",
+          "kind": "archive",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Shelved Charter Chest",
+            "description": "A chest of bundled texts opened only for careful comparison."
+          }
+        },
+        {
+          "id": "consultation-chamber",
+          "name": "Consultation Chamber",
+          "purpose": "Private chamber where crown and magnates test draft language.",
+          "kind": "chamber",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Narrow Window Table",
+            "description": "A side table where short memoranda are reviewed out of the main traffic."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "s2-edward-agent",
+          "stakeholderId": "edward-i",
+          "startRoomId": "consultation-chamber",
+          "publicPosition": {
+            "text": "The crown accepts confirmation, but wants the clauses read as governable law rather than an invitation to challenge every officer at once.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 6,
+                "quote": "the aforesaid charter is to be firmly and inviably observed in all and each of its articles in perpetuity"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "all of our realm have given us a fifteenth part of all their movable goods."
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives"
+            ]
+          },
+          "privateContext": {
+            "persona": "Controlled and strategic. He prefers language that confirms principle while preserving room to rule.",
+            "motivations": "Keep the settlement broad enough to secure assent and revenue, but not so sharp that royal government looks crippled.",
+            "hiddenInterests": "He can live with strong words if their daily meaning stays filtered through procedure and custom.",
+            "knowledgeHorizon": "He knows the charter now being issued, but future enforcement by sheriffs, justices and local communities is uncertain.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 3,
+                "quote": "No sheriff, constable, coroner or any other of our bailiffs is to hold pleas of our crown."
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 6,
+                "quote": "conceed and confirm them for ourselves and our heirs"
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "s2-church-agent",
+          "stakeholderId": "english-church",
+          "startRoomId": "chancery-office-2",
+          "publicPosition": {
+            "text": "The Church's side supports clauses that make justice predictable, but it warns that confirmation is hollow if rights can still be bent by local power.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 2,
+                "quote": "Common pleas are not to follow our court but are to be held in a certain fixed place."
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "To no-one will we sell or deny of delay right or justice."
+              }
+            ],
+            "assumptionIds": [
+              "assume-group-envoys"
+            ]
+          },
+          "privateContext": {
+            "persona": "Law-minded and exact in wording.",
+            "motivations": "Use procedural clauses to make broad promises enforceable.",
+            "hiddenInterests": "The envoy wants rules that restrain officials, because loose royal administration can also damage church liberties.",
+            "knowledgeHorizon": "He knows the text's legal promises, but not which future cases will test them first.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 2,
+                "quote": "Common pleas are not to follow our court but are to be held in a certain fixed place."
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "To no-one will we sell or deny of delay right or justice."
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives",
+              "assume-group-envoys"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "s2-baron-agent",
+          "stakeholderId": "earls-and-barons",
+          "startRoomId": "roll-archive",
+          "publicPosition": {
+            "text": "The baronial envoy says confirmation must keep burdens customary and punishments proportionate, especially where rank and peer judgement are concerned.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 3,
+                "quote": "A freeman is not to be amerced for a small offence save in accordance with the manner of the offence"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 3,
+                "quote": "Earls and barons are not to be amerced save by their peers"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "Scutage furthermore is to be taken as it used to be in the time of King H(enry) our grandfather"
+              }
+            ],
+            "assumptionIds": [
+              "assume-group-envoys"
+            ]
+          },
+          "privateContext": {
+            "persona": "Firm and legalistic, but always aware of status.",
+            "motivations": "Protect elite privilege, predictable exactions and the authority of peers.",
+            "hiddenInterests": "He will support justice language most strongly when it also preserves baronial distinction.",
+            "knowledgeHorizon": "He knows the clauses that defend inheritance, peer judgement and customary finance, but he does not know how far the king will tolerate a strict reading.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 3,
+                "quote": "Earls and barons are not to be amerced save by their peers"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "Scutage furthermore is to be taken as it used to be"
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives",
+              "assume-group-envoys"
+            ]
+          },
+          "modelTier": "mid"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-common-pleas",
+          "name": "Common Pleas Clause",
+          "roomId": "roll-archive",
+          "content": {
+            "text": "This clause aims at regular justice. Common pleas are not to follow the king's court but must be held in a fixed place.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 2,
+                "quote": "Common pleas are not to follow our court but are to be held in a certain fixed place."
+              }
+            ],
+            "assumptionIds": [
+              "assume-props"
+            ]
+          }
+        },
+        {
+          "id": "ev-amercements-peers",
+          "name": "Amercements and Peers",
+          "roomId": "roll-archive",
+          "content": {
+            "text": "Punishments should fit the offence, and magnates have a special safeguard: earls and barons are to be amerced only by peers.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 3,
+                "quote": "A freeman is not to be amerced for a small offence save in accordance with the manner of the offence"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 3,
+                "quote": "Earls and barons are not to be amerced save by their peers and only in accordance with the manner of their offence."
+              }
+            ],
+            "assumptionIds": [
+              "assume-props"
+            ]
+          }
+        },
+        {
+          "id": "ev-no-sell-justice",
+          "name": "Clause 29 Extract",
+          "roomId": "consultation-chamber",
+          "content": {
+            "text": "Clause 29 is the sharpest promise against arbitrary rule. It bars imprisonment and ruin without lawful judgement and ends by rejecting sold, denied or delayed justice.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "No freeman is to be taken or imprisoned or disseised of his free tenement or of his liberties or free customs"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "To no-one will we sell or deny of delay right or justice."
+              }
+            ],
+            "assumptionIds": [
+              "assume-props"
+            ]
+          }
+        },
+        {
+          "id": "ev-scutage-custom",
+          "name": "Scutage Note",
+          "roomId": "chancery-office-2",
+          "content": {
+            "text": "Not every clause cuts directly against the crown. This one keeps scutage to earlier practice rather than abolishing it.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "Scutage furthermore is to be taken as it used to be in the time of King H(enry) our grandfather"
+              }
+            ],
+            "assumptionIds": [
+              "assume-props"
+            ]
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "s2-read-common-pleas",
+          "title": "Read the clause on fixed courts",
+          "requires": [],
+          "targetId": "ev-common-pleas"
+        },
+        {
+          "id": "s2-read-clause-29",
+          "title": "Read the promise against sold or delayed justice",
+          "requires": [
+            "s2-read-common-pleas"
+          ],
+          "targetId": "ev-no-sell-justice"
+        },
+        {
+          "id": "s2-question-crown",
+          "title": "Ask the crown how strict this digest should be",
+          "requires": [
+            "s2-read-clause-29"
+          ],
+          "targetId": "s2-edward-agent"
+        }
+      ],
+      "decision": {
+        "id": "s2-digest-decision",
+        "title": "What tone should the working digest take?",
+        "prompt": "Your digest can make the clauses feel enforceable and sharp, or safe and traditional. If you press too hard, the process may stall. If you soften too much, the confirmation may protect status more than justice.",
+        "roomId": "chancery-office-2",
+        "requires": [
+          "s2-question-crown"
+        ],
+        "options": [
+          {
+            "id": "s2-opt-settlement-digest",
+            "label": "Circulate a digest that joins fixed procedure to the realm's grant.",
+            "stance": "cooperative",
+            "preconditions": [
+              "s2-question-crown"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-before-seal"
+            }
+          },
+          {
+            "id": "s2-opt-custom-digest",
+            "label": "Circulate a digest that leans on old custom and leaves room for discretion.",
+            "stance": "neutral",
+            "preconditions": [
+              "s2-question-crown"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-before-seal"
+            }
+          },
+          {
+            "id": "s2-opt-unsoftened-digest",
+            "label": "Circulate the clauses without any softening gloss.",
+            "stance": "antagonistic",
+            "preconditions": [
+              "s2-question-crown"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-stalled-talks"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-before-seal",
+      "index": 2,
+      "title": "Before the Seal",
+      "sharedContext": {
+        "text": "The letters patent are ready. The text now says the king confirms the charter for himself and his heirs and wants it observed in perpetuity. Yet the question remains: whose liberties will readers feel at the centre when the seal goes on? Your final note can widen the charter's reach or narrow it toward ranked privilege.",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 6,
+            "quote": "conceed and confirm them for ourselves and our heirs"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 6,
+            "quote": "the aforesaid charter is to be firmly and inviably observed in all and each of its articles in perpetuity"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 1,
+            "quote": "all the freemen of our realm for ourselves and our heirs in perpetuity the liberties written below"
+          }
+        ],
+        "assumptionIds": [
+          "assume-hearing-sequence"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": null,
+      "spawnRoomId": "sealing-hall",
+      "rooms": [
+        {
+          "id": "sealing-hall",
+          "name": "Sealing Hall",
+          "purpose": "Final room where the confirmation is prepared for issue.",
+          "kind": "hall",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Seal Table",
+            "description": "A cleared table set aside for the letters patent and the great seal."
+          }
+        },
+        {
+          "id": "witness-chamber",
+          "name": "Witness Chamber",
+          "purpose": "Waiting room for those whose presence lends authority to the act.",
+          "kind": "chamber",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Witness Bench",
+            "description": "A bench where observers wait while drafts are checked one last time."
+          }
+        },
+        {
+          "id": "records-office-3",
+          "name": "Records Office",
+          "purpose": "Side office where the final text and notes are reviewed before issue.",
+          "kind": "office",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Patent Roll Stand",
+            "description": "A stand prepared for the final enrolled copy."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "s3-edward-agent",
+          "stakeholderId": "edward-i",
+          "startRoomId": "sealing-hall",
+          "publicPosition": {
+            "text": "The king's side is ready to seal, provided the confirmation reads as stable rule for the realm and not as a fresh humiliation of the crown.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 6,
+                "quote": "conceed and confirm them for ourselves and our heirs"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 6,
+                "quote": "In testimony of which we have had made these our letters patent."
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives"
+            ]
+          },
+          "privateContext": {
+            "persona": "Patient, watchful and concerned with authority as much as legality.",
+            "motivations": "End the process with a text that can stand publicly and still be governed through.",
+            "hiddenInterests": "He prefers a confirmation that feels comprehensive, but not one that encourages every reader to test its widest implications at once.",
+            "knowledgeHorizon": "He knows the final text being issued; he cannot know how later generations will treat clause 29 as a principle beyond this day.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 6,
+                "quote": "the aforesaid charter is to be firmly and inviably observed in all and each of its articles in perpetuity"
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "s3-baron-agent",
+          "stakeholderId": "earls-and-barons",
+          "startRoomId": "witness-chamber",
+          "publicPosition": {
+            "text": "The baronial envoy wants the final note to keep peer judgement, inheritance and customary burdens visible, so the seal does not blur rank into general rhetoric.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 3,
+                "quote": "Earls and barons are not to be amerced save by their peers"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 5,
+                "quote": "Scutage furthermore is to be taken as it used to be"
+              }
+            ],
+            "assumptionIds": [
+              "assume-group-envoys"
+            ]
+          },
+          "privateContext": {
+            "persona": "Self-possessed and calculating.",
+            "motivations": "Preserve a reading of the charter that keeps magnate privilege central.",
+            "hiddenInterests": "He worries that a broad language of freemen's justice may dilute the political leverage of the great men.",
+            "knowledgeHorizon": "He knows the clauses that secure status and custom, but not whether a broad final note would later strengthen lesser litigants as well.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 1,
+                "quote": "earls, barons and all of our realm these liberties written below"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 3,
+                "quote": "Earls and barons are not to be amerced save by their peers"
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives",
+              "assume-group-envoys"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "s3-freeman-agent",
+          "stakeholderId": "freemen-and-merchants",
+          "startRoomId": "records-office-3",
+          "publicPosition": {
+            "text": "The petitioner for freemen asks that the final note make clear that the confirmation reaches beyond magnates: no freeman should lose liberty without law, and merchants need secure conduct to trade.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "No freeman is to be taken or imprisoned or disseised of his free tenement or of his liberties or free customs"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "All merchants, unless they have been previously and publicly forbidden, are to have safe and secure conduct"
+              }
+            ],
+            "assumptionIds": [
+              "assume-group-envoys"
+            ]
+          },
+          "privateContext": {
+            "persona": "Direct and urgent.",
+            "motivations": "Prevent the confirmation from becoming only an elite settlement.",
+            "hiddenInterests": "He hopes a broad final note will make officials think twice before using force, delay or selective favour.",
+            "knowledgeHorizon": "He knows the clauses that mention freemen and merchants, but not whether the political elite will treat those lines as central or secondary.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 1,
+                "quote": "all the freemen of our realm for ourselves and our heirs in perpetuity the liberties written below"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "To no-one will we sell or deny of delay right or justice."
+              }
+            ],
+            "assumptionIds": [
+              "assume-private-motives",
+              "assume-group-envoys"
+            ]
+          },
+          "modelTier": "cheap"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-confirmation-formula",
+          "name": "Letters Patent Formula",
+          "roomId": "records-office-3",
+          "content": {
+            "text": "The final formula is explicit. Edward confirms the grants for himself and his heirs and wants the charter observed in perpetuity.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 6,
+                "quote": "We, holding these aforesaid gifts and grants to be right and welcome, conceed and confirm them for ourselves and our heirs"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 6,
+                "quote": "the aforesaid charter is to be firmly and inviably observed in all and each of its articles in perpetuity"
+              }
+            ],
+            "assumptionIds": [
+              "assume-props"
+            ]
+          }
+        },
+        {
+          "id": "ev-freeman-due-process",
+          "name": "Due Process Extract",
+          "roomId": "witness-chamber",
+          "content": {
+            "text": "This is the charter's best-known promise of lawful judgement. It forbids imprisonment, dispossession and ruin without peers or the law of the land.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "No freeman is to be taken or imprisoned or disseised of his free tenement or of his liberties or free customs"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "by lawful judgement of his peers or by the law of the land"
+              }
+            ],
+            "assumptionIds": [
+              "assume-props"
+            ]
+          }
+        },
+        {
+          "id": "ev-merchants-safe-conduct",
+          "name": "Merchants' Safe Conduct",
+          "roomId": "witness-chamber",
+          "content": {
+            "text": "The charter also protects trade. Merchants are to have safe and secure conduct by land and water unless open war alters the position.",
+            "spans": [
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "All merchants, unless they have been previously and publicly forbidden, are to have safe and secure conduct"
+              },
+              {
+                "sourceId": "magna-carta-1297-translation",
+                "page": 4,
+                "quote": "in leaving and coming to England and in staying and going through England both by land and by water to buy and to sell"
+              }
+            ],
+            "assumptionIds": [
+              "assume-props"
+            ]
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "s3-read-due-process",
+          "title": "Read the due process extract",
+          "requires": [],
+          "targetId": "ev-freeman-due-process"
+        },
+        {
+          "id": "s3-hear-freeman",
+          "title": "Hear the freemen's final plea",
+          "requires": [
+            "s3-read-due-process"
+          ],
+          "targetId": "s3-freeman-agent"
+        },
+        {
+          "id": "s3-read-confirmation",
+          "title": "Read the final formula of confirmation",
+          "requires": [
+            "s3-hear-freeman"
+          ],
+          "targetId": "ev-confirmation-formula"
+        }
+      ],
+      "decision": {
+        "id": "s3-cover-note-decision",
+        "title": "What final note will go forward with the sealed confirmation?",
+        "prompt": "The letters patent are ready, but your cover note will guide how others understand them. Will you present the confirmation as a broad settlement for the realm, or centre it on ranked liberties and customary restraint?",
+        "roomId": "records-office-3",
+        "requires": [
+          "s3-read-confirmation"
+        ],
+        "options": [
+          {
+            "id": "s3-opt-broad-settlement",
+            "label": "Attach a note that links confirmation, lawful judgement and the realm's grant.",
+            "stance": "cooperative",
+            "preconditions": [
+              "s3-read-confirmation"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-confirmed-1297"
+            }
+          },
+          {
+            "id": "s3-opt-ranked-liberties",
+            "label": "Attach a note that places church and magnate liberties at the centre.",
+            "stance": "neutral",
+            "preconditions": [
+              "s3-read-confirmation"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-narrow-reading"
+            }
+          },
+          {
+            "id": "s3-opt-bare-renewal",
+            "label": "Attach only the renewal formula and no fuller explanation.",
+            "stance": "evasive",
+            "preconditions": [
+              "s3-read-confirmation"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-narrow-reading"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "endings": [
+    {
+      "id": "ending-dismissed",
+      "title": "Dismissed Before the Seal",
+      "summary": "Your memorandum puts clause 29 ahead of the political bargain. The language is admired by some readers, but the crown removes you from the drafting process before the final text is settled.",
+      "historicalOutcome": {
+        "text": "The surviving record does not show the confirmation collapsing at this point. Instead, Edward says he 'conceed and confirm' the grants and wishes the charter to be 'firmly and inviably observed' in perpetuity.",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 6,
+            "quote": "conceed and confirm them for ourselves and our heirs"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 6,
+            "quote": "the aforesaid charter is to be firmly and inviably observed in all and each of its articles in perpetuity"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending diverges from the record. Your removal from the process is a simulation assumption used to show how fragile access to power could be.",
+      "reflectionQuestions": [
+        "Why might a crown accept the charter in writing but resist a hard public reading of it?",
+        "Which is more effective in politics: a strong principle, or a principle phrased in acceptable language?",
+        "Who loses most if a clerk is shut out before the final wording is fixed?"
+      ]
+    },
+    {
+      "id": "ending-stalled-talks",
+      "title": "Talks Stall in the Drafting Room",
+      "summary": "You circulate the clauses in their hardest possible form. Instead of moving toward the seal, the room freezes. No one trusts the next step, and your influence ends in a procedural deadlock.",
+      "historicalOutcome": {
+        "text": "The charter text itself records a different outcome. It says the realm 'have given us a fifteenth part of all their movable goods,' and Edward then 'conceed and confirm' the grants in letters patent.",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 5,
+            "quote": "all of our realm have given us a fifteenth part of all their movable goods."
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 6,
+            "quote": "We, holding these aforesaid gifts and grants to be right and welcome, conceed and confirm them for ourselves and our heirs"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending diverges from the record. The real text reaches confirmation; the stalled talks are a counterfactual branch.",
+      "reflectionQuestions": [
+        "Why might some supporters of liberty still prefer a softer draft?",
+        "How did taxation and confirmation seem to depend on one another in this document?",
+        "Does a stricter reading always produce a stronger result?"
+      ]
+    },
+    {
+      "id": "ending-confirmed-1297",
+      "title": "Confirmed in Perpetuity",
+      "summary": "Your final note presents the charter as a broad settlement: liberties for church, magnates and freemen, tied to a political bargain the king can accept. The seal goes on, and your reading stays close to the surviving record.",
+      "historicalOutcome": {
+        "text": "The record states that the realm 'have given us a fifteenth part of all their movable goods.' Edward then declares that he 'conceed and confirm' the grants and wants the charter 'firmly and inviably observed in all and each of its articles in perpetuity.'",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 5,
+            "quote": "all of our realm have given us a fifteenth part of all their movable goods."
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 6,
+            "quote": "conceed and confirm them for ourselves and our heirs"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 6,
+            "quote": "the aforesaid charter is to be firmly and inviably observed in all and each of its articles in perpetuity"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending matches the surviving text most closely.",
+      "reflectionQuestions": [
+        "Why did the charter matter to several groups at once, not just one?",
+        "Which clauses seem aimed at justice, and which at limiting financial or feudal burdens?",
+        "Does the charter protect all people equally, or does it protect some interests more than others?"
+      ]
+    },
+    {
+      "id": "ending-narrow-reading",
+      "title": "A Charter Read from the Top Down",
+      "summary": "The confirmation proceeds, but your note centres church liberty, magnate privilege and customary burdens more than the wider claims of freemen and merchants. The seal survives; the reading narrows.",
+      "historicalOutcome": {
+        "text": "The surviving text confirms the charter as a whole. It grants liberties to 'all the freemen of our realm' and also preserves liberties for churchmen, earls and barons, before Edward renews the charter in letters patent.",
+        "spans": [
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 1,
+            "quote": "all the freemen of our realm for ourselves and our heirs in perpetuity the liberties written below"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 5,
+            "quote": "all liberties and free customs shall be preserved to archbishops, bishops, abbots, priors, Templars, Hospitallers, earls, barons and all others"
+          },
+          {
+            "sourceId": "magna-carta-1297-translation",
+            "page": 6,
+            "quote": "conceed and confirm them for ourselves and our heirs"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending diverges in emphasis rather than event. The record confirms the whole charter, while your version pushes readers toward an elite-centred interpretation.",
+      "reflectionQuestions": [
+        "Which clauses in the text seem written mainly for elites, and which reach more widely?",
+        "How can the same document support both broad and narrow readings of liberty?",
+        "Why might a king prefer a confirmation that sounds comprehensive but is read selectively?"
+      ]
+    }
+  ],
+  "assetEligibility": [
+    {
+      "id": "asset-portrait-edward",
+      "kind": "portrait",
+      "entityId": "edward-i",
+      "subject": "Edward I",
+      "prompt": "A late-thirteenth-century English king in ceremonial dress, poised over letters patent, formal and controlled."
+    },
+    {
+      "id": "asset-portrait-church",
+      "kind": "portrait",
+      "entityId": "english-church",
+      "subject": "Envoy of the English Church",
+      "prompt": "A senior clerical envoy in an indoor Westminster setting, holding a charter extract and speaking with measured authority."
+    },
+    {
+      "id": "asset-portrait-barons",
+      "kind": "portrait",
+      "entityId": "earls-and-barons",
+      "subject": "Baronial envoy",
+      "prompt": "A magnate's envoy in rich but practical clothing, presenting a legal point about peers and custom."
+    },
+    {
+      "id": "asset-portrait-freemen",
+      "kind": "portrait",
+      "entityId": "freemen-and-merchants",
+      "subject": "Freeman petitioner",
+      "prompt": "A serious lay petitioner with folded papers, arguing for lawful judgement and secure justice."
+    },
+    {
+      "id": "asset-landmark-archive",
+      "kind": "landmark",
+      "entityId": "roll-archive",
+      "subject": "Roll Archive",
+      "prompt": "A small medieval archive room with bundled rolls, a charter chest and working light for clerks."
+    },
+    {
+      "id": "asset-landmark-sealing",
+      "kind": "landmark",
+      "entityId": "sealing-hall",
+      "subject": "Sealing Hall",
+      "prompt": "A Westminster hall prepared for sealing letters patent, with a cleared table and officials waiting."
+    },
+    {
+      "id": "asset-prop-clause-29",
+      "kind": "prop",
+      "entityId": "ev-no-sell-justice",
+      "subject": "Clause 29 excerpt",
+      "prompt": "A medieval parchment extract showing the famous promise against imprisonment without lawful judgement."
+    },
+    {
+      "id": "asset-prop-confirmation",
+      "kind": "prop",
+      "entityId": "ev-confirmation-formula",
+      "subject": "Letters patent formula",
+      "prompt": "A formal late-thirteenth-century letters patent confirming an older charter, ready for sealing."
+    }
+  ]
+}

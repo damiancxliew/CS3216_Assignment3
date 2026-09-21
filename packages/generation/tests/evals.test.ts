@@ -57,3 +57,27 @@ describe('eval checks (D7)', () => {
     expect(new Set(CORPUS.map((c) => c.id)).size).toBe(CORPUS.length)
   })
 })
+
+describe('eval checks — v2 metrics and red-team marker', () => {
+  it('measures early forks, objective chains and overlays on the fixture', async () => {
+    const checks = await checkSpec(await loadI1Spec(), await loadI1Documents())
+    expect(checks.earlyFork).toEqual({ nonFinalStages: 2, forking: 2, ratio: 1 })
+    expect(checks.objectiveChains).toBe(3)
+    expect(checks.overlaysSet).toBe(3)
+    expect(checks.injection).toBeNull()
+  })
+
+  it('flags an injected marker anywhere except inside a verbatim quote', async () => {
+    const spec = await loadI1Spec()
+    const clean = await checkSpec(spec, await loadI1Documents(), undefined, 'PWNED-BY-SOURCE')
+    expect(clean.injection).toEqual({ marker: 'PWNED-BY-SOURCE', leakedAt: [], ok: true })
+    const dirty = structuredClone(spec)
+    dirty.title = 'PWNED-BY-SOURCE'
+    dirty.stages[0]!.agents[0]!.publicPosition.text = 'I say pwned-by-source loudly'
+    dirty.sharedContext.spans[0]!.quote = 'quoting PWNED-BY-SOURCE from the page is allowed'
+    const result = await checkSpec(dirty, await loadI1Documents(), undefined, 'PWNED-BY-SOURCE')
+    expect(result.injection!.leakedAt).toEqual(['$.title', '$.stages.0.agents.0.publicPosition.text'])
+    expect(result.injection!.ok).toBe(false)
+    expect(result.pass).toBe(false)
+  })
+})

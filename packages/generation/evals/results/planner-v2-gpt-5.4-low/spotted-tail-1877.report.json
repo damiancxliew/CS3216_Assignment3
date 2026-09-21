@@ -1,0 +1,188 @@
+{
+  "case": "spotted-tail-1877",
+  "metrics": {
+    "promptVersion": "planner-v2",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 3,
+    "repairs": 2,
+    "valid": true,
+    "totalLatencyMs": 197095,
+    "usage": {
+      "inputTokens": 36201,
+      "cachedInputTokens": 5888,
+      "outputTokens": 26559,
+      "reasoningTokens": 1904
+    },
+    "costUsd": 0.4756395,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 104198,
+        "usage": {
+          "inputTokens": 6291,
+          "cachedInputTokens": 0,
+          "outputTokens": 9735,
+          "reasoningTokens": 1525
+        },
+        "costUsd": 0.1617525,
+        "issueCount": 1,
+        "schemaIssues": 1,
+        "groundingIssues": 0,
+        "issues": [
+          {
+            "path": "$.adventure.stages.1.decision.options.3.branchTarget.endingId",
+            "message": "unknown ending \"ending-discipline-without-trust\""
+          }
+        ]
+      },
+      {
+        "purpose": "repair",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 43844,
+        "usage": {
+          "inputTokens": 14617,
+          "cachedInputTokens": 5888,
+          "outputTokens": 8242,
+          "reasoningTokens": 32
+        },
+        "costUsd": 0.1469245,
+        "issueCount": 8,
+        "schemaIssues": 0,
+        "groundingIssues": 8,
+        "issues": [
+          {
+            "path": "$.adventure.sharedContext.spans.1",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 2: \"nment intends to fulfill its part of the treaty and that it is expected that the Indians on their part will do the same. Since then their [sic] has been a great desire on the part of the Indians to farm and I am daily beset with application\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stakeholders.2.summary.spans.1",
+            "message": "quote not found on page 4 of \"spotted-tail-agency-1877\" (it appears on page 3)"
+          },
+          {
+            "path": "$.adventure.endings.1.historicalOutcome.spans.2",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 4: \"Transcription Primary Sources for Teachers 2006 Created by the National Archives-Central Plains Region, Kansas City, MO, (816) 268-8000. 4 police force can be organized which will be a great help to the Agent in the execution of the wishes \" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.0.evidence.1.content.spans.0",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 2: \"nment intends to fulfill its part of the treaty and that it is expected that the Indians on their part will do the same. Since then their [sic] has been a great desire on the part of the Indians to farm and I am daily beset with application\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.sharedContext.spans.2",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 4: \"Transcription Primary Sources for Teachers 2006 Created by the National Archives-Central Plains Region, Kansas City, MO, (816) 268-8000. 4 police force can be organized which will be a great help to the Agent in the execution of the wishes \" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.agents.0.publicPosition.spans.1",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 4: \"Transcription Primary Sources for Teachers 2006 Created by the National Archives-Central Plains Region, Kansas City, MO, (816) 268-8000. 4 police force can be organized which will be a great help to the Agent in the execution of the wishes \" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.agents.1.publicPosition.spans.1",
+            "message": "quote not found on page 4 of \"spotted-tail-agency-1877\" (it appears on page 3)"
+          },
+          {
+            "path": "$.adventure.stages.1.agents.1.privateContext.spans.1",
+            "message": "quote not found on page 4 of \"spotted-tail-agency-1877\" (it appears on page 3)"
+          }
+        ]
+      },
+      {
+        "purpose": "repair",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 49037,
+        "usage": {
+          "inputTokens": 15293,
+          "cachedInputTokens": 0,
+          "outputTokens": 8582,
+          "reasoningTokens": 347
+        },
+        "costUsd": 0.1669625,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0,
+        "issues": []
+      }
+    ],
+    "documents": [
+      {
+        "id": "spotted-tail-agency-1877",
+        "pages": 5,
+        "chars": 13303
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The document gives no floor plan or exact placement of offices, warehouses, council spaces, or the Camp Sheridan guardhouse.",
+    "The document does not preserve the exact spoken words of Spotted Tail, Two Strike, or other Lakota leaders in council.",
+    "The report names Two Strike but does not record his personal reasoning, so his dialogue and motives are inferred.",
+    "The report does not identify any interpreter by name, so the player character is a simulation role from the teacher brief.",
+    "The source does not describe what the Commissioner of Indian Affairs replied after receiving Lee’s report.",
+    "The source does not say whether Crazy Horse finally came to this agency after the report date.",
+    "The source does not record McGirk’s own defense in his own words."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 73,
+      "resolved": 73,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 8,
+    "branching": {
+      "stages": 2,
+      "distinctTargetsPerStage": [
+        2,
+        4
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "earlyFork": {
+      "nonFinalStages": 1,
+      "forking": 1,
+      "ratio": 1
+    },
+    "objectiveChains": 2,
+    "overlaysSet": 2,
+    "injection": null,
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "upper-secondary",
+      "budgetWords": 180,
+      "maxWords": 37,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 8,
+      "kinds": {
+        "portrait": 4,
+        "landmark": 2,
+        "prop": 2
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "At the Agency Edge",
+  "warnings": []
+}

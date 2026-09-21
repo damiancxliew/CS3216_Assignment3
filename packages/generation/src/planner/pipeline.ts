@@ -7,12 +7,13 @@
  * Invalid output is never returned as a spec (FR-4). Every run yields the D8
  * metrics: attempts, repairs, latency, tokens and cost.
  */
+import { LexicalRetriever, nearestChunk, type Retriever } from '../ingest/chunk'
 import { slugify } from '../ingest/extract'
 import { verifyGrounding } from '../ingest/spans'
 import type { ExtractedDocument } from '../ingest/types'
 import { DEFAULT_MODELS, type LlmClient, type LlmJsonResponse, type LlmUsage, ZERO_USAGE, addUsage, estimateCostUsd } from '../llm/client'
 import { SPEC_VERSION, type AdventureSpec, type SpecIssue, formatIssuePath, validateAdventureSpec } from '../spec/v2'
-import { PROMPT_VERSION, buildRepairPrompt, buildSystemPrompt, buildUserPrompt } from './prompt'
+import { PROMPT_VERSION, type PromptVersion, buildRepairPrompt, buildSystemPrompt, buildUserPrompt } from './prompt'
 import { type TeacherInput, type TeacherInputRaw, plannerOutputJsonSchema, plannerOutputSchema, teacherInputSchema } from './schema'
 
 /** FR-4: up to two bounded repair round-trips. */
@@ -20,6 +21,7 @@ export const MAX_REPAIRS = 2
 
 export interface PlannerConfig {
   model: string
+  promptVersion: PromptVersion
   maxOutputTokens: number
   reasoningEffort: 'minimal' | 'low' | 'medium' | 'high' | null
   maxRepairs: number
@@ -27,6 +29,7 @@ export interface PlannerConfig {
 
 export const DEFAULT_PLANNER_CONFIG: PlannerConfig = {
   model: DEFAULT_MODELS.frontier,
+  promptVersion: PROMPT_VERSION,
   maxOutputTokens: 32_000,
   reasoningEffort: 'medium',
   maxRepairs: MAX_REPAIRS,
@@ -111,7 +114,7 @@ export function mergeServerFields(adventure: Record<string, unknown>, teacher: T
 }
 
 /** Validate one planner output all the way through: shape, cross-refs, grounding. */
-export function evaluateCandidate(json: unknown, teacher: TeacherInput, documents: readonly ExtractedDocument[]): Candidate {
+export async function evaluateCandidate(json: unknown, teacher: TeacherInput, documents: readonly ExtractedDocument[], retriever?: Retriever): Promise<Candidate> {
   const parsed = plannerOutputSchema.safeParse(json)
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => ({ path: formatIssuePath(i.path), message: i.message }))
@@ -124,15 +127,22 @@ export function evaluateCandidate(json: unknown, teacher: TeacherInput, document
     return { spec: null, issues, schemaIssues: issues.length, groundingIssues: 0, missingInformation: parsed.data.missingInformation }
   }
   const grounding = verifyGrounding(validation.spec, new Map(documents.map((d) => [d.id, d])))
-  const issues = grounding.failures.map((f) => ({
-    path: f.path.replace(/^\$/, '$.adventure'),
-    message:
-      f.resolution.reason === 'quote-not-on-page'
-        ? `quote not found on page ${f.span.page} of "${f.span.sourceId}"${f.resolution.nearestPage ? ` (it appears on page ${f.resolution.nearestPage})` : ' (not found on any page — copy text verbatim or replace with an assumptionId)'}`
-        : f.resolution.reason === 'page-out-of-range'
-          ? `page ${f.span.page} does not exist in "${f.span.sourceId}"`
-          : `unknown source "${f.span.sourceId}"`,
-  }))
+  const issues: SpecIssue[] = []
+  for (const f of grounding.failures) {
+    let message: string
+    if (f.resolution.reason === 'quote-not-on-page') {
+      if (f.resolution.nearestPage) message = `quote not found on page ${f.span.page} of "${f.span.sourceId}" (it appears on page ${f.resolution.nearestPage})`
+      else {
+        // D2: retrieval finds the passage the quote paraphrases, so the repair can copy it verbatim
+        const hit = retriever ? await nearestChunk(retriever, f.span.quote, f.span.sourceId) : null
+        message = hit
+          ? `quote not found verbatim on any page of "${f.span.sourceId}"; the closest passage is on page ${hit.chunk.page}: "${hit.chunk.text.slice(0, 240).replace(/\s+/g, ' ')}" — copy from it verbatim or replace the span with an assumptionId`
+          : `quote not found on any page of "${f.span.sourceId}" — copy text verbatim or replace with an assumptionId`
+      }
+    } else if (f.resolution.reason === 'page-out-of-range') message = `page ${f.span.page} does not exist in "${f.span.sourceId}"`
+    else message = `unknown source "${f.span.sourceId}"`
+    issues.push({ path: f.path.replace(/^\$/, '$.adventure'), message })
+  }
   return {
     spec: issues.length === 0 ? validation.spec : null,
     issues,
@@ -152,7 +162,7 @@ function extractMissingInfo(json: unknown): string[] {
 export async function generateAdventure(options: GenerateOptions): Promise<GenerationResult> {
   const config: PlannerConfig = { ...DEFAULT_PLANNER_CONFIG, ...options.config }
   const metrics: GenerationMetrics = {
-    promptVersion: PROMPT_VERSION,
+    promptVersion: config.promptVersion,
     specVersion: SPEC_VERSION,
     model: config.model,
     attempts: 0,
@@ -183,11 +193,12 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
     })
   }
   const teacher = teacherParsed.data
-  const system = buildSystemPrompt(teacher)
+  const system = buildSystemPrompt(teacher, config.promptVersion)
   const { user, budget } = buildUserPrompt(teacher, options.documents)
   metrics.documents = budget.included
   metrics.documentsTruncated = budget.truncated
   const jsonSchema = plannerOutputJsonSchema()
+  const retriever = LexicalRetriever.fromDocuments(options.documents)
 
   let userTurn = user
   let lastOutput: string | null = null
@@ -238,7 +249,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
       continue
     }
 
-    const candidate = evaluateCandidate(response.json, teacher, options.documents)
+    const candidate = await evaluateCandidate(response.json, teacher, options.documents, retriever)
     lastCandidate = candidate
     call.issueCount = candidate.issues.length
     call.schemaIssues = candidate.schemaIssues

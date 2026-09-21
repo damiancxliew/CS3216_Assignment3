@@ -1,0 +1,1465 @@
+{
+  "version": 2,
+  "id": "at-the-agency-the-sword-bearer-crisis-1887",
+  "title": "At the Agency: The Sword Bearer Crisis, 1887",
+  "setting": "Crow Agency, Montana Territory, autumn-winter 1887",
+  "description": "You are an interpreter at the Crow Agency. Over three tense moments, you must help others speak, decide what to report, and judge whom to trust as conflict grows from a raid to a military clash and then to a political reckoning.",
+  "readingLevel": {
+    "band": "upper-secondary",
+    "ageMin": 15,
+    "ageMax": 16
+  },
+  "learningObjectives": [
+    "Describe what happened at the Crow Agency during the Sword Bearer incident of 1887.",
+    "Explain the positions of Crow leaders, the agent, and the army.",
+    "Evaluate how the incident was reported by the people involved."
+  ],
+  "player": {
+    "name": "The Interpreter",
+    "role": "Interpreter at the Crow Agency",
+    "brief": "You translate between Crow speakers and U.S. officials. Your words can calm, sharpen, or redirect a crisis."
+  },
+  "sources": [
+    {
+      "id": "montana-sword-bearer-1887",
+      "title": "montana sword bearer 1887",
+      "kind": "text",
+      "pageCount": 9,
+      "contentHash": "7f9a3b6a96025550a9d5b20a407a6540f05ee97ce250fde2a46b04428f214a47"
+    }
+  ],
+  "sharedContext": {
+    "text": "In fall 1887, a party of young Crow men returned from a raid on the Piegans with captured horses. Agent Henry Williamson called for troops after gunfire at the agency, and tensions rose until fighting broke out on November 5. Later, Crow leaders met the agent in council and asked for the return of prisoners. Your task is to navigate these moments as an interpreter, comparing what happened with how each side described it.",
+    "spans": [
+      {
+        "sourceId": "montana-sword-bearer-1887",
+        "page": 2,
+        "quote": "In fall 1887 a group of young Crow Indians led by a Messianic figure"
+      },
+      {
+        "sourceId": "montana-sword-bearer-1887",
+        "page": 2,
+        "quote": "stealing some sixty horses."
+      },
+      {
+        "sourceId": "montana-sword-bearer-1887",
+        "page": 2,
+        "quote": "Agent H. E. Williamson called for troops to be sent from nearby Fort Custer."
+      },
+      {
+        "sourceId": "montana-sword-bearer-1887",
+        "page": 2,
+        "quote": "Finally, the situation came to head on November 5."
+      },
+      {
+        "sourceId": "montana-sword-bearer-1887",
+        "page": 5,
+        "quote": "I want the Great Father to let the Page 2 eight Crow prisoners now held at Fort Snelling, come home to us pretty quick"
+      }
+    ],
+    "assumptionIds": [
+      "a-player-role"
+    ]
+  },
+  "assumptions": [
+    {
+      "id": "a-player-role",
+      "text": "The player character is an agency interpreter present in all three stages.",
+      "rationale": "The teacher brief assigns the student this role, but the source documents do not name such a person in these scenes."
+    },
+    {
+      "id": "a-room-layouts",
+      "text": "Each stage uses a small set of rooms at or near the Crow Agency to structure movement and conversation.",
+      "rationale": "The documents describe events and meetings, not exact playable layouts."
+    },
+    {
+      "id": "a-private-motives",
+      "text": "Private motives and knowledge limits are inferred from each person's actions and statements.",
+      "rationale": "The sources record public words and actions, not inner thoughts."
+    },
+    {
+      "id": "a-stage1-crow-messenger",
+      "text": "A Crow leader can be met near the agency during the October alarm to voice concern before wider fighting.",
+      "rationale": "The October letter does not name a Crow speaker in that moment, but the simulation needs a Crow interlocutor."
+    },
+    {
+      "id": "a-stage2-council-moment",
+      "text": "A brief playable parley is staged around the failed peace effort before or during the November 5 crisis.",
+      "rationale": "The background mentions a failed meeting with Crow leaders, but gives no transcript."
+    },
+    {
+      "id": "a-stage3-decision-frame",
+      "text": "In the December council, the interpreter can choose how strongly to press the prisoners' issue or let the discussion shift.",
+      "rationale": "The source gives minutes, not the player's intervention."
+    },
+    {
+      "id": "a-landmarks",
+      "text": "Landmarks such as a telegraph desk, council stove, and prisoner photograph display are added to make sources inspectable.",
+      "rationale": "These props are plausible teaching devices, not documented scene fixtures."
+    }
+  ],
+  "stakeholders": [
+    {
+      "id": "henry-williamson",
+      "name": "Henry E. Williamson",
+      "role": "Crow Agency agent",
+      "summary": {
+        "text": "Williamson presents the raiders as a direct threat to the agency. He reports gunfire, says police could not act, praises Dudley's prompt response, and asks Washington for authority to arrest the raiders and other defiant Indians at once.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "firing their guns into buildings in defiant and threatening manner"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "my police were unable to do so"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "I deem the arrest of these raiders and other defiant Indians at once as absolutely necessary"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "plenty-coos",
+      "name": "Plenty Coos (Coups)",
+      "role": "Crow leader in council",
+      "summary": {
+        "text": "Plenty Coos asks for practical help: finish surveying Crow land and bring the prisoners home so they can support their families and work. His words show concern for labor, land, and the treatment of Crow men after the fighting.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 5,
+            "quote": "I want you to tell the Great Father to send him here next year to finish surveying our land"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 5,
+            "quote": "eight Crow prisoners now held at Fort Snelling, come home to us pretty quick"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 5,
+            "quote": "can take care of their cattle"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "nathan-dudley",
+      "name": "Nathan A. M. Dudley",
+      "role": "Fort Custer commander",
+      "summary": {
+        "text": "Dudley represents military force at the agency. Williamson reports that Dudley sent companies quickly, sought further instructions, and worked under limits to protect the agency and its employees.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "I called on Genl [General] Dudley commanding Fort Custer for troops to arrest them."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "Gen’l Dudley has been prompt in his action and is telegraphing Department Headquarters for full instructions."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "The Officer in command having instructions to protect Agency and Employees only."
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "big-shoulder-blade",
+      "name": "Big Shoulder Blade",
+      "role": "Crow speaker in council",
+      "summary": {
+        "text": "Big Shoulder Blade supports Mr. Cummins and also frames Sword Bearer as a single foolish man who is now dead. He praises Williamson's treatment of the Crow while still asking that the prisoners be returned quickly.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 6,
+            "quote": "We all like Mr. Cummins as one of our own people."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 6,
+            "quote": "he is gone (dead) now."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 7,
+            "quote": "It will be good for you to get the eight Crow prisoners back as soon as you can"
+          }
+        ],
+        "assumptionIds": []
+      }
+    }
+  ],
+  "defaultTimerSeconds": 480,
+  "ambientOverlay": {
+    "id": "clouds",
+    "intensity": 2
+  },
+  "stages": [
+    {
+      "id": "stage-october-alarm",
+      "index": 0,
+      "title": "October 1: The Alarm at the Agency",
+      "sharedContext": {
+        "text": "A raiding party has returned with captured horses. Williamson says six men rode around the agency firing into buildings. Troops from Fort Custer have arrived, but the officer says his orders are limited. As interpreter, you must decide whether to push for immediate arrests or for a calmer approach before the crisis widens.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "A party of twenty Crows with captured horses returned five o’clock yesterday evening"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "Six of them road [rode] around Agency firing their guns into buildings"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "Three companies arrived at Ten O’clock."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "The Officer in command having instructions to protect Agency and Employees only."
+          }
+        ],
+        "assumptionIds": []
+      },
+      "timerSeconds": null,
+      "ambientOverlay": {
+        "id": "clouds",
+        "intensity": 3
+      },
+      "spawnRoomId": "agency-yard",
+      "rooms": [
+        {
+          "id": "agency-yard",
+          "name": "Agency Yard",
+          "purpose": "First contact point between officials, police, and Crow visitors.",
+          "kind": "courtyard",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Shot-marked wall",
+            "description": "Fresh bullet scars on a building wall make the alarm visible to the player."
+          }
+        },
+        {
+          "id": "agent-office",
+          "name": "Agent's Office",
+          "purpose": "Where Williamson drafts and dictates his report.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Telegraph desk",
+            "description": "A crowded desk with copied messages and a draft appeal to Washington."
+          }
+        },
+        {
+          "id": "guard-room",
+          "name": "Guard Room",
+          "purpose": "Temporary military post for soldiers and agency police.",
+          "kind": "hall",
+          "size": "small",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Stacked carbines",
+            "description": "Arms arranged for quick use underline the threat of escalation."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-williamson-s1",
+          "stakeholderId": "henry-williamson",
+          "startRoomId": "agent-office",
+          "publicPosition": {
+            "text": "Williamson insists that the raiders have threatened the agency and must be arrested at once. He wants the War Department's backing because agency police could not carry out the arrests alone.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "The raiders defied police and military."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "my police were unable to do so"
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "ask that orders be so issued by the War Department"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "A pressured administrator trying to prove control in a public emergency.",
+            "motivations": "Restore order fast, protect employees, and show superiors that he acted decisively.",
+            "hiddenInterests": "He wants the written record to justify calling in troops before anyone in Washington blames him for losing control.",
+            "knowledgeHorizon": "He knows what he has seen at the agency and what soldiers have reported to him, but not how every Crow leader reads the crisis.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "I called on Genl [General] Dudley commanding Fort Custer for troops to arrest them."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "I deem the arrest of these raiders and other defiant Indians at once as absolutely necessary"
+              }
+            ],
+            "assumptionIds": [
+              "a-private-motives"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-dudley-s1",
+          "stakeholderId": "nathan-dudley",
+          "startRoomId": "guard-room",
+          "publicPosition": {
+            "text": "Dudley has responded quickly, but his command is operating under instructions to protect the agency and employees. He is waiting for fuller authority while preparing for force if needed.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "Three companies arrived at Ten O’clock."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "The Officer in command having instructions to protect Agency and Employees only."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "telegraphing Department Headquarters for full instructions"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "A professional officer wary of acting beyond orders in a politically charged scene.",
+            "motivations": "Maintain discipline, avoid blame for inaction, and keep his command's role formally legitimate.",
+            "hiddenInterests": "He prefers clearer authority before a wider operation, even if civilians press him to move faster.",
+            "knowledgeHorizon": "He knows troop positions and his orders, but not the deeper local relationships inside Crow politics.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "The Officer in command having instructions to protect Agency and Employees only."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "Gen’l Dudley has been prompt in his action"
+              }
+            ],
+            "assumptionIds": [
+              "a-private-motives"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-plenty-coos-s1",
+          "stakeholderId": "plenty-coos",
+          "startRoomId": "agency-yard",
+          "publicPosition": {
+            "text": "A respected Crow leader warns that broad arrests could turn a raid into a larger break with the agency. He wants the interpreter to carry words carefully before soldiers act.",
+            "spans": [],
+            "assumptionIds": [
+              "a-stage1-crow-messenger"
+            ]
+          },
+          "privateContext": {
+            "persona": "A pragmatic leader trying to shield his people from a wider military response.",
+            "motivations": "Separate the raiders from the rest of the Crow and prevent panic from becoming collective punishment.",
+            "hiddenInterests": "He wants space for later negotiation and fears that official reports will flatten Crow divisions into one hostile camp.",
+            "knowledgeHorizon": "He knows local opinion better than the soldiers do, but cannot control armed young men already acting defiantly.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 2,
+                "quote": "some of the band of horse thieves to start firing their guns into various buildings at the Agency."
+              }
+            ],
+            "assumptionIds": [
+              "a-private-motives",
+              "a-stage1-crow-messenger"
+            ]
+          },
+          "modelTier": "mid"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence-williamson-letter",
+          "name": "Williamson's draft letter",
+          "roomId": "agent-office",
+          "content": {
+            "text": "The draft frames the situation as an attack on the agency and stresses that arrests are urgently necessary. It is already written in the language of official justification.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "firing their guns into buildings in defiant and threatening manner without provocation."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "I deem the arrest of these raiders and other defiant Indians at once as absolutely necessary"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-limited-orders",
+          "name": "Note on military orders",
+          "roomId": "guard-room",
+          "content": {
+            "text": "The note shows that the troops' mission is narrower than Williamson wants. The army is present, but its authority is not unlimited.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "The Officer in command having instructions to protect Agency and Employees only."
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-raid-summary",
+          "name": "Summary of the raid",
+          "roomId": "agency-yard",
+          "content": {
+            "text": "A short account ties the agency alarm to the earlier raid on the Piegans and the return with captured horses.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "A party of twenty Crows with captured horses returned five o’clock yesterday evening from raid on Piegans."
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj-read-raid",
+          "title": "Read the summary of the raid",
+          "requires": [],
+          "targetId": "evidence-raid-summary"
+        },
+        {
+          "id": "obj-read-orders",
+          "title": "Check the army's written limits",
+          "requires": [],
+          "targetId": "evidence-limited-orders"
+        },
+        {
+          "id": "obj-read-letter",
+          "title": "Inspect Williamson's draft before speaking for him",
+          "requires": [
+            "obj-read-raid"
+          ],
+          "targetId": "evidence-williamson-letter"
+        },
+        {
+          "id": "obj-hear-williamson",
+          "title": "Hear Williamson's case for arrest",
+          "requires": [
+            "obj-read-letter",
+            "obj-read-orders"
+          ],
+          "targetId": "agent-williamson-s1"
+        },
+        {
+          "id": "obj-hear-plenty-coos",
+          "title": "Hear a Crow leader's warning",
+          "requires": [
+            "obj-read-raid"
+          ],
+          "targetId": "agent-plenty-coos-s1"
+        }
+      ],
+      "decision": {
+        "id": "decision-stage1",
+        "title": "How will you frame the crisis?",
+        "prompt": "Williamson is ready to send his account upward and press for arrests. Soldiers are present but constrained. Do you reinforce the demand for immediate force, or stress caution and distinction between raiders and the wider Crow community?",
+        "roomId": "agent-office",
+        "requires": [
+          "obj-hear-williamson",
+          "obj-hear-plenty-coos"
+        ],
+        "options": [
+          {
+            "id": "opt-stage1-coop",
+            "label": "Urge Williamson to open a channel with Crow leaders before wider arrests.",
+            "stance": "cooperative",
+            "preconditions": [
+              "obj-hear-williamson",
+              "obj-hear-plenty-coos"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-november-breakpoint"
+            }
+          },
+          {
+            "id": "opt-stage1-antag",
+            "label": "Support Williamson's demand for immediate arrests and stronger military backing.",
+            "stance": "antagonistic",
+            "preconditions": [
+              "obj-hear-williamson"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-early-crackdown"
+            }
+          },
+          {
+            "id": "opt-stage1-evasive",
+            "label": "Translate narrowly and avoid shaping either side's position.",
+            "stance": "evasive",
+            "preconditions": [
+              "obj-hear-williamson",
+              "obj-read-orders"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-november-breakpoint"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-november-breakpoint",
+      "index": 1,
+      "title": "November 5: Failed Peace, Open Fight",
+      "sharedContext": {
+        "text": "By early November, tensions have not eased. The background account says a peace meeting with Crow leaders failed, and fighting broke out between Companies E and K of the 1st Cavalry and about 150 Crows. Sword Bearer was killed, and prisoners were later taken. In this stage, you face the problem of how that confrontation is translated and remembered while it is still unfolding.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "After a meeting between General Thomas H. Ruger and several Crow leaders not involved with Sword Bearer’s group failed to achieve peace"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "a fight broke out between Companies E and K of the 1st Cavalry and about 150 Crows."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "In the end the Crows retreated, and Sword Bearer was killed."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "Eventually, eight Crows (considered to be ringleaders) were taken prisoner"
+          }
+        ],
+        "assumptionIds": [
+          "a-stage2-council-moment"
+        ]
+      },
+      "timerSeconds": 420,
+      "ambientOverlay": {
+        "id": "dust",
+        "intensity": 2
+      },
+      "spawnRoomId": "parley-ground",
+      "rooms": [
+        {
+          "id": "parley-ground",
+          "name": "Parley Ground",
+          "purpose": "A meeting space where messages pass between Crow leaders and officers.",
+          "kind": "field",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Council blanket",
+            "description": "A laid-out blanket marks a temporary speaking place between armed groups."
+          }
+        },
+        {
+          "id": "troop-line",
+          "name": "Troop Line",
+          "purpose": "Military position where cavalry and infantry wait for orders.",
+          "kind": "camp",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Company guidon",
+            "description": "A unit flag marks the organized line of troops."
+          }
+        },
+        {
+          "id": "holding-room",
+          "name": "Holding Room",
+          "purpose": "Space where names of the captured are recorded after the fighting.",
+          "kind": "cell",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Prisoner list board",
+            "description": "A board where the names of the eight prisoners are copied for officials."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-dudley-s2",
+          "stakeholderId": "nathan-dudley",
+          "startRoomId": "troop-line",
+          "publicPosition": {
+            "text": "The army is prepared to act after peace efforts have failed. Military officers present the clash as a response to a dangerous situation that has moved beyond ordinary agency policing.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 2,
+                "quote": "failed to achieve peace, a fight broke out between Companies E and K of the 1st Cavalry and about 150 Crows."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "The raiders defied police and military."
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "An officer focused on order once negotiation appears to have collapsed.",
+            "motivations": "Keep command cohesion, avoid appearing weak, and finish the crisis decisively.",
+            "hiddenInterests": "He wants the military role remembered as necessary, not reckless.",
+            "knowledgeHorizon": "He knows the army's immediate situation but cannot fully read how Crow leaders separate themselves from Sword Bearer's followers.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 2,
+                "quote": "failed to achieve peace"
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "The raiders defied police and military."
+              }
+            ],
+            "assumptionIds": [
+              "a-private-motives"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-big-shoulder-blade-s2",
+          "stakeholderId": "big-shoulder-blade",
+          "startRoomId": "parley-ground",
+          "publicPosition": {
+            "text": "He tries to keep the wider Crow community from being equated with Sword Bearer's followers. He signals that one man and his band should not define everyone else.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 6,
+                "quote": "he is gone (dead) now."
+              }
+            ],
+            "assumptionIds": [
+              "a-stage2-council-moment"
+            ]
+          },
+          "privateContext": {
+            "persona": "A leader trying to limit damage after violence has already transformed the argument.",
+            "motivations": "Protect the standing of leaders who were not part of the raid and preserve room for later negotiation.",
+            "hiddenInterests": "He wants officials to remember that some Crow leaders opposed escalation, even if that distinction is easy to ignore in wartime reporting.",
+            "knowledgeHorizon": "He knows community feeling and later council politics, but not the army's internal chain of command.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 2,
+                "quote": "several Crow leaders not involved with Sword Bearer’s group"
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 6,
+                "quote": "One of us was a fool"
+              }
+            ],
+            "assumptionIds": [
+              "a-private-motives",
+              "a-stage2-council-moment"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-williamson-s2",
+          "stakeholderId": "henry-williamson",
+          "startRoomId": "holding-room",
+          "publicPosition": {
+            "text": "Williamson's position remains that the crisis proves the need for arrests and a strong response. The later capture of alleged ringleaders fits the logic of his earlier request.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "I deem the arrest of these raiders and other defiant Indians at once as absolutely necessary"
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 2,
+                "quote": "Eventually, eight Crows (considered to be ringleaders) were taken prisoner"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "An official now reading later events as confirmation of his first report.",
+            "motivations": "Show that his earlier warnings were correct and that the agency could not manage the crisis alone.",
+            "hiddenInterests": "He benefits if the story centers on disorder and control rather than on misunderstandings or overreaction.",
+            "knowledgeHorizon": "He knows his paperwork, the arrests, and agency losses, but not how imprisonment will shape later Crow demands.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 4,
+                "quote": "The raiders defied police and military."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 2,
+                "quote": "Eventually, eight Crows (considered to be ringleaders) were taken prisoner"
+              }
+            ],
+            "assumptionIds": [
+              "a-private-motives"
+            ]
+          },
+          "modelTier": "mid"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence-background-fight",
+          "name": "Background account of the fight",
+          "roomId": "parley-ground",
+          "content": {
+            "text": "This summary says the peace effort failed and then names the scale of the battle. It is useful because it compresses events into a later teaching narrative.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 2,
+                "quote": "failed to achieve peace, a fight broke out between Companies E and K of the 1st Cavalry and about 150 Crows."
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-prisoner-list",
+          "name": "List of the eight prisoners",
+          "roomId": "holding-room",
+          "content": {
+            "text": "The names copied after the fighting show how the conflict was narrowed into a set of alleged ringleaders.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 9,
+                "quote": "1.Crazy Head, 2.Knowing his Coos, 3.Deaf Bull, 4.The Bank, 5.Looks with his Ears, 6.Big Hail, 7.Carries his Food, and 8.The Rock"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-outcome-note",
+          "name": "Note on Sword Bearer's death",
+          "roomId": "troop-line",
+          "content": {
+            "text": "A terse line records the immediate result that many later statements will have to reckon with: the Crow retreated and Sword Bearer died.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 2,
+                "quote": "In the end the Crows retreated, and Sword Bearer was killed."
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj-read-fight",
+          "title": "Read the summary of the failed peace effort",
+          "requires": [],
+          "targetId": "evidence-background-fight"
+        },
+        {
+          "id": "obj-read-outcome",
+          "title": "Confirm the immediate result of the clash",
+          "requires": [
+            "obj-read-fight"
+          ],
+          "targetId": "evidence-outcome-note"
+        },
+        {
+          "id": "obj-read-prisoners",
+          "title": "Inspect the names of the prisoners",
+          "requires": [
+            "obj-read-outcome"
+          ],
+          "targetId": "evidence-prisoner-list"
+        },
+        {
+          "id": "obj-hear-dudley",
+          "title": "Hear the army's justification",
+          "requires": [
+            "obj-read-fight"
+          ],
+          "targetId": "agent-dudley-s2"
+        },
+        {
+          "id": "obj-hear-big-shoulder",
+          "title": "Hear a Crow attempt to separate leaders from the raiding band",
+          "requires": [
+            "obj-read-outcome"
+          ],
+          "targetId": "agent-big-shoulder-blade-s2"
+        }
+      ],
+      "decision": {
+        "id": "decision-stage2",
+        "title": "What story will your translation support?",
+        "prompt": "The crisis has turned into open violence. You can help frame it as a necessary military response, or preserve distinctions between Sword Bearer's band and other Crow leaders for what comes next. Which line do you carry forward?",
+        "roomId": "parley-ground",
+        "requires": [
+          "obj-read-prisoners",
+          "obj-hear-dudley",
+          "obj-hear-big-shoulder"
+        ],
+        "options": [
+          {
+            "id": "opt-stage2-neutral",
+            "label": "Record the clash carefully and preserve room for a later council.",
+            "stance": "neutral",
+            "preconditions": [
+              "obj-read-prisoners",
+              "obj-hear-big-shoulder"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-december-council"
+            }
+          },
+          {
+            "id": "opt-stage2-antag",
+            "label": "Translate the event as proof that a broad hard line is justified.",
+            "stance": "antagonistic",
+            "preconditions": [
+              "obj-hear-dudley",
+              "obj-read-outcome"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-military-silence"
+            }
+          },
+          {
+            "id": "opt-stage2-coop",
+            "label": "Emphasize that some Crow leaders were not part of Sword Bearer's band.",
+            "stance": "cooperative",
+            "preconditions": [
+              "obj-hear-big-shoulder",
+              "obj-read-fight"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-december-council"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-december-council",
+      "index": 2,
+      "title": "December 31: Council and the Prisoners",
+      "sharedContext": {
+        "text": "Weeks after the fight, Crow leaders meet the agent in council. Plenty Coos asks for land surveying to continue and for the prisoners at Fort Snelling to return home. Williamson then shifts the discussion to whether Mr. Cummins and his family should be adopted into the tribe. As interpreter, you must decide whether to keep attention on the prisoners or let the meeting follow the agent's turn.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 5,
+            "quote": "I want the Great Father to let the Page 2 eight Crow prisoners now held at Fort Snelling, come home to us pretty quick"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 5,
+            "quote": "We don’t think that they have done anything very bad."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 5,
+            "quote": "Agent I have been told that some of you desire to adopt Mr. Cummins"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 8,
+            "quote": "there was no objection made by any of the Indians present, their consent was unanimous."
+          }
+        ],
+        "assumptionIds": [
+          "a-stage3-decision-frame"
+        ]
+      },
+      "timerSeconds": 0,
+      "ambientOverlay": {
+        "id": "night",
+        "intensity": 1
+      },
+      "spawnRoomId": "council-room",
+      "rooms": [
+        {
+          "id": "council-room",
+          "name": "Council Room",
+          "purpose": "Formal meeting space for the December council.",
+          "kind": "chamber",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Council stove",
+            "description": "A warm stove around which speakers gather through a long winter meeting."
+          }
+        },
+        {
+          "id": "records-table",
+          "name": "Records Table",
+          "purpose": "Place where minutes and certifications are copied.",
+          "kind": "archive",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Issue clerk's ledger",
+            "description": "Barstow's copied minutes sit open beside the interpreter's notes."
+          }
+        },
+        {
+          "id": "agency-hall",
+          "name": "Agency Hall",
+          "purpose": "Side area for informal discussion before and after formal remarks.",
+          "kind": "hall",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Framed prisoner photograph",
+            "description": "A display copy of the prisoner image invites scrutiny of who was captured."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-plenty-coos-s3",
+          "stakeholderId": "plenty-coos",
+          "startRoomId": "council-room",
+          "publicPosition": {
+            "text": "Plenty Coos asks the government to continue surveying Crow land and to send the prisoners home quickly so they can work and care for their families and cattle. He does not present them as men who have done great wrong.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 5,
+                "quote": "finish surveying our land and to show us what is to be done"
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 5,
+                "quote": "come home to us pretty quick"
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 5,
+                "quote": "We don’t think that they have done anything very bad."
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "A measured leader using practical needs to press a political demand.",
+            "motivations": "Get men back home, reduce the damage of imprisonment, and keep the discussion on Crow interests rather than agency priorities.",
+            "hiddenInterests": "He knows that labor, cattle, and land policy make a stronger argument to officials than grief alone.",
+            "knowledgeHorizon": "He knows the community's needs, but not what federal offices will decide about prisoners held far away.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 5,
+                "quote": "come home to us pretty quick"
+              }
+            ],
+            "assumptionIds": [
+              "a-private-motives"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-williamson-s3",
+          "stakeholderId": "henry-williamson",
+          "startRoomId": "records-table",
+          "publicPosition": {
+            "text": "When Plenty Coos raises the prisoners, Williamson turns to another issue: whether Mr. Cummins and his family should be adopted into the tribe. He keeps the meeting orderly by moving to a question that can end in a formal consensus.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 5,
+                "quote": "Agent I have been told that some of you desire to adopt Mr. Cummins"
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 8,
+                "quote": "their consent was unanimous."
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "An experienced official steering a delicate meeting toward safer ground.",
+            "motivations": "Control the council's agenda, secure a clear result, and avoid dwelling on the prisoners where he may have less room to promise anything.",
+            "hiddenInterests": "Changing the subject lets him record harmony on adoption rather than pressure on the prisoner question.",
+            "knowledgeHorizon": "He knows the council procedure and what he can put in writing, but not how long Crow frustration over the prisoners will last.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 5,
+                "quote": "Agent I have been told that some of you desire to adopt Mr. Cummins"
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 8,
+                "quote": "I certify on honor that the above is a true report"
+              }
+            ],
+            "assumptionIds": [
+              "a-private-motives"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-big-shoulder-blade-s3",
+          "stakeholderId": "big-shoulder-blade",
+          "startRoomId": "agency-hall",
+          "publicPosition": {
+            "text": "Big Shoulder Blade supports the adoption of Mr. Cummins and his family, praises Williamson's treatment of the Crow, but also wants the prisoners back quickly so they can work. He presents Sword Bearer as one foolish man, now dead.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 6,
+                "quote": "We all like Mr. Cummins as one of our own people."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 6,
+                "quote": "You (to Agent Williamson) have always treated us well."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 7,
+                "quote": "get the eight Crow prisoners back as soon as you can"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "A careful speaker balancing respect, criticism, and practical demands.",
+            "motivations": "Keep relations workable with the agent while still arguing for the prisoners' return.",
+            "hiddenInterests": "By praising Williamson, he may hope to make the request harder to dismiss.",
+            "knowledgeHorizon": "He knows the council mood and the value of respectful speech, but not how Washington will weigh the request.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 6,
+                "quote": "You (to Agent Williamson) have always treated us well."
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 7,
+                "quote": "It will be good for you to get the eight Crow prisoners back as soon as you can"
+              }
+            ],
+            "assumptionIds": [
+              "a-private-motives"
+            ]
+          },
+          "modelTier": "mid"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence-council-minutes",
+          "name": "Council minutes",
+          "roomId": "records-table",
+          "content": {
+            "text": "The minutes show Plenty Coos asking for the prisoners' return and Williamson immediately turning to the Cummins adoption question.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 5,
+                "quote": "eight Crow prisoners now held at Fort Snelling, come home to us pretty quick"
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 5,
+                "quote": "Agent I have been told that some of you desire to adopt Mr. Cummins"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-adoption-consensus",
+          "name": "Adoption consensus record",
+          "roomId": "council-room",
+          "content": {
+            "text": "This passage records a unanimous decision on the Cummins family's adoption, showing what part of the meeting became easy to certify formally.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 8,
+                "quote": "there was no objection made by any of the Indians present, their consent was unanimous."
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-prisoner-photo",
+          "name": "Photograph caption of the Crow prisoners",
+          "roomId": "agency-hall",
+          "content": {
+            "text": "The caption fixes the prisoner group into an official image and list, inviting students to ask who is being represented and how.",
+            "spans": [
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 9,
+                "quote": "Crow prisoners taken after the fight of Nov.5, 1887 at the Crow Agency"
+              },
+              {
+                "sourceId": "montana-sword-bearer-1887",
+                "page": 9,
+                "quote": "1.Crazy Head, 2.Knowing his Coos, 3.Deaf Bull, 4.The Bank"
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj-read-minutes",
+          "title": "Read the key exchange in the council minutes",
+          "requires": [],
+          "targetId": "evidence-council-minutes"
+        },
+        {
+          "id": "obj-read-photo",
+          "title": "Inspect the prisoner photograph caption",
+          "requires": [],
+          "targetId": "evidence-prisoner-photo"
+        },
+        {
+          "id": "obj-hear-plenty-coos-s3",
+          "title": "Hear Plenty Coos's case for the prisoners' return",
+          "requires": [
+            "obj-read-minutes"
+          ],
+          "targetId": "agent-plenty-coos-s3"
+        },
+        {
+          "id": "obj-hear-williamson-s3",
+          "title": "Hear Williamson's shift to the adoption question",
+          "requires": [
+            "obj-read-minutes"
+          ],
+          "targetId": "agent-williamson-s3"
+        },
+        {
+          "id": "obj-hear-big-shoulder-s3",
+          "title": "Hear Big Shoulder Blade's balancing speech",
+          "requires": [
+            "obj-hear-plenty-coos-s3",
+            "obj-read-photo"
+          ],
+          "targetId": "agent-big-shoulder-blade-s3"
+        }
+      ],
+      "decision": {
+        "id": "decision-stage3",
+        "title": "What will this council be remembered for?",
+        "prompt": "The council can become a formal record about adoption, or a stronger appeal about the prisoners and the meaning of the recent violence. As interpreter, do you press the prisoner issue, accept Williamson's redirection, or keep both topics in view?",
+        "roomId": "council-room",
+        "requires": [
+          "obj-hear-plenty-coos-s3",
+          "obj-hear-williamson-s3",
+          "obj-hear-big-shoulder-s3"
+        ],
+        "options": [
+          {
+            "id": "opt-stage3-coop",
+            "label": "Help the Crow speakers keep the prisoners at the center of the appeal.",
+            "stance": "cooperative",
+            "preconditions": [
+              "obj-hear-plenty-coos-s3",
+              "obj-read-photo"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-prisoners-first"
+            }
+          },
+          {
+            "id": "opt-stage3-neutral",
+            "label": "Balance both topics and record the council as a mixed petition.",
+            "stance": "neutral",
+            "preconditions": [
+              "obj-hear-plenty-coos-s3",
+              "obj-hear-williamson-s3"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-historical-record"
+            }
+          },
+          {
+            "id": "opt-stage3-evasive",
+            "label": "Let the meeting settle on the adoption question and move past the prisoners.",
+            "stance": "evasive",
+            "preconditions": [
+              "obj-hear-williamson-s3"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-historical-record"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "endings": [
+    {
+      "id": "ending-early-crackdown",
+      "title": "Early Ending: Force Before Dialogue",
+      "summary": "You back Williamson's demand for immediate arrests and stronger military authority. The agency record hardens early around danger and control. You leave little room to separate the raiders from the wider Crow community, and your role as interpreter becomes part of the machinery of escalation.",
+      "historicalOutcome": {
+        "text": "The sources show that Williamson did ask for immediate arrests, stating that the raiders had defied police and military, and that he considered arresting them \"absolutely necessary.\" Fighting later broke out on November 5, Sword Bearer was killed, and eight Crow prisoners were eventually taken.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 4,
+            "quote": "I deem the arrest of these raiders and other defiant Indians at once as absolutely necessary"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "Finally, the situation came to head on November 5."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "Eventually, eight Crows (considered to be ringleaders) were taken prisoner"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending compresses events by making the player's support for immediate force end the playable story before the later council documented in the sources.",
+      "reflectionQuestions": [
+        "How does Williamson's letter justify urgent force?",
+        "What is lost when later Crow voices are not heard?",
+        "Does official language make escalation seem inevitable?"
+      ]
+    },
+    {
+      "id": "ending-military-silence",
+      "title": "Ending: The Army's Version Wins",
+      "summary": "You help fix the November clash as a straightforward military necessity. The later distinctions between different Crow leaders fade from view. The crisis becomes a story of suppression, not argument, and the prisoner's names remain more visible than their own explanations.",
+      "historicalOutcome": {
+        "text": "The sources state that a peace effort failed, fighting broke out between Companies E and K and about 150 Crows, Sword Bearer was killed, and eight prisoners were taken after the fight. A later council did occur, where Crow leaders asked for those prisoners to return.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "failed to achieve peace, a fight broke out between Companies E and K of the 1st Cavalry and about 150 Crows."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "In the end the Crows retreated, and Sword Bearer was killed."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 5,
+            "quote": "eight Crow prisoners now held at Fort Snelling, come home to us pretty quick"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending stops before the documented December council, so it underrepresents the later Crow effort to shape the record and ask for the prisoners' return.",
+      "reflectionQuestions": [
+        "Why might military reports flatten political differences on the Crow side?",
+        "How do prisoner lists and casualty outcomes shape memory?",
+        "What changes when later council testimony is ignored?"
+      ]
+    },
+    {
+      "id": "ending-prisoners-first",
+      "title": "Ending: A Sharper Appeal for Return",
+      "summary": "You keep the prisoners at the center of the council. The meeting becomes a stronger moral and practical appeal about families, work, and whether the accused men had done \"anything very bad.\" This does not erase the fight, but it changes what the council is made to mean.",
+      "historicalOutcome": {
+        "text": "In the historical record, Plenty Coos did ask that the prisoners at Fort Snelling come home quickly so they could help their families work and care for cattle. The prisoners were not immediately returned; the background note says they were held at Fort Snelling until spring 1888, and most were then sent to Carlisle.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 5,
+            "quote": "come home to us pretty quick"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "were held at Fort Snelling until spring 1888"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "All of the remaining prisoners, except for Deaf Bull, were transferred to the Carlisle Industrial School"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending imagines the interpreter making the prisoner issue more dominant in the council record than the surviving minutes show.",
+      "reflectionQuestions": [
+        "Why does Plenty Coos frame the prisoners' return as a labor and family issue?",
+        "What does this tell us about how Crow leaders argued with federal officials?",
+        "How might the written minutes have looked different if this emphasis had prevailed?"
+      ]
+    },
+    {
+      "id": "ending-historical-record",
+      "title": "Ending: The Council as It Survives in the Record",
+      "summary": "You preserve a mixed record: Crow leaders ask for prisoners to return, but Williamson turns to the adoption of Mr. Cummins and his family, where unanimous agreement is easy to certify. The result is not silence, but a redirection. The written source itself becomes part of the lesson.",
+      "historicalOutcome": {
+        "text": "This ending matches the surviving minutes most closely. Plenty Coos requested the return of the eight prisoners, saying they had not done anything very bad. Williamson then asked about adopting Mr. Cummins and his family, and the minutes record unanimous consent. In the broader outcome, the prisoners remained away for months and some were later sent to Carlisle.",
+        "spans": [
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 5,
+            "quote": "We don’t think that they have done anything very bad."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 5,
+            "quote": "Agent I have been told that some of you desire to adopt Mr. Cummins"
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 8,
+            "quote": "their consent was unanimous."
+          },
+          {
+            "sourceId": "montana-sword-bearer-1887",
+            "page": 2,
+            "quote": "were held at Fort Snelling until spring 1888"
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending is the closest match to the documented record.",
+      "reflectionQuestions": [
+        "Why might Williamson shift from prisoners to adoption?",
+        "What can official minutes reveal, and what can they hide?",
+        "Whose priorities dominate the surviving record of the council?"
+      ]
+    }
+  ],
+  "assetEligibility": [
+    {
+      "id": "asset-portrait-williamson",
+      "kind": "portrait",
+      "entityId": "henry-williamson",
+      "subject": "Henry E. Williamson",
+      "prompt": "Portrait of Henry E. Williamson, Crow Agency agent, late 1880s federal official style, plain desk setting, serious expression."
+    },
+    {
+      "id": "asset-portrait-plenty-coos",
+      "kind": "portrait",
+      "entityId": "plenty-coos",
+      "subject": "Plenty Coos (Coups)",
+      "prompt": "Portrait of Plenty Coos (Coups), Crow leader in 1887, dignified posture, council setting, historically respectful style."
+    },
+    {
+      "id": "asset-portrait-dudley",
+      "kind": "portrait",
+      "entityId": "nathan-dudley",
+      "subject": "Nathan A. M. Dudley",
+      "prompt": "Portrait of Colonel Nathan A. M. Dudley, U.S. Army officer at frontier post, 1887 uniform, restrained documentary style."
+    },
+    {
+      "id": "asset-portrait-big-shoulder",
+      "kind": "portrait",
+      "entityId": "big-shoulder-blade",
+      "subject": "Big Shoulder Blade",
+      "prompt": "Portrait of Big Shoulder Blade, Crow council speaker, winter council atmosphere, respectful historical style."
+    },
+    {
+      "id": "asset-landmark-office",
+      "kind": "landmark",
+      "entityId": "agent-office",
+      "subject": "Telegraph desk in the agent's office",
+      "prompt": "Interior landmark: 1887 agency office telegraph desk with draft letters, ink, and copied messages, tense administrative atmosphere."
+    },
+    {
+      "id": "asset-landmark-council",
+      "kind": "landmark",
+      "entityId": "council-room",
+      "subject": "Council room stove and speaking space",
+      "prompt": "Interior landmark: winter council room at Crow Agency with stove, benches, and central speaking area, late 1887."
+    },
+    {
+      "id": "asset-prop-letter",
+      "kind": "prop",
+      "entityId": "evidence-williamson-letter",
+      "subject": "Williamson's draft letter",
+      "prompt": "Historical prop: handwritten draft letter from Crow Agency dated October 1, 1887, urgent official tone, ink on paper."
+    },
+    {
+      "id": "asset-prop-photo",
+      "kind": "prop",
+      "entityId": "evidence-prisoner-photo",
+      "subject": "Captioned prisoner photograph",
+      "prompt": "Historical prop: mounted captioned photograph of Crow prisoners taken after the fight of November 5, 1887, archival presentation."
+    }
+  ]
+}

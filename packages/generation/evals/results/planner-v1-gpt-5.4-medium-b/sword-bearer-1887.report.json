@@ -1,0 +1,142 @@
+{
+  "case": "sword-bearer-1887",
+  "metrics": {
+    "promptVersion": "planner-v1",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 2,
+    "repairs": 1,
+    "valid": true,
+    "totalLatencyMs": 296330,
+    "usage": {
+      "inputTokens": 21770,
+      "cachedInputTokens": 4864,
+      "outputTokens": 35287,
+      "reasoningTokens": 14699
+    },
+    "costUsd": 0.572786,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 233333,
+        "usage": {
+          "inputTokens": 5608,
+          "cachedInputTokens": 0,
+          "outputTokens": 24355,
+          "reasoningTokens": 14127
+        },
+        "costUsd": 0.379345,
+        "issueCount": 2,
+        "schemaIssues": 0,
+        "groundingIssues": 2,
+        "issues": [
+          {
+            "path": "$.adventure.stages.2.evidence.2.content.spans.0",
+            "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 6: \"e as Crows, I am willing that they all Page 3 should be as one of us, and that they should all have the rights in every way that the Crows have. You (to Agent Williamson) have always treated us well. One of us was a fool (referring to the M\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.2.evidence.3.content.spans.0",
+            "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 8: \"65 Cummins and his family, and there was no objection made by any of the Indians present, their consent was unanimous. There were about one hundred of the leading and representative Indians pre- sent at this council. I certify on honor that\" — copy from it verbatim or replace the span with an assumptionId"
+          }
+        ]
+      },
+      {
+        "purpose": "repair",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 62980,
+        "usage": {
+          "inputTokens": 16162,
+          "cachedInputTokens": 4864,
+          "outputTokens": 10932,
+          "reasoningTokens": 572
+        },
+        "costUsd": 0.193441,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0,
+        "issues": []
+      }
+    ],
+    "documents": [
+      {
+        "id": "montana-sword-bearer-1887",
+        "pages": 9,
+        "chars": 10433
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The packet contains no direct statement by Sword Bearer himself.",
+    "The packet contains no army report written by Colonel Dudley or General Ruger, so the army’s view is indirect.",
+    "The packet does not map the agency buildings or the exact locations of the November 5 fighting.",
+    "The packet summarizes a failed peace meeting before the fight but does not preserve its full dialogue.",
+    "The packet does not explain how the named prisoners individually participated in the incident."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 70,
+      "resolved": 70,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 9,
+    "branching": {
+      "stages": 3,
+      "distinctTargetsPerStage": [
+        1,
+        1,
+        4
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "earlyFork": {
+      "nonFinalStages": 2,
+      "forking": 0,
+      "ratio": 0
+    },
+    "objectiveChains": 0,
+    "overlaysSet": 0,
+    "injection": null,
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "upper-secondary",
+      "budgetWords": 180,
+      "maxWords": 40,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 8,
+      "kinds": {
+        "portrait": 4,
+        "landmark": 2,
+        "prop": 2
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "At the Agency Gate: The Sword Bearer Crisis, 1887",
+  "warnings": []
+}

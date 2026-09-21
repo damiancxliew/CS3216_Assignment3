@@ -84,12 +84,12 @@ describe('planner pipeline (D3/D4)', () => {
     const broken = await plannerReply((a) => {
       a.stages[0].agents[0].startRoomId = 'no-such-room'
       a.stakeholders[0].summary.spans[0].page = 4 // quote is really on page 1
-      a.stages[1].evidence[0].content.spans[0].quote = 'This sentence is a paraphrase and not in the source.'
+      a.stages[1].evidence[0].content.spans[0].quote = 'Two sons were left behind when the Sultan of Johor died in 1812.'
     })
     // grounding runs only once the shape is valid, so the first repair fixes the reference...
     const stillUngrounded = await plannerReply((a) => {
       a.stakeholders[0].summary.spans[0].page = 4
-      a.stages[1].evidence[0].content.spans[0].quote = 'This sentence is a paraphrase and not in the source.'
+      a.stages[1].evidence[0].content.spans[0].quote = 'Two sons were left behind when the Sultan of Johor died in 1812.'
     })
     const llm = new FakeLlmClient([broken, stillUngrounded, await plannerReply()])
     const result = await generateAdventure({ teacher: TEACHER, documents, llm })
@@ -103,7 +103,8 @@ describe('planner pipeline (D3/D4)', () => {
     const secondRepair = llm.requests[2]!.user
     expect(secondRepair).toContain('# Repair 2 of 2')
     expect(secondRepair).toContain('$.adventure.stakeholders.0.summary.spans.0: quote not found on page 4 of "handout" (it appears on page 1)')
-    expect(secondRepair).toContain('$.adventure.stages.1.evidence.0.content.spans.0: quote not found on page 3 of "handout" (not found on any page')
+    // D2: the paraphrase is not on any page, so retrieval points at the closest verbatim passage
+    expect(secondRepair).toMatch(/\$\.adventure\.stages\.1\.evidence\.0\.content\.spans\.0: quote not found verbatim on any page of "handout"; the closest passage is on page \d+: "/)
 
     expect(result.status).toBe('ok')
     expect(result.metrics).toMatchObject({ attempts: 3, repairs: 2, valid: true })

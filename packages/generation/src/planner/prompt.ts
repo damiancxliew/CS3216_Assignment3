@@ -10,7 +10,10 @@ import { AMBIENT_OVERLAYS, GENERATABLE_ASSET_KINDS, MAX_GENERATED_ASSETS, ROOM_K
 import type { SpecIssue } from '../spec/v2'
 import type { TeacherInput } from './schema'
 
-export const PROMPT_VERSION = 'planner-v1'
+export const PROMPT_VERSIONS = ['planner-v1', 'planner-v2'] as const
+export type PromptVersion = (typeof PROMPT_VERSIONS)[number]
+/** Current default. v1 is kept selectable so eval runs can compare before/after (M11). */
+export const PROMPT_VERSION: PromptVersion = 'planner-v2'
 
 /** Characters of source text sent to the planner per generation. ~40k tokens. */
 export const MAX_DOCUMENT_CHARS = 160_000
@@ -22,7 +25,28 @@ const READING_GUIDANCE: Record<TeacherInput['readingLevel']['band'], string> = {
   'pre-university': 'Ages ~17-19. Analytical register, historiographical nuance, primary-source language quoted directly. Texts under 220 words.',
 }
 
-export function buildSystemPrompt(input: TeacherInput): string {
+/**
+ * v2 additions target what the v1 eval measured: early stages never forked (forks 1/3/4, 2/1/4,
+ * 1/4, 1/1/4 across the baseline), objectives were flat, overlays were never set, and the one
+ * repair was seven non-verbatim quotes.
+ */
+const V2_RULES = [
+  '',
+  '## Branching (required)',
+  '- EVERY stage decision must have at least two options with DIFFERENT branchTargets. In a non-final stage that means at least one option leads somewhere other than the default next stage: to an early ending (a decisive failure, a premature success, an expulsion) or to a later stage. Linear stage chains where every option goes to the same next stage are invalid.',
+  '- With 3 stages, author 3-4 endings and make sure at least one is reachable before the final stage. The historical outcome should be ONE of the endings, not the only one.',
+  '',
+  '## Objectives',
+  '- In every stage at least one objective must `require` another (read the note before confronting the person; hear one side before the other). Flat objective lists make the stage a checklist.',
+  '',
+  '## Atmosphere',
+  '- Set an `ambientOverlay` on every stage whose setting suggests one (rain, fog, night, dust, clouds, snow). Use null only when nothing fits.',
+  '',
+  '## Quotes',
+  '- A quote is a contiguous run of characters copied from the page exactly as shown, including its spelling, punctuation and capitalisation. Do not repair typos, do not skip words, do not join text across a line break by dropping anything. Prefer 8-30 word quotes: shorter quotes are easier to copy exactly.',
+]
+
+export function buildSystemPrompt(input: TeacherInput, version: PromptVersion = PROMPT_VERSION): string {
   return [
     'You are the PLANNER for an educational, source-grounded historical adventure game. You turn the teacher\'s source documents into a structured ADVENTURE SPEC. You output ONLY JSON matching the provided schema.',
     '',
@@ -54,6 +78,7 @@ export function buildSystemPrompt(input: TeacherInput): string {
     '',
     '## Style',
     'Write the shared context as a briefing the player can act on. Make private motivations concrete and in tension with each other. Decision prompts should be a real dilemma, not a quiz. Never preview consequences in option labels.',
+    ...(version === 'planner-v2' ? V2_RULES : []),
   ].join('\n')
 }
 
