@@ -8,7 +8,7 @@ import { Suspense, useEffect, type ReactNode } from "react";
 import type { AnalyticsEvent } from "./events";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-const host = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://eu.i.posthog.com";
+const host = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
 
 let initialised = false;
 

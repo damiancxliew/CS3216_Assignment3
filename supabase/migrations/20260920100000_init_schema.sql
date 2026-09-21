@@ -189,7 +189,11 @@ create table attempt (
   -- server-held deadline; the client only renders a countdown from it (D12/FR-16)
   stage_deadline_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- an attempt is pinned to the exact published version it started on (P4), so
+  -- the pin must resolve to a spec that exists
+  foreign key (adventure_id, published_version)
+    references spec_version (adventure_id, version)
 );
 
 create index attempt_student_idx on attempt (student_id);

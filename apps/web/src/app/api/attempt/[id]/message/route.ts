@@ -22,20 +22,33 @@ export async function POST(
   }
 
   const posted = stubPostMessage(id, parsed.data.roomId, parsed.data.body);
-  if (!posted) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "not_found",
-          message: "That room is not part of this stage.",
-        },
-      },
-      { status: 404 },
-    );
+  if (!posted.ok) {
+    return posted.reason === "unknown_room"
+      ? NextResponse.json(
+          {
+            error: {
+              code: "not_found",
+              message: "That room is not part of this stage.",
+            },
+          },
+          { status: 404 },
+        )
+      : NextResponse.json(
+          {
+            error: {
+              code: "stage_closed",
+              message: "This stage is already resolved.",
+            },
+          },
+          { status: 409 },
+        );
   }
-  const { newMessages, state } = posted;
 
   return NextResponse.json(
-    messageResponseSchema.parse({ accepted: true, newMessages, state }),
+    messageResponseSchema.parse({
+      accepted: true,
+      newMessages: posted.newMessages,
+      state: posted.state,
+    }),
   );
 }

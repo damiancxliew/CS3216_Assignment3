@@ -245,10 +245,15 @@ beforeAll(async () => {
   fixtureB = await seedAdventure("Adventure B", b.userId, sb.userId);
 });
 
+/**
+ * Counts the rows a client can see. A query error is a broken grant or a
+ * broken query, not an RLS denial — denial shows up as zero rows — so it fails
+ * loudly instead of silently counting as isolation.
+ */
 async function rows(client: SupabaseClient, table: string, id: string, column = "id") {
   const { data, error } = await client.from(table).select(column).eq(column, id);
-  if (error) return { error, count: 0 };
-  return { error: null, count: data?.length ?? 0 };
+  if (error) throw new Error(`${table}.${column}: ${error.message}`);
+  return { count: data?.length ?? 0 };
 }
 
 describe("adventure", () => {
@@ -366,6 +371,26 @@ describe("message", () => {
   it("is invisible across attempts", async () => {
     expect((await rows(studentB, "message", fixtureA.roomMessageId)).count).toBe(0);
     expect((await rows(teacherB, "message", fixtureA.roomMessageId)).count).toBe(0);
+  });
+});
+
+describe("decision_option", () => {
+  it("exposes the label but never the preconditions or the branch target", async () => {
+    const { data, error } = await studentA
+      .from("decision_option")
+      .select("id, label")
+      .eq("id", fixtureA.decisionOptionId);
+    expect(error).toBeNull();
+    expect(data ?? []).toHaveLength(1);
+
+    for (const column of ["preconditions", "branch_target"]) {
+      const denied = await studentA
+        .from("decision_option")
+        .select(column)
+        .eq("id", fixtureA.decisionOptionId);
+      expect(denied.error).not.toBeNull();
+      expect(denied.data ?? []).toHaveLength(0);
+    }
   });
 });
 

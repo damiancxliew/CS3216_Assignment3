@@ -209,6 +209,12 @@ create policy objective_select on objective
   for select to authenticated
   using (can_read_stage(stage_id));
 
+-- The label is public; the preconditions and the branch target are the hidden
+-- half of the decision and are withheld at the column grant (FR-21), so a
+-- client cannot read future branches out of the table.
+revoke all on decision_option from anon, authenticated;
+grant select (id, stage_id, label) on decision_option to authenticated;
+
 create policy decision_option_select on decision_option
   for select to authenticated
   using (can_read_stage(stage_id));

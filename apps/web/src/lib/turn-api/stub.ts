@@ -62,6 +62,9 @@ const attempts = (globalStore.__turnApiStubAttempts ??= new Map<
   StubAttempt
 >());
 
+/** Any id seeds an attempt, so the map is bounded and evicts the oldest. */
+const MAX_STUB_ATTEMPTS = 500;
+
 function seed(attemptId: string): StubAttempt {
   const now = Date.now();
   const attempt: StubAttempt = {
@@ -95,6 +98,11 @@ function seed(attemptId: string): StubAttempt {
     status: "active",
   };
   attempts.set(attemptId, attempt);
+  while (attempts.size > MAX_STUB_ATTEMPTS) {
+    const oldest = attempts.keys().next();
+    if (oldest.done) break;
+    attempts.delete(oldest.value);
+  }
   return attempt;
 }
 
@@ -269,13 +277,22 @@ export function stubState(attemptId: string): PublicAttemptState {
   };
 }
 
+export type PostMessageResult =
+  | { ok: true; newMessages: PublicMessage[]; state: PublicAttemptState }
+  | { ok: false; reason: "unknown_room" | "stage_closed" };
+
 export function stubPostMessage(
   attemptId: string,
   roomId: string,
   body: string,
-): { newMessages: PublicMessage[]; state: PublicAttemptState } | null {
-  if (roomId !== STUB_ROOM_CHAMBER && roomId !== STUB_ROOM_ANTEROOM) return null;
+): PostMessageResult {
+  if (roomId !== STUB_ROOM_CHAMBER && roomId !== STUB_ROOM_ANTEROOM) {
+    return { ok: false, reason: "unknown_room" };
+  }
   const attempt = get(attemptId);
+  if (attempt.commitments.has(PLAYER_ACTOR_ID)) {
+    return { ok: false, reason: "stage_closed" };
+  }
   const now = Date.now();
   attempt.revision += 1;
 
@@ -309,6 +326,7 @@ export function stubPostMessage(
 
   attempt.transcript = [...attempt.transcript, playerMessage, agentMessage];
   return {
+    ok: true,
     newMessages: [playerMessage, agentMessage],
     state: stubState(attemptId),
   };

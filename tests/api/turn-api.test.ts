@@ -114,6 +114,17 @@ describe("POST /api/attempt/:id/decision", () => {
     expect(second.status).toBe(409);
   });
 
+  it("stops accepting messages once the stage is resolved", async () => {
+    await postDecision(post("http://t/decision", { optionId: "option-abstain" }), params);
+    const response = await postMessage(
+      post("http://t/message", { roomId: ANTEROOM, body: "One more thing." }),
+      params,
+    );
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error.code).toBe("stage_closed");
+  });
+
   it("makes an option available once its precondition is met", async () => {
     await postMessage(
       post("http://t/message", { roomId: ANTEROOM, body: "Why close the strait?" }),
