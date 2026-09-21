@@ -4,7 +4,7 @@ import { fixtureResolverInput, fixtureTimerExpiryInput } from '../src/fixtures'
 import { auditClientPayload } from '../src/privacy'
 import { publicResolution, sanitizeEffects, validateResolutionRecord } from '../src/resolution'
 import { resolveStageSync } from '../src/resolver/fake'
-import type { ResolverInput } from '../src/resolver/types'
+import { ResolverInputError, type ResolverInput } from '../src/resolver/types'
 
 describe('K1 — deterministic fake resolver', () => {
   it('produces the same outcome for the same inputs', () => {
@@ -12,6 +12,14 @@ describe('K1 — deterministic fake resolver', () => {
     const second = resolveStageSync(fixtureResolverInput)
     expect(second).toEqual(first)
     expect(second.record.rolls).toEqual(first.record.rolls)
+  })
+
+  it('produces the same record when agents arrive in a different order', () => {
+    const reordered: ResolverInput = {
+      ...fixtureResolverInput,
+      agents: [...fixtureResolverInput.agents].reverse(),
+    }
+    expect(resolveStageSync(reordered)).toEqual(resolveStageSync(fixtureResolverInput))
   })
 
   it('emits a schema-valid I4 payload', () => {
@@ -44,6 +52,56 @@ describe('K1 — deterministic fake resolver', () => {
     expect(record.trigger).toBe('timer_expiry')
     expect(record.outcome.next).toEqual(fixtureTimerExpiryInput.fallbackNext)
     expect(record.outcome.announcement).toContain('without your word')
+    expect(record.rationale).toContain('stance=evasive')
+    expect(record.outcome.effects.map((effect) => effect.id)).toEqual([
+      record.rolls[0]?.success ? 'smoke' : 'crowd_flee',
+    ])
+  })
+
+  it('normalizes recoverable evidence and disposition values', () => {
+    for (const evidenceCollected of [Number.NaN, -4, Number.POSITIVE_INFINITY]) {
+      const { record } = resolveStageSync({
+        ...fixtureResolverInput,
+        evidenceCollected,
+        agents: [{ id: 'agent-outlier', name: 'Outlier', disposition: 8.7 }],
+      })
+      const delta = record.outcome.agentDeltas[0]
+      expect(delta?.disposition).toBe(5)
+      expect(record.rationale).toContain('evidence=0')
+    }
+  })
+
+  it('throws a ResolverInputError for structurally broken input', () => {
+    expect(() =>
+      resolveStageSync({
+        ...fixtureResolverInput,
+        decision: { ...fixtureResolverInput.decision!, stance: 'unknown' },
+      } as unknown as ResolverInput),
+    ).toThrow(ResolverInputError)
+  })
+
+  it('rejects duplicate agent ids at the input boundary', () => {
+    const [first] = fixtureResolverInput.agents
+    expect(() =>
+      resolveStageSync({ ...fixtureResolverInput, agents: [...fixtureResolverInput.agents, { ...first!, name: 'Impostor' }] }),
+    ).toThrow(ResolverInputError)
+    try {
+      resolveStageSync({ ...fixtureResolverInput, agents: [...fixtureResolverInput.agents, { ...first!, name: 'Impostor' }] })
+    } catch (error) {
+      expect((error as ResolverInputError).issues.join(' ')).toContain(`duplicate agent id "${first!.id}"`)
+    }
+  })
+
+  it('keeps eight agent deltas and reports the rest', () => {
+    const agents = Array.from({ length: 9 }, (_, index) => ({
+      id: `agent-${index}`,
+      name: `Agent ${index}`,
+      disposition: 0,
+    }))
+    const { record, telemetry } = resolveStageSync({ ...fixtureResolverInput, agents })
+    expect(record.outcome.agentDeltas).toHaveLength(8)
+    expect(record.privateNotes).toHaveLength(8)
+    expect(telemetry.droppedAgentDeltas).toBe(1)
   })
 
   it('keeps disposition inside its bounds and reports a consistent delta', () => {
@@ -75,6 +133,39 @@ describe('K1 — deterministic fake resolver', () => {
     expect(telemetry.droppedActions).toBe(1)
     expect(record.actions.some((a) => a.action.type === 'commit_decision')).toBe(false)
   })
+
+  it('drops an unknown action payload without rejecting the input', () => {
+    const { telemetry } = resolveStageSync({
+      ...fixtureResolverInput,
+      actions: [{ actorKind: 'agent', actorId: 'agent-temenggong', action: { type: 'unknown' } }] as unknown as ResolverInput['actions'],
+    })
+    expect(telemetry.droppedActions).toBe(1)
+  })
+
+  it('accepts timestamps with numeric offsets', () => {
+    expect(
+      resolveStageSync({
+        ...fixtureResolverInput,
+        resolvedAt: '2026-09-20T21:00:00+08:00',
+      }).record.resolvedAt,
+    ).toBe('2026-09-20T21:00:00+08:00')
+  })
+
+  it('rejects an overlong decision label at the input boundary', () => {
+    expect(() =>
+      resolveStageSync({
+        ...fixtureResolverInput,
+        decision: { ...fixtureResolverInput.decision!, label: 'x'.repeat(288) },
+      }),
+    ).toThrow(ResolverInputError)
+  })
+
+  it('caps accepted actions and counts output overflow as dropped', () => {
+    const actions = Array.from({ length: 300 }, () => fixtureResolverInput.actions[0]!)
+    const { record, telemetry } = resolveStageSync({ ...fixtureResolverInput, actions })
+    expect(record.actions).toHaveLength(256)
+    expect(telemetry.droppedActions).toBe(44)
+  })
 })
 
 describe('K8 — effects allow-list (FR-15b)', () => {
@@ -86,6 +177,20 @@ describe('K8 — effects allow-list (FR-15b)', () => {
     expect(telemetry.droppedEffects).toBe(1)
     expect(record.outcome.effects.map((e) => e.id)).not.toContain('nuclear_winter')
     expect(record.outcome.announcement.length).toBeGreaterThan(0)
+  })
+
+  it('counts valid effects dropped by the output cap', () => {
+    const { record, telemetry } = resolveStageSync({
+      ...fixtureResolverInput,
+      candidateEffects: [
+        { id: 'fire', at: null, intensity: 1 },
+        { id: 'smoke', at: null, intensity: 1 },
+        { id: 'rubble', at: null, intensity: 1 },
+        { id: 'flash', at: null, intensity: 1 },
+      ],
+    })
+    expect(record.outcome.effects).toHaveLength(4)
+    expect(telemetry.droppedEffects).toBe(2)
   })
 
   it('only ever emits catalogue ids', () => {
@@ -138,5 +243,10 @@ describe('FR-21 — server authority', () => {
     for (const effect of publicResolution(record).effects) {
       expect(effect.text.length).toBeGreaterThan(0)
     }
+  })
+
+  it('rejects a non-ISO resolvedAt value', () => {
+    const { record } = resolveStageSync(fixtureResolverInput)
+    expect(validateResolutionRecord({ ...record, resolvedAt: 'not-a-date' })).toMatchObject({ ok: false })
   })
 })

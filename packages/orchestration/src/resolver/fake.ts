@@ -12,6 +12,7 @@
 import { parseAction, type ActorAction } from '../actions'
 import { EFFECT_TEXT } from '../catalogue'
 import {
+  MAX_AGENT_DELTAS,
   RESOLUTION_VERSION,
   sanitizeEffects,
   validateResolutionRecord,
@@ -23,7 +24,14 @@ import {
   type WorldDelta,
 } from '../resolution'
 import { createRng } from '../rng'
-import type { DecisionStance, Resolver, ResolverInput, ResolverResult } from './types'
+import {
+  resolverInputSchema,
+  ResolverInputError,
+  type DecisionStance,
+  type Resolver,
+  type ResolverInput,
+  type ResolverResult,
+} from './types'
 
 /** Starting odds per stance. Deliberately close to even: history is not a dice game with a
  * favourite, and a cooperative move that always works removes the point of D10. */
@@ -73,7 +81,11 @@ function resolveNext(input: ResolverInput): NextStep {
 
 function buildAnnouncement(input: ResolverInput, success: boolean, deltas: readonly AgentDelta[]): string {
   const byName = new Map(input.agents.map((agent) => [agent.id, agent.name]))
-  const swung = [...deltas].sort((a, b) => Math.abs(b.dispositionDelta) - Math.abs(a.dispositionDelta))[0]
+  const swung = [...deltas].sort((a, b) => {
+    const magnitude = Math.abs(b.dispositionDelta) - Math.abs(a.dispositionDelta)
+    if (magnitude !== 0) return magnitude
+    return a.agentId < b.agentId ? -1 : a.agentId > b.agentId ? 1 : 0
+  })[0]
   const reaction =
     swung === undefined || swung.dispositionDelta === 0
       ? 'The room holds its position.'
@@ -94,7 +106,8 @@ function buildAnnouncement(input: ResolverInput, success: boolean, deltas: reado
 }
 
 function buildEffects(input: ResolverInput, success: boolean): { effects: SceneEffect[]; dropped: number } {
-  const stance = input.decision?.stance ?? 'neutral'
+  // Timer expiry uses the same evasive stance for disposition and effects.
+  const stance = input.decision?.stance ?? 'evasive'
   const ids = STANCE_EFFECTS[stance][success ? 'success' : 'failure']
   const authored: SceneEffect[] = ids.map((id, index) => ({
     id,
@@ -104,13 +117,52 @@ function buildEffects(input: ResolverInput, success: boolean): { effects: SceneE
   // Externally proposed effects go through the same allow-list: an unknown id is dropped, never
   // fatal (FR-15b).
   const sanitized = sanitizeEffects(input.candidateEffects ?? [])
-  return { effects: [...authored, ...sanitized.effects].slice(0, 4), dropped: sanitized.dropped.length }
+  // Authored effects take precedence; valid caller candidates follow in their input order.
+  const combined = [...authored, ...sanitized.effects]
+  const droppedByCap = Math.max(0, combined.length - 4)
+  return { effects: combined.slice(0, 4), dropped: sanitized.dropped.length + droppedByCap }
+}
+
+function normalizeInput(rawInput: ResolverInput): ResolverInput {
+  const parsed = resolverInputSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    throw new ResolverInputError(
+      parsed.error.issues.map((issue) => `${issue.path.join('.') || '$'}: ${issue.message}`),
+    )
+  }
+
+  const { candidateEffects, actions: rawActions, ...rest } = parsed.data
+  const actions = rawActions as ResolverInput['actions']
+  return {
+    ...rest,
+    actions,
+    evidenceCollected:
+      Number.isFinite(parsed.data.evidenceCollected) && parsed.data.evidenceCollected >= 0
+        ? parsed.data.evidenceCollected
+        : 0,
+    agents: parsed.data.agents.map((agent) => ({
+      ...agent,
+      disposition: Number.isFinite(agent.disposition)
+        ? Math.min(5, Math.max(-5, Math.round(agent.disposition)))
+        : 0,
+    })),
+    ...(candidateEffects === undefined ? {} : { candidateEffects }),
+  }
+}
+
+function compareAgentIds(a: { agentId: string }, b: { agentId: string }): number {
+  return a.agentId < b.agentId ? -1 : a.agentId > b.agentId ? 1 : 0
+}
+
+function compareDeltaPriority(a: AgentDelta, b: AgentDelta): number {
+  return Math.abs(b.dispositionDelta) - Math.abs(a.dispositionDelta) || compareAgentIds(a, b)
 }
 
 /**
  * Resolve a stage. Pure and synchronous: `resolveStageSync(x)` twice returns deep-equal records.
  */
-export function resolveStageSync(input: ResolverInput): ResolverResult {
+export function resolveStageSync(rawInput: ResolverInput): ResolverResult {
+  const input = normalizeInput(rawInput)
   // Defence in depth: the runtime allow-lists actions before they execute, and the Resolver refuses
   // to record one that is not on the list (FR-20).
   const actions: ActorAction[] = []
@@ -120,6 +172,8 @@ export function resolveStageSync(input: ResolverInput): ResolverResult {
     if (parsed.ok) actions.push({ ...candidate, action: parsed.action })
     else droppedActions += 1
   }
+  const acceptedActions = actions.slice(0, 256)
+  droppedActions += Math.max(0, actions.length - acceptedActions.length)
 
   const rng = createRng(`${input.seed}|${input.attemptId}|${input.stageId}|${input.decision?.optionId ?? 'pass'}`)
   const probability = successProbability(input)
@@ -137,11 +191,15 @@ export function resolveStageSync(input: ResolverInput): ResolverResult {
 
   const stance = input.decision?.stance ?? 'evasive'
   const base = STANCE_DISPOSITION[stance][success ? 'success' : 'failure']
-  const agentDeltas: AgentDelta[] = input.agents.map((agent) => {
-    const jitter = rng.int(-1, 1)
-    const disposition = clamp(agent.disposition + clamp(base + jitter, -3, 3), -5, 5)
-    return { agentId: agent.id, dispositionDelta: disposition - agent.disposition, disposition }
-  })
+  const allAgentDeltas: AgentDelta[] = [...input.agents]
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map((agent) => {
+      const agentRng = createRng(`${input.seed}|${input.attemptId}|${input.stageId}|${agent.id}`)
+      const jitter = agentRng.int(-1, 1)
+      const disposition = clamp(agent.disposition + clamp(base + jitter, -3, 3), -5, 5)
+      return { agentId: agent.id, dispositionDelta: disposition - agent.disposition, disposition }
+    })
+  const agentDeltas = [...allAgentDeltas].sort(compareDeltaPriority).slice(0, MAX_AGENT_DELTAS)
 
   const next = resolveNext(input)
   const { effects, dropped: droppedEffects } = buildEffects(input, success)
@@ -167,7 +225,7 @@ export function resolveStageSync(input: ResolverInput): ResolverResult {
     stageId: input.stageId,
     resolvedAt: input.resolvedAt,
     trigger: input.trigger,
-    actions,
+    actions: acceptedActions,
     outcome: {
       announcement: buildAnnouncement(input, success, agentDeltas),
       effects,
@@ -195,7 +253,15 @@ export function resolveStageSync(input: ResolverInput): ResolverResult {
     throw new Error(`fake resolver produced an invalid I4 payload: ${validated.issues.join('; ')}`)
   }
 
-  return { record: validated.record, telemetry: { droppedActions, droppedEffects, repairRounds: 0 } }
+  return {
+    record: validated.record,
+    telemetry: {
+      droppedActions,
+      droppedEffects,
+      droppedAgentDeltas: allAgentDeltas.length - agentDeltas.length,
+      repairRounds: 0,
+    },
+  }
 }
 
 /** The fake Resolver behind the shared `Resolver` interface, so the LLM one can replace it later. */

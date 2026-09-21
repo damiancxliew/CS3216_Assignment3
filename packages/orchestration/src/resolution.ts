@@ -73,11 +73,14 @@ export const nextStepSchema = z.discriminatedUnion('kind', [
 ])
 export type NextStep = z.infer<typeof nextStepSchema>
 
+/** Frozen I4 cap on per-agent outputs. A stage may not have more agents than this or their deltas are dropped. */
+export const MAX_AGENT_DELTAS = 8
+
 export const outcomeSchema = z.object({
   /** The only narrative text the player sees for this resolution. No odds, no rationale (D11). */
   announcement: z.string().min(1).max(1200),
   effects: z.array(sceneEffectSchema).max(4),
-  agentDeltas: z.array(agentDeltaSchema).max(8),
+  agentDeltas: z.array(agentDeltaSchema).max(MAX_AGENT_DELTAS),
   worldDeltas: z.array(worldDeltaSchema).max(16),
   /** Appended to the shared historical context every actor receives (D8). Public by definition. */
   sharedContextAppend: z.string().max(1200).nullable(),
@@ -92,14 +95,14 @@ export const resolutionRecordSchema = z.object({
   version: z.literal(RESOLUTION_VERSION),
   attemptId: id,
   stageId: id,
-  resolvedAt: z.string().min(1),
+  resolvedAt: z.string().datetime({ offset: true }),
   trigger: z.enum(RESOLUTION_TRIGGERS),
   /** Everything the parties did this stage, already allow-listed (FR-20). */
   actions: z.array(actorActionSchema).max(256),
   outcome: outcomeSchema,
   rolls: z.array(rollSchema).max(16),
   /** Per-agent memory written by the resolution. Server-side only (FR-21). */
-  privateNotes: z.array(z.object({ agentId: id, note: z.string().min(1).max(600) })).max(8),
+  privateNotes: z.array(z.object({ agentId: id, note: z.string().min(1).max(600) })).max(MAX_AGENT_DELTAS),
   /** Why the Resolver decided what it decided. Server-side only (FR-21). */
   rationale: z.string().min(1).max(2000),
 })
