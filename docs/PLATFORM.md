@@ -59,6 +59,25 @@ Two things the schema enforces rather than the application:
   record. A client may read *that* an actor committed but never *what* they chose:
   `option_id` is withheld at the column grant, not merely omitted by the API.
 
+## Publishing and immutable versions (P4)
+
+`publish_adventure(adventure_id)` stamps the newest draft `spec_version` and points
+`adventure.published_version` at it. From that moment the version is frozen by
+triggers rather than by convention: `spec_version` and everything hanging off it —
+stages, rooms, agents, private context, evidence, objectives, options, maps — reject
+INSERT, UPDATE and DELETE **for every role, service role included**, so the
+generation pipeline cannot quietly rewrite a version students are playing either.
+
+Editing after publish therefore means `create_draft_version(adventure_id)`, which
+deep-copies the newest version into the next version number as a draft and rewrites
+internal references (an agent's starting room, an option's branch target, the stage
+ids inside `branch_map`) to point at the copies. Republishing stamps that draft.
+
+An attempt pins `published_version` when it joins and RLS only exposes the pinned
+version, so republishing mid-game is invisible to a game already in progress — the
+test asserts exactly that, rewriting the adventure under a live attempt and checking
+the student still sees the original stage.
+
 ## Auth and sharing links (P3)
 
 Sign-in is Supabase Auth with Google. The browser client starts the OAuth dance,
