@@ -333,6 +333,21 @@ skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
 email_optional = false
 
+# Google sign-in (P3). Credentials come from the environment, never from this
+# file: export SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID and
+# SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET, then flip `enabled` to true to exercise
+# the real provider locally. It ships disabled so that a checkout without OAuth
+# credentials — CI included — still brings the stack up; the hosted project
+# enables Google in the dashboard.
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+# Required for local sign-in with Google.
+skip_nonce_check = true
+
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
 [auth.web3.solana]

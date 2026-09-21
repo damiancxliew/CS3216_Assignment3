@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { SignInButton } from "@/components/sign-in-button";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
 
@@ -25,6 +26,7 @@ export default function Home() {
           and lets a student find out what their decisions cost.
         </p>
       </div>
+      <SignInButton next="/" label="Teacher sign-in with Google" />
       <div className="flex flex-col gap-2 text-sm opacity-70">
         <p>The teacher console and the game client land this week.</p>
         <p>
