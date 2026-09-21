@@ -1,4 +1,4 @@
-# Platform setup (P1, P2, P9, I3)
+# Platform setup (P1, P2, P3, P9, I3)
 
 ## Prerequisites
 
@@ -25,6 +25,7 @@ or CI can reproduce the exact database from a clean checkout.
 | Command | Covers |
 | --- | --- |
 | `npx vitest run tests/api` | I3 Turn API contract, timer derivation, FR-21 leak checks |
+| `npx vitest run tests/db/share-links.test.ts` | P3 — published-only share links, join, resume, token rotation |
 | `npm run db:test` | resets the database, then runs the RLS negative tests |
 | `npm run lint` / `npm run typecheck` / `npm run build` | web app |
 
@@ -57,6 +58,36 @@ Two things the schema enforces rather than the application:
   closes when every actor has a row; orchestration owns closure, this table is the
   record. A client may read *that* an actor committed but never *what* they chose:
   `option_id` is withheld at the column grant, not merely omitted by the API.
+
+## Auth and sharing links (P3)
+
+Sign-in is Supabase Auth with Google. The browser client starts the OAuth dance,
+`/auth/callback` exchanges the code for a session, and `middleware.ts` refreshes it
+on every navigation so Server Components see a live user. `next` on the callback is
+accepted only as a same-origin relative path, so a share link cannot be turned into
+an open redirect.
+
+A share link is `/join/<adventure.share_token>`, and the token is deliberately *not*
+a read grant. It is an argument to two database functions:
+
+- `share_link_preview(token)` — the only thing an anonymous visitor may call. It
+  returns a title and setting **only** for a published adventure; a draft, an
+  archived adventure and a token that belongs to nothing are all indistinguishable
+  from each other, so an unpublished adventure is not reachable by link.
+- `join_adventure(token)` — requires `auth.uid()`, resolves the published adventure,
+  and either returns the student's existing active attempt (opening the link twice
+  resumes rather than restarts) or creates one pinned to the current
+  `published_version`, on the first stage, with `stage_deadline_at` set server-side
+  from `effective_timer_seconds`.
+
+Admission is therefore what grants access: after joining, the ordinary RLS policies
+expose the pinned version and nothing else. A teacher can call
+`rotate_share_token(adventure_id)` on their own adventure, which invalidates every
+copy of the old link.
+
+Enabling Google against the hosted project is dashboard configuration: add the OAuth
+client, and add `<site>/auth/callback` to both the Google client's redirect URIs and
+Supabase's redirect allow-list.
 
 ## Turn API (I3)
 
