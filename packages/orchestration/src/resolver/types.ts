@@ -20,6 +20,8 @@ export interface ResolverAgentView {
   name: string
   /** Standing toward the player, -5 hostile to +5 loyal. World state, carried between stages. */
   disposition: number
+  /** The character's own end-of-stage commitment, from the K6 ledger, when it made one. */
+  commitment?: { optionId: string | null; how: 'committed' | 'passed' | 'timed_out' }
 }
 
 /** The option the player committed to (D18). Options are spec-authored, so the branch is too. */
@@ -99,6 +101,12 @@ export const resolverInputSchema = z.object({
         id,
         name: z.string().min(1).max(200),
         disposition: recoverableNumber,
+        commitment: z
+          .object({
+            optionId: id.nullable(),
+            how: z.enum(['committed', 'passed', 'timed_out']),
+          })
+          .optional(),
       }),
     )
     .superRefine((agents, ctx) => {

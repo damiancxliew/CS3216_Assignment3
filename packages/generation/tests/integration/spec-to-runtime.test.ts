@@ -74,6 +74,35 @@ describe('spec -> runtime adapter', () => {
     expect(json).not.toContain('stretching his instructions from Hastings') // Raffles'
     expect(input.sharedContext).toBe(spec.sharedContext.text)
   })
+
+  it("carries each agent's K6 ledger entry into the resolver as its commitment (K7)", async () => {
+    const spec = await loadI1Spec()
+    const bundle = toStageRuntime(spec, 0)
+    const ledger = new StageDecisions([
+      { actorId: PLAYER_ID, actorKind: 'player' },
+      ...bundle.resolverAgents.map((a) => ({ actorId: a.id, actorKind: 'agent' as const })),
+    ])
+    expect(ledger.pass('agent-farquhar-s0').ok).toBe(true)
+    const timedOut = ledger.expire().map((d) => d.actorId)
+    expect(timedOut).toEqual(expect.arrayContaining([PLAYER_ID, 'agent-temenggong-s0', 'agent-raffles-s0']))
+
+    const decisions = ledger.all().map((d) => (d.actorId === 'agent-raffles-s0' ? { ...d, optionId: 'opt-land-troops', how: 'committed' as const } : d))
+    const parts = { attemptId: 'attempt-1', seed: 'seed-1', resolvedAt: '2026-09-21T00:00:00.000Z', optionId: 'opt-land-troops', actions: [], evidenceCollected: 0 }
+    const input = toResolverInput(spec, bundle, { ...parts, decisions })
+    const byId = Object.fromEntries(input.agents.map((a) => [a.id, a.commitment]))
+    expect(byId).toEqual({
+      'agent-farquhar-s0': { optionId: null, how: 'passed' },
+      'agent-temenggong-s0': { optionId: null, how: 'timed_out' },
+      'agent-raffles-s0': { optionId: 'opt-land-troops', how: 'committed' },
+    })
+    expect(input.agents.map((a) => a.id)).not.toContain(PLAYER_ID) // the player's own entry is the decision, not a commitment
+
+    // without a ledger nothing is invented, and the resolver still accepts the input either way
+    expect(toResolverInput(spec, bundle, parts).agents.every((a) => a.commitment === undefined)).toBe(true)
+    const { record } = await fakeResolver.resolveStage(input)
+    expect(record.rationale).toContain('agent_stance')
+    expect(JSON.stringify(record.outcome)).not.toContain('agent_stance')
+  })
 })
 
 describe('I1 fixture -> K4 stage loop -> K6 options -> K1/K7 resolver -> ending (no LLM)', () => {
@@ -118,7 +147,7 @@ describe('I1 fixture -> K4 stage loop -> K6 options -> K1/K7 resolver -> ending 
       path.push(chosen)
 
       const resolution = await fakeResolver.resolveStage(
-        toResolverInput(spec, bundle, { attemptId: 'attempt-1', seed: 'seed-1', resolvedAt: '2026-09-21T00:00:00.000Z', optionId: chosen, actions: [], evidenceCollected, dispositions }),
+        toResolverInput(spec, bundle, { attemptId: 'attempt-1', seed: 'seed-1', resolvedAt: '2026-09-21T00:00:00.000Z', optionId: chosen, actions: [], evidenceCollected, dispositions, decisions: ledger.all() }),
       )
       const { outcome } = resolution.record
       expect(outcome.announcement.length).toBeGreaterThan(0)
