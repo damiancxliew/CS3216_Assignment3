@@ -1,0 +1,108 @@
+{
+  "case": "mason-1787",
+  "metrics": {
+    "promptVersion": "planner-v1",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 1,
+    "repairs": 0,
+    "valid": true,
+    "totalLatencyMs": 150778,
+    "usage": {
+      "inputTokens": 4115,
+      "cachedInputTokens": 0,
+      "outputTokens": 20561,
+      "reasoningTokens": 9786
+    },
+    "costUsd": 0.3187025,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 150762,
+        "usage": {
+          "inputTokens": 4115,
+          "cachedInputTokens": 0,
+          "outputTokens": 20561,
+          "reasoningTokens": 9786
+        },
+        "costUsd": 0.3187025,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0
+      }
+    ],
+    "documents": [
+      {
+        "id": "mason-objections-1787",
+        "pages": 2,
+        "chars": 5848
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The source does not identify named supporters who argued that a Bill of Rights was unnecessary.",
+    "The source does not state whether Mason refused to sign or how other delegates answered him.",
+    "The source does not record the exact rooms, route, or chronology between Philadelphia and Virginia.",
+    "The source does not preserve private conversations; several agents therefore stand in for collective interests named in the objections.",
+    "The source does not provide a full pro-Constitution rebuttal to Mason's objections."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 106,
+      "resolved": 106,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 7,
+    "branching": {
+      "stages": 3,
+      "distinctTargetsPerStage": [
+        2,
+        1,
+        4
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "upper-secondary",
+      "budgetWords": 180,
+      "maxWords": 28,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 7,
+      "kinds": {
+        "portrait": 1,
+        "landmark": 3,
+        "prop": 3
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "The Objections Packet",
+  "warnings": []
+}

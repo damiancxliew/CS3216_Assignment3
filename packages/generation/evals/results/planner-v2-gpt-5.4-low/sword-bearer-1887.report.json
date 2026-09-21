@@ -1,0 +1,180 @@
+{
+  "case": "sword-bearer-1887",
+  "metrics": {
+    "promptVersion": "planner-v2",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 3,
+    "repairs": 2,
+    "valid": true,
+    "totalLatencyMs": 261474,
+    "usage": {
+      "inputTokens": 39622,
+      "cachedInputTokens": 8704,
+      "outputTokens": 32905,
+      "reasoningTokens": 1265
+    },
+    "costUsd": 0.5730459999999999,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 102846,
+        "usage": {
+          "inputTokens": 5875,
+          "cachedInputTokens": 0,
+          "outputTokens": 11088,
+          "reasoningTokens": 516
+        },
+        "costUsd": 0.1810075,
+        "issueCount": 2,
+        "schemaIssues": 2,
+        "groundingIssues": 0,
+        "issues": [
+          {
+            "path": "$.adventure.stages.2.objectives.1.id",
+            "message": "objective \"obj-read-photo\" is not (transitively) required by the stage decision"
+          },
+          {
+            "path": "$.adventure.stages.2.decision.options.2.branchTarget.endingId",
+            "message": "unknown ending \"ending-adoption-dominates\""
+          }
+        ]
+      },
+      {
+        "purpose": "repair",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 63373,
+        "usage": {
+          "inputTokens": 16595,
+          "cachedInputTokens": 4864,
+          "outputTokens": 10862,
+          "reasoningTokens": 288
+        },
+        "costUsd": 0.1934735,
+        "issueCount": 5,
+        "schemaIssues": 0,
+        "groundingIssues": 5,
+        "issues": [
+          {
+            "path": "$.adventure.stakeholders.1.summary.spans.2",
+            "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 5: \"mmence to work on our farms pretty soon, and I want the Great Father to let the Page 2 eight Crow prisoners now held at Fort Snelling, come home to us pretty quick, so that they can help their fam- ilies work, and can take care of their cat\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stakeholders.3.summary.spans.1",
+            "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 6: \"e as Crows, I am willing that they all Page 3 should be as one of us, and that they should all have the rights in every way that the Crows have. You (to Agent Williamson) have always treated us well. One of us was a fool (referring to the M\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.endings.2.historicalOutcome.spans.0",
+            "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 5: \"mmence to work on our farms pretty soon, and I want the Great Father to let the Page 2 eight Crow prisoners now held at Fort Snelling, come home to us pretty quick, so that they can help their fam- ilies work, and can take care of their cat\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.agents.1.publicPosition.spans.0",
+            "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 6: \"e as Crows, I am willing that they all Page 3 should be as one of us, and that they should all have the rights in every way that the Crows have. You (to Agent Williamson) have always treated us well. One of us was a fool (referring to the M\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.2.agents.0.privateContext.spans.0",
+            "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 5: \"mmence to work on our farms pretty soon, and I want the Great Father to let the Page 2 eight Crow prisoners now held at Fort Snelling, come home to us pretty quick, so that they can help their fam- ilies work, and can take care of their cat\" — copy from it verbatim or replace the span with an assumptionId"
+          }
+        ]
+      },
+      {
+        "purpose": "repair",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 95241,
+        "usage": {
+          "inputTokens": 17152,
+          "cachedInputTokens": 3840,
+          "outputTokens": 10955,
+          "reasoningTokens": 461
+        },
+        "costUsd": 0.198565,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0,
+        "issues": []
+      }
+    ],
+    "documents": [
+      {
+        "id": "montana-sword-bearer-1887",
+        "pages": 9,
+        "chars": 10433
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The documents do not provide a transcript of the November 5 peace meeting or the exact words of General Thomas H. Ruger, so stage-two dialogue around the failed parley is inferred.",
+    "The documents do not describe exact building interiors, room arrangements, or where specific conversations took place within the agency.",
+    "The documents do not give first-person statements from Sword Bearer or the raiding party.",
+    "The documents do not identify the interpreter named in the December council certification beyond the partial note that someone 'interpreted at the Council with Crow.'",
+    "The documents do not supply Dudley's own written account here; his position is reconstructed from Williamson's letter and the background summary.",
+    "The documents do not explain exactly why Williamson changed the subject from the prisoners to the Cummins adoption question; that motive remains interpretive."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 89,
+      "resolved": 89,
+      "ratio": 1
+    },
+    "documentedShare": 0.9743589743589743,
+    "assumptions": 7,
+    "branching": {
+      "stages": 3,
+      "distinctTargetsPerStage": [
+        2,
+        2,
+        2
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "earlyFork": {
+      "nonFinalStages": 2,
+      "forking": 2,
+      "ratio": 1
+    },
+    "objectiveChains": 3,
+    "overlaysSet": 3,
+    "injection": null,
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "upper-secondary",
+      "budgetWords": 180,
+      "maxWords": 48,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 8,
+      "kinds": {
+        "portrait": 4,
+        "landmark": 2,
+        "prop": 2
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "At the Agency: The Sword Bearer Crisis, 1887",
+  "warnings": []
+}

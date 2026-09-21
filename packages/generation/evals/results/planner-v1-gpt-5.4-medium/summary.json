@@ -1,0 +1,445 @@
+{
+  "label": "planner-v1-gpt-5.4-medium",
+  "startedAt": "2026-09-20T15:04:00.394Z",
+  "promptVersion": "planner-v1",
+  "config": {
+    "model": "gpt-5.4",
+    "maxOutputTokens": 32000,
+    "reasoningEffort": "medium",
+    "maxRepairs": 2
+  },
+  "cases": [
+    {
+      "case": "singapore-1819",
+      "metrics": {
+        "promptVersion": "planner-v1",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 1,
+        "repairs": 0,
+        "valid": true,
+        "totalLatencyMs": 142915,
+        "usage": {
+          "inputTokens": 3972,
+          "cachedInputTokens": 0,
+          "outputTokens": 18924,
+          "reasoningTokens": 8804
+        },
+        "costUsd": 0.29379,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 142885,
+            "usage": {
+              "inputTokens": 3972,
+              "cachedInputTokens": 0,
+              "outputTokens": 18924,
+              "reasoningTokens": 8804
+            },
+            "costUsd": 0.29379,
+            "issueCount": 0,
+            "schemaIssues": 0,
+            "groundingIssues": 0
+          }
+        ],
+        "documents": [
+          {
+            "id": "handout",
+            "pages": 4,
+            "chars": 4676
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 5,
+      "status": "ok",
+      "reason": null,
+      "checks": {
+        "grounding": {
+          "total": 95,
+          "resolved": 95,
+          "ratio": 1
+        },
+        "documentedShare": 1,
+        "assumptions": 6,
+        "branching": {
+          "stages": 3,
+          "distinctTargetsPerStage": [
+            1,
+            3,
+            4
+          ],
+          "endings": 4,
+          "reachableEndings": 4,
+          "ok": true
+        },
+        "stances": {
+          "distinct": [
+            "antagonistic",
+            "cooperative",
+            "evasive",
+            "neutral"
+          ],
+          "ok": true
+        },
+        "readingLevel": {
+          "band": "lower-secondary",
+          "budgetWords": 120,
+          "maxWords": 32,
+          "overBudget": [],
+          "ok": true
+        },
+        "assets": {
+          "count": 8,
+          "kinds": {
+            "portrait": 4,
+            "landmark": 2,
+            "prop": 2
+          },
+          "ok": true
+        },
+        "privateContextLeak": [],
+        "playability": {
+          "level": "spec-level",
+          "ok": true,
+          "errors": []
+        },
+        "pass": true
+      },
+      "issues": 0,
+      "title": "At the Mouth of the Strait"
+    },
+    {
+      "case": "mason-1787",
+      "metrics": {
+        "promptVersion": "planner-v1",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 1,
+        "repairs": 0,
+        "valid": true,
+        "totalLatencyMs": 150778,
+        "usage": {
+          "inputTokens": 4115,
+          "cachedInputTokens": 0,
+          "outputTokens": 20561,
+          "reasoningTokens": 9786
+        },
+        "costUsd": 0.3187025,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 150762,
+            "usage": {
+              "inputTokens": 4115,
+              "cachedInputTokens": 0,
+              "outputTokens": 20561,
+              "reasoningTokens": 9786
+            },
+            "costUsd": 0.3187025,
+            "issueCount": 0,
+            "schemaIssues": 0,
+            "groundingIssues": 0
+          }
+        ],
+        "documents": [
+          {
+            "id": "mason-objections-1787",
+            "pages": 2,
+            "chars": 5848
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 5,
+      "status": "ok",
+      "reason": null,
+      "checks": {
+        "grounding": {
+          "total": 106,
+          "resolved": 106,
+          "ratio": 1
+        },
+        "documentedShare": 1,
+        "assumptions": 7,
+        "branching": {
+          "stages": 3,
+          "distinctTargetsPerStage": [
+            2,
+            1,
+            4
+          ],
+          "endings": 4,
+          "reachableEndings": 4,
+          "ok": true
+        },
+        "stances": {
+          "distinct": [
+            "antagonistic",
+            "cooperative",
+            "evasive",
+            "neutral"
+          ],
+          "ok": true
+        },
+        "readingLevel": {
+          "band": "upper-secondary",
+          "budgetWords": 180,
+          "maxWords": 28,
+          "overBudget": [],
+          "ok": true
+        },
+        "assets": {
+          "count": 7,
+          "kinds": {
+            "portrait": 1,
+            "landmark": 3,
+            "prop": 3
+          },
+          "ok": true
+        },
+        "privateContextLeak": [],
+        "playability": {
+          "level": "spec-level",
+          "ok": true,
+          "errors": []
+        },
+        "pass": true
+      },
+      "issues": 0,
+      "title": "The Objections Packet"
+    },
+    {
+      "case": "spotted-tail-1877",
+      "metrics": {
+        "promptVersion": "planner-v1",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 2,
+        "repairs": 1,
+        "valid": true,
+        "totalLatencyMs": 196688,
+        "usage": {
+          "inputTokens": 22393,
+          "cachedInputTokens": 5888,
+          "outputTokens": 28610,
+          "reasoningTokens": 8802
+        },
+        "costUsd": 0.47188450000000004,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 132362,
+            "usage": {
+              "inputTokens": 6024,
+              "cachedInputTokens": 0,
+              "outputTokens": 16730,
+              "reasoningTokens": 6843
+            },
+            "costUsd": 0.26601,
+            "issueCount": 7,
+            "schemaIssues": 0,
+            "groundingIssues": 7
+          },
+          {
+            "purpose": "repair",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 64303,
+            "usage": {
+              "inputTokens": 16369,
+              "cachedInputTokens": 5888,
+              "outputTokens": 11880,
+              "reasoningTokens": 1959
+            },
+            "costUsd": 0.2058745,
+            "issueCount": 0,
+            "schemaIssues": 0,
+            "groundingIssues": 0
+          }
+        ],
+        "documents": [
+          {
+            "id": "spotted-tail-agency-1877",
+            "pages": 5,
+            "chars": 13303
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 7,
+      "status": "ok",
+      "reason": null,
+      "checks": {
+        "grounding": {
+          "total": 85,
+          "resolved": 85,
+          "ratio": 1
+        },
+        "documentedShare": 1,
+        "assumptions": 7,
+        "branching": {
+          "stages": 2,
+          "distinctTargetsPerStage": [
+            1,
+            4
+          ],
+          "endings": 4,
+          "reachableEndings": 4,
+          "ok": true
+        },
+        "stances": {
+          "distinct": [
+            "antagonistic",
+            "cooperative",
+            "evasive",
+            "neutral"
+          ],
+          "ok": true
+        },
+        "readingLevel": {
+          "band": "upper-secondary",
+          "budgetWords": 180,
+          "maxWords": 39,
+          "overBudget": [],
+          "ok": true
+        },
+        "assets": {
+          "count": 8,
+          "kinds": {
+            "portrait": 3,
+            "landmark": 3,
+            "prop": 2
+          },
+          "ok": true
+        },
+        "privateContextLeak": [],
+        "playability": {
+          "level": "spec-level",
+          "ok": true,
+          "errors": []
+        },
+        "pass": true
+      },
+      "issues": 0,
+      "title": "Spring at Spotted Tail Agency"
+    },
+    {
+      "case": "magna-carta-1297",
+      "metrics": {
+        "promptVersion": "planner-v1",
+        "specVersion": 2,
+        "model": "gpt-5.4",
+        "attempts": 1,
+        "repairs": 0,
+        "valid": true,
+        "totalLatencyMs": 159952,
+        "usage": {
+          "inputTokens": 7836,
+          "cachedInputTokens": 0,
+          "outputTokens": 20165,
+          "reasoningTokens": 8804
+        },
+        "costUsd": 0.322065,
+        "calls": [
+          {
+            "purpose": "plan",
+            "model": "gpt-5.4-2026-03-05",
+            "latencyMs": 159941,
+            "usage": {
+              "inputTokens": 7836,
+              "cachedInputTokens": 0,
+              "outputTokens": 20165,
+              "reasoningTokens": 8804
+            },
+            "costUsd": 0.322065,
+            "issueCount": 0,
+            "schemaIssues": 0,
+            "groundingIssues": 0
+          }
+        ],
+        "documents": [
+          {
+            "id": "magna-carta-1297-translation",
+            "pages": 6,
+            "chars": 19485
+          }
+        ],
+        "documentsTruncated": false
+      },
+      "missingInformation": 5,
+      "status": "ok",
+      "reason": null,
+      "checks": {
+        "grounding": {
+          "total": 69,
+          "resolved": 69,
+          "ratio": 1
+        },
+        "documentedShare": 1,
+        "assumptions": 8,
+        "branching": {
+          "stages": 3,
+          "distinctTargetsPerStage": [
+            1,
+            1,
+            4
+          ],
+          "endings": 4,
+          "reachableEndings": 4,
+          "ok": true
+        },
+        "stances": {
+          "distinct": [
+            "antagonistic",
+            "cooperative",
+            "evasive",
+            "neutral"
+          ],
+          "ok": true
+        },
+        "readingLevel": {
+          "band": "upper-secondary",
+          "budgetWords": 180,
+          "maxWords": 29,
+          "overBudget": [],
+          "ok": true
+        },
+        "assets": {
+          "count": 8,
+          "kinds": {
+            "portrait": 4,
+            "landmark": 2,
+            "prop": 2
+          },
+          "ok": true
+        },
+        "privateContextLeak": [],
+        "playability": {
+          "level": "spec-level",
+          "ok": true,
+          "errors": []
+        },
+        "pass": true
+      },
+      "issues": 0,
+      "title": "Under the Seal: Confirming Magna Carta, 1297"
+    }
+  ],
+  "aggregate": {
+    "n": 4,
+    "validRate": 1,
+    "firstTryValidRate": 0.75,
+    "repairRate": 0.25,
+    "meanRepairs": 0.25,
+    "checksPassRate": 1,
+    "meanLatencyMs": 162583.25,
+    "meanInputTokens": 9579,
+    "meanOutputTokens": 22065,
+    "meanCostUsd": 0.3516105,
+    "totalCostUsd": 1.406442,
+    "maxPairwiseSimilarity": 0
+  }
+}

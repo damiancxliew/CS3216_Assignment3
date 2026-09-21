@@ -1,0 +1,108 @@
+{
+  "case": "magna-carta-1297",
+  "metrics": {
+    "promptVersion": "planner-v1",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 1,
+    "repairs": 0,
+    "valid": true,
+    "totalLatencyMs": 159952,
+    "usage": {
+      "inputTokens": 7836,
+      "cachedInputTokens": 0,
+      "outputTokens": 20165,
+      "reasoningTokens": 8804
+    },
+    "costUsd": 0.322065,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 159941,
+        "usage": {
+          "inputTokens": 7836,
+          "cachedInputTokens": 0,
+          "outputTokens": 20165,
+          "reasoningTokens": 8804
+        },
+        "costUsd": 0.322065,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0
+      }
+    ],
+    "documents": [
+      {
+        "id": "magna-carta-1297-translation",
+        "pages": 6,
+        "chars": 19485
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The source does not name the specific 1297 barons, bishops, or merchants who pressed Edward I during confirmation.",
+    "The source does not explain the wider political or military crisis behind the 1297 confirmation.",
+    "The source does not describe the actual rooms, movement, or order of hearings inside Westminster.",
+    "The source does not state how unfree peasants or other non-freemen experienced these liberties.",
+    "The source does not record the private motives of the king's officers, clergy, nobles, or merchants beyond the protections written into the charter."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 69,
+      "resolved": 69,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 8,
+    "branching": {
+      "stages": 3,
+      "distinctTargetsPerStage": [
+        1,
+        1,
+        4
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "upper-secondary",
+      "budgetWords": 180,
+      "maxWords": 29,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 8,
+      "kinds": {
+        "portrait": 4,
+        "landmark": 2,
+        "prop": 2
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "Under the Seal: Confirming Magna Carta, 1297",
+  "warnings": []
+}

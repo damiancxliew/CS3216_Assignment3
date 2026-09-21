@@ -1,0 +1,1298 @@
+{
+  "version": 2,
+  "id": "between-rations-and-removal",
+  "title": "Between Rations and Removal",
+  "setting": "Spotted Tail Agency, Nebraska, spring 1877",
+  "description": "You play an interpreter at Spotted Tail Agency in May 1877. J. M. Lee reports short rations, crowded new arrivals, pressure to keep peace, and fierce resistance to removal to the Missouri. Your job is to carry messages between agency staff, military authority, and Lakota leaders while keeping clear what the source document records and what the simulation must assume.",
+  "readingLevel": {
+    "band": "upper-secondary",
+    "ageMin": 15,
+    "ageMax": 16
+  },
+  "learningObjectives": [
+    "Describe conditions at the Spotted Tail Agency in 1877 as reported by the acting agent.",
+    "Explain the competing pressures on Lakota leaders, the agent, and the U.S. government.",
+    "Distinguish what the report documents from what the simulation assumes."
+  ],
+  "player": {
+    "name": "You",
+    "role": "Interpreter",
+    "brief": "You translate and relay messages between the agency staff, military officers, and Lakota leaders during a month of shortages, arrivals, and argument over removal."
+  },
+  "sources": [
+    {
+      "id": "spotted-tail-agency-1877",
+      "title": "spotted tail agency 1877",
+      "kind": "pdf",
+      "pageCount": 5,
+      "contentHash": "8a0e6d3b7025a53f6fc99118e501cf34f6193418e373cde2a93e576a5073f858"
+    }
+  ],
+  "sharedContext": {
+    "text": "Lee reports an agency under strain. More people are drawing rations, ordinary supplies are running out, and he warns that removing the agency this year could undo peace. You work as an interpreter between agency staff, military authority, and Lakota leaders, separating what the report states from what the simulation adds.",
+    "spans": [
+      {
+        "sourceId": "spotted-tail-agency-1877",
+        "page": 1,
+        "quote": "owing to the large accessions [groups of Indians coming] both from Red Cloud Agency & the north."
+      },
+      {
+        "sourceId": "spotted-tail-agency-1877",
+        "page": 2,
+        "quote": "which makes a grand total of 7133 Indians, Hlf Breeds, & Whites with Indian families now rationed at this Agency."
+      },
+      {
+        "sourceId": "spotted-tail-agency-1877",
+        "page": 4,
+        "quote": "I would respectfully but earnestly recommend that the operations tending towards the removal of the Indians for the present year, be abandoned"
+      }
+    ],
+    "assumptionIds": [
+      "asm-player-interpreter",
+      "asm-council-compression"
+    ]
+  },
+  "assumptions": [
+    {
+      "id": "asm-player-interpreter",
+      "text": "The player is a bilingual interpreter working between agency staff, military personnel, and Lakota leaders.",
+      "rationale": "The teacher brief assigns this role, but the source document does not mention such a specific player character."
+    },
+    {
+      "id": "asm-council-compression",
+      "text": "Separate reports, inspections, and conversations from late April and May 1, 1877 are compressed into two playable decision points.",
+      "rationale": "The report summarizes events over time rather than one continuous scene."
+    },
+    {
+      "id": "asm-stage1-layout",
+      "text": "Stage 1 condenses office, warehouse, lodge area, and a military yard into one traversable map.",
+      "rationale": "The source names functions and places but does not give a navigable layout."
+    },
+    {
+      "id": "asm-stage2-layout",
+      "text": "Stage 2 condenses a council space, records office, school space, and troop camp into one traversable map.",
+      "rationale": "The source discusses these issues but does not map them physically."
+    },
+    {
+      "id": "asm-northern-returnees-composite",
+      "text": "One agent represents several families and headmen who recently returned from the north.",
+      "rationale": "The report lists many people and general conditions, not one single spokesperson."
+    },
+    {
+      "id": "asm-camp-officer-composite",
+      "text": "One composite Camp Sheridan officer represents the military authorities and commanding officer mentioned in the report.",
+      "rationale": "The document refers to officers and a commanding officer but does not identify one named individual for dialogue."
+    },
+    {
+      "id": "asm-private-motives",
+      "text": "Private motives, hidden interests, and limits of knowledge are inferred from actions and recommendations in the report.",
+      "rationale": "The document records public actions and opinions more often than inner thoughts."
+    },
+    {
+      "id": "asm-spotted-tail-speaks-for-brules",
+      "text": "Spotted Tail is used as the main playable voice for the Brulé objections to removal described collectively in the report.",
+      "rationale": "Lee reports the Brules' general requests, not a direct speech by Spotted Tail on every point."
+    },
+    {
+      "id": "asm-counterfactual-branches",
+      "text": "Branching endings imagine plausible outcomes that differ from the surviving report.",
+      "rationale": "The game needs choices and consequences, but the document records only one official report."
+    }
+  ],
+  "stakeholders": [
+    {
+      "id": "jm-lee",
+      "name": "J. M. Lee",
+      "role": "Acting Indian Agent",
+      "summary": {
+        "text": "Lee presents the agency as overstretched. He says supplies are running short because of new arrivals, that many Indians want to farm, and that removal this year would be dangerous. His report frames peace as fragile and dependent on food, timing, and trust in government promises.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 1,
+            "quote": "I shall have neither flour, H[ar]d Bread, or Corn on hand for issue during the coming week."
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 2,
+            "quote": "Since then their [sic] has been a great desire on the part of the Indians to farm"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "I would respectfully but earnestly recommend that the operations tending towards the removal of the Indians for the present year, be abandoned"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "spotted-tail",
+      "name": "Spotted Tail",
+      "role": "Brulé Lakota leader",
+      "summary": {
+        "text": "Lee records Spotted Tail as recently returned from the north, as a recipient of annuity goods, and as one of the chiefs enlisted into service. The report also links the Brules to repeated requests not to be moved to the Missouri River.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "On the 12th of April I issued the remaining portion of the annuity goods to Spotted Tail"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "the Chiefs Spotted Tail, Two Strike, and Swift Bear with some other Headmen"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "ask the Great Father to let them remain in this section of the country, and not to remove them to the Missouri"
+          }
+        ],
+        "assumptionIds": [
+          "asm-spotted-tail-speaks-for-brules"
+        ]
+      }
+    },
+    {
+      "id": "northern-returnees",
+      "name": "Northern returnees",
+      "role": "Families and headmen recently returned from the north",
+      "summary": {
+        "text": "Lee says recent returnees claim peaceful intentions, but many arrive in severe need. They have been disarmed, are dependent on rations, and are crowded into worn lodges after hunger in the north.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 1,
+            "quote": "after being disarmed & their ponies turned over to the Indian Soldiers have been taken up for rations"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "they evince a desire to remain peaceably"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "their lack of ammunition and the none success [non-success] of hunting buffalo when north caused a good deal of starvation among them"
+          }
+        ],
+        "assumptionIds": [
+          "asm-northern-returnees-composite"
+        ]
+      }
+    },
+    {
+      "id": "camp-sheridan-officer",
+      "name": "Camp Sheridan officer",
+      "role": "Military authority linked to Camp Sheridan",
+      "summary": {
+        "text": "The report shows military authority as a force for discipline and enforcement. Officers value Indian enlistment as proof of good faith, and Camp Sheridan is the place where agency punishment can be carried out.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "also 20 of the Indians recently returned from the north were induced to enter the service."
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "it commits them in the eyes of the more hostile Indians and compels them to remain at the Agency."
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 5,
+            "quote": "On the 26th of April I have caused the confinement at the post guardhouse at Camp Sheridan of Moses McGirk"
+          }
+        ],
+        "assumptionIds": [
+          "asm-camp-officer-composite"
+        ]
+      }
+    }
+  ],
+  "defaultTimerSeconds": 480,
+  "ambientOverlay": {
+    "id": "clear",
+    "intensity": 1
+  },
+  "stages": [
+    {
+      "id": "stage-1-short-rations",
+      "index": 0,
+      "title": "Short Rations, New Arrivals",
+      "sharedContext": {
+        "text": "Lee needs facts for the next council. Supply lines are failing, ration rolls have grown, and recent returnees are hungry and crowded into damaged lodges. Military officers see enlistment and discipline as proof of peace. Before you translate the next meeting, you need to decide which parts of the crisis deserve emphasis.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 1,
+            "quote": "I shall have neither flour, H[ar]d Bread, or Corn on hand for issue during the coming week."
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 2,
+            "quote": "which makes a grand total of 7133 Indians, Hlf Breeds, & Whites with Indian families now rationed at this Agency."
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "they are crowded two & three families together in one small tebe [tipi], which are all the worse for the wear & full of holes."
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 3,
+            "quote": "it commits them in the eyes of the more hostile Indians and compels them to remain at the Agency."
+          }
+        ],
+        "assumptionIds": [
+          "asm-council-compression",
+          "asm-stage1-layout"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": null,
+      "spawnRoomId": "stage1-agency-office",
+      "rooms": [
+        {
+          "id": "stage1-agency-office",
+          "name": "Agency Office",
+          "purpose": "Lee's working room for reports, ration calculations, and official messages.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "closed",
+          "landmark": null
+        },
+        {
+          "id": "stage1-ration-warehouse",
+          "name": "Ration Warehouse",
+          "purpose": "Storage space for flour, corn, hard bread, and issued goods.",
+          "kind": "warehouse",
+          "size": "medium",
+          "doorDefault": "closed",
+          "landmark": null
+        },
+        {
+          "id": "stage1-lodge-circle",
+          "name": "Lodge Circle",
+          "purpose": "A crowded camp area where recent arrivals and their families shelter.",
+          "kind": "camp",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": null
+        },
+        {
+          "id": "stage1-post-yard",
+          "name": "Post Yard",
+          "purpose": "A shared yard where agency and military business meet under watch.",
+          "kind": "courtyard",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": null
+        }
+      ],
+      "agents": [
+        {
+          "id": "stage1-jm-lee",
+          "stakeholderId": "jm-lee",
+          "startRoomId": "stage1-agency-office",
+          "publicPosition": {
+            "text": "Lee wants the crisis described plainly. He says the agency will run out of key ration items within days unless supplies arrive, and he treats the swelling ration roll as an administrative emergency.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 1,
+                "quote": "I shall have neither flour, H[ar]d Bread, or Corn on hand for issue during the coming week."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 1,
+                "quote": "owing to the large accessions [groups of Indians coming] both from Red Cloud Agency & the north."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "which makes a grand total of 7133 Indians, Hlf Breeds, & Whites with Indian families now rationed at this Agency."
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Formal, overworked, and intent on sounding practical rather than dramatic.",
+            "motivations": "Keep food issues uninterrupted, show he is in control, and persuade Washington that timing matters as much as policy.",
+            "hiddenInterests": "He wants his own judgment about delay, farming, and supply to carry authority over rival military priorities.",
+            "knowledgeHorizon": "He knows agency numbers, shortages, and council sentiment, but he cannot yet say what Washington will decide or where outside bands will finally go.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 1,
+                "quote": "I shall have neither flour, H[ar]d Bread, or Corn on hand for issue during the coming week."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "Since then their [sic] has been a great desire on the part of the Indians to farm"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "I would respectfully but earnestly recommend that the operations tending towards the removal of the Indians for the present year, be abandoned"
+              }
+            ],
+            "assumptionIds": [
+              "asm-private-motives"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "stage1-northern-returnees",
+          "stakeholderId": "northern-returnees",
+          "startRoomId": "stage1-lodge-circle",
+          "publicPosition": {
+            "text": "The returnees insist they mean to remain peaceably, but they also need rations, shelter, and relief from crowding after hardship in the north.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "they evince a desire to remain peaceably"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "they are crowded two & three families together in one small tebe [tipi], which are all the worse for the wear & full of holes."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "their lack of ammunition and the none success [non-success] of hunting buffalo when north caused a good deal of starvation among them"
+              }
+            ],
+            "assumptionIds": [
+              "asm-northern-returnees-composite"
+            ]
+          },
+          "privateContext": {
+            "persona": "Wary, proud, and careful not to sound disloyal while asking for immediate help.",
+            "motivations": "Secure food and better shelter, avoid being treated as permanent enemies, and keep families alive through the warm season.",
+            "hiddenInterests": "They may hide the full depth of need, fearing that visible desperation will weaken their bargaining power.",
+            "knowledgeHorizon": "They know recent hunger, disarmament, and camp conditions firsthand, but not the full chain of agency or federal decision making.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 1,
+                "quote": "after being disarmed & their ponies turned over to the Indian Soldiers have been taken up for rations"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "they evince a desire to remain peaceably"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "they are crowded two & three families together in one small tebe [tipi], which are all the worse for the wear & full of holes."
+              }
+            ],
+            "assumptionIds": [
+              "asm-private-motives",
+              "asm-northern-returnees-composite"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "stage1-camp-sheridan-officer",
+          "stakeholderId": "camp-sheridan-officer",
+          "startRoomId": "stage1-post-yard",
+          "publicPosition": {
+            "text": "The military side treats enlistment and discipline as evidence that recent arrivals can be kept loyal. Camp Sheridan also stands ready to enforce agency decisions.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "also 20 of the Indians recently returned from the north were induced to enter the service."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "it commits them in the eyes of the more hostile Indians and compels them to remain at the Agency."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "have him sent under proper escort off the reservation"
+              }
+            ],
+            "assumptionIds": [
+              "asm-camp-officer-composite"
+            ]
+          },
+          "privateContext": {
+            "persona": "Controlled, procedural, and more interested in order than persuasion.",
+            "motivations": "Keep the camp quiet, turn enlisted Indians into a usable police force, and avoid any move that looks like military weakness.",
+            "hiddenInterests": "He prefers policies that make loyalty measurable through obedience, even when they deepen mistrust.",
+            "knowledgeHorizon": "He knows military discipline and enforcement tools, but not the full range of council feeling inside Lakota families.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "also 20 of the Indians recently returned from the north were induced to enter the service."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "it commits them in the eyes of the more hostile Indians and compels them to remain at the Agency."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 5,
+                "quote": "On the 26th of April I have caused the confinement at the post guardhouse at Camp Sheridan of Moses McGirk"
+              }
+            ],
+            "assumptionIds": [
+              "asm-private-motives",
+              "asm-camp-officer-composite"
+            ]
+          },
+          "modelTier": "cheap"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "s1-supply-report",
+          "name": "Supply Report",
+          "roomId": "stage1-agency-office",
+          "content": {
+            "text": "Lee's report turns shortage into urgency: unless shipments arrive, next week's issue may have no flour, hard bread, or corn.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 1,
+                "quote": "I shall have neither flour, H[ar]d Bread, or Corn on hand for issue during the coming week."
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "s1-arrival-ledger",
+          "name": "Arrival Ledger",
+          "roomId": "stage1-agency-office",
+          "content": {
+            "text": "The ration list has expanded quickly. Lee blames large accessions from Red Cloud Agency and the north, and he gives a total of 7,133 people now rationed.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 1,
+                "quote": "owing to the large accessions [groups of Indians coming] both from Red Cloud Agency & the north."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "which makes a grand total of 7133 Indians, Hlf Breeds, & Whites with Indian families now rationed at this Agency."
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "s1-lodge-conditions",
+          "name": "Note on Lodge Conditions",
+          "roomId": "stage1-lodge-circle",
+          "content": {
+            "text": "Recent returnees are described as peaceful but in real distress. Lee says families are crowded into small worn lodges and that earlier hunger caused starvation.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "they evince a desire to remain peaceably"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "they are crowded two & three families together in one small tebe [tipi], which are all the worse for the wear & full of holes."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "their lack of ammunition and the none success [non-success] of hunting buffalo when north caused a good deal of starvation among them"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "s1-enlistment-note",
+          "name": "Enlistment Note",
+          "roomId": "stage1-post-yard",
+          "content": {
+            "text": "Lee and Crook's officers treat Indian enlistment as politically useful. He writes that chiefs and recent returnees were induced into service, which would bind them to remain at the agency.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "the Chiefs Spotted Tail, Two Strike, and Swift Bear with some other Headmen"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "also 20 of the Indians recently returned from the north were induced to enter the service."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "it commits them in the eyes of the more hostile Indians and compels them to remain at the Agency."
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "s1-obj-read-supply-report",
+          "title": "Read Lee's supply report.",
+          "requires": [],
+          "targetId": "s1-supply-report"
+        },
+        {
+          "id": "s1-obj-read-arrival-ledger",
+          "title": "Check how many people are now being rationed.",
+          "requires": [],
+          "targetId": "s1-arrival-ledger"
+        },
+        {
+          "id": "s1-obj-read-lodge-report",
+          "title": "Inspect the note on living conditions among the returnees.",
+          "requires": [
+            "s1-obj-read-arrival-ledger"
+          ],
+          "targetId": "s1-lodge-conditions"
+        },
+        {
+          "id": "s1-obj-speak-lee",
+          "title": "Hear how Lee wants the situation presented.",
+          "requires": [
+            "s1-obj-read-supply-report"
+          ],
+          "targetId": "stage1-jm-lee"
+        },
+        {
+          "id": "s1-obj-meet-returnees",
+          "title": "Listen to the returnees' side before the council.",
+          "requires": [
+            "s1-obj-read-lodge-report"
+          ],
+          "targetId": "stage1-northern-returnees"
+        },
+        {
+          "id": "s1-obj-read-enlistment-note",
+          "title": "Review the military case for enlistment and control.",
+          "requires": [
+            "s1-obj-meet-returnees"
+          ],
+          "targetId": "s1-enlistment-note"
+        },
+        {
+          "id": "s1-obj-meet-officer",
+          "title": "Ask the Camp Sheridan officer what peace should look like.",
+          "requires": [
+            "s1-obj-read-enlistment-note"
+          ],
+          "targetId": "stage1-camp-sheridan-officer"
+        }
+      ],
+      "decision": {
+        "id": "s1-decision-message",
+        "title": "What Will You Emphasise?",
+        "prompt": "The next council will hear your translation of the month's crisis. If you stress shortage and crowding, you strengthen Lee's plea for relief. If you stress enlistment and obedience, you support a harder military reading of peace. If you avoid the removal question, you may buy time but leave everyone guessing. Which message do you carry forward?",
+        "roomId": "stage1-agency-office",
+        "requires": [
+          "s1-obj-read-supply-report",
+          "s1-obj-read-arrival-ledger",
+          "s1-obj-read-lodge-report",
+          "s1-obj-speak-lee",
+          "s1-obj-meet-returnees",
+          "s1-obj-read-enlistment-note",
+          "s1-obj-meet-officer"
+        ],
+        "options": [
+          {
+            "id": "s1-opt-back-relief",
+            "label": "Carry Lee's warnings about supplies, shelter, and the risk of forcing events too quickly.",
+            "stance": "cooperative",
+            "preconditions": [
+              "s1-obj-read-supply-report",
+              "s1-obj-speak-lee",
+              "s1-obj-meet-returnees"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-2-council-on-removal"
+            }
+          },
+          {
+            "id": "s1-opt-prioritize-control",
+            "label": "Frame the meeting around obedience first: disarmament, enlistment, and proof of loyalty before new aid.",
+            "stance": "antagonistic",
+            "preconditions": [
+              "s1-obj-read-enlistment-note",
+              "s1-obj-meet-officer"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-expelled-early"
+            }
+          },
+          {
+            "id": "s1-opt-narrow-summary",
+            "label": "Give a narrow factual summary and postpone any clear stand on removal.",
+            "stance": "evasive",
+            "preconditions": [
+              "s1-obj-read-supply-report",
+              "s1-obj-read-arrival-ledger",
+              "s1-obj-meet-returnees"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-2-council-on-removal"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-2-council-on-removal",
+      "index": 1,
+      "title": "Council on Removal",
+      "sharedContext": {
+        "text": "The argument has widened. Lee says farming should be encouraged, schools are limited, and moving the agency now could destroy peace. Brulé opinion is strongly against the Missouri River. Military authority values policing and commitment. Your translation will help decide whether this month becomes a case for delay, coercion, or uncertainty.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 2,
+            "quote": "Since then their [sic] has been a great desire on the part of the Indians to farm"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 2,
+            "quote": "any move that may have been contemplated should be deferred at least until next year."
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "The Indians here (Brules) are very much avers to going to the Missouri River"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "and so awaken anew the saying that treaties are only made to be broken."
+          }
+        ],
+        "assumptionIds": [
+          "asm-council-compression",
+          "asm-stage2-layout"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": null,
+      "spawnRoomId": "stage2-council-ground",
+      "rooms": [
+        {
+          "id": "stage2-council-ground",
+          "name": "Council Ground",
+          "purpose": "Open meeting place for formal talks between agency staff and Lakota leaders.",
+          "kind": "courtyard",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": null
+        },
+        {
+          "id": "stage2-records-office",
+          "name": "Records Office",
+          "purpose": "Workroom for treaty papers, memoranda, and policy notes.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "closed",
+          "landmark": null
+        },
+        {
+          "id": "stage2-school-chamber",
+          "name": "School Chamber",
+          "purpose": "A small teaching room that symbolizes the limited school question in the report.",
+          "kind": "chamber",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": null
+        },
+        {
+          "id": "stage2-troop-camp",
+          "name": "Troop Camp",
+          "purpose": "A guarded military space linked to Indian enlistment and agency enforcement.",
+          "kind": "camp",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": null
+        }
+      ],
+      "agents": [
+        {
+          "id": "stage2-spotted-tail",
+          "stakeholderId": "spotted-tail",
+          "startRoomId": "stage2-council-ground",
+          "publicPosition": {
+            "text": "Spotted Tail is presented here as the leading voice against removal to the Missouri. Lee's report also names him among chiefs enlisted into service, so he stands between cooperation with the agency and defense of Brulé wishes.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "ask the Great Father to let them remain in this section of the country, and not to remove them to the Missouri"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "The Indians here (Brules) are very much avers to going to the Missouri River"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "the Chiefs Spotted Tail, Two Strike, and Swift Bear with some other Headmen"
+              }
+            ],
+            "assumptionIds": [
+              "asm-spotted-tail-speaks-for-brules"
+            ]
+          },
+          "privateContext": {
+            "persona": "Measured, politically alert, and unwilling to surrender room for negotiation.",
+            "motivations": "Keep his people from a Missouri River move, preserve influence among Brulé listeners, and secure aid without appearing powerless.",
+            "hiddenInterests": "He must show enough cooperation to protect his position while not appearing to speak only for the government's wishes.",
+            "knowledgeHorizon": "He knows Brulé feeling and the pressure of recent events, but not whether Washington will honor promises about location and rations.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "ask the Great Father to let them remain in this section of the country, and not to remove them to the Missouri"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "the Chiefs Spotted Tail, Two Strike, and Swift Bear with some other Headmen"
+              }
+            ],
+            "assumptionIds": [
+              "asm-private-motives",
+              "asm-spotted-tail-speaks-for-brules"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "stage2-jm-lee",
+          "stakeholderId": "jm-lee",
+          "startRoomId": "stage2-records-office",
+          "publicPosition": {
+            "text": "Lee argues that farming should be supported, not interrupted, and that removal this year would be a serious mistake. He links policy failure to renewed distrust of treaties.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "Since then their [sic] has been a great desire on the part of the Indians to farm"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "any move that may have been contemplated should be deferred at least until next year."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "and so awaken anew the saying that treaties are only made to be broken."
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Precise, insistent, and anxious that policy not outrun conditions on the ground.",
+            "motivations": "Delay removal, keep rations steady, and show that practical support is the safest route to peace.",
+            "hiddenInterests": "A persuasive report also protects his standing as the official closest to events at the agency.",
+            "knowledgeHorizon": "He can assess supplies, councils, and local reactions, but he cannot guarantee that federal policy will follow his advice.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "Since then their [sic] has been a great desire on the part of the Indians to farm"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "I would respectfully but earnestly recommend that the operations tending towards the removal of the Indians for the present year, be abandoned"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "and so awaken anew the saying that treaties are only made to be broken."
+              }
+            ],
+            "assumptionIds": [
+              "asm-private-motives"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "stage2-camp-sheridan-officer",
+          "stakeholderId": "camp-sheridan-officer",
+          "startRoomId": "stage2-troop-camp",
+          "publicPosition": {
+            "text": "The military view favors visible commitment and usable discipline. Indian enlistment looks, to this officer, like a way to secure peace and make government wishes enforceable.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "also 20 of the Indians recently returned from the north were induced to enter the service."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "it commits them in the eyes of the more hostile Indians and compels them to remain at the Agency."
+              }
+            ],
+            "assumptionIds": [
+              "asm-camp-officer-composite"
+            ]
+          },
+          "privateContext": {
+            "persona": "Blunt, security-minded, and skeptical of any policy that looks weak.",
+            "motivations": "Keep order through committed intermediaries, reduce the chance of renewed movement north, and protect military credibility.",
+            "hiddenInterests": "He is willing to accept temporary delay only if discipline keeps expanding behind the scenes.",
+            "knowledgeHorizon": "He understands enforcement and military risk, but not the full cultural and political weight of removal and schooling policies.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "also 20 of the Indians recently returned from the north were induced to enter the service."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "it commits them in the eyes of the more hostile Indians and compels them to remain at the Agency."
+              }
+            ],
+            "assumptionIds": [
+              "asm-private-motives",
+              "asm-camp-officer-composite"
+            ]
+          },
+          "modelTier": "cheap"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "s2-farming-note",
+          "name": "Farming Petitions",
+          "roomId": "stage2-records-office",
+          "content": {
+            "text": "Lee says many Indians are asking for farming tools and help. He explicitly argues that this desire should be encouraged rather than blocked.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "Since then their [sic] has been a great desire on the part of the Indians to farm"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "I am daily beset with applications for farming utensils and requests for giving aid in the execution of the work."
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "this desire should be in no way interfered with or discouraged"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "s2-removal-memo",
+          "name": "Removal Memorandum",
+          "roomId": "stage2-records-office",
+          "content": {
+            "text": "Lee warns that a move after June 1 would be dangerous. He says it could undo recent campaigns, stop further peace, and drive people back north.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "the consequences will be, if the move should be carried out, that the greater part of the results of last summer’s & winter’s campaigns will be lost"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "The large accession of the wild & restless spirits make any movement in that direction very dangerous to peace"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 4,
+                "quote": "I would respectfully but earnestly recommend that the operations tending towards the removal of the Indians for the present year, be abandoned"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "s2-school-note",
+          "name": "School Note",
+          "roomId": "stage2-school-chamber",
+          "content": {
+            "text": "Lee says school facilities are too limited for current needs and doubts rapid success. He still recommends a gradual boarding-school system rather than strict immediate enforcement.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "The present school accommodations are not sufficient for the children of the whitemen & half breeds"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 2,
+                "quote": "the system of boarding schools in operation at other Agencies should be inaugured"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "any [too] stringent enforcement of this article will in my opinion result in a failure of the whole."
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "s2-annuity-clothing",
+          "name": "Annuity Clothing Bundle",
+          "roomId": "stage2-council-ground",
+          "content": {
+            "text": "The annuity goods show another pressure at the agency: Lee tried to induce people to wear issued clothing, yet he expected most of it to pass quickly into other hands.",
+            "spans": [
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "I tried to induce some of them to wear these cloth[es]"
+              },
+              {
+                "sourceId": "spotted-tail-agency-1877",
+                "page": 3,
+                "quote": "all the clothing will ultimately get into the hands of people, who have no right whatsoever to get them."
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "s2-obj-read-farming-note",
+          "title": "Read Lee's note on farming requests.",
+          "requires": [],
+          "targetId": "s2-farming-note"
+        },
+        {
+          "id": "s2-obj-read-removal-memo",
+          "title": "Study Lee's warning about removal.",
+          "requires": [
+            "s2-obj-read-farming-note"
+          ],
+          "targetId": "s2-removal-memo"
+        },
+        {
+          "id": "s2-obj-speak-spotted-tail",
+          "title": "Hear the Brulé objection to a Missouri River move.",
+          "requires": [
+            "s2-obj-read-removal-memo"
+          ],
+          "targetId": "stage2-spotted-tail"
+        },
+        {
+          "id": "s2-obj-read-school-note",
+          "title": "Review what the report says about schools.",
+          "requires": [
+            "s2-obj-speak-spotted-tail"
+          ],
+          "targetId": "s2-school-note"
+        },
+        {
+          "id": "s2-obj-read-annuity-note",
+          "title": "Inspect the annuity clothing issue.",
+          "requires": [
+            "s2-obj-speak-spotted-tail"
+          ],
+          "targetId": "s2-annuity-clothing"
+        },
+        {
+          "id": "s2-obj-speak-lee",
+          "title": "Ask Lee what recommendation he wants carried forward.",
+          "requires": [
+            "s2-obj-read-school-note",
+            "s2-obj-read-annuity-note"
+          ],
+          "targetId": "stage2-jm-lee"
+        },
+        {
+          "id": "s2-obj-speak-officer",
+          "title": "Test the military case against the council's objections.",
+          "requires": [
+            "s2-obj-speak-lee"
+          ],
+          "targetId": "stage2-camp-sheridan-officer"
+        }
+      ],
+      "decision": {
+        "id": "s2-decision-recommendation",
+        "title": "What Recommendation Leaves the Agency?",
+        "prompt": "You have heard the practical case for delay, the Brulé demand not to be sent to the Missouri, and the military case for visible discipline. Schools are limited, farming requests are rising, and trust in treaties is uncertain. Your final translation will shape which argument becomes the official meaning of this month. What do you send forward?",
+        "roomId": "stage2-council-ground",
+        "requires": [
+          "s2-obj-read-farming-note",
+          "s2-obj-read-removal-memo",
+          "s2-obj-speak-spotted-tail",
+          "s2-obj-read-school-note",
+          "s2-obj-read-annuity-note",
+          "s2-obj-speak-lee",
+          "s2-obj-speak-officer"
+        ],
+        "options": [
+          {
+            "id": "s2-opt-delay-removal",
+            "label": "Carry Lee's recommendation as the clearest reading of the month's events.",
+            "stance": "cooperative",
+            "preconditions": [
+              "s2-obj-read-removal-memo",
+              "s2-obj-speak-spotted-tail",
+              "s2-obj-speak-lee"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-historical-delay"
+            }
+          },
+          {
+            "id": "s2-opt-faster-control",
+            "label": "Carry the military case for faster control measures and movement.",
+            "stance": "antagonistic",
+            "preconditions": [
+              "s2-obj-read-school-note",
+              "s2-obj-speak-officer",
+              "s2-obj-read-removal-memo"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-coercive-removal"
+            }
+          },
+          {
+            "id": "s2-opt-procedural-note",
+            "label": "Carry a limited procedural note and avoid taking a clear side on removal.",
+            "stance": "neutral",
+            "preconditions": [
+              "s2-obj-read-farming-note",
+              "s2-obj-read-removal-memo",
+              "s2-obj-speak-lee"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-uneasy-holding-pattern"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "endings": [
+    {
+      "id": "ending-expelled-early",
+      "title": "Voice Lost at the Agency",
+      "summary": "You translate the crisis mainly as a test of obedience. Lakota listeners hear force before relief, and the meeting breaks down. Lee still has shortages to manage, but your role as trusted interpreter ends before the larger removal argument can be carried further.",
+      "historicalOutcome": {
+        "text": "In the surviving report, Lee did not reduce the month to obedience alone. He urged continued supplies and recommended that removal for 1877 be abandoned, warning against reviving the belief that treaties are broken. The document does not include Washington's reply.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 1,
+            "quote": "I shall have neither flour, H[ar]d Bread, or Corn on hand for issue during the coming week."
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "I would respectfully but earnestly recommend that the operations tending towards the removal of the Indians for the present year, be abandoned"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "and so awaken anew the saying that treaties are only made to be broken."
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending diverges sharply from the report's emphasis. Lee's recorded position combines supply, timing, and peace rather than a simple demand for stricter obedience.",
+      "reflectionQuestions": [
+        "Which parts of this failure came from the source, and which came from the game's assumptions?",
+        "Why might translation itself become political power in this setting?",
+        "How does a focus on discipline change the meaning of shortages and hunger?"
+      ]
+    },
+    {
+      "id": "ending-historical-delay",
+      "title": "Hold the Agency Together",
+      "summary": "You support Lee's case for steady rations, support for farming, and no removal this year. The council remains tense, but your translation keeps attention on immediate conditions and on the danger of making promises look empty.",
+      "historicalOutcome": {
+        "text": "This is the closest ending to Lee's recorded recommendation. In his May 1 report, he urged Washington to abandon removal for the present year, keep agencies supplied, and avoid renewing the belief that treaties are made only to be broken.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 2,
+            "quote": "any move that may have been contemplated should be deferred at least until next year."
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "I would respectfully but earnestly recommend that the operations tending towards the removal of the Indians for the present year, be abandoned"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "and so awaken anew the saying that treaties are only made to be broken."
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending matches Lee's documented recommendation, though the source does not reveal how the Commissioner answered him.",
+      "reflectionQuestions": [
+        "Why does Lee link farming, rations, and removal in one argument?",
+        "What in this ending is directly documented, and what remains uncertain?",
+        "Whose interests are protected by delay, and whose are not?"
+      ]
+    },
+    {
+      "id": "ending-coercive-removal",
+      "title": "Order First, Trust Broken",
+      "summary": "You back movement, policing, and stricter control as the proper answer to unrest. The recommendation creates a clear line of authority, but it also sharpens suspicion that peace is valued only when it looks like submission.",
+      "historicalOutcome": {
+        "text": "Lee's report argues against this course. He says a move would be dangerous to peace, that the Brules are averse to the Missouri River, and that poor supply policy could renew the saying that treaties are broken.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "The Indians here (Brules) are very much avers to going to the Missouri River"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "The large accession of the wild & restless spirits make any movement in that direction very dangerous to peace"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "and so awaken anew the saying that treaties are only made to be broken."
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending deliberately departs from Lee's recommendation by privileging control over his warning about timing and trust.",
+      "reflectionQuestions": [
+        "Why might a government prefer a policy that looks decisive even when local reports warn against it?",
+        "How do school policy, policing, and removal fit together in this document?",
+        "What is lost when peace is measured mainly by enforceable obedience?"
+      ]
+    },
+    {
+      "id": "ending-uneasy-holding-pattern",
+      "title": "Delay Without Direction",
+      "summary": "You avoid a clear recommendation on removal and send a procedural summary instead. The choice lowers immediate confrontation, but it leaves all sides uncertain whether delay means protection, indecision, or preparation for a harder policy later.",
+      "historicalOutcome": {
+        "text": "The report itself takes a clearer stand than this ending does. Lee explicitly recommends postponing removal for the year and tying peace to reliable supplies and confidence in government promises.",
+        "spans": [
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "I would respectfully but earnestly recommend that the operations tending towards the removal of the Indians for the present year, be abandoned"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "in the meantime all efforts be made to keep the Agencies so supplied with rations that no interruptions be caused in the issuing of them"
+          },
+          {
+            "sourceId": "spotted-tail-agency-1877",
+            "page": 4,
+            "quote": "and so awaken anew the saying that treaties are only made to be broken."
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending diverges by replacing Lee's explicit recommendation with cautious ambiguity.",
+      "reflectionQuestions": [
+        "When does caution reduce harm, and when does it merely postpone conflict?",
+        "Why does the report treat interruptions in rations as politically dangerous?",
+        "What evidence would you still want before making a firmer recommendation?"
+      ]
+    }
+  ],
+  "assetEligibility": [
+    {
+      "id": "asset-portrait-jm-lee",
+      "kind": "portrait",
+      "entityId": "jm-lee",
+      "subject": "J. M. Lee",
+      "prompt": "Waist-up portrait of J. M. Lee in spring 1877, acting Indian agent and army officer, formal coat, papers nearby, restrained but pressured expression."
+    },
+    {
+      "id": "asset-portrait-spotted-tail",
+      "kind": "portrait",
+      "entityId": "spotted-tail",
+      "subject": "Spotted Tail",
+      "prompt": "Waist-up portrait of Spotted Tail in council setting, Brulé Lakota leader, composed posture, politically alert expression, spring 1877."
+    },
+    {
+      "id": "asset-landmark-stage1-lodge-circle",
+      "kind": "landmark",
+      "entityId": "stage1-lodge-circle",
+      "subject": "Crowded lodge circle",
+      "prompt": "Crowded camp of worn tipis at Spotted Tail Agency, families close together, visible patched lodge coverings, scene focused on shelter conditions."
+    },
+    {
+      "id": "asset-landmark-stage2-council-ground",
+      "kind": "landmark",
+      "entityId": "stage2-council-ground",
+      "subject": "Council ground",
+      "prompt": "Open council space at Spotted Tail Agency prepared for formal talks between agency staff and Lakota leaders, tense meeting atmosphere."
+    },
+    {
+      "id": "asset-prop-s1-supply-report",
+      "kind": "prop",
+      "entityId": "s1-supply-report",
+      "subject": "Supply report",
+      "prompt": "Handwritten 1877 agency supply report sheet noting shortages of flour, hard bread, and corn; inked administrative style."
+    },
+    {
+      "id": "asset-prop-s1-enlistment-note",
+      "kind": "prop",
+      "entityId": "s1-enlistment-note",
+      "subject": "Enlistment note",
+      "prompt": "Folded agency memorandum about Indian enlistment and military service, 1877 handwriting, official but hurried appearance."
+    },
+    {
+      "id": "asset-prop-s2-removal-memo",
+      "kind": "prop",
+      "entityId": "s2-removal-memo",
+      "subject": "Removal memorandum",
+      "prompt": "Official memorandum page warning against moving the agency in 1877, dense handwritten lines, formal nineteenth-century administrative style."
+    },
+    {
+      "id": "asset-prop-s2-school-note",
+      "kind": "prop",
+      "entityId": "s2-school-note",
+      "subject": "School note",
+      "prompt": "Brief agency note on limited school accommodations and boarding-school policy, period handwriting on worn paper."
+    }
+  ]
+}

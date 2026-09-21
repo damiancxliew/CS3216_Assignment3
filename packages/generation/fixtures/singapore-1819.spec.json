@@ -1,0 +1,677 @@
+{
+  "version": 2,
+  "id": "singapore-1819",
+  "title": "A Post at the River Mouth: Singapore, 1819",
+  "setting": "Singapore island and the Johor Sultanate, January–February 1819, with an epilogue in 1823",
+  "description": "You are a junior interpreter attached to Stamford Raffles' expedition. Over three stages you help negotiate a British trading post at Singapore: first with the Temenggong who governs the island, then with the rival claimants to the Johor throne, and finally with Resident Farquhar over how the new settlement should be run. Each decision is resolved against what the stakeholders actually want, and the debrief compares your path with what really happened.",
+  "readingLevel": { "band": "lower-secondary", "ageMin": 13, "ageMax": 14 },
+  "learningObjectives": [
+    "Explain why the East India Company wanted a port at the southern end of the Straits of Malacca",
+    "Describe the disputed Johor succession and why Raffles recognised Tengku Hussein",
+    "Evaluate the risks each stakeholder took in signing the 1819 agreements",
+    "Distinguish documented history from simulated assumptions in the adventure"
+  ],
+  "player": {
+    "name": "Ahmad bin Yusof",
+    "role": "Junior interpreter to the East India Company expedition",
+    "brief": "You speak Malay and English and have been attached to Raffles' party as an interpreter. You carry messages, sit in on negotiations and are trusted by neither side completely. Your recommendations shape what Raffles and Farquhar decide, but the Temenggong and the Johor princes have their own plans."
+  },
+  "sources": [
+    {
+      "id": "handout",
+      "title": "The Founding of a Trading Post at Singapore, 1819 (classroom handout)",
+      "kind": "text",
+      "pageCount": 4,
+      "contentHash": "ae133971a86fa4e533b9b7854dca9e8914dc59050971e0b1dfadf77b57d3964c"
+    }
+  ],
+  "sharedContext": {
+    "text": "It is January 1819. The Dutch have returned to Java and Malacca and are extending their authority over Riau. British merchants trading with China want a safe harbour of their own at the southern end of the Straits of Malacca. Stamford Raffles, Lieutenant-Governor of Bencoolen, has permission from Lord Hastings in Calcutta to look for a site, but he has been told to avoid any collision with the Dutch. He has sailed from Penang with Major William Farquhar and a small squadron. Singapore is part of the Johor Sultanate and is administered by the Temenggong, Abdul Rahman. The Johor throne is disputed between two brothers.",
+    "spans": [
+      { "sourceId": "handout", "page": 1, "quote": "British merchants trading with China complained that they had no safe harbour of their own at the southern end of the Straits of Malacca." },
+      { "sourceId": "handout", "page": 1, "quote": "he was to establish a post at the southern end of the Straits but to avoid any collision with the Dutch, who were then extending their authority over Riau." },
+      { "sourceId": "handout", "page": 2, "quote": "The island was administered on the Sultan's behalf by the Temenggong, Abdul Rahman" }
+    ],
+    "assumptionIds": []
+  },
+  "assumptions": [
+    {
+      "id": "assume-player-interpreter",
+      "text": "The player character, a junior Malay–English interpreter named Ahmad bin Yusof, is invented. No such named person appears in the source.",
+      "rationale": "The student needs a role that can plausibly be present at every negotiation without displacing a documented actor."
+    },
+    {
+      "id": "assume-private-motives",
+      "text": "The private motivations, fears and hidden interests attributed to each stakeholder are dramatised inferences from their documented actions, not quotations from the record.",
+      "rationale": "The handout records what each person did, not what they privately thought; the simulation needs motives to make agents act consistently."
+    },
+    {
+      "id": "assume-rooms",
+      "text": "The specific rooms — the ship's cabin, the Temenggong's hall, Farquhar's tent, the treaty ground and the Resident's office — are schematic stand-ins for places that existed in some form but are not described in the source.",
+      "rationale": "The map needs concrete spaces; their layout is invented by the compiler."
+    },
+    {
+      "id": "assume-counterfactual-endings",
+      "text": "Endings other than the historical one describe what might plausibly have followed a different decision; they are counterfactual and are labelled as such in the debrief.",
+      "rationale": "The simulation must resolve every branch, but only one branch actually happened."
+    }
+  ],
+  "stakeholders": [
+    {
+      "id": "raffles",
+      "name": "Sir Thomas Stamford Raffles",
+      "role": "Lieutenant-Governor of Bencoolen, agent of the East India Company",
+      "summary": {
+        "text": "Raffles argued that the Company needed a station commanding the entrance to the China Sea and obtained cautious permission from Lord Hastings to find one. He arrived off Singapore on 28 January 1819 and left on 7 February, having signed a treaty and appointed Farquhar as Resident.",
+        "spans": [
+          { "sourceId": "handout", "page": 1, "quote": "argued that the East India Company needed a station commanding the entrance to the China Sea" },
+          { "sourceId": "handout", "page": 3, "quote": "Raffles appointed Farquhar as Resident and Commandant and sailed for Bencoolen on 7 February" }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "farquhar",
+      "name": "Major William Farquhar",
+      "role": "Former Resident of Malacca; first Resident and Commandant of Singapore",
+      "summary": {
+        "text": "Farquhar had been Resident of Malacca until it was returned to the Dutch. He accompanied Raffles, was appointed to command the new settlement, and governed it from 1819 to 1823 by licensing gambling houses and tolerating the opium, arrack and slave trades to raise money — measures Raffles later condemned.",
+        "spans": [
+          { "sourceId": "handout", "page": 1, "quote": "Major William Farquhar, who had been the Resident of Malacca until it was returned to the Dutch, accompanied him" },
+          { "sourceId": "handout", "page": 4, "quote": "To raise money he licensed gambling houses and permitted the sale of opium and arrack" }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "temenggong",
+      "name": "Temenggong Abdul Rahman",
+      "role": "Administrator of Singapore on behalf of the Sultan of Johor",
+      "summary": {
+        "text": "The Temenggong governed Singapore for the Johor Sultanate, having moved there with his followers a few years earlier. He signed a preliminary agreement with Raffles on 30 January 1819 and the treaty of 6 February, under which he was to receive 3,000 Spanish dollars a year.",
+        "spans": [
+          { "sourceId": "handout", "page": 2, "quote": "On 30 January 1819 Raffles and the Temenggong signed a preliminary agreement" },
+          { "sourceId": "handout", "page": 3, "quote": "the Temenggong 3,000 Spanish dollars a year" }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "hussein",
+      "name": "Tengku Hussein (Tengku Long)",
+      "role": "Elder son of Sultan Mahmud Shah III; recognised by Raffles as Sultan Hussein Shah of Johor",
+      "summary": {
+        "text": "Hussein was away in Pahang when his father died in 1812 and was passed over for his younger brother, who had Bugis and later Dutch backing. Living in obscurity in Riau, he was sent for by the Temenggong, arrived in early February 1819, and was recognised by Raffles as Sultan in return for 5,000 Spanish dollars a year.",
+        "spans": [
+          { "sourceId": "handout", "page": 3, "quote": "The elder, Tengku Hussein, also known as Tengku Long, was away in Pahang for his wedding when his father died." },
+          { "sourceId": "handout", "page": 3, "quote": "the Sultan was to receive 5,000 Spanish dollars a year" }
+        ],
+        "assumptionIds": []
+      }
+    }
+  ],
+  "defaultTimerSeconds": 480,
+  "ambientOverlay": { "id": "clear", "intensity": 1 },
+  "stages": [
+    {
+      "id": "stage-landing",
+      "index": 0,
+      "title": "Landing at the river mouth",
+      "sharedContext": {
+        "text": "29–30 January 1819. Raffles has landed near the mouth of the Singapore River. The island holds perhaps a thousand people. The Temenggong governs it for the Sultan of Johor, but he is not the sovereign. Raffles wants an agreement quickly; his instructions tell him to avoid a collision with the Dutch.",
+        "spans": [
+          { "sourceId": "handout", "page": 2, "quote": "landed the following day near the mouth of the Singapore River" },
+          { "sourceId": "handout", "page": 2, "quote": "The Temenggong governed Singapore, but he was not the sovereign" }
+        ],
+        "assumptionIds": []
+      },
+      "timerSeconds": null,
+      "ambientOverlay": { "id": "clouds", "intensity": 1 },
+      "spawnRoomId": "landing-beach",
+      "rooms": [
+        {
+          "id": "landing-beach",
+          "name": "The landing beach",
+          "purpose": "Where the expedition's boats have come ashore; Farquhar is organising the party.",
+          "kind": "dock",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": null
+        },
+        {
+          "id": "ship-cabin",
+          "name": "Raffles' cabin aboard the Indiana",
+          "purpose": "Raffles' papers and instructions are kept here.",
+          "kind": "office",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": null
+        },
+        {
+          "id": "temenggong-hall",
+          "name": "The Temenggong's hall",
+          "purpose": "The Temenggong receives visitors and holds council here.",
+          "kind": "hall",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": { "name": "The Temenggong's dais", "description": "A raised seat under a woven canopy where the Temenggong receives guests." }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-temenggong-s0",
+          "stakeholderId": "temenggong",
+          "startRoomId": "temenggong-hall",
+          "publicPosition": {
+            "text": "The Temenggong welcomes the British and is willing to allow a trading post, since he administers the island for the Sultan.",
+            "spans": [{ "sourceId": "handout", "page": 2, "quote": "allowing the East India Company to set up a trading post on the island" }],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Measured, courteous, watchful. Speaks in careful Malay courtesies and never commits in a first meeting.",
+            "motivations": "Secure a British counterweight to the Bugis faction at the Johor court and to Dutch pressure from Riau; secure income for his household.",
+            "hiddenInterests": "Knows he lacks the authority to grant land and fears the Sultan in Riau will repudiate any agreement. Wants the British to bring Tengku Hussein, whom he favours, to Singapore.",
+            "knowledgeHorizon": "Knows the local politics of Johor and Riau intimately. Does not know the content of Raffles' instructions from Calcutta or how far the British will go against the Dutch.",
+            "spans": [{ "sourceId": "handout", "page": 3, "quote": "The Temenggong sent for Hussein, who was living in obscurity in Riau." }],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-farquhar-s0",
+          "stakeholderId": "farquhar",
+          "startRoomId": "landing-beach",
+          "publicPosition": {
+            "text": "Farquhar wants the post established and is ready to command it; he knows the Malay courts from his years at Malacca.",
+            "spans": [{ "sourceId": "handout", "page": 1, "quote": "was to command whatever settlement they founded" }],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Practical soldier-administrator, blunt, impatient with ceremony.",
+            "motivations": "Get a defensible settlement on the ground before the Dutch react; be confirmed as Resident.",
+            "hiddenInterests": "Privately thinks Raffles underestimates the Dutch and would rather have signed with the Sultan in Riau. Wants a free hand once Raffles sails.",
+            "knowledgeHorizon": "Knows the Malay world and the Dutch well. Does not yet know that Raffles intends to recognise Hussein.",
+            "spans": [],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-raffles-s0",
+          "stakeholderId": "raffles",
+          "startRoomId": "ship-cabin",
+          "publicPosition": {
+            "text": "Raffles wants a signed agreement within days and is confident the Temenggong's word is enough to begin.",
+            "spans": [{ "sourceId": "handout", "page": 2, "quote": "On 30 January 1819 Raffles and the Temenggong signed a preliminary agreement" }],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Brilliant, persuasive, ambitious and in a hurry.",
+            "motivations": "Found a British station commanding the entrance to the China Sea and make his name by it.",
+            "hiddenInterests": "Is stretching his instructions from Hastings and knows it; intends to present Calcutta with a settled fact.",
+            "knowledgeHorizon": "Knows Company politics and the Anglo-Dutch situation. Knows less about the Johor succession than the Temenggong does.",
+            "spans": [{ "sourceId": "handout", "page": 1, "quote": "His instructions were cautious" }],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "modelTier": "frontier"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-instructions",
+          "name": "Lord Hastings' instructions to Raffles",
+          "roomId": "ship-cabin",
+          "content": {
+            "text": "Raffles' instructions from Calcutta: establish a post at the southern end of the Straits, but avoid any collision with the Dutch, who are extending their authority over Riau.",
+            "spans": [{ "sourceId": "handout", "page": 1, "quote": "His instructions were cautious: he was to establish a post at the southern end of the Straits but to avoid any collision with the Dutch" }],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "ev-island-survey",
+          "name": "Farquhar's note on the island",
+          "roomId": "landing-beach",
+          "content": {
+            "text": "A note on the settlement: perhaps a thousand people, mostly Orang Laut and Malays, with some Chinese planters; the island is part of the Johor Sultanate.",
+            "spans": [{ "sourceId": "handout", "page": 2, "quote": "a small settlement of perhaps a thousand people, most of them Orang Laut and Malays, with a smaller number of Chinese planters" }],
+            "assumptionIds": ["assume-rooms"]
+          }
+        }
+      ],
+      "objectives": [
+        { "id": "obj-read-instructions", "title": "Read Raffles' instructions from Calcutta", "requires": [], "targetId": "ev-instructions" },
+        { "id": "obj-hear-farquhar", "title": "Hear Farquhar's assessment of the island", "requires": [], "targetId": "agent-farquhar-s0" },
+        { "id": "obj-meet-temenggong", "title": "Be received by the Temenggong", "requires": ["obj-hear-farquhar"], "targetId": "agent-temenggong-s0" }
+      ],
+      "decision": {
+        "id": "dec-landing",
+        "title": "What do you advise Raffles to do about the Temenggong's offer?",
+        "prompt": "The Temenggong will sign a preliminary agreement, but he is not the sovereign. Raffles asks for your recommendation.",
+        "roomId": "temenggong-hall",
+        "requires": ["obj-read-instructions", "obj-meet-temenggong"],
+        "options": [
+          {
+            "id": "opt-sign-preliminary",
+            "label": "Sign a preliminary agreement with the Temenggong now and settle the question of the Sultan afterwards",
+            "stance": "cooperative",
+            "preconditions": ["obj-meet-temenggong"],
+            "branchTarget": { "kind": "stage", "stageId": "stage-sultan" }
+          },
+          {
+            "id": "opt-send-to-riau",
+            "label": "Send to Sultan Abdul Rahman in Riau for permission before signing anything",
+            "stance": "evasive",
+            "preconditions": ["obj-read-instructions"],
+            "branchTarget": { "kind": "stage", "stageId": "stage-sultan" }
+          },
+          {
+            "id": "opt-land-troops",
+            "label": "Land the sepoys and hoist the flag without waiting for any agreement",
+            "stance": "antagonistic",
+            "preconditions": [],
+            "branchTarget": { "kind": "ending", "endingId": "end-forced-landing" }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-sultan",
+      "index": 1,
+      "title": "The disputed throne",
+      "sharedContext": {
+        "text": "Early February 1819. Tengku Hussein, the elder son of the late Sultan Mahmud Shah III, has arrived from Riau at the Temenggong's invitation. His younger brother Abdul Rahman sits on the throne with Bugis backing and Dutch recognition. Raffles must decide whose signature makes a treaty lawful.",
+        "spans": [
+          { "sourceId": "handout", "page": 3, "quote": "The younger, Tengku Abdul Rahman, was installed as Sultan in his absence with the support of the powerful Bugis faction at court, and this choice was later recognised by the Dutch." },
+          { "sourceId": "handout", "page": 3, "quote": "Hussein arrived in Singapore in early February 1819" }
+        ],
+        "assumptionIds": []
+      },
+      "timerSeconds": 600,
+      "ambientOverlay": { "id": "rain", "intensity": 2 },
+      "spawnRoomId": "farquhar-tent",
+      "rooms": [
+        {
+          "id": "farquhar-tent",
+          "name": "Farquhar's tent",
+          "purpose": "The expedition's working headquarters on shore.",
+          "kind": "camp",
+          "size": "small",
+          "doorDefault": "open",
+          "landmark": null
+        },
+        {
+          "id": "hussein-quarters",
+          "name": "Tengku Hussein's quarters",
+          "purpose": "Where the newly arrived prince receives visitors in private.",
+          "kind": "chamber",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": null
+        },
+        {
+          "id": "treaty-ground",
+          "name": "The treaty ground",
+          "purpose": "An open space by the river where the treaty is to be signed.",
+          "kind": "courtyard",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": { "name": "The treaty table", "description": "A long table under an awning, laid with the treaty and seals." }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-hussein-s1",
+          "stakeholderId": "hussein",
+          "startRoomId": "hussein-quarters",
+          "publicPosition": {
+            "text": "Hussein asserts that as the elder son he is the rightful Sultan of Johor and is prepared to grant the Company a post.",
+            "spans": [{ "sourceId": "handout", "page": 3, "quote": "Raffles took the view that Tengku Hussein, as the elder son, had the stronger claim." }],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Dignified but anxious; a prince who has lived in obscurity and knows this is his one chance.",
+            "motivations": "Be recognised as Sultan and secure a pension that restores his standing.",
+            "hiddenInterests": "Fears Dutch and Bugis retaliation against his family in Riau; would accept less money for a firmer British guarantee of protection.",
+            "knowledgeHorizon": "Knows the Johor court and his brother's supporters. Does not know how far British protection will really extend.",
+            "spans": [{ "sourceId": "handout", "page": 3, "quote": "Hussein, who was living in obscurity in Riau" }],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-temenggong-s1",
+          "stakeholderId": "temenggong",
+          "startRoomId": "treaty-ground",
+          "publicPosition": {
+            "text": "The Temenggong supports Hussein's claim and urges Raffles to sign with him.",
+            "spans": [{ "sourceId": "handout", "page": 3, "quote": "The Temenggong sent for Hussein" }],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "As before: courteous, patient, watchful.",
+            "motivations": "Have a Sultan in Singapore who owes his throne to him and to the British.",
+            "hiddenInterests": "Wants his own payment fixed before Hussein's; suspects Farquhar prefers dealing with Riau.",
+            "knowledgeHorizon": "Knows what happened at the landing. Knows nothing of Raffles' private correspondence.",
+            "spans": [],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-raffles-s1",
+          "stakeholderId": "raffles",
+          "startRoomId": "farquhar-tent",
+          "publicPosition": {
+            "text": "Raffles is inclined to recognise Hussein and sign at once.",
+            "spans": [{ "sourceId": "handout", "page": 3, "quote": "Raffles recognised him as Sultan Hussein Shah of Johor" }],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Decisive, charming, already composing his despatch to Calcutta.",
+            "motivations": "A lawful-looking treaty signed before he must sail on 7 February.",
+            "hiddenInterests": "Knows recognising Hussein will provoke the Dutch and is gambling that London will back a settled fact.",
+            "knowledgeHorizon": "Knows the Company's position and his own instructions. Relies on the Temenggong for the details of the succession.",
+            "spans": [{ "sourceId": "handout", "page": 3, "quote": "sailed for Bencoolen on 7 February, having spent little more than a week on the island" }],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "modelTier": "frontier"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-succession",
+          "name": "A note on the Johor succession",
+          "roomId": "farquhar-tent",
+          "content": {
+            "text": "When Sultan Mahmud Shah III died in 1812 he left two sons. The elder, Tengku Hussein, was away in Pahang; the younger, Abdul Rahman, was installed as Sultan with Bugis support and was later recognised by the Dutch.",
+            "spans": [{ "sourceId": "handout", "page": 3, "quote": "When Sultan Mahmud Shah III of Johor died in 1812 he left two sons." }],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "ev-treaty-draft",
+          "name": "Draft treaty terms",
+          "roomId": "treaty-ground",
+          "content": {
+            "text": "The Company to establish a factory at Singapore; the Sultan to receive 5,000 Spanish dollars a year and the Temenggong 3,000.",
+            "spans": [{ "sourceId": "handout", "page": 3, "quote": "In return the Sultan was to receive 5,000 Spanish dollars a year and the Temenggong 3,000 Spanish dollars a year." }],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        { "id": "obj-read-succession", "title": "Understand the succession dispute", "requires": [], "targetId": "ev-succession" },
+        { "id": "obj-meet-hussein", "title": "Speak with Tengku Hussein in private", "requires": ["obj-read-succession"], "targetId": "agent-hussein-s1" },
+        { "id": "obj-read-terms", "title": "Review the draft treaty terms", "requires": [], "targetId": "ev-treaty-draft" }
+      ],
+      "decision": {
+        "id": "dec-sultan",
+        "title": "Whose signature should be on the treaty?",
+        "prompt": "Raffles must sail within days. Recommend how the treaty should be concluded.",
+        "roomId": "treaty-ground",
+        "requires": ["obj-meet-hussein", "obj-read-terms"],
+        "options": [
+          {
+            "id": "opt-recognise-hussein",
+            "label": "Recognise Tengku Hussein as Sultan and sign with him and the Temenggong",
+            "stance": "cooperative",
+            "preconditions": ["obj-meet-hussein"],
+            "branchTarget": { "kind": "stage", "stageId": "stage-settlement" }
+          },
+          {
+            "id": "opt-seek-riau",
+            "label": "Refuse to take sides; seek terms from Sultan Abdul Rahman in Riau",
+            "stance": "neutral",
+            "preconditions": ["obj-read-succession"],
+            "branchTarget": { "kind": "ending", "endingId": "end-riau-refusal" }
+          },
+          {
+            "id": "opt-temenggong-only",
+            "label": "Sign with the Temenggong alone and leave the Sultan out of it",
+            "stance": "evasive",
+            "preconditions": [],
+            "branchTarget": { "kind": "stage", "stageId": "stage-settlement" }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-settlement",
+      "index": 2,
+      "title": "Farquhar's settlement",
+      "sharedContext": {
+        "text": "1822. Raffles has returned to find Singapore growing faster than anyone expected under Farquhar. It is a free port. Farquhar has raised money by licensing gambling houses and permitting the opium and arrack trades, and has not stopped the slave trade passing through the port. The Dutch protest continues and London has not yet decided whether to keep the settlement.",
+        "spans": [
+          { "sourceId": "handout", "page": 4, "quote": "Raffles had declared Singapore a free port, where ships could trade without paying duties" },
+          { "sourceId": "handout", "page": 4, "quote": "he did not stop the trade in slaves that passed through the port" },
+          { "sourceId": "handout", "page": 4, "quote": "For several years it was uncertain whether the British government in London would keep the settlement." }
+        ],
+        "assumptionIds": []
+      },
+      "timerSeconds": 0,
+      "ambientOverlay": { "id": "dust", "intensity": 1 },
+      "spawnRoomId": "bazaar",
+      "rooms": [
+        {
+          "id": "bazaar",
+          "name": "The riverside bazaar",
+          "purpose": "Traders from across the region do business here without paying duties.",
+          "kind": "market",
+          "size": "large",
+          "doorDefault": "open",
+          "landmark": null
+        },
+        {
+          "id": "resident-office",
+          "name": "The Resident's office",
+          "purpose": "Farquhar's accounts and licences are kept here.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "closed",
+          "landmark": null
+        },
+        {
+          "id": "godown",
+          "name": "A merchant's godown",
+          "purpose": "A warehouse by the river; the Temenggong's people collect their dues here.",
+          "kind": "warehouse",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": null
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-farquhar-s2",
+          "stakeholderId": "farquhar",
+          "startRoomId": "resident-office",
+          "publicPosition": {
+            "text": "Farquhar defends his licences as the only way to pay for the settlement without duties.",
+            "spans": [{ "sourceId": "handout", "page": 4, "quote": "To raise money he licensed gambling houses and permitted the sale of opium and arrack" }],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Proud of what he has built, defensive, increasingly bitter towards Raffles.",
+            "motivations": "Keep his post and his reputation; keep the revenue flowing.",
+            "hiddenInterests": "Believes Raffles will try to remove him and is quietly gathering merchant support. Would accept modest port duties if it meant keeping his position.",
+            "knowledgeHorizon": "Knows the settlement's finances and its merchants. Does not know that Raffles has already decided to replace him.",
+            "spans": [{ "sourceId": "handout", "page": 4, "quote": "in 1823 dismissed Farquhar, replacing him with John Crawfurd" }],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-raffles-s2",
+          "stakeholderId": "raffles",
+          "startRoomId": "bazaar",
+          "publicPosition": {
+            "text": "Raffles disapproves of the gambling, opium and slave trades and wants the town replanned; he insists Singapore remain a free port.",
+            "spans": [{ "sourceId": "handout", "page": 4, "quote": "When Raffles returned in 1822 he disapproved of these measures, redrew the town plan" }],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Reforming, moralising, still persuasive.",
+            "motivations": "Leave Singapore as an orderly free port that London cannot bring itself to give up.",
+            "hiddenInterests": "Has already resolved to dismiss Farquhar and is looking for a justification the Company will accept.",
+            "knowledgeHorizon": "Knows Company politics and the state of the Anglo-Dutch negotiations. Knows less about the day-to-day finances than Farquhar.",
+            "spans": [],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-temenggong-s2",
+          "stakeholderId": "temenggong",
+          "startRoomId": "godown",
+          "publicPosition": {
+            "text": "The Temenggong wants his annual payment honoured and his followers' share of the port's trade protected.",
+            "spans": [{ "sourceId": "handout", "page": 3, "quote": "the Temenggong 3,000 Spanish dollars a year" }],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Older, warier, aware that the British no longer need him as they once did.",
+            "motivations": "Protect his income and his people's position in a settlement now dominated by newcomers.",
+            "hiddenInterests": "Quietly profits from some of the trades Raffles wants to stop and would rather Farquhar stayed.",
+            "knowledgeHorizon": "Knows the port's Malay and Bugis traders. Not privy to the dispute between Raffles and Farquhar.",
+            "spans": [],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "modelTier": "cheap"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-census",
+          "name": "The census return of January 1824",
+          "roomId": "resident-office",
+          "content": {
+            "text": "The first census, in January 1824, recorded a population of 10,683.",
+            "spans": [{ "sourceId": "handout", "page": 4, "quote": "By the time of the first census in January 1824 the population was recorded at 10,683." }],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "ev-licences",
+          "name": "Farquhar's licence ledger",
+          "roomId": "resident-office",
+          "content": {
+            "text": "A ledger of licences for gambling houses and the sale of opium and arrack, kept to raise revenue for the settlement.",
+            "spans": [{ "sourceId": "handout", "page": 4, "quote": "he licensed gambling houses and permitted the sale of opium and arrack" }],
+            "assumptionIds": ["assume-rooms"]
+          }
+        }
+      ],
+      "objectives": [
+        { "id": "obj-see-ledger", "title": "Inspect Farquhar's licence ledger", "requires": [], "targetId": "ev-licences" },
+        { "id": "obj-hear-farquhar-defence", "title": "Hear Farquhar defend his administration", "requires": ["obj-see-ledger"], "targetId": "agent-farquhar-s2" },
+        { "id": "obj-hear-raffles", "title": "Hear what Raffles intends for the town", "requires": [], "targetId": "agent-raffles-s2" }
+      ],
+      "decision": {
+        "id": "dec-settlement",
+        "title": "How should the settlement be paid for?",
+        "prompt": "Raffles asks your view before he writes to Calcutta about Farquhar and the town's finances.",
+        "roomId": "resident-office",
+        "requires": ["obj-hear-farquhar-defence", "obj-hear-raffles"],
+        "options": [
+          {
+            "id": "opt-free-port-reform",
+            "label": "Keep the free port, end the gambling and slave trades, and replace Farquhar",
+            "stance": "cooperative",
+            "preconditions": ["obj-hear-raffles"],
+            "branchTarget": { "kind": "ending", "endingId": "end-free-port" }
+          },
+          {
+            "id": "opt-levy-duties",
+            "label": "Introduce port duties to replace the licence revenue and keep Farquhar",
+            "stance": "antagonistic",
+            "preconditions": ["obj-hear-farquhar-defence"],
+            "branchTarget": { "kind": "ending", "endingId": "end-duties" }
+          }
+        ]
+      }
+    }
+  ],
+  "endings": [
+    {
+      "id": "end-free-port",
+      "title": "A free port under new management",
+      "summary": "Raffles redraws the town plan, ends the licensed gambling, and dismisses Farquhar, who leaves under protest. Singapore remains a free port and keeps growing.",
+      "historicalOutcome": {
+        "text": "This is what happened. Raffles disapproved of Farquhar's measures, redrew the town plan and in 1823 dismissed him, replacing him with John Crawfurd. The Anglo-Dutch Treaty of 1824 ended the Dutch objection, and the January 1824 census recorded 10,683 people.",
+        "spans": [
+          { "sourceId": "handout", "page": 4, "quote": "in 1823 dismissed Farquhar, replacing him with John Crawfurd" },
+          { "sourceId": "handout", "page": 4, "quote": "The dispute was finally settled by the Anglo-Dutch Treaty of 1824" }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "Your path matches the documented outcome. The details of the conversations and the reasons the agents gave you were simulated.",
+      "reflectionQuestions": [
+        "Farquhar's licences paid for the settlement. Was Raffles right to condemn them?",
+        "Why might a free port have grown faster than one that charged duties?",
+        "Which of the private motives you uncovered were documented, and which were the simulation's assumptions?"
+      ]
+    },
+    {
+      "id": "end-duties",
+      "title": "Duties at the river mouth",
+      "summary": "Port duties are introduced and Farquhar stays. Some traders move their business to ports that charge nothing, and the settlement grows more slowly than it might have.",
+      "historicalOutcome": {
+        "text": "In reality Singapore remained a free port and traders from the region moved their business there; by January 1824 the population was 10,683. Farquhar was dismissed in 1823.",
+        "spans": [
+          { "sourceId": "handout", "page": 4, "quote": "traders from the region moved their business there" },
+          { "sourceId": "handout", "page": 4, "quote": "in 1823 dismissed Farquhar" }
+        ],
+        "assumptionIds": ["assume-counterfactual-endings"]
+      },
+      "divergence": "Historically no duties were levied. The slower growth in this ending is a simulated consequence, not a documented one.",
+      "reflectionQuestions": [
+        "What evidence in the handout suggests the free port policy mattered to Singapore's growth?",
+        "Was there a fair way to pay for the settlement without the trades Farquhar licensed?"
+      ]
+    },
+    {
+      "id": "end-riau-refusal",
+      "title": "Refused at Riau",
+      "summary": "Raffles' envoy to Sultan Abdul Rahman is turned away under Dutch pressure. With no lawful grant and his sailing date past, Raffles leaves without a treaty, and the Dutch consolidate their hold on the straits.",
+      "historicalOutcome": {
+        "text": "Historically Raffles did not approach Sultan Abdul Rahman. He recognised Tengku Hussein and signed the treaty of 6 February 1819; the Dutch protested but withdrew their objection in the Anglo-Dutch Treaty of 1824.",
+        "spans": [
+          { "sourceId": "handout", "page": 3, "quote": "On 6 February 1819 a treaty was signed between the East India Company, represented by Raffles, Sultan Hussein and Temenggong Abdul Rahman." },
+          { "sourceId": "handout", "page": 4, "quote": "The Dutch protested at once." }
+        ],
+        "assumptionIds": ["assume-counterfactual-endings"]
+      },
+      "divergence": "This ending is counterfactual. The refusal at Riau is a simulated assumption about how a Dutch-backed Sultan would have responded.",
+      "reflectionQuestions": [
+        "Why did Raffles treat the succession dispute as an opportunity rather than an obstacle?",
+        "What would the Dutch have gained if no British post had been founded in 1819?"
+      ]
+    },
+    {
+      "id": "end-forced-landing",
+      "title": "The flag without a treaty",
+      "summary": "The sepoys land and the flag is raised without any agreement. The Temenggong withdraws his welcome, the Dutch lodge a formal protest, and Calcutta, reminded of its own cautious instructions, orders the post abandoned.",
+      "historicalOutcome": {
+        "text": "Historically Raffles secured agreements first: a preliminary agreement with the Temenggong on 30 January and the treaty of 6 February 1819. His instructions had told him to avoid any collision with the Dutch.",
+        "spans": [
+          { "sourceId": "handout", "page": 2, "quote": "On 30 January 1819 Raffles and the Temenggong signed a preliminary agreement" },
+          { "sourceId": "handout", "page": 1, "quote": "to avoid any collision with the Dutch" }
+        ],
+        "assumptionIds": ["assume-counterfactual-endings"]
+      },
+      "divergence": "This ending is counterfactual. Calcutta's reaction is a simulated assumption drawn from the cautious instructions in the source.",
+      "reflectionQuestions": [
+        "Why did Raffles bother with agreements at all if the Company had the military power to land?",
+        "How did Raffles' cautious instructions from Calcutta shape what was possible?"
+      ]
+    }
+  ],
+  "assetEligibility": [
+    { "id": "asset-raffles", "kind": "portrait", "entityId": "raffles", "subject": "Sir Thomas Stamford Raffles", "prompt": "Portrait of a British colonial official in his late thirties, 1819, dark coat and high white collar, confident expression, painted style" },
+    { "id": "asset-farquhar", "kind": "portrait", "entityId": "farquhar", "subject": "Major William Farquhar", "prompt": "Portrait of a Scottish army officer in his forties, 1819, red military coat, weathered face, painted style" },
+    { "id": "asset-temenggong", "kind": "portrait", "entityId": "temenggong", "subject": "Temenggong Abdul Rahman", "prompt": "Portrait of a Malay noble in 1819, baju and songket sash, tengkolok headdress, composed expression, painted style" },
+    { "id": "asset-hussein", "kind": "portrait", "entityId": "hussein", "subject": "Tengku Hussein of Johor", "prompt": "Portrait of a Malay prince in 1819, formal court dress, dignified but anxious expression, painted style" },
+    { "id": "asset-treaty-ground", "kind": "landmark", "entityId": "treaty-ground", "subject": "The treaty ground by the Singapore River", "prompt": "Top-down view of an awning over a long table by a tropical river bank, 1819, small tile-style illustration" },
+    { "id": "asset-instructions", "kind": "prop", "entityId": "ev-instructions", "subject": "Sealed letter of instructions", "prompt": "A folded letter with a red wax seal on a wooden desk, early 19th century, small icon-style illustration" }
+  ]
+}

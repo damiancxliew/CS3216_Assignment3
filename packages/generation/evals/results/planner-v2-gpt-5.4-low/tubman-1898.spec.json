@@ -1,0 +1,1032 @@
+{
+  "version": 2,
+  "id": "the-claim-and-the-pension",
+  "title": "The Claim and the Pension",
+  "setting": "Washington, D.C. and Auburn, New York, 1898-1899: Harriet Tubman's claim for a Civil War pension",
+  "description": "You are a clerk helping review Harriet Tubman Davis's pension claim. You must sort evidence, question witnesses, and advise committee members. The key problem is simple but hard: what service did Tubman perform, and what service did Congress officially recognize?",
+  "readingLevel": {
+    "band": "lower-secondary",
+    "ageMin": 13,
+    "ageMax": 14
+  },
+  "learningObjectives": [
+    "Describe the services Harriet Tubman performed for the Union during the Civil War.",
+    "Explain how Congress handled her pension claim and on what basis it was finally granted.",
+    "Evaluate whether Congress officially acknowledged her service."
+  ],
+  "player": {
+    "name": "Committee Clerk",
+    "role": "A clerk in the House committee handling the claim",
+    "brief": "You organize papers, question visitors, and prepare notes before members decide how to act on Harriet Tubman Davis's claim."
+  },
+  "sources": [
+    {
+      "id": "tubman-pension-1898",
+      "title": "tubman pension 1898",
+      "kind": "text",
+      "pageCount": 4,
+      "contentHash": "7cd8b96e6c1fce5220f9945fdde078a686105988e1e8a03eed861f37dbecc6c9"
+    }
+  ],
+  "sharedContext": {
+    "text": "The case asks what Harriet Tubman did during the Civil War and whether Congress will pay her for that service. The records say she sought compensation for wartime work, but the final result recognized her in a narrower way.",
+    "spans": [
+      {
+        "sourceId": "tubman-pension-1898",
+        "page": 1,
+        "quote": "Harriet Tubman’s Civil War service to the government and her petition to Congress for compensation"
+      },
+      {
+        "sourceId": "tubman-pension-1898",
+        "page": 1,
+        "quote": "Tubman ultimately secured a pension only as a widow of a Civil War veteran, not on the basis of her own service."
+      }
+    ],
+    "assumptionIds": [
+      "assumption-player-role"
+    ]
+  },
+  "assumptions": [
+    {
+      "id": "assumption-player-role",
+      "text": "The player is a clerk assigned to help a House committee review Harriet Tubman Davis's claim.",
+      "rationale": "The teacher brief assigns this student role, but the source pages do not name such a clerk."
+    },
+    {
+      "id": "assumption-stage1-layout",
+      "text": "Stage 1 uses a committee office, a records archive, and a public hall in Washington, D.C., as the places where the clerk gathers and sorts information.",
+      "rationale": "The sources discuss House records and Congress but do not describe room layouts."
+    },
+    {
+      "id": "assumption-stage2-layout",
+      "text": "Stage 2 uses a Washington committee office and an Auburn correspondence room to represent final review of Tubman's claim across distance.",
+      "rationale": "The teacher brief names Washington and Auburn, but the sources do not describe a scene structure."
+    },
+    {
+      "id": "assumption-private-motives",
+      "text": "Private motives and limits of knowledge are inferred from each stakeholder's public role in the claim process.",
+      "rationale": "The source pages summarize documents and questions but do not reveal inner thoughts."
+    },
+    {
+      "id": "assumption-early-denial",
+      "text": "A committee could stall or dismiss the claim before deeper review if the clerk recommends insufficient support.",
+      "rationale": "This is a gameplay branch, not a documented historical event."
+    },
+    {
+      "id": "assumption-counterfactual-recognition",
+      "text": "Congress might have chosen to recognize Tubman's own wartime service directly in a stronger bill.",
+      "rationale": "The source pages indicate that this did not happen, so any stronger recognition is counterfactual."
+    }
+  ],
+  "stakeholders": [
+    {
+      "id": "harriet-tubman",
+      "name": "Harriet Tubman Davis",
+      "role": "Petitioner seeking compensation",
+      "summary": {
+        "text": "Tubman petitioned Congress for compensation tied to her Civil War service. The lesson summary says she requested a federal pension on the basis of work as a nurse, cook, and spy, but did not finally receive a pension on that basis.",
+        "spans": [
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "it was on that basis that she requested a federal pension after the War."
+          },
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "service as a nurse, cook, and spy for the federal government is less well known"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "sereno-payne",
+      "name": "Sereno E. Payne",
+      "role": "Author of a supporting letter",
+      "summary": {
+        "text": "A letter by Sereno E. Payne forms part of the claim file. The lesson materials treat his letter as evidence about Tubman's request for additional compensation.",
+        "spans": [
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "Letter from Sereno E. Payne, on behalf of the claim of Harriet Tubman"
+          },
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 2,
+            "quote": "Why is Tubman already receiving a pension? On what ground is she requesting additional compensation?"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "house-committee",
+      "name": "House committee members",
+      "role": "Members reviewing the House-side claim",
+      "summary": {
+        "text": "House records and a House bill show that members of Congress had to examine evidence and decide what form of pension claim to support.",
+        "spans": [
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "Students will explore records from the U.S. House of Representatives"
+          },
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "H.R. 4982, a bill granting a pension to Harriet Tubman Davis"
+          }
+        ],
+        "assumptionIds": []
+      }
+    },
+    {
+      "id": "senate-committee",
+      "name": "Senate committee",
+      "role": "Committee issuing the Senate report",
+      "summary": {
+        "text": "A Senate report also weighed the claim. The lesson questions show that the report presented evidence, took a position, and recommended a reduced amount.",
+        "spans": [
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "S. Rpt. 1619 to accompany a bill granting a pension to Harriet Tubman Davis"
+          },
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 2,
+            "quote": "On what grounds does the report recommend decreasing the pension amount?"
+          }
+        ],
+        "assumptionIds": []
+      }
+    }
+  ],
+  "defaultTimerSeconds": 480,
+  "ambientOverlay": {
+    "id": "clear",
+    "intensity": 1
+  },
+  "stages": [
+    {
+      "id": "stage-0",
+      "index": 0,
+      "title": "House Files Open",
+      "sharedContext": {
+        "text": "In Washington, the committee has a file of summaries, letters, and bill notes. Your task is to decide whether the claim is strong enough to move forward for fuller action.",
+        "spans": [
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "Students will explore records from the U.S. House of Representatives to discover the story"
+          },
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "petition to Congress for compensation"
+          }
+        ],
+        "assumptionIds": [
+          "assumption-stage1-layout",
+          "assumption-player-role"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": null,
+      "spawnRoomId": "committee-office",
+      "rooms": [
+        {
+          "id": "committee-office",
+          "name": "Committee Office",
+          "purpose": "Sort the main file and prepare a note for members.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Claim Desk",
+            "description": "A desk piled with pension papers and draft notes."
+          }
+        },
+        {
+          "id": "records-archive",
+          "name": "Records Archive",
+          "purpose": "Inspect copied summaries and worksheet prompts tied to the claim.",
+          "kind": "archive",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Case Shelf",
+            "description": "A shelf holding labeled folders for the Tubman claim."
+          }
+        },
+        {
+          "id": "public-hall",
+          "name": "Public Hall",
+          "purpose": "Speak with visitors who support or question the claim.",
+          "kind": "hall",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Notice Board",
+            "description": "A board listing bills and committee business."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-tubman-stage0",
+          "stakeholderId": "harriet-tubman",
+          "startRoomId": "public-hall",
+          "publicPosition": {
+            "text": "Tubman seeks compensation for wartime service and wants Congress to look at the full record of what she did.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "her petition to Congress for compensation"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "requested a federal pension after the War"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Calm, direct, and used to needing others to believe hard truths.",
+            "motivations": "She wants fair payment for the work the government accepted from her during the war.",
+            "hiddenInterests": "She knows the papers may not capture the full breadth of her service.",
+            "knowledgeHorizon": "She can speak to her own claim but cannot control what Congress will recognize officially.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "indicating the breadth of her service"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "not on the basis of her own service"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-private-motives"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-payne-stage0",
+          "stakeholderId": "sereno-payne",
+          "startRoomId": "public-hall",
+          "publicPosition": {
+            "text": "Payne supports the claim and points the committee toward Tubman's service as a nurse, cook, and spy.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "Letter from Sereno E. Payne, on behalf of the claim of Harriet Tubman"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "employed as a nurse, cook, and a spy"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Helpful and formal, trying to turn sympathy into action.",
+            "motivations": "He wants the committee to treat the wartime service as real government service.",
+            "hiddenInterests": "He may stress the strongest parts of the case and leave weak points for others to solve.",
+            "knowledgeHorizon": "He knows the support case in his letter but does not decide the final act alone.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "What is the author of this letter trying to accomplish?"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "What opinions are cited of those familiar with her case?"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-private-motives"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-house-stage0",
+          "stakeholderId": "house-committee",
+          "startRoomId": "committee-office",
+          "publicPosition": {
+            "text": "House members need a clear summary of what service is claimed and what kind of pension bill could be supported.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "What does this document propose?"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "For what aspect of Tubman’s service was the pension proposed?"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Busy, procedural, and concerned with what can pass.",
+            "motivations": "They want a claim that can be justified by the papers in the file.",
+            "hiddenInterests": "Some may prefer a narrower claim if it seems easier to move through Congress.",
+            "knowledgeHorizon": "They can review records and bills in the House file but do not yet know the final Senate or final act outcome.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "Using historical thinking skills, students will examine the evidence of Tubman’s service and assess Congress’s decision"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "H.R. 4982, a bill granting a pension to Harriet Tubman Davis"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-private-motives"
+            ]
+          },
+          "modelTier": "mid"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence-case-summary",
+          "name": "Case Summary Sheet",
+          "roomId": "records-archive",
+          "content": {
+            "text": "The summary says Tubman sought compensation for Civil War work and that her service was described as nursing, cooking, and spying for the federal government.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "her petition to Congress for compensation"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "service as a nurse, cook, and spy for the federal government"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-payne-letter-note",
+          "name": "Note on Payne Letter",
+          "roomId": "records-archive",
+          "content": {
+            "text": "This note shows that Payne wrote on behalf of Tubman's claim and that the committee must ask why she already had a pension and why she wanted more compensation.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "Letter from Sereno E. Payne, on behalf of the claim of Harriet Tubman"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "Why is Tubman already receiving a pension? On what ground is she requesting additional compensation?"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-bill-entry",
+          "name": "Bill Entry for H.R. 4982",
+          "roomId": "committee-office",
+          "content": {
+            "text": "The file lists a House bill that would grant a pension to Harriet Tubman Davis and asks what aspect of her service the bill covered.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "H.R. 4982, a bill granting a pension to Harriet Tubman Davis"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "For what aspect of Tubman’s service was the pension proposed?"
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj-read-summary",
+          "title": "Read the case summary",
+          "requires": [],
+          "targetId": "evidence-case-summary"
+        },
+        {
+          "id": "obj-read-payne-note",
+          "title": "Review the note on Payne's letter",
+          "requires": [
+            "obj-read-summary"
+          ],
+          "targetId": "evidence-payne-letter-note"
+        },
+        {
+          "id": "obj-question-payne",
+          "title": "Ask Payne what he is trying to accomplish",
+          "requires": [
+            "obj-read-payne-note"
+          ],
+          "targetId": "agent-payne-stage0"
+        },
+        {
+          "id": "obj-brief-house",
+          "title": "Brief the House members on the proposed bill",
+          "requires": [
+            "obj-read-summary"
+          ],
+          "targetId": "agent-house-stage0"
+        }
+      ],
+      "decision": {
+        "id": "decision-stage0",
+        "title": "Recommend the next step",
+        "prompt": "You have enough to shape the committee's first move. Do you advise members to push the claim forward for fuller consideration, or do you warn that the file is too weak and narrow the case now?",
+        "roomId": "committee-office",
+        "requires": [
+          "obj-read-summary",
+          "obj-read-payne-note",
+          "obj-question-payne",
+          "obj-brief-house"
+        ],
+        "options": [
+          {
+            "id": "option-stage0-forward",
+            "label": "Prepare a fuller case file and move the claim ahead.",
+            "stance": "cooperative",
+            "preconditions": [
+              "obj-read-summary",
+              "obj-question-payne"
+            ],
+            "branchTarget": {
+              "kind": "stage",
+              "stageId": "stage-1"
+            }
+          },
+          {
+            "id": "option-stage0-stall",
+            "label": "Advise the committee to stall the claim for lack of clear proof.",
+            "stance": "evasive",
+            "preconditions": [
+              "obj-read-summary",
+              "obj-brief-house"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-early-denial"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "stage-1",
+      "index": 1,
+      "title": "Final Grounds of the Pension",
+      "sharedContext": {
+        "text": "The claim has advanced. Now the question is narrower and sharper: if Congress acts, will it recognize Tubman's own wartime service, or grant support on another legal basis?",
+        "spans": [
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "Tubman ultimately secured a pension only as a widow of a Civil War veteran"
+          },
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 2,
+            "quote": "In the act that Congress ultimately passed which determined Tubman’s pension, how much did she receive?"
+          }
+        ],
+        "assumptionIds": [
+          "assumption-stage2-layout",
+          "assumption-player-role"
+        ]
+      },
+      "timerSeconds": null,
+      "ambientOverlay": null,
+      "spawnRoomId": "final-committee-office",
+      "rooms": [
+        {
+          "id": "final-committee-office",
+          "name": "Final Committee Office",
+          "purpose": "Compare bill language and draft the final recommendation.",
+          "kind": "office",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Recommendation Table",
+            "description": "A table covered with bill summaries and report notes."
+          }
+        },
+        {
+          "id": "auburn-correspondence-room",
+          "name": "Auburn Correspondence Room",
+          "purpose": "Review copied material linked to Tubman's home and claim papers.",
+          "kind": "archive",
+          "size": "small",
+          "doorDefault": "closed",
+          "landmark": {
+            "name": "Auburn File Box",
+            "description": "A box of copied claim papers tied to Tubman's pension effort."
+          }
+        },
+        {
+          "id": "committee-hall-stage1",
+          "name": "Committee Hall",
+          "purpose": "Hear final arguments from House and Senate sides.",
+          "kind": "hall",
+          "size": "medium",
+          "doorDefault": "open",
+          "landmark": {
+            "name": "Committee Door",
+            "description": "A door where messengers arrive with reports."
+          }
+        }
+      ],
+      "agents": [
+        {
+          "id": "agent-tubman-stage1",
+          "stakeholderId": "harriet-tubman",
+          "startRoomId": "auburn-correspondence-room",
+          "publicPosition": {
+            "text": "Tubman wants the government to acknowledge the work she says she performed during the war.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 4,
+                "quote": "what services to the nation did Tubman render during the Civil War?"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 4,
+                "quote": "What parts of Tubman’s service were not acknowledged in the final act?"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Steady and patient, but aware that recognition may be partial.",
+            "motivations": "She wants both money and official acknowledgment of what she did.",
+            "hiddenInterests": "A narrow grant would help financially but still leave her own service under-recognized.",
+            "knowledgeHorizon": "She knows what she did and what she requested, but not how far Congress will go.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "grant her a pension. Despite the endorsements of a number of highly ranked Civil War officials"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "not on the basis of her own service"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-private-motives"
+            ]
+          },
+          "modelTier": "frontier"
+        },
+        {
+          "id": "agent-house-stage1",
+          "stakeholderId": "house-committee",
+          "startRoomId": "final-committee-office",
+          "publicPosition": {
+            "text": "House members must decide what recommendation can survive the next steps of Congress.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "assess Congress’s decision to grant her a pension"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 4,
+                "quote": "How does the pension amount recommended for Tubman in H.R. 4982 compare"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Practical and alert to compromise.",
+            "motivations": "They want a result that can pass, even if it does not answer every part of Tubman's claim.",
+            "hiddenInterests": "A narrower legal basis may seem easier to defend than direct recognition of her own service.",
+            "knowledgeHorizon": "They can compare the House bill, the Senate report, and the final act question, but the sources here do not give every detail of debate.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "On what grounds was she granted the pension?"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "secured a pension only as a widow of a Civil War veteran"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-private-motives"
+            ]
+          },
+          "modelTier": "mid"
+        },
+        {
+          "id": "agent-senate-stage1",
+          "stakeholderId": "senate-committee",
+          "startRoomId": "committee-hall-stage1",
+          "publicPosition": {
+            "text": "The Senate report weighs evidence but also recommends a lower amount than the House proposal.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "Does the Senate committee support or oppose granting a pension to Tubman?"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "On what grounds does the report recommend decreasing the pension amount?"
+              }
+            ],
+            "assumptionIds": []
+          },
+          "privateContext": {
+            "persona": "Measured and cautious with public money.",
+            "motivations": "The committee wants a justifiable recommendation tied to a legal ground it accepts.",
+            "hiddenInterests": "It may prefer a smaller or narrower grant if the direct service claim seems harder to certify.",
+            "knowledgeHorizon": "It can present evidence and recommend terms, but it does not erase the difference between service claimed and service recognized.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "What evidence is presented of Tubman’s Civil War service?"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "recommend decreasing the pension amount"
+              }
+            ],
+            "assumptionIds": [
+              "assumption-private-motives"
+            ]
+          },
+          "modelTier": "mid"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence-senate-report-note",
+          "name": "Senate Report Note",
+          "roomId": "committee-hall-stage1",
+          "content": {
+            "text": "This note says the Senate report presented evidence of Tubman's service, took a position on the pension, and recommended a decrease in amount.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "What evidence is presented of Tubman’s Civil War service?"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 2,
+                "quote": "On what grounds does the report recommend decreasing the pension amount?"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-final-act-questions",
+          "name": "Questions on the Final Act",
+          "roomId": "final-committee-office",
+          "content": {
+            "text": "The final-act questions focus on how much Tubman received and on what grounds she was granted the pension.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 4,
+                "quote": "In the act that Congress ultimately passed which determined Tubman’s pension, how much did she receive?"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 4,
+                "quote": "On what grounds was she granted the pension?"
+              }
+            ],
+            "assumptionIds": []
+          }
+        },
+        {
+          "id": "evidence-guiding-question",
+          "name": "Guiding Question Sheet",
+          "roomId": "auburn-correspondence-room",
+          "content": {
+            "text": "The central question asks to what extent, and for what services, Congress officially acknowledged Tubman's Civil War service.",
+            "spans": [
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 1,
+                "quote": "Guiding Question: To what extent, and for what services, did Congress officially acknowledge Harriet"
+              },
+              {
+                "sourceId": "tubman-pension-1898",
+                "page": 4,
+                "quote": "To what extent, and for what services, did Congress officially acknowledge Harriet Tubman’s Civil War service to her country?"
+              }
+            ],
+            "assumptionIds": []
+          }
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj-read-guiding-question",
+          "title": "Review the guiding question",
+          "requires": [],
+          "targetId": "evidence-guiding-question"
+        },
+        {
+          "id": "obj-read-senate-note",
+          "title": "Read the Senate report note",
+          "requires": [
+            "obj-read-guiding-question"
+          ],
+          "targetId": "evidence-senate-report-note"
+        },
+        {
+          "id": "obj-question-senate",
+          "title": "Hear the Senate committee's grounds",
+          "requires": [
+            "obj-read-senate-note"
+          ],
+          "targetId": "agent-senate-stage1"
+        },
+        {
+          "id": "obj-read-final-act",
+          "title": "Study the final-act questions",
+          "requires": [
+            "obj-read-guiding-question"
+          ],
+          "targetId": "evidence-final-act-questions"
+        },
+        {
+          "id": "obj-question-tubman",
+          "title": "Ask Tubman what recognition matters most to her",
+          "requires": [
+            "obj-read-final-act"
+          ],
+          "targetId": "agent-tubman-stage1"
+        },
+        {
+          "id": "obj-brief-house-stage1",
+          "title": "Present the final choice to House members",
+          "requires": [
+            "obj-question-senate",
+            "obj-question-tubman"
+          ],
+          "targetId": "agent-house-stage1"
+        }
+      ],
+      "decision": {
+        "id": "decision-stage1",
+        "title": "Choose the basis of recognition",
+        "prompt": "The file suggests Tubman performed important wartime service, yet Congress may still choose a narrower legal path. What recommendation do you send forward?",
+        "roomId": "final-committee-office",
+        "requires": [
+          "obj-read-guiding-question",
+          "obj-read-senate-note",
+          "obj-question-senate",
+          "obj-read-final-act",
+          "obj-question-tubman",
+          "obj-brief-house-stage1"
+        ],
+        "options": [
+          {
+            "id": "option-stage1-historical",
+            "label": "Recommend a grant on the widow basis, while noting the wartime service in your summary.",
+            "stance": "neutral",
+            "preconditions": [
+              "obj-brief-house-stage1",
+              "obj-question-senate"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-historical-compromise"
+            }
+          },
+          {
+            "id": "option-stage1-full-service",
+            "label": "Urge Congress to recognize Tubman's own wartime service directly in the pension action.",
+            "stance": "cooperative",
+            "preconditions": [
+              "obj-brief-house-stage1",
+              "obj-question-tubman"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-full-recognition"
+            }
+          },
+          {
+            "id": "option-stage1-reject-service",
+            "label": "Advise members to set aside the service claim and deny any broader acknowledgment.",
+            "stance": "antagonistic",
+            "preconditions": [
+              "obj-read-senate-note",
+              "obj-read-final-act"
+            ],
+            "branchTarget": {
+              "kind": "ending",
+              "endingId": "ending-narrow-denial"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "endings": [
+    {
+      "id": "ending-early-denial",
+      "title": "The Claim Stalls Early",
+      "summary": "Your warning causes the committee to slow or drop the broader claim before it fully matures. Tubman's wartime service receives little formal attention.",
+      "historicalOutcome": {
+        "text": "This does not match the record. The lesson summary says Congress did grant Tubman a pension, but only as the widow of a Civil War veteran, not on the basis of her own service.",
+        "spans": [
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "Tubman ultimately secured a pension only as a widow of a Civil War veteran, not on the basis of her own service."
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending diverges from the record because it halts the claim before the documented pension outcome.",
+      "reflectionQuestions": [
+        "What evidence in the file argued against stopping so soon?",
+        "Why might committees stall claims even when some support exists?",
+        "How does delay affect what gets remembered officially?"
+      ]
+    },
+    {
+      "id": "ending-historical-compromise",
+      "title": "A Pension, but Narrow Recognition",
+      "summary": "Congress acts, but on limited grounds. Tubman receives official help, yet her own wartime service is not the legal basis of the award.",
+      "historicalOutcome": {
+        "text": "This matches the record in the lesson summary: despite endorsements and evidence of broad service, Tubman secured a pension only as the widow of a Civil War veteran, not for her own service.",
+        "spans": [
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "Despite the endorsements of a number of highly ranked Civil War officials indicating the breadth of her service"
+          },
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "Tubman ultimately secured a pension only as a widow of a Civil War veteran, not on the basis of her own service."
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending matches the record as summarized in the source.",
+      "reflectionQuestions": [
+        "What parts of Tubman's service were acknowledged informally but not legally?",
+        "Why might Congress prefer a narrower basis for payment?",
+        "Does financial support without full recognition count as acknowledgment?"
+      ]
+    },
+    {
+      "id": "ending-full-recognition",
+      "title": "Congress Recognizes Her Own Service",
+      "summary": "Your recommendation persuades lawmakers to base the pension directly on Tubman's wartime labor for the government. This gives both payment and formal recognition.",
+      "historicalOutcome": {
+        "text": "This does not match the record. The summary states that Tubman did not finally secure a pension on the basis of her own service, even though evidence described work as a nurse, cook, and spy.",
+        "spans": [
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "service as a nurse, cook, and spy for the federal government is less well known"
+          },
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "Tubman ultimately secured a pension only as a widow of a Civil War veteran, not on the basis of her own service."
+          }
+        ],
+        "assumptionIds": [
+          "assumption-counterfactual-recognition"
+        ]
+      },
+      "divergence": "This ending diverges by giving Tubman the direct service-based recognition that the summary says she did not receive.",
+      "reflectionQuestions": [
+        "What evidence would Congress need to justify this stronger action?",
+        "Why can public praise and legal recognition move at different speeds?",
+        "How would this outcome change the meaning of the case?"
+      ]
+    },
+    {
+      "id": "ending-narrow-denial",
+      "title": "Service Not Officially Acknowledged",
+      "summary": "The committee strips the claim down so far that Tubman's own wartime service is treated as unproven or unusable. Any broader recognition disappears from the official action.",
+      "historicalOutcome": {
+        "text": "This does not match the record exactly. The lesson summary says Tubman did secure a pension, but only as a widow of a Civil War veteran rather than on the basis of her own service.",
+        "spans": [
+          {
+            "sourceId": "tubman-pension-1898",
+            "page": 1,
+            "quote": "Tubman ultimately secured a pension only as a widow of a Civil War veteran, not on the basis of her own service."
+          }
+        ],
+        "assumptionIds": []
+      },
+      "divergence": "This ending diverges by removing even the limited compromise described in the source.",
+      "reflectionQuestions": [
+        "What is lost when official records use only the narrowest legal basis?",
+        "How can a person be widely respected but only partly recognized by law?",
+        "What should count as sufficient proof in a claim like this?"
+      ]
+    }
+  ],
+  "assetEligibility": [
+    {
+      "id": "asset-portrait-tubman",
+      "kind": "portrait",
+      "entityId": "harriet-tubman",
+      "subject": "Harriet Tubman Davis",
+      "prompt": "Portrait of Harriet Tubman Davis in the late 1890s, dignified dress, steady expression, educational historical style."
+    },
+    {
+      "id": "asset-portrait-payne",
+      "kind": "portrait",
+      "entityId": "sereno-payne",
+      "subject": "Sereno E. Payne",
+      "prompt": "Portrait of Sereno E. Payne as a late 19th-century congressman writing a formal supporting letter, educational historical style."
+    },
+    {
+      "id": "asset-landmark-stage0-office",
+      "kind": "landmark",
+      "entityId": "committee-office",
+      "subject": "Committee Office",
+      "prompt": "Interior of a late 19th-century congressional committee office with desks, folders, and pension claim papers."
+    },
+    {
+      "id": "asset-landmark-stage0-archive",
+      "kind": "landmark",
+      "entityId": "records-archive",
+      "subject": "Records Archive",
+      "prompt": "Small archive room with shelves of labeled claim files and copied congressional records, 1890s government setting."
+    },
+    {
+      "id": "asset-landmark-stage1-office",
+      "kind": "landmark",
+      "entityId": "final-committee-office",
+      "subject": "Final Committee Office",
+      "prompt": "Washington committee office table covered with bill summaries and report notes, 1899 historical setting."
+    },
+    {
+      "id": "asset-prop-summary",
+      "kind": "prop",
+      "entityId": "evidence-case-summary",
+      "subject": "Case Summary Sheet",
+      "prompt": "A late 19th-century summary sheet about Harriet Tubman's pension claim, typed and annotated, educational prop."
+    },
+    {
+      "id": "asset-prop-bill-entry",
+      "kind": "prop",
+      "entityId": "evidence-bill-entry",
+      "subject": "Bill Entry for H.R. 4982",
+      "prompt": "Congressional bill entry card for H.R. 4982, worn paper with formal heading, 1899 educational prop."
+    },
+    {
+      "id": "asset-prop-final-act",
+      "kind": "prop",
+      "entityId": "evidence-final-act-questions",
+      "subject": "Questions on the Final Act",
+      "prompt": "Worksheet-style page asking about the final act granting Harriet Tubman's pension, classroom archival look."
+    }
+  ]
+}
