@@ -21,6 +21,17 @@ function button(label: string, className = 'button'): HTMLButtonElement {
   return node
 }
 
+const MOVEMENT_DELTAS: Record<string, Point> = {
+  ArrowUp: { x: 0, y: -1 },
+  w: { x: 0, y: -1 },
+  ArrowRight: { x: 1, y: 0 },
+  d: { x: 1, y: 0 },
+  ArrowDown: { x: 0, y: 1 },
+  s: { x: 0, y: 1 },
+  ArrowLeft: { x: -1, y: 0 },
+  a: { x: -1, y: 0 },
+}
+
 export async function mountPlayground(root: HTMLElement, options: PlaygroundOptions = {}): Promise<PlaygroundHandle> {
   const model = new PlaygroundModel(options.seed ?? 'harbor-demo')
   const controller = new AbortController()
@@ -73,7 +84,7 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
   const mapHost = element('div', 'map-host')
   const instructions = element('p', 'instructions')
   instructions.id = `map-instructions-${mountId}`
-  instructions.textContent = 'Focus the map to use arrow keys or WASD. Select a destination to walk there.'
+  instructions.textContent = 'Focus the map and hold arrow keys or WASD to walk. Release to stop; choose a destination to auto-walk. Pause stops routes; manual movement remains available.'
   mapHost.setAttribute('aria-describedby', instructions.id)
   const metadata = element('p', 'map-meta')
   const legend = element('div', 'legend')
@@ -100,7 +111,7 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
   const directions: Array<[string, number, number]> = [['Move north', 0, -1], ['Move west', -1, 0], ['Move east', 1, 0], ['Move south', 0, 1]]
   directions.forEach(([label, dx, dy]) => {
     const control = button(label, 'button direction-button')
-    control.addEventListener('click', () => { model.movePlayer(dx, dy); publish() }, { signal: controller.signal })
+    control.addEventListener('click', () => { clearHeldKeys(); model.movePlayer(dx, dy); publish() }, { signal: controller.signal })
     directionPad.append(control)
   })
   const stop = button('Stop walking')
@@ -127,6 +138,9 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
 
   let view: MapView | undefined
   let timer: number | undefined
+  let canvas: HTMLCanvasElement | null = null
+  let repeatTimer: number | undefined
+  const heldKeys = new Map<string, Point>()
   let lastAnnouncement = ''
   const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
   const roomName = (roomId: string) => roomNames[roomId] ?? roomId
@@ -170,6 +184,7 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
 
   seedForm.addEventListener('submit', (event) => {
     event.preventDefault()
+    clearHeldKeys()
     try {
       model.reset(seedInput.value)
       seedInput.value = model.snapshot().seed
@@ -183,16 +198,16 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
       seedError.textContent = 'Use 1–64 letters, numbers, dots, underscores, or hyphens.'
     }
   }, { signal: controller.signal })
-  reset.addEventListener('click', () => { model.reset(model.snapshot().seed); seedInput.value = model.snapshot().seed; seedInput.setAttribute('aria-invalid', 'false'); seedError.hidden = true; seedError.textContent = ''; publish() }, { signal: controller.signal })
+  reset.addEventListener('click', () => { clearHeldKeys(); model.reset(model.snapshot().seed); seedInput.value = model.snapshot().seed; seedInput.setAttribute('aria-invalid', 'false'); seedError.hidden = true; seedError.textContent = ''; publish() }, { signal: controller.signal })
   pause.addEventListener('click', () => { model.setRunning(!model.snapshot().running); publish() }, { signal: controller.signal })
   step.addEventListener('click', () => { model.step(); publish() }, { signal: controller.signal })
   routes.addEventListener('change', () => { model.setNpcRoutes(routes.checked); publish() }, { signal: controller.signal })
-  stop.addEventListener('click', () => { model.stopPlayer(); publish() }, { signal: controller.signal })
+  stop.addEventListener('click', () => { clearHeldKeys(); model.stopPlayer(); publish() }, { signal: controller.signal })
 
   const roomIds = model.snapshot().map.rooms.map(({ id }) => id).sort()
   roomIds.forEach((roomId) => {
     const destination = button(`Walk to ${roomName(roomId)}`, 'button destination')
-    destination.addEventListener('click', () => { model.navigateToRoom(roomId); publish() }, { signal: controller.signal })
+    destination.addEventListener('click', () => { clearHeldKeys(); model.navigateToRoom(roomId); publish() }, { signal: controller.signal })
     destinations.append(destination)
   })
   model.snapshot().map.doors.forEach((entry) => {
@@ -202,26 +217,61 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
     doorControls.append(control)
   })
 
+  const clearHeldKeys = () => {
+    heldKeys.clear()
+    if (repeatTimer !== undefined) window.clearInterval(repeatTimer)
+    repeatTimer = undefined
+  }
+  const repeatHeldKey = () => {
+    if (!canvas || document.activeElement !== canvas || document.visibilityState !== 'visible') {
+      clearHeldKeys()
+      return
+    }
+    const delta = [...heldKeys.values()].at(-1)
+    if (delta) {
+      model.movePlayer(delta.x, delta.y)
+      publish()
+    }
+  }
   const keyHandler = (event: KeyboardEvent) => {
-    if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey || event.repeat || event.target !== mapHost.querySelector('canvas')) return
-    const deltas: Record<string, Point> = { ArrowUp: { x: 0, y: -1 }, w: { x: 0, y: -1 }, ArrowRight: { x: 1, y: 0 }, d: { x: 1, y: 0 }, ArrowDown: { x: 0, y: 1 }, s: { x: 0, y: 1 }, ArrowLeft: { x: -1, y: 0 }, a: { x: -1, y: 0 } }
-    const delta = deltas[event.key]
+    if (event.ctrlKey || event.altKey || event.metaKey) {
+      clearHeldKeys()
+      return
+    }
+    if (event.defaultPrevented || event.target !== canvas || document.activeElement !== canvas || document.visibilityState !== 'visible') return
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
+    const delta = MOVEMENT_DELTAS[key]
     if (!delta) return
     event.preventDefault()
+    const identity = event.code || key
+    if (event.repeat || heldKeys.has(identity)) return
+    heldKeys.set(identity, delta)
     model.movePlayer(delta.x, delta.y)
     publish()
+    if (repeatTimer === undefined) repeatTimer = window.setInterval(repeatHeldKey, 160)
+  }
+  const keyUpHandler = (event: KeyboardEvent) => {
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
+    heldKeys.delete(event.code || key)
+    if (heldKeys.size === 0) clearHeldKeys()
   }
 
-  const visibilityHandler = () => { if (document.visibilityState === 'visible') publish() }
+  const visibilityHandler = () => {
+    if (document.visibilityState !== 'visible') clearHeldKeys()
+    else publish()
+  }
   document.addEventListener('visibilitychange', visibilityHandler, { signal: controller.signal })
+  document.addEventListener('keyup', keyUpHandler, { signal: controller.signal })
+  window.addEventListener('blur', clearHeldKeys, { signal: controller.signal })
   publish()
   try {
     const module = await import('./view.js')
-    view = await module.createMapView(mapHost, model.snapshot(), (point) => { model.navigateToPoint(point); publish() }, reducedMotionQuery.matches)
+    view = await module.createMapView(mapHost, model.snapshot(), (point) => { clearHeldKeys(); model.navigateToPoint(point); publish() }, reducedMotionQuery.matches)
     view.render(model.snapshot())
-    const canvas = mapHost.querySelector('canvas')
+    canvas = mapHost.querySelector('canvas')
     canvas?.setAttribute('aria-describedby', instructions.id)
     canvas?.addEventListener('keydown', keyHandler, { signal: controller.signal })
+    canvas?.addEventListener('blur', clearHeldKeys, { signal: controller.signal })
     reducedMotionQuery.addEventListener('change', (event) => { view?.setReducedMotion(event.matches) }, { signal: controller.signal })
   } catch (error) {
     const message = element('p', 'renderer-error')
@@ -236,6 +286,7 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
   return {
     getSnapshot: () => model.snapshot(),
     destroy() {
+      clearHeldKeys()
       if (timer !== undefined) window.clearInterval(timer)
       controller.abort()
       view?.destroy()

@@ -28,3 +28,7 @@ definitions are intentionally bundled, while private adventure data is not prese
 Actor collision and reservation policy, I3 integration, the I1 room-kind adapter, and team I2 ratification
 remain future work. Decision anchors are decorative in this slice and commits have no spatial gate. Door
 controls are explicitly demo-only; callers still own authorization and authoritative revisions.
+
+Keyboard repeats run on an independent 160ms timer rather than OS key repeat. Keyup, canvas blur, window
+blur, hidden documents, and destroy clear held keys; the latest pressed direction wins and manual movement
+remains available while paused. Async mounting must be awaited before destroy.
