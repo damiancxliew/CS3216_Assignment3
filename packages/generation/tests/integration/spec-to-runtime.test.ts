@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   FakeLlmClient,
+  MAX_AGENT_DELTAS,
   StageDecisions,
   applyAction,
   buildAgentTurnInput,
@@ -18,7 +19,7 @@ import {
 } from '../../../orchestration/src/index'
 import { loadI1Spec } from '../../src/fixtures'
 import { PLAYER_ID, toResolverInput, toStageRuntime } from '../../src/runtime/adapter'
-import type { AdventureSpec } from '../../src/spec/v2'
+import { MAX_AGENTS_PER_STAGE, type AdventureSpec } from '../../src/spec/v2'
 
 const yieldingClient = () => new FakeLlmClient({ replies: [JSON.stringify({ say: '', actions: [{ type: 'yield' }] })] })
 
@@ -33,6 +34,10 @@ function collectEvidence(world: WorldState, spec: AdventureSpec, stageIndex: num
 }
 
 describe('spec -> runtime adapter', () => {
+  it('never authors more agents per stage than the resolver can report deltas for (I4 cap)', () => {
+    expect(MAX_AGENTS_PER_STAGE).toBeLessThanOrEqual(MAX_AGENT_DELTAS)
+  })
+
   it('seeds a world from stage 0 of the fixture', async () => {
     const spec = await loadI1Spec()
     const bundle = toStageRuntime(spec, 0)

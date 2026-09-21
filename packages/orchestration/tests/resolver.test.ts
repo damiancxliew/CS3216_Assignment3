@@ -80,6 +80,18 @@ describe('K1 — deterministic fake resolver', () => {
     ).toThrow(ResolverInputError)
   })
 
+  it('rejects duplicate agent ids at the input boundary', () => {
+    const [first] = fixtureResolverInput.agents
+    expect(() =>
+      resolveStageSync({ ...fixtureResolverInput, agents: [...fixtureResolverInput.agents, { ...first!, name: 'Impostor' }] }),
+    ).toThrow(ResolverInputError)
+    try {
+      resolveStageSync({ ...fixtureResolverInput, agents: [...fixtureResolverInput.agents, { ...first!, name: 'Impostor' }] })
+    } catch (error) {
+      expect((error as ResolverInputError).issues.join(' ')).toContain(`duplicate agent id "${first!.id}"`)
+    }
+  })
+
   it('keeps eight agent deltas and reports the rest', () => {
     const agents = Array.from({ length: 9 }, (_, index) => ({
       id: `agent-${index}`,

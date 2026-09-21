@@ -12,6 +12,7 @@
 import { parseAction, type ActorAction } from '../actions'
 import { EFFECT_TEXT } from '../catalogue'
 import {
+  MAX_AGENT_DELTAS,
   RESOLUTION_VERSION,
   sanitizeEffects,
   validateResolutionRecord,
@@ -198,7 +199,7 @@ export function resolveStageSync(rawInput: ResolverInput): ResolverResult {
       const disposition = clamp(agent.disposition + clamp(base + jitter, -3, 3), -5, 5)
       return { agentId: agent.id, dispositionDelta: disposition - agent.disposition, disposition }
     })
-  const agentDeltas = [...allAgentDeltas].sort(compareDeltaPriority).slice(0, 8)
+  const agentDeltas = [...allAgentDeltas].sort(compareDeltaPriority).slice(0, MAX_AGENT_DELTAS)
 
   const next = resolveNext(input)
   const { effects, dropped: droppedEffects } = buildEffects(input, success)
