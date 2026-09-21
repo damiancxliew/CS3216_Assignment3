@@ -7,7 +7,8 @@
  * the server recorded — never by trusting an agent not to use what it was shown.
  *
  * A closed door is the privacy mechanism (D7): it blocks movement in and out, so an exchange in a
- * closed room is heard only by the actors who were already inside.
+ * closed room is heard only by the actors who were already inside. A knock is written to the
+ * target room's transcript, allowing its occupants to decide whether to open the door.
  *
  * State transitions live here and nowhere else. Actions arrive already allow-listed
  * (`filterActions`); this module decides whether the *world* permits them.
@@ -56,7 +57,7 @@ export interface PresenceEntry {
 export interface WorldEvent {
   tick: number
   actorId: string
-  kind: 'move_room' | 'open_door' | 'close_door' | 'share_evidence' | 'speak' | 'refused'
+  kind: 'move_room' | 'open_door' | 'close_door' | 'knock' | 'share_evidence' | 'speak' | 'refused'
   roomId: string
   detail: string
 }
@@ -88,7 +89,31 @@ export interface WorldSeed {
   evidenceKnown?: Record<string, readonly string[]>
 }
 
+export interface WorldSeedIssue {
+  roomId: string
+  detail: string
+}
+
+export function validateWorldSeed(seed: WorldSeed): WorldSeedIssue[] {
+  const actorIds = new Set(seed.actors.map((actor) => actor.id))
+  const placedRooms = new Set(
+    Object.entries(seed.placement)
+      .filter(([actorId]) => actorIds.has(actorId))
+      .map(([, roomId]) => roomId),
+  )
+  return seed.rooms
+    .filter((room) => !room.doorOpen && !placedRooms.has(room.id))
+    .map((room) => ({
+      roomId: room.id,
+      detail: `closed room "${room.id}" has no actor placed inside`,
+    }))
+}
+
 export function createWorld(seed: WorldSeed): WorldState {
+  const issues = validateWorldSeed(seed)
+  if (issues.length > 0) {
+    throw new Error(`Invalid world seed: ${issues.map((issue) => issue.detail).join('; ')}`)
+  }
   const world: WorldState = {
     tick: 0,
     seq: 0,
@@ -181,6 +206,24 @@ export function applyAction(world: WorldState, entry: ActorAction): ApplyResult 
       if (room === undefined) return refuse(world, actorId, here, `no such room "${here}"`)
       room.doorOpen = action.type === 'open_door'
       world.events.push({ tick: world.tick, actorId, kind: action.type, roomId: here, detail: room.name })
+      return { ok: true }
+    }
+    case 'knock': {
+      const target = world.rooms[action.roomId]
+      if (target === undefined) return refuse(world, actorId, action.roomId, `no such room "${action.roomId}"`)
+      if (action.roomId === here) return refuse(world, actorId, here, 'cannot knock from inside your own room')
+      if (target.doorOpen) return refuse(world, actorId, target.id, `door to "${target.id}" is already open`)
+      const body = `${actor.name} knocks.`
+      world.transcript.push({
+        tick: world.tick,
+        seq: nextSeq(world),
+        roomId: target.id,
+        speakerId: actorId,
+        speakerName: actor.name,
+        addresseeId: null,
+        body,
+      })
+      world.events.push({ tick: world.tick, actorId, kind: 'knock', roomId: target.id, detail: body })
       return { ok: true }
     }
     case 'share_evidence': {

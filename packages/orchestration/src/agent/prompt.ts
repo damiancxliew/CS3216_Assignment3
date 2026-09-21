@@ -158,6 +158,12 @@ export function buildAgentUserPrompt(input: AgentTurnInput): string {
     sections.push(block('SPOKEN TO YOU JUST NOW', playerMessage))
   }
   sections.push(`Room id for any action you propose: ${room.id}`)
+  const knockTargets = input.knockTargets ?? []
+  sections.push(
+    knockTargets.length > 0
+      ? `Only valid knock targets: ${knockTargets.map((target) => `${target.id} (${target.name})`).join(', ')}`
+      : 'Only valid knock targets: none',
+  )
   sections.push('Respond as yourself.')
 
   return sections.join('\n\n')

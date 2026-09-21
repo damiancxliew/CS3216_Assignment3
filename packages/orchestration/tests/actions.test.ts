@@ -15,6 +15,7 @@ describe('action allow-list (FR-20)', () => {
       move_room: { type: 'move_room', toRoomId: 'room-archive' },
       open_door: { type: 'open_door', roomId: 'room-hall' },
       close_door: { type: 'close_door', roomId: 'room-hall' },
+      knock: { type: 'knock', roomId: 'room-hall' },
       share_evidence: { type: 'share_evidence', roomId: 'room-hall', evidenceId: 'evidence-ledger' },
       record_private_note: { type: 'record_private_note', note: 'The clerk is lying about the ledger.' },
       commit_decision: { type: 'commit_decision', optionId: 'option-sign', optionsVersion: 'v1' },
@@ -51,6 +52,12 @@ describe('action allow-list (FR-20)', () => {
     expect(parseAction(decision, 'player')).toMatchObject({ ok: true })
     expect(parseAction({ type: 'pass' }, 'agent')).toMatchObject({ ok: true })
     expect(parseAction({ type: 'pass' }, 'player')).toMatchObject({ ok: true })
+  })
+
+  it('lets either kind of actor knock', () => {
+    const knock = { type: 'knock', roomId: 'room-hall' }
+    expect(parseAction(knock, 'agent')).toMatchObject({ ok: true })
+    expect(parseAction(knock, 'player')).toMatchObject({ ok: true })
   })
 
   it('refuses a decision that names no option set: staleness has to be checkable (K6)', () => {
@@ -106,6 +113,16 @@ describe('budget rails (FR-12b)', () => {
     )
     expect(result.actions).toHaveLength(20)
     expect(result.dropped).toHaveLength(0)
+  })
+
+  it('charges a knock as an action, unlike yield', () => {
+    const result = filterActions(
+      [{ type: 'knock', roomId: 'room-hall' }, { type: 'knock', roomId: 'room-hall' }, { type: 'yield' }],
+      actor,
+      { maxActions: 3, maxActionsPerActor: 1 },
+    )
+    expect(result.actions.map((entry) => entry.action.type)).toEqual(['knock', 'yield'])
+    expect(result.dropped).toMatchObject([{ reason: 'budget_exhausted', type: 'knock' }])
   })
 
   it('counts a budget already spent earlier in the stage', () => {

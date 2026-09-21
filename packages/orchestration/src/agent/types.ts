@@ -70,6 +70,8 @@ export interface AgentTurnInput {
   /** Current stage brief, as the characters would understand it. */
   stageBrief: string
   room: RoomView
+  /** Public room ids and names the agent may target with a knock; no other room state is included. */
+  knockTargets?: readonly { id: string; name: string }[]
   /** This room's transcript only (FR-11). Lines from rooms the agent was not in never appear. */
   transcript: readonly TranscriptLine[]
   /** Earlier lines from other rooms this agent was standing in at the time (K3). */
@@ -101,6 +103,7 @@ export const agentActionProposalSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move_room'), toRoomId: id }),
   z.object({ type: z.literal('open_door'), roomId: id }),
   z.object({ type: z.literal('close_door'), roomId: id }),
+  z.object({ type: z.literal('knock'), roomId: id }),
   z.object({ type: z.literal('share_evidence'), roomId: id, evidenceId: id }),
   z.object({ type: z.literal('record_private_note'), note: z.string().min(1).max(600) }),
   // No `optionsVersion`: the runtime stamps the version of the list it actually showed this agent.

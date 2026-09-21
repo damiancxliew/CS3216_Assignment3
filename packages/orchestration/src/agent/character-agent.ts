@@ -143,6 +143,7 @@ export function publicAgentTurn(result: AgentTurnResult): PublicAgentTurn {
           case 'speak':
           case 'open_door':
           case 'close_door':
+          case 'knock':
             return { type: action.type, roomId: action.roomId }
           case 'move_room':
             return { type: action.type, toRoomId: action.toRoomId }

@@ -179,6 +179,9 @@ export function buildAgentTurnInput(
       })),
       doorOpen: room.doorOpen,
     },
+    knockTargets: Object.values(world.rooms)
+      .filter((targetRoom) => targetRoom.id !== roomId && !targetRoom.doorOpen)
+      .map((targetRoom) => ({ id: targetRoom.id, name: targetRoom.name })),
     transcript: here,
     recalled,
     playerMessage,

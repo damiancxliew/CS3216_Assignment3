@@ -16,6 +16,8 @@
  *      20 Sep, Kevin) — but only from the live option set, which `stage/options` enforces.
  *   3. **Scene effects are not actions.** Only the Resolver emits `effects[]` (FR-15b), and they
  *      are cosmetic; no entry in this list can be used to smuggle one in.
+ *   4. **A closed door can be answered.** `knock` is available to both actor kinds, so someone
+ *      inside may choose whether to open the room.
  */
 import { z } from 'zod'
 
@@ -25,6 +27,7 @@ export const AGENT_ACTION_TYPES = [
   'move_room',
   'open_door',
   'close_door',
+  'knock',
   'share_evidence',
   'record_private_note',
   'commit_decision',
@@ -42,6 +45,7 @@ export const PLAYER_ACTION_TYPES = [
   'move_room',
   'open_door',
   'close_door',
+  'knock',
   'share_evidence',
   'commit_decision',
   'pass',
@@ -54,6 +58,7 @@ export const ACTION_TYPES = [
   'move_room',
   'open_door',
   'close_door',
+  'knock',
   'share_evidence',
   'record_private_note',
   'commit_decision',
@@ -92,6 +97,11 @@ export const openDoorActionSchema = z.object({
 
 export const closeDoorActionSchema = z.object({
   type: z.literal('close_door'),
+  roomId: id,
+})
+
+export const knockActionSchema = z.object({
+  type: z.literal('knock'),
   roomId: id,
 })
 
@@ -134,6 +144,7 @@ export const actionSchema = z.discriminatedUnion('type', [
   moveRoomActionSchema,
   openDoorActionSchema,
   closeDoorActionSchema,
+  knockActionSchema,
   shareEvidenceActionSchema,
   recordPrivateNoteActionSchema,
   commitDecisionActionSchema,
