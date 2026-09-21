@@ -7,7 +7,6 @@ import {
   type MapDoor,
   type MapRoom,
   type Point,
-  type StageLayoutInput,
   type StageMap,
   type Tile,
   type ValidationResult,
