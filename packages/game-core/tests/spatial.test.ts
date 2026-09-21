@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { settlementFixture } from '../fixtures/settlement.js'
 import {
+  areInSameRoom,
   compileStage,
   findPath,
-  isInInteractionRange,
+  isInPhysicalInteractionRange,
   isWalkable,
   canStep,
   projectMap,
@@ -374,16 +375,43 @@ describe('settlement compiler', () => {
     expect(spaceAt(compiled.map, { x: -1, y: 0 })).toBeNull()
   })
 
-  it('keeps interaction range within one matching space only', () => {
+  it('keeps physical interaction range within one matching space only', () => {
     const compiled = compileStage(settlementFixture, 'fixture-seed')
     const room = compiled.map.rooms[0]!
     const inside = { x: room.x + 1, y: room.y + 1 }
-    expect(isInInteractionRange(compiled.map, compiled.initialDoors, inside, { x: inside.x + 1, y: inside.y })).toBe(true)
-    expect(isInInteractionRange(compiled.map, compiled.initialDoors, inside, { x: room.x - 1, y: inside.y })).toBe(false)
-    expect(isInInteractionRange(compiled.map, compiled.initialDoors, inside, { x: inside.x + 1, y: inside.y + 1 })).toBe(false)
-    expect(isInInteractionRange(compiled.map, compiled.initialDoors, inside, { x: room.x + 1, y: room.y - 1 })).toBe(false)
+    expect(isInPhysicalInteractionRange(compiled.map, compiled.initialDoors, inside, { x: inside.x + 1, y: inside.y })).toBe(true)
+    expect(isInPhysicalInteractionRange(compiled.map, compiled.initialDoors, inside, { x: room.x - 1, y: inside.y })).toBe(false)
+    expect(isInPhysicalInteractionRange(compiled.map, compiled.initialDoors, inside, { x: inside.x + 1, y: inside.y + 1 })).toBe(false)
+    expect(isInPhysicalInteractionRange(compiled.map, compiled.initialDoors, inside, { x: room.x + 1, y: room.y - 1 })).toBe(false)
     const otherRoom = compiled.map.rooms.find(({ id }) => id !== room.id)!
-    expect(isInInteractionRange(compiled.map, compiled.initialDoors, inside, { x: otherRoom.x + 1, y: otherRoom.y + 1 })).toBe(false)
+    expect(isInPhysicalInteractionRange(compiled.map, compiled.initialDoors, inside, { x: otherRoom.x + 1, y: otherRoom.y + 1 })).toBe(false)
+  })
+
+  it('shares room conversation across distant occupants without relaxing physical range', () => {
+    const compiled = compileStage(settlementFixture, 'fixture-seed')
+    const room = compiled.map.rooms[0]!
+    const occupants = [
+      { x: room.x + 1, y: room.y + 1 },
+      { x: room.x + room.width - 2, y: room.y + room.height - 2 },
+      { x: room.x + room.width - 2, y: room.y + 1 },
+    ]
+    for (const left of occupants) {
+      for (const right of occupants) expect(areInSameRoom(compiled.map, left, right)).toBe(true)
+    }
+    const closedDoors = Object.fromEntries(compiled.map.doors.map(({ id }) => [id, 'closed' as const]))
+    expect(isInPhysicalInteractionRange(compiled.map, closedDoors, occupants[0]!, occupants[1]!)).toBe(false)
+    expect(areInSameRoom(compiled.map, occupants[0]!, occupants[1]!)).toBe(true)
+  })
+
+  it('does not conflate different rooms, outdoors, doorways, or invalid points with a shared room', () => {
+    const compiled = compileStage(settlementFixture, 'fixture-seed')
+    const door = compiled.map.doors[0]!
+    const other = compiled.map.doors[1]!
+    for (const target of [other.inside, door.position, door.outside, { x: 0, y: 0 }, { x: -1, y: -1 }, { x: door.inside.x + 0.5, y: door.inside.y }, { x: NaN, y: 1 }]) {
+      expect(areInSameRoom(compiled.map, door.inside, target)).toBe(false)
+      expect(areInSameRoom(compiled.map, target, door.inside)).toBe(false)
+    }
+    expect(areInSameRoom(compiled.map, door.outside, door.outside)).toBe(false)
   })
 
   it('projects an allowlisted detached map without runtime or private fields', () => {
@@ -418,6 +446,7 @@ describe('settlement compiler', () => {
     const frozenDoors = deepFreeze({ ...compiled.initialDoors })
     expect(() => {
       spaceAt(frozenMap, { x: 1, y: 1 })
+      areInSameRoom(frozenMap, compiled.playerSpawn, compiled.playerSpawn)
       findPath(frozenMap, frozenDoors, compiled.playerSpawn, compiled.playerSpawn)
       projectMap({ ...compiled, map: frozenMap })
     }).not.toThrow()

@@ -41,6 +41,12 @@ export function spaceAt(map: StageMap, point: Point): Space | null {
   return null
 }
 
+export function areInSameRoom(map: StageMap, left: Point, right: Point): boolean {
+  const leftSpace = spaceAt(map, left)
+  const rightSpace = spaceAt(map, right)
+  return leftSpace?.kind === 'room' && rightSpace?.kind === 'room' && leftSpace.roomId === rightSpace.roomId
+}
+
 export function isWalkable(map: StageMap, doors: DoorStates, point: Point): boolean {
   if (!inBounds(map, point)) return false
   const tile = map.tiles[point.y]?.[point.x]
@@ -98,7 +104,7 @@ export function findPath(map: StageMap, doors: DoorStates, from: Point, to: Poin
   return null
 }
 
-export function isInInteractionRange(map: StageMap, doors: DoorStates, from: Point, target: Point): boolean {
+export function isInPhysicalInteractionRange(map: StageMap, doors: DoorStates, from: Point, target: Point): boolean {
   if (!isWalkable(map, doors, from) || !isWalkable(map, doors, target) || manhattan(from, target) > 1) return false
   const sourceSpace = spaceAt(map, from)
   const targetSpace = spaceAt(map, target)

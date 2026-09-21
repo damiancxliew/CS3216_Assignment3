@@ -1,6 +1,6 @@
 export { compileStage } from './compiler.js'
 export { validateCompiledStage, validateStageLayout, validateStageMap } from './validation.js'
-export { canStep, findPath, isInInteractionRange, isWalkable, spaceAt } from './spatial.js'
+export { areInSameRoom, canStep, findPath, isInPhysicalInteractionRange, isWalkable, spaceAt } from './spatial.js'
 export { MAP_SCHEMA_VERSION, GENERATOR_VERSION } from './types.js'
 export type {
   CompiledStage,

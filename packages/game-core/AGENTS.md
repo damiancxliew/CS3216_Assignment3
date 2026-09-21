@@ -26,3 +26,13 @@ authorization, authentication, persistence identity, or a save-integrity mechani
 expect a validated StageMap. The map seed is public layout-only input and must never be reused for
 resolution or private-context RNG. Initial compiled closed rooms are not a runtime lockout guarantee;
 they are enclosed shells only, and the I1 room-kind adapter remains pending.
+
+## Conversation versus physical interactions
+
+Room conversation is broadcast to everyone present in that room, regardless of tile distance.
+`areInSameRoom` checks geometric room membership only; it has no distance or door-state requirement.
+`isInPhysicalInteractionRange` is for nearby physical actions, such as inspecting evidence, never chat.
+The authoritative runtime still owns who was present when each message was sent, speech permissions,
+and transcript projection. Sharing known evidence verbally remains room-wide. Doorway/outdoor chat
+policy and knock/open-door proximity are separate integration decisions; this predicate does not
+assign those spaces a room conversation.
