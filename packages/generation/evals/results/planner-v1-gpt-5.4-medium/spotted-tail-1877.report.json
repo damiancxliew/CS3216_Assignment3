@@ -1,0 +1,124 @@
+{
+  "case": "spotted-tail-1877",
+  "metrics": {
+    "promptVersion": "planner-v1",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 2,
+    "repairs": 1,
+    "valid": true,
+    "totalLatencyMs": 196688,
+    "usage": {
+      "inputTokens": 22393,
+      "cachedInputTokens": 5888,
+      "outputTokens": 28610,
+      "reasoningTokens": 8802
+    },
+    "costUsd": 0.47188450000000004,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 132362,
+        "usage": {
+          "inputTokens": 6024,
+          "cachedInputTokens": 0,
+          "outputTokens": 16730,
+          "reasoningTokens": 6843
+        },
+        "costUsd": 0.26601,
+        "issueCount": 7,
+        "schemaIssues": 0,
+        "groundingIssues": 7
+      },
+      {
+        "purpose": "repair",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 64303,
+        "usage": {
+          "inputTokens": 16369,
+          "cachedInputTokens": 5888,
+          "outputTokens": 11880,
+          "reasoningTokens": 1959
+        },
+        "costUsd": 0.2058745,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0
+      }
+    ],
+    "documents": [
+      {
+        "id": "spotted-tail-agency-1877",
+        "pages": 5,
+        "chars": 13303
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The document does not provide a map or exact layout of the agency, camps, offices, warehouse, or guardhouse.",
+    "The document does not identify the interpreter role as a specific historical person.",
+    "The document gives Lee’s report and recommendations, but not the Commissioner’s reply or the final federal decision after May 1, 1877.",
+    "The document does not record direct speeches from Spotted Tail or other Lakota leaders beyond Lee’s summary of councils and requests.",
+    "The document does not name the specific military officers at Camp Sheridan or on Gen. Crook’s staff involved in these events.",
+    "The document does not give exact numbers for how many people wanted farming tools, how many children might attend school, or who would be selected for boarding schools.",
+    "The document does not describe how the recently returned Indians privately interpreted enlistment, disarmament, or settlement at the agency."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 85,
+      "resolved": 85,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 7,
+    "branching": {
+      "stages": 2,
+      "distinctTargetsPerStage": [
+        1,
+        4
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "upper-secondary",
+      "budgetWords": 180,
+      "maxWords": 39,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 8,
+      "kinds": {
+        "portrait": 3,
+        "landmark": 3,
+        "prop": 2
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "Spring at Spotted Tail Agency",
+  "warnings": []
+}

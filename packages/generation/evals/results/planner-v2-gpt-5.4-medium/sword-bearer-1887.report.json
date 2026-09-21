@@ -1,0 +1,149 @@
+{
+  "case": "sword-bearer-1887",
+  "metrics": {
+    "promptVersion": "planner-v2",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 2,
+    "repairs": 1,
+    "valid": true,
+    "totalLatencyMs": 262806,
+    "usage": {
+      "inputTokens": 22238,
+      "cachedInputTokens": 4864,
+      "outputTokens": 33201,
+      "reasoningTokens": 13100
+    },
+    "costUsd": 0.542666,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 198937,
+        "usage": {
+          "inputTokens": 5875,
+          "cachedInputTokens": 0,
+          "outputTokens": 22006,
+          "reasoningTokens": 11977
+        },
+        "costUsd": 0.3447775,
+        "issueCount": 3,
+        "schemaIssues": 0,
+        "groundingIssues": 3,
+        "issues": [
+          {
+            "path": "$.adventure.endings.3.historicalOutcome.spans.0",
+            "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 5: \"mmence to work on our farms pretty soon, and I want the Great Father to let the Page 2 eight Crow prisoners now held at Fort Snelling, come home to us pretty quick, so that they can help their fam- ilies work, and can take care of their cat\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.2.agents.0.privateContext.spans.0",
+            "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 5: \"mmence to work on our farms pretty soon, and I want the Great Father to let the Page 2 eight Crow prisoners now held at Fort Snelling, come home to us pretty quick, so that they can help their fam- ilies work, and can take care of their cat\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.2.agents.0.privateContext.spans.1",
+            "message": "quote not found verbatim on any page of \"montana-sword-bearer-1887\"; the closest passage is on page 6: \"e as Crows, I am willing that they all Page 3 should be as one of us, and that they should all have the rights in every way that the Crows have. You (to Agent Williamson) have always treated us well. One of us was a fool (referring to the M\" — copy from it verbatim or replace the span with an assumptionId"
+          }
+        ]
+      },
+      {
+        "purpose": "repair",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 63856,
+        "usage": {
+          "inputTokens": 16363,
+          "cachedInputTokens": 4864,
+          "outputTokens": 11195,
+          "reasoningTokens": 1123
+        },
+        "costUsd": 0.1978885,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0,
+        "issues": []
+      }
+    ],
+    "documents": [
+      {
+        "id": "montana-sword-bearer-1887",
+        "pages": 9,
+        "chars": 10433
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The sources do not preserve direct statements by Sword Bearer himself.",
+    "The sources do not give the exact words exchanged in the failed November 5 peace meeting with General Ruger.",
+    "The sources do not identify the interpreter at the council by name beyond certifying that one was present.",
+    "The sources do not describe exact room layouts, distances, or map details at Crow Agency.",
+    "The sources do not provide detailed private motives for Williamson, Dudley, Plenty Coos, or Sword Bearer.",
+    "The sources do not explain precisely why Williamson changes the subject from the prisoners to the Cummins adoption proposal.",
+    "The sources do not give the weather on October 1, November 5, or December 31, 1887.",
+    "The sources do not provide a full narrative of how the eight prisoners were selected as ringleaders at the moment of arrest."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 86,
+      "resolved": 86,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 16,
+    "branching": {
+      "stages": 3,
+      "distinctTargetsPerStage": [
+        2,
+        2,
+        2
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "earlyFork": {
+      "nonFinalStages": 2,
+      "forking": 2,
+      "ratio": 1
+    },
+    "objectiveChains": 3,
+    "overlaysSet": 3,
+    "injection": null,
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "upper-secondary",
+      "budgetWords": 180,
+      "maxWords": 44,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 7,
+      "kinds": {
+        "portrait": 3,
+        "landmark": 2,
+        "prop": 2
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "Words at Crow Agency",
+  "warnings": []
+}

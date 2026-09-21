@@ -1,0 +1,118 @@
+{
+  "case": "magna-carta-1297",
+  "metrics": {
+    "promptVersion": "planner-v2",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 1,
+    "repairs": 0,
+    "valid": true,
+    "totalLatencyMs": 184142,
+    "usage": {
+      "inputTokens": 8103,
+      "cachedInputTokens": 0,
+      "outputTokens": 19655,
+      "reasoningTokens": 8980
+    },
+    "costUsd": 0.3150825,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 184128,
+        "usage": {
+          "inputTokens": 8103,
+          "cachedInputTokens": 0,
+          "outputTokens": 19655,
+          "reasoningTokens": 8980
+        },
+        "costUsd": 0.3150825,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0,
+        "issues": []
+      }
+    ],
+    "documents": [
+      {
+        "id": "magna-carta-1297-translation",
+        "pages": 6,
+        "chars": 19485
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The source does not describe the actual conversations or sequence of argument in 1297; the hearing structure is simulated.",
+    "The source does not identify a specific chancery clerk, so the player character is invented.",
+    "The source does not give a floor plan of Westminster or name the rooms used during confirmation.",
+    "The source does not record which witness or group argued most strongly for particular clauses during the 1297 confirmation.",
+    "The source states a fifteenth was granted, but it does not explain the wider political negotiations behind that grant in narrative detail.",
+    "The source does not show how unfree people, most women, or rural labourers were meant to benefit from this confirmation beyond the clauses that survive."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 90,
+      "resolved": 90,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 8,
+    "branching": {
+      "stages": 3,
+      "distinctTargetsPerStage": [
+        2,
+        2,
+        2
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "earlyFork": {
+      "nonFinalStages": 2,
+      "forking": 2,
+      "ratio": 1
+    },
+    "objectiveChains": 3,
+    "overlaysSet": 0,
+    "injection": null,
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "upper-secondary",
+      "budgetWords": 180,
+      "maxWords": 44,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 8,
+      "kinds": {
+        "portrait": 4,
+        "landmark": 2,
+        "prop": 2
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "Seal of Liberties",
+  "warnings": []
+}
