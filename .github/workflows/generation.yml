@@ -1,0 +1,27 @@
+name: generation
+
+on:
+  push:
+    branches: [main]
+    paths: ['packages/generation/**', 'packages/orchestration/**', '.github/workflows/generation.yml']
+  pull_request:
+    paths: ['packages/generation/**', 'packages/orchestration/**', '.github/workflows/generation.yml']
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/generation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/generation/package-lock.json
+      - run: npm ci
+      # the spec -> runtime integration test drives packages/orchestration for real
+      - run: npm ci --prefix ../orchestration
+      - run: npm run typecheck
+      - run: npm test

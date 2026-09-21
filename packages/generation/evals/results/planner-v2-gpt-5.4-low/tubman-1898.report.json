@@ -1,0 +1,119 @@
+{
+  "case": "tubman-1898",
+  "metrics": {
+    "promptVersion": "planner-v2",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 1,
+    "repairs": 0,
+    "valid": true,
+    "totalLatencyMs": 68755,
+    "usage": {
+      "inputTokens": 5216,
+      "cachedInputTokens": 0,
+      "outputTokens": 7573,
+      "reasoningTokens": 737
+    },
+    "costUsd": 0.126635,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 68748,
+        "usage": {
+          "inputTokens": 5216,
+          "cachedInputTokens": 0,
+          "outputTokens": 7573,
+          "reasoningTokens": 737
+        },
+        "costUsd": 0.126635,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0,
+        "issues": []
+      }
+    ],
+    "documents": [
+      {
+        "id": "tubman-pension-1898",
+        "pages": 4,
+        "chars": 8846
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The uploaded pages summarize the lesson and list questions, but they do not include the full text of Harriet Tubman's affidavit.",
+    "The uploaded pages do not include the full text of Sereno E. Payne's letter.",
+    "The uploaded pages do not include the exact language of H.R. 4982.",
+    "The uploaded pages do not include the exact language of Senate Report 1619.",
+    "The uploaded pages do not include the exact text of the final 1899 act, including the amount granted.",
+    "The uploaded pages do not identify the author of Senate Report 1619 by name.",
+    "The uploaded pages do not describe the detailed debate inside the House or Senate committees.",
+    "The uploaded pages do not give scene-level details for Washington offices or Auburn locations."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 56,
+      "resolved": 56,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 6,
+    "branching": {
+      "stages": 2,
+      "distinctTargetsPerStage": [
+        2,
+        3
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "earlyFork": {
+      "nonFinalStages": 1,
+      "forking": 1,
+      "ratio": 1
+    },
+    "objectiveChains": 2,
+    "overlaysSet": 0,
+    "injection": null,
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "lower-secondary",
+      "budgetWords": 120,
+      "maxWords": 36,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 8,
+      "kinds": {
+        "portrait": 2,
+        "landmark": 3,
+        "prop": 3
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "The Claim and the Pension",
+  "warnings": []
+}

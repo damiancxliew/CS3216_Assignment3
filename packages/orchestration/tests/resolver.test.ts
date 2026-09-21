@@ -4,7 +4,8 @@ import { fixtureResolverInput, fixtureTimerExpiryInput } from '../src/fixtures'
 import { auditClientPayload } from '../src/privacy'
 import { publicResolution, sanitizeEffects, validateResolutionRecord } from '../src/resolution'
 import { resolveStageSync } from '../src/resolver/fake'
-import type { ResolverInput } from '../src/resolver/types'
+import { PASS_PROBABILITY, playerOdds } from '../src/resolver/odds'
+import { ResolverInputError, type ResolverInput } from '../src/resolver/types'
 
 describe('K1 — deterministic fake resolver', () => {
   it('produces the same outcome for the same inputs', () => {
@@ -12,6 +13,32 @@ describe('K1 — deterministic fake resolver', () => {
     const second = resolveStageSync(fixtureResolverInput)
     expect(second).toEqual(first)
     expect(second.record.rolls).toEqual(first.record.rolls)
+  })
+
+  it('produces the same record when agents arrive in a different order', () => {
+    const reordered: ResolverInput = {
+      ...fixtureResolverInput,
+      agents: fixtureResolverInput.agents
+        .map((agent, index) => ({
+          ...agent,
+          commitment:
+            index === 0
+              ? { optionId: 'option-sign-treaty', how: 'committed' as const }
+              : { optionId: 'option-other', how: 'committed' as const },
+        }))
+        .reverse(),
+    }
+    const committed: ResolverInput = {
+      ...fixtureResolverInput,
+      agents: fixtureResolverInput.agents.map((agent, index) => ({
+        ...agent,
+        commitment:
+          index === 0
+            ? { optionId: 'option-sign-treaty', how: 'committed' as const }
+            : { optionId: 'option-other', how: 'committed' as const },
+      })),
+    }
+    expect(resolveStageSync(reordered)).toEqual(resolveStageSync(committed))
   })
 
   it('emits a schema-valid I4 payload', () => {
@@ -44,6 +71,66 @@ describe('K1 — deterministic fake resolver', () => {
     expect(record.trigger).toBe('timer_expiry')
     expect(record.outcome.next).toEqual(fixtureTimerExpiryInput.fallbackNext)
     expect(record.outcome.announcement).toContain('without your word')
+    expect(record.outcome.announcement).not.toContain('The course set the tone.')
+    expect(record.rationale).toContain('stance=evasive')
+    expect(record.outcome.effects.map((effect) => effect.id)).toEqual([
+      record.rolls[0]?.success ? 'smoke' : 'crowd_flee',
+    ])
+  })
+
+  it('keeps timer expiry at the flat pass probability despite standing and evidence', () => {
+    const odds = playerOdds({
+      ...fixtureTimerExpiryInput,
+      evidenceCollected: 4,
+      agents: fixtureTimerExpiryInput.agents.map((agent) => ({ ...agent, disposition: 5 })),
+    })
+    expect(odds).toEqual({ base: PASS_PROBABILITY, modifiers: [], probability: PASS_PROBABILITY })
+  })
+
+  it('normalizes recoverable evidence and disposition values', () => {
+    for (const evidenceCollected of [Number.NaN, -4, Number.POSITIVE_INFINITY]) {
+      const { record } = resolveStageSync({
+        ...fixtureResolverInput,
+        evidenceCollected,
+        agents: [{ id: 'agent-outlier', name: 'Outlier', disposition: 8.7 }],
+      })
+      const delta = record.outcome.agentDeltas[0]
+      expect(delta?.disposition).toBe(5)
+      expect(record.rationale).toContain('evidence=0')
+    }
+  })
+
+  it('throws a ResolverInputError for structurally broken input', () => {
+    expect(() =>
+      resolveStageSync({
+        ...fixtureResolverInput,
+        decision: { ...fixtureResolverInput.decision!, stance: 'unknown' },
+      } as unknown as ResolverInput),
+    ).toThrow(ResolverInputError)
+  })
+
+  it('rejects duplicate agent ids at the input boundary', () => {
+    const [first] = fixtureResolverInput.agents
+    expect(() =>
+      resolveStageSync({ ...fixtureResolverInput, agents: [...fixtureResolverInput.agents, { ...first!, name: 'Impostor' }] }),
+    ).toThrow(ResolverInputError)
+    try {
+      resolveStageSync({ ...fixtureResolverInput, agents: [...fixtureResolverInput.agents, { ...first!, name: 'Impostor' }] })
+    } catch (error) {
+      expect((error as ResolverInputError).issues.join(' ')).toContain(`duplicate agent id "${first!.id}"`)
+    }
+  })
+
+  it('keeps eight agent deltas and reports the rest', () => {
+    const agents = Array.from({ length: 9 }, (_, index) => ({
+      id: `agent-${index}`,
+      name: `Agent ${index}`,
+      disposition: 0,
+    }))
+    const { record, telemetry } = resolveStageSync({ ...fixtureResolverInput, agents })
+    expect(record.outcome.agentDeltas).toHaveLength(8)
+    expect(record.privateNotes).toHaveLength(8)
+    expect(telemetry.droppedAgentDeltas).toBe(1)
   })
 
   it('keeps disposition inside its bounds and reports a consistent delta', () => {
@@ -75,6 +162,39 @@ describe('K1 — deterministic fake resolver', () => {
     expect(telemetry.droppedActions).toBe(1)
     expect(record.actions.some((a) => a.action.type === 'commit_decision')).toBe(false)
   })
+
+  it('drops an unknown action payload without rejecting the input', () => {
+    const { telemetry } = resolveStageSync({
+      ...fixtureResolverInput,
+      actions: [{ actorKind: 'agent', actorId: 'agent-temenggong', action: { type: 'unknown' } }] as unknown as ResolverInput['actions'],
+    })
+    expect(telemetry.droppedActions).toBe(1)
+  })
+
+  it('accepts timestamps with numeric offsets', () => {
+    expect(
+      resolveStageSync({
+        ...fixtureResolverInput,
+        resolvedAt: '2026-09-20T21:00:00+08:00',
+      }).record.resolvedAt,
+    ).toBe('2026-09-20T21:00:00+08:00')
+  })
+
+  it('rejects an overlong decision label at the input boundary', () => {
+    expect(() =>
+      resolveStageSync({
+        ...fixtureResolverInput,
+        decision: { ...fixtureResolverInput.decision!, label: 'x'.repeat(288) },
+      }),
+    ).toThrow(ResolverInputError)
+  })
+
+  it('caps accepted actions and counts output overflow as dropped', () => {
+    const actions = Array.from({ length: 300 }, () => fixtureResolverInput.actions[0]!)
+    const { record, telemetry } = resolveStageSync({ ...fixtureResolverInput, actions })
+    expect(record.actions).toHaveLength(256)
+    expect(telemetry.droppedActions).toBe(44)
+  })
 })
 
 describe('K8 — effects allow-list (FR-15b)', () => {
@@ -86,6 +206,20 @@ describe('K8 — effects allow-list (FR-15b)', () => {
     expect(telemetry.droppedEffects).toBe(1)
     expect(record.outcome.effects.map((e) => e.id)).not.toContain('nuclear_winter')
     expect(record.outcome.announcement.length).toBeGreaterThan(0)
+  })
+
+  it('counts valid effects dropped by the output cap', () => {
+    const { record, telemetry } = resolveStageSync({
+      ...fixtureResolverInput,
+      candidateEffects: [
+        { id: 'fire', at: null, intensity: 1 },
+        { id: 'smoke', at: null, intensity: 1 },
+        { id: 'rubble', at: null, intensity: 1 },
+        { id: 'flash', at: null, intensity: 1 },
+      ],
+    })
+    expect(record.outcome.effects).toHaveLength(4)
+    expect(telemetry.droppedEffects).toBe(2)
   })
 
   it('only ever emits catalogue ids', () => {
@@ -133,10 +267,219 @@ describe('FR-21 — server authority', () => {
     }
   })
 
+  it('keeps odds details out of the serialized public resolution', () => {
+    const { record } = resolveStageSync(fixtureResolverInput)
+    const serialized = JSON.stringify(publicResolution(record)).toLowerCase()
+    expect(serialized).not.toContain('roll')
+    expect(serialized).not.toContain('probability')
+    expect(serialized).not.toContain('modifier')
+    expect(serialized).not.toContain('rationale')
+  })
+
   it('gives every projected effect a text equivalent (FR-15c)', () => {
     const { record } = resolveStageSync(fixtureResolverInput)
     for (const effect of publicResolution(record).effects) {
       expect(effect.text.length).toBeGreaterThan(0)
     }
+  })
+
+  it('rejects a non-ISO resolvedAt value', () => {
+    const { record } = resolveStageSync(fixtureResolverInput)
+    expect(validateResolutionRecord({ ...record, resolvedAt: 'not-a-date' })).toMatchObject({ ok: false })
+  })
+})
+
+describe('K7 — explainable player odds', () => {
+  const committedAgents = fixtureResolverInput.agents.map((agent, index) => ({
+    ...agent,
+    commitment:
+      index === 0
+        ? { optionId: 'option-sign-treaty', how: 'committed' as const }
+        : { optionId: 'option-other', how: 'committed' as const },
+  }))
+
+  it('repeats a fixed-seed resolution with commitments byte-for-byte', () => {
+    const input = { ...fixtureResolverInput, agents: committedAgents }
+    expect(resolveStageSync(input)).toEqual(resolveStageSync(input))
+  })
+
+  it('keeps probability inside the non-degenerate bounds at both extremes', () => {
+    const opposed = playerOdds({
+      ...fixtureResolverInput,
+      evidenceCollected: 0,
+      agents: Array.from({ length: 8 }, (_, index) => ({
+        id: `opposed-${index}`,
+        name: `Opposed ${index}`,
+        disposition: -5,
+        commitment: { optionId: 'option-other', how: 'committed' as const },
+      })),
+    })
+    const backing = playerOdds({
+      ...fixtureResolverInput,
+      evidenceCollected: 4,
+      agents: Array.from({ length: 8 }, (_, index) => ({
+        id: `backing-${index}`,
+        name: `Backing ${index}`,
+        disposition: 5,
+        commitment: { optionId: 'option-sign-treaty', how: 'committed' as const },
+      })),
+    })
+
+    expect(opposed.probability).toBeGreaterThanOrEqual(0.05)
+    expect(opposed.probability).toBeLessThanOrEqual(0.95)
+    expect(backing.probability).toBeGreaterThanOrEqual(0.05)
+    expect(backing.probability).toBeLessThanOrEqual(0.95)
+  })
+
+  it('caps the agent-stance contribution and emits the exact applied sum', () => {
+    const odds = playerOdds({
+      ...fixtureResolverInput,
+      agents: Array.from({ length: 8 }, (_, index) => ({
+        id: `opposed-${index}`,
+        name: `Opposed ${index}`,
+        disposition: 0,
+        commitment: { optionId: 'option-other', how: 'committed' as const },
+      })),
+    })
+    const contribution = odds.modifiers
+      .filter((modifier) => modifier.source === 'agent_stance')
+      .reduce((sum, modifier) => sum + modifier.delta, 0)
+    const roundedContribution = odds.modifiers
+      .filter((modifier) => modifier.source === 'agent_stance')
+      .reduce((sum, modifier) => sum + Number(modifier.delta.toFixed(4)), 0)
+    const appliedContribution =
+      odds.probability -
+      odds.base -
+      odds.modifiers
+        .filter((modifier) => modifier.source !== 'agent_stance')
+        .reduce((sum, modifier) => sum + modifier.delta, 0)
+
+    expect(contribution).toBeCloseTo(-0.15, 10)
+    expect(roundedContribution).toBeCloseTo(appliedContribution, 10)
+    expect(Math.abs(contribution)).toBeLessThanOrEqual(0.15)
+  })
+
+  it('uses a neutral announcement clause when no modifier changes the odds', () => {
+    const input = {
+      ...fixtureResolverInput,
+      evidenceCollected: 0,
+      agents: fixtureResolverInput.agents.map((agent) => ({ ...agent, disposition: 0 })),
+    }
+    const { record } = resolveStageSync(input)
+
+    expect(record.outcome.announcement).toContain('The course set the tone.')
+    expect(record.outcome.announcement).not.toContain('standing')
+    expect(record.outcome.announcement).not.toContain('papers')
+    expect(record.outcome.announcement).not.toContain('refusal')
+    expect(record.outcome.announcement).not.toContain('support')
+  })
+
+  it('describes evidence as an odds influence even when the roll fails', () => {
+    const input = { ...fixtureResolverInput, evidenceCollected: 4 }
+    const seed = Array.from({ length: 100 }, (_, index) => `evidence-failure-${index}`).find(
+      (candidate) => !resolveStageSync({ ...input, seed: candidate }).record.rolls[0]?.success,
+    )
+    if (seed === undefined) throw new Error('fixture should produce a failing seed')
+    const announcement = resolveStageSync({ ...input, seed }).record.outcome.announcement
+    expect(announcement).toContain('Even the papers you found were not enough.')
+    expect(announcement).not.toContain('The papers you found carried it.')
+  })
+
+  it('describes an opposing agent as resistance even when the roll succeeds', () => {
+    const input = {
+      ...fixtureResolverInput,
+      evidenceCollected: 0,
+      agents: fixtureResolverInput.agents.map((agent, index) => ({
+        ...agent,
+        disposition: 0,
+        ...(index === 0
+          ? { commitment: { optionId: 'option-other', how: 'committed' as const } }
+          : {}),
+      })),
+    }
+    const seed = Array.from({ length: 100 }, (_, index) => `opposed-success-${index}`).find(
+      (candidate) => resolveStageSync({ ...input, seed: candidate }).record.rolls[0]?.success,
+    )
+    if (seed === undefined) throw new Error('fixture should produce a succeeding seed')
+    const announcement = resolveStageSync({ ...input, seed }).record.outcome.announcement
+    expect(announcement).toContain("It held despite Temenggong Abdul Rahman's refusal.")
+    expect(announcement).not.toContain("Temenggong Abdul Rahman's refusal cost you.")
+  })
+
+  it('keeps rationale bounded with many committed agents', () => {
+    const agents = Array.from({ length: 120 }, (_, index) => ({
+      id: `agent-${index}`,
+      name: `Agent ${index}`,
+      disposition: 0,
+      commitment: { optionId: 'option-other', how: 'committed' as const },
+    }))
+    const { record } = resolveStageSync({ ...fixtureResolverInput, agents })
+    expect(record.rationale.length).toBeLessThanOrEqual(2000)
+    expect(record.rationale).toContain('agent_stance:-0.15(n=120)')
+  })
+
+  it('warms backing agents on success and hardens opposing agents, with the mirror on failure', () => {
+    const input = {
+      ...fixtureResolverInput,
+      agents: [
+        {
+          id: 'agent-backer',
+          name: 'Backer',
+          disposition: 0,
+          commitment: { optionId: 'option-sign-treaty', how: 'committed' as const },
+        },
+        {
+          id: 'agent-opposer',
+          name: 'Opposer',
+          disposition: 0,
+          commitment: { optionId: 'option-other', how: 'committed' as const },
+        },
+      ],
+    }
+    const success = Array.from({ length: 100 }, (_, index) => resolveStageSync({ ...input, seed: `success-${index}` })).find(
+      ({ record }) => record.rolls[0]?.success,
+    )
+    const failure = Array.from({ length: 100 }, (_, index) => resolveStageSync({ ...input, seed: `failure-${index}` })).find(
+      ({ record }) => record.rolls[0]?.success === false,
+    )
+
+    expect(success).toBeDefined()
+    expect(success?.record.outcome.agentDeltas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ agentId: 'agent-backer', dispositionDelta: expect.any(Number) }),
+        expect.objectContaining({ agentId: 'agent-opposer', dispositionDelta: expect.any(Number) }),
+      ]),
+    )
+    expect(success?.record.outcome.agentDeltas.find((delta) => delta.agentId === 'agent-backer')?.dispositionDelta).toBeGreaterThan(0)
+    expect(success?.record.outcome.agentDeltas.find((delta) => delta.agentId === 'agent-opposer')?.dispositionDelta).toBeLessThan(0)
+    expect(failure).toBeDefined()
+    expect(failure?.record.outcome.agentDeltas.find((delta) => delta.agentId === 'agent-backer')?.dispositionDelta).toBeLessThan(0)
+    expect(failure?.record.outcome.agentDeltas.find((delta) => delta.agentId === 'agent-opposer')?.dispositionDelta).toBeGreaterThan(0)
+  })
+
+  it('does not align commitments when the stage expires on the timer', () => {
+    const input = {
+      ...fixtureTimerExpiryInput,
+      agents: committedAgents,
+    }
+    const { record } = resolveStageSync(input)
+    expect(record.trigger).toBe('timer_expiry')
+    expect(record.rationale).not.toContain('agent_stance')
+    expect(record.outcome.agentDeltas).toHaveLength(committedAgents.length)
+  })
+
+  it('treats a committed unknown option as opposed without throwing', () => {
+    const input = {
+      ...fixtureResolverInput,
+      agents: [
+        {
+          ...fixtureResolverInput.agents[0]!,
+          commitment: { optionId: 'option-that-does-not-exist', how: 'committed' as const },
+        },
+      ],
+    }
+    const { record } = resolveStageSync(input)
+    expect(record.rationale).toContain('agent_stance')
+    expect(playerOdds(input).modifiers.find((modifier) => modifier.source === 'agent_stance')?.delta).toBe(-0.04)
   })
 })

@@ -1,0 +1,185 @@
+{
+  "case": "spotted-tail-1877",
+  "metrics": {
+    "promptVersion": "planner-v2",
+    "specVersion": 2,
+    "model": "gpt-5.4",
+    "attempts": 2,
+    "repairs": 1,
+    "valid": true,
+    "totalLatencyMs": 278254,
+    "usage": {
+      "inputTokens": 23955,
+      "cachedInputTokens": 5888,
+      "outputTokens": 34682,
+      "reasoningTokens": 14904
+    },
+    "costUsd": 0.5668695,
+    "calls": [
+      {
+        "purpose": "plan",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 215060,
+        "usage": {
+          "inputTokens": 6291,
+          "cachedInputTokens": 0,
+          "outputTokens": 23582,
+          "reasoningTokens": 13705
+        },
+        "costUsd": 0.3694575,
+        "issueCount": 13,
+        "schemaIssues": 0,
+        "groundingIssues": 13,
+        "issues": [
+          {
+            "path": "$.adventure.stakeholders.0.summary.spans.1",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 2: \"nment intends to fulfill its part of the treaty and that it is expected that the Indians on their part will do the same. Since then their [sic] has been a great desire on the part of the Indians to farm and I am daily beset with application\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stakeholders.3.summary.spans.0",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 3: \"Tail’s party and several days before the rations sent to them arrived they had been out of eatables entirely. [page 6] Some additional Indians have been enlisted by the military authorities as soldiers and among them, the Chiefs Spotted Tai\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.0.agents.0.privateContext.spans.1",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 2: \"nment intends to fulfill its part of the treaty and that it is expected that the Indians on their part will do the same. Since then their [sic] has been a great desire on the part of the Indians to farm and I am daily beset with application\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.0.agents.2.publicPosition.spans.0",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 3: \"Tail’s party and several days before the rations sent to them arrived they had been out of eatables entirely. [page 6] Some additional Indians have been enlisted by the military authorities as soldiers and among them, the Chiefs Spotted Tai\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.0.agents.2.privateContext.spans.0",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 3: \"Tail’s party and several days before the rations sent to them arrived they had been out of eatables entirely. [page 6] Some additional Indians have been enlisted by the military authorities as soldiers and among them, the Chiefs Spotted Tai\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.0.evidence.3.content.spans.1",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 3: \"Tail’s party and several days before the rations sent to them arrived they had been out of eatables entirely. [page 6] Some additional Indians have been enlisted by the military authorities as soldiers and among them, the Chiefs Spotted Tai\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.sharedContext.spans.0",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 2: \"nment intends to fulfill its part of the treaty and that it is expected that the Indians on their part will do the same. Since then their [sic] has been a great desire on the part of the Indians to farm and I am daily beset with application\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.agents.1.publicPosition.spans.0",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 2: \"nment intends to fulfill its part of the treaty and that it is expected that the Indians on their part will do the same. Since then their [sic] has been a great desire on the part of the Indians to farm and I am daily beset with application\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.agents.1.privateContext.spans.0",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 2: \"nment intends to fulfill its part of the treaty and that it is expected that the Indians on their part will do the same. Since then their [sic] has been a great desire on the part of the Indians to farm and I am daily beset with application\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.agents.2.publicPosition.spans.0",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 3: \"Tail’s party and several days before the rations sent to them arrived they had been out of eatables entirely. [page 6] Some additional Indians have been enlisted by the military authorities as soldiers and among them, the Chiefs Spotted Tai\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.agents.2.privateContext.spans.0",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 3: \"Tail’s party and several days before the rations sent to them arrived they had been out of eatables entirely. [page 6] Some additional Indians have been enlisted by the military authorities as soldiers and among them, the Chiefs Spotted Tai\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.evidence.0.content.spans.0",
+            "message": "quote not found verbatim on any page of \"spotted-tail-agency-1877\"; the closest passage is on page 2: \"nment intends to fulfill its part of the treaty and that it is expected that the Indians on their part will do the same. Since then their [sic] has been a great desire on the part of the Indians to farm and I am daily beset with application\" — copy from it verbatim or replace the span with an assumptionId"
+          },
+          {
+            "path": "$.adventure.stages.1.evidence.2.content.spans.1",
+            "message": "quote not found on page 3 of \"spotted-tail-agency-1877\" (it appears on page 2)"
+          }
+        ]
+      },
+      {
+        "purpose": "repair",
+        "model": "gpt-5.4-2026-03-05",
+        "latencyMs": 63172,
+        "usage": {
+          "inputTokens": 17664,
+          "cachedInputTokens": 5888,
+          "outputTokens": 11100,
+          "reasoningTokens": 1199
+        },
+        "costUsd": 0.197412,
+        "issueCount": 0,
+        "schemaIssues": 0,
+        "groundingIssues": 0,
+        "issues": []
+      }
+    ],
+    "documents": [
+      {
+        "id": "spotted-tail-agency-1877",
+        "pages": 5,
+        "chars": 13303
+      }
+    ],
+    "documentsTruncated": false
+  },
+  "missingInformation": [
+    "The report does not record the Commissioner's response to Lee's recommendations.",
+    "The document does not preserve direct speeches from Spotted Tail, the northern returnees, or Camp Sheridan officers in these councils.",
+    "The specific identity of the commanding officer at Camp Sheridan is not given in the source.",
+    "The exact physical layout of the agency, warehouse, lodges, school space, and council ground is not described.",
+    "The source does not say what happened after May 1, 1877 regarding removal, Crazy Horse's movement, or final federal policy."
+  ],
+  "status": "ok",
+  "reason": null,
+  "checks": {
+    "grounding": {
+      "total": 88,
+      "resolved": 88,
+      "ratio": 1
+    },
+    "documentedShare": 1,
+    "assumptions": 9,
+    "branching": {
+      "stages": 2,
+      "distinctTargetsPerStage": [
+        2,
+        3
+      ],
+      "endings": 4,
+      "reachableEndings": 4,
+      "ok": true
+    },
+    "earlyFork": {
+      "nonFinalStages": 1,
+      "forking": 1,
+      "ratio": 1
+    },
+    "objectiveChains": 2,
+    "overlaysSet": 0,
+    "injection": null,
+    "stances": {
+      "distinct": [
+        "antagonistic",
+        "cooperative",
+        "evasive",
+        "neutral"
+      ],
+      "ok": true
+    },
+    "readingLevel": {
+      "band": "upper-secondary",
+      "budgetWords": 180,
+      "maxWords": 57,
+      "overBudget": [],
+      "ok": true
+    },
+    "assets": {
+      "count": 8,
+      "kinds": {
+        "portrait": 2,
+        "landmark": 2,
+        "prop": 4
+      },
+      "ok": true
+    },
+    "privateContextLeak": [],
+    "playability": {
+      "level": "spec-level",
+      "ok": true,
+      "errors": []
+    },
+    "pass": true
+  },
+  "issues": 0,
+  "title": "Between Rations and Removal",
+  "warnings": []
+}

@@ -6,8 +6,10 @@
  * the fake Resolver (K1) and the LLM Resolver (K7/K9) be interchangeable behind one interface, and
  * what lets every other slice build against I4 tonight without an OpenAI key.
  */
+import { z } from 'zod'
+
 import type { ActorAction } from '../actions'
-import type { NextStep, ResolutionRecord, ResolutionTrigger } from '../resolution'
+import { nextStepSchema, type NextStep, type ResolutionRecord, type ResolutionTrigger } from '../resolution'
 
 /** Decision stances, mirrored from the Adventure Spec v2 (I1) catalogue. */
 export const DECISION_STANCES = ['cooperative', 'antagonistic', 'neutral', 'evasive'] as const
@@ -18,6 +20,8 @@ export interface ResolverAgentView {
   name: string
   /** Standing toward the player, -5 hostile to +5 loyal. World state, carried between stages. */
   disposition: number
+  /** The character's own end-of-stage commitment, from the K6 ledger, when it made one. */
+  commitment?: { optionId: string | null; how: 'committed' | 'passed' | 'timed_out' }
 }
 
 /** The option the player committed to (D18). Options are spec-authored, so the branch is too. */
@@ -54,6 +58,7 @@ export interface ResolverTelemetry {
   /** Candidate actions or effects the allow-list dropped, for FR-24. */
   droppedActions: number
   droppedEffects: number
+  droppedAgentDeltas: number
   /** LLM repair round-trips used (FR-4/D14). Always 0 for the deterministic fake Resolver. */
   repairRounds: number
 }
@@ -65,4 +70,63 @@ export interface ResolverResult {
 
 export interface Resolver {
   resolveStage(input: ResolverInput): Promise<ResolverResult>
+}
+
+const id = z.string().min(1).max(64)
+const recoverableNumber = z.custom<number>((value) => typeof value === 'number')
+const branchTargetSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('stage'), stageId: id }),
+  z.object({ kind: z.literal('ending'), endingId: id }),
+])
+
+export const resolverInputSchema = z.object({
+  attemptId: id,
+  stageId: id,
+  seed: z.string().min(1).max(256),
+  stageIndex: z.number().int().nonnegative(),
+  resolvedAt: z.string().datetime({ offset: true }),
+  trigger: z.enum(['decision', 'timer_expiry', 'stage_objective']),
+  decision: z
+    .object({
+      optionId: id,
+      label: z.string().min(1).max(287),
+      stance: z.enum(DECISION_STANCES),
+      branchTarget: branchTargetSchema,
+    })
+    .nullable(),
+  fallbackNext: nextStepSchema,
+  agents: z
+    .array(
+      z.object({
+        id,
+        name: z.string().min(1).max(200),
+        disposition: recoverableNumber,
+        commitment: z
+          .object({
+            optionId: id.nullable(),
+            how: z.enum(['committed', 'passed', 'timed_out']),
+          })
+          .optional(),
+      }),
+    )
+    .superRefine((agents, ctx) => {
+      const seen = new Set<string>()
+      agents.forEach((agent, index) => {
+        if (seen.has(agent.id)) ctx.addIssue({ code: 'custom', path: [index, 'id'], message: `duplicate agent id "${agent.id}"` })
+        seen.add(agent.id)
+      })
+    }),
+  actions: z.array(z.object({ actorKind: z.enum(['player', 'agent']), actorId: id, action: z.unknown() })),
+  evidenceCollected: recoverableNumber,
+  candidateEffects: z.array(z.unknown()).optional(),
+})
+
+export class ResolverInputError extends Error {
+  readonly issues: string[]
+
+  constructor(issues: string[]) {
+    super(`invalid resolver input: ${issues.join('; ')}`)
+    this.name = 'ResolverInputError'
+    this.issues = issues
+  }
 }
