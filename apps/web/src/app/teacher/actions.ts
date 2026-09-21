@@ -169,6 +169,40 @@ export async function rotateShareToken(adventureId: string): Promise<ActionResul
   return {};
 }
 
+/**
+ * Timer settings (P6/D12/FR-16). An empty field inherits the adventure
+ * default, 0 disables the timer for that stage; both are meaningful, so the
+ * form distinguishes "" from "0" rather than falling back to a truthiness check.
+ */
+function parseTimer(raw: FormDataEntryValue | null): number | null | "invalid" {
+  const text = String(raw ?? "").trim();
+  if (text === "") return null;
+  const seconds = Number(text);
+  return Number.isInteger(seconds) && seconds >= 0 ? seconds : "invalid";
+}
+
+export async function updateDefaultTimer(
+  adventureId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { supabase } = await requireOwnership(adventureId);
+
+  const seconds = parseTimer(formData.get("default_timer_seconds"));
+  if (seconds === "invalid" || seconds === null) {
+    return { error: "Give a whole number of seconds (0 disables timers)" };
+  }
+
+  const { error } = await supabase
+    .from("adventure")
+    .update({ default_timer_seconds: seconds })
+    .eq("id", adventureId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/teacher/${adventureId}`);
+  return {};
+}
+
 /** Edits land on the draft version; the published one is frozen by trigger. */
 export async function updateStage(
   adventureId: string,
@@ -181,12 +215,18 @@ export async function updateStage(
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return { error: "A stage needs a title" };
 
+  const timer = parseTimer(formData.get("timer_seconds"));
+  if (timer === "invalid") {
+    return { error: "Leave the timer empty to inherit, or give seconds (0 disables)" };
+  }
+
   const admin = createAdminClient();
   const { error } = await admin
     .from("stage")
     .update({
       title,
       shared_context: String(formData.get("shared_context") ?? ""),
+      timer_seconds: timer,
     })
     .eq("id", stageId);
   if (error) return { error: describeFrozen(error.message) };

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
+import { StageCountdown } from "@/components/stage-countdown";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -47,8 +48,14 @@ export default async function PlayPage({
         <dd className="font-mono">{attempt.id}</dd>
         <dt className="opacity-60">Status</dt>
         <dd>{attempt.status}</dd>
-        <dt className="opacity-60">Deadline</dt>
-        <dd>{attempt.stage_deadline_at ?? "no timer"}</dd>
+        <dt className="opacity-60">Time left</dt>
+        <dd>
+          <StageCountdown
+            attemptId={attempt.id}
+            deadlineIso={attempt.stage_deadline_at}
+            serverNowIso={new Date().toISOString()}
+          />
+        </dd>
       </dl>
     </main>
   );
