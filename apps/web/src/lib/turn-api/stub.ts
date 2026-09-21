@@ -49,7 +49,18 @@ type StubAttempt = {
   status: PublicAttemptState["status"];
 };
 
-const attempts = new Map<string, StubAttempt>();
+/**
+ * Held on `globalThis` rather than in module scope: the dev server evaluates a
+ * route's module graph on first hit, so a per-module map would hand each route
+ * its own state and reset the server-held deadline (D12/FR-16) mid-attempt.
+ */
+const globalStore = globalThis as typeof globalThis & {
+  __turnApiStubAttempts?: Map<string, StubAttempt>;
+};
+const attempts = (globalStore.__turnApiStubAttempts ??= new Map<
+  string,
+  StubAttempt
+>());
 
 function seed(attemptId: string): StubAttempt {
   const now = Date.now();
@@ -262,7 +273,8 @@ export function stubPostMessage(
   attemptId: string,
   roomId: string,
   body: string,
-): { newMessages: PublicMessage[]; state: PublicAttemptState } {
+): { newMessages: PublicMessage[]; state: PublicAttemptState } | null {
+  if (roomId !== STUB_ROOM_CHAMBER && roomId !== STUB_ROOM_ANTEROOM) return null;
   const attempt = get(attemptId);
   const now = Date.now();
   attempt.revision += 1;

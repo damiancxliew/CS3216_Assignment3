@@ -21,11 +21,19 @@ export async function POST(
     );
   }
 
-  const { newMessages, state } = stubPostMessage(
-    id,
-    parsed.data.roomId,
-    parsed.data.body,
-  );
+  const posted = stubPostMessage(id, parsed.data.roomId, parsed.data.body);
+  if (!posted) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "not_found",
+          message: "That room is not part of this stage.",
+        },
+      },
+      { status: 404 },
+    );
+  }
+  const { newMessages, state } = posted;
 
   return NextResponse.json(
     messageResponseSchema.parse({ accepted: true, newMessages, state }),

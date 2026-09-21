@@ -62,6 +62,16 @@ describe("POST /api/attempt/:id/message", () => {
     expect(body.state.revision).toBeGreaterThan(1);
   });
 
+  it("rejects a room that is not part of the stage", async () => {
+    const response = await postMessage(
+      post("http://t/message", { roomId: "00000000-0000-4000-8000-0000000000ff", body: "Hello?" }),
+      params,
+    );
+
+    expect(response.status).toBe(404);
+    expect((await response.json()).error.code).toBe("not_found");
+  });
+
   it("rejects a malformed body", async () => {
     const response = await postMessage(post("http://t/message", { body: "" }), params);
 
