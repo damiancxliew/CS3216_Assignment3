@@ -61,7 +61,7 @@ Thumbnail: the OG card at `/opengraph-image` (generated, 1200×630).
 
 ## Links
 
-- Live: **[TODO — Vercel URL once deployed, P9]**
+- Live: <https://historical-adventures-ten.vercel.app>
 - Source: https://github.com/damiancxliew/CS3216_Assignment3
 
 ## Launch-day notes

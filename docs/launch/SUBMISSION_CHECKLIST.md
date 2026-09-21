@@ -13,7 +13,8 @@ work feels done.
 - [x] Stage timers: adventure default + per-stage override, server-held deadline, pass on expiry — P6
 - [x] Persistence and resume with a recap, no extra time bought by a refresh — P7
 - [x] Ending debrief separating documented history (with citations) from simulated assumption — P8
-- [ ] Deployed to Vercel with env keys set; PostHog receiving real events — P9
+- [x] Deployed to Vercel with env keys set; PostHog receiving real events — P9
+      (<https://historical-adventures-ten.vercel.app>)
 - [x] Landing page with SEO/OG, README, Product Hunt kit — P10
 
 ## Launch assets
@@ -32,16 +33,11 @@ work feels done.
 - [ ] M19 — needs several days of real PostHog data, so it is gated on P9 landing early
 - [ ] M20
 
-## Blocked on credentials (not on code)
+## Still blocked on credentials (not on code)
 
-P9 is entirely account-side and blocks the live URL, the OG preview check, the demo
-adventure and M19's numbers:
-
-1. Hosted Supabase project URL, anon key and service-role key
-2. Vercel token or project access (framework preset **Next.js**, root directory **`apps/web`**)
-3. PostHog project API key (and host, if not US cloud)
-4. Google OAuth client id/secret, with `<site>/auth/callback` on both Google's and
-   Supabase's redirect allow-lists
+Google OAuth client id/secret, with `https://historical-adventures-ten.vercel.app/auth/callback`
+on both Google's and Supabase's redirect allow-lists. Sign-in on the deployed site fails
+until that exists.
 
 ## Final pass
 

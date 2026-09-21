@@ -4,6 +4,8 @@
 small world around them, fills it with people who each want something different, and lets
 a student find out what their decisions cost.
 
+Live at <https://historical-adventures-ten.vercel.app>.
+
 Built for CS3216 Assignment 3, National University of Singapore.
 
 ## What it does
