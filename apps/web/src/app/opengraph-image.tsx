@@ -24,8 +24,14 @@ export default function OpengraphImage() {
           color: "#f5f5f4",
         }}
       >
-        <div style={{ fontSize: 28, letterSpacing: 6, color: "#6ee7b7" }}>
-          HISTORICAL ADVENTURES
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <svg width="56" height="56" viewBox="0 0 64 64">
+            <rect x="18" y="12" width="5" height="40" rx="2.5" fill="#6ee7b7" />
+            <path d="M26 15h22l-8 10 8 10H26z" fill="#6ee7b7" />
+          </svg>
+          <div style={{ fontSize: 28, letterSpacing: 6, color: "#6ee7b7" }}>
+            HISTORICAL ADVENTURES
+          </div>
         </div>
         <div style={{ fontSize: 88, fontWeight: 600, lineHeight: 1.05 }}>
           Play the source material.

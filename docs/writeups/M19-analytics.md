@@ -1,7 +1,9 @@
-# M19 — Analytics (draft, day 1)
+# M19 — Analytics (awaiting data)
 
-Status: instrumentation landed 20 Sep. Numbers to be filled in once the deploy has
-collected a few days of events.
+Status: instrumentation landed 20 Sep; the production deploy
+(<https://historical-adventures-ten.vercel.app>) has been ingesting into PostHog (US
+cloud) since 22 Sep. Numbers and the observation-driven change are filled in once the
+window has a few days in it — see "To fill in" below.
 
 ## What we measure and why
 
@@ -45,5 +47,12 @@ web-vitals, which feed the performance half of the write-up.
 
 ## To fill in before submission
 
-- Event volumes and funnel conversion for the real window.
+- Event volumes and funnel conversion for the real window (PostHog project 621035),
+  with the funnel screenshot.
 - At least one change we made because of an observation, with the before/after numbers.
+  Candidate triggers, in the order we expect them to fire: teacher drop-off between
+  `adventure_created` and `adventure_published` (would mean the review step is too
+  heavy), a `message_sent` : `decision_committed` ratio near zero per stage (would mean
+  the conversation is decorative and the decision needs gating on evidence), and a high
+  `stage_timer_expired` share (would mean the default timer is too short — the fix is a
+  one-line default, so this is the cheapest change to ship and measure).
