@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { DevSignIn } from "@/components/dev-sign-in";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
 import { createClient } from "@/lib/supabase/client";
@@ -32,13 +33,16 @@ export function SignInButton({
   }
 
   return (
-    <button
-      type="button"
-      onClick={signIn}
-      disabled={pending}
-      className="inline-flex w-fit items-center gap-2 rounded-full border border-black/15 px-5 py-2.5 text-sm font-medium transition hover:bg-black/5 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
-    >
-      {pending ? "Redirecting…" : label}
-    </button>
+    <div className="flex flex-col gap-3">
+      <button
+        type="button"
+        onClick={signIn}
+        disabled={pending}
+        className="inline-flex w-fit items-center gap-2 rounded-full border border-black/15 px-5 py-2.5 text-sm font-medium transition hover:bg-black/5 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
+      >
+        {pending ? "Redirecting…" : label}
+      </button>
+      <DevSignIn next={next} />
+    </div>
   );
 }
