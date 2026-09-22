@@ -70,12 +70,13 @@ async function seedAdventure(title: string, teacherId: string, studentId: string
     page_to: 1,
   });
 
+  // Left unpublished until its stages exist: a published version is frozen
+  // against every write, service role included (P4).
   const specVersion = await insert("spec_version", {
     adventure_id: adventure.id,
     version: 1,
     json: { stages: [] },
     generator_version: "test",
-    published_at: new Date().toISOString(),
   });
 
   // A later draft the teacher is editing: an in-flight attempt is pinned to
@@ -136,6 +137,12 @@ async function seedAdventure(title: string, teacherId: string, studentId: string
     generator_version: "test",
     json: { tiles: [] },
   });
+
+  const { error: publishError } = await admin
+    .from("spec_version")
+    .update({ published_at: new Date().toISOString() })
+    .eq("id", specVersion.id);
+  if (publishError) throw publishError;
 
   const attempt = await insert("attempt", {
     adventure_id: adventure.id,

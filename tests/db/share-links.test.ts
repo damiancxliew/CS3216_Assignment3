@@ -45,7 +45,6 @@ async function seedAdventure(
       version: 1,
       json: { stages: [] },
       generator_version: "test",
-      published_at: published ? new Date().toISOString() : null,
     })
     .select("id")
     .single();
@@ -61,6 +60,16 @@ async function seedAdventure(
     .select("id")
     .single();
   if (stageError) throw stageError;
+
+  // Publishing last: a published version is frozen, so its stages have to
+  // exist before the stamp goes on (P4).
+  if (published) {
+    const { error: publishError } = await admin
+      .from("spec_version")
+      .update({ published_at: new Date().toISOString() })
+      .eq("id", specVersion.id);
+    if (publishError) throw publishError;
+  }
 
   return { id: adventure.id, token: adventure.share_token, stageId: stage.id };
 }
