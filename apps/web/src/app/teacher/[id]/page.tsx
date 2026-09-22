@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -142,8 +143,8 @@ export default async function AdventurePage({
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-6 py-16">
       <header className="flex flex-col gap-3">
-        <Link href="/teacher" className="w-fit text-sm opacity-60 hover:opacity-100">
-          ← All adventures
+        <Link href="/teacher" className="inline-flex w-fit items-center gap-1 text-sm opacity-60 hover:opacity-100">
+          <ArrowLeft className="h-4 w-4" aria-hidden /> All adventures
         </Link>
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-3xl font-semibold tracking-tight">{adventure.title}</h1>

@@ -11,6 +11,7 @@
  * decision, which stays quiet until you can actually make it, then lights up.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
+import { ArrowRight, Check, CornerDownRight, Lock, Search, Timer, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -221,7 +222,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           aria-pressed={muted}
           className="absolute bottom-3 right-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-[15px] font-semibold text-white hover:bg-black/85"
         >
-          <span aria-hidden>{muted ? "🔇" : "🔊"}</span>
+          {muted ? <VolumeX className="h-5 w-5" aria-hidden /> : <Volume2 className="h-5 w-5" aria-hidden />}
           {muted ? "Sound off" : "Sound on"}
         </button>
         {lastResolution ? (
@@ -246,10 +247,10 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               </h2>
             </div>
             <span
-              className={`shrink-0 rounded-xl px-3 py-1.5 text-lg font-extrabold tabular-nums ${lowTime ? "animate-pulse bg-amber-500 text-black" : "bg-black/5 dark:bg-white/10"}`}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-lg font-extrabold tabular-nums ${lowTime ? "animate-pulse bg-amber-500 text-black" : "bg-black/5 dark:bg-white/10"}`}
               aria-label="Time left in this stage"
             >
-              ⏱ <StageCountdown attemptId={attemptId} deadlineIso={state.timer.deadlineAt} serverNowIso={state.timer.serverNow} />
+              <Timer className="h-5 w-5" aria-hidden /> <StageCountdown attemptId={attemptId} deadlineIso={state.timer.deadlineAt} serverNowIso={state.timer.serverNow} />
             </span>
           </div>
           {here && state.roomImages[here.id] ? (
@@ -261,8 +262,8 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               .filter((r) => r.id !== state.currentRoomId)
               .map((r) => (
                 <button key={r.id} type="button" className={chip} disabled={busy !== null} onClick={() => setIntent({ kind: "room", roomId: r.id })}>
-                  <span aria-hidden>→</span> {r.name}
-                  {!r.doorOpen ? <span aria-label="door closed">🔒</span> : null}
+                  <ArrowRight className="h-4 w-4" aria-hidden /> {r.name}
+                  {!r.doorOpen ? <Lock className="h-4 w-4 opacity-70" aria-label="door closed" /> : null}
                 </button>
               ))}
             {here ? (
@@ -286,7 +287,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               <span className="px-1 text-[15px] font-extrabold">Look at:</span>
               {state.evidenceHere.map((item) => (
                 <button key={item.id} type="button" className={`${chip} border-amber-600/50`} disabled={busy !== null} onClick={() => act("Examining…", () => playApi.action(attemptId, { type: "inspect", evidenceId: item.id }))}>
-                  🔍 {item.name}
+                  <Search className="h-4 w-4" aria-hidden /> {item.name}
                 </button>
               ))}
             </div>
@@ -391,11 +392,15 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                   aria-hidden
                   className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-black ${o.met ? "border-emerald-600 bg-emerald-600 text-white" : "border-black/35 dark:border-white/40"}`}
                 >
-                  {o.met ? "✓" : ""}
+                  {o.met ? <Check className="h-3.5 w-3.5" strokeWidth={3.5} aria-hidden /> : null}
                 </span>
                 <span className="min-w-0">
                   <span className={o.met ? "line-through" : ""}>{o.title}</span>
-                  {!o.met && state.objectiveHints[o.id] ? <span className="block text-[13px] font-semibold opacity-70">→ {state.objectiveHints[o.id]}</span> : null}
+                  {!o.met && state.objectiveHints[o.id] ? (
+                    <span className="flex items-start gap-1 text-[13px] font-semibold opacity-70">
+                      <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> {state.objectiveHints[o.id]}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="sr-only">{o.met ? "done" : "not yet"}</span>
               </li>
@@ -441,7 +446,11 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                           onClick={() => decide(o.id)}
                         >
                           <span className="leading-snug">{o.label}</span>
-                          {!o.available ? <span className="text-[13px] font-semibold opacity-70">🔒 {o.unavailableReason}</span> : null}
+                          {!o.available ? (
+                            <span className="inline-flex items-center gap-1 text-[13px] font-semibold opacity-70">
+                              <Lock className="h-3.5 w-3.5" aria-hidden /> {o.unavailableReason}
+                            </span>
+                          ) : null}
                         </button>
                       </li>
                     ))}
@@ -451,8 +460,8 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
             </div>
           ) : (
             <button type="button" className="flex w-full items-center justify-between rounded-2xl border-2 border-dashed border-black/20 px-3 py-2.5 text-left dark:border-white/25" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
-              <span id="decide" className="text-[15px] font-bold opacity-80">
-                🔒 Decision locked · finish your goals first
+              <span id="decide" className="inline-flex items-center gap-2 text-[15px] font-bold opacity-80">
+                <Lock className="h-4 w-4" aria-hidden /> Decision locked · finish your goals first
               </span>
               <span className="text-[13px] font-semibold opacity-60">{decisionOpen ? "hide" : "see choices"}</span>
             </button>
