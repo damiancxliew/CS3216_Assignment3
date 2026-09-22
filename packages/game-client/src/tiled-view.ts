@@ -255,19 +255,21 @@ class TiledScene extends Phaser.Scene {
       }
     }
     for (const room of source.rooms) {
-      const x1 = room.x + room.width - 1
-      const y1 = room.y + room.height - 1
-      for (let y = room.y; y <= y1; y += 1) {
-        for (let x = room.x; x <= x1; x += 1) {
-          const edgeX = x === room.x ? 'l' : x === x1 ? 'r' : null
-          const edgeY = y === room.y ? 't' : y === y1 ? 'b' : null
-          if (!edgeX && !edgeY) {
-            this.floors.putTileAt(PLANKS[Math.floor(jitter(x, y, 2) * PLANKS.length)]!, x, y)
-            continue
+      if (room.enclosure === 'enclosed') {
+        const x1 = room.x + room.width - 1
+        const y1 = room.y + room.height - 1
+        for (let y = room.y; y <= y1; y += 1) {
+          for (let x = room.x; x <= x1; x += 1) {
+            const edgeX = x === room.x ? 'l' : x === x1 ? 'r' : null
+            const edgeY = y === room.y ? 't' : y === y1 ? 'b' : null
+            if (!edgeX && !edgeY) {
+              this.floors.putTileAt(PLANKS[Math.floor(jitter(x, y, 2) * PLANKS.length)]!, x, y)
+              continue
+            }
+            this.floors.putTileAt(PLANKS[0]!, x, y) // under the door tile
+            const index = edgeX && edgeY ? WALL[`${edgeY}${edgeX}` as 'tl' | 'tr' | 'bl' | 'br'] : edgeX ? WALL[edgeX] : WALL[edgeY as 't' | 'b']
+            this.walls.putTileAt(index, x, y)
           }
-          this.floors.putTileAt(PLANKS[0]!, x, y) // under the door tile
-          const index = edgeX && edgeY ? WALL[`${edgeY}${edgeX}` as 'tl' | 'tr' | 'bl' | 'br'] : edgeX ? WALL[edgeX] : WALL[edgeY as 't' | 'b']
-          this.walls.putTileAt(index, x, y)
         }
       }
       this.labels.push(
@@ -288,17 +290,17 @@ class TiledScene extends Phaser.Scene {
     }
     // Map border: a wall ring so the world has an edge.
     for (let x = 0; x < source.width; x += 1) {
-      this.walls.putTileAt(WALL.t, x, 0)
-      this.walls.putTileAt(WALL.b, x, source.height - 1)
+      if (source.tiles[0]?.[x] === 'wall') this.walls.putTileAt(WALL.t, x, 0)
+      if (source.tiles[source.height - 1]?.[x] === 'wall') this.walls.putTileAt(WALL.b, x, source.height - 1)
     }
     for (let y = 0; y < source.height; y += 1) {
-      this.walls.putTileAt(WALL.l, 0, y)
-      this.walls.putTileAt(WALL.r, source.width - 1, y)
+      if (source.tiles[y]?.[0] === 'wall') this.walls.putTileAt(WALL.l, 0, y)
+      if (source.tiles[y]?.[source.width - 1] === 'wall') this.walls.putTileAt(WALL.r, source.width - 1, y)
     }
-    this.walls.putTileAt(WALL.tl, 0, 0)
-    this.walls.putTileAt(WALL.tr, source.width - 1, 0)
-    this.walls.putTileAt(WALL.bl, 0, source.height - 1)
-    this.walls.putTileAt(WALL.br, source.width - 1, source.height - 1)
+    if (source.tiles[0]?.[0] === 'wall') this.walls.putTileAt(WALL.tl, 0, 0)
+    if (source.tiles[0]?.[source.width - 1] === 'wall') this.walls.putTileAt(WALL.tr, source.width - 1, 0)
+    if (source.tiles[source.height - 1]?.[0] === 'wall') this.walls.putTileAt(WALL.bl, 0, source.height - 1)
+    if (source.tiles[source.height - 1]?.[source.width - 1] === 'wall') this.walls.putTileAt(WALL.br, source.width - 1, source.height - 1)
 
     for (const door of source.doors) {
       this.walls.removeTileAt(door.position.x, door.position.y)
