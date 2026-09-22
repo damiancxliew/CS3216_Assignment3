@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { READING_BANDS } from "@adventure/generation/spec";
+
 import { SharePanel } from "./share-panel";
 import {
   addTextSource,
+  generateFromSources,
   importSpec,
   publishAdventure,
   startEdit,
@@ -13,13 +16,23 @@ import {
   updateStage,
 } from "../actions";
 import { ActionButton, ActionForm } from "@/components/action-form";
-import { Field, Section, StatusBadge } from "@/components/ui";
+import { Field, Section, SelectField, StatusBadge } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "Adventure",
   robots: { index: false },
+};
+
+// Generation is one long model call; the actions invoked from this page inherit this budget.
+export const maxDuration = 300;
+
+const READING_BAND_LABELS: Record<(typeof READING_BANDS)[number], string> = {
+  primary: "Primary",
+  "lower-secondary": "Lower secondary",
+  "upper-secondary": "Upper secondary",
+  "pre-university": "Pre-university",
 };
 
 type Adventure = {
@@ -145,7 +158,7 @@ export default async function AdventurePage({
       <Section title="Content">
         {versions.length === 0 ? (
           <p className="text-sm opacity-60">
-            No version yet. Import an adventure spec to get a playable draft.
+            No version yet. Generate one from the sources above to get a playable draft.
           </p>
         ) : (
           <ul className="flex flex-col gap-1 text-sm opacity-80">
@@ -184,6 +197,69 @@ export default async function AdventurePage({
           </p>
         ) : null}
 
+        {draft ? (
+          <p className="text-sm opacity-60">
+            Publish or discard draft v{draft.version} before generating again.
+          </p>
+        ) : (
+          <details className="text-sm" open={versions.length === 0}>
+            <summary className="cursor-pointer opacity-70">
+              Generate {versions.length === 0 ? "a draft" : "a new version"} from the sources
+            </summary>
+            <div className="pt-3">
+              {!sources || sources.length === 0 ? (
+                <p className="opacity-60">Add at least one source first.</p>
+              ) : (
+                <ActionForm
+                  action={generateFromSources.bind(null, adventure.id)}
+                  submitLabel={`Generate from ${sources.length} source${sources.length === 1 ? "" : "s"}`}
+                  pendingLabel="Generating… this takes a minute or two"
+                  event={ANALYTICS_EVENTS.generationCompleted}
+                >
+                  <Field
+                    name="setting"
+                    label="Setting"
+                    placeholder="Singapore and Johor, 1819"
+                    defaultValue={adventure.setting ?? undefined}
+                  />
+                  <Field
+                    name="studentRole"
+                    label="Who the student plays"
+                    placeholder="Junior interpreter to the expedition"
+                  />
+                  <Field
+                    name="learningObjectives"
+                    label="Learning objectives (one per line, up to six)"
+                    placeholder={"Explain why the EIC wanted a port at the Straits\nDescribe the Johor succession dispute"}
+                    multiline
+                    rows={3}
+                  />
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <SelectField
+                      name="band"
+                      label="Reading level"
+                      defaultValue="lower-secondary"
+                      options={READING_BANDS.map((band) => ({ value: band, label: READING_BAND_LABELS[band] }))}
+                    />
+                    <Field name="ageMin" label="Age from" defaultValue="13" />
+                    <Field name="ageMax" label="Age to" defaultValue="14" />
+                    <SelectField
+                      name="stageCount"
+                      label="Stages"
+                      defaultValue="3"
+                      options={[
+                        { value: "1", label: "1" },
+                        { value: "2", label: "2" },
+                        { value: "3", label: "3" },
+                      ]}
+                    />
+                  </div>
+                </ActionForm>
+              )}
+            </div>
+          </details>
+        )}
+
         <details className="text-sm">
           <summary className="cursor-pointer opacity-70">Import an adventure spec</summary>
           <div className="pt-3">
@@ -202,8 +278,8 @@ export default async function AdventurePage({
               />
             </ActionForm>
             <p className="pt-2 opacity-60">
-              This is the seam the generator writes to: the spec is validated, then
-              written out as stages, rooms, stakeholders and evidence.
+              For a spec produced elsewhere (the generation CLI, a hand-authored fixture).
+              It goes through the same validation and write path as generation.
             </p>
           </div>
         </details>
