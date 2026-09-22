@@ -14,6 +14,7 @@
 import { ArrowRight, Check, CornerDownRight, Lock, Search, Timer, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Point } from "@adventure/game-core";
@@ -55,6 +56,7 @@ const primary =
 const label = "text-[13px] font-extrabold uppercase tracking-[0.12em] opacity-70";
 
 export function PlayClient({ attemptId, initialState }: { attemptId: string; initialState: PlayState }) {
+  const router = useRouter();
   const [state, setState] = useState<PlayState>(initialState);
   const stateRef = useRef(initialState);
   const [busy, setBusy] = useState<string | null>(null);
@@ -70,7 +72,15 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
   const revision = useRef(initialState.revision);
+  const serverViewKey = useRef(`${initialState.stage.id}:${initialState.status}`);
   const { muted, toggleMuted, cues } = useSoundCues(state, notice);
+
+  useEffect(() => {
+    const key = `${state.stage.id}:${state.status}`;
+    if (key === serverViewKey.current) return;
+    serverViewKey.current = key;
+    router.refresh();
+  }, [router, state.stage.id, state.status]);
 
   const accept = useCallback((next: PlayState) => {
     // Out-of-order replies are discarded (I3: revision is monotonic per attempt).

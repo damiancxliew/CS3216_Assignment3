@@ -1,5 +1,5 @@
 import { loadFixtureJson, I1_FIXTURE } from "@adventure/generation/fixtures";
-import { findPath, type Point, type StageMap } from "@adventure/game-core";
+import { canStep, findPath, spaceAt, type Point, type StageMap } from "@adventure/game-core";
 import { chromium } from "playwright";
 import { beforeAll, expect, it } from "vitest";
 
@@ -28,13 +28,14 @@ beforeAll(async () => {
   joinUrl = `${BASE_URL}/join/${adventure.share_token}`;
 });
 
-async function tabTo(page: import("playwright").Page, predicate: (text: string, tag: string) => boolean, limit = 30) {
+async function tabTo(page: import("playwright").Page, predicate: (text: string, tag: string, role: string | null) => boolean, limit = 30): Promise<void> {
   for (let index = 0; index < limit; index += 1) {
     await page.keyboard.press("Tab");
-    const focused = page.locator(":focus");
-    const text = await focused.textContent().catch(() => "") ?? "";
-    const tag = await focused.evaluate((element) => element.tagName).catch(() => "");
-    if (predicate(text, tag)) return focused;
+    const focused = await page.evaluate(() => {
+      const element = document.activeElement;
+      return { text: element?.textContent ?? "", tag: element?.tagName ?? "", role: element?.getAttribute("role") ?? null };
+    });
+    if (predicate(focused.text, focused.tag, focused.role)) return;
   }
   throw new Error("keyboard target not found");
 }
@@ -81,7 +82,7 @@ async function keyboardWalk(page: import("playwright").Page, attemptId: string, 
   return state;
 }
 
-it.runIf(runBrowser)("signs in, joins, walks by keyboard, and enters an open room", async () => {
+it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, evidence, decisions, and resume", async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const pageErrors: string[] = [];
@@ -102,21 +103,45 @@ it.runIf(runBrowser)("signs in, joins, walks by keyboard, and enters an open roo
   });
   try {
     await page.goto(joinUrl, { waitUntil: "networkidle" });
-    const summary = await tabTo(page, (text) => text.includes("Local dev sign-in"), 20);
-    await summary.press("Enter");
-    const email = await tabTo(page, (_text, tag) => tag === "INPUT", 20);
-    await email.press("Control+A");
-    await email.pressSequentially(studentEmail);
+    await tabTo(page, (text) => text.includes("Local dev sign-in"), 20);
+    await page.keyboard.press("Enter");
+    await tabTo(page, (_text, tag) => tag === "INPUT", 20);
+    await page.keyboard.press("Control+A");
+    await page.keyboard.type(studentEmail);
     await page.keyboard.press("Tab");
     await page.keyboard.press("Control+A");
     await page.keyboard.type(PASSWORD);
     await page.keyboard.press("Tab");
     await page.keyboard.press("Enter");
     await page.waitForURL(joinUrl);
-    const enter = await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes("Enter the adventure"), 20);
-    await enter.press("Enter");
+    await page.getByRole("button", { name: "Enter the adventure", exact: true }).waitFor({ state: "visible" });
+    await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes("Enter the adventure"), 50);
+    await page.keyboard.press("Enter");
     await page.waitForURL(/\/play\//);
     const attemptId = new URL(page.url()).pathname.split("/").at(-1)!;
+    const navigateRoom = async (roomId: string) => {
+      let state = (await publicState(page, attemptId)).body;
+      const room = state.rooms.find((candidate: any) => candidate.id === roomId);
+      const mapRoom = state.map.rooms.find((candidate: any) => candidate.id === roomId);
+      const door = state.map.doors.find((candidate: any) => candidate.roomId === roomId);
+      expect(room).toBeDefined();
+      expect(mapRoom).toBeDefined();
+      const goal = mapRoom.enclosure === "open" ? { x: mapRoom.x + Math.floor(mapRoom.width / 2), y: mapRoom.y + Math.floor(mapRoom.height / 2) } : door?.inside;
+      expect(goal).toBeDefined();
+      if (state.currentRoomId === roomId) return keyboardWalk(page, attemptId, state, goal);
+      if (!room.doorOpen && door) {
+        await keyboardWalk(page, attemptId, state, door.outside);
+        await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(`Knock on ${room.name}`), 50);
+        await page.keyboard.press("Enter");
+        await expect.poll(async () => (await publicState(page, attemptId)).body.rooms.find((candidate: any) => candidate.id === roomId)?.doorOpen, { timeout: 30_000 }).toBe(true);
+      }
+      state = (await publicState(page, attemptId)).body;
+      await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(room.name), 50);
+      await page.keyboard.press("Enter");
+      await expect.poll(async () => (await publicState(page, attemptId)).body.currentRoomId, { timeout: 30_000 }).toBe(roomId);
+      await expect.poll(async () => (await publicState(page, attemptId)).body.playerPos, { timeout: 30_000 }).toEqual(goal);
+      return (await publicState(page, attemptId)).body;
+    };
     await page.locator('canvas[tabindex="0"]').waitFor({ state: "visible" });
     await page.screenshot({ path: "/tmp/spatial-browser-start.png" });
     const initial = (await publicState(page, attemptId)).body;
@@ -133,11 +158,16 @@ it.runIf(runBrowser)("signs in, joins, walks by keyboard, and enters an open roo
     expect(refreshed.revision).toBe(saved.revision);
     const openRoom = refreshed.rooms.find((room: any) => room.id !== refreshed.currentRoomId && room.doorOpen === true);
     expect(openRoom).toBeDefined();
-    console.log(`beforeNavigation=${JSON.stringify(publicSummary(refreshed))}`);
-    const navigation = await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(openRoom.name), 40);
+    await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(openRoom.name), 40);
     expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
     await page.keyboard.press("Enter");
     await expect.poll(async () => (await publicState(page, attemptId)).body.currentRoomId, { timeout: 30_000 }).toBe(openRoom.id);
+    const destination = refreshed.map.rooms.find((room: any) => room.id === openRoom.id);
+    const goal = destination.enclosure === "open"
+      ? { x: destination.x + Math.floor(destination.width / 2), y: destination.y + Math.floor(destination.height / 2) }
+      : refreshed.map.doors.find((door: any) => door.roomId === openRoom.id)?.inside;
+    expect(goal).toBeDefined();
+    await expect.poll(async () => (await publicState(page, attemptId)).body.playerPos, { timeout: 30_000 }).toEqual(goal);
     const desktopGeometry = await page.evaluate(() => {
       const composer = document.querySelector('section[aria-labelledby="talk"] form')!.getBoundingClientRect();
       const goals = document.querySelector('section[aria-labelledby="decide"]')!.getBoundingClientRect();
@@ -152,6 +182,89 @@ it.runIf(runBrowser)("signs in, joins, walks by keyboard, and enters an open roo
     });
     expect(mobileGeometry.scrollWidth).toBeLessThanOrEqual(mobileGeometry.clientWidth);
     expect(mobileGeometry.composerBottom).toBeLessThanOrEqual(mobileGeometry.goalsTop + 1);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.locator('canvas[tabindex="0"]').waitFor({ state: "visible" });
+    const dialogueState = (await publicState(page, attemptId)).body;
+    const farquhar = dialogueState.actors.find((actor: any) => actor.id === "agent-farquhar-s0");
+    expect(farquhar?.position).toBeDefined();
+    await keyboardWalk(page, attemptId, dialogueState, farquhar.position);
+    const coLocated = (await publicState(page, attemptId)).body;
+    await tabTo(page, (text, tag, role) => tag === "BUTTON" && role === "radio" && text.includes("Farquhar"), 50);
+    await page.keyboard.press("Space");
+    await tabTo(page, (_text, tag) => tag === "INPUT", 30);
+    expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("INPUT");
+    await page.keyboard.type("Wait while I walk");
+    const messageResponse = page.waitForResponse((response) => response.url().includes(`/api/attempt/${attemptId}/message`) && response.request().method() === "POST");
+    await page.keyboard.press("Enter");
+    await expect.poll(async () => (await publicState(page, attemptId)).body.pendingDialogue, { timeout: 10_000 }).toBe(true);
+    const map = { ...coLocated.map, seed: "" } as StageMap;
+    const current = (await publicState(page, attemptId)).body.playerPos as Point;
+    const step = [{ x: current.x + 1, y: current.y }, { x: current.x - 1, y: current.y }, { x: current.x, y: current.y + 1 }, { x: current.x, y: current.y - 1 }].find((point) => spaceAt(map, point)?.kind === "outdoor" && canStep(map, liveDoors(coLocated), current, point));
+    expect(step).toBeDefined();
+    await tabTo(page, (_text, tag) => tag === "CANVAS", 50);
+    const actionResponse = page.waitForResponse((response) => response.url().includes(`/api/attempt/${attemptId}/action`) && response.request().method() === "POST");
+    const dx = step!.x - current.x;
+    const dy = step!.y - current.y;
+    await page.keyboard.press(dx === 1 ? "ArrowRight" : dx === -1 ? "ArrowLeft" : dy === 1 ? "ArrowDown" : "ArrowUp");
+    const actionBody = await (await actionResponse).json();
+    expect(actionBody.accepted).toBe(true);
+    expect(actionBody.state.playerPos).toEqual(step);
+    expect(actionBody.state.pendingDialogue).toBe(true);
+    const messageBody = await (await messageResponse).json();
+    expect(messageBody.accepted).toBe(true);
+    expect(messageBody.state.playerPos).toEqual(step);
+    expect(messageBody.state.pendingDialogue).toBe(false);
+    expect(messageBody.state.transcript.some((message: any) => message.body === "I will hear your proposal.")).toBe(true);
+    expect(messageBody.state.stage.objectives.some((objective: any) => objective.id === "obj-hear-farquhar" && objective.met)).toBe(true);
+    for (const room of (await publicState(page, attemptId)).body.rooms) {
+      let roomState = await navigateRoom(room.id);
+      for (const item of roomState.evidenceHere) {
+        if (!item.canInspect) {
+          await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(`Walk to ${item.name}`), 50);
+          await page.keyboard.press("Enter");
+          await expect.poll(async () => (await publicState(page, attemptId)).body.playerPos, { timeout: 30_000 }).toEqual(item.position);
+          roomState = (await publicState(page, attemptId)).body;
+        }
+        await tabTo(page, (text, tag) => tag === "BUTTON" && text.trim().includes(item.name), 50);
+        await page.keyboard.press("Enter");
+        await expect.poll(async () => (await publicState(page, attemptId)).body.journal.some((entry: any) => entry.id === item.id), { timeout: 30_000 }).toBe(true);
+        roomState = (await publicState(page, attemptId)).body;
+      }
+    }
+    let temenggongState = await navigateRoom("temenggong-hall");
+    const temenggong = temenggongState.actors.find((actor: any) => actor.id === "agent-temenggong-s0");
+    const temenggongAgent = temenggongState.agents.find((agent: any) => agent.id === "agent-temenggong-s0");
+    expect(temenggong?.position).toBeDefined();
+    expect(temenggongAgent?.name).toBeDefined();
+    temenggongState = await keyboardWalk(page, attemptId, temenggongState, temenggong.position);
+    await tabTo(page, (text, tag, role) => tag === "BUTTON" && role === "radio" && text.includes(temenggongAgent.name), 50);
+    await page.keyboard.press("Space");
+    await tabTo(page, (_text, tag) => tag === "INPUT", 50);
+    await page.keyboard.type("What should I tell Raffles?");
+    const temenggongResponse = page.waitForResponse((response) => response.url().includes(`/api/attempt/${attemptId}/message`) && response.request().method() === "POST");
+    await page.keyboard.press("Enter");
+    const temenggongBody = await (await temenggongResponse).json();
+    expect(temenggongBody.accepted).toBe(true);
+    expect(temenggongBody.state.stage.objectives.some((objective: any) => objective.id === "obj-meet-temenggong" && objective.met)).toBe(true);
+    const stageOneReady = (await publicState(page, attemptId)).body;
+    expect(stageOneReady.stage.objectives.every((objective: any) => objective.met)).toBe(true);
+    const option = stageOneReady.options.find((candidate: any) => candidate.available);
+    expect(option).toBeDefined();
+    if (await page.getByRole("button").filter({ hasText: option.label }).count() === 0) {
+      await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes("You can decide now"), 50);
+      await page.keyboard.press("Enter");
+    }
+    await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(option.label), 50);
+    const decisionResponse = page.waitForResponse((response) => response.url().includes(`/api/attempt/${attemptId}/decision`) && response.request().method() === "POST");
+    await page.keyboard.press("Enter");
+    const decisionBody = await (await decisionResponse).json();
+    expect(decisionBody.state.stage.index).toBe(1);
+    expect(decisionBody.state.map.id).not.toBe(stageOneReady.map.id);
+    await page.locator('canvas[tabindex="0"]').waitFor({ state: "visible" });
+    await expect.poll(async () => page.locator("header").innerText(), { timeout: 15_000 }).toContain("Stage 2");
+    await expect.poll(async () => page.locator("header").innerText(), { timeout: 15_000 }).toContain(decisionBody.state.stage.title);
+    await page.screenshot({ path: "/tmp/spatial-browser-stage-transition.png" });
+    await page.screenshot({ path: "/tmp/spatial-browser-dialogue.png" });
     await page.screenshot({ path: "/tmp/spatial-browser-result.png" });
     expect(pageErrors).toEqual([]);
     for (const body of apiBodies) expect(findForbiddenKeys(body)).toEqual([]);
@@ -167,4 +280,4 @@ it.runIf(runBrowser)("signs in, joins, walks by keyboard, and enters an open roo
   } finally {
     await browser.close();
   }
-}, 120_000);
+}, 300_000);
