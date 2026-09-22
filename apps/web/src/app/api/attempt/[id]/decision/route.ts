@@ -1,44 +1,28 @@
-import { NextResponse } from "next/server";
+import { z } from "zod";
 
-import {
-  decisionRequestSchema,
-  decisionResponseSchema,
-} from "@/lib/turn-api/contract";
-import { stubCommitDecision } from "@/lib/turn-api/stub";
+import { errorResponse, playDeps, publicJson, readJson, requireUserId } from "@/lib/play/http";
+import { postDecision } from "@/lib/play/service";
+import { decisionRequestSchema } from "@/lib/turn-api/contract";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 180;
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+/**
+ * The I3 request plus the option-set version the player was looking at, so a
+ * commit against a set the world has moved past is rejected, not executed
+ * (K6/FR-14). Without it the server checks availability only.
+ */
+const requestSchema = decisionRequestSchema.extend({ optionsVersion: z.string().min(1).optional() });
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const parsed = decisionRequestSchema.safeParse(
-    await request.json().catch(() => null),
-  );
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: { code: "invalid_request", message: "Expected { optionId }." } },
-      { status: 400 },
-    );
-  }
+  const userId = await requireUserId();
+  if (typeof userId !== "string") return userId;
 
-  // Options are re-derived from state, so an option that was valid earlier is
-  // rejected rather than executed (FR-14).
-  const result = stubCommitDecision(id, parsed.data.optionId);
-  if (!result) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "stale_option",
-          message: "That option is no longer available.",
-        },
-      },
-      { status: 409 },
-    );
-  }
+  const parsed = requestSchema.safeParse(await readJson(request));
+  if (!parsed.success) return errorResponse({ code: "invalid_request", message: "Expected { optionId }." });
 
-  return NextResponse.json(
-    decisionResponseSchema.parse({ accepted: true, ...result }),
-  );
+  const result = await postDecision(playDeps(), id, userId, parsed.data);
+  if (!result.ok) return errorResponse(result.error);
+  return publicJson({ accepted: true, resolution: result.value, state: result.state });
 }

@@ -34,6 +34,25 @@ export class MissingApiKeyError extends Error {
   }
 }
 
+/**
+ * OpenAI strict structured outputs accept a JSON Schema subset: `oneOf` is rejected (Zod emits it
+ * for discriminated unions, which are disjoint anyway, so `anyOf` means the same) and `$schema` /
+ * `$id` are noise. Same rewrite as the generation package's planner adapter.
+ */
+export function toOpenAiStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk)
+    if (node === null || typeof node !== 'object') return node
+    const out: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (key === '$schema' || key === '$id') continue
+      out[key === 'oneOf' ? 'anyOf' : key] = walk(value)
+    }
+    return out
+  }
+  return walk(schema) as Record<string, unknown>
+}
+
 export function createOpenAiClient(options: OpenAiClientOptions = {}): LlmClient {
   const apiKey = options.apiKey || process.env.OPENAI_API_KEY
   const client = options.client ?? (apiKey === undefined || apiKey === '' ? undefined : new OpenAI({ apiKey }))
@@ -51,7 +70,7 @@ export function createOpenAiClient(options: OpenAiClientOptions = {}): LlmClient
           format: {
             type: 'json_schema',
             name: request.schemaName,
-            schema: request.jsonSchema as { [key: string]: unknown },
+            schema: toOpenAiStrictSchema(request.jsonSchema as Record<string, unknown>),
             strict: true,
           },
         },

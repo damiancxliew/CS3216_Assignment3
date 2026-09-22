@@ -179,7 +179,7 @@ class PlaygroundScene extends Phaser.Scene {
   }
 
   private roomName(id: string): string {
-    return roomNames[id] ?? id
+    return this.current.roomNames?.[id] ?? roomNames[id] ?? id
   }
 }
 

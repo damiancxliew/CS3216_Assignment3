@@ -27,6 +27,8 @@ export interface PlaygroundSnapshot {
   running: boolean
   npcRoutes: boolean
   revision: number
+  /** Display names for rooms, when the caller has them; the demo fixture's names are the fallback. */
+  roomNames?: Readonly<Record<string, string>>
 }
 
 function clone<T>(value: T): T {

@@ -184,6 +184,24 @@ export class StageDecisions {
   }
 
   /**
+   * Rehydrate a ledger from decisions recorded earlier (`all()`), for a stage that is resumed
+   * from storage. Decisions were validated when they were made; replaying them against the
+   * current world would wrongly reject a commit whose option has since become unavailable.
+   * Entries for actors who are not participants are ignored rather than trusted.
+   */
+  static restore(
+    participants: readonly { actorId: string; actorKind: ActorKind }[],
+    decisions: readonly Decision[],
+  ): StageDecisions {
+    const ledger = new StageDecisions(participants)
+    for (const decision of decisions) {
+      if (ledger.participants.get(decision.actorId) !== decision.actorKind) continue
+      ledger.decisions.set(decision.actorId, { ...decision })
+    }
+    return ledger
+  }
+
+  /**
    * Commit an option. Rejects — never mutates — when the actor is looking at an option set the
    * world has moved past, or when the option's preconditions no longer hold (FR-14).
    */

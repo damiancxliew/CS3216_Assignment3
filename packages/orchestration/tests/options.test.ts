@@ -222,6 +222,26 @@ describe('option maintenance (K6)', () => {
     expect(timedOut.every((decision) => decision.optionId === null && decision.how === 'timed_out')).toBe(true)
     expect(decisions.settled()).toBe(true)
   })
+
+  it('restores a persisted ledger without re-validating old commits, and ignores strangers', () => {
+    const decisions = ledger()
+    decisions.pass('agent-farquhar')
+    const stored = [
+      ...decisions.all(),
+      { actorId: 'player', actorKind: 'player' as const, optionId: 'opt-a', how: 'committed' as const },
+      { actorId: 'agent-nobody', actorKind: 'agent' as const, optionId: null, how: 'passed' as const },
+      { actorId: 'agent-temenggong', actorKind: 'player' as const, optionId: null, how: 'passed' as const },
+    ]
+
+    const restored = StageDecisions.restore(fixtureStageParticipants, stored)
+    expect(restored.has('agent-farquhar')).toBe(true)
+    expect(restored.has('player')).toBe(true)
+    expect(restored.has('agent-nobody')).toBe(false)
+    expect(restored.has('agent-temenggong')).toBe(false) // wrong kind for that participant
+    expect(restored.pending()).toEqual(['agent-temenggong'])
+    expect(restored.humansDecided()).toBe(true)
+    expect(restored.all().find((d) => d.actorId === 'player')?.optionId).toBe('opt-a')
+  })
 })
 
 describe('agents decide by the player\u2019s rules', () => {
