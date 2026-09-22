@@ -16,7 +16,7 @@ import type { PlayState } from "@/lib/play/session";
 
 const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas), {
   ssr: false,
-  loading: () => <div className="aspect-[16/15] w-full animate-pulse rounded-lg border border-black/10 bg-black/5 dark:border-white/15 dark:bg-white/5" />,
+  loading: () => <div className="absolute inset-0 animate-pulse bg-[#7d8c5c]/40" />,
 });
 
 const POLL_MS = 8_000;
@@ -131,7 +131,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
 
   if (state.status === "completed") {
     return (
-      <section className="flex flex-col gap-4 rounded-lg border border-black/10 p-6 dark:border-white/15">
+      <section className="mx-auto flex w-full max-w-2xl flex-col gap-4 rounded-lg border border-black/10 p-6 dark:border-white/15">
         <p className="text-sm uppercase tracking-widest opacity-60">The end</p>
         <h2 className="text-2xl font-semibold tracking-tight">{state.ending?.title ?? "The adventure is over"}</h2>
         {lastResolution ? <p className="text-sm opacity-80">{lastResolution}</p> : null}
@@ -144,8 +144,8 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)]">
-      <section className="flex min-w-0 flex-col gap-3" aria-label="Map">
+    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <section className="relative min-h-[60vh] flex-1 lg:min-h-0" aria-label="Map">
         <MapCanvas
           state={state}
           intent={intent}
@@ -154,18 +154,21 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           onSettled={onSettled}
           onWaitingAtDoor={setWaitingAtDoor}
         />
-        <p className="text-xs opacity-60">
-          Focus the map and use the arrow keys or WASD to walk, or click where you want to go. Everything on the right works without the map.
+        <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/55 px-3 py-1 text-xs text-white">
+          Arrow keys or WASD to walk · click a tile to go there
         </p>
         {lastResolution ? (
-          <div role="status" className="rounded-lg border border-black/10 p-4 text-sm dark:border-white/15">
-            <p className="mb-1 text-xs uppercase tracking-widest opacity-60">What happened</p>
+          <div role="status" className="absolute left-3 right-3 top-3 mx-auto max-w-2xl rounded-lg border border-white/20 bg-black/70 p-4 text-sm text-white shadow-lg backdrop-blur">
+            <p className="mb-1 text-xs uppercase tracking-widest opacity-70">What happened</p>
             <p>{lastResolution}</p>
+            <button type="button" className="mt-2 text-xs underline opacity-80" onClick={() => setLastResolution(null)}>
+              Dismiss
+            </button>
           </div>
         ) : null}
       </section>
 
-      <aside className="flex min-w-0 flex-col gap-6">
+      <aside className="flex w-full min-w-0 flex-col gap-6 overflow-y-auto border-t border-black/10 p-5 lg:w-[26rem] lg:border-l lg:border-t-0 dark:border-white/15">
         <section className="flex flex-col gap-2" aria-labelledby="where">
           <div className="flex items-baseline justify-between gap-3">
             <h2 id="where" className="text-sm font-medium uppercase tracking-wide opacity-60">

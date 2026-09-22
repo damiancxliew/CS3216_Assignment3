@@ -203,8 +203,13 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
       if (repeat !== undefined) window.clearInterval(repeat);
       repeat = undefined;
     };
+    const typing = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el || !el.tagName) return false;
+      return el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
+    };
     const onKey = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.altKey || event.metaKey) return;
+      if (event.ctrlKey || event.altKey || event.metaKey || typing(event.target)) return;
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       const delta = KEYS[key];
       if (!delta) return;
@@ -242,10 +247,11 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
         render();
         const canvas = parent.querySelector("canvas");
         canvas?.setAttribute("tabindex", "0");
-        canvas?.setAttribute("aria-label", "Settlement map. Focus and use the arrow keys or WASD to walk; click a tile to walk there.");
-        canvas?.addEventListener("keydown", onKey, { signal: controller.signal });
-        canvas?.addEventListener("blur", clearHeld, { signal: controller.signal });
+        canvas?.setAttribute("aria-label", "Settlement map. Use the arrow keys or WASD to walk; click a tile to walk there.");
+        // Walking works from anywhere on the page unless a field has focus, so the map never needs to be clicked first.
+        document.addEventListener("keydown", onKey, { signal: controller.signal });
         document.addEventListener("keyup", onKeyUp, { signal: controller.signal });
+        canvas?.focus({ preventScroll: true });
         window.addEventListener("blur", clearHeld, { signal: controller.signal });
         reduced.addEventListener("change", (e) => view?.setReducedMotion(e.matches), { signal: controller.signal });
       } catch (error) {
@@ -282,5 +288,5 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
     if (intent.kind === "room") goToRoom?.(intent.roomId);
   }, [intent]);
 
-  return <div ref={host} className="relative aspect-[16/15] w-full overflow-hidden rounded-lg border border-black/15 bg-[#9aa274] dark:border-white/15" />;
+  return <div ref={host} className="absolute inset-0 overflow-hidden bg-[#7d8c5c]" />;
 }
