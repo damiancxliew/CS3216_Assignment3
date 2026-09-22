@@ -1,0 +1,28 @@
+name: game-client
+
+on:
+  push:
+    branches: [main]
+    paths: ['packages/game-client/**', 'packages/game-core/**', '.github/workflows/game-client.yml']
+  pull_request:
+    paths: ['packages/game-client/**', 'packages/game-core/**', '.github/workflows/game-client.yml']
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/game-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/game-client/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
