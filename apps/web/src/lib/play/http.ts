@@ -20,6 +20,7 @@ const STATUS: Record<SessionError["code"], number> = {
   stale_option: 409,
   stale_state: 409,
   rate_limited: 429,
+  incompatible_version: 409,
   stage_closed: 409,
 };
 

@@ -8,6 +8,7 @@
 import type { LlmClient, ReplyResult } from "@adventure/orchestration";
 
 import { PlaySession, type PlayState, type PlayerWorldAction, type SessionError, type SessionTimer } from "./session";
+import { SpatialCompatibilityError } from "./layout";
 import { PlayConflictError, type AttemptRecord, type PlayStore } from "./store";
 import type { PublicMessage } from "@/lib/turn-api/contract";
 
@@ -29,16 +30,28 @@ async function run<T>(
   operation: (session: PlaySession) => Promise<{ ok: true; value: T } | { ok: false; error: SessionError }>,
   readonly = false,
 ): Promise<ServiceResult<T>> {
-  const record = await deps.store.load(attemptId, userId);
+  let record: AttemptRecord | null;
+  try {
+    record = await deps.store.load(attemptId, userId);
+  } catch (error) {
+    if (error instanceof SpatialCompatibilityError) return { ok: false, error: { code: "incompatible_version", message: error.message } };
+    throw error;
+  }
   if (!record) return { ok: false, error: { code: "not_found", message: "No such attempt." } };
   if (record.status !== "active" && record.snapshot === null) return { ok: false, error: { code: "stage_closed", message: "This adventure is no longer active." } };
   if (!readonly && record.status !== "active") return { ok: false, error: { code: "stage_closed", message: "This adventure is no longer active." } };
 
   const now = await deps.store.now();
   const clock = { now: () => now };
-  const session = record.snapshot
-    ? PlaySession.resume(record.spec, attemptId, record.publishedVersion, record.snapshot, clock, record.assets ?? null)
-    : PlaySession.start(record.spec, attemptId, record.publishedVersion, clock, record.assets ?? null);
+  let session: PlaySession;
+  try {
+    session = record.snapshot
+      ? PlaySession.resume(record.spec, attemptId, record.publishedVersion, record.snapshot, clock, record.assets ?? null, record.compiledStages)
+      : PlaySession.start(record.spec, attemptId, record.publishedVersion, clock, record.assets ?? null, record.compiledStages);
+  } catch (error) {
+    if (error instanceof SpatialCompatibilityError) return { ok: false, error: { code: "incompatible_version", message: error.message } };
+    throw error;
+  }
   if (record.status === "active") session.expirePendingReply();
   const startRevision = record.snapshot?.revision ?? -1;
 

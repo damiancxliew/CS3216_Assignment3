@@ -9,6 +9,8 @@
  */
 import { z } from "zod";
 
+export const OUTDOORS_ROOM_ID = "__outdoors__";
+
 export const AMBIENT_OVERLAYS = [
   "clear",
   "clouds",
@@ -187,6 +189,7 @@ export const apiErrorSchema = z.object({
       "stale_state",
       "stage_closed",
       "rate_limited",
+      "incompatible_version",
     ]),
     message: z.string(),
   }),

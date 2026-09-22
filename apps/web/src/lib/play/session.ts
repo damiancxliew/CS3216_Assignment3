@@ -22,6 +22,7 @@ import {
   runStage,
   StageDecisions,
   buildAgentTurnInput,
+  createWorld,
   DOORWAY_ID,
   hasConversationExchange,
   hearingActorIds,
@@ -39,15 +40,19 @@ import {
 } from "@adventure/orchestration";
 import { createSpatialStageWorld } from "@adventure/game-integration";
 import { isInPhysicalInteractionRange } from "@adventure/game-core";
-import type { Point } from "@adventure/game-core";
+import type { CompiledStage, Point } from "@adventure/game-core";
+import { isDeepStrictEqual } from "node:util";
 import { PLAYER_ID, toResolverInput, toStageRuntime, type StageRuntimeBundle } from "@adventure/generation/runtime";
 import { resolveStageSettings, type AdventureSpec, type Stage } from "@adventure/generation/spec";
 
 import type { AssetManifest } from "@adventure/generation/assets";
 
 import { characterFor, facesetUrl, PLAYER_CHARACTER, type Character } from "./appearance";
-import { compileStageMap, publicMap, type PublicMap } from "./layout";
+import { compileStageMap, publicMap, SpatialCompatibilityError, type PublicMap } from "./layout";
+import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PublicAttemptState, PublicMessage } from "@/lib/turn-api/contract";
+
+export { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 
 export type JournalEntry = { id: string; text: string; sourceSpan: string | null; collectedAt: string };
 export type Announcement = { id: string; body: string; createdAt: string };
@@ -122,7 +127,8 @@ export type SessionError =
   | { code: "invalid_request"; message: string }
   | { code: "stale_option"; message: string }
   | { code: "stale_state"; message: string }
-  | { code: "rate_limited"; message: string };
+  | { code: "rate_limited"; message: string }
+  | { code: "incompatible_version"; message: string };
 
 export type MessageOutcome = { ok: true; newMessages: PublicMessage[] } | { ok: false; error: SessionError };
 export type MessageBeginOutcome = { ok: true; newMessages: PublicMessage[]; ticket: PendingReply | null } | { ok: false; error: SessionError };
@@ -168,10 +174,10 @@ export interface SessionTimer {
  * room too: one nobody can shut, with nothing to examine, where a player hears only what is said
  * outdoors. Walking out of a building therefore really does leave its conversation behind (D7).
  */
-export const OUTDOORS_ROOM_ID = "__outdoors__";
-
-function worldFor(spec: AdventureSpec, index: number, attemptId: string): WorldState {
-  return createSpatialStageWorld(spec, index, compileStageMap(spec.stages[index]!, attemptId));
+function worldFor(spec: AdventureSpec, index: number, attemptId: string, compiledStages?: readonly CompiledStage[]): WorldState {
+  const compiled = compiledStages === undefined ? compileStageMap(spec.stages[index]!, attemptId) : compiledStages[index];
+  if (compiled === undefined) throw new SpatialCompatibilityError();
+  return createSpatialStageWorld(spec, index, compiled);
 }
 
 /** Budget for autonomous agent activity per stage (FR-12b). Kept modest: this is money per attempt. */
@@ -210,6 +216,7 @@ export class PlaySession {
     private readonly clock: SessionClock,
     /** Generated images for this version, when any exist (D4). Portraits fall back to the curated faceset. */
     private readonly assets: AssetManifest | null = null,
+    private readonly compiledStages?: readonly CompiledStage[],
   ) {
     this.stage = spec.stages[snap.stageIndex]!;
     this.bundle = toStageRuntime(spec, snap.stageIndex);
@@ -251,8 +258,8 @@ export class PlaySession {
     };
   }
 
-  static start(spec: AdventureSpec, attemptId: string, publishedVersion: number, clock: SessionClock = { now: () => new Date() }, assets: AssetManifest | null = null): PlaySession {
-    const world = worldFor(spec, 0, attemptId);
+  static start(spec: AdventureSpec, attemptId: string, publishedVersion: number, clock: SessionClock = { now: () => new Date() }, assets: AssetManifest | null = null, compiledStages?: readonly CompiledStage[]): PlaySession {
+    const world = worldFor(spec, 0, attemptId, compiledStages);
     const snap: PlaySnapshot = {
       version: 1,
       stageIndex: 0,
@@ -273,13 +280,19 @@ export class PlaySession {
       pendingReply: null,
       replyRate: { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     };
-    return new PlaySession(spec, attemptId, publishedVersion, snap, clock, assets);
+    return new PlaySession(spec, attemptId, publishedVersion, snap, clock, assets, compiledStages);
   }
 
-  static resume(spec: AdventureSpec, attemptId: string, publishedVersion: number, snapshot: PlaySnapshot, clock: SessionClock = { now: () => new Date() }, assets: AssetManifest | null = null): PlaySession {
-    const expectedMap = compileStageMap(spec.stages[snapshot.stageIndex]!, attemptId);
-    if (!snapshot.world.spatial || snapshot.world.spatial.map.id !== expectedMap.map.id) throw new Error("This attempt requires a new compatible adventure version.");
+  static resume(spec: AdventureSpec, attemptId: string, publishedVersion: number, snapshot: PlaySnapshot, clock: SessionClock = { now: () => new Date() }, assets: AssetManifest | null = null, compiledStages?: readonly CompiledStage[]): PlaySession {
+    if (!Number.isInteger(snapshot.stageIndex) || snapshot.stageIndex < 0 || snapshot.stageIndex >= spec.stages.length) throw new SpatialCompatibilityError();
+    const expected = compiledStages === undefined ? compileStageMap(spec.stages[snapshot.stageIndex]!, attemptId) : compiledStages[snapshot.stageIndex];
+    if (!snapshot.world.spatial || expected === undefined || !isDeepStrictEqual(snapshot.world.spatial.map, expected.map)) throw new SpatialCompatibilityError();
     const cloned = structuredClone(snapshot);
+    try {
+      createWorld({ rooms: Object.values(cloned.world.rooms), actors: Object.values(cloned.world.actors), placement: cloned.world.location, spatial: cloned.world.spatial });
+    } catch {
+      throw new SpatialCompatibilityError();
+    }
     return new PlaySession(spec, attemptId, publishedVersion, {
       ...cloned,
       spokenAt: cloned.spokenAt ?? {},
@@ -287,7 +300,7 @@ export class PlaySession {
       nextStepAt: cloned.nextStepAt ?? 0,
       pendingReply: cloned.pendingReply ?? null,
       replyRate: cloned.replyRate ?? { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
-    }, clock, assets);
+    }, clock, assets, compiledStages);
   }
 
   snapshot(): PlaySnapshot {
@@ -501,7 +514,15 @@ export class PlaySession {
 
   private map() {
     if (this.snap.status !== "active") return null;
-    if (!this.compiledMap) this.compiledMap = compileStageMap(this.stage, this.attemptId);
+    if (!this.compiledMap) {
+      if (this.compiledStages !== undefined) {
+        const compiled = this.compiledStages[this.snap.stageIndex];
+        if (compiled === undefined) throw new SpatialCompatibilityError();
+        this.compiledMap = compiled;
+      } else {
+        this.compiledMap = compileStageMap(this.stage, this.attemptId);
+      }
+    }
     return this.compiledMap;
   }
 
@@ -787,7 +808,7 @@ export class PlaySession {
   private openStage(index: number): void {
     const bundle = toStageRuntime(this.spec, index);
     this.snap.stageIndex = index;
-    this.snap.world = worldFor(this.spec, index, this.attemptId);
+    this.snap.world = worldFor(this.spec, index, this.attemptId, this.compiledStages);
     this.snap.decisions = [];
     this.snap.playerPos = this.snap.world.spatial?.state.actors[PLAYER_ID] ?? null;
     this.snap.spokenAt = {};

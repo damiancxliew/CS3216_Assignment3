@@ -18,6 +18,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { loadManifest } from "@/lib/assets/supabase";
 
+import { readCompiledStages } from "./layout";
+import type { CompiledStage } from "@adventure/game-core";
 import type { PlaySnapshot, SessionEvents } from "./session";
 
 export interface AttemptRecord {
@@ -32,6 +34,7 @@ export interface AttemptRecord {
   runtimeRevision: number;
   /** Generated images for the pinned version, if generation has run (D4). */
   assets?: AssetManifest | null;
+  compiledStages?: CompiledStage[];
 }
 
 export type PlayEvents = SessionEvents;
@@ -134,10 +137,10 @@ export class SupabasePlayStore implements PlayStore {
     const [{ data: version }, { data: runtime }] = await Promise.all([
       this.admin
         .from("spec_version")
-        .select("id, json")
+        .select("id, json, compiled_stages")
         .eq("adventure_id", attempt.adventure_id)
         .eq("version", attempt.published_version)
-        .single<{ id: string; json: unknown }>(),
+        .single<{ id: string; json: unknown; compiled_stages: unknown }>(),
       this.admin
         .from("attempt_runtime")
         .select("stage_spec_id, revision, snapshot")
@@ -147,6 +150,7 @@ export class SupabasePlayStore implements PlayStore {
     if (!version) return null;
     const validated = validateAdventureSpec(version.json);
     if (!validated.ok) throw new Error(`published spec v${attempt.published_version} of ${attempt.adventure_id} no longer validates`);
+    const compiledStages = readCompiledStages(validated.spec, version.compiled_stages);
 
     let currentStageIndex: number | null = null;
     if (attempt.status === "active") {
@@ -215,6 +219,7 @@ export class SupabasePlayStore implements PlayStore {
       snapshot,
       runtimeRevision,
       assets,
+      compiledStages,
     };
   }
 

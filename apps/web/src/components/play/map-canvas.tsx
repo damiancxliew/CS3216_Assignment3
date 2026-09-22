@@ -22,7 +22,8 @@ import type { SoundCueId } from "@adventure/game-client";
 import { useEffect, useRef } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
-import { OUTDOORS_ROOM_ID, type PlayState } from "@/lib/play/session";
+import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
+import type { PlayState } from "@/lib/play/session";
 
 const STEP_MS = 160;
 

@@ -11,13 +11,38 @@
 import {
   compileStage,
   projectMap,
+  validateCompiledStage,
   type CompiledStage,
   type StageLayoutInput,
   type StageMap,
 } from "@adventure/game-core";
-import type { Stage } from "@adventure/generation/spec";
+import type { AdventureSpec, Stage } from "@adventure/generation/spec";
+import { createSpatialStageWorld } from "@adventure/game-integration";
 
 export type PublicMap = Omit<StageMap, "seed">;
+
+export class SpatialCompatibilityError extends Error {
+  constructor() {
+    super("This attempt requires a new compatible adventure version.");
+    this.name = "SpatialCompatibilityError";
+  }
+}
+
+export function readCompiledStages(spec: AdventureSpec, value: unknown): CompiledStage[] {
+  try {
+    if (!Array.isArray(value) || value.length !== spec.stages.length) throw new SpatialCompatibilityError();
+    const stages = value.map((candidate, index) => {
+      const validation = validateCompiledStage(candidate);
+      if (!validation.valid || (candidate as { map?: { stageId?: string } }).map?.stageId !== spec.stages[index]!.id) throw new SpatialCompatibilityError();
+      createSpatialStageWorld(spec, index, candidate as CompiledStage);
+      return structuredClone(candidate) as CompiledStage;
+    });
+    return structuredClone(stages);
+  } catch (error) {
+    if (error instanceof SpatialCompatibilityError) throw error;
+    throw new SpatialCompatibilityError();
+  }
+}
 
 export function toStageLayout(stage: Stage): StageLayoutInput {
   return {

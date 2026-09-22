@@ -13,6 +13,7 @@
  *    downstream has to resolve slugs against the json blob.
  */
 import { compileAdventure, createSpatialStageWorld } from "@adventure/game-integration";
+import { randomUUID } from "node:crypto";
 import { validateAdventureSpec } from "@adventure/generation/spec";
 import type { AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -67,7 +68,7 @@ export async function persistSpecVersion(
     );
   }
   const spec: AdventureSpec = validation.spec;
-  const compilation = compileAdventure(spec, "publish-validation");
+  const compilation = compileAdventure(spec, randomUUID());
   if (!compilation.ok) throw new SpecPersistError("spec cannot be compiled and was not persisted", compilation.issues);
   for (let index = 0; index < compilation.stages.length; index += 1) createSpatialStageWorld(spec, index, compilation.stages[index]!);
 
@@ -268,6 +269,9 @@ export async function persistSpecVersion(
       .eq("id", uuid(stage.id));
     if (error) throw new SpecPersistError(error.message);
   }
+
+  const { error: mapsError } = await admin.rpc("set_version_maps", { p_spec_version_id: specVersion.id, p_maps: compilation.stages });
+  if (mapsError) throw new SpecPersistError(mapsError.message);
 
   return { specVersionId: specVersion.id, version, ids };
 }

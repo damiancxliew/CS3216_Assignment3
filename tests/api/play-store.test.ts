@@ -1,6 +1,8 @@
 import { loadI1Spec } from "@adventure/generation/fixtures";
+import type { CompiledStage } from "@adventure/game-core";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { compileStageMap } from "@/lib/play/layout";
 import { PlaySession, type PlayEvents, type PlaySnapshot } from "@/lib/play/session";
 import { MemoryPlayStore, PlayConflictError, SupabasePlayStore, type AttemptRecord } from "@/lib/play/store";
 
@@ -24,6 +26,7 @@ class Query {
 
 class FakeClient {
   readonly spec: Awaited<ReturnType<typeof loadI1Spec>>;
+  readonly compiledStages: CompiledStage[];
   runtime: { stage_spec_id: string; revision: number; snapshot: unknown } | null = null;
   runtimeError: { message: string } | null = null;
   upserts: { table: string; values: unknown; options: unknown }[] = [];
@@ -33,6 +36,7 @@ class FakeClient {
 
   constructor(spec: Awaited<ReturnType<typeof loadI1Spec>>) {
     this.spec = spec;
+    this.compiledStages = spec.stages.map((stage) => compileStageMap(stage, "stored-maps-test"));
     this.attempt = {
       id: "attempt",
       adventure_id: "adventure",
@@ -49,7 +53,7 @@ class FakeClient {
 
   read(table: string, filters: Record<string, unknown>) {
     if (table === "attempt") return { data: this.attempt, error: null };
-    if (table === "spec_version") return { data: { id: "version", json: this.spec }, error: null };
+    if (table === "spec_version") return { data: { id: "version", json: this.spec, compiled_stages: this.compiledStages }, error: null };
     if (table === "attempt_runtime") return { data: this.runtime, error: null };
     if (table === "room" || table === "agent" || table === "decision_option") {
       const stageIndex = Number(String(filters.stage_id).split("-").at(-1));
