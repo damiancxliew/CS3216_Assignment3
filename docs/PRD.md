@@ -171,6 +171,14 @@ Hard rules:
 - FR-17 Eliminated players continue as spectators and see the remaining resolution.
 - FR-18 Persistence: attempts, journals, chat logs, and context snapshots are saved server-side and
   resumable with a recap.
+- FR-18a **Progress-adaptive evidence and notebook.**
+  - Evidence is AI-generated based on the player's progress through the adventure.
+  - Generated evidence is added to a Notebook that remains visible beside the map.
+  - The Notebook visually resembles a physical notebook, rather than a generic list or chat panel.
+  - Notebook entries persist with the attempt and are restored on resume.
+  - Existing grounding and privacy requirements still apply (FR-3, FR-21): historical claims need
+    source support, simulated material must be distinguished, and entries must not reveal information
+    the player has not learned.
 - FR-19 Ending: decision/consequence summary, evidence encountered, what actually happened historically
   with citations, where the simulation diverged, and reflection questions.
 
