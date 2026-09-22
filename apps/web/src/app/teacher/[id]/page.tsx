@@ -8,6 +8,7 @@ import {
   importSpec,
   publishAdventure,
   startEdit,
+  updateDefaultTimer,
   updateAgent,
   updateStage,
 } from "../actions";
@@ -38,6 +39,7 @@ type Stage = {
   index: number;
   title: string;
   shared_context: string;
+  timer_seconds: number | null;
   agent: { id: string; name: string; role: string | null; public_position: string | null }[];
 };
 
@@ -77,7 +79,9 @@ export default async function AdventurePage({
   const { data: stageRows } = editable
     ? await supabase
         .from("stage")
-        .select("id, index, title, shared_context, agent(id, name, role, public_position)")
+        .select(
+          "id, index, title, shared_context, timer_seconds, agent(id, name, role, public_position)",
+        )
         .eq("spec_version_id", editable.id)
         .order("index")
         .returns<Stage[]>()
@@ -228,6 +232,15 @@ export default async function AdventurePage({
                   defaultValue={stage.shared_context}
                   multiline
                 />
+                <Field
+                  name="timer_seconds"
+                  label={`Timer override in seconds — empty inherits ${adventure.default_timer_seconds}, 0 disables`}
+                  defaultValue={
+                    stage.timer_seconds === null ? "" : String(stage.timer_seconds)
+                  }
+                  placeholder={String(adventure.default_timer_seconds)}
+                  optional
+                />
               </ActionForm>
 
               {stage.agent.map((agent) => (
@@ -256,6 +269,25 @@ export default async function AdventurePage({
           ))}
         </Section>
       ) : null}
+
+      <Section title="Stage timer">
+        <ActionForm
+          action={updateDefaultTimer.bind(null, adventure.id)}
+          submitLabel="Save default"
+          pendingLabel="Saving…"
+        >
+          <Field
+            name="default_timer_seconds"
+            label="Default per stage, in seconds (0 disables timers entirely)"
+            defaultValue={String(adventure.default_timer_seconds)}
+          />
+        </ActionForm>
+        <p className="text-sm opacity-60">
+          The deadline itself is set and checked in the database when a stage opens,
+          so refreshing, reopening the tab or changing the device clock buys no extra
+          time. Per-stage overrides live with each stage below.
+        </p>
+      </Section>
 
       <Section title="Share with students">
         <SharePanel

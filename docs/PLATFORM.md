@@ -164,6 +164,24 @@ rationale, knowledge-horizon or seed field ever appears in a payload (FR-21).
 Swapping the stub for the real Resolver means replacing `stub.ts` only; the shapes
 are frozen.
 
+## Stage timers (P6, D12/FR-16)
+
+Configuration is inheritance: `adventure.default_timer_seconds` applies to every
+stage, `stage.timer_seconds` overrides it, `null` inherits and `0` disables. Teachers
+set both from the console; `set_stage_timer` checks ownership and refuses a frozen
+version, so the same rule holds however the value arrives.
+
+Enforcement is not configuration. The deadline is written by
+`start_stage_deadline(attempt, stage)` from the database clock when a stage opens
+(service_role only — opening a stage is orchestration, not a client action) and read
+back from `attempt.stage_deadline_at`. The browser only renders it: a refresh re-reads
+the same instant, and a device clock that is wrong changes the number on screen, not
+the moment the stage closes. `expire_stage_if_due` compares `now()` in the database
+and, only once the deadline has actually passed, records the player's pass as a
+`stage_commitment` with `option_id is null` — doing nothing if a decision is already
+there, so a late poll cannot overwrite a decision made in time. Closing the stage and
+resolving it remain orchestration's job; this only guarantees the pass exists.
+
 ## Analytics (M19)
 
 Event names are frozen in `apps/web/src/lib/analytics/events.ts` and cover the funnel
