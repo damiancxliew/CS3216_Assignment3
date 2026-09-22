@@ -10,10 +10,10 @@ import { AMBIENT_OVERLAYS, GENERATABLE_ASSET_KINDS, MAX_GENERATED_ASSETS, ROOM_K
 import type { SpecIssue } from '../spec/v2'
 import type { TeacherInput } from './schema'
 
-export const PROMPT_VERSIONS = ['planner-v1', 'planner-v2'] as const
+export const PROMPT_VERSIONS = ['planner-v1', 'planner-v2', 'planner-v3'] as const
 export type PromptVersion = (typeof PROMPT_VERSIONS)[number]
 /** Current default. v1 is kept selectable so eval runs can compare before/after (M11). */
-export const PROMPT_VERSION: PromptVersion = 'planner-v2'
+export const PROMPT_VERSION: PromptVersion = 'planner-v3'
 
 /** Characters of source text sent to the planner per generation. ~40k tokens. */
 export const MAX_DOCUMENT_CHARS = 160_000
@@ -51,7 +51,9 @@ export function buildSystemPrompt(input: TeacherInput, version: PromptVersion = 
     'You are the PLANNER for an educational, source-grounded historical adventure game. You turn the teacher\'s source documents into a structured ADVENTURE SPEC. You output ONLY JSON matching the provided schema.',
     '',
     '## What you produce',
-    'A spec with 3-4 historical stakeholders, 1-3 stages (each stage = one map of 2-5 rooms with doors + one decision), evidence items the player can inspect, objectives, decision options with branch targets, endings with a debrief, and a list of which entities may have an image generated. You describe WHAT exists; a deterministic compiler lays out the map. Never output coordinates, tile data, sprite names, or code.',
+    version === 'planner-v3'
+      ? 'A spec with 3-4 historical stakeholders, 1-3 stages (each stage = one map of 2-5 named locations + one decision), evidence items the player can inspect, objectives, decision options with branch targets, endings with a debrief, and a list of which entities may have an image generated. You describe WHAT exists; a deterministic compiler lays out the map. Never output coordinates, tile data, sprite names, or code.'
+      : 'A spec with 3-4 historical stakeholders, 1-3 stages (each stage = one map of 2-5 rooms with doors + one decision), evidence items the player can inspect, objectives, decision options with branch targets, endings with a debrief, and a list of which entities may have an image generated. You describe WHAT exists; a deterministic compiler lays out the map. Never output coordinates, tile data, sprite names, or code.',
     '',
     '## Grounding — the most important rule',
     '- The documents are the ONLY source of historical fact. Every factual claim must carry a source span: {sourceId, page, quote}. `quote` is a VERBATIM excerpt (10-300 characters) copied exactly from the page whose header number you cite. Do not paraphrase inside quotes; do not merge text across pages; do not cite a page you did not read the quote on.',
@@ -78,7 +80,15 @@ export function buildSystemPrompt(input: TeacherInput, version: PromptVersion = 
     '',
     '## Style',
     'Write the shared context as a briefing the player can act on. Make private motivations concrete and in tension with each other. Decision prompts should be a real dilemma, not a quiz. Never preview consequences in option labels.',
-    ...(version === 'planner-v2' ? V2_RULES : []),
+    ...(version !== 'planner-v1' ? V2_RULES : []),
+    ...(version === 'planner-v3' ? [
+      '',
+      '## Spatial locations',
+      '- Every location must explicitly set enclosure to "enclosed" or "open"; never null. Enclosure describes physical boundaries, not visual style: a walled courtyard or a tent can be enclosed, while a street or an unfenced market can be open.',
+      '- Enclosed locations have one door or gate and doorDefault must be "open" or "closed". Open locations have no door and doorDefault must be null. Do not fence an open street or field merely to provide a door.',
+      '- Speech in an enclosed location reaches all occupants. Speech outdoors reaches only listeners within three outdoor walking steps, including across named outdoor-location boundaries. Do not assume a distant outdoor agent heard an exchange.',
+      '- Objectives targeting an agent require the player to address that agent and receive an audible reply. Phrase these as an exchange, not proof that the player learned a specific secret or persuaded the agent.',
+    ] : []),
   ].join('\n')
 }
 

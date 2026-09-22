@@ -102,7 +102,11 @@ export function buildAgentUserPrompt(input: AgentTurnInput): string {
       'ROOM',
       [
         `${room.name} — ${room.description}`,
-        `The door is ${room.doorOpen ? 'open' : 'closed'}.`,
+        room.id === '__doorway__'
+          ? 'You are in a doorway. You cannot speak, share evidence, or hear conversations here; move into a space first.'
+          : room.enclosure === 'open'
+            ? 'This is an open location with no door. Only nearby listeners can hear speech.'
+            : `The door is ${room.doorOpen ? 'open' : 'closed'}.`,
         occupants.length > 0
           ? `Present: ${occupants.map((occupant) => `${occupant.name} (${occupant.publicRole})`).join(', ')}`
           : 'You are alone here.',
@@ -119,7 +123,7 @@ export function buildAgentUserPrompt(input: AgentTurnInput): string {
         .join('\n'),
     ),
     block(
-      'WHAT WAS SAID IN THIS ROOM',
+      room.enclosure === 'open' ? 'WHAT YOU HEARD NEARBY' : 'WHAT WAS SAID IN THIS ROOM',
       transcript.length > 0
         ? transcript.map((line) => `${line.speakerName}: ${line.body}`).join('\n')
         : 'Nothing yet.',
@@ -164,6 +168,10 @@ export function buildAgentUserPrompt(input: AgentTurnInput): string {
       ? `Only valid knock targets: ${knockTargets.map((target) => `${target.id} (${target.name})`).join(', ')}`
       : 'Only valid knock targets: none',
   )
+  if (input.moveTargets !== undefined) {
+    sections.push(`Movement destinations: ${input.moveTargets.map((target) => `${target.id} (${target.name})`).join(', ') || 'none'}`)
+    sections.push('A move_room action starts walking; arrival is not immediate. Closed destination doors require admission. Doorways do not grant access to room conversations.')
+  }
   sections.push('Respond as yourself.')
 
   return sections.join('\n\n')

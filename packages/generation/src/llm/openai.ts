@@ -24,7 +24,7 @@ export function toOpenAiStrictSchema(schema: Record<string, unknown>): Record<st
     if (node === null || typeof node !== 'object') return node
     const out: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-      if (key === '$schema' || key === '$id') continue
+      if (key === '$schema' || key === '$id' || key === 'default') continue
       out[key === 'oneOf' ? 'anyOf' : key] = walk(value)
     }
     return out

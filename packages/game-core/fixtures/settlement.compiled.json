@@ -1,8 +1,8 @@
 {
   "map": {
-    "schemaVersion": 2,
-    "generatorVersion": "settlement-1",
-    "id": "map-2e299e197dbb08a3",
+    "schemaVersion": 3,
+    "generatorVersion": "settlement-2",
+    "id": "map-8017c3ed7a9d2daa",
     "stageId": "harbor-settlement",
     "seed": "fixture-seed",
     "width": 32,
@@ -1032,6 +1032,7 @@
     "rooms": [
       {
         "id": "archive",
+        "enclosure": "enclosed",
         "x": 3,
         "y": 20,
         "width": 8,
@@ -1039,6 +1040,7 @@
       },
       {
         "id": "market",
+        "enclosure": "enclosed",
         "x": 17,
         "y": 2,
         "width": 12,
@@ -1046,6 +1048,7 @@
       },
       {
         "id": "meeting-hall",
+        "enclosure": "enclosed",
         "x": 2,
         "y": 2,
         "width": 9,

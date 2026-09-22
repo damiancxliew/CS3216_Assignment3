@@ -22,6 +22,17 @@ const shutTheHall = (world: WorldState): void => {
 }
 
 describe('option maintenance (K6)', () => {
+  it('requires a recorded conversation exchange and hides another actor\'s gate', () => {
+    const world = createFixtureWorld()
+    const option = { id: 'option-speak', label: 'Speak with the Temenggong', preconditions: [{ kind: 'spoke_with' as const, actorId: 'player', otherActorId: 'agent-temenggong' }] }
+    expect(isHiddenFrom(option, 'agent-farquhar')).toBe(true)
+    expect(deriveOptions(world, [option], 'player').options).toEqual([])
+    applyAction(world, { actorKind: 'player', actorId: 'player', action: { type: 'speak', roomId: 'room-audience-hall', body: 'I need an answer.', addresseeId: 'agent-temenggong' } })
+    const requestSeq = world.transcript.at(-1)!.seq
+    applyAction(world, { actorKind: 'agent', actorId: 'agent-temenggong', action: { type: 'speak', roomId: 'room-audience-hall', body: 'I answer.', addresseeId: 'player' } }, { replyToSeqs: [requestSeq] })
+    expect(deriveOptions(world, [option], 'player').options).toEqual([{ id: option.id, label: option.label }])
+  })
+
   it('derives options from state, dropping the ones whose preconditions fail', () => {
     const world = createFixtureWorld()
     expect(deriveOptions(world, fixtureOptionCatalogue).options.map((option) => option.id)).toEqual([

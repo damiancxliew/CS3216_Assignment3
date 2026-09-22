@@ -23,7 +23,7 @@ import {
   type StageDecisions,
 } from '../stage/options'
 import { flushReplies, type CoalescingOptions, type ReplyInbox, type ReplyRateLimiter } from './reply'
-import { advanceTick, applyAction, occupantsOf, visibleTranscript, type ApplyResult, type WorldState } from './state'
+import { advanceTick, applyAction, DOORWAY_ID, hearingActorIds, OUTDOORS_ID, occupantsOf, visibleTranscript, type ApplyResult, type WorldState } from './state'
 
 export interface StageAgent {
   privateContext: AgentPrivateContext
@@ -120,37 +120,30 @@ export function buildAgentTurnInput(
   const stageAgent = config.agents[agentId]
   if (stageAgent === undefined) throw new Error(`agent "${agentId}" is not in this stage`)
   const roomId = world.location[agentId] ?? ''
-  const room = world.rooms[roomId]
+  const room = world.rooms[roomId] ?? (world.spatial !== undefined && (roomId === OUTDOORS_ID || roomId === DOORWAY_ID)
+    ? { id: roomId, name: roomId === OUTDOORS_ID ? 'Outdoors' : 'Doorway', description: roomId === OUTDOORS_ID ? 'Unlabelled outdoor space.' : 'A doorway between spaces.', doorOpen: true, enclosure: 'open' as const }
+    : undefined)
   if (room === undefined) throw new Error(`agent "${agentId}" is nowhere`)
-
   const heard = visibleTranscript(world, agentId)
   const window = config.transcriptWindow ?? 12
+  const openHere = room.enclosure === 'open' || room.id === OUTDOORS_ID
+  const outdoorRoomIds = new Set(world.spatial?.map.rooms.filter((candidate) => candidate.enclosure === 'open').map((candidate) => candidate.id) ?? [])
+  const isOutdoorLine = (line: typeof heard[number]): boolean => line.roomId === OUTDOORS_ID || outdoorRoomIds.has(line.roomId)
   const roomLines = heard
-    .filter((line) => line.roomId === roomId)
+    .filter((line) => openHere ? isOutdoorLine(line) : line.roomId === roomId)
     .sort((left, right) => left.seq - right.seq)
   const lastSelfSeq = roomLines
     .filter((line) => line.speakerId === agentId)
     .at(-1)?.seq ?? -Infinity
-  const playerMessage = [...roomLines]
-    .reverse()
-    .find(
-      (line) =>
-        line.seq > lastSelfSeq &&
-        line.addresseeId === agentId &&
-        world.actors[line.speakerId]?.kind === 'player',
-    )?.body ?? null
-  const here: TranscriptLine[] = roomLines
-    .slice(-window)
-    .map((line) => ({ speakerId: line.speakerId, speakerName: line.speakerName, body: line.body }))
+  const addressed = roomLines.filter(
+    (line) => line.seq > lastSelfSeq && line.addresseeId === agentId && world.actors[line.speakerId]?.kind === 'player',
+  )
+  const playerMessage = addressed.at(-1)?.body ?? null
+  const here: TranscriptLine[] = roomLines.slice(-window).map((line) => ({ speakerId: line.speakerId, speakerName: line.speakerName, body: line.body }))
   const recalled: RecalledLine[] = heard
-    .filter((line) => line.roomId !== roomId)
+    .filter((line) => openHere ? !isOutdoorLine(line) : line.roomId !== roomId)
     .slice(-window)
-    .map((line) => ({
-      speakerId: line.speakerId,
-      speakerName: line.speakerName,
-      body: line.body,
-      roomName: world.rooms[line.roomId]?.name ?? line.roomId,
-    }))
+    .map((line) => ({ speakerId: line.speakerId, speakerName: line.speakerName, body: line.body, roomName: world.rooms[line.roomId]?.name ?? line.roomId }))
 
   const decision = config.decision
   const options = decision === undefined ? undefined : deriveOptions(world, decision.catalogue, agentId).options
@@ -158,7 +151,19 @@ export function buildAgentTurnInput(
   // timer for them is bad play, so they are told to decide now.
   const mustDecide =
     decision !== undefined && decision.ledger.humansDecided() && !decision.ledger.has(agentId)
-
+  const occupants = (world.spatial === undefined ? occupantsOf(world, roomId).map((occupant) => occupant.id) : hearingActorIds(world, agentId))
+    .map((id) => world.actors[id])
+    .filter((occupant): occupant is NonNullable<typeof occupant> => occupant !== undefined)
+    .map((occupant) => ({ id: occupant.id, name: occupant.name, publicRole: occupant.publicRole }))
+  const knockTargets = world.spatial === undefined
+    ? Object.values(world.rooms).filter((targetRoom) => targetRoom.id !== roomId && !targetRoom.doorOpen).map((targetRoom) => ({ id: targetRoom.id, name: targetRoom.name }))
+    : Object.values(world.rooms).filter((targetRoom) => {
+      if (targetRoom.enclosure !== 'enclosed' || targetRoom.doorOpen) return false
+      const door = world.spatial?.map.doors.find((candidate) => candidate.roomId === targetRoom.id)
+      const point = world.spatial?.state.actors[agentId]
+      return door !== undefined && point !== undefined && point.x === door.outside.x && point.y === door.outside.y
+    }).map((targetRoom) => ({ id: targetRoom.id, name: targetRoom.name }))
+  const moveTargets = world.spatial === undefined ? undefined : world.spatial.map.rooms.map((targetRoom) => ({ id: targetRoom.id, name: world.rooms[targetRoom.id]?.name ?? targetRoom.id }))
   return {
     self: toProfile(world, agentId),
     privateContext: {
@@ -168,23 +173,13 @@ export function buildAgentTurnInput(
     },
     sharedContext: config.sharedContext,
     stageBrief: config.stageBrief,
-    room: {
-      id: room.id,
-      name: room.name,
-      description: room.description,
-      occupants: occupantsOf(world, roomId).map((occupant) => ({
-        id: occupant.id,
-        name: occupant.name,
-        publicRole: occupant.publicRole,
-      })),
-      doorOpen: room.doorOpen,
-    },
-    knockTargets: Object.values(world.rooms)
-      .filter((targetRoom) => targetRoom.id !== roomId && !targetRoom.doorOpen)
-      .map((targetRoom) => ({ id: targetRoom.id, name: targetRoom.name })),
+    room: { id: room.id, name: room.name, description: room.description, occupants, doorOpen: room.doorOpen, ...(room.enclosure === undefined ? {} : { enclosure: room.enclosure }) },
+    knockTargets,
+    ...(moveTargets === undefined ? {} : { moveTargets }),
     transcript: here,
     recalled,
     playerMessage,
+    ...(addressed.length === 0 ? {} : { replyToSeqs: addressed.map((line) => line.seq) }),
     actionsRemaining,
     options,
     mustDecide,
@@ -267,7 +262,7 @@ export async function runStage(
           config.agents[agentId] === undefined ||
           world.actors[agentId] === undefined ||
           world.location[agentId] === undefined ||
-          world.rooms[world.location[agentId]!] === undefined
+          (world.spatial === undefined && world.rooms[world.location[agentId]!] === undefined)
         ) {
           unroutableReplyAgents.add(agentId)
           return null
@@ -354,7 +349,7 @@ export async function runStage(
       const tokenBudgetReached = overTokenBudget()
 
       for (const entry of turn.actions) {
-        const result = chargeAndApply(world, entry, config, telemetry)
+        const result = chargeAndApply(world, entry, config, telemetry, turn.degraded ? undefined : input.replyToSeqs)
         if (entry.action.type !== 'yield') {
           telemetry.actionsByActor[agentId] = spent(agentId) + 1
           telemetry.totalActions += 1
@@ -408,6 +403,7 @@ function chargeAndApply(
   entry: ActorAction,
   config: StageConfig,
   telemetry: StageTelemetry,
+  replyToSeqs?: readonly number[],
 ): ApplyResult {
   if (entry.action.type === 'yield') return { ok: true }
 
@@ -430,5 +426,5 @@ function chargeAndApply(
     return { ok: false, reason: result.reason }
   }
 
-  return applyAction(world, entry)
+  return applyAction(world, entry, entry.action.type === 'speak' && replyToSeqs !== undefined ? { replyToSeqs } : {})
 }
