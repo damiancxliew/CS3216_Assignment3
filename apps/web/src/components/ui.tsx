@@ -243,10 +243,31 @@ export function Page({
   );
 }
 
+/**
+ * The mark: an H whose left stem is set in the record's register (a slab
+ * serif, ink-blue) and whose right stem is set in the simulation's (a plain
+ * sans stem, moss), joined by a crossbar that changes colour at the centre.
+ * The two registers, side by side, reconciled in the middle: the debrief.
+ * Geometry is shared with app/icon.svg; change both together.
+ */
+export const MARK_PATHS = {
+  record: "M5 5h10v2h-3v7h5.5v3H12v8h3v2H5v-2h3V7H5z",
+  world: "M23 5h4v22h-4V17h-5.5v-3H23z",
+} as const;
+
+export function Mark({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={`${className} shrink-0`} aria-hidden>
+      <path d={MARK_PATHS.record} className="fill-record" />
+      <path d={MARK_PATHS.world} className="fill-world" />
+    </svg>
+  );
+}
+
 export function Wordmark({ className = "" }: { className?: string }) {
   return (
-    <Link href="/" className={`inline-flex items-center gap-2 font-serif text-lg text-ink hover:text-record ${className}`}>
-      <span aria-hidden className="inline-block h-4 w-[3px] rounded-sm bg-record" />
+    <Link href="/" className={`inline-flex items-center gap-2.5 font-serif text-lg text-ink hover:text-record ${className}`}>
+      <Mark />
       Historical Adventures
     </Link>
   );
