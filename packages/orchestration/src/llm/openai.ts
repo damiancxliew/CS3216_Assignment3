@@ -25,6 +25,20 @@ export interface OpenAiTransport {
   responses: Pick<OpenAI['responses'], 'create'>
 }
 
+export function toOpenAiStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk)
+    if (node === null || typeof node !== 'object') return node
+    const output: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (key === '$schema' || key === '$id') continue
+      output[key === 'oneOf' ? 'anyOf' : key] = walk(value)
+    }
+    return output
+  }
+  return walk(schema) as Record<string, unknown>
+}
+
 export class MissingApiKeyError extends Error {
   readonly envVar = 'OPENAI_API_KEY'
 
@@ -51,7 +65,7 @@ export function createOpenAiClient(options: OpenAiClientOptions = {}): LlmClient
           format: {
             type: 'json_schema',
             name: request.schemaName,
-            schema: request.jsonSchema as { [key: string]: unknown },
+            schema: toOpenAiStrictSchema(request.jsonSchema as Record<string, unknown>),
             strict: true,
           },
         },
