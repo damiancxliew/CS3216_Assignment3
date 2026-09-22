@@ -21,6 +21,7 @@ const actionRequestSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("close_door"), roomId: z.string().min(1) }),
   z.object({ type: z.literal("knock"), roomId: z.string().min(1) }),
   z.object({ type: z.literal("inspect"), evidenceId: z.string().min(1) }),
+  z.object({ type: z.literal("share_evidence"), evidenceId: z.string().min(1) }),
   z.object({ type: z.literal("position"), position: point }),
 ]);
 

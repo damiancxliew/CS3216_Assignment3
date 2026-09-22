@@ -21,6 +21,9 @@ import {
   runStage,
   StageDecisions,
   buildAgentTurnInput,
+  DOORWAY_ID,
+  hasConversationExchange,
+  hearingActorIds,
   moveActorStep,
   type ActorAction,
   type Decision,
@@ -30,8 +33,10 @@ import {
   type StageConfig,
   type Utterance,
   type WorldState,
+  visibleTranscript,
 } from "@adventure/orchestration";
 import { createSpatialStageWorld } from "@adventure/game-integration";
+import { isInPhysicalInteractionRange } from "@adventure/game-core";
 import type { Point } from "@adventure/game-core";
 import { PLAYER_ID, toResolverInput, toStageRuntime, type StageRuntimeBundle } from "@adventure/generation/runtime";
 import { resolveStageSettings, type AdventureSpec, type Stage } from "@adventure/generation/spec";
@@ -80,8 +85,9 @@ export interface PlayState extends PublicAttemptState {
   evidenceImages: Record<string, string>;
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
   actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; position: Point | null; sprite: Character }[];
+  hearingActorIds: string[];
   /** Evidence in the player's room that they have not examined yet. Names only — content is what examining reveals. */
-  evidenceHere: { id: string; name: string; position: { x: number; y: number } | null }[];
+  evidenceHere: { id: string; name: string; position: { x: number; y: number } | null; canInspect: boolean }[];
   /** Version of the option set shown; commits carry it back so a stale set is rejected (FR-14). */
   optionsVersion: string;
   stageCount: number;
@@ -95,6 +101,7 @@ export type PlayerWorldAction =
   | { type: "close_door"; roomId: string }
   | { type: "knock"; roomId: string }
   | { type: "inspect"; evidenceId: string }
+  | { type: "share_evidence"; evidenceId: string }
   | { type: "position"; position: { x: number; y: number } };
 
 export type SessionError =
@@ -288,8 +295,7 @@ export class PlaySession {
 
   state(timer: SessionTimer): PlayState {
     const world = this.snap.world;
-    const located = world.location[PLAYER_ID] ?? null;
-    const playerRoom = located === OUTDOORS_ROOM_ID ? null : located;
+    const playerRoom = world.location[PLAYER_ID] ?? null;
     const now = this.clock.now();
     const derived = deriveOptions(world, this.bundle.options, PLAYER_ID);
     const available = new Set(derived.options.map((o) => o.id));
@@ -312,7 +318,7 @@ export class PlaySession {
         sharedContext: this.stage.sharedContext.text,
         ambientOverlay: ambientOverlay.id,
         overlayIntensity: ambientOverlay.intensity,
-        objectives: this.stage.objectives.map((o) => ({ id: o.id, title: o.title, met: this.objectiveMet(o.targetId) })),
+        objectives: this.stage.objectives.map((o) => ({ id: o.id, title: o.title, met: this.objectiveMet(o.id) })),
       },
       timer: { enabled: timer.enabled, deadlineAt: timer.deadlineAt, serverNow: now.toISOString(), secondsRemaining },
       mapArtifactId: compiled?.map.id ?? null,
@@ -322,6 +328,7 @@ export class PlaySession {
         id: room.id,
         name: room.name,
         purpose: room.purpose,
+        enclosure: world.spatial!.map.rooms.find((candidate) => candidate.id === room.id)!.enclosure,
         doorOpen: world.rooms[room.id]?.doorOpen ?? room.doorDefault === "open",
         occupantIds: Object.entries(world.location)
           .filter(([, roomId]) => roomId === room.id)
@@ -353,6 +360,7 @@ export class PlaySession {
       pendingEffects: this.snap.pendingEffects,
       revision: this.snap.revision,
       map: compiled ? publicMap(compiled) : null,
+      hearingActorIds: hearingActorIds(world, PLAYER_ID),
       actors: [
         { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, position: world.spatial?.state.actors[PLAYER_ID] ?? null, sprite: PLAYER_CHARACTER },
         ...this.stage.agents.map((agent) => ({
@@ -366,11 +374,12 @@ export class PlaySession {
       ],
       evidenceHere: this.stage.evidence
         .filter((item) => item.roomId === playerRoom && !known.has(item.id))
-        .map((item) => ({
-          id: item.id,
-          name: item.name,
-          position: compiled?.placements.find((p) => p.id === item.id)?.position ?? null,
-        })),
+        .map((item) => {
+          const position = compiled?.placements.find((p) => p.id === item.id)?.position ?? null;
+          const playerPoint = world.spatial?.state.actors[PLAYER_ID] ?? null;
+          const canInspect = playerPoint !== null && position !== null && compiled !== null && isInPhysicalInteractionRange(world.spatial!.map, world.spatial!.state.doors, playerPoint, position);
+          return { id: item.id, name: item.name, position, canInspect };
+        }),
       objectiveHints: this.objectiveHints(),
       roomImages: this.generatedImages("landmark", this.stage.rooms.map((r) => r.id)),
       evidenceImages: this.generatedImages("prop", this.stage.evidence.map((e) => e.id)),
@@ -386,10 +395,7 @@ export class PlaySession {
   }
 
   private playerHeard(): Utterance[] {
-    const world = this.snap.world;
-    return world.transcript
-      .filter((line) => world.presence.some((p) => p.actorId === PLAYER_ID && p.roomId === line.roomId && p.fromSeq <= line.seq && (p.toSeq === null || line.seq < p.toSeq)))
-      .sort((a, b) => a.seq - b.seq);
+    return visibleTranscript(this.snap.world, PLAYER_ID).sort((a, b) => a.seq - b.seq);
   }
 
   private toMessage(line: Utterance): PublicMessage {
@@ -405,11 +411,15 @@ export class PlaySession {
     };
   }
 
-  private objectiveMet(targetId: string): boolean {
+  private objectiveMet(objectiveId: string, visiting = new Set<string>()): boolean {
+    if (visiting.has(objectiveId)) return false;
+    const objective = this.stage.objectives.find((candidate) => candidate.id === objectiveId);
+    if (!objective) return false;
+    if (!objective.requires.every((required) => this.objectiveMet(required, new Set(visiting).add(objectiveId)))) return false;
     const world = this.snap.world;
-    if ((world.evidenceKnown[PLAYER_ID] ?? []).includes(targetId)) return true;
+    if ((world.evidenceKnown[PLAYER_ID] ?? []).includes(objective.targetId)) return true;
     // Agent objective: the player has heard that character speak while in the same room.
-    return this.playerHeard().some((line) => line.speakerId === targetId);
+    return hasConversationExchange(world, PLAYER_ID, objective.targetId);
   }
 
   /**
@@ -487,9 +497,20 @@ export class PlaySession {
   }
 
   private bump(): void {
+    this.syncJournal();
     this.snap.revision += 1;
     const now = this.clock.now().toISOString();
     for (const line of this.snap.world.transcript) this.snap.spokenAt[line.seq] ??= now;
+  }
+
+  private syncJournal(): void {
+    const known = new Set(this.snap.world.evidenceKnown[PLAYER_ID] ?? []);
+    const stored = new Set(this.snap.journal.map((entry) => entry.id));
+    for (const item of this.stage.evidence) {
+      if (!known.has(item.id) || stored.has(item.id)) continue;
+      const span = item.content.spans[0];
+      this.snap.journal.push({ id: item.id, text: `${item.name}: ${item.content.text}`, sourceSpan: span ? `${span.sourceId}, p. ${span.page}: “${span.quote}”` : null, collectedAt: this.clock.now().toISOString() });
+    }
   }
 
   private closed(): SessionError | null {
@@ -507,13 +528,11 @@ export class PlaySession {
     if (closed) return { ok: false, error: closed };
     const world = this.snap.world;
     const here = world.location[PLAYER_ID];
-    if (!world.rooms[input.roomId]) return { ok: false, error: { code: "not_found", message: "That room is not part of this stage." } };
+    if (!world.rooms[input.roomId] && input.roomId !== OUTDOORS_ROOM_ID && input.roomId !== DOORWAY_ID) return { ok: false, error: { code: "not_found", message: "That room is not part of this stage." } };
     if (input.roomId !== here) return { ok: false, error: { code: "invalid_request", message: "You can only speak where you are standing." } };
 
-    const occupants = Object.entries(world.location)
-      .filter(([actorId, roomId]) => roomId === here && actorId !== PLAYER_ID && this.bundle.stage.agents[actorId])
-      .map(([actorId]) => actorId);
-    const addressee = input.addresseeId && occupants.includes(input.addresseeId) ? input.addresseeId : occupants[0] ?? null;
+    const addressee = input.addresseeId ?? null;
+    if (addressee !== null && (world.actors[addressee]?.kind !== "agent" || !hearingActorIds(world, PLAYER_ID).includes(addressee))) return { ok: false, error: { code: "invalid_request", message: "That addressee cannot hear you." } };
 
     const firstSeq = world.seq + 1;
     const spoken = applyAction(world, {
@@ -525,7 +544,7 @@ export class PlaySession {
     this.snap.stageStats.messages += 1;
 
     if (addressee) {
-      const turnInput = buildAgentTurnInput(world, addressee, this.stageConfig(), 1);
+      const turnInput = { ...buildAgentTurnInput(world, addressee, this.stageConfig(), 1), playerMessage: input.body, replyToSeqs: [firstSeq] };
       const reply = await replyToPlayer(client, world, turnInput, {
         limiter: this.limiter,
         inbox: this.inbox,
@@ -573,7 +592,9 @@ export class PlaySession {
     if (action.type === "inspect") {
       const item = this.stage.evidence.find((e) => e.id === action.evidenceId);
       if (!item) return { ok: false, error: { code: "not_found", message: "There is no such thing here." } };
-      if (world.location[PLAYER_ID] !== item.roomId) return { ok: true, refused: "You need to be in the same room to examine that." };
+      const placement = this.map()?.placements.find((p) => p.id === item.id);
+      const playerPoint = world.spatial?.state.actors[PLAYER_ID] ?? null;
+      if (!placement || !playerPoint || !world.spatial || !isInPhysicalInteractionRange(world.spatial.map, world.spatial.state.doors, playerPoint, placement.position)) return { ok: true, refused: "Walk closer to examine that." };
       const known = (world.evidenceKnown[PLAYER_ID] ??= []);
       if (!known.includes(item.id)) {
         known.push(item.id);
@@ -592,7 +613,9 @@ export class PlaySession {
     }
 
     this.snap.stageStats.actions += 1;
-    const worldAction = action;
+    const worldAction = action.type === "share_evidence"
+      ? { type: "share_evidence" as const, roomId: world.location[PLAYER_ID] ?? "", evidenceId: action.evidenceId }
+      : action;
     const filtered = filterActions([worldAction], { actorKind: "player", actorId: PLAYER_ID });
     const entry: ActorAction | undefined = filtered.actions[0];
     if (!entry) return { ok: false, error: { code: "invalid_request", message: filtered.dropped[0]?.reason ?? "That is not something you can do." } };

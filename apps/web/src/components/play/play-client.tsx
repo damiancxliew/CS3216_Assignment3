@@ -105,9 +105,12 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   }, [state.stage.id]);
 
   const here = state.rooms.find((r) => r.id === state.currentRoomId) ?? null;
-  const peopleHere = state.agents.filter((a) => a.roomId === state.currentRoomId);
+  const peopleHere = state.agents.filter((a) => state.hearingActorIds.includes(a.id));
   const effectiveAddressee = peopleHere.some((a) => a.id === addressee) ? addressee : peopleHere[0]?.id ?? null;
   const talkingTo = peopleHere.find((a) => a.id === effectiveAddressee) ?? null;
+  const waitingRoom = waitingAtDoor ? state.rooms.find((room) => room.id === waitingAtDoor) : null;
+  const waitingDoor = waitingAtDoor ? state.map?.doors.find((door) => door.roomId === waitingAtDoor) : null;
+  const knockReady = waitingRoom?.doorOpen === false && waitingDoor !== null && waitingDoor !== undefined && state.playerPos !== null && state.playerPos.x === waitingDoor.outside.x && state.playerPos.y === waitingDoor.outside.y;
 
   async function act(label: string, run: () => Promise<{ ok: true; body: { state: PlayState; refused?: string | null } } | { ok: false; error: { message: string } }>) {
     setBusy(label);
@@ -175,6 +178,11 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   // From the map: pick who to talk to and put the cursor in the box, so "walk up and talk" works.
   const onTalk = useCallback((actorId: string) => {
     setAddressee(actorId);
+    if (!stateRef.current.hearingActorIds.includes(actorId)) {
+      const point = stateRef.current.actors.find((actor) => actor.id === actorId)?.position;
+      if (point) setIntent({ kind: "point", point });
+      return;
+    }
     composer.current?.focus();
     composer.current?.scrollIntoView({ block: "nearest" });
   }, []);
@@ -265,7 +273,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                   {!r.doorOpen ? <Lock className="h-4 w-4 opacity-70" aria-label="door closed" /> : null}
                 </button>
               ))}
-            {here ? (
+            {here?.enclosure === "enclosed" ? (
               <button
                 type="button"
                 className={chip}
@@ -275,18 +283,22 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                 {here.doorOpen ? "Close door" : "Open door"}
               </button>
             ) : null}
-            {waitingAtDoor ? (
-              <button type="button" className={`${primary} min-h-10 py-1.5`} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor }))}>
-                Knock on {state.rooms.find((r) => r.id === waitingAtDoor)?.name ?? "the door"}
+            {knockReady ? (
+              <button type="button" className={`${primary} min-h-10 py-1.5`} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor! }))}>
+                Knock on {waitingRoom?.name ?? "the door"}
               </button>
             ) : null}
           </div>
           {state.evidenceHere.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-amber-500/60 bg-amber-400/15 p-2.5">
               <span className="px-1 text-[15px] font-extrabold">Look at:</span>
-              {state.evidenceHere.map((item) => (
+              {state.evidenceHere.map((item) => item.canInspect ? (
                 <button key={item.id} type="button" className={`${chip} border-amber-600/50`} disabled={busy !== null} onClick={() => act("Examining…", () => playApi.action(attemptId, { type: "inspect", evidenceId: item.id }))}>
                   <Search className="h-4 w-4" aria-hidden /> {item.name}
+                </button>
+              ) : (
+                <button key={item.id} type="button" className={`${chip} border-amber-600/50`} disabled={busy !== null || item.position === null} onClick={() => item.position && setIntent({ kind: "point", point: item.position })}>
+                  Walk to {item.name}
                 </button>
               ))}
             </div>

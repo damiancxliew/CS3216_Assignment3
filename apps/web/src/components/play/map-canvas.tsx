@@ -56,7 +56,7 @@ export interface MapCanvasProps {
 }
 
 function doorsOf(state: PlayState): Record<string, DoorState> {
-  return Object.fromEntries(state.rooms.map((room) => [`door:${room.id}`, room.doorOpen ? "open" : "closed"]));
+  return Object.fromEntries((state.map?.doors ?? []).map((door) => [door.id, state.rooms.find((room) => room.id === door.roomId)?.doorOpen ? "open" : "closed"]));
 }
 
 /** Deterministic interior tile for the i-th occupant of a room, away from the door. */
@@ -264,7 +264,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
       if (key === "Enter" || key === "e") {
         // Talk to whoever is in the room with you.
         const s = latest.current.state;
-        const here = s.agents.filter((a) => a.roomId !== null && a.roomId === s.currentRoomId);
+        const here = s.agents.filter((a) => s.hearingActorIds.includes(a.id));
         if (here.length > 0) {
           event.preventDefault();
           latest.current.onTalk(here[0]!.id);
