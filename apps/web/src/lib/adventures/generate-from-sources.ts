@@ -55,10 +55,10 @@ function storedPages(pageMap: unknown): ExtractedPage[] | undefined {
   return pages.length > 0 ? pages : undefined;
 }
 
-/** What the teacher fills in on the generate form; everything the planner needs that the adventure row does not hold. */
+/** The brief stored on the adventure row: everything the planner needs besides the title and timer. */
 export type GenerationBrief = Pick<
   TeacherInputRaw,
-  "setting" | "studentRole" | "learningObjectives" | "readingLevel" | "stageCount"
+  "setting" | "studentRole" | "learningObjectives" | "readingLevel" | "stageCount" | "stageOutline"
 >;
 
 export type GenerateFromSourcesResult =
