@@ -52,6 +52,8 @@ export interface MapCanvasProps {
   onSettled: (position: Point) => void;
   /** The player is standing outside a closed door. */
   onWaitingAtDoor: (roomId: string | null) => void;
+  /** The player clicked a character, or pressed Enter/E with someone in the room: start talking to them. */
+  onTalk: (actorId: string) => void;
 }
 
 function doorsOf(state: PlayState): Record<string, DoorState> {
@@ -86,10 +88,10 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor, onTalk }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
-  const latest = useRef({ state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor });
-  latest.current = { state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor };
+  const latest = useRef({ state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor, onTalk });
+  latest.current = { state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor, onTalk };
   const playerPos = useRef<Point | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
 
@@ -237,6 +239,16 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
     const onKey = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.altKey || event.metaKey || typing(event.target)) return;
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      if (key === "Enter" || key === "e") {
+        // Talk to whoever is in the room with you.
+        const s = latest.current.state;
+        const here = s.agents.filter((a) => a.roomId !== null && a.roomId === s.currentRoomId);
+        if (here.length > 0) {
+          event.preventDefault();
+          latest.current.onTalk(here[0]!.id);
+        }
+        return;
+      }
       const delta = KEYS[key];
       if (!delta) return;
       event.preventDefault();
@@ -265,7 +277,11 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
         if (destroyed) return;
         playerPos.current = latest.current.state.playerPos;
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-        view = await createTiledMapView(parent, snapshot(), (point) => goTo(point), reduced.matches, { assetBase: ASSET_BASE, defaultSprite: "Villager" });
+        view = await createTiledMapView(parent, snapshot(), (point) => goTo(point), reduced.matches, {
+          assetBase: ASSET_BASE,
+          defaultSprite: "Villager",
+          onActor: (actorId) => latest.current.onTalk(actorId),
+        });
         if (destroyed) {
           view.destroy();
           return;
@@ -273,7 +289,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
         render();
         const canvas = parent.querySelector("canvas");
         canvas?.setAttribute("tabindex", "0");
-        canvas?.setAttribute("aria-label", "Settlement map. Use the arrow keys or WASD to walk; click a tile to walk there.");
+        canvas?.setAttribute("aria-label", "Settlement map. Arrow keys or WASD to walk, Enter to talk to whoever is with you, click a tile to walk there.");
         // Walking works from anywhere on the page unless a field has focus, so the map never needs to be clicked first.
         document.addEventListener("keydown", onKey, { signal: controller.signal });
         document.addEventListener("keyup", onKeyUp, { signal: controller.signal });

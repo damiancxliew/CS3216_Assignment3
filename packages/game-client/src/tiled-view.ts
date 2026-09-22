@@ -77,6 +77,8 @@ export interface TiledViewOptions {
   assetBase: string
   /** Sprite key to use for an actor that does not name one. */
   defaultSprite?: string
+  /** Called when the player clicks a character instead of a tile. */
+  onActor?: (actorId: string) => void
 }
 
 class TiledScene extends Phaser.Scene {
@@ -85,6 +87,7 @@ class TiledScene extends Phaser.Scene {
   private readonly onReady: () => void
   private readonly base: string
   private readonly defaultSprite: string
+  private readonly onActor: ((actorId: string) => void) | undefined
   private reducedMotion: boolean
   private ready = false
   private map?: Phaser.Tilemaps.Tilemap
@@ -93,7 +96,10 @@ class TiledScene extends Phaser.Scene {
   private walls?: Phaser.Tilemaps.TilemapLayer
   private doors = new Map<string, Phaser.GameObjects.Image>()
   private labels: Phaser.GameObjects.Text[] = []
-  private markers = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; key: string; facing: Facing; last: Point }>()
+  private markers = new Map<
+    string,
+    { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; hint: Phaser.GameObjects.Text | null; key: string; facing: Facing; last: Point }
+  >()
   private loadedSprites = new Set<string>()
   private ambientId: string | null = null
   private ambientObjects: Phaser.GameObjects.GameObject[] = []
@@ -113,6 +119,7 @@ class TiledScene extends Phaser.Scene {
     this.onReady = onReady
     this.base = options.assetBase.replace(/\/$/, '')
     this.defaultSprite = options.defaultSprite ?? 'Villager'
+    this.onActor = options.onActor
   }
 
   preload(): void {
@@ -138,6 +145,12 @@ class TiledScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
+      // A character under the pointer means "talk to them", not "walk here".
+      const actor = this.current.actors.find((a) => a.id !== 'player' && a.position.x === point.x && a.position.y === point.y)
+      if (actor && this.onActor) {
+        this.onActor(actor.id)
+        return
+      }
       this.onDestination(point)
       this.game.canvas.focus()
     })
@@ -297,6 +310,8 @@ class TiledScene extends Phaser.Scene {
   private renderSnapshot(snapshot: PlaygroundSnapshot, snap = false): void {
     for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
 
+    const playerSpace = snapshot.actors.find((a) => a.id === 'player')?.space
+    const playerRoomId = playerSpace?.kind === 'room' ? playerSpace.roomId : null
     const occupied = new Map<string, number>()
     for (const actor of snapshot.actors) {
       const key = actor.sprite ?? this.defaultSprite
@@ -333,6 +348,8 @@ class TiledScene extends Phaser.Scene {
         marker.sprite.setFrame(DIRECTIONS.indexOf(facing))
       }
       marker.container.setDepth(10 + actor.position.y / 1000 + (actor.id === 'player' ? 0.5 : 0))
+      // Someone you can talk to right now gets a prompt above their head.
+      marker.hint?.setVisible(playerRoomId !== null && actor.space?.kind === 'room' && actor.space.roomId === playerRoomId)
       if (snap || this.reducedMotion) {
         this.tweens.killTweensOf(marker.container)
         marker.container.setPosition(x, y)
@@ -370,8 +387,24 @@ class TiledScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0)
       .setAlpha(0.95)
-    container.add([shadow, sprite, label])
-    return { container, sprite, key, facing: 'down' as Facing, last: { x: position.x, y: position.y } }
+    let hint: Phaser.GameObjects.Text | null = null
+    if (!player) {
+      hint = this.add
+        .text(0, -13, 'click to talk', {
+          color: '#2e2620',
+          fontFamily: 'system-ui, "Segoe UI", sans-serif',
+          fontSize: '6px',
+          fontStyle: 'bold',
+          backgroundColor: '#ffe9a8',
+          padding: { x: 3, y: 1 },
+          resolution: 8,
+        })
+        .setOrigin(0.5, 1)
+        .setVisible(false)
+      if (!this.reducedMotion) this.tweens.add({ targets: hint, y: -15, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+    }
+    container.add(hint ? [shadow, sprite, label, hint] : [shadow, sprite, label])
+    return { container, sprite, hint, key, facing: 'down' as Facing, last: { x: position.x, y: position.y } }
   }
 
   // ---------------------------------------------------------------------------

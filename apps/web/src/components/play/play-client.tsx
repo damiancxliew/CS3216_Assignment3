@@ -64,6 +64,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLInputElement>(null);
   const revision = useRef(initialState.revision);
   const { muted, toggleMuted, cues } = useSoundCues(state, notice);
 
@@ -163,6 +164,13 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     [attemptId, accept],
   );
 
+  // From the map: pick who to talk to and put the cursor in the box, so "walk up and talk" works.
+  const onTalk = useCallback((actorId: string) => {
+    setAddressee(actorId);
+    composer.current?.focus();
+    composer.current?.scrollIntoView({ block: "nearest" });
+  }, []);
+
   const onSettled = useCallback(
     (position: { x: number; y: number }) => {
       void playApi.action(attemptId, { type: "position", position }).then((r) => r.ok && accept(r.body.state));
@@ -202,9 +210,10 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           onEnterRoom={onEnterRoom}
           onSettled={onSettled}
           onWaitingAtDoor={setWaitingAtDoor}
+          onTalk={onTalk}
         />
         <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/70 px-4 py-2 text-[15px] font-semibold text-white">
-          Arrow keys / WASD to walk · click a tile to go there
+          Arrows / WASD to walk · click a character to talk · Enter to talk to whoever is with you
         </p>
         <button
           type="button"
@@ -347,6 +356,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
             }}
           >
             <input
+              ref={composer}
               aria-label="What you say"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
