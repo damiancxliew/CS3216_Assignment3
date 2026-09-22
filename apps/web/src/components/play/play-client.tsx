@@ -317,7 +317,9 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4" role="log" aria-live="polite" aria-label="Conversation">
             {state.transcript.length === 0 ? (
               <p className="m-auto max-w-xs text-center text-[15px] leading-relaxed opacity-70">
-                Nothing said yet. Ask {talkingTo?.name ?? "someone"} a question — what do they want, and why?
+                {talkingTo
+                  ? `Nothing said yet. Ask ${talkingTo.name} a question — hearing what they think is how you complete a goal about them.`
+                  : "Nothing said yet. Find someone and ask them a question."}
               </p>
             ) : null}
             {state.transcript.map((m) => {
@@ -381,7 +383,10 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                 >
                   {o.met ? "✓" : ""}
                 </span>
-                <span className={o.met ? "line-through" : ""}>{o.title}</span>
+                <span className="min-w-0">
+                  <span className={o.met ? "line-through" : ""}>{o.title}</span>
+                  {!o.met && state.objectiveHints[o.id] ? <span className="block text-[13px] font-semibold opacity-70">→ {state.objectiveHints[o.id]}</span> : null}
+                </span>
                 <span className="sr-only">{o.met ? "done" : "not yet"}</span>
               </li>
             ))}

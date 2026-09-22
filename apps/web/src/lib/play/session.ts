@@ -68,6 +68,8 @@ export interface PlaySnapshot {
 /** Additive to the frozen I3 projection: what the renderer needs on top of it. */
 export interface PlayState extends PublicAttemptState {
   map: PublicMap | null;
+  /** What to actually do for each goal, in plain words ("Talk to X in Y"), keyed by objective id. */
+  objectiveHints: Record<string, string>;
   /** Generated landmark image per room, when the asset service produced one (D4). */
   roomImages: Record<string, string>;
   /** Generated prop image per evidence item, when one exists (D4). Keys are evidence ids. */
@@ -360,6 +362,7 @@ export class PlaySession {
           name: item.name,
           position: compiled?.placements.find((p) => p.id === item.id)?.position ?? null,
         })),
+      objectiveHints: this.objectiveHints(),
       roomImages: this.generatedImages("landmark", this.stage.rooms.map((r) => r.id)),
       evidenceImages: this.generatedImages("prop", this.stage.evidence.map((e) => e.id)),
       optionsVersion: derived.version,
@@ -398,6 +401,30 @@ export class PlaySession {
     if ((world.evidenceKnown[PLAYER_ID] ?? []).includes(targetId)) return true;
     // Agent objective: the player has heard that character speak while in the same room.
     return this.playerHeard().some((line) => line.speakerId === targetId);
+  }
+
+  /**
+   * Goals are authored as outcomes ("Hear Farquhar's assessment"); students need the verb. An
+   * agent goal is met by hearing that person speak while you are with them (K6 heard_from), an
+   * evidence goal by examining the item — so say that, and where.
+   */
+  private objectiveHints(): Record<string, string> {
+    const roomName = (roomId: string | null | undefined) => this.stage.rooms.find((r) => r.id === roomId)?.name ?? null;
+    const out: Record<string, string> = {};
+    for (const objective of this.stage.objectives) {
+      const agent = this.stage.agents.find((a) => a.id === objective.targetId);
+      if (agent) {
+        const where = roomName(this.roomOf(agent.id));
+        out[objective.id] = `Talk to ${this.agentName(agent.id)}${where ? ` in ${where}` : ""} and hear what they say`;
+        continue;
+      }
+      const item = this.stage.evidence.find((e) => e.id === objective.targetId);
+      if (item) {
+        const where = roomName(item.roomId);
+        out[objective.id] = `Look at ${item.name}${where ? ` in ${where}` : ""}`;
+      }
+    }
+    return out;
   }
 
   /** An actor's authored room, or null when they are outdoors or nowhere. */
