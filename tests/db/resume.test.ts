@@ -12,7 +12,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { loadResumeState } from "@/lib/attempts/resume";
 import { findForbiddenKeys } from "@/lib/turn-api/contract";
 
-import { createUserClient, serviceClient, uniqueEmail } from "./helpers";
+import { createUserClient, prepareVersionMaps, serviceClient, uniqueEmail } from "./helpers";
 
 const admin = serviceClient();
 
@@ -70,6 +70,7 @@ async function seedAttempt(): Promise<Seeded> {
     .select("id")
     .single();
 
+  await prepareVersionMaps(admin, version!.id);
   const { error: publishError } = await teacher.client.rpc("publish_adventure", {
     p_adventure_id: adventure!.id,
   });

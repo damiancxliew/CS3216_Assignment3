@@ -12,6 +12,7 @@ import {
   SUPABASE_ANON_KEY,
   SUPABASE_URL,
   createUserClient,
+  prepareVersionMaps,
   serviceClient,
   uniqueEmail,
 } from "./helpers";
@@ -64,6 +65,7 @@ async function seedAdventure(
   // Publishing last: a published version is frozen, so its stages have to
   // exist before the stamp goes on (P4).
   if (published) {
+    await prepareVersionMaps(admin, specVersion.id);
     const { error: publishError } = await admin
       .from("spec_version")
       .update({ published_at: new Date().toISOString() })

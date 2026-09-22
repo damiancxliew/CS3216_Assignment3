@@ -11,7 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { createUserClient, serviceClient, uniqueEmail } from "./helpers";
+import { createUserClient, prepareVersionMaps, serviceClient, uniqueEmail } from "./helpers";
 
 const admin = serviceClient();
 
@@ -74,6 +74,7 @@ async function seed(defaultTimer: number): Promise<Seeded> {
     .single();
   if (optionError) throw optionError;
 
+  await prepareVersionMaps(admin, version!.id);
   const { error: publishError } = await teacher.client.rpc("publish_adventure", {
     p_adventure_id: adventure.id,
   });
