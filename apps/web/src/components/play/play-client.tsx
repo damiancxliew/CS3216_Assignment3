@@ -16,6 +16,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { Point } from "@adventure/game-core";
 import { playApi } from "./api";
 import type { MapIntent } from "./map-canvas";
 import { useSoundCues } from "./sound";
@@ -55,6 +56,7 @@ const label = "text-[13px] font-extrabold uppercase tracking-[0.12em] opacity-70
 
 export function PlayClient({ attemptId, initialState }: { attemptId: string; initialState: PlayState }) {
   const [state, setState] = useState<PlayState>(initialState);
+  const stateRef = useRef(initialState);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -73,6 +75,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     // Out-of-order replies are discarded (I3: revision is monotonic per attempt).
     if (next.revision < revision.current) return;
     revision.current = next.revision;
+    stateRef.current = next;
     setState(next);
   }, []);
 
@@ -148,21 +151,25 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     }
   }
 
-  const onEnterRoom = useCallback(
-    async (roomId: string, position: { x: number; y: number }) => {
-      const result = await playApi.action(attemptId, { type: "move_room", toRoomId: roomId, position });
-      if (!result.ok) {
-        setNotice(result.error.message);
-        return false;
+  const onStep = useCallback(
+    async (from: Point, to: Point) => {
+      const before = stateRef.current;
+      try {
+        const result = await playApi.action(attemptId, { type: "move_step", stageId: before.stage.id, from, to });
+        if (!result.ok) {
+          setNotice(result.error.message);
+          if (result.error.code !== "rate_limited") await refresh();
+          return { position: stateRef.current.playerPos, accepted: false, retry: result.error.code === "rate_limited" };
+        }
+        accept(result.body.state);
+        if (result.body.refused) setNotice(result.body.refused);
+        return { position: stateRef.current.playerPos, accepted: !result.body.refused && stateRef.current.stage.id === before.stage.id, retry: false };
+      } catch {
+        setNotice("Could not reach the server. Please try again.");
+        return { position: stateRef.current.playerPos, accepted: false, retry: false };
       }
-      accept(result.body.state);
-      if (result.body.refused) {
-        setNotice(result.body.refused);
-        return false;
-      }
-      return true;
     },
-    [attemptId, accept],
+    [attemptId, accept, refresh],
   );
 
   // From the map: pick who to talk to and put the cursor in the box, so "walk up and talk" works.
@@ -171,13 +178,6 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     composer.current?.focus();
     composer.current?.scrollIntoView({ block: "nearest" });
   }, []);
-
-  const onSettled = useCallback(
-    (position: { x: number; y: number }) => {
-      void playApi.action(attemptId, { type: "position", position }).then((r) => r.ok && accept(r.body.state));
-    },
-    [attemptId, accept],
-  );
 
   if (state.status === "completed") {
     return (
@@ -208,8 +208,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           audio={{ muted, cues }}
           intent={intent}
           onIntentDone={() => setIntent(null)}
-          onEnterRoom={onEnterRoom}
-          onSettled={onSettled}
+          onStep={onStep}
           onWaitingAtDoor={setWaitingAtDoor}
           onTalk={onTalk}
         />

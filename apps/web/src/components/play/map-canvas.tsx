@@ -47,9 +47,8 @@ export interface MapCanvasProps {
   intent: MapIntent;
   onIntentDone: () => void;
   /** The player stepped into a room the server does not know they are in. Resolve to false to put them back. */
-  onEnterRoom: (roomId: string, position: Point) => Promise<boolean>;
+  onStep: (from: Point, to: Point) => Promise<{ position: Point | null; accepted: boolean; retry: boolean }>;
   /** The player stopped somewhere; remember it for resume. */
-  onSettled: (position: Point) => void;
   /** The player is standing outside a closed door. */
   onWaitingAtDoor: (roomId: string | null) => void;
   /** The player clicked a character, or pressed Enter/E with someone in the room: start talking to them. */
@@ -88,12 +87,15 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor, onTalk }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitingAtDoor, onTalk }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
-  const latest = useRef({ state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor, onTalk });
-  latest.current = { state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor, onTalk };
+  const latest = useRef({ state, audio, intent, onIntentDone, onStep, onWaitingAtDoor, onTalk });
+  latest.current = { state, audio, intent, onIntentDone, onStep, onWaitingAtDoor, onTalk };
   const playerPos = useRef<Point | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
+  const intentHandlerRef = useRef<((next: MapIntent) => void) | null>(null);
+  const reconcileRef = useRef<((next: PlayState) => void) | null>(null);
+  const acknowledgedRevision = useRef(state.revision);
 
   // Mount the renderer once per map. Phaser is browser-only, so it is imported here, not at module top.
   const mapId = state.map?.id ?? null;
@@ -106,8 +108,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
     let view: import("@adventure/game-client/view").MapView | null = null;
     let facing: "down" | "up" | "left" | "right" = "down";
     let path: Point[] = [];
-    let pendingRoom: string | null = null;
-    let settleTimer: number | undefined;
+    let queuedTarget: Point | null = null;
+    let inFlight = false;
     const held = new Map<string, Point>();
     let repeat: number | undefined;
 
@@ -124,9 +126,10 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
             const key = a.roomId ?? OUTDOORS_ROOM_ID;
             const n = occupantsByRoom.get(key) ?? 0;
             occupantsByRoom.set(key, n + 1);
-            const position = (a.roomId ? seatIn(map as StageMap, a.roomId, n + 1) : outdoorSeat(map as StageMap, n)) ?? { x: 1, y: 1 };
+            const position = a.position ?? (a.roomId ? seatIn(map as StageMap, a.roomId, n + 1) : outdoorSeat(map as StageMap, n));
+            if (!position) return null;
             return { id: a.id, name: a.name, position, space: spaceAt(map as StageMap, position), targetRoomId: null, status: "idle" as const, ...(a.sprite ? { sprite: a.sprite } : {}) };
-          }),
+          }).filter((actor): actor is NonNullable<typeof actor> => actor !== null),
       ];
       const goal = path.length ? { kind: "point" as const, point: path[path.length - 1]! } : null;
       return {
@@ -151,14 +154,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
     const render = () => view?.render(snapshot());
     renderRef.current = render;
 
-    const settle = () => {
-      window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(() => {
-        if (playerPos.current) latest.current.onSettled(playerPos.current);
-      }, 800);
-    };
-
     const stepTo = async (to: Point) => {
+      if (inFlight || latest.current.state.map?.id !== mapId) return;
       const s = latest.current.state;
       const from = playerPos.current ?? s.playerPos;
       if (!from) return;
@@ -166,7 +163,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
       if (!canStep(map as StageMap, doors, from, to)) {
         // Walked into a closed door: stop and offer a knock.
         const door = map.doors.find((d) => d.position.x === to.x && d.position.y === to.y);
-        if (door && doors[door.id] === "closed") latest.current.onWaitingAtDoor(door.roomId);
+        if (door && doors[door.id] === "closed" && from.x === door.outside.x && from.y === door.outside.y) latest.current.onWaitingAtDoor(door.roomId);
         path = [];
         render();
         return;
@@ -174,57 +171,82 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
       const ddx = to.x - from.x;
       const ddy = to.y - from.y;
       facing = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? "right" : "left") : ddy > 0 ? "down" : "up";
-      playerPos.current = to;
-      render();
-      const space = spaceAt(map as StageMap, to);
-      // Doorways belong to nobody; grass and path are the outdoors, which the server tracks as a room of its own.
-      const roomId = space?.kind === "room" ? space.roomId : space?.kind === "outdoor" ? OUTDOORS_ROOM_ID : null;
-      const serverRoom = s.currentRoomId ?? OUTDOORS_ROOM_ID;
-      if (roomId && roomId !== serverRoom && pendingRoom !== roomId) {
-        pendingRoom = roomId;
-        const accepted = await latest.current.onEnterRoom(roomId, to);
-        pendingRoom = null;
-        if (!accepted) {
-          const door = map.doors.find((d) => d.roomId === roomId);
-          playerPos.current = door ? door.outside : from;
-          path = [];
-          render();
+      inFlight = true;
+      try {
+        const acknowledgement = await latest.current.onStep(from, to);
+        if (destroyed || latest.current.state.map?.id !== mapId) return;
+        if (acknowledgement.position) playerPos.current = acknowledgement.position;
+        if (acknowledgement.accepted && path[0]?.x === to.x && path[0]?.y === to.y) path.shift();
+        else if (!acknowledgement.retry) path = [];
+        if (acknowledgement.accepted && acknowledgement.position && (acknowledgement.position.x !== to.x || acknowledgement.position.y !== to.y)) path = [];
+        // Doorways belong to nobody; grass and path are the outdoors, which the server tracks as a room of its own.
+        const door = map.doors.find((candidate) => candidate.outside.x === acknowledgement.position?.x && candidate.outside.y === acknowledgement.position?.y && doors[candidate.id] === "closed");
+        latest.current.onWaitingAtDoor(door?.roomId ?? null);
+        render();
+        if (path.length === 0) latest.current.onIntentDone();
+      } finally {
+        inFlight = false;
+        if (!destroyed && latest.current.state.map?.id === mapId && queuedTarget) {
+          const target = queuedTarget;
+          queuedTarget = null;
+          goTo(target);
         }
       }
-      if (space?.kind === "room") latest.current.onWaitingAtDoor(null);
-      settle();
     };
 
     const walk = window.setInterval(() => {
       if (document.visibilityState !== "visible" || path.length === 0) return;
-      const next = path.shift()!;
+      const next = path[0]!;
       void stepTo(next);
-      if (path.length === 0) latest.current.onIntentDone();
     }, STEP_MS);
 
     const goTo = (target: Point) => {
+      if (inFlight) {
+        queuedTarget = target;
+        return;
+      }
       const from = playerPos.current ?? latest.current.state.playerPos;
       if (!from) return;
       const doors = doorsOf(latest.current.state);
-      const found = findPath(map as StageMap, doors, from, target);
+      let found = findPath(map as StageMap, doors, from, target);
       if (!found) {
         // Aim for the doorstep of a closed room, so the player can knock.
-        const door = map.doors.find((d) => d.position.x === target.x && d.position.y === target.y || (d.inside.x === target.x && d.inside.y === target.y));
-        const fallback = door ? findPath(map as StageMap, doors, from, door.outside) : null;
-        path = fallback ?? [];
-        if (door && fallback) latest.current.onWaitingAtDoor(door.roomId);
-      } else {
-        path = found;
+        const room = map.rooms.find((candidate) => target.x >= candidate.x && target.x < candidate.x + candidate.width && target.y >= candidate.y && target.y < candidate.y + candidate.height);
+        const door = map.doors.find((candidate) => candidate.roomId === room?.id);
+        found = door ? findPath(map as StageMap, doors, from, door.outside) : null;
       }
+      path = found ?? [];
       render();
+      if (!found || found.length === 0) latest.current.onIntentDone();
     };
     const goToRoom = (roomId: string) => {
+      const room = map.rooms.find((candidate) => candidate.id === roomId);
+      if (!room) return;
+      if (room.enclosure === "open") {
+        goTo({ x: room.x + Math.floor(room.width / 2), y: room.y + Math.floor(room.height / 2) });
+        return;
+      }
       const door = map.doors.find((d) => d.roomId === roomId);
       if (!door) return;
       const doors = doorsOf(latest.current.state);
       goTo(isWalkable(map as StageMap, doors, door.position) ? door.inside : door.outside);
     };
-    (parent as HTMLDivElement & { __goToRoom?: (id: string) => void }).__goToRoom = goToRoom;
+    intentHandlerRef.current = (next) => {
+      if (!next) return;
+      if (next.kind === "room") goToRoom(next.roomId);
+      else goTo(next.point);
+    };
+    reconcileRef.current = (next) => {
+      if (next.revision < acknowledgedRevision.current) return;
+      acknowledgedRevision.current = next.revision;
+      if (!inFlight && next.playerPos && (!playerPos.current || playerPos.current.x !== next.playerPos.x || playerPos.current.y !== next.playerPos.y)) {
+        playerPos.current = next.playerPos;
+        path = [];
+      }
+      const current = playerPos.current;
+      if (current && !isWalkable(map as StageMap, doorsOf(next), current)) path = [];
+      render();
+    };
 
     const clearHeld = () => {
       held.clear();
@@ -276,6 +298,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
         const { createTiledMapView } = await import("@adventure/game-client/tiled-view");
         if (destroyed) return;
         playerPos.current = latest.current.state.playerPos;
+        acknowledgedRevision.current = latest.current.state.revision;
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
         view = await createTiledMapView(parent, snapshot(), (point) => goTo(point), reduced.matches, {
           assetBase: ASSET_BASE,
@@ -287,6 +310,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
           return;
         }
         render();
+        intentHandlerRef.current?.(latest.current.intent);
         const canvas = parent.querySelector("canvas");
         canvas?.setAttribute("tabindex", "0");
         canvas?.setAttribute("aria-label", "Settlement map. Arrow keys or WASD to walk, Enter to talk to whoever is with you, click a tile to walk there.");
@@ -295,6 +319,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
         document.addEventListener("keyup", onKeyUp, { signal: controller.signal });
         canvas?.focus({ preventScroll: true });
         window.addEventListener("blur", clearHeld, { signal: controller.signal });
+        document.addEventListener("visibilitychange", clearHeld, { signal: controller.signal });
         reduced.addEventListener("change", (e) => view?.setReducedMotion(e.matches), { signal: controller.signal });
       } catch (error) {
         const note = document.createElement("p");
@@ -306,10 +331,11 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
 
     return () => {
       destroyed = true;
+      intentHandlerRef.current = null;
+      reconcileRef.current = null;
       controller.abort();
       clearHeld();
       window.clearInterval(walk);
-      window.clearTimeout(settleTimer);
       view?.destroy();
       renderRef.current = null;
       parent.replaceChildren();
@@ -319,15 +345,13 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onS
 
   // Re-draw on every state change; snap the player to the server's position if the server moved them (a new stage).
   useEffect(() => {
-    if (state.playerPos && playerPos.current === null) playerPos.current = state.playerPos;
+    reconcileRef.current?.(state);
     renderRef.current?.();
   }, [state, audio]);
 
   // Panel-driven intents.
   useEffect(() => {
-    if (!intent || !host.current) return;
-    const goToRoom = (host.current as HTMLDivElement & { __goToRoom?: (id: string) => void }).__goToRoom;
-    if (intent.kind === "room") goToRoom?.(intent.roomId);
+    intentHandlerRef.current?.(intent);
   }, [intent]);
 
   return <div ref={host} className="absolute inset-0 overflow-hidden bg-[#4f5d3a]" />;
