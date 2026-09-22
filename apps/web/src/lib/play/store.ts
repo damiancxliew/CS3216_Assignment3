@@ -41,6 +41,13 @@ export interface SaveResult {
   stageDeadlineAt: string | null;
 }
 
+export class PlayConflictError extends Error {
+  constructor() {
+    super("The attempt changed. Refresh and try again.");
+    this.name = "PlayConflictError";
+  }
+}
+
 export interface PlayStore {
   load(attemptId: string, userId: string): Promise<AttemptRecord | null>;
   save(record: AttemptRecord, snapshot: PlaySnapshot, events: PlayEvents): Promise<SaveResult>;
@@ -235,137 +242,58 @@ export class SupabasePlayStore implements PlayStore {
       ...events.utterances.map((u) => u.stageIndex),
       ...events.decisions.map((d) => d.stageIndex),
       ...(events.resolution ? [events.resolution.stageIndex] : []),
+      ...(events.telemetry ? [events.telemetry.stageIndex] : []),
     ]);
     const binders = new Map<number, Promise<Binder>>();
     for (const index of touched) binders.set(index, this.binder(record.spec, index, stageUuid(index)));
-    const bind = (index: number) => binders.get(index) ?? this.binder(record.spec, index, stageUuid(index));
-
-    if (events.utterances.length > 0) {
-      const base = Date.now();
-      const rows = await Promise.all(
-        events.utterances.map(async ({ line, heardByPlayer, stageIndex }, i) => {
-          const b = await bind(stageIndex);
-          const isPlayer = line.speakerId === PLAYER_ID;
-          const spokenAt = snapshot.stageIndex === stageIndex ? snapshot.spokenAt[line.seq] : undefined;
-          return {
-            attempt_id: record.attemptId,
-            runtime_id: `${record.attemptId}:${stageIndex}:${line.seq}`,
-            room_id: b.rooms.get(line.roomId) ?? null,
-            author_type: isPlayer ? "player" : "agent",
-            author_id: isPlayer ? record.studentId : b.agents.get(line.speakerId) ?? null,
-            body: line.body,
-            visibility: heardByPlayer ? "room" : "private",
-            created_at: new Date((spokenAt ? new Date(spokenAt).getTime() : base) + i).toISOString(),
-          };
-        }),
-      );
-      const uniqueRows = [...new Map(rows.map((row) => [row.runtime_id, row])).values()];
-      const { error } = await this.admin.from("message").upsert(uniqueRows, { onConflict: "attempt_id,runtime_id" });
-      if (error) throw new Error(`message: ${error.message}`);
-    }
-
-    if (events.decisions.length > 0) {
-      const rows = (
-        await Promise.all(
-          events.decisions.map(async ({ decision, stageIndex }) => {
-            const stageId = stageUuid(stageIndex);
-            const b = await bind(stageIndex);
-            const agentId = decision.actorKind === "agent" ? b.agents.get(decision.actorId) ?? null : null;
-            if (decision.actorKind === "agent" && !agentId) throw new Error(`agent: missing authored id ${decision.actorId}`);
-            return {
-              attempt_id: record.attemptId,
-              stage_id: stageId,
-              actor_kind: decision.actorKind,
-              player_id: decision.actorKind === "player" ? record.studentId : null,
-              agent_id: agentId,
-              option_id: decision.optionId ? b.options.get(decision.optionId) ?? null : null,
-            };
-          }),
-        )
-      );
-      for (const row of rows) {
-        const { error } = await this.admin.from("stage_commitment").insert(row);
-        if (error && error.code !== "23505") throw new Error(`stage_commitment: ${error.message}`);
-      }
-    }
-
-    if (events.resolution) {
-      const stageId = stageUuid(events.resolution.stageIndex);
+    await Promise.all(binders.values());
+    const bind = (index: number) => binders.get(index)!;
+    const base = Date.now();
+    const messageRows = await Promise.all(events.utterances.map(async ({ line, heardByPlayer, stageIndex }, i) => {
+      const b = await bind(stageIndex);
+      const isPlayer = line.speakerId === PLAYER_ID;
+      const spokenAt = snapshot.stageIndex === stageIndex ? snapshot.spokenAt[line.seq] : undefined;
+      return {
+        runtime_id: `${record.attemptId}:${stageIndex}:${line.seq}`,
+        room_id: b.rooms.get(line.roomId) ?? null,
+        author_type: isPlayer ? "player" : "agent",
+        author_id: isPlayer ? record.studentId : b.agents.get(line.speakerId) ?? null,
+        body: line.body,
+        visibility: heardByPlayer ? "room" : "private",
+        created_at: new Date((spokenAt ? new Date(spokenAt).getTime() : base) + i).toISOString(),
+      };
+    }));
+    const messages = [...new Map(messageRows.map((row) => [row.runtime_id, row])).values()];
+    const commitments = await Promise.all(events.decisions.map(async ({ decision, stageIndex }) => {
+      const b = await bind(stageIndex);
+      const agentId = decision.actorKind === "agent" ? b.agents.get(decision.actorId) ?? null : null;
+      if (decision.actorKind === "agent" && !agentId) throw new Error(`agent: missing authored id ${decision.actorId}`);
+      return { stage_id: stageUuid(stageIndex), actor_kind: decision.actorKind, player_id: decision.actorKind === "player" ? record.studentId : null, agent_id: agentId, option_id: decision.optionId ? b.options.get(decision.optionId) ?? null : null };
+    }));
+    const resolution = events.resolution ? (() => {
       const { record: r } = events.resolution;
-      const { error } = await this.admin.from("resolution").upsert(
-        {
-          attempt_id: record.attemptId,
-          stage_id: stageId,
-          actions: r.actions,
-          outcome: { ...r.outcome, rationale: r.rationale, privateNotes: r.privateNotes },
-          rolls: r.rolls,
-        },
-        { onConflict: "attempt_id,stage_id" },
-      );
-      if (error) throw new Error(`resolution: ${error.message}`);
-    }
-
-    if (events.telemetry) {
-      const t = events.telemetry;
-      const { error } = await this.admin.from("attempt_telemetry").upsert(
-        {
-          attempt_id: record.attemptId,
-          stage_id: stageUuid(t.stageIndex),
-          stage_index: t.stageIndex,
-          ended_by: t.endedBy,
-          duration_seconds: t.durationSeconds,
-          tokens: t.tokens,
-          messages: t.messages,
-          actions: t.actions,
-          evidence_found: t.evidenceFound,
-          agent_lines: t.agentLines,
-        },
-        { onConflict: "attempt_id,stage_index" },
-      );
-      if (error) throw new Error(`attempt_telemetry: ${error.message}`);
-    }
-
-    let stageDeadlineAt = record.stageDeadlineAt;
-    if (events.endingId) {
-      const { error } = await this.admin.rpc("complete_attempt", { p_attempt_id: record.attemptId, p_ending_id: events.endingId });
-      if (error) throw new Error(`complete_attempt: ${error.message}`);
-      stageDeadlineAt = null;
-    } else if (events.openedStageIndex !== null && events.openedStageIndex !== record.snapshot?.stageIndex) {
-      const { data, error } = await this.admin.rpc("start_stage_deadline", { p_attempt_id: record.attemptId, p_stage_id: stageUuid(events.openedStageIndex) });
-      if (error) throw new Error(`start_stage_deadline: ${error.message}`);
-      stageDeadlineAt = (data as string | null) ?? null;
-    }
-
-    const { error: stateError } = await this.admin.from("attempt_state").upsert(
-      {
-        attempt_id: record.attemptId,
-        world_state: {
-          version: 1,
-          stageIndex: snapshot.stageIndex,
-          status: snapshot.status,
-          endingId: snapshot.endingId,
-          revision: snapshot.revision,
-        },
-        journal: snapshot.journal,
-        player_pos: snapshot.playerPos,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "attempt_id" },
-    );
-    if (stateError) throw new Error(`attempt_state: ${stateError.message}`);
-
-    const authoredStage = record.spec.stages[snapshot.stageIndex];
-    if (!authoredStage) throw new Error(`runtime: no authored stage at index ${snapshot.stageIndex}`);
-    const { data: revision, error: runtimeError } = await this.admin.rpc("save_attempt_runtime", {
+      return { stage_id: stageUuid(events.resolution!.stageIndex), actions: r.actions, outcome: { ...r.outcome, rationale: r.rationale, privateNotes: r.privateNotes }, rolls: r.rolls };
+    })() : null;
+    const telemetry = events.telemetry ? { stage_id: stageUuid(events.telemetry.stageIndex), stage_index: events.telemetry.stageIndex, ended_by: events.telemetry.endedBy, duration_seconds: events.telemetry.durationSeconds, tokens: events.telemetry.tokens, messages: events.telemetry.messages, actions: events.telemetry.actions, evidence_found: events.telemetry.evidenceFound, agent_lines: events.telemetry.agentLines } : null;
+    const openedStageId = events.openedStageIndex !== null && events.openedStageIndex !== record.snapshot?.stageIndex ? stageUuid(events.openedStageIndex) : null;
+    const { data, error } = await this.admin.rpc("save_play_turn", {
       p_attempt_id: record.attemptId,
       p_expected_revision: record.runtimeRevision,
-      p_stage_spec_id: authoredStage.id,
+      p_stage_spec_id: record.spec.stages[snapshot.stageIndex]!.id,
       p_snapshot: snapshot,
+      p_messages: messages,
+      p_commitments: commitments,
+      p_resolution: resolution,
+      p_telemetry: telemetry,
+      p_opened_stage_id: openedStageId,
+      p_ending_id: events.endingId,
     });
-    if (runtimeError) throw new Error(`save_attempt_runtime: ${runtimeError.message}`);
-    if (typeof revision !== "number") throw new Error("save_attempt_runtime: non-numeric revision");
-    record.runtimeRevision = revision;
-    return { stageDeadlineAt };
+    if (error?.code === "40001") throw new PlayConflictError();
+    if (error) throw new Error(`save_play_turn: ${error.message}`);
+    const result = data as { runtimeRevision?: unknown; stageDeadlineAt?: unknown } | null;
+    if (!result || typeof result.runtimeRevision !== "number" || (result.stageDeadlineAt !== null && typeof result.stageDeadlineAt !== "string")) throw new Error("save_play_turn: invalid response");
+    record.runtimeRevision = result.runtimeRevision;
+    return { stageDeadlineAt: result.stageDeadlineAt };
   }
 
   async now(): Promise<Date> {
@@ -409,11 +337,11 @@ export class MemoryPlayStore implements PlayStore {
   clock = () => new Date("2026-09-22T12:00:00.000Z");
 
   constructor(records: readonly AttemptRecord[] = []) {
-    for (const record of records) this.records.set(record.attemptId, record);
+    for (const record of records) this.records.set(record.attemptId, structuredClone(record));
   }
 
   add(record: AttemptRecord): void {
-    this.records.set(record.attemptId, record);
+    this.records.set(record.attemptId, structuredClone(record));
   }
 
   async load(attemptId: string, userId: string): Promise<AttemptRecord | null> {
@@ -422,11 +350,13 @@ export class MemoryPlayStore implements PlayStore {
   }
 
   async save(record: AttemptRecord, snapshot: PlaySnapshot, events: PlayEvents): Promise<SaveResult> {
-    this.saved.push({ snapshot: structuredClone(snapshot), events });
     const current = this.records.get(record.attemptId);
-    if (!current) return { stageDeadlineAt: null };
+    if (!current || current.studentId !== record.studentId) throw new Error("attempt not found");
+    if (current.runtimeRevision !== record.runtimeRevision) throw new PlayConflictError();
     current.snapshot = structuredClone(snapshot);
     current.runtimeRevision += 1;
+    record.runtimeRevision = current.runtimeRevision;
+    this.saved.push({ snapshot: structuredClone(snapshot), events: structuredClone(events) });
     if (events.endingId) {
       current.status = "completed";
       current.stageDeadlineAt = null;

@@ -2,7 +2,7 @@ import { loadI1Spec } from "@adventure/generation/fixtures";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { PlaySession, type PlayEvents, type PlaySnapshot } from "@/lib/play/session";
-import { SupabasePlayStore, type AttemptRecord } from "@/lib/play/store";
+import { MemoryPlayStore, PlayConflictError, SupabasePlayStore, type AttemptRecord } from "@/lib/play/store";
 
 class Query {
   private filters: Record<string, unknown> = {};
@@ -27,6 +27,8 @@ class FakeClient {
   runtime: { stage_spec_id: string; revision: number; snapshot: unknown } | null = null;
   runtimeError: { message: string } | null = null;
   upserts: { table: string; values: unknown; options: unknown }[] = [];
+  rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
+  rpcResult: { data: unknown; error: { message: string; code?: string } | null } = { data: { runtimeRevision: 1, stageDeadlineAt: null }, error: null };
   attempt: Record<string, unknown>;
 
   constructor(spec: Awaited<ReturnType<typeof loadI1Spec>>) {
@@ -69,9 +71,8 @@ class FakeClient {
   }
 
   rpc(name: string, args: Record<string, unknown>) {
-    if (name === "save_attempt_runtime" && this.runtimeError) return Promise.resolve({ data: null, error: this.runtimeError });
-    if (name === "save_attempt_runtime") return Promise.resolve({ data: 1, error: null });
-    return Promise.resolve({ data: null, error: null });
+    this.rpcCalls.push({ name, args });
+    return Promise.resolve(this.rpcResult);
   }
 }
 
@@ -146,19 +147,32 @@ describe("SupabasePlayStore runtime validation", () => {
       resolution: null,
       openedStageIndex: null,
       endingId: null,
+      telemetry: null,
     };
 
     await new SupabasePlayStore(client as never).save(record, snapshot, events);
-    const messageWrite = client.upserts.find((write) => write.table === "message");
-    expect(messageWrite).toBeDefined();
-    expect(messageWrite!.values as unknown[]).toHaveLength(1);
-    expect((messageWrite!.values as { runtime_id: string }[])[0]!.runtime_id).toBe("attempt:0:1");
+    expect(client.upserts).toHaveLength(0);
+    expect(client.rpcCalls).toHaveLength(1);
+    expect(client.rpcCalls[0]!.name).toBe("save_play_turn");
+    expect((client.rpcCalls[0]!.args.p_messages as { runtime_id: string }[])).toHaveLength(1);
+    expect((client.rpcCalls[0]!.args.p_messages as { runtime_id: string }[])[0]!.runtime_id).toBe("attempt:0:1");
   });
 
-  it("surfaces optimistic runtime save errors", async () => {
-    client.runtimeError = { message: "revision conflict" };
-    const events: PlayEvents = { utterances: [], decisions: [], resolution: null, openedStageIndex: null, endingId: null };
+  it("rejects a stale second in-memory reader before saving", async () => {
+    const store = new MemoryPlayStore([record]);
+    const first = (await store.load("attempt", "student"))!;
+    const second = (await store.load("attempt", "student"))!;
+    const next = { ...snapshot, revision: snapshot.revision + 1 };
+    const events: PlayEvents = { utterances: [], decisions: [], resolution: null, openedStageIndex: null, endingId: null, telemetry: null };
+    await store.save(first, next, events);
+    await expect(store.save(second, { ...next, revision: next.revision + 1 }, events)).rejects.toBeInstanceOf(PlayConflictError);
+    expect(store.saved).toHaveLength(1);
+  });
 
-    await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toThrow(/save_attempt_runtime/);
+  it("maps a save_play_turn conflict to PlayConflictError", async () => {
+    client.rpcResult = { data: null, error: { code: "40001", message: "revision conflict" } };
+    const events: PlayEvents = { utterances: [], decisions: [], resolution: null, openedStageIndex: null, endingId: null, telemetry: null };
+
+    await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toMatchObject({ name: "PlayConflictError", message: "The attempt changed. Refresh and try again." });
   });
 });
