@@ -104,7 +104,7 @@ describe("debrief", () => {
   it("keeps documented history, its citations and the simulation's own inventions apart", async () => {
     const { attemptId } = await seedCompletedAttempt();
 
-    const debrief = await loadDebrief(student.client, attemptId);
+    const debrief = await loadDebrief(student.client, attemptId, admin);
 
     expect(debrief!.simulatedOutcome).toBe(
       "You signed, over the objections of the merchants.",
@@ -133,7 +133,7 @@ describe("debrief", () => {
   it("never drops a citation it cannot resolve, and never invents an assumption", async () => {
     const { attemptId } = await seedCompletedAttempt();
 
-    const debrief = await loadDebrief(student.client, attemptId);
+    const debrief = await loadDebrief(student.client, attemptId, admin);
 
     // An unresolvable source still shows its page and quote, under its own id,
     // rather than silently disappearing from the evidence a student can check.
@@ -158,7 +158,7 @@ describe("debrief", () => {
       .eq("version", 2);
     await teacher.client.rpc("publish_adventure", { p_adventure_id: adventureId });
 
-    const debrief = await loadDebrief(student.client, attemptId);
+    const debrief = await loadDebrief(student.client, attemptId, admin);
     expect(debrief!.simulatedOutcome).toBe(
       "You signed, over the objections of the merchants.",
     );
@@ -167,13 +167,13 @@ describe("debrief", () => {
   it("is nothing for another student, and nothing before the attempt ends", async () => {
     const { attemptId } = await seedCompletedAttempt();
     const intruder = await createUserClient(uniqueEmail("p8-intruder"));
-    expect(await loadDebrief(intruder.client, attemptId)).toBeNull();
+    expect(await loadDebrief(intruder.client, attemptId, admin)).toBeNull();
 
     await admin
       .from("attempt")
       .update({ status: "active", ending_id: null })
       .eq("id", attemptId);
-    expect(await loadDebrief(student.client, attemptId)).toBeNull();
+    expect(await loadDebrief(student.client, attemptId, admin)).toBeNull();
   });
 
   it("is not something a student can award themselves", async () => {

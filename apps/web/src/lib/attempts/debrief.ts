@@ -9,12 +9,17 @@
  * resolves those references and hands the page two separately-typed lists it
  * cannot accidentally merge.
  *
- * Read as the signed-in user against the version the attempt pinned (P4), so a
- * teacher republishing mid-attempt cannot rewrite the history a student is
- * being debriefed on.
+ * The attempt is read as the signed-in user, so RLS decides whose debrief this
+ * is, and against the version the attempt pinned (P4), so a teacher
+ * republishing mid-attempt cannot rewrite the history a student is being
+ * debriefed on. The spec itself is server-side only — it carries private agent
+ * context and branch targets — so it is read with the service role and only
+ * the debrief slice below ever leaves this module (FR-21).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Only the debrief-relevant slice of the spec, parsed defensively. */
 const sourceSchema = z.object({
@@ -83,6 +88,7 @@ export type Debrief = {
 export async function loadDebrief(
   supabase: SupabaseClient,
   attemptId: string,
+  specReader: SupabaseClient = createAdminClient(),
 ): Promise<Debrief | null> {
   const { data: attempt } = await supabase
     .from("attempt")
@@ -92,7 +98,7 @@ export async function loadDebrief(
 
   if (!attempt?.ending_id) return null;
 
-  const { data: specVersion } = await supabase
+  const { data: specVersion } = await specReader
     .from("spec_version")
     .select("json")
     .eq("adventure_id", attempt.adventure_id)
