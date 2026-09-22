@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import type { ActionResult } from "@/app/teacher/actions";
+import { button, ErrorText, Pending } from "@/components/ui";
 import { track } from "@/lib/analytics/posthog";
 import type { AnalyticsEvent } from "@/lib/analytics/events";
 
@@ -36,19 +37,15 @@ export function ActionForm({
   );
 
   return (
-    <form action={formAction} className={className ?? "flex flex-col gap-3"}>
+    <form action={formAction} className={className ?? "flex flex-col gap-4"}>
       {children}
-      <button
-        type="submit"
-        disabled={pending}
-        className="inline-flex w-fit items-center rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background transition hover:opacity-90 disabled:opacity-50"
-      >
-        {pending ? (pendingLabel ?? "Working…") : submitLabel}
+      <button type="submit" disabled={pending} className={`${button.primary} w-fit`}>
+        {pending ? <Pending>{pendingLabel ?? "Working…"}</Pending> : submitLabel}
       </button>
       {state.error ? (
-        <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
+        <ErrorText>{state.error}</ErrorText>
       ) : state.notice ? (
-        <p className="text-sm opacity-70">{state.notice}</p>
+        <p className="text-base text-muted">{state.notice}</p>
       ) : null}
     </form>
   );
@@ -74,24 +71,15 @@ export function ActionButton({
     return result;
   }, {} as ActionResult);
 
-  const styles =
-    variant === "primary"
-      ? "bg-foreground text-background hover:opacity-90"
-      : "border border-black/15 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10";
-
   return (
     <form action={formAction} className="flex flex-col gap-2">
-      <button
-        type="submit"
-        disabled={pending}
-        className={`inline-flex w-fit items-center rounded-full px-5 py-2 text-sm font-medium transition disabled:opacity-50 ${styles}`}
-      >
-        {pending ? (pendingLabel ?? "Working…") : label}
+      <button type="submit" disabled={pending} className={`${button[variant]} w-fit`}>
+        {pending ? <Pending>{pendingLabel ?? "Working…"}</Pending> : label}
       </button>
       {state.error ? (
-        <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
+        <ErrorText>{state.error}</ErrorText>
       ) : state.notice ? (
-        <p className="text-sm opacity-70">{state.notice}</p>
+        <p className="text-base text-muted">{state.notice}</p>
       ) : null}
     </form>
   );

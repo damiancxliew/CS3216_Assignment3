@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { joinAdventure } from "./actions";
 import { SignInButton } from "@/components/sign-in-button";
+import { button, ErrorText, Wordmark } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 
 type Preview = {
@@ -42,10 +43,9 @@ export default async function JoinPage({
   // the link is simply not a way in until the teacher publishes (P3).
   if (!adventure) {
     return (
-      <Shell title="This link isn’t open">
-        <p className="opacity-80">
-          Either this adventure hasn’t been published yet, or the link has been
-          replaced. Ask your teacher for the current one.
+      <Shell intro="This link isn’t open" title="Ask your teacher for the current one">
+        <p className="max-w-[50ch] text-lg text-muted">
+          Either this adventure hasn’t been published yet, or the link has been replaced.
         </p>
       </Shell>
     );
@@ -57,63 +57,52 @@ export default async function JoinPage({
   } = await supabase.auth.getUser();
 
   return (
-    <Shell title={adventure.title}>
-      {adventure.setting ? (
-        <p className="opacity-80">{adventure.setting}</p>
-      ) : null}
-      {adventure.teacher_name ? (
-        <p className="text-sm opacity-60">Set by {adventure.teacher_name}</p>
-      ) : null}
+    <Shell intro="You’ve been invited to play" title={adventure.title}>
+      {adventure.setting ? <p className="max-w-[54ch] text-lg text-muted">{adventure.setting}</p> : null}
+      {adventure.teacher_name ? <p className="text-base text-muted">Set by {adventure.teacher_name}</p> : null}
 
-      {user ? (
-        <form
-          action={async () => {
-            "use server";
-            await joinAdventure(token);
-          }}
-        >
-          <button
-            type="submit"
-            className="inline-flex w-fit items-center rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition hover:opacity-90"
+      <div className="pt-2">
+        {user ? (
+          <form
+            action={async () => {
+              "use server";
+              await joinAdventure(token);
+            }}
           >
-            Enter the adventure
-          </button>
-        </form>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm opacity-70">
-            Sign in so your progress is saved and you can pick the attempt back
-            up later.
-          </p>
-          <SignInButton next={`/join/${token}`} label="Sign in with Google" />
-        </div>
-      )}
+            <button type="submit" className={`${button.primary} min-h-12 px-6 text-base`}>
+              Enter the adventure
+            </button>
+          </form>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <p className="max-w-[50ch] text-base text-muted">Sign in so your progress is saved and you can pick the attempt back up later.</p>
+            <SignInButton next={`/join/${token}`} label="Sign in with Google" />
+          </div>
+        )}
+      </div>
 
-      {error ? (
-        <p className="text-sm text-red-600 dark:text-red-400">
-          We couldn’t let you in. The adventure may have been unpublished.
-        </p>
-      ) : null}
+      {error ? <ErrorText>We couldn’t let you in. The adventure may have been unpublished.</ErrorText> : null}
     </Shell>
   );
 }
 
 function Shell({
+  intro,
   title,
   children,
 }: {
+  intro: string;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-6 px-6 py-24">
-      <p className="text-sm uppercase tracking-widest opacity-60">
-        You’ve been invited to play
-      </p>
-      <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-        {title}
-      </h1>
-      {children}
+    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-6 py-8">
+      <Wordmark />
+      <div className="flex flex-1 flex-col justify-center gap-5 py-16">
+        <p className="text-base text-muted">{intro}</p>
+        <h1 className="font-serif text-4xl text-ink sm:text-5xl">{title}</h1>
+        {children}
+      </div>
     </main>
   );
 }

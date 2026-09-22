@@ -20,11 +20,18 @@ import { playApi } from "./api";
 import type { MapIntent } from "./map-canvas";
 import { useSoundCues } from "./sound";
 import { StageCountdown } from "@/components/stage-countdown";
+import { Pending, Spinner, Thinking } from "@/components/ui";
 import type { PlayState } from "@/lib/play/session";
 
 const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas), {
   ssr: false,
-  loading: () => <div className="absolute inset-0 animate-pulse bg-[#7d8c5c]/40" />,
+  loading: () => (
+    <div className="absolute inset-0 flex items-center justify-center bg-world-wash" role="status">
+      <span className="inline-flex items-center gap-2 rounded-control bg-surface px-4 py-2.5 text-base font-semibold text-ink">
+        <Spinner /> Loading the map…
+      </span>
+    </div>
+  ),
 });
 
 const POLL_MS = 8_000;
@@ -32,7 +39,7 @@ const POLL_MS = 8_000;
 /** A character's face: the generated portrait when the asset service has one, the pack's faceset otherwise (D4/D6). */
 function Portrait({ src, name, size = 40 }: { src: string | null; name: string; size?: number }) {
   const box = { width: size, height: size, minWidth: size, minHeight: size };
-  if (!src) return <span className="inline-block shrink-0 self-start rounded-xl bg-black/10 dark:bg-white/10" style={box} aria-hidden />;
+  if (!src) return <span className="inline-block shrink-0 self-start rounded-control bg-sunken" style={box} aria-hidden />;
   const pixel = src.startsWith("/game/");
   return (
     // eslint-disable-next-line @next/next/no-img-element -- storage urls are dynamic and the facesets are tiny
@@ -41,17 +48,17 @@ function Portrait({ src, name, size = 40 }: { src: string | null; name: string; 
       alt={`${name}'s portrait`}
       width={size}
       height={size}
-      className="shrink-0 self-start rounded-xl border-2 border-black/15 bg-[#e7d4a8] object-cover dark:border-white/20"
+      className="shrink-0 self-start rounded-control border border-line bg-[#e7d4a8] object-cover"
       style={{ ...box, imageRendering: pixel ? "pixelated" : undefined }}
     />
   );
 }
 
 const chip =
-  "inline-flex min-h-10 items-center gap-1.5 rounded-full border-2 border-black/15 bg-white/70 px-3.5 py-1.5 text-[15px] font-semibold leading-tight transition hover:border-black/40 hover:bg-white disabled:opacity-40 dark:border-white/20 dark:bg-white/5 dark:hover:bg-white/15";
+  "inline-flex min-h-11 items-center gap-1.5 rounded-control border border-line-strong bg-surface px-3.5 py-2 text-base font-semibold leading-tight text-ink transition-colors hover:border-ink disabled:opacity-60";
 const primary =
-  "inline-flex min-h-11 items-center justify-center rounded-xl bg-foreground px-5 py-2 text-base font-bold leading-snug text-background transition hover:opacity-90 disabled:opacity-40";
-const label = "text-[13px] font-extrabold uppercase tracking-[0.12em] opacity-70";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-control bg-ink px-4 py-2 text-base font-semibold leading-snug text-paper transition-colors hover:bg-record disabled:opacity-60";
+const label = "text-sm font-semibold text-muted";
 
 export function PlayClient({ attemptId, initialState }: { attemptId: string; initialState: PlayState }) {
   const [state, setState] = useState<PlayState>(initialState);
@@ -181,14 +188,14 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
 
   if (state.status === "completed") {
     return (
-      <section className="mx-auto flex w-full max-w-2xl flex-col gap-5 rounded-2xl border-2 border-black/10 p-8 dark:border-white/15">
+      <section className="mx-auto my-10 flex w-full max-w-2xl flex-col gap-5 px-6">
         {/* The map (and its sound manager) is gone at the ending; the closing theme plays from here. */}
         {!muted ? <audio src="/game/ninja/audio/music/end-theme.ogg" autoPlay loop /> : null}
         <p className={label}>The end</p>
-        <h2 className="text-3xl font-extrabold tracking-tight">{state.ending?.title ?? "The adventure is over"}</h2>
-        {lastResolution ? <p className="text-lg leading-relaxed">{lastResolution}</p> : null}
-        {state.ending ? <p className="text-lg leading-relaxed opacity-90">{state.ending.summary}</p> : null}
-        <Link href={`/play/${attemptId}/debrief`} className={`${primary} w-fit text-lg`}>
+        <h2 className="font-serif text-4xl text-ink">{state.ending?.title ?? "The adventure is over"}</h2>
+        {lastResolution ? <p className="text-lg leading-relaxed text-ink">{lastResolution}</p> : null}
+        {state.ending ? <p className="text-lg leading-relaxed text-muted">{state.ending.summary}</p> : null}
+        <Link href={`/play/${attemptId}/debrief`} className={`${primary} mt-2 w-fit min-h-12 px-6 text-lg`}>
           Read the debrief
         </Link>
       </section>
@@ -202,7 +209,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
 
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-      <section className="relative min-h-[55vh] flex-1 lg:min-h-0" aria-label="Map">
+      <section className="relative min-h-[55vh] flex-1 bg-sunken lg:min-h-0" aria-label="Map">
         <MapCanvas
           state={state}
           audio={{ muted, cues }}
@@ -213,41 +220,43 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           onWaitingAtDoor={setWaitingAtDoor}
           onTalk={onTalk}
         />
-        <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/70 px-4 py-2 text-[15px] font-semibold text-white">
-          Arrows / WASD to walk · click a character to talk · Enter to talk to whoever is with you
+        <p className="pointer-events-none absolute bottom-3 left-3 max-w-[calc(100%-10rem)] rounded-control bg-ink/85 px-3.5 py-2 text-base font-semibold text-paper">
+          Arrows or WASD to walk. Click a character to talk, or press Enter to talk to whoever is with you.
         </p>
         <button
           type="button"
           onClick={toggleMuted}
           aria-pressed={muted}
-          className="absolute bottom-3 right-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-[15px] font-semibold text-white hover:bg-black/85"
+          className="absolute bottom-3 right-3 inline-flex min-h-11 items-center gap-2 rounded-control bg-ink/85 px-3.5 py-2 text-base font-semibold text-paper hover:bg-ink"
         >
           {muted ? <VolumeX className="h-5 w-5" aria-hidden /> : <Volume2 className="h-5 w-5" aria-hidden />}
           {muted ? "Sound off" : "Sound on"}
         </button>
         {lastResolution ? (
-          <div role="status" className="absolute left-3 right-3 top-3 mx-auto max-w-2xl rounded-2xl border-2 border-white/30 bg-black/85 p-5 text-white shadow-xl backdrop-blur">
-            <p className={`${label} mb-2 text-white/80`}>What happened</p>
+          <div role="status" className="absolute left-3 right-3 top-3 mx-auto max-w-2xl rounded-surface border-l-[3px] border-world bg-surface p-5 text-ink shadow-xl">
+            <p className="mb-2 text-base font-semibold text-world">What happened</p>
             <p className="text-lg leading-relaxed">{lastResolution}</p>
-            <button type="button" className="mt-3 rounded-xl border-2 border-white/40 px-4 py-2 text-base font-bold hover:bg-white/10" onClick={() => setLastResolution(null)}>
+            <button type="button" className={`${primary} mt-4`} onClick={() => setLastResolution(null)}>
               Got it
             </button>
           </div>
         ) : null}
       </section>
 
-      <aside className="flex min-h-0 w-full min-w-0 flex-col border-t-2 border-black/10 text-base lg:w-[30rem] lg:border-l-2 lg:border-t-0 dark:border-white/15">
+      <aside className="flex min-h-0 w-full min-w-0 flex-col border-t border-line bg-paper text-base lg:w-[30rem] lg:border-l lg:border-t-0">
         {/* ── Top: where you are, where you can go ─────────────────────────── */}
-        <section className="flex flex-col gap-3 border-b-2 border-black/10 px-5 py-4 dark:border-white/15" aria-labelledby="where">
+        <section className="flex flex-col gap-3 border-b border-line px-5 py-4" aria-labelledby="where">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className={label}>You are in</p>
-              <h2 id="where" className="text-xl font-extrabold leading-tight tracking-tight">
+              <h2 id="where" className="font-serif text-2xl leading-tight text-ink">
                 {here ? here.name : "the open air"}
               </h2>
             </div>
             <span
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-lg font-extrabold tabular-nums ${lowTime ? "animate-pulse bg-amber-500 text-black" : "bg-black/5 dark:bg-white/10"}`}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-control border px-2.5 py-1.5 text-lg font-semibold tabular-nums ${
+                lowTime ? "animate-pulse border-signal bg-signal-wash text-ink" : "border-line bg-surface text-ink"
+              }`}
               aria-label="Time left in this stage"
             >
               <Timer className="h-5 w-5" aria-hidden /> <StageCountdown attemptId={attemptId} deadlineIso={state.timer.deadlineAt} serverNowIso={state.timer.serverNow} />
@@ -255,7 +264,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           </div>
           {here && state.roomImages[here.id] ? (
             // eslint-disable-next-line @next/next/no-img-element -- generated landmark from storage
-            <img src={state.roomImages[here.id]} alt={here.name} className="aspect-[3/1] w-full rounded-xl border-2 border-black/15 object-cover dark:border-white/20" />
+            <img src={state.roomImages[here.id]} alt={here.name} className="aspect-[3/1] w-full rounded-control border border-line object-cover" />
           ) : null}
           <div className="flex flex-wrap gap-2">
             {state.rooms
@@ -263,7 +272,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               .map((r) => (
                 <button key={r.id} type="button" className={chip} disabled={busy !== null} onClick={() => setIntent({ kind: "room", roomId: r.id })}>
                   <ArrowRight className="h-4 w-4" aria-hidden /> {r.name}
-                  {!r.doorOpen ? <Lock className="h-4 w-4 opacity-70" aria-label="door closed" /> : null}
+                  {!r.doorOpen ? <Lock className="h-4 w-4 text-muted" aria-label="door closed" /> : null}
                 </button>
               ))}
             {here ? (
@@ -277,16 +286,16 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               </button>
             ) : null}
             {waitingAtDoor ? (
-              <button type="button" className={`${primary} min-h-10 py-1.5`} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor }))}>
+              <button type="button" className={`${primary} min-h-10 py-1.5 text-sm`} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor }))}>
                 Knock on {state.rooms.find((r) => r.id === waitingAtDoor)?.name ?? "the door"}
               </button>
             ) : null}
           </div>
           {state.evidenceHere.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-amber-500/60 bg-amber-400/15 p-2.5">
-              <span className="px-1 text-[15px] font-extrabold">Look at:</span>
+            <div className="flex flex-wrap items-center gap-2 border-l-[3px] border-world py-1 pl-3">
+              <span className="text-base font-semibold text-world">Look at</span>
               {state.evidenceHere.map((item) => (
-                <button key={item.id} type="button" className={`${chip} border-amber-600/50`} disabled={busy !== null} onClick={() => act("Examining…", () => playApi.action(attemptId, { type: "inspect", evidenceId: item.id }))}>
+                <button key={item.id} type="button" className={chip} disabled={busy !== null} onClick={() => act("Examining…", () => playApi.action(attemptId, { type: "inspect", evidenceId: item.id }))}>
                   <Search className="h-4 w-4" aria-hidden /> {item.name}
                 </button>
               ))}
@@ -307,30 +316,35 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                     role="radio"
                     aria-checked={active}
                     onClick={() => setAddressee(a.id)}
-                    className={`flex min-w-0 shrink-0 items-center gap-2.5 rounded-2xl border-2 px-2.5 py-2 text-left transition ${active ? "border-foreground bg-foreground text-background" : "border-black/15 hover:border-black/40 dark:border-white/20"}`}
+                    className={`flex min-w-0 shrink-0 items-center gap-2.5 rounded-control border px-2.5 py-2 text-left transition-colors ${
+                      active ? "border-ink bg-ink text-paper" : "border-line bg-surface text-ink hover:border-ink"
+                    }`}
                   >
                     <Portrait src={a.portraitUrl} name={a.name} size={40} />
                     <span className="min-w-0 leading-tight">
-                      <span className="block text-[15px] font-extrabold">{a.name}</span>
-                      {a.role ? <span className={`block max-w-[14rem] truncate text-[13px] ${active ? "opacity-80" : "opacity-70"}`}>{a.role}</span> : null}
+                      <span className="block text-base font-semibold">{a.name}</span>
+                      {a.role ? <span className={`block max-w-[14rem] truncate text-sm ${active ? "text-paper/85" : "text-muted"}`}>{a.role}</span> : null}
                     </span>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <p id="talk" className="px-5 pt-4 text-[15px] font-semibold opacity-70">
-              {here ? "Nobody is here. Try another building." : "Walk into a building to find someone to talk to."}
+            <p id="talk" className="px-5 pt-4 text-base text-ink">
+              {here ? "Nobody is here right now. Try another building, or wait and see who comes in." : "Walk into a building to find someone to talk to."}
             </p>
           )}
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4" role="log" aria-live="polite" aria-label="Conversation">
             {state.transcript.length === 0 ? (
-              <p className="m-auto max-w-xs text-center text-[15px] leading-relaxed opacity-70">
-                {talkingTo
-                  ? `Nothing said yet. Ask ${talkingTo.name} a question — hearing what they think is how you complete a goal about them.`
-                  : "Nothing said yet. Find someone and ask them a question."}
-              </p>
+              <div className="m-auto flex max-w-sm flex-col items-center gap-2 text-center">
+                <p className="font-serif text-xl text-ink">Nothing has been said yet</p>
+                <p className="text-base leading-relaxed text-muted">
+                  {talkingTo
+                    ? `Ask ${talkingTo.name} a question. Hearing what they think is how you complete a goal about them.`
+                    : "Find someone and ask them a question. Your goals below say who is worth talking to."}
+                </p>
+              </div>
             ) : null}
             {state.transcript.map((m) => {
               const speaker = m.authorType === "agent" ? state.agents.find((a) => a.id === m.authorId) : null;
@@ -338,14 +352,14 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               return (
                 <div key={m.id} className={`flex items-start gap-2.5 ${mine ? "flex-row-reverse" : ""}`}>
                   {speaker ? <Portrait src={speaker.portraitUrl} name={speaker.name} size={36} /> : null}
-                  <div className={`min-w-0 max-w-[85%] rounded-2xl px-4 py-2.5 leading-relaxed ${mine ? "rounded-tr-md bg-foreground text-background" : "rounded-tl-md bg-black/[0.06] dark:bg-white/10"}`}>
-                    {!mine ? <p className="text-[13px] font-extrabold opacity-75">{m.authorName ?? "Someone"}</p> : null}
+                  <div className={`min-w-0 max-w-[85%] rounded-surface px-4 py-2.5 leading-relaxed ${mine ? "rounded-tr-sm bg-ink text-paper" : "rounded-tl-sm bg-surface text-ink"}`}>
+                    {!mine ? <p className="text-sm font-semibold text-muted">{m.authorName ?? "Someone"}</p> : null}
                     <p>{m.body}</p>
                   </div>
                 </div>
               );
             })}
-            {busy === "Speaking…" ? <p className="px-2 text-[15px] font-semibold opacity-60">{talkingTo?.name ?? "They"} is thinking…</p> : null}
+            {busy === "Speaking…" ? <div className="px-2"><Thinking label={`${talkingTo?.name ?? "They"} is thinking`} /></div> : null}
             <div ref={transcriptEnd} />
           </div>
 
@@ -363,41 +377,41 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               onChange={(e) => setDraft(e.target.value)}
               disabled={busy !== null || !peopleHere.length}
               placeholder={talkingTo ? `Ask ${talkingTo.name.split(" ").at(-1)} something…` : "Find someone to talk to first"}
-              className="min-h-12 min-w-0 flex-1 rounded-2xl border-2 border-black/20 bg-white/70 px-4 py-2 text-base outline-none placeholder:opacity-60 focus:border-foreground dark:border-white/25 dark:bg-white/5"
+              className="min-h-12 min-w-0 flex-1 rounded-control border border-line bg-surface px-4 py-2 text-base text-ink placeholder:text-muted focus:border-record focus:outline-none disabled:opacity-60"
               maxLength={2000}
             />
-            <button type="submit" className={`${primary} min-h-12 rounded-2xl`} disabled={busy !== null || !draft.trim() || !peopleHere.length}>
-              Say it
+            <button type="submit" className={`${primary} min-h-12`} disabled={busy !== null || !draft.trim() || !peopleHere.length}>
+              {busy === "Speaking…" ? <Pending>Saying it</Pending> : "Say it"}
             </button>
           </form>
         </section>
 
         {/* ── Bottom, always visible: goals + the decision ─────────────────── */}
-        <section className="flex flex-col gap-3 border-t-2 border-black/10 bg-black/[0.03] px-5 py-4 dark:border-white/15 dark:bg-white/[0.04]" aria-labelledby="decide">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[15px] font-extrabold">
-              Goals {goalsMet}/{goalsTotal}
-              <span className="ml-2 font-semibold opacity-60">· stage {state.stage.index + 1} of {state.stageCount}</span>
+        <section className="flex flex-col gap-3 border-t border-line bg-sunken/60 px-5 py-4" aria-labelledby="decide">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-base text-ink">
+              <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>
+              <span className="ml-3 text-muted">Stage {state.stage.index + 1} of {state.stageCount}</span>
             </p>
             {state.journal.length ? (
-              <button type="button" className="text-[15px] font-bold underline underline-offset-4 opacity-80 hover:opacity-100" onClick={() => setNotesOpen((v) => !v)} aria-expanded={notesOpen}>
+              <button type="button" className="text-base font-semibold text-muted underline decoration-line-strong underline-offset-4 hover:text-ink" onClick={() => setNotesOpen((v) => !v)} aria-expanded={notesOpen}>
                 Notes ({state.journal.length})
               </button>
             ) : null}
           </div>
           <ul className="flex flex-col gap-1.5">
             {state.stage.objectives.map((o) => (
-              <li key={o.id} className={`flex items-start gap-2.5 text-[15px] leading-snug ${o.met ? "opacity-60" : "font-semibold"}`}>
+              <li key={o.id} className={`flex items-start gap-2.5 text-base leading-snug ${o.met ? "text-muted" : "font-semibold text-ink"}`}>
                 <span
                   aria-hidden
-                  className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-black ${o.met ? "border-emerald-600 bg-emerald-600 text-white" : "border-black/35 dark:border-white/40"}`}
+                  className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${o.met ? "border-world bg-world text-paper" : "border-line-strong"}`}
                 >
                   {o.met ? <Check className="h-3.5 w-3.5" strokeWidth={3.5} aria-hidden /> : null}
                 </span>
                 <span className="min-w-0">
                   <span className={o.met ? "line-through" : ""}>{o.title}</span>
                   {!o.met && state.objectiveHints[o.id] ? (
-                    <span className="flex items-start gap-1 text-[13px] font-semibold opacity-70">
+                    <span className="flex items-start gap-1 text-sm font-normal text-muted">
                       <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> {state.objectiveHints[o.id]}
                     </span>
                   ) : null}
@@ -407,16 +421,16 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
             ))}
           </ul>
           {notesOpen && state.journal.length ? (
-            <ul className="flex max-h-48 flex-col gap-2 overflow-y-auto rounded-xl border-2 border-black/10 p-2 dark:border-white/15">
+            <ul className="flex max-h-48 flex-col gap-2 overflow-y-auto border-l-[3px] border-world pl-3">
               {state.journal.map((j) => (
-                <li key={j.id} className="flex gap-3 rounded-lg bg-white/60 p-3 text-[15px] leading-relaxed dark:bg-white/5">
+                <li key={j.id} className="flex gap-3 rounded-control bg-surface p-3 text-base leading-relaxed text-ink">
                   {state.evidenceImages[j.id] ? (
                     // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
-                    <img src={state.evidenceImages[j.id]} alt="" className="h-14 w-14 flex-none rounded-lg object-cover" />
+                    <img src={state.evidenceImages[j.id]} alt="" className="h-14 w-14 flex-none rounded-control object-cover" />
                   ) : null}
                   <div className="min-w-0">
                     <p>{j.text}</p>
-                    {j.sourceSpan ? <p className="mt-1 text-[13px] opacity-70">{j.sourceSpan}</p> : null}
+                    {j.sourceSpan ? <p className="mt-1 font-serif text-base italic text-record">{j.sourceSpan}</p> : null}
                   </div>
                 </li>
               ))}
@@ -424,30 +438,30 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           ) : null}
 
           {canDecide ? (
-            <div className="flex flex-col gap-2 rounded-2xl border-2 border-amber-500 bg-amber-400/20 p-3 shadow-[0_0_0_4px_rgba(245,158,11,0.15)]">
+            <div className="flex flex-col gap-2 rounded-surface border border-signal bg-signal-wash p-3">
               <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
-                <span id="decide" className="text-lg font-extrabold">
+                <span id="decide" className="font-serif text-xl text-ink">
                   You can decide now
                 </span>
-                <span className="text-[15px] font-semibold opacity-80">
-                  {decided}/{state.commitments.length} decided · {decisionOpen ? "hide" : "show"}
+                <span className="text-base text-muted">
+                  {decided} of {state.commitments.length} decided. {decisionOpen ? "Hide" : "Show"}
                 </span>
               </button>
               {decisionOpen ? (
                 <>
-                  <p className="text-[15px] leading-snug opacity-80">This ends the stage. There is no going back.</p>
+                  <p className="text-base leading-snug text-ink">This ends the stage. There is no going back.</p>
                   <ul className="flex flex-col gap-2">
                     {state.options.map((o) => (
                       <li key={o.id}>
                         <button
                           type="button"
-                          className={`${o.available ? primary : chip} w-full flex-col items-start gap-0.5 rounded-xl text-left ${o.available ? "" : "min-h-11"}`}
+                          className={`${o.available ? primary : chip} w-full flex-col items-start gap-0.5 text-left ${o.available ? "" : "min-h-11"}`}
                           disabled={!o.available || busy !== null}
                           onClick={() => decide(o.id)}
                         >
                           <span className="leading-snug">{o.label}</span>
                           {!o.available ? (
-                            <span className="inline-flex items-center gap-1 text-[13px] font-semibold opacity-70">
+                            <span className="inline-flex items-center gap-1 text-sm font-normal text-muted">
                               <Lock className="h-3.5 w-3.5" aria-hidden /> {o.unavailableReason}
                             </span>
                           ) : null}
@@ -459,32 +473,32 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               ) : null}
             </div>
           ) : (
-            <button type="button" className="flex w-full items-center justify-between rounded-2xl border-2 border-dashed border-black/20 px-3 py-2.5 text-left dark:border-white/25" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
-              <span id="decide" className="inline-flex items-center gap-2 text-[15px] font-bold opacity-80">
-                <Lock className="h-4 w-4" aria-hidden /> Decision locked · finish your goals first
+            <button type="button" className="flex w-full items-center justify-between rounded-control border border-dashed border-line-strong px-3 py-2.5 text-left hover:border-ink" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
+              <span id="decide" className="inline-flex items-center gap-2 text-base font-semibold text-muted">
+                <Lock className="h-4 w-4" aria-hidden /> Decision locked. Finish your goals first.
               </span>
-              <span className="text-[13px] font-semibold opacity-60">{decisionOpen ? "hide" : "see choices"}</span>
+              <span className="text-sm text-muted">{decisionOpen ? "Hide" : "See choices"}</span>
             </button>
           )}
           {!canDecide && decisionOpen ? (
-            <ul className="flex flex-col gap-1.5 text-[15px] leading-snug opacity-75">
+            <ul className="flex flex-col gap-1.5 text-base leading-snug text-muted">
               {state.options.map((o) => (
-                <li key={o.id} className="rounded-xl bg-white/50 px-3 py-2 dark:bg-white/5">
+                <li key={o.id} className="rounded-control bg-surface px-3 py-2">
                   {o.label}
-                  {o.unavailableReason ? <span className="block text-[13px] opacity-80">{o.unavailableReason}</span> : null}
+                  {o.unavailableReason ? <span className="block text-sm">{o.unavailableReason}</span> : null}
                 </li>
               ))}
             </ul>
           ) : null}
 
           {notice ? (
-            <p role="status" className="rounded-xl border-2 border-amber-500/60 bg-amber-400/15 px-3 py-2 text-[15px] leading-snug">
+            <p role="status" className="rounded-control border border-signal bg-signal-wash px-3.5 py-2.5 text-base leading-snug text-ink">
               {notice}
             </p>
           ) : null}
           {busy && busy !== "Speaking…" ? (
-            <p role="status" aria-live="polite" className="text-[15px] font-semibold opacity-70">
-              {busy}
+            <p role="status" aria-live="polite" className="inline-flex items-center gap-2 text-base text-muted">
+              <Spinner /> {busy}
             </p>
           ) : null}
         </section>

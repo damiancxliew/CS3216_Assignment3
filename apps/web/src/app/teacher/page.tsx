@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { BriefChat } from "./brief-chat";
 import { SignInButton } from "@/components/sign-in-button";
-import { StatusBadge } from "@/components/ui";
+import { EmptyState, Page, StatusBadge } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -28,12 +28,9 @@ export default async function TeacherHome() {
 
   if (!user) {
     return (
-      <Shell>
-        <p className="opacity-80">
-          Sign in to build an adventure from your own source material.
-        </p>
-        <SignInButton next="/teacher" label="Teacher sign-in with Google" />
-      </Shell>
+      <Page title="Your adventures" lede="Sign in to build an adventure from your own source material.">
+        <SignInButton next="/teacher" label="Sign in with Google" />
+      </Page>
     );
   }
 
@@ -48,58 +45,40 @@ export default async function TeacherHome() {
   const adventures = data ?? [];
 
   return (
-    <Shell>
-      <section className="flex flex-col gap-4">
-        {adventures.length === 0 ? (
-          <p className="opacity-70">
-            Nothing here yet. Start with the class you are teaching next.
-          </p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-black/10 dark:divide-white/10">
-            {adventures.map((adventure) => (
-              <li key={adventure.id}>
-                <Link
-                  href={`/teacher/${adventure.id}`}
-                  className="flex items-baseline justify-between gap-4 py-3 transition hover:opacity-70"
-                >
-                  <span className="flex flex-col">
-                    <span className="font-medium">{adventure.title}</span>
-                    {adventure.setting ? (
-                      <span className="text-sm opacity-60">{adventure.setting}</span>
-                    ) : null}
-                  </span>
-                  <StatusBadge
-                    status={adventure.status}
-                    version={adventure.published_version}
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+    <Page
+      title="Your adventures"
+      kicker={<form action="/auth/signout" method="post"><button type="submit" className="hover:text-ink">Sign out</button></form>}
+      width="wide"
+    >
+      <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+        <section className="flex flex-col gap-4">
+          {adventures.length === 0 ? (
+            <EmptyState title="No adventures yet">Start with the class you are teaching next.</EmptyState>
+          ) : (
+            <ul className="flex flex-col divide-y divide-line border-y border-line">
+              {adventures.map((adventure) => (
+                <li key={adventure.id}>
+                  <Link
+                    href={`/teacher/${adventure.id}`}
+                    className="group flex items-baseline justify-between gap-4 py-4 transition-colors hover:text-record"
+                  >
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-serif text-xl text-ink group-hover:text-record">{adventure.title}</span>
+                      {adventure.setting ? <span className="text-base text-muted">{adventure.setting}</span> : null}
+                    </span>
+                    <StatusBadge status={adventure.status} version={adventure.published_version} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-      <section className="flex flex-col gap-4 rounded-2xl border border-black/10 p-6 dark:border-white/15">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-medium">New adventure</h2>
-          <p className="text-sm opacity-60">
-            A few questions to agree the brief — setting, role, objectives, reading level and what each stage is about. The planner builds from it, so it is settled once, here.
-          </p>
-        </div>
-        <BriefChat />
-      </section>
-    </Shell>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-6 py-16">
-      <header className="flex flex-col gap-2">
-        <p className="text-sm uppercase tracking-widest opacity-60">Teacher console</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Your adventures</h1>
-      </header>
-      {children}
-    </main>
+        <section className="flex flex-col gap-5 rounded-surface border border-line bg-surface p-6">
+          <h2 className="font-serif text-2xl text-ink">New adventure</h2>
+          <BriefChat />
+        </section>
+      </div>
+    </Page>
   );
 }

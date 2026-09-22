@@ -4,6 +4,7 @@ import { Check, Pencil } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { briefTurn, createAdventure } from "./actions";
+import { button, control, ErrorText, Pending, Thinking } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
 import {
@@ -25,11 +26,17 @@ import {
  * adventure, so leaving the page discards the draft.
  */
 export function BriefChat() {
+  const [started, setStarted] = useState(false);
   const [state, setState] = useState<BriefState>(initialBriefState);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const endRef = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (started) composer.current?.focus();
+  }, [started]);
 
   const slot = currentSlot(state.draft);
   const key = slotKey(slot);
@@ -63,28 +70,30 @@ export function BriefChat() {
     });
   }
 
+  if (!started) return <Start onStart={() => setStarted(true)} />;
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <Progress draft={state.draft} slot={slot} />
 
-      <ol className="flex max-h-[28rem] flex-col gap-3 overflow-y-auto pr-1 text-sm" aria-live="polite">
+      <ol className="flex max-h-[28rem] flex-col gap-3 overflow-y-auto pr-1 text-base" aria-live="polite">
         {state.messages.map((message, index) => (
           <li
             key={index}
             className={
               message.role === "user"
-                ? "ml-10 self-end rounded-2xl rounded-br-sm bg-foreground px-4 py-2 text-background"
-                : "mr-10 self-start rounded-2xl rounded-bl-sm border border-black/10 px-4 py-2 dark:border-white/15"
+                ? "ml-10 self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper"
+                : "mr-10 self-start rounded-surface rounded-bl-sm bg-sunken px-4 py-3 text-ink"
             }
           >
             <p className="whitespace-pre-wrap">{message.text}</p>
             {message.role === "assistant" && message.proposal ? (
-              <p className="mt-2 rounded-lg bg-black/5 px-3 py-2 text-xs dark:bg-white/10">
-                <span className="font-medium">{message.proposal.title}</span> — {message.proposal.focus}
+              <p className="mt-3 border-l-2 border-line-strong pl-3">
+                <span className="font-semibold">{message.proposal.title}.</span> {message.proposal.focus}
               </p>
             ) : null}
             {message.role === "assistant" && message.proposedObjectives?.length ? (
-              <ol className="mt-2 list-decimal space-y-1 rounded-lg bg-black/5 px-3 py-2 pl-7 text-xs dark:bg-white/10">
+              <ol className="mt-3 list-decimal space-y-1 border-l-2 border-line-strong pl-7">
                 {message.proposedObjectives.map((objective) => (
                   <li key={objective}>{objective}</li>
                 ))}
@@ -92,7 +101,11 @@ export function BriefChat() {
             ) : null}
           </li>
         ))}
-        {pending ? <li className="mr-10 self-start px-4 py-2 text-xs opacity-50">Thinking…</li> : null}
+        {pending ? (
+          <li className="mr-10 self-start px-4 py-2">
+            <Thinking label="Working out the next question" />
+          </li>
+        ) : null}
         <div ref={endRef} />
       </ol>
 
@@ -104,7 +117,7 @@ export function BriefChat() {
             <div className="flex flex-wrap gap-2">
               {acceptLabel ? (
                 <Chip onClick={() => send({ accept: true })} disabled={pending} primary>
-                  <Check className="h-3.5 w-3.5" aria-hidden /> {acceptLabel}
+                  <Check className="h-4 w-4" aria-hidden /> {acceptLabel}
                 </Chip>
               ) : null}
               {replies.map((reply) => (
@@ -122,6 +135,7 @@ export function BriefChat() {
             }}
           >
             <textarea
+              ref={composer}
               value={text}
               onChange={(event) => setText(event.target.value)}
               onKeyDown={(event) => {
@@ -132,37 +146,48 @@ export function BriefChat() {
               }}
               rows={2}
               disabled={pending}
-              placeholder="Type your answer… (Enter to send, Shift+Enter for a new line)"
+              placeholder="Type your answer. Enter sends, Shift+Enter for a new line."
               aria-label="Your answer"
-              className="flex-1 resize-none rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground disabled:opacity-50 dark:border-white/20"
+              className={`${control} flex-1 resize-none`}
             />
-            <button
-              type="submit"
-              disabled={pending || !text.trim()}
-              className="inline-flex items-center rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background transition hover:opacity-90 disabled:opacity-50"
-            >
-              Send
+            <button type="submit" disabled={pending || !text.trim()} className={button.primary}>
+              {pending ? <Pending>Sending</Pending> : "Send"}
             </button>
           </form>
         </>
       )}
 
-      {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
+      {error ? <ErrorText>{error}</ErrorText> : null}
     </div>
   );
 }
 
 const STEP_LABELS: Record<string, string> = {
-  title: "Title",
-  setting: "Setting",
-  studentRole: "Role",
-  learningObjectives: "Objectives",
-  band: "Level",
-  ages: "Ages",
-  stageCount: "Stages",
+  title: "A title",
+  setting: "Where and when it takes place",
+  studentRole: "Who the student plays",
+  learningObjectives: "What students should be able to explain by the end",
+  band: "Reading level",
+  ages: "Age range",
+  stageCount: "How many stages",
 };
 
-/** One dot per question, so the teacher can see how long the conversation is. */
+/** Before the first question: one line and a button. The questions reveal themselves as they come. */
+function Start({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <p className="text-base text-muted">A few short questions, about five minutes.</p>
+      <button type="button" onClick={onStart} className={button.primary}>
+        Start the brief
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The brief as a stepper: one segment per question, filled as it is answered.
+ * Stage questions only appear once the teacher has said how many stages there are.
+ */
 function Progress({ draft, slot }: { draft: BriefState["draft"]; slot: Slot }) {
   const steps: { key: string; label: string; done: boolean }[] = Object.entries(STEP_LABELS).map(([k, label]) => ({
     key: k,
@@ -170,22 +195,46 @@ function Progress({ draft, slot }: { draft: BriefState["draft"]; slot: Slot }) {
     done: draft[k as keyof typeof draft] !== undefined,
   }));
   for (let index = 0; index < (draft.stageCount ?? 0); index += 1) {
-    steps.push({ key: `stage:${index}`, label: `Stage ${index + 1}`, done: Boolean(draft.stageOutline?.[index]) });
+    steps.push({ key: `stage:${index}`, label: `What stage ${index + 1} is about`, done: Boolean(draft.stageOutline?.[index]) });
   }
   const current = slotKey(slot);
+  const position = steps.findIndex((step) => step.key === current);
+  const finished = slot.name === "confirm";
+  const next = position >= 0 ? steps[position + 1] : undefined;
+
   return (
-    <ol className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-      {steps.map((step) => (
-        <li
-          key={step.key}
-          className={`flex items-center gap-1 ${step.key === current ? "font-medium" : step.done ? "opacity-70" : "opacity-40"}`}
-          aria-current={step.key === current ? "step" : undefined}
-        >
-          <span className={`h-1.5 w-1.5 rounded-full ${step.done ? "bg-foreground" : "border border-current"}`} aria-hidden />
-          {step.label}
-        </li>
-      ))}
-    </ol>
+    <div className="flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-base">
+        {finished ? (
+          <p className="font-semibold text-world">All {steps.length} questions answered</p>
+        ) : (
+          <>
+            <p className="text-ink">
+              <span className="font-semibold">Question {position + 1} of {steps.length}</span>
+              {draft.stageCount === undefined ? <span className="text-muted">, then one per stage</span> : null}
+            </p>
+            <p className="text-muted">{next ? `Next: ${next.label.toLowerCase()}` : "Last one"}</p>
+          </>
+        )}
+      </div>
+      <ol className="flex gap-1" aria-label="Questions in the brief">
+        {steps.map((step, index) => {
+          const isCurrent = step.key === current;
+          return (
+            <li
+              key={step.key}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${step.done ? "bg-world" : isCurrent ? "bg-ink" : "bg-line"}`}
+              aria-current={isCurrent ? "step" : undefined}
+              title={`${index + 1}. ${step.label}`}
+            >
+              <span className="sr-only">
+                {index + 1}. {step.label}: {step.done ? "answered" : isCurrent ? "current" : "not yet"}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -215,45 +264,41 @@ function Summary({
       ),
     },
     { key: "band", label: "Reading level", value: draft.band ? READING_BAND_LABELS[draft.band] : null },
-    { key: "ages", label: "Ages", value: draft.ages ? `${draft.ages.ageMin}–${draft.ages.ageMax}` : null },
+    { key: "ages", label: "Ages", value: draft.ages ? `${draft.ages.ageMin} to ${draft.ages.ageMax}` : null },
     { key: "stageCount", label: "Stages", value: draft.stageCount },
     ...(draft.stageOutline ?? []).map((stage, index) => ({
       key: `stage:${index}`,
       label: `Stage ${index + 1}`,
       value: stage ? (
         <>
-          <span className="font-medium">{stage.title}</span> — {stage.focus}
+          <span className="font-semibold">{stage.title}.</span> {stage.focus}
         </>
       ) : null,
     })),
   ];
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-black/10 p-5 text-sm dark:border-white/15">
-      <dl className="flex flex-col divide-y divide-black/10 dark:divide-white/10">
+    <div className="flex flex-col gap-4 border-t border-line pt-4 text-base">
+      <p className="text-muted">Everything below is settled. Change anything, then create the adventure.</p>
+      <dl className="flex flex-col divide-y divide-line">
         {rows.map((row) => (
-          <div key={row.key} className="flex items-start gap-3 py-2">
-            <dt className="w-28 shrink-0 opacity-60">{row.label}</dt>
-            <dd className="flex-1">{row.value}</dd>
+          <div key={row.key} className="flex items-start gap-3 py-2.5">
+            <dt className="w-32 shrink-0 text-muted">{row.label}</dt>
+            <dd className="flex-1 text-ink">{row.value}</dd>
             <button
               type="button"
               onClick={() => onChange(row.key)}
               disabled={pending}
               aria-label={`Change ${row.label.toLowerCase()}`}
-              className="rounded-full p-1 opacity-50 transition hover:bg-black/5 hover:opacity-100 disabled:opacity-30 dark:hover:bg-white/10"
+              className="rounded-control p-1.5 text-muted transition-colors hover:bg-sunken hover:text-ink disabled:opacity-40"
             >
-              <Pencil className="h-3.5 w-3.5" aria-hidden />
+              <Pencil className="h-4 w-4" aria-hidden />
             </button>
           </div>
         ))}
       </dl>
-      <button
-        type="button"
-        onClick={onCreate}
-        disabled={pending}
-        className="inline-flex w-fit items-center rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background transition hover:opacity-90 disabled:opacity-50"
-      >
-        {pending ? "Creating…" : "Create adventure"}
+      <button type="button" onClick={onCreate} disabled={pending} className={`${button.primary} w-fit`}>
+        {pending ? <Pending>Creating the adventure…</Pending> : "Create adventure"}
       </button>
     </div>
   );
@@ -275,10 +320,10 @@ function Chip({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm transition disabled:opacity-50 ${
+      className={`inline-flex min-h-10 items-center gap-1.5 rounded-control px-3.5 py-1.5 text-base font-semibold transition-colors disabled:opacity-60 ${
         primary
-          ? "bg-foreground text-background hover:opacity-90"
-          : "border border-black/15 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+          ? "bg-ink text-paper hover:bg-record"
+          : "border border-line-strong text-ink hover:border-ink hover:bg-surface"
       }`}
     >
       {children}
