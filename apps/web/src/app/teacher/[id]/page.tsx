@@ -4,10 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { SharePanel } from "./share-panel";
 import {
-  addFileSource,
-  addTextSource,
   generateFromSources,
-  importSpec,
   publishAdventure,
   startEdit,
   updateDefaultTimer,
@@ -19,7 +16,6 @@ import {
   button,
   EmptyState,
   Field,
-  FileField,
   Page,
   Section,
   StatusBadge,
@@ -100,6 +96,7 @@ export default async function AdventurePage({
     .from("source")
     .select("id, title, kind, page_map")
     .eq("adventure_id", id)
+    .order("created_at")
     .returns<
       {
         id: string;
@@ -108,6 +105,7 @@ export default async function AdventurePage({
         page_map: { pages?: number } | null;
       }[]
     >();
+  const sourceRows = sources ?? [];
 
   const { data: stageRows } = editable
     ? await supabase
@@ -174,6 +172,16 @@ export default async function AdventurePage({
                 <span className="font-semibold">{stage.title}.</span> {stage.focus}
               </BriefRow>
             ))}
+            <BriefRow label="Sources">
+              <ul className="flex flex-col gap-0.5">
+                {sourceRows.map((source) => (
+                  <li key={source.id}>
+                    {source.title ?? "Untitled"}
+                    {source.page_map?.pages ? <span className="text-muted"> ({plural(source.page_map.pages, "page")})</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </BriefRow>
           </dl>
         ) : (
           <p className="text-base text-muted">
@@ -182,61 +190,10 @@ export default async function AdventurePage({
         )}
       </Section>
 
-      <Section title="Sources" lede="Pages are what the debrief cites, so text is extracted page by page.">
-        {sources && sources.length > 0 ? (
-          <ul className="flex flex-col divide-y divide-line border-y border-line">
-            {sources.map((source) => (
-              <li key={source.id} className="flex items-baseline justify-between gap-4 py-2.5">
-                <span className="font-serif text-lg text-ink">{source.title ?? "Untitled"}</span>
-                <span className="text-base text-muted">
-                  {source.kind}
-                  {source.page_map?.pages ? `, ${plural(source.page_map.pages, "page")}` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState title="No sources yet">
-            Upload a PDF or paste a passage. Whatever you add here is what the debrief will quote, page by page.
-          </EmptyState>
-        )}
-        <ActionForm
-          action={addFileSource.bind(null, adventure.id)}
-          submitLabel="Upload source"
-          pendingLabel="Reading…"
-          event={ANALYTICS_EVENTS.sourceUploaded}
-        >
-          <Field name="title" label="Source title" placeholder="Uses the filename" optional />
-          <FileField
-            name="file"
-            label="PDF, .txt or .md"
-            accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
-            hint="A scanned PDF has no text layer. Paste its text below instead."
-          />
-        </ActionForm>
-
-        <details className="text-base">
-          <summary className="cursor-pointer text-muted hover:text-ink">Or paste the text</summary>
-          <div className="pt-4">
-            <ActionForm
-              action={addTextSource.bind(null, adventure.id)}
-              submitLabel="Add source"
-              pendingLabel="Adding…"
-              event={ANALYTICS_EVENTS.sourceUploaded}
-            >
-              <Field name="title" label="Source title" placeholder="Classroom handout" optional />
-              <Field name="body" label="Source text" placeholder="Paste the passage students will play from…" multiline />
-            </ActionForm>
-          </div>
-        </details>
-      </Section>
-
-      <Section title="Content">
+      <Section title="Playable version" lede="The planner turns the brief and the sources into stages, stakeholders and evidence. Every stage is editable before you publish.">
         {versions.length === 0 ? (
-          <EmptyState title="No playable version yet">
-            {sources && sources.length > 0
-              ? "Generate a draft from the sources above. It takes a minute or two, and you can edit every stage before publishing."
-              : "Add at least one source above, then generate a draft from it."}
+          <EmptyState title="Not generated yet">
+            Generating takes a minute or two. Nothing here is visible to students until you publish.
           </EmptyState>
         ) : (
           <ul className="flex flex-col divide-y divide-line border-y border-line text-base">
@@ -277,45 +234,14 @@ export default async function AdventurePage({
 
         {draft ? (
           <p className="text-base text-muted">Publish or discard draft version {draft.version} before generating again.</p>
-        ) : (
-          <div className="flex flex-col gap-2 text-base">
-            {!sources || sources.length === 0 ? (
-              <p className="text-muted">Add at least one source, then generate {versions.length === 0 ? "a draft" : "a new version"} from it.</p>
-            ) : (
-              <ActionButton
-                action={generateFromSources.bind(null, adventure.id)}
-                label={`Generate ${versions.length === 0 ? "a draft" : "a new version"} from ${plural(sources.length, "source")}`}
-                pendingLabel="Generating… this takes a minute or two"
-                event={ANALYTICS_EVENTS.generationCompleted}
-              />
-            )}
-            <p className="text-muted">The planner builds from the brief above and the sources.</p>
-          </div>
-        )}
-
-        <details className="text-base">
-          <summary className="cursor-pointer text-muted hover:text-ink">Import an adventure spec</summary>
-          <div className="flex flex-col gap-3 pt-4">
-            <ActionForm
-              action={importSpec.bind(null, adventure.id)}
-              submitLabel="Import as draft"
-              pendingLabel="Importing…"
-              event={ANALYTICS_EVENTS.generationCompleted}
-            >
-              <Field
-                name="spec"
-                label="Adventure spec v2 (JSON)"
-                placeholder='{"version": 2, "id": "…"}'
-                multiline
-                rows={8}
-              />
-            </ActionForm>
-            <p className="max-w-[60ch] text-muted">
-              For a spec produced elsewhere (the generation CLI, a hand-authored fixture).
-              It goes through the same validation and write path as generation.
-            </p>
-          </div>
-        </details>
+        ) : adventure.reading_level && sourceRows.length > 0 ? (
+          <ActionButton
+            action={generateFromSources.bind(null, adventure.id)}
+            label={versions.length === 0 ? "Generate the adventure" : "Generate a new version"}
+            pendingLabel="Generating… this takes a minute or two"
+            event={ANALYTICS_EVENTS.generationCompleted}
+          />
+        ) : null}
       </Section>
 
       {editable && stages.length > 0 ? (

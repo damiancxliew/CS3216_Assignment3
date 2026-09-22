@@ -25,7 +25,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { persistSpecVersion, SpecPersistError, type PersistedVersion } from "./persist-spec";
 
-/** A `source` row as the console stores it (`addTextSource`, `addFileSource`). */
+/** A `source` row as the console stores it (`addBriefSource`). */
 export type SourceRow = {
   id: string;
   title: string | null;

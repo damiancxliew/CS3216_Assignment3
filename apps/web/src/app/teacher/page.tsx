@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BriefChat } from "./brief-chat";
 import { SignInButton } from "@/components/sign-in-button";
 import { EmptyState, Page, StatusBadge } from "@/components/ui";
+import { briefStateSchema } from "@/lib/brief/schema";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -36,13 +37,27 @@ export default async function TeacherHome() {
 
   // `adventure_select` also admits students playing a published adventure, so
   // the authoring surface filters on ownership rather than leaning on RLS.
-  const { data } = await supabase
-    .from("adventure")
-    .select("id, title, setting, status, published_version, updated_at")
-    .eq("owner_id", user.id)
-    .order("updated_at", { ascending: false })
-    .returns<AdventureRow[]>();
+  // A row still carrying a brief conversation is not an adventure yet: it is
+  // offered back to the chat to resume instead of being listed.
+  const [{ data }, { data: unfinished }] = await Promise.all([
+    supabase
+      .from("adventure")
+      .select("id, title, setting, status, published_version, updated_at")
+      .eq("owner_id", user.id)
+      .is("brief_state", null)
+      .order("updated_at", { ascending: false })
+      .returns<AdventureRow[]>(),
+    supabase
+      .from("adventure")
+      .select("brief_state")
+      .eq("owner_id", user.id)
+      .not("brief_state", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ brief_state: unknown }>(),
+  ]);
   const adventures = data ?? [];
+  const resume = briefStateSchema.safeParse(unfinished?.brief_state);
 
   return (
     <Page
@@ -76,7 +91,7 @@ export default async function TeacherHome() {
 
         <section className="flex flex-col gap-5 rounded-surface border border-line bg-surface p-6">
           <h2 className="font-serif text-2xl text-ink">New adventure</h2>
-          <BriefChat />
+          <BriefChat resume={resume.success ? resume.data : undefined} />
         </section>
       </div>
     </Page>

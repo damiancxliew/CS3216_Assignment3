@@ -24,8 +24,22 @@ export const readingLevelSchema = z.object({
 });
 export type ReadingLevel = z.infer<typeof readingLevelSchema>;
 
+/**
+ * What the assistant took from the sources once the teacher said they were all
+ * in: a summary it plans from, and its opening suggestion for each of the
+ * typed slots. Filling this fills the `sources` slot.
+ */
+export const sourceDigestSchema = z.object({
+  summary: z.string().trim().min(1).max(800),
+  title: z.string().trim().min(1).max(120),
+  setting: z.string().trim().min(1).max(200),
+  studentRole: z.string().trim().min(1).max(200),
+});
+export type SourceDigest = z.infer<typeof sourceDigestSchema>;
+
 /** The brief while it is being filled. A missing key is a question still to ask. */
 export const briefDraftSchema = z.object({
+  sources: sourceDigestSchema.optional(),
   title: z.string().trim().min(1).max(120).optional(),
   setting: z.string().trim().min(1).max(200).optional(),
   studentRole: z.string().trim().min(1).max(200).optional(),
@@ -38,7 +52,7 @@ export const briefDraftSchema = z.object({
 });
 export type BriefDraft = z.infer<typeof briefDraftSchema>;
 
-/** What `createAdventure` needs: every slot filled. */
+/** What `finishBrief` needs: every slot filled. */
 export const completeBriefSchema = z.object({
   title: z.string().trim().min(1).max(120),
   setting: z.string().trim().min(1).max(200),
@@ -62,7 +76,7 @@ export function completeBrief(draft: BriefDraft): CompleteBrief | null {
 }
 
 /** Slots in the order they are asked. `stage` repeats once per stage; `confirm` is the summary. */
-export const SLOT_ORDER = ["title", "setting", "studentRole", "learningObjectives", "band", "ages", "stageCount", "stage", "confirm"] as const;
+export const SLOT_ORDER = ["sources", "title", "setting", "studentRole", "learningObjectives", "band", "ages", "stageCount", "stage", "confirm"] as const;
 export type SlotName = (typeof SLOT_ORDER)[number];
 
 type ScalarSlotName = Exclude<SlotName, "stage">;
@@ -80,6 +94,7 @@ export function parseSlotKey(key: string): Slot | null {
 
 /** The first unfilled slot in order; `confirm` once everything is in. */
 export function currentSlot(draft: BriefDraft): Slot {
+  if (draft.sources === undefined) return { name: "sources" };
   if (draft.title === undefined) return { name: "title" };
   if (draft.setting === undefined) return { name: "setting" };
   if (draft.studentRole === undefined) return { name: "studentRole" };
@@ -115,6 +130,8 @@ export type ChatMessage = {
   proposal?: StageOutline;
   /** Objectives the assistant drafted from the teacher's words, likewise acceptable as-is. */
   proposedObjectives?: string[];
+  /** A title, setting or student role the assistant read out of the sources, likewise acceptable as-is. */
+  proposedText?: string;
 };
 
 export const chatMessageSchema: z.ZodType<ChatMessage> = z.object({
@@ -123,16 +140,37 @@ export const chatMessageSchema: z.ZodType<ChatMessage> = z.object({
   slot: z.string().max(20),
   proposal: stageOutlineSchema.optional(),
   proposedObjectives: z.array(z.string().max(300)).max(6).optional(),
+  proposedText: z.string().max(200).optional(),
 });
 
+/** A source as the chat lists it; the text itself stays in the database and is read there each turn. */
+export const briefSourceSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().max(200),
+  pages: z.number().int().min(0),
+});
+export type BriefSource = z.infer<typeof briefSourceSchema>;
+
+/**
+ * The conversation round-trips through the client and is mirrored onto the
+ * adventure row after every turn (`adventure.brief_state`), so the row exists
+ * from the first question: the sources uploaded mid-conversation hang off it.
+ */
 export const briefStateSchema = z.object({
+  adventureId: z.string().uuid(),
   draft: briefDraftSchema,
   messages: z.array(chatMessageSchema).max(200),
+  sources: z.array(briefSourceSchema).max(20),
 });
 export type BriefState = z.infer<typeof briefStateSchema>;
 
-export function initialBriefState(): BriefState {
-  return { draft: {}, messages: [{ role: "assistant", text: QUESTIONS.title, slot: "title" }] };
+export function initialBriefState(adventureId: string): BriefState {
+  return {
+    adventureId,
+    draft: {},
+    messages: [{ role: "assistant", text: QUESTIONS.sources, slot: "sources" }],
+    sources: [],
+  };
 }
 
 /** What the teacher did this turn. */
@@ -142,6 +180,9 @@ export type BriefInput =
   | { accept: true }
   /** Reopen a slot from the summary. */
   | { change: string };
+
+/** The teacher's chip on the sources step; any text there means the same thing. */
+export const SOURCES_DONE = "That’s all of them";
 
 export const READING_BAND_LABELS: Record<(typeof READING_BANDS)[number], string> = {
   primary: "Primary",
@@ -160,7 +201,9 @@ export const BAND_AGES: Record<(typeof READING_BANDS)[number], { ageMin: number;
 
 /** Scripted questions. Stage questions come from the model; `confirm` is rendered as a summary. */
 export const QUESTIONS: Record<Exclude<SlotName, "stage">, string> = {
-  title: "Let’s set up your adventure. What should it be called?",
+  sources:
+    "Let’s start with the material your students will play from. Upload a PDF, .txt or .md, or paste a passage — as many as you like. Everything the adventure says will be cited from these, page by page. Tell me when they’re all in and I’ll read them.",
+  title: "What should the adventure be called?",
   setting: "Where and when does it take place? A place and a date is enough — e.g. “Singapore and Johor, February 1819”.",
   studentRole: "Who does the student play? Someone present at the events but not the one making history — e.g. “Junior interpreter to the expedition”.",
   learningObjectives: "What should students be able to explain or describe by the end? Tell me in your own words; I’ll turn it into up to six objectives.",
