@@ -182,6 +182,21 @@ and, only once the deadline has actually passed, records the player's pass as a
 there, so a late poll cannot overwrite a decision made in time. Closing the stage and
 resolving it remain orchestration's job; this only guarantees the pass exists.
 
+## Resume (P7, FR-18)
+
+There is nothing to restore, because nothing was ever only in the tab: the attempt
+row, `attempt_state` (journal, position), the room transcript and the stage's
+commitments are all server-side already. `loadResumeState()` in
+`apps/web/src/lib/attempts/resume.ts` reads them **as the signed-in user**, so RLS —
+not the function — decides what comes back: another student's attempt is null, private
+agent-to-agent messages are filtered by the `message_select` policy, and
+`agent_memory`/`resolution` are denied to client roles outright (FR-21).
+
+The recap is derived on each read rather than stored, so it can only ever restate
+public state the student has already seen. The countdown resumes against `server_now()`
+rather than the browser clock, so reopening a tab shows the real remaining time and
+changes nothing about the deadline.
+
 ## Analytics (M19)
 
 Event names are frozen in `apps/web/src/lib/analytics/events.ts` and cover the funnel
