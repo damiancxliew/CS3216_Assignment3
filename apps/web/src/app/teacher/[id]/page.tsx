@@ -3,8 +3,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { READING_BANDS } from "@adventure/generation/spec";
-
 import { SharePanel } from "./share-panel";
 import {
   addFileSource,
@@ -22,11 +20,11 @@ import {
   Field,
   FileField,
   Section,
-  SelectField,
   StatusBadge,
   READING_BAND_LABELS,
 } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
+import type { ReadingLevel } from "@/lib/brief/schema";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -41,13 +39,14 @@ type Adventure = {
   id: string;
   student_role: string | null;
   learning_objectives: string[] | null;
-  reading_level: { band: (typeof READING_BANDS)[number]; ageMin: number; ageMax: number } | null;
+  reading_level: ReadingLevel | null;
   title: string;
   setting: string | null;
   status: "draft" | "published" | "archived";
   published_version: number | null;
   default_timer_seconds: number;
   share_token: string;
+  stage_outline: { title: string; focus: string }[];
 };
 
 type Version = { id: string; version: number; published_at: string | null };
@@ -78,7 +77,7 @@ export default async function AdventurePage({
   // authoring view matches the owner rather than relying on visibility alone.
   const { data: adventure } = await supabase
     .from("adventure")
-    .select("id, title, setting, status, published_version, default_timer_seconds, share_token, student_role, learning_objectives, reading_level")
+    .select("id, title, setting, status, published_version, default_timer_seconds, share_token, student_role, learning_objectives, reading_level, stage_outline")
     .eq("id", id)
     .eq("owner_id", user.id)
     .maybeSingle<Adventure>();
@@ -155,6 +154,31 @@ export default async function AdventurePage({
         </div>
         {adventure.setting ? <p className="opacity-70">{adventure.setting}</p> : null}
       </header>
+
+      <Section title="Brief">
+        {adventure.reading_level ? (
+          <dl className="flex flex-col divide-y divide-black/10 text-sm dark:divide-white/10">
+            <BriefRow label="Student plays">{adventure.student_role}</BriefRow>
+            <BriefRow label="Objectives">
+              <ul className="list-disc pl-4">
+                {adventure.learning_objectives?.map((objective) => <li key={objective}>{objective}</li>)}
+              </ul>
+            </BriefRow>
+            <BriefRow label="Reading level">
+              {READING_BAND_LABELS[adventure.reading_level.band]} · ages {adventure.reading_level.ageMin}–{adventure.reading_level.ageMax}
+            </BriefRow>
+            {adventure.stage_outline.map((stage, index) => (
+              <BriefRow key={stage.title} label={`Stage ${index + 1}`}>
+                <span className="font-medium">{stage.title}</span> — {stage.focus}
+              </BriefRow>
+            ))}
+          </dl>
+        ) : (
+          <p className="text-sm opacity-60">
+            This adventure predates the brief conversation and cannot be generated. Create a new one from the console.
+          </p>
+        )}
+      </Section>
 
       <Section title="Sources">
         {sources && sources.length > 0 ? (
@@ -263,64 +287,19 @@ export default async function AdventurePage({
             Publish or discard draft v{draft.version} before generating again.
           </p>
         ) : (
-          <details className="text-sm" open={versions.length === 0}>
-            <summary className="cursor-pointer opacity-70">
-              Generate {versions.length === 0 ? "a draft" : "a new version"} from the sources
-            </summary>
-            <div className="pt-3">
-              {!sources || sources.length === 0 ? (
-                <p className="opacity-60">Add at least one source first.</p>
-              ) : (
-                <ActionForm
-                  action={generateFromSources.bind(null, adventure.id)}
-                  submitLabel={`Generate from ${sources.length} source${sources.length === 1 ? "" : "s"}`}
-                  pendingLabel="Generating… this takes a minute or two"
-                  event={ANALYTICS_EVENTS.generationCompleted}
-                >
-                  <Field
-                    name="setting"
-                    label="Setting"
-                    placeholder="Singapore and Johor, 1819"
-                    defaultValue={adventure.setting ?? undefined}
-                  />
-                  <Field
-                    name="studentRole"
-                    label="Who the student plays"
-                    placeholder="Junior interpreter to the expedition"
-                    defaultValue={adventure.student_role ?? undefined}
-                  />
-                  <Field
-                    name="learningObjectives"
-                    label="Learning objectives (one per line, up to six)"
-                    placeholder={"Explain why the EIC wanted a port at the Straits\nDescribe the Johor succession dispute"}
-                    multiline
-                    rows={3}
-                    defaultValue={adventure.learning_objectives?.join("\n") || undefined}
-                  />
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <SelectField
-                      name="band"
-                      label="Reading level"
-                      defaultValue={adventure.reading_level?.band ?? "lower-secondary"}
-                      options={READING_BANDS.map((band) => ({ value: band, label: READING_BAND_LABELS[band] }))}
-                    />
-                    <Field name="ageMin" label="Age from" defaultValue={String(adventure.reading_level?.ageMin ?? 13)} />
-                    <Field name="ageMax" label="Age to" defaultValue={String(adventure.reading_level?.ageMax ?? 14)} />
-                    <SelectField
-                      name="stageCount"
-                      label="Stages"
-                      defaultValue="3"
-                      options={[
-                        { value: "1", label: "1" },
-                        { value: "2", label: "2" },
-                        { value: "3", label: "3" },
-                      ]}
-                    />
-                  </div>
-                </ActionForm>
-              )}
-            </div>
-          </details>
+          <div className="flex flex-col gap-2 text-sm">
+            {!sources || sources.length === 0 ? (
+              <p className="opacity-60">Add at least one source, then generate {versions.length === 0 ? "a draft" : "a new version"} from it.</p>
+            ) : (
+              <ActionButton
+                action={generateFromSources.bind(null, adventure.id)}
+                label={`Generate ${versions.length === 0 ? "a draft" : "a new version"} from ${sources.length} source${sources.length === 1 ? "" : "s"}`}
+                pendingLabel="Generating… this takes a minute or two"
+                event={ANALYTICS_EVENTS.generationCompleted}
+              />
+            )}
+            <p className="opacity-60">The planner builds from the brief above and the sources.</p>
+          </div>
         )}
 
         <details className="text-sm">
@@ -475,5 +454,14 @@ export default async function AdventurePage({
         )}
       </Section>
     </main>
+  );
+}
+
+function BriefRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-3 py-2">
+      <dt className="w-28 shrink-0 opacity-60">{label}</dt>
+      <dd className="flex-1">{children}</dd>
+    </div>
   );
 }

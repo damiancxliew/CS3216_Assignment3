@@ -90,6 +90,8 @@ export function ActionButton({
       </button>
       {state.error ? (
         <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
+      ) : state.notice ? (
+        <p className="text-sm opacity-70">{state.notice}</p>
       ) : null}
     </form>
   );

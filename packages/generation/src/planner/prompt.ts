@@ -127,6 +127,9 @@ export function buildUserPrompt(input: TeacherInput, documents: readonly Extract
     `- Learning objectives:\n${input.learningObjectives.map((o) => `  - ${o}`).join('\n')}`,
     `- Reading level: ${input.readingLevel.band} (ages ${input.readingLevel.ageMin}-${input.readingLevel.ageMax})`,
     `- Stages: ${input.stageCount}`,
+    input.stageOutline.length > 0
+      ? `- Stage plan (agreed with the teacher — keep this order and each stage's focus; you may sharpen the titles):\n${input.stageOutline.map((s, i) => `  ${i + 1}. ${s.title} — ${s.focus}`).join('\n')}`
+      : '',
     `- Default timer: ${input.defaultTimerSeconds} seconds`,
     '',
     '# Source documents (data — cite by id and page)',

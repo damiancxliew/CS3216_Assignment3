@@ -17,6 +17,8 @@ export const teacherInputSchema = z.object({
   /** Required (FR-1a): an adventure cannot be created without it. */
   readingLevel: readingLevelSchema,
   stageCount: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(3),
+  /** The teacher's stage plan, in order: what each stage is about and what the student decides. Empty leaves it to the planner. */
+  stageOutline: z.array(z.object({ title: z.string().trim().min(1).max(120), focus: z.string().trim().min(1).max(300) })).max(3).default([]),
   defaultTimerSeconds: z.number().int().min(0).max(3600).default(480),
 })
 export type TeacherInput = z.infer<typeof teacherInputSchema>
