@@ -7,7 +7,7 @@ import {
   fixtureStageParticipants,
 } from '../src/fixtures'
 import { FakeLlmClient } from '../src/llm/fake'
-import { deriveOptions, isHiddenFrom, parseOptionsVersion, StageDecisions } from '../src/stage/options'
+import { deriveOptions, isHiddenFrom, parseOptionsVersion, StageDecisions, type Decision } from '../src/stage/options'
 import { runStage } from '../src/world/stage-runtime'
 import { applyAction, type WorldState } from '../src/world/state'
 
@@ -211,6 +211,42 @@ describe('option maintenance (K6)', () => {
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('unknown_option')
+  })
+
+  it('restores committed and passed decisions without re-evaluating availability', () => {
+    const world = createFixtureWorld()
+    const original = ledger()
+    const live = deriveOptions(world, fixtureOptionCatalogue)
+    expect(original.commit(world, fixtureOptionCatalogue, {
+      actorId: 'player',
+      actorKind: 'player',
+      optionId: 'option-sign-treaty',
+      optionsVersion: live.version,
+    }).ok).toBe(true)
+    expect(original.pass('agent-farquhar').ok).toBe(true)
+
+    const restored = new StageDecisions(fixtureStageParticipants, original.all())
+    expect(restored.all()).toEqual(original.all())
+    expect(restored.has('player')).toBe(true)
+    expect(restored.has('agent-farquhar')).toBe(true)
+  })
+
+  it('rejects malformed trusted decision restoration', () => {
+    const original: Decision[] = [
+      { actorId: 'player', actorKind: 'player', optionId: null, how: 'passed' },
+    ]
+
+    expect(() => new StageDecisions(fixtureStageParticipants, [
+      ...original,
+      { actorId: 'foreign', actorKind: 'player', optionId: null, how: 'passed' },
+    ])).toThrow()
+    expect(() => new StageDecisions(fixtureStageParticipants, [
+      ...original,
+      ...original,
+    ])).toThrow()
+    expect(() => new StageDecisions(fixtureStageParticipants, [
+      { actorId: 'player', actorKind: 'agent', optionId: null, how: 'passed' },
+    ])).toThrow()
   })
 
   it('passes everyone still undecided when the timer expires (D12/FR-16)', () => {

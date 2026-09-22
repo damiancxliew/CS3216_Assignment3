@@ -20,6 +20,7 @@ import {
   StageDecisions,
   visibleTranscript,
   type ActorAction,
+  type Decision,
   type ResolutionRecord,
   type Utterance,
   type WorldState,
@@ -34,7 +35,26 @@ import type {
 
 const MAX_RUNTIME_ATTEMPTS = 500;
 
-type RuntimeAttempt = {
+export interface RuntimeSnapshot {
+  version: 1;
+  stageIndex: number;
+  stageStartedAt: number;
+  deadlineAt: number | null;
+  revision: number;
+  world: WorldState;
+  decisions: Decision[];
+  actions: ActorAction[];
+  currentResolution: ResolutionRecord | null;
+  resolutions: ResolutionRecord[];
+  announcements: PublicAttemptState["announcements"];
+  pendingEffects: PublicEffect[];
+  dispositions: Record<string, number>;
+  journal: PublicAttemptState["journal"];
+  archivedTranscript: PublicMessage[];
+  endingId: string | null;
+}
+
+export interface RuntimeAttempt {
   spec: AdventureSpec;
   bundle: StageRuntimeBundle;
   stageIndex: number;
@@ -52,7 +72,7 @@ type RuntimeAttempt = {
   journal: PublicAttemptState["journal"];
   archivedTranscript: PublicMessage[];
   endingId: string | null;
-};
+}
 
 const globalStore = globalThis as typeof globalThis & {
   __turnApiRuntimeAttempts?: Map<string, RuntimeAttempt>;
@@ -71,17 +91,25 @@ export type CommitDecisionResult = {
   state: PublicAttemptState;
 };
 
-function createLedger(bundle: StageRuntimeBundle): StageDecisions {
-  return new StageDecisions([
-    { actorId: PLAYER_ID, actorKind: "player" },
-    ...bundle.resolverAgents.map((agent) => ({ actorId: agent.id, actorKind: "agent" as const })),
-  ]);
+function createLedger(bundle: StageRuntimeBundle, decisions: readonly Decision[] = []): StageDecisions {
+  return new StageDecisions(
+    [
+      { actorId: PLAYER_ID, actorKind: "player" },
+      ...bundle.resolverAgents.map((agent) => ({ actorId: agent.id, actorKind: "agent" as const })),
+    ],
+    decisions,
+  );
 }
 
 function stage(attempt: RuntimeAttempt) {
   const current = attempt.spec.stages[attempt.stageIndex];
   if (current === undefined) throw new Error(`spec has no stage ${attempt.stageIndex}`);
   return current;
+}
+
+function effectiveDeadline(spec: AdventureSpec, stageIndex: number, now: number): number | null {
+  const seconds = spec.stages[stageIndex]?.timerSeconds ?? spec.defaultTimerSeconds;
+  return seconds === 0 ? null : now + seconds * 1000;
 }
 
 function systemMessage(attemptId: string, attempt: RuntimeAttempt): PublicMessage {
@@ -141,22 +169,25 @@ function enterStage(
   attempt.ledger = createLedger(bundle);
   attempt.actions = [];
   attempt.currentResolution = null;
-  const timerSeconds = attempt.spec.stages[stageIndex]?.timerSeconds ?? attempt.spec.defaultTimerSeconds;
-  attempt.deadlineAt = timerSeconds === 0 ? null : now + timerSeconds * 1000;
+  attempt.deadlineAt = effectiveDeadline(attempt.spec, stageIndex, now);
 }
 
-async function seed(attemptId: string): Promise<RuntimeAttempt> {
-  const spec = await loadI1Spec();
-  const initialBundle = toStageRuntime(spec, 0);
-  const attempt: RuntimeAttempt = {
+export function createRuntimeAttempt(
+  spec: AdventureSpec,
+  stageIndex = 0,
+  now = Date.now(),
+  deadlineAt?: number | null,
+): RuntimeAttempt {
+  const bundle = toStageRuntime(spec, stageIndex);
+  return {
     spec,
-    bundle: initialBundle,
-    stageIndex: -1,
-    stageStartedAt: 0,
-    deadlineAt: null,
+    bundle,
+    stageIndex,
+    stageStartedAt: now,
+    deadlineAt: deadlineAt === undefined ? effectiveDeadline(spec, stageIndex, now) : deadlineAt,
     revision: 1,
-    world: createWorld(initialBundle.world),
-    ledger: new StageDecisions([]),
+    world: createWorld(bundle.world),
+    ledger: createLedger(bundle),
     actions: [],
     currentResolution: null,
     resolutions: [],
@@ -167,14 +198,75 @@ async function seed(attemptId: string): Promise<RuntimeAttempt> {
     archivedTranscript: [],
     endingId: null,
   };
-  enterStage(attemptId, attempt, 0, Date.now());
-  attempts.set(attemptId, attempt);
-  while (attempts.size > MAX_RUNTIME_ATTEMPTS) {
-    const oldest = attempts.keys().next();
-    if (oldest.done) break;
-    attempts.delete(oldest.value);
+}
+
+function sameKeys(actual: Record<string, unknown>, expected: readonly string[]): boolean {
+  return Object.keys(actual).sort().join("\n") === [...expected].sort().join("\n");
+}
+
+export function restoreRuntimeAttempt(
+  spec: AdventureSpec,
+  snapshot: RuntimeSnapshot,
+): RuntimeAttempt {
+  if (snapshot.version !== 1) throw new Error(`unsupported runtime snapshot version ${snapshot.version}`);
+  if (
+    !Number.isInteger(snapshot.stageIndex) ||
+    snapshot.stageIndex < 0 ||
+    snapshot.stageIndex >= spec.stages.length
+  ) {
+    throw new Error(`invalid runtime snapshot stage index ${snapshot.stageIndex}`);
   }
-  return attempt;
+  const bundle = toStageRuntime(spec, snapshot.stageIndex);
+  const expectedRoomIds = bundle.world.rooms.map((room) => room.id);
+  const expectedActorIds = bundle.world.actors.map((actor) => actor.id);
+  const world = structuredClone(snapshot.world);
+  if (!sameKeys(world.rooms, expectedRoomIds)) throw new Error("runtime snapshot room set does not match the stage");
+  if (!sameKeys(world.actors, expectedActorIds)) throw new Error("runtime snapshot actor set does not match the stage");
+  if (!sameKeys(world.location, expectedActorIds)) throw new Error("runtime snapshot placement does not match the stage");
+  const currentStageId = spec.stages[snapshot.stageIndex]?.id;
+  if (snapshot.currentResolution !== null && snapshot.currentResolution.stageId !== currentStageId) {
+    throw new Error("runtime snapshot resolution does not match the active stage");
+  }
+  return {
+    spec,
+    bundle,
+    stageIndex: snapshot.stageIndex,
+    stageStartedAt: snapshot.stageStartedAt,
+    deadlineAt: snapshot.deadlineAt,
+    revision: snapshot.revision,
+    world,
+    ledger: createLedger(bundle, structuredClone(snapshot.decisions)),
+    actions: structuredClone(snapshot.actions),
+    currentResolution: structuredClone(snapshot.currentResolution),
+    resolutions: structuredClone(snapshot.resolutions),
+    announcements: structuredClone(snapshot.announcements),
+    pendingEffects: structuredClone(snapshot.pendingEffects),
+    dispositions: structuredClone(snapshot.dispositions),
+    journal: structuredClone(snapshot.journal),
+    archivedTranscript: structuredClone(snapshot.archivedTranscript),
+    endingId: snapshot.endingId,
+  };
+}
+
+export function snapshotRuntimeAttempt(attempt: RuntimeAttempt): RuntimeSnapshot {
+  return structuredClone({
+    version: 1 as const,
+    stageIndex: attempt.stageIndex,
+    stageStartedAt: attempt.stageStartedAt,
+    deadlineAt: attempt.deadlineAt,
+    revision: attempt.revision,
+    world: attempt.world,
+    decisions: attempt.ledger.all(),
+    actions: attempt.actions,
+    currentResolution: attempt.currentResolution,
+    resolutions: attempt.resolutions,
+    announcements: attempt.announcements,
+    pendingEffects: attempt.pendingEffects,
+    dispositions: attempt.dispositions,
+    journal: attempt.journal,
+    archivedTranscript: attempt.archivedTranscript,
+    endingId: attempt.endingId,
+  });
 }
 
 function applyAndRecord(attempt: RuntimeAttempt, action: ActorAction): { ok: true } | { ok: false } {
@@ -260,7 +352,7 @@ function projectCommitments(attempt: RuntimeAttempt): PublicActorCommitment[] {
   ];
 }
 
-function projectState(attemptId: string, attempt: RuntimeAttempt): PublicAttemptState {
+export function projectRuntimeState(attemptId: string, attempt: RuntimeAttempt): PublicAttemptState {
   const currentStage = stage(attempt);
   const now = Date.now();
   const timerEnabled = attempt.deadlineAt !== null;
@@ -379,9 +471,13 @@ function resolveCurrent(
   return projected;
 }
 
-function expireIfNeeded(attemptId: string, attempt: RuntimeAttempt): void {
-  if (attempt.endingId !== null || attempt.currentResolution !== null) return;
-  if (attempt.deadlineAt === null || Date.now() < attempt.deadlineAt) return;
+export function expireRuntimeAttemptIfNeeded(
+  attemptId: string,
+  attempt: RuntimeAttempt,
+  now = Date.now(),
+): boolean {
+  if (attempt.endingId !== null || attempt.currentResolution !== null) return false;
+  if (attempt.deadlineAt === null || now < attempt.deadlineAt) return false;
   for (const decision of attempt.ledger.expire()) {
     attempt.actions.push({
       actorKind: decision.actorKind,
@@ -390,25 +486,19 @@ function expireIfNeeded(attemptId: string, attempt: RuntimeAttempt): void {
     });
   }
   resolveCurrent(attemptId, attempt, null);
+  return true;
 }
 
-async function get(attemptId: string): Promise<RuntimeAttempt> {
-  const attempt = attempts.get(attemptId) ?? (await seed(attemptId));
-  expireIfNeeded(attemptId, attempt);
-  return attempt;
+export function setRuntimeAttemptDeadline(attempt: RuntimeAttempt, deadlineAt: number | null): void {
+  attempt.deadlineAt = deadlineAt;
 }
 
-export async function runtimeState(attemptId: string): Promise<PublicAttemptState> {
-  const attempt = await get(attemptId);
-  return projectState(attemptId, attempt);
-}
-
-export async function postRuntimeMessage(
+export async function postMessageToRuntimeAttempt(
   attemptId: string,
+  attempt: RuntimeAttempt,
   roomId: string,
   body: string,
 ): Promise<PostMessageResult> {
-  const attempt = await get(attemptId);
   if (attempt.endingId !== null || attempt.currentResolution !== null) {
     return { ok: false, reason: "stage_closed" };
   }
@@ -461,14 +551,14 @@ export async function postRuntimeMessage(
   const newMessages = visibleTranscript(attempt.world, PLAYER_ID)
     .filter((line) => line.seq > beforeSeq)
     .map((line) => publicMessage(attemptId, attempt, line));
-  return { ok: true, newMessages, state: projectState(attemptId, attempt) };
+  return { ok: true, newMessages, state: projectRuntimeState(attemptId, attempt) };
 }
 
-export async function commitRuntimeDecision(
+export async function commitRuntimeAttemptDecision(
   attemptId: string,
+  attempt: RuntimeAttempt,
   optionId: string,
 ): Promise<CommitDecisionResult | null> {
-  const attempt = await get(attemptId);
   if (attempt.endingId !== null || attempt.currentResolution !== null) return null;
   const live = deriveOptions(attempt.world, attempt.bundle.options, PLAYER_ID);
   const option = attempt.bundle.options.find((candidate) => candidate.id === optionId);
@@ -524,13 +614,53 @@ export async function commitRuntimeDecision(
     attempt.actions.push(agentAction);
   }
   const resolution = resolveCurrent(attemptId, attempt, optionId);
-  return { resolution, state: projectState(attemptId, attempt) };
+  return { resolution, state: projectRuntimeState(attemptId, attempt) };
+}
+
+async function seed(attemptId: string): Promise<RuntimeAttempt> {
+  const spec = await loadI1Spec();
+  const attempt = createRuntimeAttempt(spec);
+  attempts.set(attemptId, attempt);
+  while (attempts.size > MAX_RUNTIME_ATTEMPTS) {
+    const oldest = attempts.keys().next();
+    if (oldest.done) break;
+    attempts.delete(oldest.value);
+  }
+  return attempt;
+}
+
+async function get(attemptId: string): Promise<RuntimeAttempt> {
+  const attempt = attempts.get(attemptId) ?? (await seed(attemptId));
+  expireRuntimeAttemptIfNeeded(attemptId, attempt);
+  return attempt;
+}
+
+export async function runtimeState(attemptId: string): Promise<PublicAttemptState> {
+  const attempt = await get(attemptId);
+  return projectRuntimeState(attemptId, attempt);
+}
+
+export async function postRuntimeMessage(
+  attemptId: string,
+  roomId: string,
+  body: string,
+): Promise<PostMessageResult> {
+  const attempt = await get(attemptId);
+  return postMessageToRuntimeAttempt(attemptId, attempt, roomId, body);
+}
+
+export async function commitRuntimeDecision(
+  attemptId: string,
+  optionId: string,
+): Promise<CommitDecisionResult | null> {
+  const attempt = await get(attemptId);
+  return commitRuntimeAttemptDecision(attemptId, attempt, optionId);
 }
 
 export function expireRuntimeDeadline(attemptId: string): void {
   const attempt = attempts.get(attemptId);
   if (attempt === undefined) throw new Error(`cannot expire unknown runtime attempt "${attemptId}"`);
-  if (attempt.deadlineAt !== null) attempt.deadlineAt = Date.now() - 1;
+  if (attempt.deadlineAt !== null) setRuntimeAttemptDeadline(attempt, Date.now() - 1);
 }
 
 export function resetRuntime(): void {

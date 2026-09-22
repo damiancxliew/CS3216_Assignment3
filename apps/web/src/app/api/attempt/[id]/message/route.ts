@@ -4,7 +4,8 @@ import {
   messageRequestSchema,
   messageResponseSchema,
 } from "@/lib/turn-api/contract";
-import { postRuntimeMessage } from "@/lib/turn-api/runtime";
+import { AttemptNotFoundError } from "@/lib/turn-api/supabase-runtime";
+import { createTurnRuntimeBackend } from "@/lib/turn-api/service";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,26 @@ export async function POST(
     );
   }
 
-  const posted = await postRuntimeMessage(id, parsed.data.roomId, parsed.data.body);
+  const backend = await createTurnRuntimeBackend();
+  if (backend === null) {
+    return NextResponse.json(
+      { error: { code: "unauthorized", message: "Sign in to access this attempt." } },
+      { status: 401 },
+    );
+  }
+
+  let posted;
+  try {
+    posted = await backend.postMessage(id, parsed.data.roomId, parsed.data.body);
+  } catch (error) {
+    if (error instanceof AttemptNotFoundError) {
+      return NextResponse.json(
+        { error: { code: "not_found", message: "That attempt was not found." } },
+        { status: 404 },
+      );
+    }
+    throw error;
+  }
   if (!posted.ok) {
     return posted.reason === "unknown_room"
       ? NextResponse.json(

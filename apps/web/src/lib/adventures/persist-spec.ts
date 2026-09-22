@@ -112,6 +112,7 @@ export async function persistSpecVersion(
         .from("stage")
         .insert({
           spec_version_id: specVersion.id,
+          spec_id: stage.id,
           index: stage.index,
           title: stage.title,
           shared_context: stage.sharedContext.text,
@@ -132,6 +133,7 @@ export async function persistSpecVersion(
           .from("room")
           .insert({
             stage_id: uuid(stage.id),
+            spec_id: room.id,
             name: room.name,
             purpose: room.purpose,
             door_default: room.doorDefault,
@@ -149,6 +151,7 @@ export async function persistSpecVersion(
           .from("agent")
           .insert({
             stage_id: uuid(stage.id),
+            spec_id: agent.id,
             name: stakeholder?.name ?? agent.stakeholderId,
             role: stakeholder?.role ?? null,
             public_position: agent.publicPosition.text,
@@ -181,6 +184,7 @@ export async function persistSpecVersion(
           .from("evidence")
           .insert({
             stage_id: uuid(stage.id),
+            spec_id: evidence.id,
             room_id: uuid(evidence.roomId),
             text: evidence.content.text,
             source_span: evidence.content.spans,
@@ -199,7 +203,12 @@ export async function persistSpecVersion(
       const row = await insertOne(
         admin
           .from("objective")
-          .insert({ stage_id: uuid(stage.id), title: objective.title, requires: [] })
+          .insert({
+            stage_id: uuid(stage.id),
+            spec_id: objective.id,
+            title: objective.title,
+            requires: [],
+          })
           .select("id")
           .single(),
       );
@@ -230,6 +239,7 @@ export async function persistSpecVersion(
           .from("decision_option")
           .insert({
             stage_id: uuid(stage.id),
+            spec_id: option.id,
             label: option.label,
             preconditions: option.preconditions.map((p) => ids.get(p) ?? p),
             branch_target: branchTarget,

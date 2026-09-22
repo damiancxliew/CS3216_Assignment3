@@ -179,8 +179,21 @@ export class StageDecisions {
   private readonly participants: Map<string, ActorKind>
   private readonly decisions = new Map<string, Decision>()
 
-  constructor(participants: readonly { actorId: string; actorKind: ActorKind }[]) {
+  constructor(
+    participants: readonly { actorId: string; actorKind: ActorKind }[],
+    existing: readonly Decision[] = [],
+  ) {
     this.participants = new Map(participants.map((p) => [p.actorId, p.actorKind]))
+    for (const decision of existing) {
+      const actorKind = this.participants.get(decision.actorId)
+      if (actorKind === undefined || actorKind !== decision.actorKind) {
+        throw new Error(`cannot restore decision for non-participant "${decision.actorId}"`)
+      }
+      if (this.decisions.has(decision.actorId)) {
+        throw new Error(`cannot restore duplicate decision for "${decision.actorId}"`)
+      }
+      this.decisions.set(decision.actorId, decision)
+    }
   }
 
   /**

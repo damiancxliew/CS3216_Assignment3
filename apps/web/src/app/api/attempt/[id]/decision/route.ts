@@ -4,7 +4,8 @@ import {
   decisionRequestSchema,
   decisionResponseSchema,
 } from "@/lib/turn-api/contract";
-import { commitRuntimeDecision } from "@/lib/turn-api/runtime";
+import { AttemptNotFoundError } from "@/lib/turn-api/supabase-runtime";
+import { createTurnRuntimeBackend } from "@/lib/turn-api/service";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +24,26 @@ export async function POST(
     );
   }
 
-  // Options are re-derived from state, so an option that was valid earlier is
-  // rejected rather than executed (FR-14).
-  const result = await commitRuntimeDecision(id, parsed.data.optionId);
+  const backend = await createTurnRuntimeBackend();
+  if (backend === null) {
+    return NextResponse.json(
+      { error: { code: "unauthorized", message: "Sign in to access this attempt." } },
+      { status: 401 },
+    );
+  }
+
+  let result;
+  try {
+    result = await backend.commitDecision(id, parsed.data.optionId);
+  } catch (error) {
+    if (error instanceof AttemptNotFoundError) {
+      return NextResponse.json(
+        { error: { code: "not_found", message: "That attempt was not found." } },
+        { status: 404 },
+      );
+    }
+    throw error;
+  }
   if (!result) {
     return NextResponse.json(
       {
