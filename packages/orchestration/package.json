@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test",
-    "eval:k9": "vite-node evals/run-k9.ts"
+    "eval:k9": "vite-node evals/run-k9.ts",
+    "eval:k10": "vite-node evals/run-k10.ts"
   },
   "dependencies": {
     "openai": "7.15.0",
