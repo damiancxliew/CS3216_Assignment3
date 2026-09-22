@@ -20,6 +20,7 @@ import { loadResumeState } from "@/lib/attempts/resume";
 import { getState, postAction, postDecision, postMessage, type PlayServiceDeps } from "@/lib/play/service";
 import { SupabasePlayStore } from "@/lib/play/store";
 import { findForbiddenKeys } from "@/lib/turn-api/contract";
+import { AdmissionRefusedError, enterRoom, inspectEvidence, stateOf, talkToAgent, walkTo, type PlayDriver } from "../api/play-driver";
 
 const admin = serviceClient();
 const say = (line: string) => JSON.stringify({ say: line, actions: [] });
@@ -54,6 +55,10 @@ beforeAll(async () => {
 
   deps = { store: new SupabasePlayStore(admin), llm: new FakeLlmClient({ replies: Array(80).fill(say("The anchorage is not the Company's to name a price for.")) }) };
 });
+
+function driverForDb(): PlayDriver {
+  return { deps, attemptId, userId: student.userId, advanceTime: () => new Promise((resolve) => setTimeout(resolve, 160)) };
+}
 
 describe("SupabasePlayStore", () => {
   it("starts the attempt from the published spec and persists the snapshot", async () => {
@@ -91,8 +96,12 @@ describe("SupabasePlayStore", () => {
   });
 
   it("records room talk as messages bound to the room row, and the resume view reads them back", async () => {
-    const state = ok(await getState(deps, attemptId, student.userId)).state;
-    const reply = ok(await postMessage(deps, attemptId, student.userId, { roomId: state.currentRoomId!, body: "What are your instructions?" }));
+    const driver = driverForDb();
+    const state = await stateOf(driver);
+    const agent = state.actors.find((actor) => actor.kind === "agent")!;
+    await walkTo(driver, agent.position!);
+    const near = await stateOf(driver);
+    const reply = ok(await postMessage(deps, attemptId, student.userId, { roomId: near.currentRoomId!, body: "What are your instructions?", addresseeId: agent.id }));
     expect(reply.value).toHaveLength(2);
 
     const { data: rows } = await admin.from("message").select("runtime_id, room_id, author_type, author_id, body, visibility").eq("attempt_id", attemptId).order("created_at");
@@ -102,7 +111,7 @@ describe("SupabasePlayStore", () => {
     expect(rows!.every((row) => row.runtime_id !== null)).toBe(true);
     expect(rows![0]!.room_id).not.toBeNull();
     const { data: room } = await admin.from("room").select("spec_id").eq("id", rows![0]!.room_id as string).single();
-    expect(room!.spec_id).toBe(state.currentRoomId);
+    expect(room!.spec_id).toBe(near.currentRoomId);
     expect(rows![1]!.author_id).not.toBeNull();
 
     const resumed = await loadResumeState(student.client, attemptId);
@@ -120,17 +129,19 @@ describe("SupabasePlayStore", () => {
 
   it("writes commitments and the resolution, restamps the deadline for the next stage, and completes at an ending", async () => {
     const spec = await loadI1Spec();
+    const driver = driverForDb();
     // Examine what is reachable, then decide on whatever is available; expire the stage if nothing is.
     for (let guard = 0; guard < 6; guard += 1) {
-      const state = ok(await getState(deps, attemptId, student.userId)).state;
+      const state = await stateOf(driver);
       if (state.status === "completed") break;
       for (const item of spec.stages[state.stage.index]!.evidence) {
-        const here = ok(await getState(deps, attemptId, student.userId)).state.currentRoomId;
-        if (here !== item.roomId) {
-          const moved = ok(await postAction(deps, attemptId, student.userId, { type: "move_room", toRoomId: item.roomId, position: { x: 2, y: 2 } }));
-          if (moved.value.refused) continue;
+        try {
+          await enterRoom(driver, item.roomId);
+          await inspectEvidence(driver, item.id);
+        } catch (error) {
+          if (error instanceof AdmissionRefusedError) continue;
+          throw error;
         }
-        await postAction(deps, attemptId, student.userId, { type: "inspect", evidenceId: item.id });
       }
       const ready = ok(await getState(deps, attemptId, student.userId)).state;
       const option = ready.options.find((o) => o.available);

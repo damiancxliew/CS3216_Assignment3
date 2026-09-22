@@ -22,7 +22,8 @@ import { createUserClient, serviceClient, uniqueEmail } from "./helpers";
 import { generateFromSources } from "@/lib/adventures/generate-from-sources";
 import { loadDebrief } from "@/lib/attempts/debrief";
 import { loadResumeState } from "@/lib/attempts/resume";
-import { getState, postAction, postDecision, postMessage, type PlayServiceDeps } from "@/lib/play/service";
+import { getState, postDecision, type PlayServiceDeps } from "@/lib/play/service";
+import { enterRoom, inspectEvidence, stateOf, talkToAgent, type PlayDriver } from "../api/play-driver";
 import { SupabasePlayStore } from "@/lib/play/store";
 import { findForbiddenKeys } from "@/lib/turn-api/contract";
 
@@ -103,8 +104,20 @@ describe("release gate 1: upload -> generate -> publish -> play -> ending", () =
       const room = /Room id for any action you propose: ([a-z0-9-]+)/.exec(request.user)?.[1];
       return JSON.stringify({ say: "Come in, interpreter.", actions: room ? [{ type: "open_door", roomId: room }] : [] });
     };
-    const deps: PlayServiceDeps = { store: new SupabasePlayStore(admin), llm: new FakeAgents({ replies: [opener] }) };
+    const model = new FakeAgents({ replies: [opener] });
+    const deps: PlayServiceDeps = {
+      store: new SupabasePlayStore(admin),
+      llm: { complete: async (request) => {
+        const response = await model.complete(request);
+        return { ...response, usage: { promptTokens: 1, completionTokens: 1 } };
+      } },
+    };
     const id = attemptId as string;
+    const driver: PlayDriver = {
+      deps, attemptId: id, userId: student.userId,
+      advanceTime: () => new Promise<void>((resolve) => setTimeout(resolve, 160)),
+      capture: (_label, payload) => { expect(findForbiddenKeys(payload)).toEqual([]); },
+    };
 
     let stagesPlayed = 0;
     for (let guard = 0; guard < 6; guard += 1) {
@@ -114,23 +127,15 @@ describe("release gate 1: upload -> generate -> publish -> play -> ending", () =
 
       // Visit every room: examine the evidence there and hear whoever is in it (heard_from, K6).
       for (const room of state.rooms) {
-        const here = ok(await getState(deps, id, student.userId)).state.currentRoomId;
-        if (here !== room.id) {
-          let moved = ok(await postAction(deps, id, student.userId, { type: "move_room", toRoomId: room.id }));
-          if (moved.value.refused) {
-            await postAction(deps, id, student.userId, { type: "knock", roomId: room.id });
-            moved = ok(await postAction(deps, id, student.userId, { type: "move_room", toRoomId: room.id }));
-          }
-          if (moved.value.refused) continue;
-        }
-        let now = ok(await getState(deps, id, student.userId)).state;
-        for (const item of now.evidenceHere) await postAction(deps, id, student.userId, { type: "inspect", evidenceId: item.id });
-        now = ok(await getState(deps, id, student.userId)).state;
-        if (now.agents.some((a) => a.roomId === room.id)) await postMessage(deps, id, student.userId, { roomId: room.id, body: "What should I tell Raffles?" });
+        await enterRoom(driver, room.id);
+        const current = await stateOf(driver);
+        for (const item of current.evidenceHere) await inspectEvidence(driver, item.id);
+        for (const agent of current.agents.filter((candidate) => candidate.roomId === room.id)) await talkToAgent(driver, agent.id);
       }
 
       const ready = ok(await getState(deps, id, student.userId)).state;
       const option = ready.options.find((o) => o.available);
+      expect(option, `objectives should unlock a choice in ${state.stage.id}`).toBeDefined();
       if (!option) {
         // Nothing reachable unlocks a choice: the server-held timer ends the stage (D12).
         await admin.from("attempt").update({ stage_deadline_at: new Date(Date.now() - 1000).toISOString() }).eq("id", id);
@@ -142,7 +147,7 @@ describe("release gate 1: upload -> generate -> publish -> play -> ending", () =
       expect(findForbiddenKeys(decided)).toEqual([]);
       stagesPlayed += 1;
     }
-    expect(stagesPlayed).toBeGreaterThanOrEqual(1);
+    expect(stagesPlayed).toBe(3);
 
     // 6. The attempt is complete in the database, telemetry has a row per stage, and the debrief reads the record.
     const { data: finished } = await admin.from("attempt").select("status, ending_id").eq("id", id).single<{ status: string; ending_id: string | null }>();
@@ -166,5 +171,5 @@ describe("release gate 1: upload -> generate -> publish -> play -> ending", () =
     // 7. The resume view still works for a finished attempt and points at the debrief.
     const resumed = await loadResumeState(student.client, id);
     expect(resumed!.status).toBe("completed");
-  });
+  }, 120_000);
 });
