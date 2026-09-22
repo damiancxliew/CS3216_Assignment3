@@ -537,6 +537,21 @@ export function validateAdventureSpec(value: unknown): SpecValidation {
   }
 }
 
+/**
+ * Validate a version that was already published. Published versions are frozen
+ * and in-flight attempts depend on them, so they are held to the shape only:
+ * an authoring rule added later must not retire an adventure teachers are
+ * already running. Never use this to accept new authoring.
+ */
+export function validatePublishedSpec(value: unknown): SpecValidation {
+  const parsed = adventureSpecObjectSchema.safeParse(value)
+  if (parsed.success) return { ok: true, spec: parsed.data }
+  return {
+    ok: false,
+    issues: parsed.error.issues.map((i) => ({ path: formatIssuePath(i.path), message: i.message })),
+  }
+}
+
 /** Effective per-stage values after inheritance (timer D12, overlay FR-15a). */
 export function resolveStageSettings(spec: AdventureSpec, stage: Stage): { timerSeconds: number; ambientOverlay: AmbientOverlay } {
   return {
