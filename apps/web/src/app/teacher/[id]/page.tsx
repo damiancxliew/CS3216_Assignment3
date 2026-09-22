@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { READING_BANDS } from "@adventure/generation/spec";
 
 import { SharePanel } from "./share-panel";
 import {
+  addFileSource,
   addTextSource,
   generateFromSources,
   importSpec,
@@ -16,7 +17,13 @@ import {
   updateStage,
 } from "../actions";
 import { ActionButton, ActionForm } from "@/components/action-form";
-import { Field, Section, SelectField, StatusBadge } from "@/components/ui";
+import {
+  Field,
+  FileField,
+  Section,
+  SelectField,
+  StatusBadge,
+} from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { createClient } from "@/lib/supabase/server";
 
@@ -64,11 +71,18 @@ export default async function AdventurePage({
   const { id } = await params;
   const supabase = await createClient();
 
-  // RLS does the authorisation: another teacher's adventure simply is not here.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/teacher");
+
+  // A student admitted to a published adventure can also select the row, so the
+  // authoring view matches the owner rather than relying on visibility alone.
   const { data: adventure } = await supabase
     .from("adventure")
     .select("id, title, setting, status, published_version, default_timer_seconds, share_token")
     .eq("id", id)
+    .eq("owner_id", user.id)
     .maybeSingle<Adventure>();
   if (!adventure) notFound();
 
@@ -85,9 +99,16 @@ export default async function AdventurePage({
 
   const { data: sources } = await supabase
     .from("source")
-    .select("id, title, kind")
+    .select("id, title, kind, page_map")
     .eq("adventure_id", id)
-    .returns<{ id: string; title: string | null; kind: string }[]>();
+    .returns<
+      {
+        id: string;
+        title: string | null;
+        kind: string;
+        page_map: { pages?: number } | null;
+      }[]
+    >();
 
   const { data: stageRows } = editable
     ? await supabase
@@ -132,7 +153,13 @@ export default async function AdventurePage({
             {sources.map((source) => (
               <li key={source.id}>
                 {source.title ?? "Untitled"}{" "}
-                <span className="opacity-50">({source.kind})</span>
+                <span className="opacity-50">
+                  ({source.kind}
+                  {source.page_map?.pages
+                    ? ` · ${source.page_map.pages} page${source.page_map.pages === 1 ? "" : "s"}`
+                    : ""}
+                  )
+                </span>
               </li>
             ))}
           </ul>
@@ -140,19 +167,44 @@ export default async function AdventurePage({
           <p className="text-sm opacity-60">No source material yet.</p>
         )}
         <ActionForm
-          action={addTextSource.bind(null, adventure.id)}
-          submitLabel="Add source"
-          pendingLabel="Adding…"
+          action={addFileSource.bind(null, adventure.id)}
+          submitLabel="Upload source"
+          pendingLabel="Reading…"
           event={ANALYTICS_EVENTS.sourceUploaded}
         >
-          <Field name="title" label="Source title" placeholder="Classroom handout" optional />
-          <Field
-            name="body"
-            label="Source text"
-            placeholder="Paste the passage students will play from…"
-            multiline
+          <Field name="title" label="Source title" placeholder="Uses the filename" optional />
+          <FileField
+            name="file"
+            label="PDF, .txt or .md"
+            accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+            hint="Text is extracted page by page, because pages are what the debrief cites. A scanned PDF has no text layer — paste it below instead."
           />
         </ActionForm>
+
+        <details className="text-sm">
+          <summary className="cursor-pointer opacity-70">Or paste the text</summary>
+          <div className="pt-3">
+            <ActionForm
+              action={addTextSource.bind(null, adventure.id)}
+              submitLabel="Add source"
+              pendingLabel="Adding…"
+              event={ANALYTICS_EVENTS.sourceUploaded}
+            >
+              <Field
+                name="title"
+                label="Source title"
+                placeholder="Classroom handout"
+                optional
+              />
+              <Field
+                name="body"
+                label="Source text"
+                placeholder="Paste the passage students will play from…"
+                multiline
+              />
+            </ActionForm>
+          </div>
+        </details>
       </Section>
 
       <Section title="Content">

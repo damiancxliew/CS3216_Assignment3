@@ -102,6 +102,33 @@ describe("sourcesToDocuments", () => {
     expect(skipped[0]).toContain("Scan (pdf");
     expect(skipped[1]).toContain("Pasted source");
   });
+
+  it("keeps an uploaded PDF's own pagination, because pages are what a citation points at", () => {
+    const { documents, skipped } = sourcesToDocuments([
+      {
+        id: "a",
+        title: "Handout.pdf",
+        kind: "pdf",
+        content_hash: "a".repeat(64),
+        page_map: {
+          pages: 2,
+          page_texts: [
+            { page: 1, text: "First page." },
+            { page: 2, text: "Second page." },
+          ],
+          text: "First page.\fSecond page.",
+        },
+      },
+    ]);
+    expect(skipped).toHaveLength(0);
+    expect(documents[0]!.kind).toBe("pdf");
+    expect(documents[0]!.pageCount).toBe(2);
+    expect(documents[0]!.pages.map((p) => p.text)).toEqual([
+      "First page.",
+      "Second page.",
+    ]);
+    expect(documents[0]!.contentHash).toBe("a".repeat(64));
+  });
 });
 
 describe("generateFromSources", () => {

@@ -4,6 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import {
+  ExtractionError,
+  extractDocument,
+  LIMITS,
+  slugify,
+  type ExtractedDocument,
+} from "@adventure/generation";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
 import { READING_BANDS } from "@adventure/generation/spec";
 
@@ -29,12 +36,16 @@ async function requireUser() {
   return { supabase, user };
 }
 
+// `adventure_select` also admits a student with an attempt on a published
+// adventure, so visibility is not ownership: the owner is matched explicitly
+// before any service-role write is made on the teacher's behalf.
 async function requireOwnership(adventureId: string) {
   const { supabase, user } = await requireUser();
   const { data } = await supabase
     .from("adventure")
     .select("id")
     .eq("id", adventureId)
+    .eq("owner_id", user.id)
     .maybeSingle();
   if (!data) redirect("/teacher");
   return { supabase, user };
@@ -75,6 +86,42 @@ export async function createAdventure(
   redirect(`/teacher/${data.id}`);
 }
 
+/**
+ * Both source routes land here so a pasted passage and an uploaded PDF are
+ * stored identically: pages are the unit of citation (D1/FR-1), so `page_map`
+ * always carries per-page text, whatever the teacher dropped in.
+ */
+async function insertSource(
+  adventureId: string,
+  storageKey: string,
+  doc: ExtractedDocument,
+): Promise<ActionResult> {
+  const admin = createAdminClient();
+  const { error } = await admin.from("source").insert({
+    adventure_id: adventureId,
+    kind: doc.kind,
+    title: doc.title,
+    storage_key: storageKey,
+    content_hash: doc.contentHash,
+    page_map: {
+      pages: doc.pageCount,
+      chars: doc.charCount,
+      warnings: doc.warnings,
+      page_texts: doc.pages,
+      text: doc.pages.map((p) => p.text).join("\f"),
+    },
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/teacher/${adventureId}`);
+  return {};
+}
+
+function extractionMessage(error: unknown): string {
+  if (error instanceof ExtractionError) return error.message;
+  return error instanceof Error ? error.message : "Could not read that source";
+}
+
 export async function addTextSource(
   adventureId: string,
   _prev: ActionResult,
@@ -82,22 +129,75 @@ export async function addTextSource(
 ): Promise<ActionResult> {
   await requireOwnership(adventureId);
 
-  const title = String(formData.get("title") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim() || "Pasted source";
   const body = String(formData.get("body") ?? "").trim();
   if (!body) return { error: "Paste the source text first" };
 
-  const admin = createAdminClient();
-  const { error } = await admin.from("source").insert({
-    adventure_id: adventureId,
-    kind: "text",
-    title: title || "Pasted source",
-    storage_key: `inline:${crypto.randomUUID()}`,
-    page_map: { pages: 1, text: body },
-  });
-  if (error) return { error: error.message };
+  let doc: ExtractedDocument;
+  try {
+    doc = await extractDocument({
+      id: slugify(title, "pasted-source"),
+      title,
+      kind: "text",
+      text: body,
+    });
+  } catch (error) {
+    return { error: extractionMessage(error) };
+  }
 
-  revalidatePath(`/teacher/${adventureId}`);
-  return {};
+  return insertSource(adventureId, `inline:${crypto.randomUUID()}`, doc);
+}
+
+const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
+  "application/pdf": "pdf",
+  "text/plain": "text",
+  "text/markdown": "text",
+};
+
+/**
+ * Upload route for the material a teacher already has: a PDF handout, or a
+ * plain-text/markdown passage. The PDF's text layer is extracted server-side —
+ * a scanned image has none, and the teacher is told to paste instead rather
+ * than getting an adventure grounded in nothing.
+ */
+export async function addFileSource(
+  adventureId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireOwnership(adventureId);
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Choose a PDF or text file first" };
+  }
+  if (file.size > LIMITS.maxUploadBytes) {
+    return {
+      error: `That file is ${(file.size / 1_048_576).toFixed(1)} MB; the limit is ${LIMITS.maxUploadBytes / 1_048_576} MB`,
+    };
+  }
+
+  const extension = file.name.toLowerCase().split(".").pop() ?? "";
+  const kind =
+    UPLOAD_KINDS[file.type] ??
+    (extension === "pdf" ? "pdf" : ["txt", "md"].includes(extension) ? "text" : null);
+  if (!kind) return { error: "Only PDF, .txt and .md files are supported" };
+
+  const title = String(formData.get("title") ?? "").trim() || file.name;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  let doc: ExtractedDocument;
+  try {
+    doc = await extractDocument(
+      kind === "pdf"
+        ? { id: slugify(file.name), title, kind, bytes }
+        : { id: slugify(file.name), title, kind, text: new TextDecoder().decode(bytes) },
+    );
+  } catch (error) {
+    return { error: extractionMessage(error) };
+  }
+
+  return insertSource(adventureId, `upload:${crypto.randomUUID()}/${file.name}`, doc);
 }
 
 const generationBrief = z.object({
@@ -152,10 +252,18 @@ export async function generateFromSources(
       .single<{ title: string; default_timer_seconds: number }>(),
     admin
       .from("source")
-      .select("id, title, kind, page_map")
+      .select("id, title, kind, page_map, content_hash")
       .eq("adventure_id", adventureId)
       .order("created_at")
-      .returns<{ id: string; title: string | null; kind: string; page_map: unknown }[]>(),
+      .returns<
+        {
+          id: string;
+          title: string | null;
+          kind: string;
+          page_map: unknown;
+          content_hash: string | null;
+        }[]
+      >(),
   ]);
   if (!adventure) return { error: "Adventure not found" };
 
