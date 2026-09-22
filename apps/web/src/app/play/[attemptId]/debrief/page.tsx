@@ -41,7 +41,7 @@ export default async function DebriefPage({
 
       <div className="flex items-center justify-between gap-4">
         <Wordmark />
-        <Link href={`/play/${debrief.attemptId}`} className={button.link}>
+        <Link href={`/play/${debrief.attemptId}`} className={button.quiet}>
           Back to your attempt
         </Link>
       </div>
@@ -146,7 +146,7 @@ export default async function DebriefPage({
       </Part>
 
       <footer className="border-t border-line pt-8">
-        <Link href={`/play/${debrief.attemptId}`} className={button.link}>
+        <Link href={`/play/${debrief.attemptId}`} className={button.quiet}>
           Back to your attempt
         </Link>
       </footer>

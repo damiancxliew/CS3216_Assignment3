@@ -316,7 +316,7 @@ export default async function AdventurePage({
           published={adventure.status === "published"}
         />
         {adventure.status === "published" ? (
-          <Link href={`/join/${adventure.share_token}`} className={`${button.link} w-fit`}>
+          <Link href={`/join/${adventure.share_token}`} className={`${button.quiet} w-fit`}>
             Preview as a player
           </Link>
         ) : null}

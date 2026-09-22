@@ -216,7 +216,7 @@ export function BriefChat({ resume }: { resume?: BriefState }) {
 
       {error ? <ErrorText>{error}</ErrorText> : null}
 
-      <button type="button" onClick={discard} disabled={pending} className={`${button.link} w-fit text-sm`}>
+      <button type="button" onClick={discard} disabled={pending} className={`${button.subtle} w-fit`}>
         Discard this brief
       </button>
     </div>
@@ -350,7 +350,7 @@ function SourceStep({
           <button type="submit" disabled={pending} className={button.quiet}>
             {pending ? <Pending>Reading</Pending> : pasting ? "Add the passage" : "Upload"}
           </button>
-          <button type="button" onClick={() => setPasting((p) => !p)} disabled={pending} className={button.link}>
+          <button type="button" onClick={() => setPasting((p) => !p)} disabled={pending} className={button.quiet}>
             {pasting ? "Upload a file instead" : "Paste text instead"}
           </button>
         </div>

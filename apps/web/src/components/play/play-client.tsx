@@ -61,6 +61,8 @@ const chip =
   "inline-flex min-h-11 items-center gap-1.5 rounded-control border border-line-strong bg-surface px-3.5 py-2 text-base font-semibold leading-tight text-ink transition-colors hover:border-ink disabled:opacity-60";
 const primary =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-control bg-ink px-4 py-2 text-base font-semibold leading-snug text-paper transition-colors hover:bg-record disabled:opacity-60";
+const subtle =
+  "inline-flex min-h-9 items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:opacity-60";
 const label = "text-sm font-semibold text-muted";
 
 export function PlayClient({ attemptId, initialState }: { attemptId: string; initialState: PlayState }) {
@@ -437,7 +439,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               <span className="ml-3 text-muted">Stage {state.stage.index + 1} of {state.stageCount}</span>
             </p>
             {state.journal.length ? (
-              <button type="button" className="text-base font-semibold text-muted underline decoration-line-strong underline-offset-4 hover:text-ink" onClick={() => setNotesOpen((v) => !v)} aria-expanded={notesOpen}>
+              <button type="button" className={subtle} onClick={() => setNotesOpen((v) => !v)} aria-expanded={notesOpen}>
                 Notes ({state.journal.length})
               </button>
             ) : null}

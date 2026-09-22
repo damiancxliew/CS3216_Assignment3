@@ -47,7 +47,7 @@ export default function Home() {
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-24 px-6 py-8 sm:py-10">
       <nav className="flex items-center justify-between gap-4">
         <Wordmark />
-        <Link href="/teacher" className={button.link}>
+        <Link href="/teacher" className={button.quiet}>
           Open the teacher console
         </Link>
       </nav>
@@ -103,7 +103,7 @@ export default function Home() {
 
       <footer className="flex flex-wrap items-baseline justify-between gap-4 border-t border-line pt-8 text-base text-muted">
         <p>Built for CS3216 Assignment 3, National University of Singapore.</p>
-        <Link href="https://github.com/damiancxliew/CS3216_Assignment3" className={button.link}>
+        <Link href="https://github.com/damiancxliew/CS3216_Assignment3" className={button.subtle}>
           Source on GitHub
         </Link>
       </footer>
