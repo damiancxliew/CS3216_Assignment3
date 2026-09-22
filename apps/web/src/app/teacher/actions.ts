@@ -11,7 +11,10 @@ import {
   slugify,
   type ExtractedDocument,
 } from "@adventure/generation";
+import { OpenAiLlmClient } from "@adventure/generation/llm";
+import { READING_BANDS } from "@adventure/generation/spec";
 
+import { generateFromSources as runGeneration } from "@/lib/adventures/generate-from-sources";
 import { persistSpecVersion, SpecPersistError } from "@/lib/adventures/persist-spec";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -48,7 +51,8 @@ async function requireOwnership(adventureId: string) {
   return { supabase, user };
 }
 
-export type ActionResult = { error?: string };
+/** `notice` is for a success that still has something to tell the teacher (FR-3: missing information is reported, never hidden). */
+export type ActionResult = { error?: string; notice?: string };
 
 const newAdventure = z.object({
   title: z.string().trim().min(1, "Give the adventure a title").max(120),
@@ -196,10 +200,98 @@ export async function addFileSource(
   return insertSource(adventureId, `upload:${crypto.randomUUID()}/${file.name}`, doc);
 }
 
+const generationBrief = z.object({
+  setting: z.string().trim().min(1, "Describe the setting").max(200),
+  studentRole: z.string().trim().min(1, "Say who the student plays").max(200),
+  learningObjectives: z
+    .string()
+    .transform((s) => s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean))
+    .pipe(z.array(z.string().max(300)).min(1, "Give at least one learning objective").max(6, "At most six learning objectives")),
+  band: z.enum(READING_BANDS),
+  ageMin: z.coerce.number().int().min(7).max(19),
+  ageMax: z.coerce.number().int().min(7).max(19),
+  stageCount: z.coerce.number().pipe(z.union([z.literal(1), z.literal(2), z.literal(3)])),
+});
+
 /**
- * Imports an adventure spec v2 as the next draft version. This is the seam the
- * planner (D3) plugs into: it hands over exactly this object, and everything
- * downstream — publish, share, play — is already wired.
+ * D1–D4 → P5: run the planner over the adventure's stored sources and land the
+ * result as the next draft version. The brief (setting, role, objectives,
+ * reading level) is the part of the planner's input the adventure row does not
+ * hold; FR-1a makes the reading level mandatory, so it is required here too.
+ */
+export async function generateFromSources(
+  adventureId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { user } = await requireOwnership(adventureId);
+
+  const parsed = generationBrief.safeParse({
+    setting: formData.get("setting"),
+    studentRole: formData.get("studentRole"),
+    learningObjectives: formData.get("learningObjectives") ?? "",
+    band: formData.get("band"),
+    ageMin: formData.get("ageMin"),
+    ageMax: formData.get("ageMax"),
+    stageCount: formData.get("stageCount") ?? 3,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const { band, ageMin, ageMax, ...rest } = parsed.data;
+  if (ageMin > ageMax) return { error: "The age range is upside down" };
+
+  if (!process.env.OPENAI_API_KEY) {
+    return { error: "Generation is not configured on this server (OPENAI_API_KEY is missing)" };
+  }
+
+  const admin = createAdminClient();
+  const [{ data: adventure }, { data: sources }] = await Promise.all([
+    admin
+      .from("adventure")
+      .select("title, default_timer_seconds")
+      .eq("id", adventureId)
+      .single<{ title: string; default_timer_seconds: number }>(),
+    admin
+      .from("source")
+      .select("id, title, kind, page_map, content_hash")
+      .eq("adventure_id", adventureId)
+      .order("created_at")
+      .returns<
+        {
+          id: string;
+          title: string | null;
+          kind: string;
+          page_map: unknown;
+          content_hash: string | null;
+        }[]
+      >(),
+  ]);
+  if (!adventure) return { error: "Adventure not found" };
+
+  const result = await runGeneration({
+    admin,
+    adventureId,
+    adventure,
+    sources: sources ?? [],
+    brief: { ...rest, readingLevel: { band, ageMin, ageMax } },
+    llm: new OpenAiLlmClient(),
+    createdBy: user.id,
+  });
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/teacher/${adventureId}`);
+  const notes = [
+    ...result.missingInformation.map((m) => `Missing from the sources: ${m}`),
+    ...result.warnings,
+  ];
+  return notes.length > 0
+    ? { notice: `Draft v${result.version.version} generated. ${notes.join(" · ")}` }
+    : { notice: `Draft v${result.version.version} generated.` };
+}
+
+/**
+ * Imports an adventure spec v2 as the next draft version — the same seam
+ * `generateFromSources` uses, for a spec produced elsewhere (e.g. the
+ * generation CLI or a hand-authored fixture).
  */
 export async function importSpec(
   adventureId: string,

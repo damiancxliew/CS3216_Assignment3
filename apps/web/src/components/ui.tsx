@@ -92,6 +92,35 @@ export function FileField({
   );
 }
 
+export function SelectField({
+  name,
+  label,
+  options,
+  defaultValue,
+}: {
+  name: string;
+  label: string;
+  options: readonly { value: string; label: string }[];
+  defaultValue?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="opacity-70">{label}</span>
+      <select
+        name={name}
+        defaultValue={defaultValue}
+        className="rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground dark:border-white/20"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function Section({
   title,
   children,
