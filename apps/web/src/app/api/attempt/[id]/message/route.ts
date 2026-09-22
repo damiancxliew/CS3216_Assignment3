@@ -4,7 +4,7 @@ import {
   messageRequestSchema,
   messageResponseSchema,
 } from "@/lib/turn-api/contract";
-import { stubPostMessage } from "@/lib/turn-api/stub";
+import { postRuntimeMessage } from "@/lib/turn-api/runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ export async function POST(
     );
   }
 
-  const posted = stubPostMessage(id, parsed.data.roomId, parsed.data.body);
+  const posted = await postRuntimeMessage(id, parsed.data.roomId, parsed.data.body);
   if (!posted.ok) {
     return posted.reason === "unknown_room"
       ? NextResponse.json(

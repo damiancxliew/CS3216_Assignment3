@@ -4,7 +4,7 @@ import {
   decisionRequestSchema,
   decisionResponseSchema,
 } from "@/lib/turn-api/contract";
-import { stubCommitDecision } from "@/lib/turn-api/stub";
+import { commitRuntimeDecision } from "@/lib/turn-api/runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,7 @@ export async function POST(
 
   // Options are re-derived from state, so an option that was valid earlier is
   // rejected rather than executed (FR-14).
-  const result = stubCommitDecision(id, parsed.data.optionId);
+  const result = await commitRuntimeDecision(id, parsed.data.optionId);
   if (!result) {
     return NextResponse.json(
       {
