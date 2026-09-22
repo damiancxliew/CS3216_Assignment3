@@ -9,6 +9,7 @@
  * Requires a local Supabase (`npm run db:start` / `npm run db:reset`).
  */
 import { loadFixtureJson, I1_FIXTURE } from "@adventure/generation/fixtures";
+import type { AdventureSpec } from "@adventure/generation/spec";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { createUserClient, serviceClient, uniqueEmail } from "./helpers";
@@ -20,6 +21,7 @@ import {
 const admin = serviceClient();
 
 let spec: Record<string, unknown>;
+let fixtureSpec: AdventureSpec;
 let teacherId: string;
 
 async function newAdventure(): Promise<string> {
@@ -33,7 +35,8 @@ async function newAdventure(): Promise<string> {
 }
 
 beforeAll(async () => {
-  spec = (await loadFixtureJson(I1_FIXTURE.spec)) as Record<string, unknown>;
+  fixtureSpec = (await loadFixtureJson(I1_FIXTURE.spec)) as AdventureSpec;
+  spec = fixtureSpec as unknown as Record<string, unknown>;
   const teacher = await createUserClient(uniqueEmail("p5-teacher"));
   teacherId = teacher.userId;
 });
@@ -58,17 +61,20 @@ describe("persistSpecVersion", () => {
 
     const { data: stages } = await admin
       .from("stage")
-      .select("id, index, title")
+      .select("id, index, title, spec_id")
       .eq("spec_version_id", result.specVersionId)
       .order("index");
     expect(stages).toHaveLength(3);
     expect(stages!.map((s) => s.index)).toEqual([0, 1, 2]);
+    expect(stages!.map((s) => s.spec_id)).toEqual(fixtureSpec.stages.map((stage) => stage.id));
 
-    const { count: rooms } = await admin
+    const { data: rooms } = await admin
       .from("room")
-      .select("id", { count: "exact", head: true })
+      .select("id, spec_id, stage_id")
       .in("stage_id", stages!.map((s) => s.id));
-    expect(rooms).toBeGreaterThan(0);
+    expect(rooms!.map((room) => room.spec_id).sort()).toEqual(
+      fixtureSpec.stages.flatMap((stage) => stage.rooms.map((room) => room.id)).sort(),
+    );
   });
 
   it("rewrites agent, evidence and branch references to database uuids", async () => {
@@ -90,9 +96,11 @@ describe("persistSpecVersion", () => {
     // An agent starts in a room of its own stage, by uuid, not by spec slug.
     const { data: agents } = await admin
       .from("agent")
-      .select("id, start_room_id, stage_id")
+      .select("id, spec_id, start_room_id, stage_id")
       .in("stage_id", [...stageIds]);
-    expect(agents!.length).toBeGreaterThan(0);
+    expect(agents!.map((agent) => agent.spec_id).sort()).toEqual(
+      fixtureSpec.stages.flatMap((stage) => stage.agents.map((agent) => agent.id)).sort(),
+    );
     for (const agent of agents!) {
       const { data: room } = await admin
         .from("room")
@@ -101,6 +109,30 @@ describe("persistSpecVersion", () => {
         .single();
       expect(room!.stage_id).toBe(agent.stage_id);
     }
+
+    const { data: evidence } = await admin
+      .from("evidence")
+      .select("spec_id, stage_id")
+      .in("stage_id", [...stageIds]);
+    expect(evidence!.map((item) => item.spec_id).sort()).toEqual(
+      fixtureSpec.stages.flatMap((stage) => stage.evidence.map((item) => item.id)).sort(),
+    );
+
+    const { data: objectives } = await admin
+      .from("objective")
+      .select("spec_id, stage_id")
+      .in("stage_id", [...stageIds]);
+    expect(objectives!.map((objective) => objective.spec_id).sort()).toEqual(
+      fixtureSpec.stages.flatMap((stage) => stage.objectives.map((objective) => objective.id)).sort(),
+    );
+
+    const { data: options } = await admin
+      .from("decision_option")
+      .select("spec_id, stage_id")
+      .in("stage_id", [...stageIds]);
+    expect(options!.map((option) => option.spec_id).sort()).toEqual(
+      fixtureSpec.stages.flatMap((stage) => stage.decision.options.map((option) => option.id)).sort(),
+    );
 
     // Every branch target is either a stage uuid in this version or an ending.
     for (const stage of stages!) {

@@ -1,5 +1,8 @@
 /** Small shared pieces of the teacher console's form and list furniture. */
 
+/** Teacher-facing names for the Spec v2 reading bands. */
+export { READING_BAND_LABELS } from "@/lib/brief/schema";
+
 export function StatusBadge({
   status,
   version,
@@ -63,6 +66,60 @@ export function Field({
           className={className}
         />
       )}
+    </label>
+  );
+}
+
+export function FileField({
+  name,
+  label,
+  accept,
+  hint,
+}: {
+  name: string;
+  label: string;
+  accept: string;
+  hint?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="opacity-70">{label}</span>
+      <input
+        type="file"
+        name={name}
+        accept={accept}
+        className="rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-foreground file:px-4 file:py-1.5 file:text-sm file:text-background dark:border-white/20"
+      />
+      {hint ? <span className="text-xs opacity-55">{hint}</span> : null}
+    </label>
+  );
+}
+
+export function SelectField({
+  name,
+  label,
+  options,
+  defaultValue,
+}: {
+  name: string;
+  label: string;
+  options: readonly { value: string; label: string }[];
+  defaultValue?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="opacity-70">{label}</span>
+      <select
+        name={name}
+        defaultValue={defaultValue}
+        className="rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground dark:border-white/20"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }

@@ -33,6 +33,17 @@ function collectEvidence(world: WorldState, spec: AdventureSpec, stageIndex: num
   return stage.evidence.length
 }
 
+/** The player visits every character and hears them say something — what "talk to X" objectives need (K6 heard_from). */
+function hearEveryone(world: WorldState, spec: AdventureSpec, stageIndex: number): void {
+  const stage = spec.stages[stageIndex]!
+  for (const agent of stage.agents) {
+    const roomId = world.location[agent.id]!
+    if (!world.rooms[roomId]!.doorOpen) applyAction(world, { actorKind: 'agent', actorId: agent.id, action: { type: 'open_door', roomId } })
+    applyAction(world, { actorKind: 'player', actorId: PLAYER_ID, action: { type: 'move_room', toRoomId: roomId } })
+    applyAction(world, { actorKind: 'agent', actorId: agent.id, action: { type: 'speak', roomId, body: 'You have my attention.', addresseeId: PLAYER_ID } })
+  }
+}
+
 describe('spec -> runtime adapter', () => {
   it('never authors more agents per stage than the resolver can report deltas for (I4 cap)', () => {
     expect(MAX_AGENTS_PER_STAGE).toBeLessThanOrEqual(MAX_AGENT_DELTAS)
@@ -52,13 +63,24 @@ describe('spec -> runtime adapter', () => {
     expect(world.actors['agent-temenggong-s0']!.publicRole).toBe('Administrator of Singapore on behalf of the Sultan of Johor')
   })
 
+  it('opens a closed room nobody starts in, rather than seeding a world the runtime rejects', async () => {
+    const spec = structuredClone(await loadI1Spec()) as AdventureSpec
+    const stage = spec.stages[0]!
+    for (const agent of stage.agents) if (agent.startRoomId === 'ship-cabin') agent.startRoomId = stage.spawnRoomId
+    const bundle = toStageRuntime(spec, 0)
+    const world = createWorld(bundle.world)
+    expect(world.rooms['ship-cabin']!.doorOpen).toBe(true)
+    expect(bundle.warnings.some((w) => w.includes('ship-cabin'))).toBe(true)
+  })
+
   it('maps evidence-based preconditions and reports the ones the runtime cannot express', async () => {
     const spec = await loadI1Spec()
     const bundle = toStageRuntime(spec, 0)
     const signOption = bundle.options.find((o) => o.id === 'opt-sign-preliminary')!
-    // the decision.requires gate (read instructions) is expressible; "meet the Temenggong" is not
+    // the decision.requires gate (read instructions) and "meet the Temenggong" are both expressible (K6)
     expect(signOption.preconditions).toContainEqual({ kind: 'knows_evidence', actorId: PLAYER_ID, evidenceId: 'ev-instructions' })
-    expect(bundle.warnings.some((w) => w.includes('obj-meet-temenggong') && w.includes('spoke_with'))).toBe(true)
+    expect(signOption.preconditions).toContainEqual({ kind: 'heard_from', actorId: PLAYER_ID, speakerId: 'agent-temenggong-s0' })
+    expect(bundle.warnings.some((w) => w.includes('dropped'))).toBe(false)
     expect(bundle.fallbackNext).toEqual({ kind: 'stage', stageId: 'stage-sultan' }) // the evasive option
   })
 
@@ -129,18 +151,15 @@ describe('I1 fixture -> K4 stage loop -> K6 options -> K1/K7 resolver -> ending 
       for (const id of gated) expect(before.options.map((o) => o.id)).not.toContain(id)
 
       const evidenceCollected = collectEvidence(world, spec, stageIndex)
+      hearEveryone(world, spec, stageIndex)
       const after = deriveOptions(world, bundle.options, PLAYER_ID)
       expect(after.options.map((o) => o.id).sort()).toEqual(bundle.options.map((o) => o.id).sort())
       expect(JSON.stringify(after)).not.toContain('preconditions') // public projection only
 
-      // a stale option set is rejected, a fresh one commits (only meaningful where something was gated;
-      // a stage whose gates are all "speak with X" has no expressible precondition yet — see bundle.warnings)
-      if (gated.length > 0) {
-        const stale = ledger.commit(world, bundle.options, { actorId: PLAYER_ID, actorKind: 'player', optionId: after.options[0]!.id, optionsVersion: before.version })
-        expect(stale.ok).toBe(false)
-      } else {
-        expect(bundle.warnings.some((w) => w.includes('spoke_with'))).toBe(true)
-      }
+      // a stale option set is rejected, a fresh one commits
+      expect(gated.length).toBeGreaterThan(0)
+      const stale = ledger.commit(world, bundle.options, { actorId: PLAYER_ID, actorKind: 'player', optionId: after.options[0]!.id, optionsVersion: before.version })
+      expect(stale.ok).toBe(false)
       const chosen = after.options[0]!.id
       const commit = ledger.commit(world, bundle.options, { actorId: PLAYER_ID, actorKind: 'player', optionId: chosen, optionsVersion: after.version })
       expect(commit.ok).toBe(true)

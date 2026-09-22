@@ -1,0 +1,53 @@
+/**
+ * Every character in the pack that the mapping can pick actually exists in
+ * `public/game/ninja`, the pick is deterministic per stakeholder, and the role
+ * hints do what they say. The play state carries a faceset for every agent
+ * and a sprite for every actor, so the renderer never has to guess.
+ */
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
+import { loadI1Spec } from "@adventure/generation/fixtures";
+import { FakeLlmClient } from "@adventure/orchestration";
+import { describe, expect, it } from "vitest";
+
+import { CHARACTERS, characterFor, facesetUrl, PLAYER_CHARACTER, walkSheetUrl } from "@/lib/play/appearance";
+import { getState, type PlayServiceDeps } from "@/lib/play/service";
+import { MemoryPlayStore } from "@/lib/play/store";
+
+const PUBLIC = join(process.cwd(), "apps", "web", "public");
+
+describe("curated characters", () => {
+  it("ship every sheet and faceset the mapping can choose, with the pack licence", () => {
+    for (const character of CHARACTERS) {
+      expect(existsSync(join(PUBLIC, walkSheetUrl(character))), character).toBe(true);
+      expect(existsSync(join(PUBLIC, facesetUrl(character))), character).toBe(true);
+    }
+    expect(existsSync(join(PUBLIC, "game", "ninja", "LICENSE.txt"))).toBe(true);
+    for (const tile of ["floor", "wall", "interior", "house"]) expect(existsSync(join(PUBLIC, "game", "ninja", "tiles", `${tile}.png`)), tile).toBe(true);
+  });
+
+  it("picks the same character for the same stakeholder, and a fitting one for a known role", () => {
+    const sultan = { id: "hussein", name: "Tengku Hussein", role: "Claimant to the Johor sultanate" };
+    expect(characterFor(sultan)).toBe(characterFor({ ...sultan }));
+    expect(["Sultan", "Sultan2", "Noble"]).toContain(characterFor(sultan));
+    expect(["Inspector", "Knight", "Master"]).toContain(characterFor({ id: "farquhar", name: "Major William Farquhar", role: "Resident" }));
+    expect(["OldMan", "OldMan2", "OldMan3"]).toContain(characterFor({ id: "temenggong", name: "Temenggong Abdul Rahman", role: "Chief of Singapore" }));
+    expect(characterFor({ id: "anyone", name: "Someone", role: "" })).not.toBe(PLAYER_CHARACTER);
+    expect(CHARACTERS).toContain(characterFor({ id: "x" }));
+  });
+
+  it("appear in the play state as sprites and faceset portraits", async () => {
+    const spec = await loadI1Spec();
+    const deps: PlayServiceDeps = {
+      store: new MemoryPlayStore([{ attemptId: "a", studentId: "s", adventureId: "adv", publishedVersion: 1, status: "active", stageDeadlineAt: null, spec, snapshot: null }]),
+      llm: new FakeLlmClient({ replies: [JSON.stringify({ say: "", actions: [] })] }),
+    };
+    const result = await getState(deps, "a", "s");
+    if (!result.ok) throw new Error(result.error.message);
+    const { state } = result;
+    expect(state.actors.find((a) => a.id === "player")?.sprite).toBe(PLAYER_CHARACTER);
+    for (const actor of state.actors) expect(CHARACTERS).toContain(actor.sprite);
+    for (const agent of state.agents) expect(agent.portraitUrl).toMatch(/^\/game\/ninja\/characters\/[A-Za-z0-9]+\/face\.png$/);
+  });
+});

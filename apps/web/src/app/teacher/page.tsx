@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { createAdventure } from "./actions";
-import { ActionForm } from "@/components/action-form";
+import { BriefChat } from "./brief-chat";
 import { SignInButton } from "@/components/sign-in-button";
-import { Field, StatusBadge } from "@/components/ui";
-import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
+import { StatusBadge } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -39,11 +37,12 @@ export default async function TeacherHome() {
     );
   }
 
-  // RLS returns only this teacher's adventures; no owner filter is needed here
-  // and adding one would hide the fact that the database is the one enforcing it.
+  // `adventure_select` also admits students playing a published adventure, so
+  // the authoring surface filters on ownership rather than leaning on RLS.
   const { data } = await supabase
     .from("adventure")
     .select("id, title, setting, status, published_version, updated_at")
+    .eq("owner_id", user.id)
     .order("updated_at", { ascending: false })
     .returns<AdventureRow[]>();
   const adventures = data ?? [];
@@ -80,22 +79,14 @@ export default async function TeacherHome() {
         )}
       </section>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-black/10 p-6 dark:border-white/15">
-        <h2 className="text-lg font-medium">New adventure</h2>
-        <ActionForm
-          action={createAdventure}
-          submitLabel="Create"
-          pendingLabel="Creating…"
-          event={ANALYTICS_EVENTS.adventureCreated}
-        >
-          <Field name="title" label="Title" placeholder="The founding of Singapore, 1819" />
-          <Field
-            name="setting"
-            label="Setting"
-            placeholder="Singapore, February 1819"
-            optional
-          />
-        </ActionForm>
+      <section className="flex flex-col gap-4 rounded-2xl border border-black/10 p-6 dark:border-white/15">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-medium">New adventure</h2>
+          <p className="text-sm opacity-60">
+            A few questions to agree the brief — setting, role, objectives, reading level and what each stage is about. The planner builds from it, so it is settled once, here.
+          </p>
+        </div>
+        <BriefChat />
       </section>
     </Shell>
   );

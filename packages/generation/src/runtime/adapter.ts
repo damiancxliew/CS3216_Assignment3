@@ -71,7 +71,8 @@ export function toOptionPreconditions(option: DecisionOption, stage: Stage, warn
     const objective = stage.objectives.find((o) => o.id === objectiveId)
     if (!objective) continue // the validator already rejects this
     if (evidenceIds.has(objective.targetId)) out.push({ kind: 'knows_evidence', actorId: PLAYER_ID, evidenceId: objective.targetId })
-    else warnings.push(`${stage.id}/${option.id}: precondition "${objectiveId}" (speak with ${objective.targetId}) has no K6 predicate — needs e.g. { kind: 'spoke_with', actorId, otherActorId }; dropped`)
+    else if (stage.agents.some((a) => a.id === objective.targetId)) out.push({ kind: 'heard_from', actorId: PLAYER_ID, speakerId: objective.targetId })
+    else warnings.push(`${stage.id}/${option.id}: precondition "${objectiveId}" targets "${objective.targetId}", which is neither evidence nor an agent in this stage; dropped`)
   }
   return out
 }
@@ -87,6 +88,17 @@ export function toStageRuntime(spec: AdventureSpec, stageIndex: number): StageRu
   ]
   const placement: Record<string, string> = Object.fromEntries([...stage.agents.map((a) => [a.id, a.startRoomId] as const), [PLAYER_ID, stage.spawnRoomId] as const])
 
+  // A door only opens from inside (K3), so a closed room nobody starts in is sealed for the
+  // whole stage and `createWorld()` refuses the seed. The spec validator rejects that now, but
+  // versions published before it are frozen: open the door instead of failing the attempt.
+  const occupied = new Set(Object.values(placement))
+  const rooms = stage.rooms.map((room) => {
+    const state = toRoomState(room)
+    if (state.doorOpen || occupied.has(room.id)) return state
+    warnings.push(`${stage.id}: room "${room.id}" starts closed with nobody inside; opening its door so it stays reachable`)
+    return { ...state, doorOpen: true }
+  })
+
   const agents: Record<string, StageAgent> = Object.fromEntries(stage.agents.map((a) => [a.id, { privateContext: toPrivateContext(a, spec), relevant: true }]))
 
   const options = stage.decision.options.map((option): OptionDefinition => ({ id: option.id, label: option.label, preconditions: toOptionPreconditions(option, stage, warnings) }))
@@ -101,7 +113,7 @@ export function toStageRuntime(spec: AdventureSpec, stageIndex: number): StageRu
   return {
     stageId: stage.id,
     stageIndex,
-    world: { rooms: stage.rooms.map(toRoomState), actors, placement },
+    world: { rooms, actors, placement },
     stage: { sharedContext: spec.sharedContext.text, stageBrief: `${stage.title}. ${stage.sharedContext.text}`, agents },
     options,
     fallbackNext: fallback.branchTarget,

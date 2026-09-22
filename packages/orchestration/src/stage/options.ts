@@ -16,7 +16,7 @@
  */
 import type { ActorKind } from '../actions'
 import { hashSeed } from '../rng'
-import type { WorldState } from '../world/state'
+import { wasPresent, type WorldState } from '../world/state'
 
 /** The closed set of conditions an option may depend on. Evaluated against recorded world state. */
 export type OptionPrecondition =
@@ -24,6 +24,12 @@ export type OptionPrecondition =
   | { kind: 'actors_together'; actorId: string; otherActorId: string }
   | { kind: 'door_open'; roomId: string; open: boolean }
   | { kind: 'knows_evidence'; actorId: string; evidenceId: string }
+  /**
+   * The actor has heard `speakerId` speak while both were in the same room. What "talk to X"
+   * means at runtime (D7/FR-11): presence decides, so a line spoken behind a closed door the actor
+   * was not in does not count, and neither does a message the actor sent without a reply.
+   */
+  | { kind: 'heard_from'; actorId: string; speakerId: string }
   | { kind: 'not'; precondition: OptionPrecondition }
 
 export interface OptionDefinition {
@@ -61,6 +67,12 @@ export function evaluatePrecondition(world: WorldState, precondition: OptionPrec
       return (world.rooms[precondition.roomId]?.doorOpen ?? false) === precondition.open
     case 'knows_evidence':
       return (world.evidenceKnown[precondition.actorId] ?? []).includes(precondition.evidenceId)
+    case 'heard_from':
+      return world.transcript.some(
+        (line) =>
+          line.speakerId === precondition.speakerId &&
+          wasPresent(world, precondition.actorId, line.roomId, line.seq),
+      )
     case 'not':
       return !evaluatePrecondition(world, precondition.precondition)
   }
@@ -77,6 +89,7 @@ export function isHiddenFrom(option: OptionDefinition, viewerId?: string): boole
   const hiddenBy = (precondition: OptionPrecondition): boolean => {
     switch (precondition.kind) {
       case 'knows_evidence':
+      case 'heard_from':
         return precondition.actorId !== viewerId
       case 'not':
         return hiddenBy(precondition.precondition)
@@ -179,8 +192,29 @@ export class StageDecisions {
   private readonly participants: Map<string, ActorKind>
   private readonly decisions = new Map<string, Decision>()
 
-  constructor(participants: readonly { actorId: string; actorKind: ActorKind }[]) {
+  constructor(
+    participants: readonly { actorId: string; actorKind: ActorKind }[],
+    existing: readonly Decision[] = [],
+  ) {
     this.participants = new Map(participants.map((p) => [p.actorId, p.actorKind]))
+    for (const decision of existing) {
+      const actorKind = this.participants.get(decision.actorId)
+      if (actorKind === undefined || actorKind !== decision.actorKind) {
+        throw new Error(`cannot restore decision for non-participant "${decision.actorId}"`)
+      }
+      if (this.decisions.has(decision.actorId)) {
+        throw new Error(`cannot restore duplicate decision for "${decision.actorId}"`)
+      }
+      this.decisions.set(decision.actorId, decision)
+    }
+  }
+
+  /** Rehydrate trusted stored decisions without re-evaluating option availability. */
+  static restore(
+    participants: readonly { actorId: string; actorKind: ActorKind }[],
+    decisions: readonly Decision[],
+  ): StageDecisions {
+    return new StageDecisions(participants, decisions)
   }
 
   /**

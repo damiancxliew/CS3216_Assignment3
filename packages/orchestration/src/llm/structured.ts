@@ -8,7 +8,15 @@
  */
 import { z } from 'zod'
 
-import type { LlmClient, LlmRequest, ModelTier, TokenUsage } from './types'
+import type {
+  LlmClient,
+  LlmRequest,
+  ModelTier,
+  ReasoningEffort,
+  ServiceTier,
+  TextVerbosity,
+  TokenUsage,
+} from './types'
 
 /** FR-4: at most two repair round-trips, then the call fails and the caller degrades. */
 export const MAX_REPAIR_ROUNDS = 2
@@ -19,6 +27,10 @@ export interface StructuredCall<T> {
   modelTier: ModelTier
   system: string
   user: string
+  reasoningEffort?: ReasoningEffort
+  verbosity?: TextVerbosity
+  maxOutputTokens?: number
+  serviceTier?: ServiceTier
 }
 
 export interface StructuredSuccess<T> {
@@ -112,10 +124,20 @@ export async function callStructured<T>(
       user,
       schemaName: call.schemaName,
       jsonSchema,
+      ...(call.reasoningEffort === undefined ? {} : { reasoningEffort: call.reasoningEffort }),
+      ...(call.verbosity === undefined ? {} : { verbosity: call.verbosity }),
+      ...(call.maxOutputTokens === undefined ? {} : { maxOutputTokens: call.maxOutputTokens }),
+      ...(call.serviceTier === undefined ? {} : { serviceTier: call.serviceTier }),
     }
     const response = await client.complete(request)
     usage.promptTokens += response.usage.promptTokens
     usage.completionTokens += response.usage.completionTokens
+    if (response.usage.cachedPromptTokens !== undefined) {
+      usage.cachedPromptTokens = (usage.cachedPromptTokens ?? 0) + response.usage.cachedPromptTokens
+    }
+    if (response.usage.reasoningTokens !== undefined) {
+      usage.reasoningTokens = (usage.reasoningTokens ?? 0) + response.usage.reasoningTokens
+    }
 
     const parsed = parseContent(call.schema, response.content)
     if (parsed.ok) {

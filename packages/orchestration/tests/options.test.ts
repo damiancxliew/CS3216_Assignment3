@@ -7,9 +7,10 @@ import {
   fixtureStageParticipants,
 } from '../src/fixtures'
 import { FakeLlmClient } from '../src/llm/fake'
-import { deriveOptions, isHiddenFrom, parseOptionsVersion, StageDecisions } from '../src/stage/options'
+import { deriveOptions, evaluatePrecondition, isHiddenFrom, parseOptionsVersion, StageDecisions } from '../src/stage/options'
 import { runStage } from '../src/world/stage-runtime'
 import { applyAction, type WorldState } from '../src/world/state'
+import type { LlmClient } from '../src/llm/types'
 
 const ledger = () => new StageDecisions(fixtureStageParticipants)
 
@@ -213,6 +214,24 @@ describe('option maintenance (K6)', () => {
     if (!result.ok) expect(result.reason).toBe('unknown_option')
   })
 
+  it('restores committed and passed decisions without re-evaluating availability', () => {
+    const world = createFixtureWorld()
+    const original = ledger()
+    const live = deriveOptions(world, fixtureOptionCatalogue)
+    expect(original.commit(world, fixtureOptionCatalogue, {
+      actorId: 'player',
+      actorKind: 'player',
+      optionId: 'option-sign-treaty',
+      optionsVersion: live.version,
+    }).ok).toBe(true)
+    expect(original.pass('agent-farquhar').ok).toBe(true)
+
+    const restored = new StageDecisions(fixtureStageParticipants, original.all())
+    expect(restored.all()).toEqual(original.all())
+    expect(restored.has('player')).toBe(true)
+    expect(restored.has('agent-farquhar')).toBe(true)
+  })
+
   it('passes everyone still undecided when the timer expires (D12/FR-16)', () => {
     const decisions = ledger()
     decisions.pass('agent-farquhar')
@@ -221,6 +240,27 @@ describe('option maintenance (K6)', () => {
     expect(timedOut.map((decision) => decision.actorId).sort()).toEqual(['agent-temenggong', 'player'])
     expect(timedOut.every((decision) => decision.optionId === null && decision.how === 'timed_out')).toBe(true)
     expect(decisions.settled()).toBe(true)
+  })
+
+  it('restores valid persisted decisions and rejects malformed snapshots', () => {
+    const decisions = ledger()
+    decisions.pass('agent-farquhar')
+    const stored = decisions.all()
+
+    const restored = StageDecisions.restore(fixtureStageParticipants, stored)
+    expect(restored.all()).toEqual(stored)
+    expect(restored.has('agent-farquhar')).toBe(true)
+    expect(restored.pending()).toEqual(['player', 'agent-temenggong'])
+
+    expect(() => StageDecisions.restore(fixtureStageParticipants, [
+      ...stored,
+      { actorId: 'agent-nobody', actorKind: 'agent' as const, optionId: null, how: 'passed' as const },
+    ])).toThrow()
+    expect(() => StageDecisions.restore(fixtureStageParticipants, [
+      ...stored,
+      { actorId: 'agent-temenggong', actorKind: 'player' as const, optionId: null, how: 'passed' as const },
+    ])).toThrow()
+    expect(() => StageDecisions.restore(fixtureStageParticipants, [...stored, ...stored])).toThrow()
   })
 })
 
@@ -313,5 +353,119 @@ describe('agents decide by the player\u2019s rules', () => {
       expect(request.user).not.toContain('actors_together')
       expect(request.user).not.toContain('precondition')
     }
+  })
+
+  it('parallelizes the forced decision phase while preserving agent order and snapshot inputs', async () => {
+    const world = createFixtureWorld()
+    const decisions = ledger()
+    decisions.pass('player')
+    let active = 0
+    let maxConcurrent = 0
+    const requests: { system: string; user: string }[] = []
+    const client: LlmClient = {
+      complete: async (request) => {
+        requests.push({ system: request.system, user: request.user })
+        active += 1
+        maxConcurrent = Math.max(maxConcurrent, active)
+        const agent = request.system.includes('Temenggong') ? 'Temenggong' : 'Farquhar'
+        await new Promise((resolve) => setTimeout(resolve, agent === 'Temenggong' ? 20 : 5))
+        active -= 1
+        return {
+          content: JSON.stringify({ say: `${agent} votes.`, actions: [{ type: 'commit_decision', optionId: 'option-sign-treaty' }] }),
+          usage: { promptTokens: 1, completionTokens: 1 },
+        }
+      },
+    }
+
+    const { telemetry } = await runStage(client, world, decisionConfig(decisions))
+
+    expect(maxConcurrent).toBe(2)
+    expect(telemetry.decisions.map((decision) => decision.actorId)).toEqual([
+      'agent-temenggong',
+      'agent-farquhar',
+    ])
+    expect(requests).toHaveLength(2)
+    expect(requests.every((request) => !request.user.includes('votes.'))).toBe(true)
+  })
+
+  it('records relevant absent agents as skipped while parallelizing present decisions', async () => {
+    const world = createFixtureWorld()
+    delete world.location['agent-harbour-master']
+    const decisions = ledger()
+    decisions.pass('player')
+    let active = 0
+    let maxConcurrent = 0
+    const client: LlmClient = {
+      complete: async () => {
+        active += 1
+        maxConcurrent = Math.max(maxConcurrent, active)
+        await new Promise((resolve) => setTimeout(resolve, 2))
+        active -= 1
+        return {
+          content: JSON.stringify({ say: '', actions: [{ type: 'commit_decision', optionId: 'option-sign-treaty' }] }),
+          usage: { promptTokens: 1, completionTokens: 1 },
+        }
+      },
+    }
+    const config = {
+      ...decisionConfig(decisions),
+      agents: {
+        ...fixtureStageConfig.agents,
+        'agent-harbour-master': { ...fixtureStageConfig.agents['agent-harbour-master']!, relevant: true },
+      },
+    }
+
+    const { telemetry } = await runStage(client, world, config)
+
+    expect(maxConcurrent).toBe(2)
+    expect(telemetry.agentsSkipped['agent-harbour-master']).toBe('not_in_world')
+  })
+
+  it('keeps the forced decision phase sequential below the token reserve', async () => {
+    const world = createFixtureWorld()
+    const decisions = ledger()
+    decisions.pass('player')
+    let active = 0
+    let maxConcurrent = 0
+    const client: LlmClient = {
+      complete: async () => {
+        active += 1
+        maxConcurrent = Math.max(maxConcurrent, active)
+        await new Promise((resolve) => setTimeout(resolve, 1))
+        active -= 1
+        return {
+          content: JSON.stringify({ say: '', actions: [{ type: 'commit_decision', optionId: 'option-sign-treaty' }] }),
+          usage: { promptTokens: 1, completionTokens: 1 },
+        }
+      },
+    }
+
+    await runStage(client, world, { ...decisionConfig(decisions), tokenBudget: 7_999 })
+
+    expect(maxConcurrent).toBe(1)
+  })
+})
+
+describe('heard_from (K6 for "talk to X" objectives)', () => {
+  it('holds once the actor has heard the speaker while present, and not for lines behind a closed door', () => {
+    const world = createFixtureWorld()
+    const heard = { kind: 'heard_from' as const, actorId: 'player', speakerId: 'agent-harbour-master' }
+    expect(evaluatePrecondition(world, heard)).toBe(false)
+
+    // The harbour master speaks in the tally shed while the player is in the hall: unheard.
+    applyAction(world, { actorKind: 'agent', actorId: 'agent-harbour-master', action: { type: 'speak', roomId: 'room-tally-shed', body: 'Ledgers balance.', addresseeId: null } })
+    expect(evaluatePrecondition(world, heard)).toBe(false)
+
+    // The player walks in; earlier lines are not backfilled (FR-11), a new one counts.
+    applyAction(world, { actorKind: 'player', actorId: 'player', action: { type: 'move_room', toRoomId: 'room-tally-shed' } })
+    expect(evaluatePrecondition(world, heard)).toBe(false)
+    applyAction(world, { actorKind: 'agent', actorId: 'agent-harbour-master', action: { type: 'speak', roomId: 'room-tally-shed', body: 'Ah, a visitor.', addresseeId: 'player' } })
+    expect(evaluatePrecondition(world, heard)).toBe(true)
+
+    // The player's own line does not satisfy it, and another viewer is not shown the option.
+    expect(evaluatePrecondition(world, { ...heard, speakerId: 'player' })).toBe(false)
+    const option = { id: 'opt-x', label: 'x', preconditions: [heard] }
+    expect(isHiddenFrom(option, 'agent-temenggong')).toBe(true)
+    expect(isHiddenFrom(option, 'player')).toBe(false)
   })
 })

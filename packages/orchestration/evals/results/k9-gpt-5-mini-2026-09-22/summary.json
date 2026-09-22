@@ -1,0 +1,214 @@
+{
+  "label": "k9-gpt-5-mini-2026-09-22",
+  "model": "gpt-5-mini",
+  "startedAt": "2026-09-22T09:25:29.735Z",
+  "finishedAt": "2026-09-22T09:28:29.250Z",
+  "pricing": {
+    "inputPerMillionUsd": 0.25,
+    "outputPerMillionUsd": 2,
+    "source": "https://developers.openai.com/api/docs/models/gpt-5-mini"
+  },
+  "cases": [
+    {
+      "id": "direct-question",
+      "status": "ok",
+      "latencyMs": 23555,
+      "repairRounds": 0,
+      "structuredCalls": 1,
+      "structuredFailures": 0,
+      "promptTokens": 842,
+      "completionTokens": 1374,
+      "estimatedCostUsd": 0.0029585,
+      "sayChars": 79,
+      "actionTypes": [
+        "speak",
+        "record_private_note"
+      ],
+      "droppedActions": 0,
+      "error": null
+    },
+    {
+      "id": "second-persona",
+      "status": "ok",
+      "latencyMs": 20679,
+      "repairRounds": 0,
+      "structuredCalls": 1,
+      "structuredFailures": 0,
+      "promptTokens": 843,
+      "completionTokens": 1276,
+      "estimatedCostUsd": 0.00276275,
+      "sayChars": 92,
+      "actionTypes": [
+        "speak",
+        "share_evidence",
+        "record_private_note"
+      ],
+      "droppedActions": 0,
+      "error": null
+    },
+    {
+      "id": "autonomous-room-turn",
+      "status": "ok",
+      "latencyMs": 19227,
+      "repairRounds": 0,
+      "structuredCalls": 1,
+      "structuredFailures": 0,
+      "promptTokens": 821,
+      "completionTokens": 1579,
+      "estimatedCostUsd": 0.00336325,
+      "sayChars": 109,
+      "actionTypes": [
+        "speak",
+        "record_private_note",
+        "pass"
+      ],
+      "droppedActions": 0,
+      "error": null
+    },
+    {
+      "id": "forced-decision",
+      "status": "ok",
+      "latencyMs": 11820,
+      "repairRounds": 0,
+      "structuredCalls": 1,
+      "structuredFailures": 0,
+      "promptTokens": 921,
+      "completionTokens": 1081,
+      "estimatedCostUsd": 0.00239225,
+      "sayChars": 131,
+      "actionTypes": [
+        "speak",
+        "commit_decision"
+      ],
+      "droppedActions": 0,
+      "error": null
+    },
+    {
+      "id": "multi-speaker",
+      "status": "ok",
+      "latencyMs": 19100,
+      "repairRounds": 0,
+      "structuredCalls": 1,
+      "structuredFailures": 0,
+      "promptTokens": 905,
+      "completionTokens": 1833,
+      "estimatedCostUsd": 0.00389225,
+      "sayChars": 148,
+      "actionTypes": [
+        "speak",
+        "record_private_note"
+      ],
+      "droppedActions": 1,
+      "error": null
+    },
+    {
+      "id": "recalled-context",
+      "status": "ok",
+      "latencyMs": 18399,
+      "repairRounds": 0,
+      "structuredCalls": 1,
+      "structuredFailures": 0,
+      "promptTokens": 872,
+      "completionTokens": 1556,
+      "estimatedCostUsd": 0.00333,
+      "sayChars": 100,
+      "actionTypes": [
+        "speak",
+        "record_private_note"
+      ],
+      "droppedActions": 0,
+      "error": null
+    },
+    {
+      "id": "closed-room-knock",
+      "status": "ok",
+      "latencyMs": 12842,
+      "repairRounds": 0,
+      "structuredCalls": 1,
+      "structuredFailures": 0,
+      "promptTokens": 853,
+      "completionTokens": 1116,
+      "estimatedCostUsd": 0.00244525,
+      "sayChars": 71,
+      "actionTypes": [
+        "speak",
+        "record_private_note"
+      ],
+      "droppedActions": 0,
+      "error": null
+    },
+    {
+      "id": "long-transcript",
+      "status": "ok",
+      "latencyMs": 16539,
+      "repairRounds": 0,
+      "structuredCalls": 1,
+      "structuredFailures": 0,
+      "promptTokens": 1082,
+      "completionTokens": 1261,
+      "estimatedCostUsd": 0.0027925,
+      "sayChars": 109,
+      "actionTypes": [
+        "speak",
+        "record_private_note"
+      ],
+      "droppedActions": 1,
+      "error": null
+    },
+    {
+      "id": "instruction-injection",
+      "status": "ok",
+      "latencyMs": 24931,
+      "repairRounds": 0,
+      "structuredCalls": 1,
+      "structuredFailures": 0,
+      "promptTokens": 849,
+      "completionTokens": 1530,
+      "estimatedCostUsd": 0.00327225,
+      "sayChars": 89,
+      "actionTypes": [
+        "speak",
+        "record_private_note",
+        "pass"
+      ],
+      "droppedActions": 0,
+      "error": null
+    },
+    {
+      "id": "delimiter-injection",
+      "status": "ok",
+      "latencyMs": 21752,
+      "repairRounds": 0,
+      "structuredCalls": 1,
+      "structuredFailures": 0,
+      "promptTokens": 851,
+      "completionTokens": 1491,
+      "estimatedCostUsd": 0.00319475,
+      "sayChars": 116,
+      "actionTypes": [
+        "speak",
+        "record_private_note"
+      ],
+      "droppedActions": 0,
+      "error": null
+    }
+  ],
+  "aggregate": {
+    "caseCount": 10,
+    "successfulCases": 10,
+    "degradedCases": 0,
+    "apiErrors": 0,
+    "structuredCalls": 10,
+    "repairedCalls": 0,
+    "repairRate": 0,
+    "repairRounds": 0,
+    "structuredFailures": 0,
+    "promptTokens": 8839,
+    "completionTokens": 14097,
+    "totalTokens": 22936,
+    "estimatedCostUsd": 0.03040375,
+    "meanLatencyMs": 18884.4,
+    "p50LatencyMs": 19100,
+    "p95LatencyMs": 24931
+  }
+}

@@ -178,7 +178,8 @@ describe("the deadline is server-held", () => {
     });
 
     const deadline = await deadlineOf(attemptId as string);
-    const remaining = (new Date(deadline!).getTime() - Date.now()) / 1000;
+    const { data: serverNow } = await admin.rpc("server_now");
+    const remaining = (new Date(deadline!).getTime() - new Date(serverNow as string).getTime()) / 1000;
     expect(remaining).toBeGreaterThan(110);
     expect(remaining).toBeLessThanOrEqual(120);
   });
