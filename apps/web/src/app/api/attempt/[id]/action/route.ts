@@ -6,7 +6,7 @@ import { postAction } from "@/lib/play/service";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const point = z.object({ x: z.number().int(), y: z.number().int() });
+const point = z.object({ x: z.number().int(), y: z.number().int() }).strict();
 
 /**
  * Player world actions beyond speech and the decision: the allow-listed
@@ -15,6 +15,7 @@ const point = z.object({ x: z.number().int(), y: z.number().int() });
  * server owns room membership; the client owns the walk between tiles.
  */
 const actionRequestSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("move_step"), stageId: z.string().min(1), from: point, to: point }).strict(),
   z.object({ type: z.literal("move_room"), toRoomId: z.string().min(1), position: point.optional() }),
   z.object({ type: z.literal("open_door"), roomId: z.string().min(1) }),
   z.object({ type: z.literal("close_door"), roomId: z.string().min(1) }),

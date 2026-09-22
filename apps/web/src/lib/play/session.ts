@@ -9,8 +9,8 @@
  * uuids where a foreign key demands it.
  */
 import {
+  advanceSpatialMovement,
   applyAction,
-  createWorld,
   deriveOptions,
   fakeResolver,
   filterActions,
@@ -21,6 +21,7 @@ import {
   runStage,
   StageDecisions,
   buildAgentTurnInput,
+  moveActorStep,
   type ActorAction,
   type Decision,
   type LlmClient,
@@ -30,6 +31,8 @@ import {
   type Utterance,
   type WorldState,
 } from "@adventure/orchestration";
+import { createSpatialStageWorld } from "@adventure/game-integration";
+import type { Point } from "@adventure/game-core";
 import { PLAYER_ID, toResolverInput, toStageRuntime, type StageRuntimeBundle } from "@adventure/generation/runtime";
 import { resolveStageSettings, type AdventureSpec, type Stage } from "@adventure/generation/spec";
 
@@ -63,6 +66,7 @@ export interface PlaySnapshot {
   endingId: string | null;
   tokensSpent: number;
   revision: number;
+  nextStepAt?: number;
 }
 
 /** Additive to the frozen I3 projection: what the renderer needs on top of it. */
@@ -75,7 +79,7 @@ export interface PlayState extends PublicAttemptState {
   /** Generated prop image per evidence item, when one exists (D4). Keys are evidence ids. */
   evidenceImages: Record<string, string>;
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
-  actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; sprite: Character }[];
+  actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; position: Point | null; sprite: Character }[];
   /** Evidence in the player's room that they have not examined yet. Names only — content is what examining reveals. */
   evidenceHere: { id: string; name: string; position: { x: number; y: number } | null }[];
   /** Version of the option set shown; commits carry it back so a stale set is rejected (FR-14). */
@@ -85,6 +89,7 @@ export interface PlayState extends PublicAttemptState {
 }
 
 export type PlayerWorldAction =
+  | { type: "move_step"; stageId: string; from: Point; to: Point }
   | { type: "move_room"; toRoomId: string; position?: { x: number; y: number } }
   | { type: "open_door"; roomId: string }
   | { type: "close_door"; roomId: string }
@@ -96,7 +101,9 @@ export type SessionError =
   | { code: "stage_closed"; message: string }
   | { code: "not_found"; message: string }
   | { code: "invalid_request"; message: string }
-  | { code: "stale_option"; message: string };
+  | { code: "stale_option"; message: string }
+  | { code: "stale_state"; message: string }
+  | { code: "rate_limited"; message: string };
 
 export type MessageOutcome = { ok: true; newMessages: PublicMessage[] } | { ok: false; error: SessionError };
 export type ActionOutcome = { ok: true; refused: string | null } | { ok: false; error: SessionError };
@@ -141,13 +148,10 @@ export interface SessionTimer {
  * room too: one nobody can shut, with nothing to examine, where a player hears only what is said
  * outdoors. Walking out of a building therefore really does leave its conversation behind (D7).
  */
-export const OUTDOORS_ROOM_ID = "outdoors";
+export const OUTDOORS_ROOM_ID = "__outdoors__";
 
-function worldFor(bundle: StageRuntimeBundle): WorldState {
-  return createWorld({
-    ...bundle.world,
-    rooms: [...bundle.world.rooms, { id: OUTDOORS_ROOM_ID, name: "Outdoors", description: "The open ground between the buildings.", doorOpen: true }],
-  });
+function worldFor(spec: AdventureSpec, index: number, attemptId: string): WorldState {
+  return createSpatialStageWorld(spec, index, compileStageMap(spec.stages[index]!, attemptId));
 }
 
 /** Budget for autonomous agent activity per stage (FR-12b). Kept modest: this is money per attempt. */
@@ -228,8 +232,7 @@ export class PlaySession {
   }
 
   static start(spec: AdventureSpec, attemptId: string, publishedVersion: number, clock: SessionClock = { now: () => new Date() }, assets: AssetManifest | null = null): PlaySession {
-    const bundle = toStageRuntime(spec, 0);
-    const world = worldFor(bundle);
+    const world = worldFor(spec, 0, attemptId);
     const snap: PlaySnapshot = {
       version: 1,
       stageIndex: 0,
@@ -239,27 +242,32 @@ export class PlaySession {
       journal: [],
       announcements: [],
       pendingEffects: [],
-      playerPos: null,
+      playerPos: world.spatial?.state.actors[PLAYER_ID] ?? null,
       spokenAt: {},
       stageStats: { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
       status: "active",
       endingId: null,
       tokensSpent: 0,
       revision: 0,
+      nextStepAt: 0,
     };
     return new PlaySession(spec, attemptId, publishedVersion, snap, clock, assets);
   }
 
   static resume(spec: AdventureSpec, attemptId: string, publishedVersion: number, snapshot: PlaySnapshot, clock: SessionClock = { now: () => new Date() }, assets: AssetManifest | null = null): PlaySession {
+    const expectedMap = compileStageMap(spec.stages[snapshot.stageIndex]!, attemptId);
+    if (!snapshot.world.spatial || snapshot.world.spatial.map.id !== expectedMap.map.id) throw new Error("This attempt requires a new compatible adventure version.");
+    const cloned = structuredClone(snapshot);
     return new PlaySession(spec, attemptId, publishedVersion, {
-        ...structuredClone(snapshot),
-        spokenAt: snapshot.spokenAt ?? {},
-        stageStats: snapshot.stageStats ?? { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
-      }, clock, assets);
+      ...cloned,
+      spokenAt: cloned.spokenAt ?? {},
+      stageStats: cloned.stageStats ?? { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
+      nextStepAt: cloned.nextStepAt ?? 0,
+    }, clock, assets);
   }
 
   snapshot(): PlaySnapshot {
-    return structuredClone({ ...this.snap, decisions: this.ledger.all() });
+    return structuredClone({ ...this.snap, playerPos: this.snap.world.spatial?.state.actors[PLAYER_ID] ?? null, decisions: this.ledger.all() });
   }
 
   get world(): WorldState {
@@ -308,7 +316,7 @@ export class PlaySession {
       },
       timer: { enabled: timer.enabled, deadlineAt: timer.deadlineAt, serverNow: now.toISOString(), secondsRemaining },
       mapArtifactId: compiled?.map.id ?? null,
-      playerPos: this.snap.playerPos ?? compiled?.playerSpawn ?? null,
+      playerPos: world.spatial?.state.actors[PLAYER_ID] ?? null,
       currentRoomId: playerRoom,
       rooms: this.stage.rooms.map((room) => ({
         id: room.id,
@@ -346,12 +354,13 @@ export class PlaySession {
       revision: this.snap.revision,
       map: compiled ? publicMap(compiled) : null,
       actors: [
-        { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, sprite: PLAYER_CHARACTER },
+        { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, position: world.spatial?.state.actors[PLAYER_ID] ?? null, sprite: PLAYER_CHARACTER },
         ...this.stage.agents.map((agent) => ({
           id: agent.id,
           name: this.agentName(agent.id),
           kind: "agent" as const,
           roomId: this.roomOf(agent.id),
+          position: world.spatial?.state.actors[agent.id] ?? null,
           sprite: this.characterOf(agent.stakeholderId),
         })),
       ],
@@ -545,12 +554,19 @@ export class PlaySession {
     const closed = this.closed();
     if (closed) return { ok: false, error: closed };
     const world = this.snap.world;
-
-    if (action.type === "position") {
-      if (this.snap.playerPos?.x !== action.position.x || this.snap.playerPos?.y !== action.position.y) {
-        this.snap.playerPos = action.position;
-        this.bump();
-      }
+    if (action.type === "position" || action.type === "move_room") return { ok: false, error: { code: "invalid_request", message: "Use adjacent tile movement." } };
+    if (action.type === "move_step") {
+      const spatial = this.snap.world.spatial!;
+      const current = spatial.state.actors[PLAYER_ID]!;
+      if (action.stageId !== this.stage.id || current.x !== action.from.x || current.y !== action.from.y) return { ok: false, error: { code: "stale_state", message: "The stage or position changed. Refresh and try again." } };
+      const now = this.clock.now().getTime();
+      if (now < (this.snap.nextStepAt ?? 0)) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
+      const moved = moveActorStep(this.snap.world, PLAYER_ID, action.to);
+      if (!moved.ok) return { ok: true, refused: moved.reason };
+      advanceSpatialMovement(this.snap.world);
+      this.snap.nextStepAt = now + 160;
+      this.snap.stageStats.actions += 1;
+      this.bump();
       return { ok: true, refused: null };
     }
 
@@ -576,13 +592,12 @@ export class PlaySession {
     }
 
     this.snap.stageStats.actions += 1;
-    const worldAction = action.type === "move_room" ? { type: action.type, toRoomId: action.toRoomId } : action;
+    const worldAction = action;
     const filtered = filterActions([worldAction], { actorKind: "player", actorId: PLAYER_ID });
     const entry: ActorAction | undefined = filtered.actions[0];
     if (!entry) return { ok: false, error: { code: "invalid_request", message: filtered.dropped[0]?.reason ?? "That is not something you can do." } };
 
     const result = applyAction(world, entry);
-    if (action.type === "move_room" && result.ok && action.position) this.snap.playerPos = action.position;
     this.bump();
 
     // Knocking gives whoever is behind that door a beat to answer it (K4, #8) — only them, so the
@@ -699,11 +714,12 @@ export class PlaySession {
   private openStage(index: number): void {
     const bundle = toStageRuntime(this.spec, index);
     this.snap.stageIndex = index;
-    this.snap.world = worldFor(bundle);
+    this.snap.world = worldFor(this.spec, index, this.attemptId);
     this.snap.decisions = [];
-    this.snap.playerPos = null;
+    this.snap.playerPos = this.snap.world.spatial?.state.actors[PLAYER_ID] ?? null;
     this.snap.spokenAt = {};
     this.snap.stageStats = { openedAt: this.clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 };
+    this.snap.nextStepAt = 0;
     this.stage = this.spec.stages[index]!;
     this.bundle = bundle;
     this.ledger = new StageDecisions(this.participants());
