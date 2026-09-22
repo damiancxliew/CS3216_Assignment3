@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { loadFixtureJson, loadI1Documents, loadI1Spec } from '../src/fixtures'
 import { verifyGrounding } from '../src/ingest/spans'
 import { MAX_GENERATED_ASSETS } from '../src/spec/catalogue'
-import { publicProjection, resolveStageSettings, validateAdventureSpec } from '../src/spec/v2'
+import { publicProjection, resolveStageSettings, validateAdventureSpec, validatePublishedSpec } from '../src/spec/v2'
 
 type Json = Record<string, any>
 
@@ -122,6 +122,16 @@ describe('Adventure Spec v2 rejects', () => {
     const sealed = stage.rooms.find((r: Json) => r.doorDefault === 'closed' && r.id !== stage.spawnRoomId)
     for (const agent of stage.agents) if (agent.startRoomId === sealed.id) agent.startRoomId = stage.spawnRoomId
     expectInvalid(spec, 'stages.0.rooms', 'never be opened')
+  })
+
+  it('but keeps an already-published version readable, so a new authoring rule cannot retire a live adventure', async () => {
+    const spec = await fixture()
+    const stage = spec.stages[0]
+    const sealed = stage.rooms.find((r: Json) => r.doorDefault === 'closed' && r.id !== stage.spawnRoomId)
+    for (const agent of stage.agents) if (agent.startRoomId === sealed.id) agent.startRoomId = stage.spawnRoomId
+    expect(validateAdventureSpec(spec).ok).toBe(false)
+    expect(validatePublishedSpec(spec).ok).toBe(true)
+    expect(validatePublishedSpec({ version: 1 }).ok).toBe(false)
   })
 
   it('a backward branch target', async () => {

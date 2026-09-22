@@ -8,7 +8,7 @@
  * prop); the service refuses anything else and caps at 8 per adventure (D5).
  */
 import { generateAssets, pendingManifest, type ImageService } from "@adventure/generation/assets";
-import { validateAdventureSpec } from "@adventure/generation/spec";
+import { validatePublishedSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { saveAssetRecord, saveManifest, SupabaseAssetCache, SupabaseAssetStore } from "./supabase";
@@ -33,7 +33,7 @@ export async function generateAssetsForVersion(options: GenerateForVersionOption
     .eq("version", options.version)
     .maybeSingle<{ id: string; json: unknown }>();
   if (!version) return { ok: false, reason: "no such published version" };
-  const validated = validateAdventureSpec(version.json);
+  const validated = validatePublishedSpec(version.json);
   if (!validated.ok) return { ok: false, reason: "stored spec does not validate" };
   const spec = validated.spec;
   if (spec.assetEligibility.length === 0) return { ok: true, specVersionId: version.id, generated: 0, cached: 0, failed: 0, costUsd: 0 };

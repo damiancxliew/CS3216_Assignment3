@@ -13,7 +13,7 @@
  */
 import { PLAYER_ID } from "@adventure/generation/runtime";
 import type { AssetManifest } from "@adventure/generation/assets";
-import { validateAdventureSpec, type AdventureSpec } from "@adventure/generation/spec";
+import { validatePublishedSpec, type AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { loadManifest } from "@/lib/assets/supabase";
@@ -149,8 +149,8 @@ export class SupabasePlayStore implements PlayStore {
     // fresh session over saved state and then collide with it on save.
     if (runtimeError) throw new Error(`attempt_runtime: ${runtimeError.message}`);
     if (!version) return null;
-    const validated = validateAdventureSpec(version.json);
-    if (!validated.ok) throw new Error(`published spec v${attempt.published_version} of ${attempt.adventure_id} no longer validates`);
+    const validated = validatePublishedSpec(version.json);
+    if (!validated.ok) throw new Error(`published spec v${attempt.published_version} of ${attempt.adventure_id} is not a readable spec`);
 
     let currentStageIndex: number | null = null;
     if (attempt.status === "active") {

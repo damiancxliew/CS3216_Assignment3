@@ -1,5 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Historical Adventures">
-  <rect width="64" height="64" rx="14" fill="#1f4b8a" />
-  <rect x="18" y="12" width="5" height="40" rx="2.5" fill="#f1f3f5" />
-  <path d="M26 15h22l-8 10 8 10H26z" fill="#f1f3f5" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .record { fill: #1c468a; }
+    .world { fill: #4f6033; }
+    @media (prefers-color-scheme: dark) {
+      .record { fill: #9dbcec; }
+      .world { fill: #b3c193; }
+    }
+  </style>
+  <path class="record" d="M5 5h10v2h-3v7h5.5v3H12v8h3v2H5v-2h3V7H5z"/>
+  <path class="world" d="M23 5h4v22h-4V17h-5.5v-3H23z"/>
 </svg>
