@@ -57,9 +57,32 @@ async function requireOwnership(adventureId: string) {
 /** `notice` is for a success that still has something to tell the teacher (FR-3: missing information is reported, never hidden). */
 export type ActionResult = { error?: string; notice?: string };
 
-const newAdventure = z.object({
+/** The teacher's brief (PRD §6). The reading level is mandatory from the first step (FR-1a). */
+const teacherBrief = z.object({
+  setting: z.string().trim().min(1, "Describe the setting").max(200),
+  studentRole: z.string().trim().min(1, "Say who the student plays").max(200),
+  learningObjectives: z
+    .string()
+    .transform((s) => s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean))
+    .pipe(z.array(z.string().max(300)).min(1, "Give at least one learning objective").max(6, "At most six learning objectives")),
+  band: z.enum(READING_BANDS, { message: "Choose a reading level" }),
+  ageMin: z.coerce.number({ message: "Give an age range" }).int().min(7).max(19),
+  ageMax: z.coerce.number({ message: "Give an age range" }).int().min(7).max(19),
+});
+
+function briefFrom(formData: FormData) {
+  return {
+    setting: formData.get("setting"),
+    studentRole: formData.get("studentRole"),
+    learningObjectives: formData.get("learningObjectives") ?? "",
+    band: formData.get("band"),
+    ageMin: formData.get("ageMin"),
+    ageMax: formData.get("ageMax"),
+  };
+}
+
+const newAdventure = teacherBrief.extend({
   title: z.string().trim().min(1, "Give the adventure a title").max(120),
-  setting: z.string().trim().max(200).optional(),
 });
 
 export async function createAdventure(
@@ -67,20 +90,21 @@ export async function createAdventure(
   formData: FormData,
 ): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
-  const parsed = newAdventure.safeParse({
-    title: formData.get("title"),
-    setting: formData.get("setting") ?? undefined,
-  });
+  const parsed = newAdventure.safeParse({ title: formData.get("title"), ...briefFrom(formData) });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+  if (parsed.data.ageMin > parsed.data.ageMax) return { error: "The age range is upside down" };
 
   const { data, error } = await supabase
     .from("adventure")
     .insert({
       owner_id: user.id,
       title: parsed.data.title,
-      setting: parsed.data.setting || null,
+      setting: parsed.data.setting,
+      student_role: parsed.data.studentRole,
+      learning_objectives: parsed.data.learningObjectives,
+      reading_level: { band: parsed.data.band, ageMin: parsed.data.ageMin, ageMax: parsed.data.ageMax },
     })
     .select("id")
     .single();
@@ -203,16 +227,7 @@ export async function addFileSource(
   return insertSource(adventureId, `upload:${crypto.randomUUID()}/${file.name}`, doc);
 }
 
-const generationBrief = z.object({
-  setting: z.string().trim().min(1, "Describe the setting").max(200),
-  studentRole: z.string().trim().min(1, "Say who the student plays").max(200),
-  learningObjectives: z
-    .string()
-    .transform((s) => s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean))
-    .pipe(z.array(z.string().max(300)).min(1, "Give at least one learning objective").max(6, "At most six learning objectives")),
-  band: z.enum(READING_BANDS),
-  ageMin: z.coerce.number().int().min(7).max(19),
-  ageMax: z.coerce.number().int().min(7).max(19),
+const generationBrief = teacherBrief.extend({
   stageCount: z.coerce.number().pipe(z.union([z.literal(1), z.literal(2), z.literal(3)])),
 });
 
@@ -229,15 +244,7 @@ export async function generateFromSources(
 ): Promise<ActionResult> {
   const { user } = await requireOwnership(adventureId);
 
-  const parsed = generationBrief.safeParse({
-    setting: formData.get("setting"),
-    studentRole: formData.get("studentRole"),
-    learningObjectives: formData.get("learningObjectives") ?? "",
-    band: formData.get("band"),
-    ageMin: formData.get("ageMin"),
-    ageMax: formData.get("ageMax"),
-    stageCount: formData.get("stageCount") ?? 3,
-  });
+  const parsed = generationBrief.safeParse({ ...briefFrom(formData), stageCount: formData.get("stageCount") ?? 3 });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const { band, ageMin, ageMax, ...rest } = parsed.data;
   if (ageMin > ageMax) return { error: "The age range is upside down" };
@@ -269,6 +276,12 @@ export async function generateFromSources(
       >(),
   ]);
   if (!adventure) return { error: "Adventure not found" };
+
+  // The brief the teacher generated from becomes the adventure's brief, so the next generation starts from it.
+  await admin
+    .from("adventure")
+    .update({ setting: rest.setting, student_role: rest.studentRole, learning_objectives: rest.learningObjectives, reading_level: { band, ageMin, ageMax } })
+    .eq("id", adventureId);
 
   const result = await runGeneration({
     admin,

@@ -7,7 +7,7 @@ import {
   fixtureStageParticipants,
 } from '../src/fixtures'
 import { FakeLlmClient } from '../src/llm/fake'
-import { deriveOptions, isHiddenFrom, parseOptionsVersion, StageDecisions } from '../src/stage/options'
+import { deriveOptions, evaluatePrecondition, isHiddenFrom, parseOptionsVersion, StageDecisions } from '../src/stage/options'
 import { runStage } from '../src/world/stage-runtime'
 import { applyAction, type WorldState } from '../src/world/state'
 
@@ -333,5 +333,29 @@ describe('agents decide by the player\u2019s rules', () => {
       expect(request.user).not.toContain('actors_together')
       expect(request.user).not.toContain('precondition')
     }
+  })
+})
+
+describe('heard_from (K6 for "talk to X" objectives)', () => {
+  it('holds once the actor has heard the speaker while present, and not for lines behind a closed door', () => {
+    const world = createFixtureWorld()
+    const heard = { kind: 'heard_from' as const, actorId: 'player', speakerId: 'agent-harbour-master' }
+    expect(evaluatePrecondition(world, heard)).toBe(false)
+
+    // The harbour master speaks in the tally shed while the player is in the hall: unheard.
+    applyAction(world, { actorKind: 'agent', actorId: 'agent-harbour-master', action: { type: 'speak', roomId: 'room-tally-shed', body: 'Ledgers balance.', addresseeId: null } })
+    expect(evaluatePrecondition(world, heard)).toBe(false)
+
+    // The player walks in; earlier lines are not backfilled (FR-11), a new one counts.
+    applyAction(world, { actorKind: 'player', actorId: 'player', action: { type: 'move_room', toRoomId: 'room-tally-shed' } })
+    expect(evaluatePrecondition(world, heard)).toBe(false)
+    applyAction(world, { actorKind: 'agent', actorId: 'agent-harbour-master', action: { type: 'speak', roomId: 'room-tally-shed', body: 'Ah, a visitor.', addresseeId: 'player' } })
+    expect(evaluatePrecondition(world, heard)).toBe(true)
+
+    // The player's own line does not satisfy it, and another viewer is not shown the option.
+    expect(evaluatePrecondition(world, { ...heard, speakerId: 'player' })).toBe(false)
+    const option = { id: 'opt-x', label: 'x', preconditions: [heard] }
+    expect(isHiddenFrom(option, 'agent-temenggong')).toBe(true)
+    expect(isHiddenFrom(option, 'player')).toBe(false)
   })
 })

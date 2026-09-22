@@ -21,7 +21,7 @@ import {
 import { useEffect, useRef } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
-import type { PlayState } from "@/lib/play/session";
+import { OUTDOORS_ROOM_ID, type PlayState } from "@/lib/play/session";
 
 const STEP_MS = 160;
 
@@ -74,6 +74,15 @@ function seatIn(map: StageMap, roomId: string, index: number): Point | null {
   return interior[index % interior.length] ?? null;
 }
 
+/** A path tile for the n-th person standing about outdoors, spread along the main road. */
+function outdoorSeat(map: StageMap, index: number): Point | null {
+  const road: Point[] = [];
+  for (let y = 0; y < map.height; y += 1) for (let x = 0; x < map.width; x += 1) if (map.tiles[y]?.[x] === "path") road.push({ x, y });
+  if (road.length === 0) return null;
+  road.sort((a, b) => a.y - b.y || a.x - b.x);
+  return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
+}
+
 export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
   const latest = useRef({ state, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor });
@@ -105,11 +114,12 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
       const actors = [
         { id: "player", name: "You", position: player, space: spaceAt(map as StageMap, player), targetRoomId: null, status: path.length ? ("moving" as const) : ("idle" as const), sprite: PLAYER_CHARACTER, facing },
         ...s.actors
-          .filter((a) => a.kind === "agent" && a.roomId)
+          .filter((a) => a.kind === "agent")
           .map((a) => {
-            const n = occupantsByRoom.get(a.roomId!) ?? 0;
-            occupantsByRoom.set(a.roomId!, n + 1);
-            const position = seatIn(map as StageMap, a.roomId!, n + 1) ?? { x: 0, y: 0 };
+            const key = a.roomId ?? OUTDOORS_ROOM_ID;
+            const n = occupantsByRoom.get(key) ?? 0;
+            occupantsByRoom.set(key, n + 1);
+            const position = (a.roomId ? seatIn(map as StageMap, a.roomId, n + 1) : outdoorSeat(map as StageMap, n)) ?? { x: 1, y: 1 };
             return { id: a.id, name: a.name, position, space: spaceAt(map as StageMap, position), targetRoomId: null, status: "idle" as const, ...(a.sprite ? { sprite: a.sprite } : {}) };
           }),
       ];
@@ -161,8 +171,10 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
       playerPos.current = to;
       render();
       const space = spaceAt(map as StageMap, to);
-      const roomId = space?.kind === "room" ? space.roomId : null;
-      if (roomId && roomId !== s.currentRoomId && pendingRoom !== roomId) {
+      // Doorways belong to nobody; grass and path are the outdoors, which the server tracks as a room of its own.
+      const roomId = space?.kind === "room" ? space.roomId : space?.kind === "outdoor" ? OUTDOORS_ROOM_ID : null;
+      const serverRoom = s.currentRoomId ?? OUTDOORS_ROOM_ID;
+      if (roomId && roomId !== serverRoom && pendingRoom !== roomId) {
         pendingRoom = roomId;
         const accepted = await latest.current.onEnterRoom(roomId, to);
         pendingRoom = null;
@@ -173,7 +185,7 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
           render();
         }
       }
-      if (roomId) latest.current.onWaitingAtDoor(null);
+      if (space?.kind === "room") latest.current.onWaitingAtDoor(null);
       settle();
     };
 

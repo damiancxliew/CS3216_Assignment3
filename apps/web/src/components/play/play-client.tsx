@@ -189,6 +189,10 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               <StageCountdown attemptId={attemptId} deadlineIso={state.timer.deadlineAt} serverNowIso={state.timer.serverNow} />
             </span>
           </div>
+          {here && state.roomImages[here.id] ? (
+            // eslint-disable-next-line @next/next/no-img-element -- generated landmark from storage
+            <img src={state.roomImages[here.id]} alt={`${here.name}`} className="aspect-[3/2] w-full rounded-lg border border-black/15 object-cover dark:border-white/20" />
+          ) : null}
           {here?.purpose ? <p className="text-sm opacity-70">{here.purpose}</p> : null}
           <div className="flex flex-wrap gap-2">
             {state.rooms
@@ -308,9 +312,15 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               <summary className="cursor-pointer opacity-70">Journal ({state.journal.length})</summary>
               <ul className="mt-2 flex flex-col gap-2">
                 {state.journal.map((j) => (
-                  <li key={j.id} className="rounded border border-black/10 p-2 dark:border-white/15">
+                  <li key={j.id} className="flex gap-2 rounded border border-black/10 p-2 dark:border-white/15">
+                    {state.evidenceImages[j.id] ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
+                      <img src={state.evidenceImages[j.id]} alt="" className="h-14 w-14 flex-none rounded object-cover" />
+                    ) : null}
+                    <div className="min-w-0">
                     <p>{j.text}</p>
                     {j.sourceSpan ? <p className="mt-1 text-xs opacity-60">{j.sourceSpan}</p> : null}
+                    </div>
                   </li>
                 ))}
               </ul>

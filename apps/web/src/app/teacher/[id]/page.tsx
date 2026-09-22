@@ -23,6 +23,7 @@ import {
   Section,
   SelectField,
   StatusBadge,
+  READING_BAND_LABELS,
 } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { createClient } from "@/lib/supabase/server";
@@ -35,15 +36,11 @@ export const metadata: Metadata = {
 // Generation is one long model call; the actions invoked from this page inherit this budget.
 export const maxDuration = 300;
 
-const READING_BAND_LABELS: Record<(typeof READING_BANDS)[number], string> = {
-  primary: "Primary",
-  "lower-secondary": "Lower secondary",
-  "upper-secondary": "Upper secondary",
-  "pre-university": "Pre-university",
-};
-
 type Adventure = {
   id: string;
+  student_role: string | null;
+  learning_objectives: string[] | null;
+  reading_level: { band: (typeof READING_BANDS)[number]; ageMin: number; ageMax: number } | null;
   title: string;
   setting: string | null;
   status: "draft" | "published" | "archived";
@@ -80,7 +77,7 @@ export default async function AdventurePage({
   // authoring view matches the owner rather than relying on visibility alone.
   const { data: adventure } = await supabase
     .from("adventure")
-    .select("id, title, setting, status, published_version, default_timer_seconds, share_token")
+    .select("id, title, setting, status, published_version, default_timer_seconds, share_token, student_role, learning_objectives, reading_level")
     .eq("id", id)
     .eq("owner_id", user.id)
     .maybeSingle<Adventure>();
@@ -124,12 +121,23 @@ export default async function AdventurePage({
 
   const { data: attempts } = await supabase
     .from("attempt")
-    .select("id, status, published_version, updated_at")
+    .select("id, status, published_version, updated_at, attempt_telemetry(stage_index, ended_by, duration_seconds, tokens, messages, evidence_found)")
     .eq("adventure_id", id)
     .order("updated_at", { ascending: false })
     .returns<
-      { id: string; status: string; published_version: number; updated_at: string }[]
+      {
+        id: string;
+        status: string;
+        published_version: number;
+        updated_at: string;
+        attempt_telemetry: { stage_index: number; ended_by: string; duration_seconds: number; tokens: number; messages: number; evidence_found: number }[];
+      }[]
     >();
+  // P11: what an attempt costs and how long it takes, summed from the per-stage rows.
+  const totals = (attempts ?? []).map((a) => a.attempt_telemetry ?? []).flat();
+  const finished = (attempts ?? []).filter((a) => a.status === "completed");
+  const minutes = (rows: { duration_seconds: number }[]) => Math.round(rows.reduce((sum, r) => sum + r.duration_seconds, 0) / 60);
+  const tokens = (rows: { tokens: number }[]) => rows.reduce((sum, r) => sum + r.tokens, 0);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-6 py-16">
@@ -278,6 +286,7 @@ export default async function AdventurePage({
                     name="studentRole"
                     label="Who the student plays"
                     placeholder="Junior interpreter to the expedition"
+                    defaultValue={adventure.student_role ?? undefined}
                   />
                   <Field
                     name="learningObjectives"
@@ -285,16 +294,17 @@ export default async function AdventurePage({
                     placeholder={"Explain why the EIC wanted a port at the Straits\nDescribe the Johor succession dispute"}
                     multiline
                     rows={3}
+                    defaultValue={adventure.learning_objectives?.join("\n") || undefined}
                   />
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <SelectField
                       name="band"
                       label="Reading level"
-                      defaultValue="lower-secondary"
+                      defaultValue={adventure.reading_level?.band ?? "lower-secondary"}
                       options={READING_BANDS.map((band) => ({ value: band, label: READING_BAND_LABELS[band] }))}
                     />
-                    <Field name="ageMin" label="Age from" defaultValue="13" />
-                    <Field name="ageMax" label="Age to" defaultValue="14" />
+                    <Field name="ageMin" label="Age from" defaultValue={String(adventure.reading_level?.ageMin ?? 13)} />
+                    <Field name="ageMax" label="Age to" defaultValue={String(adventure.reading_level?.ageMax ?? 14)} />
                     <SelectField
                       name="stageCount"
                       label="Stages"
@@ -435,16 +445,30 @@ export default async function AdventurePage({
 
       <Section title="Attempts">
         {attempts && attempts.length > 0 ? (
-          <ul className="flex flex-col gap-1 text-sm opacity-80">
-            {attempts.map((attempt) => (
-              <li key={attempt.id}>
-                v{attempt.published_version} · {attempt.status} ·{" "}
-                <span className="opacity-50">
-                  {new Date(attempt.updated_at).toLocaleString()}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-col gap-3">
+            {totals.length > 0 ? (
+              <p className="text-sm opacity-70">
+                {finished.length} of {attempts.length} finished · {totals.length} stage{totals.length === 1 ? "" : "s"} played ·{" "}
+                {Math.round(totals.filter((t) => t.ended_by === "timer").length / totals.length * 100)}% ended by the clock ·{" "}
+                {tokens(totals).toLocaleString()} tokens
+                {finished.length > 0 ? ` · ${Math.round(finished.reduce((sum, a) => sum + minutes(a.attempt_telemetry ?? []), 0) / finished.length)} min per finished attempt` : ""}
+              </p>
+            ) : null}
+            <ul className="flex flex-col gap-1 text-sm opacity-80">
+              {attempts.map((attempt) => {
+                const rows = attempt.attempt_telemetry ?? [];
+                return (
+                  <li key={attempt.id}>
+                    v{attempt.published_version} · {attempt.status}
+                    {rows.length > 0
+                      ? ` · ${rows.length} stage${rows.length === 1 ? "" : "s"} · ${minutes(rows)} min · ${tokens(rows).toLocaleString()} tokens · ${rows.reduce((n, r) => n + r.messages, 0)} messages · ${rows.reduce((n, r) => n + r.evidence_found, 0)} evidence`
+                      : ""}{" "}
+                    · <span className="opacity-50">{new Date(attempt.updated_at).toLocaleString()}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         ) : (
           <p className="text-sm opacity-60">Nobody has joined yet.</p>
         )}

@@ -1,4 +1,13 @@
 /** Small shared pieces of the teacher console's form and list furniture. */
+import type { READING_BANDS } from "@adventure/generation/spec";
+
+/** Teacher-facing names for the Spec v2 reading bands. */
+export const READING_BAND_LABELS: Record<(typeof READING_BANDS)[number], string> = {
+  primary: "Primary",
+  "lower-secondary": "Lower secondary",
+  "upper-secondary": "Upper secondary",
+  "pre-university": "Pre-university",
+};
 
 export function StatusBadge({
   status,

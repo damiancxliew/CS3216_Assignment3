@@ -71,7 +71,8 @@ export function toOptionPreconditions(option: DecisionOption, stage: Stage, warn
     const objective = stage.objectives.find((o) => o.id === objectiveId)
     if (!objective) continue // the validator already rejects this
     if (evidenceIds.has(objective.targetId)) out.push({ kind: 'knows_evidence', actorId: PLAYER_ID, evidenceId: objective.targetId })
-    else warnings.push(`${stage.id}/${option.id}: precondition "${objectiveId}" (speak with ${objective.targetId}) has no K6 predicate — needs e.g. { kind: 'spoke_with', actorId, otherActorId }; dropped`)
+    else if (stage.agents.some((a) => a.id === objective.targetId)) out.push({ kind: 'heard_from', actorId: PLAYER_ID, speakerId: objective.targetId })
+    else warnings.push(`${stage.id}/${option.id}: precondition "${objectiveId}" targets "${objective.targetId}", which is neither evidence nor an agent in this stage; dropped`)
   }
   return out
 }

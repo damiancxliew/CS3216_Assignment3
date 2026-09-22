@@ -169,9 +169,11 @@ describe("join_adventure", () => {
       current_stage_id: published.stageId,
     });
 
-    // 600s adventure default, no stage override (D12/FR-16).
+    // 600s adventure default, no stage override (D12/FR-16). Measured against the database clock:
+    // the deadline is server-held, and the test host's clock can sit a few ms off the container's.
+    const { data: serverNow } = await admin.rpc("server_now");
     const remaining =
-      (new Date(attempt!.stage_deadline_at as string).getTime() - Date.now()) / 1000;
+      (new Date(attempt!.stage_deadline_at as string).getTime() - new Date(serverNow as string).getTime()) / 1000;
     expect(remaining).toBeGreaterThan(540);
     expect(remaining).toBeLessThanOrEqual(600);
   });
