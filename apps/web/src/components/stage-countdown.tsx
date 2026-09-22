@@ -63,13 +63,13 @@ export function StageCountdown({
   }, [expired, attemptId]);
 
   if (!deadlineIso) {
-    return <span className="opacity-80">no timer</span>;
+    return <span className="text-sm font-normal text-muted">no timer</span>;
   }
-  if (remaining === null) return <span className="opacity-80">…</span>;
+  if (remaining === null) return <span className="text-muted">…</span>;
   if (remaining === 0) {
     return (
-      <span className="font-mono">
-        0:00 <span className="opacity-80">— time is up</span>
+      <span className="tabular-nums">
+        0:00 <span className="text-sm font-normal text-muted">time is up</span>
       </span>
     );
   }
@@ -78,6 +78,6 @@ export function StageCountdown({
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   return (
-    <span className="font-mono">{`${minutes}:${String(seconds).padStart(2, "0")}`}</span>
+    <span className="tabular-nums">{`${minutes}:${String(seconds).padStart(2, "0")}`}</span>
   );
 }

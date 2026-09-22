@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { DebriefViewed } from "@/components/debrief-viewed";
+import { button, RecordEntry, WorldEntry, Wordmark } from "@/components/ui";
 import { loadDebrief } from "@/lib/attempts/debrief";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,9 +14,10 @@ export const metadata: Metadata = {
 
 /**
  * P8/FR-19. The separation is structural, not decorative: documented history
- * and its citations render in one panel, the simulation's own inventions in a
- * visually distinct one, and neither can borrow the other's styling because
- * they arrive as separately-typed fields from `loadDebrief`.
+ * and its citations render in the record register (serif, ink-blue, always
+ * with provenance), the simulation's own inventions in the world register
+ * (sans, moss), and neither can borrow the other's styling because they
+ * arrive as separately-typed fields from `loadDebrief`.
  */
 export default async function DebriefPage({
   params,
@@ -34,114 +36,139 @@ export default async function DebriefPage({
   if (!debrief) notFound();
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-6 py-20">
+    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-14 px-6 py-8 sm:py-10">
       <DebriefViewed endingId={debrief.ending.id} />
 
-      <header className="flex flex-col gap-2">
-        <p className="text-sm uppercase tracking-widest opacity-60">
-          {debrief.adventureTitle} — debrief
+      <div className="flex items-center justify-between gap-4">
+        <Wordmark />
+        <Link href={`/play/${debrief.attemptId}`} className={button.link}>
+          Back to your attempt
+        </Link>
+      </div>
+
+      <header className="flex flex-col gap-3">
+        <p className="text-base text-muted">{debrief.adventureTitle}. Your debrief.</p>
+        <h1 className="font-serif text-4xl text-ink sm:text-5xl">{debrief.ending.title}</h1>
+        <p className="max-w-[60ch] pt-2 text-base text-muted">
+          Two kinds of thing are on this page. In blue, what the documents say, with the source and the page. In green, what the game did and what it made up where the documents were silent.
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {debrief.ending.title}
-        </h1>
       </header>
 
-      <section className="flex flex-col gap-3 rounded-lg border-2 border-dashed border-amber-500/60 bg-amber-500/5 p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-          In your simulation
-        </h2>
-        {debrief.path.length ? (
-          <ol className="flex flex-col gap-3 text-sm">
+      <Part title="In your simulation" register="world">
+        {debrief.path.length === 0 ? (
+          <p className="text-base text-muted">No stage decisions were recorded for this attempt.</p>
+        ) : (
+          <ol className="flex flex-col gap-6">
             {debrief.path.map((stage) => (
-              <li key={stage.stageIndex} className="flex flex-col gap-1">
-                <p className="text-xs uppercase tracking-wide opacity-60">
-                  Stage {stage.stageIndex + 1}: {stage.stageTitle}
-                </p>
-                <p>
-                  <span className="opacity-70">You chose: </span>
-                  {stage.chose ?? "nothing — the clock ran out and the stage went the way it would have without you"}
-                </p>
-                {stage.announcement ? <p className="opacity-90">{stage.announcement}</p> : null}
-                {stage.changes.length ? (
-                  <ul className="list-disc pl-5 text-xs opacity-70">
-                    {stage.changes.map((change, i) => (
-                      <li key={i}>{change}</li>
-                    ))}
-                  </ul>
-                ) : null}
+              <li key={stage.stageIndex}>
+                <WorldEntry label={`Stage ${stage.stageIndex + 1}: ${stage.stageTitle}`}>
+                  <p>
+                    <span className="text-muted">You chose </span>
+                    {stage.chose ?? "nothing. The clock ran out and the stage went the way it would have without you."}
+                  </p>
+                  {stage.announcement ? <p className="mt-2">{stage.announcement}</p> : null}
+                  {stage.changes.length ? (
+                    <ul className="mt-2 list-disc pl-5 text-base text-muted">
+                      {stage.changes.map((change, i) => (
+                        <li key={i}>{change}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </WorldEntry>
               </li>
             ))}
           </ol>
-        ) : null}
-        <p className="text-sm">{debrief.simulatedOutcome}</p>
-        <p className="text-xs opacity-70">
-          This is what happened in the game, not a historical claim.
-        </p>
-      </section>
+        )}
+        <WorldEntry label="How it ended in the game">
+          <p>{debrief.simulatedOutcome}</p>
+          <p className="mt-2 text-base text-muted">This is what happened in the game, not a historical claim.</p>
+        </WorldEntry>
+      </Part>
 
-      <section className="flex flex-col gap-3 rounded-lg border-2 border-emerald-700/60 bg-emerald-600/5 p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-400">
-          What the record says
-        </h2>
-        <p className="text-sm">{debrief.documentedHistory.text}</p>
-        {debrief.documentedHistory.citations.length ? (
-          <ol className="flex flex-col gap-2 text-sm">
+      <Part title="What the record says" register="record">
+        <p className="max-w-[62ch] font-serif text-xl leading-[1.6] text-ink">{debrief.documentedHistory.text}</p>
+        {debrief.documentedHistory.citations.length === 0 ? (
+          <p className="max-w-[60ch] text-base text-muted">
+            No page-level citations were attached to this ending, so treat the paragraph above as the simulation’s summary of the record rather than the record itself.
+          </p>
+        ) : (
+          <ol className="flex flex-col gap-6">
             {debrief.documentedHistory.citations.map((citation, index) => (
-              <li
-                key={`${citation.sourceId}-${citation.page}-${index}`}
-                className="border-l-2 border-emerald-700/40 pl-3"
-              >
-                <p className="italic">“{citation.quote}”</p>
-                <p className="text-xs opacity-70">
-                  {citation.sourceTitle} ({citation.sourceKind}), p.
-                  {citation.page}
-                </p>
+              <li key={`${citation.sourceId}-${citation.page}-${index}`}>
+                <RecordEntry
+                  quote={citation.quote}
+                  source={
+                    <>
+                      {citation.sourceTitle} ({citation.sourceKind}), page {citation.page}
+                    </>
+                  }
+                />
               </li>
             ))}
           </ol>
-        ) : null}
-      </section>
+        )}
+      </Part>
 
-      {debrief.assumptions.length ? (
-        <section className="flex flex-col gap-3 rounded-lg border-2 border-dashed border-amber-500/60 bg-amber-500/5 p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-            Where the record is silent, the simulation assumed
-          </h2>
-          <ul className="flex flex-col gap-2 text-sm">
+      <Part title="Where the record is silent, the simulation assumed" register="world">
+        {debrief.assumptions.length === 0 ? (
+          <p className="max-w-[60ch] text-base text-muted">
+            The simulation recorded no assumptions for this attempt. That does not mean it made none, only that none were logged.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-6">
             {debrief.assumptions.map((assumption) => (
               <li key={assumption.id}>
-                <p>{assumption.text}</p>
-                <p className="text-xs opacity-70">{assumption.rationale}</p>
+                <WorldEntry>
+                  <p>{assumption.text}</p>
+                  <p className="mt-1.5 text-base text-muted">{assumption.rationale}</p>
+                </WorldEntry>
               </li>
             ))}
           </ul>
-        </section>
-      ) : null}
+        )}
+      </Part>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide opacity-60">
-          Where your story diverged
-        </h2>
-        <p className="text-sm">{debrief.divergence}</p>
-      </section>
+      <Part title="Where your story left history behind">
+        <p className="max-w-[62ch] text-lg leading-relaxed text-ink">{debrief.divergence}</p>
+      </Part>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide opacity-60">
-          To think about
-        </h2>
-        <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm">
-          {debrief.reflectionQuestions.map((question) => (
-            <li key={question}>{question}</li>
+      <Part title="To think about">
+        <ol className="flex flex-col gap-4">
+          {debrief.reflectionQuestions.map((question, index) => (
+            <li key={question} className="grid grid-cols-[2rem_1fr] gap-x-3">
+              <span className="font-serif text-2xl leading-none text-muted" aria-hidden>
+                {index + 1}
+              </span>
+              <p className="max-w-[58ch] text-lg leading-relaxed text-ink">{question}</p>
+            </li>
           ))}
         </ol>
-      </section>
+      </Part>
 
-      <Link
-        href={`/play/${debrief.attemptId}`}
-        className="text-sm underline underline-offset-4 opacity-70"
-      >
-        Back to your attempt
-      </Link>
+      <footer className="border-t border-line pt-8">
+        <Link href={`/play/${debrief.attemptId}`} className={button.link}>
+          Back to your attempt
+        </Link>
+      </footer>
     </main>
+  );
+}
+
+/** One part of the debrief. The heading takes the register's colour so the page can be scanned by colour alone. */
+function Part({
+  title,
+  register,
+  children,
+}: {
+  title: string;
+  register?: "record" | "world";
+  children: React.ReactNode;
+}) {
+  const tone = register === "record" ? "text-record" : register === "world" ? "text-world" : "text-ink";
+  return (
+    <section className="flex flex-col gap-6 border-t border-line pt-8">
+      <h2 className={`font-serif text-2xl ${tone}`}>{title}</h2>
+      {children}
+    </section>
   );
 }
