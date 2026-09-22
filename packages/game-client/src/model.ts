@@ -46,7 +46,11 @@ export interface PlaygroundSnapshot {
   /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */
   ambient?: { id: AmbientOverlayId; intensity: 1 | 2 | 3 }
   effects?: Array<{ key: string; id: SceneEffectId; roomId?: string | null }>
+  /** Sound: whether it is on, and keyed one-shot cues to play once each. */
+  audio?: { muted: boolean; cues?: Array<{ key: string; id: SoundCueId }> }
 }
+
+export type SoundCueId = 'accept' | 'evidence' | 'resolution' | 'alert' | 'refused' | 'door' | 'step'
 
 function clone<T>(value: T): T {
   return structuredClone(value)

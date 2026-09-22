@@ -18,6 +18,7 @@ import {
   type Point,
   type StageMap,
 } from "@adventure/game-core";
+import type { SoundCueId } from "@adventure/game-client";
 import { useEffect, useRef } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
@@ -40,6 +41,8 @@ export type MapIntent = { kind: "room"; roomId: string } | { kind: "point"; poin
 
 export interface MapCanvasProps {
   state: PlayState;
+  /** Sound on/off and keyed one-shot cues; the renderer plays each key once. */
+  audio: { muted: boolean; cues: { key: string; id: SoundCueId }[] };
   /** Where the player wants to go, set by the panel ("Walk to the bazaar"). Cleared by the canvas when reached. */
   intent: MapIntent;
   onIntentDone: () => void;
@@ -83,10 +86,10 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
-  const latest = useRef({ state, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor });
-  latest.current = { state, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor };
+  const latest = useRef({ state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor });
+  latest.current = { state, audio, intent, onIntentDone, onEnterRoom, onSettled, onWaitingAtDoor };
   const playerPos = useRef<Point | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
 
@@ -140,6 +143,7 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
         effects: s.announcements.length
           ? s.pendingEffects.map((e, i) => ({ key: `${s.announcements[s.announcements.length - 1]!.id}:${i}`, id: e.id, roomId: typeof e.at === "string" ? e.at : s.currentRoomId }))
           : [],
+        audio: latest.current.audio,
       };
     };
     const render = () => view?.render(snapshot());
@@ -301,7 +305,7 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
   useEffect(() => {
     if (state.playerPos && playerPos.current === null) playerPos.current = state.playerPos;
     renderRef.current?.();
-  }, [state]);
+  }, [state, audio]);
 
   // Panel-driven intents.
   useEffect(() => {

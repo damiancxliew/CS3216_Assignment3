@@ -12,7 +12,7 @@
 import Phaser from 'phaser'
 import type { Point, StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
-import type { PlaygroundSnapshot } from './model.js'
+import type { PlaygroundSnapshot, SoundCueId } from './model.js'
 import type { MapView } from './view.js'
 
 const T = 16
@@ -50,6 +50,20 @@ const PLANKS = [I(12, 1), I(12, 1), I(13, 1), I(12, 2), I(13, 2)]
 const H = at(33)
 const DOOR = { closed: H(2, 3), open: H(9, 3) }
 
+/** One track per atmosphere (FR-15a), from the pack's CC0 soundtrack; the ending has its own. */
+const MUSIC_FOR: Record<string, string> = {
+  clear: 'calm-village',
+  clouds: 'road',
+  rain: 'quiet',
+  fog: 'mystical',
+  night: 'quiet',
+  dust: 'tension',
+  snow: 'peaceful',
+}
+const AMBIENT_LOOP: Partial<Record<string, string>> = { rain: 'rain', dust: 'wind', clouds: 'wind', snow: 'wind' }
+const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert', 'refused', 'door', 'step']
+const MUSIC_VOLUME = 0.35
+
 const DIRECTIONS = ['down', 'up', 'left', 'right'] as const
 type Facing = (typeof DIRECTIONS)[number]
 
@@ -84,6 +98,11 @@ class TiledScene extends Phaser.Scene {
   private ambientId: string | null = null
   private ambientObjects: Phaser.GameObjects.GameObject[] = []
   private playedEffects = new Set<string>()
+  private playedCues = new Set<string>()
+  private music: Phaser.Sound.BaseSound | null = null
+  private musicKey: string | null = null
+  private ambientLoop: Phaser.Sound.BaseSound | null = null
+  private ambientLoopKey: string | null = null
   private following = false
 
   constructor(snapshot: PlaygroundSnapshot, onDestination: (point: Point) => void, reducedMotion: boolean, onReady: () => void, options: TiledViewOptions) {
@@ -107,6 +126,9 @@ class TiledScene extends Phaser.Scene {
     this.load.image('fx-fog', `${this.base}/fx/fog.png`)
     this.load.image('fx-clouds', `${this.base}/fx/clouds.png`)
     for (const key of this.spriteKeys(this.current)) this.queueSprite(key)
+    for (const track of new Set(Object.values(MUSIC_FOR))) this.load.audio(`music-${track}`, `${this.base}/audio/music/${track}.ogg`)
+    for (const loop of new Set(Object.values(AMBIENT_LOOP))) if (loop) this.load.audio(`loop-${loop}`, `${this.base}/audio/sfx/${loop}.ogg`)
+    for (const cue of SFX) this.load.audio(`sfx-${cue}`, `${this.base}/audio/sfx/${cue}.ogg`)
   }
 
   create(): void {
@@ -122,6 +144,9 @@ class TiledScene extends Phaser.Scene {
     this.game.canvas.tabIndex = 0
     this.game.canvas.setAttribute('aria-label', 'Settlement map')
     this.scale.on('resize', () => this.fitCamera())
+    // Browsers keep audio silent until the user has interacted; the sound manager unlocks itself on
+    // the first gesture, and the music starts then.
+    if (this.sound.locked) this.sound.once(Phaser.Sound.Events.UNLOCKED, () => this.applyAudio(this.current))
     this.renderSnapshot(this.current, true)
     this.fitCamera()
     queueMicrotask(this.onReady)
@@ -234,12 +259,13 @@ class TiledScene extends Phaser.Scene {
       }
       this.labels.push(
         this.add
-          .text((room.x + room.width / 2) * T, room.y * T + 2, this.roomName(room.id), {
-            color: '#f4e9d0',
-            fontFamily: 'Georgia, serif',
-            fontSize: '7px',
+          .text((room.x + room.width / 2) * T, room.y * T + 1, this.roomName(room.id), {
+            color: '#fff8e7',
+            fontFamily: 'system-ui, "Segoe UI", sans-serif',
+            fontSize: '9px',
+            fontStyle: 'bold',
             backgroundColor: '#2e2620',
-            padding: { x: 3, y: 1 },
+            padding: { x: 4, y: 2 },
             resolution: 8,
           })
           .setOrigin(0.5, 0)
@@ -323,6 +349,7 @@ class TiledScene extends Phaser.Scene {
     }
     this.applyAmbient(snapshot)
     this.playEffects(snapshot)
+    this.applyAudio(snapshot)
     this.followPlayer()
   }
 
@@ -333,11 +360,12 @@ class TiledScene extends Phaser.Scene {
     const sprite = this.add.sprite(0, 0, textureKey, 0).setOrigin(0.5, 0.5)
     const label = this.add
       .text(0, 9, name, {
-        color: '#f4e9d0',
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '5px',
+        color: '#fff8e7',
+        fontFamily: 'system-ui, "Segoe UI", sans-serif',
+        fontSize: '7px',
+        fontStyle: 'bold',
         backgroundColor: player ? '#2f6f73' : '#3a2a24',
-        padding: { x: 2, y: 1 },
+        padding: { x: 3, y: 1 },
         resolution: 8,
       })
       .setOrigin(0.5, 0)
@@ -355,7 +383,10 @@ class TiledScene extends Phaser.Scene {
     const mapW = this.current.map.width * T
     const mapH = this.current.map.height * T
     const { width, height } = this.scale.gameSize
-    const zoom = Math.max(2, Math.min(4, Math.floor(Math.min(width / mapW, height / mapH)) || 2))
+    // Fill the viewport: the map is scaled to fit whichever dimension binds, never below 2x so
+    // sprites stay legible; beyond that the camera follows the player.
+    const fit = Math.min(width / mapW, height / mapH)
+    const zoom = Math.max(2, Math.min(5, Math.round(fit * 4) / 4))
     cam.setZoom(zoom)
     cam.setRoundPixels(true)
     if (mapW * zoom <= width && mapH * zoom <= height) {
@@ -513,6 +544,47 @@ class TiledScene extends Phaser.Scene {
         sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => sprite.destroy())
         this.time.delayedCall(1200, () => sprite.destroy())
       })
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // sound
+
+  private applyAudio(snapshot: PlaygroundSnapshot): void {
+    const muted = snapshot.audio?.muted ?? false
+    this.sound.mute = muted
+    if (this.sound.locked) return
+
+    const ambientId = snapshot.ambient?.id ?? 'clear'
+    const wantMusic = MUSIC_FOR[ambientId] ?? 'calm-village'
+    if (wantMusic !== this.musicKey && this.cache.audio.exists(`music-${wantMusic}`)) {
+      const previous = this.music
+      if (previous) {
+        this.tweens.add({ targets: previous, volume: 0, duration: 900, onComplete: () => previous.destroy() })
+      }
+      const next = this.sound.add(`music-${wantMusic}`, { loop: true, volume: 0 })
+      next.play()
+      this.tweens.add({ targets: next, volume: MUSIC_VOLUME, duration: 1200 })
+      this.music = next
+      this.musicKey = wantMusic
+    }
+
+    const wantLoop = AMBIENT_LOOP[ambientId] ?? null
+    if (wantLoop !== this.ambientLoopKey) {
+      this.ambientLoop?.destroy()
+      this.ambientLoop = null
+      if (wantLoop && this.cache.audio.exists(`loop-${wantLoop}`)) {
+        const intensity = snapshot.ambient?.intensity ?? 1
+        this.ambientLoop = this.sound.add(`loop-${wantLoop}`, { loop: true, volume: 0.12 + 0.1 * intensity })
+        this.ambientLoop.play()
+      }
+      this.ambientLoopKey = wantLoop
+    }
+
+    for (const cue of snapshot.audio?.cues ?? []) {
+      if (this.playedCues.has(cue.key)) continue
+      this.playedCues.add(cue.key)
+      if (this.cache.audio.exists(`sfx-${cue.id}`)) this.sound.play(`sfx-${cue.id}`, { volume: cue.id === 'step' ? 0.25 : 0.6 })
     }
   }
 

@@ -41,18 +41,18 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
 
   return (
     <main className="flex h-screen flex-col">
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-black/10 px-5 py-3 dark:border-white/15">
-        <h1 className="text-lg font-semibold tracking-tight">{resume.adventureTitle}</h1>
+      <header className="flex flex-wrap items-baseline gap-x-5 gap-y-2 border-b-2 border-black/10 px-6 py-4 dark:border-white/15">
+        <h1 className="text-2xl font-bold tracking-tight">{resume.adventureTitle}</h1>
         {active ? (
-          <details className="min-w-0 flex-1 text-sm">
-            <summary className="cursor-pointer opacity-70">
+          <details className="min-w-0 flex-1 text-base">
+            <summary className="cursor-pointer font-semibold">
               Stage {active.stage.index + 1} of {active.stageCount}: {active.stage.title}
-              <span className="ml-2 text-xs opacity-60">(brief)</span>
+              <span className="ml-3 rounded-md border border-black/25 px-2 py-0.5 text-sm font-medium dark:border-white/30">What is going on?</span>
             </summary>
-            <div className="mt-2 flex max-w-3xl flex-col gap-2 pb-1">
-              <p className="opacity-80">{active.stage.sharedContext}</p>
+            <div className="mt-3 flex max-w-3xl flex-col gap-3 pb-1 text-lg leading-relaxed">
+              <p>{active.stage.sharedContext}</p>
               {resume.recap.length && active.revision > 0 ? (
-                <ul className="flex list-disc flex-col gap-1 pl-5 text-xs opacity-60">
+                <ul className="flex list-disc flex-col gap-1 pl-6 text-base opacity-90">
                   {resume.recap.map((line) => (
                     <li key={line}>{line}</li>
                   ))}
