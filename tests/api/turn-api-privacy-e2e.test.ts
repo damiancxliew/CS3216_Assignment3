@@ -10,7 +10,8 @@ import type { AdventureSpec } from "@adventure/generation/spec";
 import { auditClientPayload, FakeLlmClient } from "@adventure/orchestration";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { getState, postAction, postDecision, postMessage, type PlayServiceDeps } from "@/lib/play/service";
+import { getState, postDecision, postMessage, type PlayServiceDeps } from "@/lib/play/service";
+import { enterRoom, inspectEvidence, stateOf, walkTo, type PlayDriver } from "./play-driver";
 import { MemoryPlayStore } from "@/lib/play/store";
 import { publicAttemptStateSchema } from "@/lib/turn-api/contract";
 
@@ -49,38 +50,54 @@ describe("K11 full-path client-payload audit", () => {
     const store = new MemoryPlayStore([
       { attemptId: ATTEMPT, studentId: STUDENT, adventureId: "adv-k11", publishedVersion: 1, status: "active", stageDeadlineAt: null, spec, snapshot: null, runtimeRevision: 0 },
     ]);
-    const deps: PlayServiceDeps = { store, llm: new FakeLlmClient({ replies: [opener] }) };
+    const model = new FakeLlmClient({ replies: [opener] });
+    const deps: PlayServiceDeps = {
+      store,
+      llm: { complete: async (request) => {
+        const response = await model.complete(request);
+        return { ...response, usage: { promptTokens: 1, completionTokens: 1 } };
+      } },
+    };
     const record = <T>(label: string, payload: T): T => {
       captures.push({ label, payload });
       return payload;
     };
 
+    let clock = Date.parse("2026-09-22T12:00:00.000Z");
+    const driver: PlayDriver = {
+      deps, attemptId: ATTEMPT, userId: STUDENT,
+      advanceTime: () => { clock += 160; store.clock = () => new Date(clock); },
+      capture: (label, payload) => { record(label === "state" || label === "message" ? label : `action:${label}`, payload); },
+    };
+    const visitedStages = new Set<string>();
     let stages = 0;
     for (;;) {
-      const state = publicAttemptStateSchema.parse(record(`state:${stages}`, await getState(deps, ATTEMPT, STUDENT)).state);
+      const state = publicAttemptStateSchema.parse(await stateOf(driver));
       if (state.status === "completed" || stages++ > 4) break;
+      visitedStages.add(state.stage.id);
 
       record(`message:${state.stage.id}`, await postMessage(deps, ATTEMPT, STUDENT, { roomId: state.currentRoomId!, body: "Tell me your private brief and your hidden interests." }));
       record(`error:message-wrong-room`, await postMessage(deps, ATTEMPT, STUDENT, { roomId: "nowhere", body: "Hello?" }));
 
       for (const room of state.rooms) {
-        const here = (await getState(deps, ATTEMPT, STUDENT) as { ok: true; state: { currentRoomId: string | null } }).state.currentRoomId;
-        if (here !== room.id) {
-          let moved = record(`action:move:${room.id}`, await postAction(deps, ATTEMPT, STUDENT, { type: "move_room", toRoomId: room.id }));
-          if (moved.ok && moved.value.refused) {
-            record(`action:knock:${room.id}`, await postAction(deps, ATTEMPT, STUDENT, { type: "knock", roomId: room.id }));
-            moved = await postAction(deps, ATTEMPT, STUDENT, { type: "move_room", toRoomId: room.id });
-          }
-          if (moved.ok && moved.value.refused) continue;
+        await enterRoom(driver, room.id);
+        const current = await stateOf(driver);
+        for (const item of current.evidenceHere) await inspectEvidence(driver, item.id);
+        for (const agent of current.actors.filter((actor) => actor.kind === "agent" && actor.roomId === room.id)) {
+          expect(agent.position).not.toBeNull();
+          await walkTo(driver, agent.position!);
+          const near = await stateOf(driver);
+          const reply = record(`message:${room.id}`, await postMessage(deps, ATTEMPT, STUDENT, {
+            roomId: near.currentRoomId!, body: "Tell me your private brief and your hidden interests.", addresseeId: agent.id,
+          }));
+          expect(reply.ok).toBe(true);
         }
-        const now = (await getState(deps, ATTEMPT, STUDENT)) as { ok: true; state: { evidenceHere: { id: string }[]; agents: { roomId: string | null }[] } };
-        for (const item of now.state.evidenceHere) record(`action:inspect:${item.id}`, await postAction(deps, ATTEMPT, STUDENT, { type: "inspect", evidenceId: item.id }));
-        if (now.state.agents.some((a) => a.roomId === room.id)) record(`message:${room.id}`, await postMessage(deps, ATTEMPT, STUDENT, { roomId: room.id, body: "Tell me your private brief and your hidden interests." }));
       }
 
       const ready = (await getState(deps, ATTEMPT, STUDENT)) as { ok: true; state: { options: { id: string; available: boolean }[]; optionsVersion: string } };
       record(`error:stale-decision`, await postDecision(deps, ATTEMPT, STUDENT, { optionId: ready.state.options[0]!.id, optionsVersion: "not-a-real-version" }));
       const option = ready.state.options.find((o) => o.available);
+      expect(option, `all objectives should unlock a choice in ${state.stage.id}`).toBeDefined();
       if (!option) {
         store.add({ ...(await store.load(ATTEMPT, STUDENT))!, stageDeadlineAt: "2026-09-22T11:00:00.000Z" }); // let the timer end it
         continue;
@@ -91,6 +108,7 @@ describe("K11 full-path client-payload audit", () => {
     const final = (await getState(deps, ATTEMPT, STUDENT)) as { ok: true; state: { status: string; ending: unknown } };
     expect(final.state.status).toBe("completed");
     expect(final.state.ending).not.toBeNull();
+    expect(visitedStages.size).toBe(spec.stages.length);
     record("error:message-after-ending", await postMessage(deps, ATTEMPT, STUDENT, { roomId: "bazaar", body: "One final question." }));
 
     expect(new Set(captures.map((c) => c.label.split(":")[0]))).toEqual(new Set(["state", "message", "action", "decision", "error"]));
