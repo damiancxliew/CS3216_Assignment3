@@ -28,10 +28,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
       - run: npm ci
-      - run: supabase start
-      - run: supabase db reset
+      - run: npx supabase start
+      - run: npx supabase db reset
       - run: npx vitest run tests/db
