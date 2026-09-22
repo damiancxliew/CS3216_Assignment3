@@ -197,6 +197,26 @@ public state the student has already seen. The countdown resumes against `server
 rather than the browser clock, so reopening a tab shows the real remaining time and
 changes nothing about the deadline.
 
+## Ending and debrief (P8, FR-19)
+
+An ending is not a stage row — it lives in the pinned spec json — so an attempt only
+records *which* ending it reached, in `attempt.ending_id`, written by
+`complete_attempt()` (service_role only: reaching an ending is the Resolver's call,
+not a student's).
+
+The debrief's claim is a separation, and spec v2 already encodes it:
+`ending.historicalOutcome` is `grounded()`, so it carries `spans` (source, page,
+verbatim quote) and `assumptionIds`. `loadDebrief()` resolves those against
+`spec.sources` and `spec.assumptions` and returns documented history and simulated
+assumption as separately-typed fields, which is what stops the page from blurring
+them. A span whose source is missing is still shown with its page and quote — the
+student can check a citation we failed to resolve — while a dangling assumption id
+shows nothing at all, because an empty claim must not be dressed up as a stated
+assumption.
+
+The whole read is against the version the attempt pinned, so republishing mid-attempt
+cannot rewrite the history a student is being debriefed on.
+
 ## Analytics (M19)
 
 Event names are frozen in `apps/web/src/lib/analytics/events.ts` and cover the funnel

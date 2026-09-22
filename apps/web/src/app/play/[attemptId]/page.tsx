@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { StageCountdown } from "@/components/stage-countdown";
@@ -43,6 +44,15 @@ export default async function PlayPage({
           {state.adventureTitle}
         </h1>
       </header>
+
+      {state.status === "completed" ? (
+        <Link
+          href={`/play/${state.attemptId}/debrief`}
+          className="self-start rounded border border-black/20 px-4 py-2 text-sm underline-offset-4 hover:underline dark:border-white/25"
+        >
+          Read your debrief
+        </Link>
+      ) : null}
 
       <section className="flex flex-col gap-3 rounded-lg border border-black/10 p-5 dark:border-white/15">
         <h2 className="text-sm font-medium uppercase tracking-wide opacity-60">
