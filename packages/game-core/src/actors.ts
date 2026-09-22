@@ -25,8 +25,25 @@ export function closeSpatialDoor(map: StageMap, state: SpatialState, doorId: str
 
 export function walkActorTowardRoom(map: StageMap, state: SpatialState, actorId: string, roomId: string): RoomWalkResult {
   const from = actorPosition(state, actorId)
+  const room = map.rooms.find((entry) => entry.id === roomId)
+  if (!from || !room || !isWalkable(map, state.doors, from)) return { state, status: 'unreachable' }
+  const insideRoom = (point: Point): boolean =>
+    point.x >= room.x &&
+    point.x < room.x + room.width &&
+    point.y >= room.y &&
+    point.y < room.y + room.height
+  if (room.enclosure === 'open') {
+    if (insideRoom(from)) return { state, status: 'arrived' }
+    const target = { x: room.x + Math.floor(room.width / 2), y: room.y + Math.floor(room.height / 2) }
+    const path = findPath(map, state.doors, from, target)
+    if (path === null) return { state, status: 'unreachable' }
+    if (path.length === 0) return { state, status: 'arrived' }
+    const next = moveActor(map, state, actorId, path[0]!)
+    const position = actorPosition(next, actorId)!
+    return { state: next, status: insideRoom(position) ? 'arrived' : 'moving' }
+  }
   const door = map.doors.find((entry) => entry.roomId === roomId)
-  if (!from || !door || !isWalkable(map, state.doors, from)) return { state, status: 'unreachable' }
+  if (!door) return { state, status: 'unreachable' }
   const currentSpace = spaceAt(map, from)
   if (currentSpace?.kind === 'room' && currentSpace.roomId === roomId) return { state, status: 'arrived' }
   const doorOpen = isWalkable(map, state.doors, door.position)

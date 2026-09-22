@@ -16,7 +16,7 @@
  */
 import type { ActorKind } from '../actions'
 import { hashSeed } from '../rng'
-import type { WorldState } from '../world/state'
+import { hasConversationExchange, type WorldState } from '../world/state'
 
 /** The closed set of conditions an option may depend on. Evaluated against recorded world state. */
 export type OptionPrecondition =
@@ -24,6 +24,7 @@ export type OptionPrecondition =
   | { kind: 'actors_together'; actorId: string; otherActorId: string }
   | { kind: 'door_open'; roomId: string; open: boolean }
   | { kind: 'knows_evidence'; actorId: string; evidenceId: string }
+  | { kind: 'spoke_with'; actorId: string; otherActorId: string }
   | { kind: 'not'; precondition: OptionPrecondition }
 
 export interface OptionDefinition {
@@ -61,6 +62,8 @@ export function evaluatePrecondition(world: WorldState, precondition: OptionPrec
       return (world.rooms[precondition.roomId]?.doorOpen ?? false) === precondition.open
     case 'knows_evidence':
       return (world.evidenceKnown[precondition.actorId] ?? []).includes(precondition.evidenceId)
+    case 'spoke_with':
+      return hasConversationExchange(world, precondition.actorId, precondition.otherActorId)
     case 'not':
       return !evaluatePrecondition(world, precondition.precondition)
   }
@@ -77,6 +80,7 @@ export function isHiddenFrom(option: OptionDefinition, viewerId?: string): boole
   const hiddenBy = (precondition: OptionPrecondition): boolean => {
     switch (precondition.kind) {
       case 'knows_evidence':
+      case 'spoke_with':
         return precondition.actorId !== viewerId
       case 'not':
         return hiddenBy(precondition.precondition)

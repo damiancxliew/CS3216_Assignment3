@@ -183,6 +183,7 @@ export const apiErrorSchema = z.object({
       "not_found",
       "invalid_request",
       "stale_option",
+      "stale_state",
       "stage_closed",
       "rate_limited",
     ]),

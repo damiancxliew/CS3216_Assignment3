@@ -8,7 +8,7 @@
 import type { LlmClient } from "@adventure/orchestration";
 
 import { PlaySession, type PlayState, type PlayerWorldAction, type SessionError, type SessionTimer } from "./session";
-import type { AttemptRecord, PlayStore } from "./store";
+import { PlayConflictError, type AttemptRecord, type PlayStore } from "./store";
 
 export type ServiceResult<T> = { ok: true; value: T; state: PlayState } | { ok: false; error: SessionError };
 
@@ -50,8 +50,13 @@ async function run<T>(
   if (after.revision !== startRevision) {
     const events = session.drainEvents();
     // The store owns the deadline (P6): it restamps one when a stage opens, and tells us what it now holds.
-    const saved = await deps.store.save(record, after, events);
-    timer = { enabled: saved.stageDeadlineAt !== null, deadlineAt: saved.stageDeadlineAt };
+    try {
+      const saved = await deps.store.save(record, after, events);
+      timer = { enabled: saved.stageDeadlineAt !== null, deadlineAt: saved.stageDeadlineAt };
+    } catch (error) {
+      if (error instanceof PlayConflictError) return { ok: false, error: { code: "stale_state", message: error.message } };
+      throw error;
+    }
   }
 
   if (!outcome.ok) return outcome;

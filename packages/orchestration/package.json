@@ -21,6 +21,7 @@
     "eval:k10": "vite-node evals/run-k10.ts"
   },
   "dependencies": {
+    "@adventure/game-core": "file:../game-core",
     "openai": "7.15.0",
     "zod": "^4.6.5"
   },

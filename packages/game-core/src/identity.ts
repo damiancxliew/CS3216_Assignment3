@@ -32,6 +32,7 @@ export function mapIdentityPayload(map: StageMap): Omit<StageMap, 'id'> {
     tiles: map.tiles.map((row) => row.slice()),
     rooms: map.rooms.map((room) => ({
       id: room.id,
+      enclosure: room.enclosure,
       x: room.x,
       y: room.y,
       width: room.width,

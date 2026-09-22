@@ -18,6 +18,7 @@ const STATUS: Record<SessionError["code"], number> = {
   not_found: 404,
   invalid_request: 400,
   stale_option: 409,
+  stale_state: 409,
   stage_closed: 409,
 };
 

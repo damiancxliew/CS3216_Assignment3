@@ -28,6 +28,18 @@ function allOpen(map: StageMap): DoorStates {
   return Object.fromEntries(map.doors.map(({ id }) => [id, 'open' as const]))
 }
 
+function allOpenLayout(): Parameters<typeof compileStage>[0] {
+  return {
+    stageId: 'open-settlement',
+    spawnRoomId: 'grove',
+    rooms: [
+      { id: 'grove', size: 'small', enclosure: 'open', doorDefault: null },
+      { id: 'plaza', size: 'medium', enclosure: 'open', doorDefault: null },
+    ],
+    placements: [{ id: 'decision', kind: 'decision', roomId: 'grove' }],
+  }
+}
+
 function pointKey(point: Point): string {
   return `${point.x},${point.y}`
 }
@@ -183,6 +195,22 @@ describe('actor spatial primitives', () => {
     const sourceBlocked = walkActorTowardRoom(map, closedSource, 'actor', targetDoor.roomId)
     expect(sourceBlocked.status).toBe('unreachable')
     expect(sourceBlocked.state).toBe(closedSource)
+  })
+
+  it('walks into an open location without a door or teleport', () => {
+    const compiled = compileStage(allOpenLayout(), 'open-seed')
+    expect(compiled.map.doors).toEqual([])
+    expect(compiled.initialDoors).toEqual({})
+    const initial = state({}, { actor: { x: 1, y: 1 } })
+    const trace = walkTrace(compiled.map, initial, 'actor', 'plaza')
+    expect(trace.result.status).toBe('arrived')
+    expect(trace.trace.some(({ space }) => space?.kind === 'outdoor')).toBe(true)
+    const final = trace.state.actors.actor!
+    const target = compiled.map.rooms.find(({ id }) => id === 'plaza')!
+    expect(final.x).toBeGreaterThanOrEqual(target.x)
+    expect(final.x).toBeLessThan(target.x + target.width)
+    expect(final.y).toBeGreaterThanOrEqual(target.y)
+    expect(final.y).toBeLessThan(target.y + target.height)
   })
 
   it('projects all live actor positions globally with allowlisted detached data', () => {

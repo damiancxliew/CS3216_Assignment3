@@ -50,7 +50,8 @@ export function toPrivateContext(agent: Agent, spec: AdventureSpec): AgentPrivat
 }
 
 export function toRoomState(room: Stage['rooms'][number]): RoomState {
-  return { id: room.id, name: room.name, description: room.landmark ? `${room.purpose} ${room.landmark.name}: ${room.landmark.description}` : room.purpose, doorOpen: room.doorDefault === 'open' }
+  const state: RoomState = { id: room.id, name: room.name, description: room.landmark ? `${room.purpose} ${room.landmark.name}: ${room.landmark.description}` : room.purpose, doorOpen: room.enclosure === 'open' || room.doorDefault === 'open' }
+  return room.enclosure === null ? state : { ...state, enclosure: room.enclosure }
 }
 
 export function toActorProfile(agent: Agent, spec: AdventureSpec): ActorProfile {
@@ -67,12 +68,24 @@ export function toActorProfile(agent: Agent, spec: AdventureSpec): ActorProfile 
 export function toOptionPreconditions(option: DecisionOption, stage: Stage, warnings: string[]): OptionPrecondition[] {
   const out: OptionPrecondition[] = []
   const evidenceIds = new Set(stage.evidence.map((e) => e.id))
-  for (const objectiveId of option.preconditions) {
-    const objective = stage.objectives.find((o) => o.id === objectiveId)
-    if (!objective) continue // the validator already rejects this
-    if (evidenceIds.has(objective.targetId)) out.push({ kind: 'knows_evidence', actorId: PLAYER_ID, evidenceId: objective.targetId })
-    else warnings.push(`${stage.id}/${option.id}: precondition "${objectiveId}" (speak with ${objective.targetId}) has no K6 predicate — needs e.g. { kind: 'spoke_with', actorId, otherActorId }; dropped`)
+  const agentIds = new Set(stage.agents.map((agent) => agent.id))
+  const objectives = new Map(stage.objectives.map((objective) => [objective.id, objective]))
+  const visited = new Set<string>()
+  const add = (precondition: OptionPrecondition): void => {
+    if (!out.some((existing) => JSON.stringify(existing) === JSON.stringify(precondition))) out.push(precondition)
   }
+  const visit = (objectiveId: string): void => {
+    if (visited.has(objectiveId)) return
+    visited.add(objectiveId)
+    // the validator already rejects this
+    const objective = objectives.get(objectiveId)
+    if (!objective) throw new Error(`${stage.id}/${option.id}: unknown objective "${objectiveId}"`)
+    objective.requires.forEach(visit)
+    if (evidenceIds.has(objective.targetId)) add({ kind: 'knows_evidence', actorId: PLAYER_ID, evidenceId: objective.targetId })
+    else if (agentIds.has(objective.targetId)) add({ kind: 'spoke_with', actorId: PLAYER_ID, otherActorId: objective.targetId })
+    else throw new Error(`${stage.id}/${option.id}: unsupported objective target "${objective.targetId}"`)
+  }
+  option.preconditions.forEach(visit)
   return out
 }
 
@@ -91,7 +104,6 @@ export function toStageRuntime(spec: AdventureSpec, stageIndex: number): StageRu
 
   const options = stage.decision.options.map((option): OptionDefinition => ({ id: option.id, label: option.label, preconditions: toOptionPreconditions(option, stage, warnings) }))
   if (stage.decision.requires.length) {
-    warnings.push(`${stage.id}: decision.requires [${stage.decision.requires.join(', ')}] gates the whole decision; K6 only gates per option — mapped onto every option's preconditions where expressible`)
     const gate = toOptionPreconditions({ ...stage.decision.options[0]!, preconditions: stage.decision.requires }, stage, [])
     for (const option of options) (option.preconditions as OptionPrecondition[]).push(...gate.filter((g) => !option.preconditions.some((p) => JSON.stringify(p) === JSON.stringify(g))))
   }
