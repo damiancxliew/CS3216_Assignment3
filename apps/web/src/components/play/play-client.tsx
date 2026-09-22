@@ -58,6 +58,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [pendingSpeech, setPendingSpeech] = useState<{ id: string; roomId: string; body: string } | null>(null);
   const [addressee, setAddressee] = useState<string | null>(null);
   const [intent, setIntent] = useState<MapIntent>(null);
   const [waitingAtDoor, setWaitingAtDoor] = useState<string | null>(null);
@@ -90,7 +91,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({ block: "end" });
-  }, [state.transcript.length]);
+  }, [state.transcript.length, pendingSpeech?.id]);
 
   // The moment a choice becomes possible, show it; a new stage closes it again.
   const canDecide = state.options.some((o) => o.available);
@@ -126,9 +127,30 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
 
   async function send() {
     const body = draft.trim();
-    if (!body || !state.currentRoomId) return;
+    const roomId = state.currentRoomId;
+    if (!body || !roomId || busy !== null) return;
     setDraft("");
-    await act("Speaking…", () => playApi.message(attemptId, { roomId: state.currentRoomId!, body, addresseeId: effectiveAddressee }));
+    setPendingSpeech({ id: crypto.randomUUID(), roomId, body });
+    setBusy("Speaking…");
+    setNotice(null);
+    try {
+      const result = await playApi.message(attemptId, { roomId, body, addresseeId: effectiveAddressee });
+      if (!result.ok) {
+        setPendingSpeech(null);
+        setDraft((current) => (current === "" ? body : current));
+        setNotice(result.error.message);
+        await refresh();
+        return;
+      }
+      setPendingSpeech(null);
+      accept(result.body.state);
+    } catch (error) {
+      setPendingSpeech(null);
+      setDraft((current) => (current === "" ? body : current));
+      setNotice(error instanceof Error ? error.message : "Could not send that message.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function decide(optionId: string) {
@@ -325,7 +347,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           )}
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4" role="log" aria-live="polite" aria-label="Conversation">
-            {state.transcript.length === 0 ? (
+            {state.transcript.length === 0 && pendingSpeech === null ? (
               <p className="m-auto max-w-xs text-center text-[15px] leading-relaxed opacity-70">
                 {talkingTo
                   ? `Nothing said yet. Ask ${talkingTo.name} a question — hearing what they think is how you complete a goal about them.`
@@ -345,6 +367,13 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                 </div>
               );
             })}
+            {pendingSpeech ? (
+              <div key={pendingSpeech.id} className="flex flex-row-reverse items-start gap-2.5">
+                <div className="min-w-0 max-w-[85%] rounded-2xl rounded-tr-md bg-foreground px-4 py-2.5 leading-relaxed text-background">
+                  <p>{pendingSpeech.body}</p>
+                </div>
+              </div>
+            ) : null}
             {busy === "Speaking…" ? <p className="px-2 text-[15px] font-semibold opacity-60">{talkingTo?.name ?? "They"} is thinking…</p> : null}
             <div ref={transcriptEnd} />
           </div>
