@@ -39,11 +39,13 @@ Requires Node 22 and Docker (for the local Supabase stack).
 
 ```bash
 npm ci
-cp .env.example .env.local           # fill in the keys printed by `supabase start`
 npx supabase start                   # local Postgres, Auth and Studio
 npx supabase db reset                # rebuilds the whole schema from migrations
+cp .env.example apps/web/.env.local  # fill in the keys printed by `supabase start`
 npm run dev --workspace apps/web     # http://localhost:3000
 ```
+
+Next.js only reads `.env.local` from `apps/web/`, not the repository root.
 
 The database is **only ever** built from `supabase/migrations/`; `db reset` recreates it
 from scratch, so a schema change that is not a migration does not exist.
