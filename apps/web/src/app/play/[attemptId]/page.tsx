@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Nunito } from "next/font/google";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { PlayClient } from "@/components/play/play-client";
+import { button } from "@/components/ui";
 import { loadResumeState } from "@/lib/attempts/resume";
 import { playDeps } from "@/lib/play/http";
 import { getState } from "@/lib/play/service";
@@ -16,9 +16,6 @@ export const metadata: Metadata = {
 
 // Opening the page may settle an expired stage, which is one resolver call.
 export const maxDuration = 60;
-
-// A rounder, friendlier face than the console's Geist: this page is for students, not teachers.
-const nunito = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800", "900"], display: "swap" });
 
 /**
  * The student's attempt: the map fills the screen, the panel does everything
@@ -44,19 +41,24 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   const active = initial.ok && initial.state.status === "active" ? initial.state : null;
 
   return (
-    <main className={`${nunito.className} flex h-screen flex-col`}>
-      <header className="flex flex-wrap items-baseline gap-x-5 gap-y-2 border-b-2 border-black/10 px-6 py-4 dark:border-white/15">
-        <h1 className="text-2xl font-bold tracking-tight">{resume.adventureTitle}</h1>
+    <main className="flex h-screen flex-col">
+      <header className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-line bg-surface px-5 py-3">
+        <h1 className="font-serif text-xl text-ink">{resume.adventureTitle}</h1>
         {active ? (
-          <details className="min-w-0 flex-1 text-base">
-            <summary className="cursor-pointer font-semibold">
-              Stage {active.stage.index + 1} of {active.stageCount}: {active.stage.title}
-              <span className="ml-3 rounded-md border border-black/25 px-2 py-0.5 text-sm font-medium dark:border-white/30">What is going on?</span>
+          <details className="group min-w-0 flex-1 text-base">
+            <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-3 gap-y-1 text-ink marker:content-none">
+              <span className="font-semibold">
+                Stage {active.stage.index + 1} of {active.stageCount}: {active.stage.title}
+              </span>
+              <span className="text-base text-muted underline decoration-line-strong underline-offset-4 group-hover:text-ink">
+                <span className="group-open:hidden">What is going on?</span>
+                <span className="hidden group-open:inline">Hide</span>
+              </span>
             </summary>
-            <div className="mt-3 flex max-w-3xl flex-col gap-3 pb-1 text-lg leading-relaxed">
+            <div className="mt-3 flex max-w-[64ch] flex-col gap-3 pb-1 text-lg leading-relaxed text-ink">
               <p>{active.stage.sharedContext}</p>
               {resume.recap.length && active.revision > 0 ? (
-                <ul className="flex list-disc flex-col gap-1 pl-6 text-base opacity-90">
+                <ul className="flex list-disc flex-col gap-1 pl-6 text-base text-muted">
                   {resume.recap.map((line) => (
                     <li key={line}>{line}</li>
                   ))}
@@ -70,10 +72,10 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
       {initial.ok ? (
         <PlayClient attemptId={attemptId} initialState={initial.state} />
       ) : (
-        <section className="m-6 flex flex-col gap-3 rounded-lg border border-black/10 p-5 text-sm dark:border-white/15">
-          <p>This attempt cannot be played right now: {initial.error.message}</p>
+        <section className="m-6 flex max-w-xl flex-col gap-3 rounded-surface border border-line bg-surface p-6">
+          <p className="text-ink">This attempt cannot be played right now: {initial.error.message}</p>
           {resume.status === "completed" ? (
-            <Link href={`/play/${attemptId}/debrief`} className="w-fit underline underline-offset-4">
+            <Link href={`/play/${attemptId}/debrief`} className={`${button.link} w-fit`}>
               Read your debrief
             </Link>
           ) : null}

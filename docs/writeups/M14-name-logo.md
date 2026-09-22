@@ -29,7 +29,8 @@ than it gains in distinctiveness.
 ## The logo
 
 A single mark used at every size: a **swallow-tailed pennant on a staff**, drawn as two
-flat shapes in mint (`#6ee7b7`) on the product's near-black (`#0b0f0c`). Source:
+flat shapes in the record's ink-blue (`#1f4b8a`) and the paper grey the product is set on
+(`#f1f3f5`). Source:
 `apps/web/src/app/icon.svg` — the same two shapes are inlined into the
 generated OG card, so the favicon, the tab icon and every shared-link preview are one
 drawing rather than three assets that drift.
@@ -43,8 +44,8 @@ Constraints it had to satisfy:
   OG card. Anything with detail dies at the small end.
 - **No clock, no scroll, no laurel wreath.** The obvious history iconography codes as
   *dusty*, and the product is trying to argue that the past was contingent and live.
-- **Works on the dark landing hero.** Hence a flat fill, no gradients, and a rounded
-  dark tile behind the mark so it also survives a light browser tab strip.
+- **Survives either tab strip.** Hence a flat fill, no gradients, and a rounded ink-blue
+  tile behind the light mark so it reads on both light and dark chrome.
 
 The generated OG card (`apps/web/src/app/opengraph-image.tsx`, 1200×630) pairs the mark
 with the wordmark and the tagline, so every shared link — which is how this product

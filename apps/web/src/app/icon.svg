@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Historical Adventures">
-  <rect width="64" height="64" rx="14" fill="#0b0f0c" />
-  <rect x="18" y="12" width="5" height="40" rx="2.5" fill="#6ee7b7" />
-  <path d="M26 15h22l-8 10 8 10H26z" fill="#6ee7b7" />
+  <rect width="64" height="64" rx="14" fill="#1f4b8a" />
+  <rect x="18" y="12" width="5" height="40" rx="2.5" fill="#f1f3f5" />
+  <path d="M26 15h22l-8 10 8 10H26z" fill="#f1f3f5" />
 </svg>

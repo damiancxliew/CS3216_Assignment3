@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { button, control, ErrorText, Pending } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -39,33 +40,16 @@ export function DevSignIn({ next = "/" }: { next?: string }) {
   }
 
   return (
-    <details className="text-sm">
-      <summary className="cursor-pointer opacity-60">Local dev sign-in (email/password)</summary>
-      <form action={submit} className="flex flex-col gap-2 pt-3">
-        <input
-          name="email"
-          type="email"
-          required
-          defaultValue="teacher@local.test"
-          className="rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground dark:border-white/20"
-        />
-        <input
-          name="password"
-          type="password"
-          required
-          minLength={6}
-          defaultValue="password123!"
-          className="rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground dark:border-white/20"
-        />
-        <button
-          type="submit"
-          disabled={pending}
-          className="inline-flex w-fit items-center rounded-full border border-black/15 px-4 py-1.5 text-sm transition hover:bg-black/5 disabled:opacity-50 dark:border-white/20 dark:hover:bg-white/10"
-        >
-          {pending ? "Signing in…" : "Sign in or create account"}
+    <details className="text-base">
+      <summary className="cursor-pointer text-muted hover:text-ink">Local dev sign-in (email/password)</summary>
+      <form action={submit} className="flex max-w-sm flex-col gap-2 pt-3">
+        <input name="email" type="email" required defaultValue="teacher@local.test" className={control} />
+        <input name="password" type="password" required minLength={6} defaultValue="password123!" className={control} />
+        <button type="submit" disabled={pending} className={`${button.quiet} w-fit`}>
+          {pending ? <Pending>Signing in…</Pending> : "Sign in or create account"}
         </button>
-        {error ? <p className="text-red-600 dark:text-red-400">{error}</p> : null}
-        <p className="text-xs opacity-50">Only rendered in `next dev`. Unknown emails are created on the spot.</p>
+        {error ? <ErrorText>{error}</ErrorText> : null}
+        <p className="text-sm text-muted">Only rendered in `next dev`. Unknown emails are created on the spot.</p>
       </form>
     </details>
   );
