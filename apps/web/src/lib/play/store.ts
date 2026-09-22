@@ -12,8 +12,11 @@
  * authority metadata.
  */
 import { PLAYER_ID } from "@adventure/generation/runtime";
+import type { AssetManifest } from "@adventure/generation/assets";
 import { validateAdventureSpec, type AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { loadManifest } from "@/lib/assets/supabase";
 
 import type { PlaySnapshot, SessionEvents } from "./session";
 
@@ -27,6 +30,8 @@ export interface AttemptRecord {
   spec: AdventureSpec;
   snapshot: PlaySnapshot | null;
   runtimeRevision: number;
+  /** Generated images for the pinned version, if generation has run (D4). */
+  assets?: AssetManifest | null;
 }
 
 export type PlayEvents = SessionEvents;
@@ -187,11 +192,10 @@ export class SupabasePlayStore implements PlayStore {
       }
       snapshot = candidate as PlaySnapshot;
       runtimeRevision = runtime.revision;
-    } else {
-      if (attempt.status === "completed" || currentStageIndex !== 0) {
-        throw new Error("attempt without runtime must still be at the opening stage");
-      }
+    } else if (attempt.status === "completed" || currentStageIndex !== 0) {
+      throw new Error("attempt without runtime must still be at the opening stage");
     }
+    const assets = await loadManifest(this.admin, version.id, attempt.adventure_id, attempt.published_version);
 
     return {
       attemptId,
@@ -203,6 +207,7 @@ export class SupabasePlayStore implements PlayStore {
       spec: validated.spec,
       snapshot,
       runtimeRevision,
+      assets,
     };
   }
 

@@ -33,6 +33,9 @@ import {
 import { PLAYER_ID, toResolverInput, toStageRuntime, type StageRuntimeBundle } from "@adventure/generation/runtime";
 import { resolveStageSettings, type AdventureSpec, type Stage } from "@adventure/generation/spec";
 
+import type { AssetManifest } from "@adventure/generation/assets";
+
+import { characterFor, facesetUrl, PLAYER_CHARACTER, type Character } from "./appearance";
 import { compileStageMap, publicMap, type PublicMap } from "./layout";
 import type { PublicAttemptState, PublicMessage } from "@/lib/turn-api/contract";
 
@@ -64,7 +67,7 @@ export interface PlaySnapshot {
 export interface PlayState extends PublicAttemptState {
   map: PublicMap | null;
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
-  actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null }[];
+  actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; sprite: Character }[];
   /** Evidence in the player's room that they have not examined yet. Names only — content is what examining reveals. */
   evidenceHere: { id: string; name: string; position: { x: number; y: number } | null }[];
   /** Version of the option set shown; commits carry it back so a stale set is rejected (FR-14). */
@@ -145,6 +148,8 @@ export class PlaySession {
     readonly publishedVersion: number,
     private snap: PlaySnapshot,
     private readonly clock: SessionClock,
+    /** Generated images for this version, when any exist (D4). Portraits fall back to the curated faceset. */
+    private readonly assets: AssetManifest | null = null,
   ) {
     this.stage = spec.stages[snap.stageIndex]!;
     this.bundle = toStageRuntime(spec, snap.stageIndex);
@@ -184,7 +189,7 @@ export class PlaySession {
     };
   }
 
-  static start(spec: AdventureSpec, attemptId: string, publishedVersion: number, clock: SessionClock = { now: () => new Date() }): PlaySession {
+  static start(spec: AdventureSpec, attemptId: string, publishedVersion: number, clock: SessionClock = { now: () => new Date() }, assets: AssetManifest | null = null): PlaySession {
     const bundle = toStageRuntime(spec, 0);
     const world = createWorld(bundle.world);
     const snap: PlaySnapshot = {
@@ -203,11 +208,11 @@ export class PlaySession {
       tokensSpent: 0,
       revision: 0,
     };
-    return new PlaySession(spec, attemptId, publishedVersion, snap, clock);
+    return new PlaySession(spec, attemptId, publishedVersion, snap, clock, assets);
   }
 
-  static resume(spec: AdventureSpec, attemptId: string, publishedVersion: number, snapshot: PlaySnapshot, clock: SessionClock = { now: () => new Date() }): PlaySession {
-    return new PlaySession(spec, attemptId, publishedVersion, { ...structuredClone(snapshot), spokenAt: snapshot.spokenAt ?? {} }, clock);
+  static resume(spec: AdventureSpec, attemptId: string, publishedVersion: number, snapshot: PlaySnapshot, clock: SessionClock = { now: () => new Date() }, assets: AssetManifest | null = null): PlaySession {
+    return new PlaySession(spec, attemptId, publishedVersion, { ...structuredClone(snapshot), spokenAt: snapshot.spokenAt ?? {} }, clock, assets);
   }
 
   snapshot(): PlaySnapshot {
@@ -276,7 +281,7 @@ export class PlaySession {
         role: this.spec.stakeholders.find((s) => s.id === agent.stakeholderId)?.role ?? null,
         publicPosition: agent.publicPosition.text,
         roomId: world.location[agent.id] ?? null,
-        portraitUrl: null,
+        portraitUrl: this.portraitFor(agent.stakeholderId),
       })),
       transcript: this.visibleTranscript(),
       journal: this.snap.journal,
@@ -297,8 +302,14 @@ export class PlaySession {
       revision: this.snap.revision,
       map: compiled ? publicMap(compiled) : null,
       actors: [
-        { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom },
-        ...this.stage.agents.map((agent) => ({ id: agent.id, name: this.agentName(agent.id), kind: "agent" as const, roomId: world.location[agent.id] ?? null })),
+        { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, sprite: PLAYER_CHARACTER },
+        ...this.stage.agents.map((agent) => ({
+          id: agent.id,
+          name: this.agentName(agent.id),
+          kind: "agent" as const,
+          roomId: world.location[agent.id] ?? null,
+          sprite: this.characterOf(agent.stakeholderId),
+        })),
       ],
       evidenceHere: this.stage.evidence
         .filter((item) => item.roomId === playerRoom && !known.has(item.id))
@@ -343,6 +354,18 @@ export class PlaySession {
     if ((world.evidenceKnown[PLAYER_ID] ?? []).includes(targetId)) return true;
     // Agent objective: the player has heard that character speak while in the same room.
     return this.playerHeard().some((line) => line.speakerId === targetId);
+  }
+
+  private characterOf(stakeholderId: string): Character {
+    const stakeholder = this.spec.stakeholders.find((s) => s.id === stakeholderId);
+    return characterFor({ id: stakeholderId, name: stakeholder?.name ?? null, role: stakeholder?.role ?? null });
+  }
+
+  /** The generated portrait once it is ready or cached (D4); the hand-drawn faceset until then (D6). */
+  private portraitFor(stakeholderId: string): string {
+    const record = this.assets?.records.find((r) => r.entityId === stakeholderId && r.kind === "portrait");
+    if (record && (record.status === "ready" || record.status === "cached")) return record.url;
+    return facesetUrl(this.characterOf(stakeholderId));
   }
 
   private agentName(agentId: string): string {

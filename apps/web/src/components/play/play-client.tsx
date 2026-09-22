@@ -21,6 +21,16 @@ const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas),
 
 const POLL_MS = 8_000;
 
+/** A character's face: the generated portrait when the asset service has one, the pack's faceset otherwise (D4/D6). */
+function Portrait({ src, name, size = 40 }: { src: string | null; name: string; size?: number }) {
+  if (!src) return <span className="inline-block rounded-md bg-black/10 dark:bg-white/10" style={{ width: size, height: size }} aria-hidden />;
+  const pixel = src.startsWith("/game/");
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- storage urls are dynamic and the facesets are tiny
+    <img src={src} alt={`${name}'s portrait`} width={size} height={size} className="rounded-md border border-black/15 bg-[#e7d4a8] object-cover dark:border-white/20" style={pixel ? { imageRendering: "pixelated" } : undefined} />
+  );
+}
+
 const button = "inline-flex items-center rounded-full border border-black/15 px-3 py-1.5 text-sm transition hover:bg-black/5 disabled:opacity-50 dark:border-white/20 dark:hover:bg-white/10";
 const primary = "inline-flex items-center rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background transition hover:opacity-90 disabled:opacity-50";
 
@@ -230,24 +240,33 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                   type="button"
                   role="radio"
                   aria-checked={a.id === effectiveAddressee}
-                  className={`${button} ${a.id === effectiveAddressee ? "bg-black/10 dark:bg-white/15" : ""}`}
+                  className={`${button} gap-2 py-1 pl-1 ${a.id === effectiveAddressee ? "bg-black/10 dark:bg-white/15" : ""}`}
                   onClick={() => setAddressee(a.id)}
                   title={a.publicPosition ?? undefined}
                 >
-                  {a.name}
-                  {a.role ? <span className="ml-1 opacity-60">· {a.role}</span> : null}
+                  <Portrait src={a.portraitUrl} name={a.name} size={32} />
+                  <span className="text-left leading-tight">
+                    {a.name}
+                    {a.role ? <span className="block text-xs opacity-60">{a.role}</span> : null}
+                  </span>
                 </button>
               ))}
             </div>
           ) : null}
           <div className="flex max-h-72 flex-col gap-2 overflow-y-auto rounded-lg border border-black/10 p-3 text-sm dark:border-white/15" role="log" aria-live="polite" aria-label="Conversation">
             {state.transcript.length === 0 ? <p className="opacity-60">Nothing said yet. Walk up to someone and ask.</p> : null}
-            {state.transcript.map((m) => (
-              <p key={m.id} className={m.authorType === "player" ? "text-right" : ""}>
-                <span className="opacity-60">{m.authorName ?? "Someone"}: </span>
-                {m.body}
-              </p>
-            ))}
+            {state.transcript.map((m) => {
+              const speaker = m.authorType === "agent" ? state.agents.find((a) => a.id === m.authorId) : null;
+              return (
+                <div key={m.id} className={`flex gap-2 ${m.authorType === "player" ? "flex-row-reverse text-right" : ""}`}>
+                  {speaker ? <Portrait src={speaker.portraitUrl} name={speaker.name} size={28} /> : null}
+                  <p className="min-w-0 flex-1">
+                    <span className="opacity-60">{m.authorName ?? "Someone"}: </span>
+                    {m.body}
+                  </p>
+                </div>
+              );
+            })}
             <div ref={transcriptEnd} />
           </div>
           <form

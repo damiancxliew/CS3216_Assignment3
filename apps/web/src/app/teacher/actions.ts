@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -11,10 +12,12 @@ import {
   slugify,
   type ExtractedDocument,
 } from "@adventure/generation";
+import { OpenAiImageService } from "@adventure/generation/assets";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
 import { READING_BANDS } from "@adventure/generation/spec";
 
 import { generateFromSources as runGeneration } from "@/lib/adventures/generate-from-sources";
+import { generateAssetsForVersion } from "@/lib/assets/generate";
 import { persistSpecVersion, SpecPersistError } from "@/lib/adventures/persist-spec";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -334,6 +337,21 @@ export async function publishAdventure(adventureId: string): Promise<ActionResul
     p_adventure_id: adventureId,
   });
   if (error) return { error: error.message };
+
+  // Story-specific images (portraits, landmarks, props) are generated after the response is sent:
+  // publish never blocks on them, and a failure leaves the curated placeholder in place (D6/FR-6a).
+  const { data: published } = await supabase.from("adventure").select("published_version").eq("id", adventureId).single<{ published_version: number }>();
+  if (published?.published_version && process.env.OPENAI_API_KEY) {
+    const version = published.published_version;
+    after(async () => {
+      try {
+        const result = await generateAssetsForVersion({ admin: createAdminClient(), images: new OpenAiImageService(), adventureId, version });
+        console.info("asset generation", adventureId, `v${version}`, result);
+      } catch (error) {
+        console.error("asset generation failed", adventureId, `v${version}`, error);
+      }
+    });
+  }
 
   revalidatePath(`/teacher/${adventureId}`);
   return {};
