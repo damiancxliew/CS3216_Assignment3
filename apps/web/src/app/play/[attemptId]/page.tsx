@@ -44,14 +44,14 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   const active = initial.ok && initial.state.status === "active" ? initial.state : null;
 
   return (
-    <main className={`${nunito.className} flex h-screen flex-col`}>
-      <header className="flex flex-wrap items-baseline gap-x-5 gap-y-2 border-b-2 border-black/10 px-6 py-4 dark:border-white/15">
-        <h1 className="text-2xl font-bold tracking-tight">{resume.adventureTitle}</h1>
+    <main className={`${nunito.className} flex min-h-screen flex-col lg:h-screen`}>
+      <header className="flex flex-col items-start gap-x-5 gap-y-2 border-b-2 border-black/10 px-6 py-4 dark:border-white/15 lg:flex-row lg:items-baseline">
+        <h1 className="max-w-full break-words text-2xl font-bold tracking-tight">{resume.adventureTitle}</h1>
         {active ? (
-          <details className="min-w-0 flex-1 text-base">
+          <details className="w-full min-w-0 text-base lg:w-auto lg:flex-1">
             <summary className="cursor-pointer font-semibold">
               Stage {active.stage.index + 1} of {active.stageCount}: {active.stage.title}
-              <span className="ml-3 rounded-md border border-black/25 px-2 py-0.5 text-sm font-medium dark:border-white/30">What is going on?</span>
+              <span className="ml-3 inline-block rounded-md border border-black/25 px-2 py-0.5 text-sm font-medium dark:border-white/30">What is going on?</span>
             </summary>
             <div className="mt-3 flex max-w-3xl flex-col gap-3 pb-1 text-lg leading-relaxed">
               <p>{active.stage.sharedContext}</p>

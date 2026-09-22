@@ -234,7 +234,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           onWaitingAtDoor={setWaitingAtDoor}
           onTalk={onTalk}
         />
-        <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/70 px-4 py-2 text-[15px] font-semibold text-white">
+        <p className="pointer-events-none absolute bottom-16 left-3 right-3 rounded-full lg:bottom-3 lg:right-36 bg-black/70 px-4 py-2 text-[15px] font-semibold text-white">
           Arrows / WASD to walk · click a character to talk · Enter to talk to whoever is with you
         </p>
         <button
@@ -257,9 +257,9 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
         ) : null}
       </section>
 
-      <aside className="flex min-h-0 w-full min-w-0 flex-col border-t-2 border-black/10 text-base lg:w-[30rem] lg:border-l-2 lg:border-t-0 dark:border-white/15">
+      <aside className="flex min-h-0 w-full min-w-0 flex-col overflow-y-auto border-t-2 border-black/10 text-base lg:w-[30rem] lg:border-l-2 lg:border-t-0 dark:border-white/15">
         {/* ── Top: where you are, where you can go ─────────────────────────── */}
-        <section className="flex flex-col gap-3 border-b-2 border-black/10 px-5 py-4 dark:border-white/15" aria-labelledby="where">
+        <section className="flex shrink-0 flex-col gap-3 border-b-2 border-black/10 px-5 py-4 dark:border-white/15" aria-labelledby="where">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className={label}>You are in</p>
@@ -320,7 +320,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
         </section>
 
         {/* ── Middle: the conversation. This is the game; it gets the height. ── */}
-        <section className="flex min-h-0 flex-1 flex-col" aria-labelledby="talk">
+        <section className="flex min-h-[14rem] shrink-0 flex-1 flex-col" aria-labelledby="talk">
           {peopleHere.length ? (
             <div className="flex gap-2 overflow-x-auto px-5 pt-4" role="radiogroup" aria-label="Who you are talking to" id="talk">
               {peopleHere.map((a) => {
@@ -398,7 +398,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
         </section>
 
         {/* ── Bottom, always visible: goals + the decision ─────────────────── */}
-        <section className="flex flex-col gap-3 border-t-2 border-black/10 bg-black/[0.03] px-5 py-4 dark:border-white/15 dark:bg-white/[0.04]" aria-labelledby="decide">
+        <section className="flex shrink-0 flex-col gap-3 border-t-2 border-black/10 bg-black/[0.03] px-5 py-4 dark:border-white/15 dark:bg-white/[0.04]" aria-labelledby="decide">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[15px] font-extrabold">
               Goals {goalsMet}/{goalsTotal}
