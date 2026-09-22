@@ -9,6 +9,7 @@
  * uuids where a foreign key demands it.
  */
 import {
+  DEFAULT_REPLY_RATE_LIMIT,
   advanceSpatialMovement,
   applyAction,
   deriveOptions,
@@ -29,6 +30,7 @@ import {
   type Decision,
   type LlmClient,
   type PublicEffect,
+  type ReplyResult,
   type ResolutionRecord,
   type StageConfig,
   type Utterance,
@@ -49,6 +51,13 @@ import type { PublicAttemptState, PublicMessage } from "@/lib/turn-api/contract"
 
 export type JournalEntry = { id: string; text: string; sourceSpan: string | null; collectedAt: string };
 export type Announcement = { id: string; body: string; createdAt: string };
+export interface PendingReply {
+  id: string;
+  stageId: string;
+  agentId: string;
+  utteranceSeq: number;
+  expiresAt: number;
+}
 
 /** Everything the loop needs to continue an attempt. Stored as jsonb in `attempt_state.world_state`. */
 export interface PlaySnapshot {
@@ -72,6 +81,8 @@ export interface PlaySnapshot {
   tokensSpent: number;
   revision: number;
   nextStepAt?: number;
+  pendingReply?: PendingReply | null;
+  replyRate?: { tokens: number; lastMs: number };
 }
 
 /** Additive to the frozen I3 projection: what the renderer needs on top of it. */
@@ -86,6 +97,7 @@ export interface PlayState extends PublicAttemptState {
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
   actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; position: Point | null; sprite: Character }[];
   hearingActorIds: string[];
+  pendingDialogue: boolean;
   /** Evidence in the player's room that they have not examined yet. Names only — content is what examining reveals. */
   evidenceHere: { id: string; name: string; position: { x: number; y: number } | null; canInspect: boolean }[];
   /** Version of the option set shown; commits carry it back so a stale set is rejected (FR-14). */
@@ -113,6 +125,7 @@ export type SessionError =
   | { code: "rate_limited"; message: string };
 
 export type MessageOutcome = { ok: true; newMessages: PublicMessage[] } | { ok: false; error: SessionError };
+export type MessageBeginOutcome = { ok: true; newMessages: PublicMessage[]; ticket: PendingReply | null } | { ok: false; error: SessionError };
 export type ActionOutcome = { ok: true; refused: string | null } | { ok: false; error: SessionError };
 export type DecisionOutcome =
   | { ok: true; resolution: ReturnType<typeof publicResolution> }
@@ -166,8 +179,8 @@ const STAGE_TOKEN_BUDGET = 60_000;
 const AUTONOMOUS_TICKS_PER_MOVE = 1;
 const DECISION_TICKS = 2;
 
-function messageId(attemptId: string, line: Utterance): string {
-  return `${attemptId}:${line.seq}`;
+function messageId(attemptId: string, stageId: string, line: Utterance): string {
+  return `${attemptId}:${stageId}:${line.seq}`;
 }
 
 function newId(): string {
@@ -257,6 +270,8 @@ export class PlaySession {
       tokensSpent: 0,
       revision: 0,
       nextStepAt: 0,
+      pendingReply: null,
+      replyRate: { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     };
     return new PlaySession(spec, attemptId, publishedVersion, snap, clock, assets);
   }
@@ -270,6 +285,8 @@ export class PlaySession {
       spokenAt: cloned.spokenAt ?? {},
       stageStats: cloned.stageStats ?? { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
       nextStepAt: cloned.nextStepAt ?? 0,
+      pendingReply: cloned.pendingReply ?? null,
+      replyRate: cloned.replyRate ?? { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     }, clock, assets);
   }
 
@@ -361,6 +378,7 @@ export class PlaySession {
       revision: this.snap.revision,
       map: compiled ? publicMap(compiled) : null,
       hearingActorIds: hearingActorIds(world, PLAYER_ID),
+      pendingDialogue: this.snap.pendingReply?.expiresAt !== undefined && this.snap.pendingReply.expiresAt > now.getTime(),
       actors: [
         { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, position: world.spatial?.state.actors[PLAYER_ID] ?? null, sprite: PLAYER_CHARACTER },
         ...this.stage.agents.map((agent) => ({
@@ -401,7 +419,7 @@ export class PlaySession {
   private toMessage(line: Utterance): PublicMessage {
     const isPlayer = this.snap.world.actors[line.speakerId]?.kind === "player";
     return {
-      id: messageId(this.attemptId, line),
+      id: messageId(this.attemptId, this.stage.id, line),
       roomId: line.roomId,
       authorType: isPlayer ? "player" : "agent",
       authorId: line.speakerId,
@@ -523,46 +541,76 @@ export class PlaySession {
   // player speech
   // ---------------------------------------------------------------------------
 
-  async message(client: LlmClient, input: { roomId: string; body: string; addresseeId?: string | null }): Promise<MessageOutcome> {
+  beginMessage(input: { roomId: string; body: string; addresseeId?: string | null }): MessageBeginOutcome {
     const closed = this.closed();
     if (closed) return { ok: false, error: closed };
+    if (!input.body.trim() || input.body.length > 2000) return { ok: false, error: { code: "invalid_request", message: "Write between 1 and 2000 characters." } };
     const world = this.snap.world;
     const here = world.location[PLAYER_ID];
     if (!world.rooms[input.roomId] && input.roomId !== OUTDOORS_ROOM_ID && input.roomId !== DOORWAY_ID) return { ok: false, error: { code: "not_found", message: "That room is not part of this stage." } };
     if (input.roomId !== here) return { ok: false, error: { code: "invalid_request", message: "You can only speak where you are standing." } };
-
     const addressee = input.addresseeId ?? null;
     if (addressee !== null && (world.actors[addressee]?.kind !== "agent" || !hearingActorIds(world, PLAYER_ID).includes(addressee))) return { ok: false, error: { code: "invalid_request", message: "That addressee cannot hear you." } };
-
+    if (addressee !== null && this.snap.pendingReply && this.snap.pendingReply.expiresAt > this.clock.now().getTime()) return { ok: false, error: { code: "rate_limited", message: "Wait for the pending reply or keep exploring." } };
+    const nowMs = this.clock.now().getTime();
+    const elapsed = Math.max(0, nowMs - (this.snap.replyRate?.lastMs ?? 0));
+    const tokens = Math.min(DEFAULT_REPLY_RATE_LIMIT.burst, (this.snap.replyRate?.tokens ?? DEFAULT_REPLY_RATE_LIMIT.burst) + elapsed / DEFAULT_REPLY_RATE_LIMIT.minIntervalMs);
+    if (tokens < 1) return { ok: false, error: { code: "rate_limited", message: "Try again shortly." } };
     const firstSeq = world.seq + 1;
-    const spoken = applyAction(world, {
-      actorKind: "player",
-      actorId: PLAYER_ID,
-      action: { type: "speak", roomId: here, body: input.body, addresseeId: addressee },
-    });
+    const spoken = applyAction(world, { actorKind: "player", actorId: PLAYER_ID, action: { type: "speak", roomId: here, body: input.body, addresseeId: addressee } });
     if (!spoken.ok) return { ok: false, error: { code: "invalid_request", message: spoken.reason } };
     this.snap.stageStats.messages += 1;
-
-    if (addressee) {
-      const turnInput = { ...buildAgentTurnInput(world, addressee, this.stageConfig(), 1), playerMessage: input.body, replyToSeqs: [firstSeq] };
-      const reply = await replyToPlayer(client, world, turnInput, {
-        limiter: this.limiter,
-        inbox: this.inbox,
-        speakerId: PLAYER_ID,
-        nowMs: this.clock.now().getTime(),
-        tokenBudget: STAGE_TOKEN_BUDGET,
-        tokensSpent: this.snap.tokensSpent,
-      });
-      const used = reply.turn.usage.promptTokens + reply.turn.usage.completionTokens;
-      this.snap.tokensSpent += used;
-      this.snap.stageStats.tokens += used;
-    }
-
+    this.snap.replyRate = { tokens: tokens - 1, lastMs: Math.max(nowMs, this.snap.replyRate?.lastMs ?? 0) };
+    const ticket: PendingReply | null = addressee === null ? null : { id: newId(), stageId: this.stage.id, agentId: addressee, utteranceSeq: firstSeq, expiresAt: nowMs + 120_000 };
+    if (ticket) this.snap.pendingReply = ticket;
     this.bump();
-    const newMessages = this.playerHeard()
-      .filter((line) => line.seq >= firstSeq)
-      .map((line) => this.toMessage(line));
-    return { ok: true, newMessages };
+    return { ok: true, ticket, newMessages: this.playerHeard().filter((line) => line.seq >= firstSeq).map((line) => this.toMessage(line)) };
+  }
+
+  async produceReply(client: LlmClient, ticket: PendingReply): Promise<ReplyResult> {
+    const source = this.snap.world.transcript.find((line) => line.seq === ticket.utteranceSeq);
+    if (!source) throw new Error("reply source missing");
+    const detached = structuredClone(this.snap.world);
+    const turnInput = { ...buildAgentTurnInput(detached, ticket.agentId, this.stageConfig(), 1), playerMessage: source.body, replyToSeqs: [ticket.utteranceSeq] };
+    return replyToPlayer(client, detached, turnInput, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), speakerId: PLAYER_ID, nowMs: this.clock.now().getTime(), tokenBudget: STAGE_TOKEN_BUDGET, tokensSpent: this.snap.tokensSpent });
+  }
+
+  completeReply(ticket: PendingReply, result: ReplyResult | null): MessageOutcome {
+    if (this.snap.status !== "active" || this.snap.pendingReply?.id !== ticket.id || this.snap.pendingReply.stageId !== this.stage.id || ticket.expiresAt <= this.clock.now().getTime()) return { ok: true, newMessages: [] };
+    const beforeSeq = this.snap.world.seq;
+    this.snap.pendingReply = null;
+    if (result === null) {
+      this.snap.announcements.push({ id: newId(), body: "The reply was interrupted. Please try again.", createdAt: this.clock.now().toISOString() });
+      this.bump();
+      return { ok: true, newMessages: [] };
+    }
+    const used = result.turn.usage.promptTokens + result.turn.usage.completionTokens;
+    this.snap.tokensSpent += used;
+    this.snap.stageStats.tokens += used;
+    if (result.source === "deflection") {
+      if (result.turn.say.trim()) applyAction(this.snap.world, { actorKind: "agent", actorId: ticket.agentId, action: { type: "speak", roomId: this.snap.world.location[ticket.agentId]!, body: result.turn.say, addresseeId: null } });
+    } else {
+      const context = result.source === "model" && !result.turn.degraded ? { replyToSeqs: [ticket.utteranceSeq] } : {};
+      for (const entry of result.turn.actions) if (entry.actorKind === "agent" && entry.actorId === ticket.agentId) applyAction(this.snap.world, entry, entry.action.type === "speak" ? context : {});
+    }
+    this.bump();
+    return { ok: true, newMessages: this.playerHeard().filter((line) => line.seq > beforeSeq).map((line) => this.toMessage(line)) };
+  }
+
+  expirePendingReply(): void {
+    if (this.snap.pendingReply && this.snap.pendingReply.expiresAt <= this.clock.now().getTime()) {
+      this.snap.pendingReply = null;
+      this.bump();
+    }
+  }
+
+  async message(client: LlmClient, input: { roomId: string; body: string; addresseeId?: string | null }): Promise<MessageOutcome> {
+    const begun = this.beginMessage(input);
+    if (!begun.ok || !begun.ticket) return begun;
+    let reply: ReplyResult | null = null;
+    try { reply = await this.produceReply(client, begun.ticket); } catch { reply = null; }
+    const completed = this.completeReply(begun.ticket, reply);
+    return completed.ok ? { ok: true, newMessages: [...begun.newMessages, ...completed.newMessages] } : completed;
   }
 
   // ---------------------------------------------------------------------------
@@ -659,6 +707,7 @@ export class PlaySession {
   async decide(client: LlmClient, optionId: string, optionsVersion?: string): Promise<DecisionOutcome> {
     const closed = this.closed();
     if (closed) return { ok: false, error: closed };
+    if (this.snap.pendingReply && this.snap.pendingReply.expiresAt > this.clock.now().getTime()) return { ok: false, error: { code: "rate_limited", message: "Wait for the pending reply or keep exploring." } };
     const world = this.snap.world;
     const version = optionsVersion ?? deriveOptions(world, this.bundle.options, PLAYER_ID).version;
     const commit = this.ledger.commit(world, this.bundle.options, { actorId: PLAYER_ID, actorKind: "player", optionId, optionsVersion: version });
@@ -725,6 +774,7 @@ export class PlaySession {
     if (next.kind === "ending") {
       this.snap.status = "completed";
       this.snap.endingId = next.endingId;
+      this.snap.pendingReply = null;
     } else if (next.kind === "stage") {
       const index = this.spec.stages.findIndex((s) => s.id === next.stageId);
       if (index < 0) throw new Error(`resolver pointed at unknown stage "${next.stageId}"`);
@@ -743,6 +793,7 @@ export class PlaySession {
     this.snap.spokenAt = {};
     this.snap.stageStats = { openedAt: this.clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 };
     this.snap.nextStepAt = 0;
+    this.snap.pendingReply = null;
     this.stage = this.spec.stages[index]!;
     this.bundle = bundle;
     this.ledger = new StageDecisions(this.participants());

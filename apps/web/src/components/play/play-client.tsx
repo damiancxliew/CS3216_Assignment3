@@ -58,6 +58,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   const [state, setState] = useState<PlayState>(initialState);
   const stateRef = useRef(initialState);
   const [busy, setBusy] = useState<string | null>(null);
+  const [speaking, setSpeaking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [addressee, setAddressee] = useState<string | null>(null);
@@ -131,10 +132,22 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   }
 
   async function send() {
+    const current = stateRef.current;
     const body = draft.trim();
-    if (!body || !state.currentRoomId) return;
-    setDraft("");
-    await act("Speaking…", () => playApi.message(attemptId, { roomId: state.currentRoomId!, body, addresseeId: effectiveAddressee }));
+    if (!body || !current.currentRoomId || speaking || current.pendingDialogue) return;
+    setSpeaking(true);
+    try {
+      const result = await playApi.message(attemptId, { roomId: current.currentRoomId, body, addresseeId: effectiveAddressee });
+      if (!result.ok) {
+        setNotice(result.error.message);
+        await refresh();
+      } else {
+        accept(result.body.state);
+        setDraft("");
+      }
+    } finally {
+      setSpeaking(false);
+    }
   }
 
   async function decide(optionId: string) {
@@ -157,6 +170,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   const onStep = useCallback(
     async (from: Point, to: Point) => {
       const before = stateRef.current;
+      if (before.status !== "active" || busy === "Deciding…" || busy === "Knocking…") return { position: before.playerPos, accepted: false, retry: false };
       try {
         const result = await playApi.action(attemptId, { type: "move_step", stageId: before.stage.id, from, to });
         if (!result.ok) {
@@ -172,7 +186,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
         return { position: stateRef.current.playerPos, accepted: false, retry: false };
       }
     },
-    [attemptId, accept, refresh],
+    [attemptId, accept, refresh, busy],
   );
 
   // From the map: pick who to talk to and put the cursor in the box, so "walk up and talk" works.
@@ -356,7 +370,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                 </div>
               );
             })}
-            {busy === "Speaking…" ? <p className="px-2 text-[15px] font-semibold opacity-60">{talkingTo?.name ?? "They"} is thinking…</p> : null}
+            {speaking || state.pendingDialogue ? <p role="status" className="px-2 text-[15px] font-semibold opacity-60">Waiting for a reply — you can keep exploring.</p> : null}
             <div ref={transcriptEnd} />
           </div>
 
@@ -372,12 +386,12 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               aria-label="What you say"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              disabled={busy !== null || !peopleHere.length}
+              disabled={busy !== null || speaking || state.pendingDialogue || !peopleHere.length}
               placeholder={talkingTo ? `Ask ${talkingTo.name.split(" ").at(-1)} something…` : "Find someone to talk to first"}
               className="min-h-12 min-w-0 flex-1 rounded-2xl border-2 border-black/20 bg-white/70 px-4 py-2 text-base outline-none placeholder:opacity-60 focus:border-foreground dark:border-white/25 dark:bg-white/5"
               maxLength={2000}
             />
-            <button type="submit" className={`${primary} min-h-12 rounded-2xl`} disabled={busy !== null || !draft.trim() || !peopleHere.length}>
+            <button type="submit" className={`${primary} min-h-12 rounded-2xl`} disabled={busy !== null || speaking || state.pendingDialogue || !draft.trim() || !peopleHere.length}>
               Say it
             </button>
           </form>
@@ -453,7 +467,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                         <button
                           type="button"
                           className={`${o.available ? primary : chip} w-full flex-col items-start gap-0.5 rounded-xl text-left ${o.available ? "" : "min-h-11"}`}
-                          disabled={!o.available || busy !== null}
+                          disabled={!o.available || busy !== null || speaking || state.pendingDialogue}
                           onClick={() => decide(o.id)}
                         >
                           <span className="leading-snug">{o.label}</span>
@@ -488,6 +502,11 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
             </ul>
           ) : null}
 
+          {state.announcements.length ? (
+            <div role="log" aria-label="Announcements" className="flex flex-col gap-1.5">
+              {state.announcements.map((announcement) => <p key={announcement.id} role="status" className="rounded-xl border-2 border-black/10 px-3 py-2 text-[15px] leading-snug dark:border-white/15">{announcement.body}</p>)}
+            </div>
+          ) : null}
           {notice ? (
             <p role="status" className="rounded-xl border-2 border-amber-500/60 bg-amber-400/15 px-3 py-2 text-[15px] leading-snug">
               {notice}
