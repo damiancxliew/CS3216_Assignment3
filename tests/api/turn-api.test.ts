@@ -41,6 +41,7 @@ function record(overrides: Partial<AttemptRecord> = {}): AttemptRecord {
     stageDeadlineAt: null,
     spec,
     snapshot: null,
+    runtimeRevision: 0,
     ...overrides,
   };
 }

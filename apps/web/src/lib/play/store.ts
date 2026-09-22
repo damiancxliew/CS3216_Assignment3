@@ -2,16 +2,14 @@
  * Where an attempt's play state lives. The session engine is storage-agnostic;
  * this is the seam between it and the platform schema (P1/P7):
  *
- *  - `attempt_state.world_state` holds the `PlaySnapshot` verbatim;
- *  - `message`, `stage_commitment` and `resolution` are written as a record of
- *    what happened, for resume, the teacher's roster and the debrief;
- *  - stage deadlines and completion go through the P6/P8 RPCs, which are the
- *    only things allowed to move them.
+ *  - deny-all `attempt_runtime` holds the complete `PlaySnapshot`;
+ *  - client-readable `attempt_state` holds only public metadata, journal and position;
+ *  - `message`, `stage_commitment` and `resolution` record what happened for resume and debrief;
+ *  - stage deadlines and completion go through the P6/P8 RPCs.
  *
- * The runtime speaks spec slugs and the tables speak uuids. Rows carry no slug,
- * so the binding is by stage index (unique per version) and by name within the
- * stage. A name that does not bind leaves the foreign key null rather than
- * failing the turn.
+ * The runtime speaks spec slugs and relational foreign keys use UUIDs. Persisted rows carry stable
+ * `spec_id` slugs, and a missing or ambiguous binding fails the write rather than silently dropping
+ * authority metadata.
  */
 import { PLAYER_ID } from "@adventure/generation/runtime";
 import type { AssetManifest } from "@adventure/generation/assets";
@@ -31,6 +29,7 @@ export interface AttemptRecord {
   stageDeadlineAt: string | null;
   spec: AdventureSpec;
   snapshot: PlaySnapshot | null;
+  runtimeRevision: number;
   /** Generated images for the pinned version, if generation has run (D4). */
   assets?: AssetManifest | null;
 }
@@ -52,8 +51,58 @@ export interface PlayStore {
 // Supabase
 // ---------------------------------------------------------------------------
 
-type StageRow = { id: string; index: number };
-type NamedRow = { id: string; name?: string; label?: string; stage_id: string };
+type StageRow = { id: string; index: number; spec_id: string | null };
+type BinderRow = { id: string; spec_id: string | null; stage_id: string };
+
+function stageIndexMap(spec: AdventureSpec, rows: StageRow[]): Map<number, StageRow> {
+  const byIndex = new Map<number, StageRow>();
+  const ids = new Set<string>();
+  const expected = new Set(spec.stages.map((stage) => stage.id));
+  for (const row of rows) {
+    if (
+      row.spec_id === null ||
+      row.spec_id === "" ||
+      !expected.has(row.spec_id) ||
+      ids.has(row.spec_id) ||
+      byIndex.has(row.index)
+    ) {
+      throw new Error("stage rows have missing, duplicate, or mismatched spec ids");
+    }
+    ids.add(row.spec_id);
+    byIndex.set(row.index, row);
+  }
+  for (const stage of spec.stages) {
+    const row = byIndex.get(stage.index);
+    if (!row || row.spec_id !== stage.id) throw new Error("stage rows do not match the authored spec");
+  }
+  return byIndex;
+}
+
+function binderMap(
+  rows: BinderRow[] | null,
+  expected: readonly string[],
+  stageUuid: string,
+  kind: string,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  const expectedSet = new Set(expected);
+  for (const row of rows ?? []) {
+    if (
+      row.stage_id !== stageUuid ||
+      row.spec_id === null ||
+      row.spec_id === "" ||
+      !expectedSet.has(row.spec_id) ||
+      map.has(row.spec_id)
+    ) {
+      throw new Error(`${kind} rows have missing, duplicate, or mismatched spec ids`);
+    }
+    map.set(row.spec_id, row.id);
+  }
+  for (const specId of expected) {
+    if (!map.has(specId)) throw new Error(`${kind} rows do not match the authored spec`);
+  }
+  return map;
+}
 
 export class SupabasePlayStore implements PlayStore {
   constructor(private readonly admin: SupabaseClient) {}
@@ -61,27 +110,91 @@ export class SupabasePlayStore implements PlayStore {
   async load(attemptId: string, userId: string): Promise<AttemptRecord | null> {
     const { data: attempt } = await this.admin
       .from("attempt")
-      .select("id, adventure_id, published_version, student_id, status, stage_deadline_at")
+      .select("id, adventure_id, published_version, student_id, status, ending_id, current_stage_id, stage_deadline_at")
       .eq("id", attemptId)
-      .maybeSingle<{ id: string; adventure_id: string; published_version: number; student_id: string; status: AttemptRecord["status"]; stage_deadline_at: string | null }>();
-    // The player of an attempt is its student; a teacher watches through the console, not the Turn API.
+      .maybeSingle<{
+        id: string;
+        adventure_id: string;
+        published_version: number;
+        student_id: string;
+        status: AttemptRecord["status"];
+        ending_id: string | null;
+        current_stage_id: string | null;
+        stage_deadline_at: string | null;
+      }>();
     if (!attempt || attempt.student_id !== userId) return null;
 
-    const [{ data: version }, { data: state }] = await Promise.all([
+    const [{ data: version }, { data: runtime }] = await Promise.all([
       this.admin
         .from("spec_version")
         .select("id, json")
         .eq("adventure_id", attempt.adventure_id)
         .eq("version", attempt.published_version)
         .single<{ id: string; json: unknown }>(),
-      this.admin.from("attempt_state").select("world_state").eq("attempt_id", attemptId).maybeSingle<{ world_state: unknown }>(),
+      this.admin
+        .from("attempt_runtime")
+        .select("stage_spec_id, revision, snapshot")
+        .eq("attempt_id", attemptId)
+        .maybeSingle<{ stage_spec_id: string; revision: number; snapshot: unknown }>(),
     ]);
     if (!version) return null;
     const validated = validateAdventureSpec(version.json);
     if (!validated.ok) throw new Error(`published spec v${attempt.published_version} of ${attempt.adventure_id} no longer validates`);
 
-    const raw = state?.world_state as Partial<PlaySnapshot> | null | undefined;
-    const snapshot = raw && raw.version === 1 && raw.world ? (raw as PlaySnapshot) : null;
+    let currentStageIndex: number | null = null;
+    if (attempt.status === "active") {
+      if (attempt.current_stage_id === null) throw new Error("active attempt has no current stage");
+      const { data: currentStage } = await this.admin
+        .from("stage")
+        .select("id, index, spec_id, spec_version_id")
+        .eq("id", attempt.current_stage_id)
+        .maybeSingle<{ id: string; index: number; spec_id: string | null; spec_version_id: string }>();
+      if (
+        !currentStage ||
+        currentStage.spec_version_id !== version.id ||
+        currentStage.spec_id === null ||
+        validated.spec.stages[currentStage.index]?.id !== currentStage.spec_id
+      ) {
+        throw new Error("active attempt stage does not match the authored spec");
+      }
+      currentStageIndex = currentStage.index;
+    } else if (attempt.status === "completed" && attempt.current_stage_id !== null) {
+      throw new Error("completed attempt still has a current stage");
+    }
+
+    let snapshot: PlaySnapshot | null = null;
+    let runtimeRevision = 0;
+    if (runtime !== null) {
+      const candidate = runtime.snapshot as Partial<PlaySnapshot> | null;
+      const stageIndex = candidate?.stageIndex;
+      if (
+        candidate === null ||
+        candidate.version !== 1 ||
+        typeof stageIndex !== "number" ||
+        !Number.isInteger(stageIndex) ||
+        stageIndex < 0 ||
+        stageIndex >= validated.spec.stages.length ||
+        candidate.world === undefined
+      ) {
+        throw new Error("stored play runtime snapshot is invalid");
+      }
+      const authoredStageId = validated.spec.stages[stageIndex]?.id;
+      if (runtime.stage_spec_id !== authoredStageId) throw new Error("stored play runtime stage does not match the spec");
+      if (attempt.status === "active" && currentStageIndex !== stageIndex) {
+        throw new Error("stored play runtime stage does not match the current attempt stage");
+      }
+      if (attempt.status === "completed") {
+        if (candidate.status !== "completed" || attempt.ending_id === null || candidate.endingId !== attempt.ending_id) {
+          throw new Error("stored completed play runtime does not match the attempt");
+        }
+      } else if (candidate.endingId !== null || candidate.status === "completed") {
+        throw new Error("stored active play runtime is completed");
+      }
+      snapshot = candidate as PlaySnapshot;
+      runtimeRevision = runtime.revision;
+    } else if (attempt.status === "completed" || currentStageIndex !== 0) {
+      throw new Error("attempt without runtime must still be at the opening stage");
+    }
     const assets = await loadManifest(this.admin, version.id, attempt.adventure_id, attempt.published_version);
 
     return {
@@ -93,6 +206,7 @@ export class SupabasePlayStore implements PlayStore {
       stageDeadlineAt: attempt.stage_deadline_at,
       spec: validated.spec,
       snapshot,
+      runtimeRevision,
       assets,
     };
   }
@@ -104,10 +218,18 @@ export class SupabasePlayStore implements PlayStore {
       .eq("adventure_id", record.adventureId)
       .eq("version", record.publishedVersion)
       .single<{ id: string }>();
-    const { data: stageRows } = version
-      ? await this.admin.from("stage").select("id, index").eq("spec_version_id", version.id).returns<StageRow[]>()
-      : { data: [] as StageRow[] };
-    const stageUuid = (index: number) => stageRows?.find((s) => s.index === index)?.id ?? null;
+    if (!version) throw new Error("spec_version: no pinned version");
+    const { data: stageRows } = await this.admin
+      .from("stage")
+      .select("id, index, spec_id")
+      .eq("spec_version_id", version.id)
+      .returns<StageRow[]>();
+    const stages = stageIndexMap(record.spec, stageRows ?? []);
+    const stageUuid = (index: number): string => {
+      const row = stages.get(index);
+      if (!row) throw new Error(`stage: no authored stage at index ${index}`);
+      return row.id;
+    };
 
     const touched = new Set<number>([
       ...events.utterances.map((u) => u.stageIndex),
@@ -115,27 +237,10 @@ export class SupabasePlayStore implements PlayStore {
       ...(events.resolution ? [events.resolution.stageIndex] : []),
     ]);
     const binders = new Map<number, Promise<Binder>>();
-    for (const index of touched) {
-      const id = stageUuid(index);
-      binders.set(index, id ? this.binder(record.spec, index, id) : Promise.resolve(emptyBinder()));
-    }
-    const bind = (index: number) => binders.get(index) ?? Promise.resolve(emptyBinder());
-
-    const { error: stateError } = await this.admin.from("attempt_state").upsert(
-      {
-        attempt_id: record.attemptId,
-        world_state: snapshot,
-        journal: snapshot.journal,
-        player_pos: snapshot.playerPos,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "attempt_id" },
-    );
-    if (stateError) throw new Error(`attempt_state: ${stateError.message}`);
+    for (const index of touched) binders.set(index, this.binder(record.spec, index, stageUuid(index)));
+    const bind = (index: number) => binders.get(index) ?? this.binder(record.spec, index, stageUuid(index));
 
     if (events.utterances.length > 0) {
-      // One batch insert would give every row the same `created_at`; the transcript is ordered by
-      // it, so each line gets the time it was spoken (or a millisecond per seq when unknown).
       const base = Date.now();
       const rows = await Promise.all(
         events.utterances.map(async ({ line, heardByPlayer, stageIndex }, i) => {
@@ -144,6 +249,7 @@ export class SupabasePlayStore implements PlayStore {
           const spokenAt = snapshot.stageIndex === stageIndex ? snapshot.spokenAt[line.seq] : undefined;
           return {
             attempt_id: record.attemptId,
+            runtime_id: `${record.attemptId}:${stageIndex}:${line.seq}`,
             room_id: b.rooms.get(line.roomId) ?? null,
             author_type: isPlayer ? "player" : "agent",
             author_id: isPlayer ? record.studentId : b.agents.get(line.speakerId) ?? null,
@@ -153,7 +259,8 @@ export class SupabasePlayStore implements PlayStore {
           };
         }),
       );
-      const { error } = await this.admin.from("message").insert(rows);
+      const uniqueRows = [...new Map(rows.map((row) => [row.runtime_id, row])).values()];
+      const { error } = await this.admin.from("message").upsert(uniqueRows, { onConflict: "attempt_id,runtime_id" });
       if (error) throw new Error(`message: ${error.message}`);
     }
 
@@ -164,7 +271,7 @@ export class SupabasePlayStore implements PlayStore {
             const stageId = stageUuid(stageIndex);
             const b = await bind(stageIndex);
             const agentId = decision.actorKind === "agent" ? b.agents.get(decision.actorId) ?? null : null;
-            if (!stageId || (decision.actorKind === "agent" && !agentId)) return null;
+            if (decision.actorKind === "agent" && !agentId) throw new Error(`agent: missing authored id ${decision.actorId}`);
             return {
               attempt_id: record.attemptId,
               stage_id: stageId,
@@ -175,9 +282,7 @@ export class SupabasePlayStore implements PlayStore {
             };
           }),
         )
-      ).filter((row) => row !== null);
-      // The uniqueness index is an expression (`coalesce(player_id, agent_id)`), which upsert cannot
-      // target, so a re-recorded commitment is tolerated as a duplicate-key error instead.
+      );
       for (const row of rows) {
         const { error } = await this.admin.from("stage_commitment").insert(row);
         if (error && error.code !== "23505") throw new Error(`stage_commitment: ${error.message}`);
@@ -186,17 +291,18 @@ export class SupabasePlayStore implements PlayStore {
 
     if (events.resolution) {
       const stageId = stageUuid(events.resolution.stageIndex);
-      if (stageId) {
-        const { record: r } = events.resolution;
-        const { error } = await this.admin.from("resolution").insert({
+      const { record: r } = events.resolution;
+      const { error } = await this.admin.from("resolution").upsert(
+        {
           attempt_id: record.attemptId,
           stage_id: stageId,
-          actions: {},
+          actions: r.actions,
           outcome: { ...r.outcome, rationale: r.rationale, privateNotes: r.privateNotes },
           rolls: r.rolls,
-        });
-        if (error) throw new Error(`resolution: ${error.message}`);
-      }
+        },
+        { onConflict: "attempt_id,stage_id" },
+      );
+      if (error) throw new Error(`resolution: ${error.message}`);
     }
 
     if (events.telemetry) {
@@ -219,20 +325,47 @@ export class SupabasePlayStore implements PlayStore {
       if (error) throw new Error(`attempt_telemetry: ${error.message}`);
     }
 
+    let stageDeadlineAt = record.stageDeadlineAt;
     if (events.endingId) {
       const { error } = await this.admin.rpc("complete_attempt", { p_attempt_id: record.attemptId, p_ending_id: events.endingId });
       if (error) throw new Error(`complete_attempt: ${error.message}`);
-      return { stageDeadlineAt: null };
+      stageDeadlineAt = null;
+    } else if (events.openedStageIndex !== null && events.openedStageIndex !== record.snapshot?.stageIndex) {
+      const { data, error } = await this.admin.rpc("start_stage_deadline", { p_attempt_id: record.attemptId, p_stage_id: stageUuid(events.openedStageIndex) });
+      if (error) throw new Error(`start_stage_deadline: ${error.message}`);
+      stageDeadlineAt = (data as string | null) ?? null;
     }
-    if (events.openedStageIndex !== null && events.openedStageIndex !== record.snapshot?.stageIndex) {
-      const stageId = stageUuid(events.openedStageIndex);
-      if (stageId) {
-        const { data, error } = await this.admin.rpc("start_stage_deadline", { p_attempt_id: record.attemptId, p_stage_id: stageId });
-        if (error) throw new Error(`start_stage_deadline: ${error.message}`);
-        return { stageDeadlineAt: (data as string | null) ?? null };
-      }
-    }
-    return { stageDeadlineAt: record.stageDeadlineAt };
+
+    const { error: stateError } = await this.admin.from("attempt_state").upsert(
+      {
+        attempt_id: record.attemptId,
+        world_state: {
+          version: 1,
+          stageIndex: snapshot.stageIndex,
+          status: snapshot.status,
+          endingId: snapshot.endingId,
+          revision: snapshot.revision,
+        },
+        journal: snapshot.journal,
+        player_pos: snapshot.playerPos,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "attempt_id" },
+    );
+    if (stateError) throw new Error(`attempt_state: ${stateError.message}`);
+
+    const authoredStage = record.spec.stages[snapshot.stageIndex];
+    if (!authoredStage) throw new Error(`runtime: no authored stage at index ${snapshot.stageIndex}`);
+    const { data: revision, error: runtimeError } = await this.admin.rpc("save_attempt_runtime", {
+      p_attempt_id: record.attemptId,
+      p_expected_revision: record.runtimeRevision,
+      p_stage_spec_id: authoredStage.id,
+      p_snapshot: snapshot,
+    });
+    if (runtimeError) throw new Error(`save_attempt_runtime: ${runtimeError.message}`);
+    if (typeof revision !== "number") throw new Error("save_attempt_runtime: non-numeric revision");
+    record.runtimeRevision = revision;
+    return { stageDeadlineAt };
   }
 
   async now(): Promise<Date> {
@@ -244,19 +377,14 @@ export class SupabasePlayStore implements PlayStore {
     const stage = spec.stages[stageIndex];
     if (!stage) return emptyBinder();
     const [{ data: rooms }, { data: agents }, { data: options }] = await Promise.all([
-      this.admin.from("room").select("id, name, stage_id").eq("stage_id", stageUuid).returns<NamedRow[]>(),
-      this.admin.from("agent").select("id, name, stage_id").eq("stage_id", stageUuid).returns<NamedRow[]>(),
-      this.admin.from("decision_option").select("id, label, stage_id").eq("stage_id", stageUuid).returns<NamedRow[]>(),
+      this.admin.from("room").select("id, spec_id, stage_id").eq("stage_id", stageUuid).returns<BinderRow[]>(),
+      this.admin.from("agent").select("id, spec_id, stage_id").eq("stage_id", stageUuid).returns<BinderRow[]>(),
+      this.admin.from("decision_option").select("id, spec_id, stage_id").eq("stage_id", stageUuid).returns<BinderRow[]>(),
     ]);
-    const byName = (rows: NamedRow[] | null, key: "name" | "label") => new Map((rows ?? []).map((r) => [r[key] ?? "", r.id]));
-    const roomRows = byName(rooms, "name");
-    const agentRows = byName(agents, "name");
-    const optionRows = byName(options, "label");
-    const stakeholderName = (stakeholderId: string) => spec.stakeholders.find((s) => s.id === stakeholderId)?.name ?? "";
     return {
-      rooms: new Map(stage.rooms.map((r) => [r.id, roomRows.get(r.name) ?? null]).filter((e): e is [string, string] => e[1] !== null)),
-      agents: new Map(stage.agents.map((a) => [a.id, agentRows.get(stakeholderName(a.stakeholderId)) ?? null]).filter((e): e is [string, string] => e[1] !== null)),
-      options: new Map(stage.decision.options.map((o) => [o.id, optionRows.get(o.label) ?? null]).filter((e): e is [string, string] => e[1] !== null)),
+      rooms: binderMap(rooms, stage.rooms.map((room) => room.id), stageUuid, "room"),
+      agents: binderMap(agents, stage.agents.map((agent) => agent.id), stageUuid, "agent"),
+      options: binderMap(options, stage.decision.options.map((option) => option.id), stageUuid, "option"),
     };
   }
 }
@@ -298,6 +426,7 @@ export class MemoryPlayStore implements PlayStore {
     const current = this.records.get(record.attemptId);
     if (!current) return { stageDeadlineAt: null };
     current.snapshot = structuredClone(snapshot);
+    current.runtimeRevision += 1;
     if (events.endingId) {
       current.status = "completed";
       current.stageDeadlineAt = null;

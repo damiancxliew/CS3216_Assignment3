@@ -469,6 +469,33 @@ describe("server-authority tables (FR-21)", () => {
     }
   });
 
+  it("denies attempt runtime reads and client inserts for every client role", async () => {
+    const { error: seedError } = await admin.from("attempt_runtime").insert({
+      attempt_id: fixtureA.attemptId,
+      stage_spec_id: "stage-landing",
+      revision: 1,
+      snapshot: { version: 1, stageIndex: 0 },
+    });
+    expect(seedError).toBeNull();
+
+    for (const client of [teacherA, teacherB, studentA, studentB]) {
+      const { data, error } = await client
+        .from("attempt_runtime")
+        .select("snapshot")
+        .eq("attempt_id", fixtureA.attemptId);
+      expect(data ?? []).toHaveLength(0);
+      expect(error ?? { message: "" }).toBeTruthy();
+    }
+
+    const { error: insertError } = await studentA.from("attempt_runtime").insert({
+      attempt_id: fixtureA.attemptId,
+      stage_spec_id: "stage-landing",
+      revision: 1,
+      snapshot: { version: 1, stageIndex: 0 },
+    });
+    expect(insertError).not.toBeNull();
+  });
+
   it("never expose agent memory or resolver rolls to any client role", async () => {
     for (const client of [teacherA, studentA]) {
       const memory = await client

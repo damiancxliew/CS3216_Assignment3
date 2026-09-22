@@ -47,7 +47,7 @@ describe("K11 full-path client-payload audit", () => {
       return JSON.stringify({ say: "Come in, then.", actions: room ? [{ type: "open_door", roomId: room }] : [] });
     };
     const store = new MemoryPlayStore([
-      { attemptId: ATTEMPT, studentId: STUDENT, adventureId: "adv-k11", publishedVersion: 1, status: "active", stageDeadlineAt: null, spec, snapshot: null },
+      { attemptId: ATTEMPT, studentId: STUDENT, adventureId: "adv-k11", publishedVersion: 1, status: "active", stageDeadlineAt: null, spec, snapshot: null, runtimeRevision: 0 },
     ]);
     const deps: PlayServiceDeps = { store, llm: new FakeLlmClient({ replies: [opener] }) };
     const record = <T>(label: string, payload: T): T => {

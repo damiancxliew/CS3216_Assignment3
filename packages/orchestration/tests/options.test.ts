@@ -213,6 +213,24 @@ describe('option maintenance (K6)', () => {
     if (!result.ok) expect(result.reason).toBe('unknown_option')
   })
 
+  it('restores committed and passed decisions without re-evaluating availability', () => {
+    const world = createFixtureWorld()
+    const original = ledger()
+    const live = deriveOptions(world, fixtureOptionCatalogue)
+    expect(original.commit(world, fixtureOptionCatalogue, {
+      actorId: 'player',
+      actorKind: 'player',
+      optionId: 'option-sign-treaty',
+      optionsVersion: live.version,
+    }).ok).toBe(true)
+    expect(original.pass('agent-farquhar').ok).toBe(true)
+
+    const restored = new StageDecisions(fixtureStageParticipants, original.all())
+    expect(restored.all()).toEqual(original.all())
+    expect(restored.has('player')).toBe(true)
+    expect(restored.has('agent-farquhar')).toBe(true)
+  })
+
   it('passes everyone still undecided when the timer expires (D12/FR-16)', () => {
     const decisions = ledger()
     decisions.pass('agent-farquhar')
@@ -223,24 +241,25 @@ describe('option maintenance (K6)', () => {
     expect(decisions.settled()).toBe(true)
   })
 
-  it('restores a persisted ledger without re-validating old commits, and ignores strangers', () => {
+  it('restores valid persisted decisions and rejects malformed snapshots', () => {
     const decisions = ledger()
     decisions.pass('agent-farquhar')
-    const stored = [
-      ...decisions.all(),
-      { actorId: 'player', actorKind: 'player' as const, optionId: 'opt-a', how: 'committed' as const },
-      { actorId: 'agent-nobody', actorKind: 'agent' as const, optionId: null, how: 'passed' as const },
-      { actorId: 'agent-temenggong', actorKind: 'player' as const, optionId: null, how: 'passed' as const },
-    ]
+    const stored = decisions.all()
 
     const restored = StageDecisions.restore(fixtureStageParticipants, stored)
+    expect(restored.all()).toEqual(stored)
     expect(restored.has('agent-farquhar')).toBe(true)
-    expect(restored.has('player')).toBe(true)
-    expect(restored.has('agent-nobody')).toBe(false)
-    expect(restored.has('agent-temenggong')).toBe(false) // wrong kind for that participant
-    expect(restored.pending()).toEqual(['agent-temenggong'])
-    expect(restored.humansDecided()).toBe(true)
-    expect(restored.all().find((d) => d.actorId === 'player')?.optionId).toBe('opt-a')
+    expect(restored.pending()).toEqual(['player', 'agent-temenggong'])
+
+    expect(() => StageDecisions.restore(fixtureStageParticipants, [
+      ...stored,
+      { actorId: 'agent-nobody', actorKind: 'agent' as const, optionId: null, how: 'passed' as const },
+    ])).toThrow()
+    expect(() => StageDecisions.restore(fixtureStageParticipants, [
+      ...stored,
+      { actorId: 'agent-temenggong', actorKind: 'player' as const, optionId: null, how: 'passed' as const },
+    ])).toThrow()
+    expect(() => StageDecisions.restore(fixtureStageParticipants, [...stored, ...stored])).toThrow()
   })
 })
 

@@ -192,26 +192,29 @@ export class StageDecisions {
   private readonly participants: Map<string, ActorKind>
   private readonly decisions = new Map<string, Decision>()
 
-  constructor(participants: readonly { actorId: string; actorKind: ActorKind }[]) {
+  constructor(
+    participants: readonly { actorId: string; actorKind: ActorKind }[],
+    existing: readonly Decision[] = [],
+  ) {
     this.participants = new Map(participants.map((p) => [p.actorId, p.actorKind]))
+    for (const decision of existing) {
+      const actorKind = this.participants.get(decision.actorId)
+      if (actorKind === undefined || actorKind !== decision.actorKind) {
+        throw new Error(`cannot restore decision for non-participant "${decision.actorId}"`)
+      }
+      if (this.decisions.has(decision.actorId)) {
+        throw new Error(`cannot restore duplicate decision for "${decision.actorId}"`)
+      }
+      this.decisions.set(decision.actorId, decision)
+    }
   }
 
-  /**
-   * Rehydrate a ledger from decisions recorded earlier (`all()`), for a stage that is resumed
-   * from storage. Decisions were validated when they were made; replaying them against the
-   * current world would wrongly reject a commit whose option has since become unavailable.
-   * Entries for actors who are not participants are ignored rather than trusted.
-   */
+  /** Rehydrate trusted stored decisions without re-evaluating option availability. */
   static restore(
     participants: readonly { actorId: string; actorKind: ActorKind }[],
     decisions: readonly Decision[],
   ): StageDecisions {
-    const ledger = new StageDecisions(participants)
-    for (const decision of decisions) {
-      if (ledger.participants.get(decision.actorId) !== decision.actorKind) continue
-      ledger.decisions.set(decision.actorId, { ...decision })
-    }
-    return ledger
+    return new StageDecisions(participants, decisions)
   }
 
   /**

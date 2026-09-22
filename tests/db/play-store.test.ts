@@ -64,8 +64,25 @@ describe("SupabasePlayStore", () => {
     expect(result.state.timer.secondsRemaining).toBeGreaterThan(500);
 
     const { data: state } = await admin.from("attempt_state").select("world_state").eq("attempt_id", attemptId).single();
+    expect(Object.keys(state!.world_state as Record<string, unknown>).sort()).toEqual([
+      "endingId",
+      "revision",
+      "stageIndex",
+      "status",
+      "version",
+    ]);
     expect((state!.world_state as { version: number; stageIndex: number }).version).toBe(1);
     expect((state!.world_state as { stageIndex: number }).stageIndex).toBe(0);
+    expect(JSON.stringify(state!.world_state)).not.toContain("privateNotes");
+    expect(JSON.stringify(state!.world_state)).not.toContain("privateContext");
+    expect(JSON.stringify(state!.world_state)).not.toContain("rolls");
+    expect(JSON.stringify(state!.world_state)).not.toContain("rationale");
+    const { data: runtime } = await admin.from("attempt_runtime").select("revision, stage_spec_id, snapshot").eq("attempt_id", attemptId).single();
+    expect(runtime!.revision).toBe(1);
+    expect(runtime!.stage_spec_id).toBe("stage-landing");
+    expect((runtime!.snapshot as { world: unknown }).world).toBeTruthy();
+    const { data: studentRuntime } = await student.client.from("attempt_runtime").select("snapshot").eq("attempt_id", attemptId);
+    expect(studentRuntime ?? []).toHaveLength(0);
   });
 
   it("is not playable by another student", async () => {
@@ -78,14 +95,15 @@ describe("SupabasePlayStore", () => {
     const reply = ok(await postMessage(deps, attemptId, student.userId, { roomId: state.currentRoomId!, body: "What are your instructions?" }));
     expect(reply.value).toHaveLength(2);
 
-    const { data: rows } = await admin.from("message").select("room_id, author_type, author_id, body, visibility").eq("attempt_id", attemptId).order("created_at");
+    const { data: rows } = await admin.from("message").select("runtime_id, room_id, author_type, author_id, body, visibility").eq("attempt_id", attemptId).order("created_at");
     expect(rows).toHaveLength(2);
     expect(rows![0]).toMatchObject({ author_type: "player", author_id: student.userId, visibility: "room" });
     expect(rows![1]).toMatchObject({ author_type: "agent", visibility: "room" });
+    expect(rows!.every((row) => row.runtime_id !== null)).toBe(true);
     expect(rows![0]!.room_id).not.toBeNull();
-    const { data: room } = await admin.from("room").select("name").eq("id", rows![0]!.room_id as string).single();
-    expect(room!.name).toBe(state.rooms.find((r) => r.id === state.currentRoomId)!.name);
-    expect(rows![1]!.author_id).not.toBeNull(); // the agent bound to its row by stakeholder name
+    const { data: room } = await admin.from("room").select("spec_id").eq("id", rows![0]!.room_id as string).single();
+    expect(room!.spec_id).toBe(state.currentRoomId);
+    expect(rows![1]!.author_id).not.toBeNull();
 
     const resumed = await loadResumeState(student.client, attemptId);
     expect(resumed!.transcript.map((m) => m.body)).toEqual(rows!.map((r) => r.body));
@@ -144,7 +162,7 @@ describe("SupabasePlayStore", () => {
     expect(commitments!.some((c) => c.actor_kind === "player" && c.player_id === student.userId)).toBe(true);
     expect(commitments!.some((c) => c.actor_kind === "agent" && c.agent_id !== null)).toBe(true);
 
-    const { data: resolutions } = await admin.from("resolution").select("stage_id, outcome, rolls").eq("attempt_id", attemptId).order("created_at");
+    const { data: resolutions } = await admin.from("resolution").select("stage_id, actions, outcome, rolls").eq("attempt_id", attemptId).order("created_at");
     expect(resolutions!.length).toBeGreaterThanOrEqual(1);
     expect((resolutions![0]!.outcome as { announcement: string }).announcement.length).toBeGreaterThan(0);
     expect(Array.isArray(resolutions![0]!.rolls)).toBe(true);

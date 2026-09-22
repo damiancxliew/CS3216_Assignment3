@@ -6,9 +6,11 @@
  *
  * Requires a local Supabase (`npm run db:start` / `npm run db:reset`).
  */
+import { loadI1Spec } from "@adventure/generation/fixtures";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { persistSpecVersion } from "@/lib/adventures/persist-spec";
 import { createUserClient, serviceClient, uniqueEmail } from "./helpers";
 
 const admin = serviceClient();
@@ -268,6 +270,86 @@ describe("create_draft_version", () => {
       .eq("agent_id", draftAgent!.id)
       .single();
     expect(draftContext!.private_context).toBe("Bankrolled by the merchants.");
+  });
+
+  it("copies every authored spec_id from the valid I1 fixture", async () => {
+    const { data: adventure, error: adventureError } = await admin
+      .from("adventure")
+      .insert({ owner_id: teacherId, title: "Singapore fixture" })
+      .select("id")
+      .single();
+    if (adventureError) throw adventureError;
+    const spec = await loadI1Spec();
+    const persisted = await persistSpecVersion(admin, adventure.id, spec, {
+      generatorVersion: "test",
+      createdBy: teacherId,
+    });
+    const published = await teacher.rpc("publish_adventure", { p_adventure_id: adventure.id });
+    expect(published.error).toBeNull();
+    expect(published.data).toBe(1);
+
+    const drafted = await teacher.rpc("create_draft_version", { p_adventure_id: adventure.id });
+    expect(drafted.error).toBeNull();
+    expect(drafted.data).toBe(2);
+
+    const versionRows = async (version: number) => {
+      const { data: versionRow, error: versionError } = await admin
+        .from("spec_version")
+        .select("id")
+        .eq("adventure_id", adventure.id)
+        .eq("version", version)
+        .single();
+      if (versionError) throw versionError;
+      const { data: stages, error: stageError } = await admin
+        .from("stage")
+        .select("id, spec_id")
+        .eq("spec_version_id", versionRow.id)
+        .order("index");
+      if (stageError) throw stageError;
+      const stageIds = stages!.map((stage) => stage.id);
+      const children = async (table: string) => {
+        const { data, error } = await admin
+          .from(table)
+          .select("spec_id")
+          .in("stage_id", stageIds);
+        if (error) throw error;
+        return data!.map((row) => row.spec_id);
+      };
+      return {
+        stages: stages!.map((stage) => stage.spec_id),
+        rooms: await children("room"),
+        agents: await children("agent"),
+        evidence: await children("evidence"),
+        objectives: await children("objective"),
+        options: await children("decision_option"),
+      };
+    };
+
+    const expected = {
+      stages: spec.stages.map((stage) => stage.id),
+      rooms: spec.stages.flatMap((stage) => stage.rooms.map((room) => room.id)),
+      agents: spec.stages.flatMap((stage) => stage.agents.map((agent) => agent.id)),
+      evidence: spec.stages.flatMap((stage) => stage.evidence.map((item) => item.id)),
+      objectives: spec.stages.flatMap((stage) => stage.objectives.map((item) => item.id)),
+      options: spec.stages.flatMap((stage) => stage.decision.options.map((option) => option.id)),
+    };
+    for (const version of [1, 2]) {
+      const actual = await versionRows(version);
+      expect(actual.stages.every((id) => id !== null)).toBe(true);
+      expect(actual.rooms.every((id) => id !== null)).toBe(true);
+      expect(actual.agents.every((id) => id !== null)).toBe(true);
+      expect(actual.evidence.every((id) => id !== null)).toBe(true);
+      expect(actual.objectives.every((id) => id !== null)).toBe(true);
+      expect(actual.options.every((id) => id !== null)).toBe(true);
+      expect(actual.stages.sort()).toEqual(expected.stages.sort());
+      expect(actual.rooms.sort()).toEqual(expected.rooms.sort());
+      expect(actual.agents.sort()).toEqual(expected.agents.sort());
+      expect(actual.evidence.sort()).toEqual(expected.evidence.sort());
+      expect(actual.objectives.sort()).toEqual(expected.objectives.sort());
+      expect(actual.options.sort()).toEqual(expected.options.sort());
+    }
+
+    expect(persisted.specVersionId).toBeTruthy();
   });
 
   it("refuses a second draft and a teacher who does not own the adventure", async () => {
