@@ -77,6 +77,27 @@ describe("persistSpecVersion", () => {
     );
   });
 
+  it("persists open rooms with nullable doors and authored spec ids", async () => {
+    const adventureId = await newAdventure();
+    const result = await persistSpecVersion(admin, adventureId, spec, { generatorVersion: "test" });
+    const { data: stages } = await admin.from("stage").select("id, index").eq("spec_version_id", result.specVersionId).order("index");
+    const { data: rooms } = await admin.from("room").select("spec_id, door_default, stage_id").in("stage_id", stages!.map((stage) => stage.id));
+    for (const authored of fixtureSpec.stages.flatMap((stage) => stage.rooms).filter((room) => room.enclosure === "open")) {
+      const stageIndex = fixtureSpec.stages.findIndex((stage) => stage.rooms.some((room) => room.id === authored.id));
+      const row = rooms!.find((room) => room.spec_id === authored.id);
+      expect(row).toMatchObject({ door_default: null, stage_id: stages![stageIndex]!.id });
+    }
+  });
+
+  it("rejects missing enclosure before inserting a version row", async () => {
+    const adventureId = await newAdventure();
+    const broken = structuredClone(spec) as Record<string, any>;
+    broken.stages[0].rooms[0].enclosure = null;
+    await expect(persistSpecVersion(admin, adventureId, broken, { generatorVersion: "test" })).rejects.toBeInstanceOf(SpecPersistError);
+    const { count } = await admin.from("spec_version").select("id", { count: "exact", head: true }).eq("adventure_id", adventureId);
+    expect(count).toBe(0);
+  });
+
   it("rewrites agent, evidence and branch references to database uuids", async () => {
     const adventureId = await newAdventure();
     const { specVersionId, ids } = await persistSpecVersion(
