@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 
 import { SignInButton } from "@/components/sign-in-button";
@@ -26,9 +27,15 @@ export default function Home() {
           and lets a student find out what their decisions cost.
         </p>
       </div>
-      <SignInButton next="/" label="Teacher sign-in with Google" />
+      <SignInButton next="/teacher" label="Teacher sign-in with Google" />
       <div className="flex flex-col gap-2 text-sm opacity-70">
-        <p>The teacher console and the game client land this week.</p>
+        <p>
+          Already signed in?{" "}
+          <Link href="/teacher" className="underline underline-offset-4">
+            Open the teacher console
+          </Link>
+          .
+        </p>
         <p>
           API contract in progress:{" "}
           <code className="rounded bg-black/10 px-1 py-0.5 dark:bg-white/10">

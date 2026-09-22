@@ -108,6 +108,41 @@ Enabling Google against the hosted project is dashboard configuration: add the O
 client, and add `<site>/auth/callback` to both the Google client's redirect URIs and
 Supabase's redirect allow-list.
 
+## Teacher console (P5)
+
+`/teacher` lists the signed-in teacher's adventures and creates new ones;
+`/teacher/<id>` is the whole lifecycle for one of them: source material, versions,
+publish, stage and stakeholder editing, the share link, and the roster of attempts.
+
+Nothing on those pages filters by owner. The list query is a bare
+`select … from adventure` and the detail page fetches by id alone — RLS is what
+makes another teacher's adventure absent rather than forbidden, which also means a
+broken policy fails visibly in the UI instead of being masked by a redundant
+`where owner_id = …`.
+
+Writes split by who is allowed to make them:
+
+- The teacher's own row (`adventure`) and the owner-checked RPCs
+  (`publish_adventure`, `create_draft_version`, `rotate_share_token`) go through the
+  request-scoped client, so the database re-derives `auth.uid()` from the cookie.
+- Authoring content (sources, spec import, stage and stakeholder edits) is written
+  with the service role, because clients hold SELECT only on those tables by design
+  (P2). Every such action re-reads the adventure through the user's client first: if
+  RLS does not return the row, the action redirects instead of writing.
+
+`persistSpecVersion` in `apps/web/src/lib/adventures/persist-spec.ts` is the seam the
+generator plugs into. It validates an adventure spec v2, refuses to write anything at
+all when validation fails, then inserts a new **draft** version — stages, rooms,
+agents, evidence, objectives, decision options — rewriting every spec slug to the
+uuid of the row actually inserted, so nothing downstream resolves slugs against the
+json blob. Persona, motivations, hidden interests and knowledge horizon go only to
+`agent_private_context`, which no client role can read (FR-21); the editor
+consequently exposes a stakeholder's name, role and public position and nothing else.
+
+Editing a published adventure is refused by the freeze triggers, not by the UI: the
+console surfaces that as "this version is frozen, choose *Edit as a new version*",
+which calls `create_draft_version` (P4).
+
 ## Turn API (I3)
 
 Frozen route handlers, currently backed by a canned in-memory stub so the client can
