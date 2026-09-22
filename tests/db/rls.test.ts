@@ -317,6 +317,30 @@ describe("spec_version", () => {
     expect((await rows(teacherB, "spec_version", fixtureA.specVersionId)).count).toBe(0);
     expect((await rows(studentB, "spec_version", fixtureA.specVersionId)).count).toBe(0);
   });
+
+  // The compiled spec carries every agent's private context and every branch
+  // target, so no client role may read it even on a row it can see (FR-21).
+  it("withholds the compiled spec from every client role", async () => {
+    for (const client of [teacherA, studentA]) {
+      const { data, error } = await client
+        .from("spec_version")
+        .select("json")
+        .eq("id", fixtureA.specVersionId);
+      expect(error).not.toBeNull();
+      expect(data).toBeNull();
+    }
+  });
+
+  it("withholds a stage's branch map from every client role", async () => {
+    for (const client of [teacherA, studentA]) {
+      const { data, error } = await client
+        .from("stage")
+        .select("branch_map")
+        .eq("id", fixtureA.stageId);
+      expect(error).not.toBeNull();
+      expect(data).toBeNull();
+    }
+  });
 });
 
 describe.each([

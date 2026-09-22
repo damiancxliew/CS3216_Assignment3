@@ -108,6 +108,41 @@ Enabling Google against the hosted project is dashboard configuration: add the O
 client, and add `<site>/auth/callback` to both the Google client's redirect URIs and
 Supabase's redirect allow-list.
 
+## Teacher console (P5)
+
+`/teacher` lists the signed-in teacher's adventures and creates new ones;
+`/teacher/<id>` is the whole lifecycle for one of them: source material, versions,
+publish, stage and stakeholder editing, the share link, and the roster of attempts.
+
+Nothing on those pages filters by owner. The list query is a bare
+`select … from adventure` and the detail page fetches by id alone — RLS is what
+makes another teacher's adventure absent rather than forbidden, which also means a
+broken policy fails visibly in the UI instead of being masked by a redundant
+`where owner_id = …`.
+
+Writes split by who is allowed to make them:
+
+- The teacher's own row (`adventure`) and the owner-checked RPCs
+  (`publish_adventure`, `create_draft_version`, `rotate_share_token`) go through the
+  request-scoped client, so the database re-derives `auth.uid()` from the cookie.
+- Authoring content (sources, spec import, stage and stakeholder edits) is written
+  with the service role, because clients hold SELECT only on those tables by design
+  (P2). Every such action re-reads the adventure through the user's client first: if
+  RLS does not return the row, the action redirects instead of writing.
+
+`persistSpecVersion` in `apps/web/src/lib/adventures/persist-spec.ts` is the seam the
+generator plugs into. It validates an adventure spec v2, refuses to write anything at
+all when validation fails, then inserts a new **draft** version — stages, rooms,
+agents, evidence, objectives, decision options — rewriting every spec slug to the
+uuid of the row actually inserted, so nothing downstream resolves slugs against the
+json blob. Persona, motivations, hidden interests and knowledge horizon go only to
+`agent_private_context`, which no client role can read (FR-21); the editor
+consequently exposes a stakeholder's name, role and public position and nothing else.
+
+Editing a published adventure is refused by the freeze triggers, not by the UI: the
+console surfaces that as "this version is frozen, choose *Edit as a new version*",
+which calls `create_draft_version` (P4).
+
 ## Turn API (I3)
 
 Frozen route handlers, currently backed by a canned in-memory stub so the client can
@@ -128,6 +163,59 @@ Every response is parsed through the public Zod schemas in
 rationale, knowledge-horizon or seed field ever appears in a payload (FR-21).
 Swapping the stub for the real Resolver means replacing `stub.ts` only; the shapes
 are frozen.
+
+## Stage timers (P6, D12/FR-16)
+
+Configuration is inheritance: `adventure.default_timer_seconds` applies to every
+stage, `stage.timer_seconds` overrides it, `null` inherits and `0` disables. Teachers
+set both from the console; `set_stage_timer` checks ownership and refuses a frozen
+version, so the same rule holds however the value arrives.
+
+Enforcement is not configuration. The deadline is written by
+`start_stage_deadline(attempt, stage)` from the database clock when a stage opens
+(service_role only — opening a stage is orchestration, not a client action) and read
+back from `attempt.stage_deadline_at`. The browser only renders it: a refresh re-reads
+the same instant, and a device clock that is wrong changes the number on screen, not
+the moment the stage closes. `expire_stage_if_due` compares `now()` in the database
+and, only once the deadline has actually passed, records the player's pass as a
+`stage_commitment` with `option_id is null` — doing nothing if a decision is already
+there, so a late poll cannot overwrite a decision made in time. Closing the stage and
+resolving it remain orchestration's job; this only guarantees the pass exists.
+
+## Resume (P7, FR-18)
+
+There is nothing to restore, because nothing was ever only in the tab: the attempt
+row, `attempt_state` (journal, position), the room transcript and the stage's
+commitments are all server-side already. `loadResumeState()` in
+`apps/web/src/lib/attempts/resume.ts` reads them **as the signed-in user**, so RLS —
+not the function — decides what comes back: another student's attempt is null, private
+agent-to-agent messages are filtered by the `message_select` policy, and
+`agent_memory`/`resolution` are denied to client roles outright (FR-21).
+
+The recap is derived on each read rather than stored, so it can only ever restate
+public state the student has already seen. The countdown resumes against `server_now()`
+rather than the browser clock, so reopening a tab shows the real remaining time and
+changes nothing about the deadline.
+
+## Ending and debrief (P8, FR-19)
+
+An ending is not a stage row — it lives in the pinned spec json — so an attempt only
+records *which* ending it reached, in `attempt.ending_id`, written by
+`complete_attempt()` (service_role only: reaching an ending is the Resolver's call,
+not a student's).
+
+The debrief's claim is a separation, and spec v2 already encodes it:
+`ending.historicalOutcome` is `grounded()`, so it carries `spans` (source, page,
+verbatim quote) and `assumptionIds`. `loadDebrief()` resolves those against
+`spec.sources` and `spec.assumptions` and returns documented history and simulated
+assumption as separately-typed fields, which is what stops the page from blurring
+them. A span whose source is missing is still shown with its page and quote — the
+student can check a citation we failed to resolve — while a dangling assumption id
+shows nothing at all, because an empty claim must not be dressed up as a stated
+assumption.
+
+The whole read is against the version the attempt pinned, so republishing mid-attempt
+cannot rewrite the history a student is being debriefed on.
 
 ## Analytics (M19)
 
