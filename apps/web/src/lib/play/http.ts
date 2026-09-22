@@ -19,6 +19,7 @@ const STATUS: Record<SessionError["code"], number> = {
   invalid_request: 400,
   stale_option: 409,
   stage_closed: 409,
+  conflict: 409,
 };
 
 export function errorResponse(error: SessionError | ApiError["error"], status = STATUS[error.code as SessionError["code"]] ?? 400) {

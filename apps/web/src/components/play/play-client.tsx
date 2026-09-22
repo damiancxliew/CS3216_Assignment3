@@ -28,6 +28,9 @@ const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas),
 });
 
 const POLL_MS = 8_000;
+/** A failing server is not polled at the same rate: back off, and give up rather than pile on. */
+const MAX_POLL_MS = 120_000;
+const GIVE_UP_AFTER = 6;
 
 /** A character's face: the generated portrait when the asset service has one, the pack's faceset otherwise (D4/D6). */
 function Portrait({ src, name, size = 40 }: { src: string | null; name: string; size?: number }) {
@@ -76,16 +79,27 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     setState(next);
   }, []);
 
+  const failures = useRef(0);
   const refresh = useCallback(async () => {
     const result = await playApi.state(attemptId);
-    if (result.ok) accept(result.body);
+    if (result.ok) {
+      failures.current = 0;
+      accept(result.body);
+    } else {
+      failures.current += 1;
+    }
+    return result.ok;
   }, [attemptId, accept]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible" && !busy) void refresh();
-    }, POLL_MS);
-    return () => window.clearInterval(timer);
+    let timer = 0;
+    const tick = async () => {
+      if (document.visibilityState === "visible" && !busy) await refresh();
+      if (failures.current >= GIVE_UP_AFTER) return;
+      timer = window.setTimeout(tick, Math.min(POLL_MS * 2 ** failures.current, MAX_POLL_MS));
+    };
+    timer = window.setTimeout(tick, POLL_MS);
+    return () => window.clearTimeout(timer);
   }, [refresh, busy]);
 
   useEffect(() => {
