@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { READING_BANDS } from "@adventure/generation/spec";
-
-import { createAdventure } from "./actions";
-import { ActionForm } from "@/components/action-form";
+import { BriefChat } from "./brief-chat";
 import { SignInButton } from "@/components/sign-in-button";
-import { Field, READING_BAND_LABELS, SelectField, StatusBadge } from "@/components/ui";
-import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
+import { StatusBadge } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -83,38 +79,14 @@ export default async function TeacherHome() {
         )}
       </section>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-black/10 p-6 dark:border-white/15">
-        <h2 className="text-lg font-medium">New adventure</h2>
-        <ActionForm
-          action={createAdventure}
-          submitLabel="Create"
-          pendingLabel="Creating…"
-          event={ANALYTICS_EVENTS.adventureCreated}
-        >
-          <Field name="title" label="Title" placeholder="The founding of Singapore, 1819" />
-          <Field name="setting" label="Setting" placeholder="Singapore and Johor, February 1819" />
-          <Field name="studentRole" label="Who the student plays" placeholder="Junior interpreter to the expedition" />
-          <Field
-            name="learningObjectives"
-            label="Learning objectives (one per line, up to six)"
-            placeholder={"Explain why the EIC wanted a port at the Straits\nDescribe the Johor succession dispute"}
-            multiline
-            rows={3}
-          />
-          <div className="grid grid-cols-3 gap-3">
-            <SelectField
-              name="band"
-              label="Reading level"
-              defaultValue="lower-secondary"
-              options={READING_BANDS.map((band) => ({ value: band, label: READING_BAND_LABELS[band] }))}
-            />
-            <Field name="ageMin" label="Age from" defaultValue="13" />
-            <Field name="ageMax" label="Age to" defaultValue="14" />
-          </div>
-          <p className="text-xs opacity-60">
-            The reading level is what the planner writes to and what the validator checks against, so it is set here, once, for the adventure.
+      <section className="flex flex-col gap-4 rounded-2xl border border-black/10 p-6 dark:border-white/15">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-medium">New adventure</h2>
+          <p className="text-sm opacity-60">
+            A few questions to agree the brief — setting, role, objectives, reading level and what each stage is about. The planner builds from it, so it is settled once, here.
           </p>
-        </ActionForm>
+        </div>
+        <BriefChat />
       </section>
     </Shell>
   );
