@@ -262,6 +262,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
     const onKey = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.altKey || event.metaKey || typing(event.target)) return;
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      const target = event.target instanceof Element ? event.target : null;
+      if (key === "Enter" && target?.closest("button, a, summary, [role=\"button\"], [role=\"radio\"]")) return;
       if (key === "Enter" || key === "e") {
         // Talk to whoever is in the room with you.
         const s = latest.current.state;

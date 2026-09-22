@@ -83,8 +83,11 @@ async function run<T>(
   return { ok: true, value: outcome.value, state };
 }
 
-export function getState(deps: PlayServiceDeps, attemptId: string, userId: string) {
-  return run(deps, attemptId, userId, async () => ({ ok: true, value: null }), true);
+export async function getState(deps: PlayServiceDeps, attemptId: string, userId: string) {
+  const read = () => run(deps, attemptId, userId, async () => ({ ok: true, value: null }), true);
+  let result = await read();
+  for (let retry = 0; !result.ok && result.error.code === "stale_state" && retry < 2; retry += 1) result = await read();
+  return result;
 }
 
 export async function postMessage(deps: PlayServiceDeps, attemptId: string, userId: string, input: { roomId: string; body: string; addresseeId?: string | null }): Promise<ServiceResult<PublicMessage[]>> {
