@@ -558,18 +558,27 @@ export class PlaySession {
     if (action.type === "move_room" && result.ok && action.position) this.snap.playerPos = action.position;
     this.bump();
 
-    // Moving or knocking is when the world gets a beat to itself: characters act while the player
-    // walks, and someone behind a knocked door gets the chance to answer it (K4, #8).
-    if ((action.type === "move_room" || action.type === "knock") && result.ok) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE);
+    // Knocking gives whoever is behind that door a beat to answer it (K4, #8) — only them, so the
+    // wait is one model call. Walking costs nothing: characters answer when spoken to, and a stage
+    // resolving is the moment everyone acts.
+    if (action.type === "knock" && result.ok) {
+      const inside = Object.entries(world.location)
+        .filter(([actorId, roomId]) => roomId === action.roomId && actorId !== PLAYER_ID)
+        .map(([actorId]) => actorId);
+      if (inside.length > 0) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE, inside);
+    }
 
     return { ok: true, refused: result.ok ? null : result.reason };
   }
 
-  /** Let the characters act autonomously for a bounded number of ticks (FR-12a/FR-12b). */
-  async tick(client: LlmClient, maxTicks: number): Promise<void> {
+  /** Let the characters act autonomously for a bounded number of ticks (FR-12a/FR-12b); `only` narrows who. */
+  async tick(client: LlmClient, maxTicks: number, only?: readonly string[]): Promise<void> {
     if (this.snap.status !== "active") return;
+    const config = this.stageConfig();
+    const agents = only ? Object.fromEntries(Object.entries(config.agents).filter(([id]) => only.includes(id))) : config.agents;
     const run = await runStage(client, this.snap.world, {
-      ...this.stageConfig(),
+      ...config,
+      agents,
       maxTicks,
       tokenBudget: Math.max(0, STAGE_TOKEN_BUDGET - this.snap.tokensSpent),
     });

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Nunito } from "next/font/google";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -15,6 +16,9 @@ export const metadata: Metadata = {
 
 // Opening the page may settle an expired stage, which is one resolver call.
 export const maxDuration = 60;
+
+// A rounder, friendlier face than the console's Geist: this page is for students, not teachers.
+const nunito = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800", "900"], display: "swap" });
 
 /**
  * The student's attempt: the map fills the screen, the panel does everything
@@ -40,7 +44,7 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   const active = initial.ok && initial.state.status === "active" ? initial.state : null;
 
   return (
-    <main className="flex h-screen flex-col">
+    <main className={`${nunito.className} flex h-screen flex-col`}>
       <header className="flex flex-wrap items-baseline gap-x-5 gap-y-2 border-b-2 border-black/10 px-6 py-4 dark:border-white/15">
         <h1 className="text-2xl font-bold tracking-tight">{resume.adventureTitle}</h1>
         {active ? (
