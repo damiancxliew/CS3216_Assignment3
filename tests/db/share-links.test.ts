@@ -203,6 +203,19 @@ describe("join_adventure", () => {
       .eq("id", draft.id);
     expect(unreachable ?? []).toHaveLength(0);
   });
+
+  // Visibility is not ownership: the authoring surface must filter on
+  // `owner_id` rather than treat "the row is selectable" as "this is mine",
+  // or an admitted student reaches the teacher console for that adventure.
+  it("does not make the admitted student an owner of it", async () => {
+    const { data: student_id } = await student.auth.getUser();
+    const { data: owned } = await student
+      .from("adventure")
+      .select("id")
+      .eq("id", published.id)
+      .eq("owner_id", student_id.user!.id);
+    expect(owned ?? []).toHaveLength(0);
+  });
 });
 
 describe("rotate_share_token", () => {

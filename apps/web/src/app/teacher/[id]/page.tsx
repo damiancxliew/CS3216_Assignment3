@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { SharePanel } from "./share-panel";
 import {
@@ -52,11 +52,18 @@ export default async function AdventurePage({
   const { id } = await params;
   const supabase = await createClient();
 
-  // RLS does the authorisation: another teacher's adventure simply is not here.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/teacher");
+
+  // A student admitted to a published adventure can also select the row, so the
+  // authoring view matches the owner rather than relying on visibility alone.
   const { data: adventure } = await supabase
     .from("adventure")
     .select("id, title, setting, status, published_version, default_timer_seconds, share_token")
     .eq("id", id)
+    .eq("owner_id", user.id)
     .maybeSingle<Adventure>();
   if (!adventure) notFound();
 

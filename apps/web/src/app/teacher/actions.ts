@@ -33,12 +33,16 @@ async function requireUser() {
   return { supabase, user };
 }
 
+// `adventure_select` also admits a student with an attempt on a published
+// adventure, so visibility is not ownership: the owner is matched explicitly
+// before any service-role write is made on the teacher's behalf.
 async function requireOwnership(adventureId: string) {
   const { supabase, user } = await requireUser();
   const { data } = await supabase
     .from("adventure")
     .select("id")
     .eq("id", adventureId)
+    .eq("owner_id", user.id)
     .maybeSingle();
   if (!data) redirect("/teacher");
   return { supabase, user };

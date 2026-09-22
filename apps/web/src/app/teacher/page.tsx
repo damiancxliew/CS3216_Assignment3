@@ -39,11 +39,12 @@ export default async function TeacherHome() {
     );
   }
 
-  // RLS returns only this teacher's adventures; no owner filter is needed here
-  // and adding one would hide the fact that the database is the one enforcing it.
+  // `adventure_select` also admits students playing a published adventure, so
+  // the authoring surface filters on ownership rather than leaning on RLS.
   const { data } = await supabase
     .from("adventure")
     .select("id, title, setting, status, published_version, updated_at")
+    .eq("owner_id", user.id)
     .order("updated_at", { ascending: false })
     .returns<AdventureRow[]>();
   const adventures = data ?? [];
