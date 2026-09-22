@@ -328,4 +328,3 @@ export async function runK9Eval(): Promise<K9RunSummary> {
   if (summary.aggregate.apiErrors > 0 || summary.aggregate.structuredFailures > 0) process.exitCode = 1
   return summary
 }
-
