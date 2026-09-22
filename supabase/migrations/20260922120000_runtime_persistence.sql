@@ -138,6 +138,45 @@ create trigger attempt_runtime_set_updated_at
 alter table attempt_runtime enable row level security;
 revoke all on attempt_runtime from public, anon, authenticated;
 
+insert into attempt_runtime (attempt_id, stage_spec_id, revision, snapshot)
+select
+  state.attempt_id,
+  jsonb_extract_path_text(
+    version.json,
+    'stages',
+    (state.world_state ->> 'stageIndex'),
+    'id'
+  ),
+  1,
+  state.world_state
+from attempt_state as state
+join attempt on attempt.id = state.attempt_id
+join spec_version as version
+  on version.adventure_id = attempt.adventure_id
+ and version.version = attempt.published_version
+where jsonb_typeof(state.world_state) = 'object'
+  and state.world_state ->> 'version' = '1'
+  and state.world_state ? 'world'
+  and jsonb_extract_path_text(
+    version.json,
+    'stages',
+    (state.world_state ->> 'stageIndex'),
+    'id'
+  ) is not null
+on conflict (attempt_id) do nothing;
+
+update attempt_state as state
+set world_state = jsonb_build_object(
+  'version', 1,
+  'stageIndex', runtime.snapshot -> 'stageIndex',
+  'status', runtime.snapshot -> 'status',
+  'endingId', runtime.snapshot -> 'endingId',
+  'revision', runtime.snapshot -> 'revision'
+)
+from attempt_runtime as runtime
+where runtime.attempt_id = state.attempt_id
+  and state.world_state ? 'world';
+
 create or replace function save_attempt_runtime(
   p_attempt_id uuid,
   p_expected_revision bigint,

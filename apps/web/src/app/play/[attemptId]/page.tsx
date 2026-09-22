@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { StageCountdown } from "@/components/stage-countdown";
+import { PlayClient } from "@/components/play/play-client";
 import { loadResumeState } from "@/lib/attempts/resume";
+import { playDeps } from "@/lib/play/http";
+import { getState } from "@/lib/play/service";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -11,18 +13,18 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
+// Opening the page may settle an expired stage, which is one resolver call.
+export const maxDuration = 60;
+
 /**
- * The student's attempt. The game view itself lands with the renderer (Yi
- * Hao's slice); what this page owns is P7 — everything needed to pick up where
- * you left off is read back from the server, so admission is provably enforced
- * (RLS returns nothing for someone else's attempt and the page 404s) and a
- * killed tab costs nothing but the recap you get on the way back in.
+ * The student's attempt: the map fills the screen, the panel does everything
+ * the map does without it. The first state is read on the server so the page
+ * renders with the world in it; from then on the client talks to the Turn API
+ * (I3), which owns every change. Admission is enforced twice over — RLS returns
+ * nothing for someone else's attempt (the page 404s), and the Turn API checks
+ * the student again.
  */
-export default async function PlayPage({
-  params,
-}: {
-  params: Promise<{ attemptId: string }>;
-}) {
+export default async function PlayPage({ params }: { params: Promise<{ attemptId: string }> }) {
   const { attemptId } = await params;
   const supabase = await createClient();
 
@@ -31,92 +33,48 @@ export default async function PlayPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const state = await loadResumeState(supabase, attemptId);
-  if (!state) notFound();
+  const resume = await loadResumeState(supabase, attemptId);
+  if (!resume) notFound();
+
+  const initial = await getState(playDeps(), attemptId, user.id);
+  const active = initial.ok && initial.state.status === "active" ? initial.state : null;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-6 py-20">
-      <header className="flex flex-col gap-2">
-        <p className="text-sm uppercase tracking-widest opacity-60">
-          {state.status === "completed" ? "Finished" : "Welcome back"}
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {state.adventureTitle}
-        </h1>
+    <main className="flex h-screen flex-col">
+      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-black/10 px-5 py-3 dark:border-white/15">
+        <h1 className="text-lg font-semibold tracking-tight">{resume.adventureTitle}</h1>
+        {active ? (
+          <details className="min-w-0 flex-1 text-sm">
+            <summary className="cursor-pointer opacity-70">
+              Stage {active.stage.index + 1} of {active.stageCount}: {active.stage.title}
+              <span className="ml-2 text-xs opacity-60">(brief)</span>
+            </summary>
+            <div className="mt-2 flex max-w-3xl flex-col gap-2 pb-1">
+              <p className="opacity-80">{active.stage.sharedContext}</p>
+              {resume.recap.length && active.revision > 0 ? (
+                <ul className="flex list-disc flex-col gap-1 pl-5 text-xs opacity-60">
+                  {resume.recap.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </details>
+        ) : null}
       </header>
 
-      {state.status === "completed" ? (
-        <Link
-          href={`/play/${state.attemptId}/debrief`}
-          className="self-start rounded border border-black/20 px-4 py-2 text-sm underline-offset-4 hover:underline dark:border-white/25"
-        >
-          Read your debrief
-        </Link>
-      ) : null}
-
-      <section className="flex flex-col gap-3 rounded-lg border border-black/10 p-5 dark:border-white/15">
-        <h2 className="text-sm font-medium uppercase tracking-wide opacity-60">
-          Where you left off
-        </h2>
-        <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
-          {state.recap.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-        {state.stage ? (
-          <p className="text-sm opacity-80">{state.stage.sharedContext}</p>
-        ) : null}
-        <p className="text-sm">
-          <span className="opacity-60">Time left: </span>
-          <StageCountdown
-            attemptId={state.attemptId}
-            deadlineIso={state.timer.deadlineAt}
-            serverNowIso={state.timer.serverNow}
-          />
-        </p>
-      </section>
-
-      {state.journal.length ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium uppercase tracking-wide opacity-60">
-            Journal
-          </h2>
-          <ul className="flex flex-col gap-2 text-sm">
-            {state.journal.map((entry) => (
-              <li
-                key={entry.id}
-                className="rounded border border-black/10 p-3 dark:border-white/15"
-              >
-                <p>{entry.text}</p>
-                {entry.sourceSpan ? (
-                  <p className="mt-1 text-xs opacity-60">{entry.sourceSpan}</p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+      {initial.ok ? (
+        <PlayClient attemptId={attemptId} initialState={initial.state} />
+      ) : (
+        <section className="m-6 flex flex-col gap-3 rounded-lg border border-black/10 p-5 text-sm dark:border-white/15">
+          <p>This attempt cannot be played right now: {initial.error.message}</p>
+          {resume.status === "completed" ? (
+            <Link href={`/play/${attemptId}/debrief`} className="w-fit underline underline-offset-4">
+              Read your debrief
+            </Link>
+          ) : null}
         </section>
-      ) : null}
-
-      {state.transcript.length ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium uppercase tracking-wide opacity-60">
-            Transcript
-          </h2>
-          <ul className="flex flex-col gap-2 text-sm">
-            {state.transcript.map((message) => (
-              <li key={message.id}>
-                <span className="opacity-60">{message.authorType}: </span>
-                {message.body}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <p className="text-xs opacity-60">
-        The playable view arrives with the renderer; this state is read from the
-        server on every visit, so nothing here depends on the tab staying open.
-      </p>
+      )}
     </main>
   );
 }

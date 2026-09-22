@@ -1,34 +1,15 @@
-import { NextResponse } from "next/server";
-
-import { publicAttemptStateSchema } from "@/lib/turn-api/contract";
-import { AttemptNotFoundError } from "@/lib/turn-api/supabase-runtime";
-import { createTurnRuntimeBackend } from "@/lib/turn-api/service";
+import { errorResponse, playDeps, publicJson, requireUserId } from "@/lib/play/http";
+import { getState } from "@/lib/play/service";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const backend = await createTurnRuntimeBackend();
-  if (backend === null) {
-    return NextResponse.json(
-      { error: { code: "unauthorized", message: "Sign in to access this attempt." } },
-      { status: 401 },
-    );
-  }
+  const userId = await requireUserId();
+  if (typeof userId !== "string") return userId;
 
-  try {
-    const state = publicAttemptStateSchema.parse(await backend.getState(id));
-    return NextResponse.json(state);
-  } catch (error) {
-    if (error instanceof AttemptNotFoundError) {
-      return NextResponse.json(
-        { error: { code: "not_found", message: "That attempt was not found." } },
-        { status: 404 },
-      );
-    }
-    throw error;
-  }
+  const result = await getState(playDeps(), id, userId);
+  if (!result.ok) return errorResponse(result.error);
+  return publicJson(result.state);
 }

@@ -196,6 +196,14 @@ export class StageDecisions {
     }
   }
 
+  /** Rehydrate trusted stored decisions without re-evaluating option availability. */
+  static restore(
+    participants: readonly { actorId: string; actorKind: ActorKind }[],
+    decisions: readonly Decision[],
+  ): StageDecisions {
+    return new StageDecisions(participants, decisions)
+  }
+
   /**
    * Commit an option. Rejects — never mutates — when the actor is looking at an option set the
    * world has moved past, or when the option's preconditions no longer hold (FR-14).

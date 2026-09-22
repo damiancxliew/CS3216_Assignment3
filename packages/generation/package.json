@@ -15,7 +15,8 @@
     "./llm": "./src/llm/index.ts",
     "./assets": "./src/assets/index.ts",
     "./play": "./src/play/index.ts",
-    "./publish": "./src/publish/index.ts"
+    "./publish": "./src/publish/index.ts",
+    "./runtime": "./src/runtime/index.ts"
   },
   "scripts": {
     "test": "vitest run",

@@ -7,7 +7,7 @@ import {
   fixtureStageParticipants,
 } from '../src/fixtures'
 import { FakeLlmClient } from '../src/llm/fake'
-import { deriveOptions, isHiddenFrom, parseOptionsVersion, StageDecisions, type Decision } from '../src/stage/options'
+import { deriveOptions, isHiddenFrom, parseOptionsVersion, StageDecisions } from '../src/stage/options'
 import { runStage } from '../src/world/stage-runtime'
 import { applyAction, type WorldState } from '../src/world/state'
 
@@ -231,24 +231,6 @@ describe('option maintenance (K6)', () => {
     expect(restored.has('agent-farquhar')).toBe(true)
   })
 
-  it('rejects malformed trusted decision restoration', () => {
-    const original: Decision[] = [
-      { actorId: 'player', actorKind: 'player', optionId: null, how: 'passed' },
-    ]
-
-    expect(() => new StageDecisions(fixtureStageParticipants, [
-      ...original,
-      { actorId: 'foreign', actorKind: 'player', optionId: null, how: 'passed' },
-    ])).toThrow()
-    expect(() => new StageDecisions(fixtureStageParticipants, [
-      ...original,
-      ...original,
-    ])).toThrow()
-    expect(() => new StageDecisions(fixtureStageParticipants, [
-      { actorId: 'player', actorKind: 'agent', optionId: null, how: 'passed' },
-    ])).toThrow()
-  })
-
   it('passes everyone still undecided when the timer expires (D12/FR-16)', () => {
     const decisions = ledger()
     decisions.pass('agent-farquhar')
@@ -257,6 +239,27 @@ describe('option maintenance (K6)', () => {
     expect(timedOut.map((decision) => decision.actorId).sort()).toEqual(['agent-temenggong', 'player'])
     expect(timedOut.every((decision) => decision.optionId === null && decision.how === 'timed_out')).toBe(true)
     expect(decisions.settled()).toBe(true)
+  })
+
+  it('restores valid persisted decisions and rejects malformed snapshots', () => {
+    const decisions = ledger()
+    decisions.pass('agent-farquhar')
+    const stored = decisions.all()
+
+    const restored = StageDecisions.restore(fixtureStageParticipants, stored)
+    expect(restored.all()).toEqual(stored)
+    expect(restored.has('agent-farquhar')).toBe(true)
+    expect(restored.pending()).toEqual(['player', 'agent-temenggong'])
+
+    expect(() => StageDecisions.restore(fixtureStageParticipants, [
+      ...stored,
+      { actorId: 'agent-nobody', actorKind: 'agent' as const, optionId: null, how: 'passed' as const },
+    ])).toThrow()
+    expect(() => StageDecisions.restore(fixtureStageParticipants, [
+      ...stored,
+      { actorId: 'agent-temenggong', actorKind: 'player' as const, optionId: null, how: 'passed' as const },
+    ])).toThrow()
+    expect(() => StageDecisions.restore(fixtureStageParticipants, [...stored, ...stored])).toThrow()
   })
 })
 

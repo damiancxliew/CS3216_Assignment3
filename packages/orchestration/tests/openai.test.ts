@@ -97,6 +97,28 @@ describe('OpenAI Responses API adapter', () => {
     })
   })
 
+  it('rewrites the schema into the strict-mode subset: oneOf becomes anyOf, $schema is dropped', async () => {
+    const create = vi.fn().mockResolvedValue({ output_text: '{}', usage: { input_tokens: 1, output_tokens: 1 } })
+    const client = createOpenAiClient({
+      apiKey: 'test-key',
+      client: { responses: { create } } as unknown as NonNullable<OpenAiClientOptions['client']>,
+    })
+    await client.complete({
+      ...request,
+      jsonSchema: {
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        properties: { actions: { type: 'array', items: { oneOf: [{ type: 'object' }, { type: 'string' }] } } },
+      },
+    })
+    const sent = create.mock.calls[0]![0].text.format.schema
+    expect(sent).toEqual({
+      type: 'object',
+      properties: { actions: { type: 'array', items: { anyOf: [{ type: 'object' }, { type: 'string' }] } } },
+    })
+    expect(JSON.stringify(sent)).not.toContain('oneOf')
+  })
+
   it('uses the default model mapping for tiers without an override', async () => {
     const create = vi.fn().mockResolvedValue({
       output_text: '{}',
