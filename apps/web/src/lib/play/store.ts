@@ -14,8 +14,11 @@
  * failing the turn.
  */
 import { PLAYER_ID } from "@adventure/generation/runtime";
+import type { AssetManifest } from "@adventure/generation/assets";
 import { validateAdventureSpec, type AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { loadManifest } from "@/lib/assets/supabase";
 
 import type { PlaySnapshot, SessionEvents } from "./session";
 
@@ -28,6 +31,8 @@ export interface AttemptRecord {
   stageDeadlineAt: string | null;
   spec: AdventureSpec;
   snapshot: PlaySnapshot | null;
+  /** Generated images for the pinned version, if generation has run (D4). */
+  assets?: AssetManifest | null;
 }
 
 export type PlayEvents = SessionEvents;
@@ -77,6 +82,7 @@ export class SupabasePlayStore implements PlayStore {
 
     const raw = state?.world_state as Partial<PlaySnapshot> | null | undefined;
     const snapshot = raw && raw.version === 1 && raw.world ? (raw as PlaySnapshot) : null;
+    const assets = await loadManifest(this.admin, version.id, attempt.adventure_id, attempt.published_version);
 
     return {
       attemptId,
@@ -87,6 +93,7 @@ export class SupabasePlayStore implements PlayStore {
       stageDeadlineAt: attempt.stage_deadline_at,
       spec: validated.spec,
       snapshot,
+      assets,
     };
   }
 

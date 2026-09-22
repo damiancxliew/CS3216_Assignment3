@@ -33,8 +33,8 @@ async function run<T>(
   const now = await deps.store.now();
   const clock = { now: () => now };
   const session = record.snapshot
-    ? PlaySession.resume(record.spec, attemptId, record.publishedVersion, record.snapshot, clock)
-    : PlaySession.start(record.spec, attemptId, record.publishedVersion, clock);
+    ? PlaySession.resume(record.spec, attemptId, record.publishedVersion, record.snapshot, clock, record.assets ?? null)
+    : PlaySession.start(record.spec, attemptId, record.publishedVersion, clock, record.assets ?? null);
   const startRevision = record.snapshot?.revision ?? -1;
 
   // The deadline is server-held (D12/FR-16): if it has passed, the stage resolves before anything else.

@@ -17,11 +17,25 @@ import { actorNames, playgroundFixture } from './fixture.js'
 
 export type PlayerGoal = { kind: 'point'; point: Point } | { kind: 'room'; roomId: string } | null
 export type TravelStatus = 'idle' | 'moving' | 'arrived' | 'waiting_for_door' | 'unreachable'
+export type AmbientOverlayId = 'clear' | 'clouds' | 'rain' | 'fog' | 'night' | 'dust' | 'snow'
+export type SceneEffectId = 'explosion' | 'fire' | 'smoke' | 'confetti' | 'flash' | 'rubble' | 'crowd_cheer' | 'crowd_flee'
+
 export interface PlaygroundSnapshot {
   seed: string
   map: StageMap
   doors: Record<string, DoorState>
-  actors: Array<{ id: string; name: string; position: Point; space: Space | null; targetRoomId: string | null; status: TravelStatus }>
+  actors: Array<{
+    id: string
+    name: string
+    position: Point
+    space: Space | null
+    targetRoomId: string | null
+    status: TravelStatus
+    /** Character sheet key for a tiled renderer; ignored by the primitive one. */
+    sprite?: string
+    /** Which way the actor last moved, for a walk cycle. */
+    facing?: 'down' | 'up' | 'left' | 'right'
+  }>
   playerGoal: PlayerGoal
   playerStatus: TravelStatus
   running: boolean
@@ -29,6 +43,9 @@ export interface PlaygroundSnapshot {
   revision: number
   /** Display names for rooms, when the caller has them; the demo fixture's names are the fallback. */
   roomNames?: Readonly<Record<string, string>>
+  /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */
+  ambient?: { id: AmbientOverlayId; intensity: 1 | 2 | 3 }
+  effects?: Array<{ key: string; id: SceneEffectId; roomId?: string | null }>
 }
 
 function clone<T>(value: T): T {

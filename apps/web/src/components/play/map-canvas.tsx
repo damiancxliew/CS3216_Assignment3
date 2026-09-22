@@ -20,6 +20,7 @@ import {
 } from "@adventure/game-core";
 import { useEffect, useRef } from "react";
 
+import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
 import type { PlayState } from "@/lib/play/session";
 
 const STEP_MS = 160;
@@ -89,6 +90,7 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
     const controller = new AbortController();
     let destroyed = false;
     let view: import("@adventure/game-client/view").MapView | null = null;
+    let facing: "down" | "up" | "left" | "right" = "down";
     let path: Point[] = [];
     let pendingRoom: string | null = null;
     let settleTimer: number | undefined;
@@ -101,14 +103,14 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
       const occupantsByRoom = new Map<string, number>();
       const player = playerPos.current ?? s.playerPos ?? { x: 1, y: 1 };
       const actors = [
-        { id: "player", name: "You", position: player, space: spaceAt(map as StageMap, player), targetRoomId: null, status: path.length ? ("moving" as const) : ("idle" as const) },
+        { id: "player", name: "You", position: player, space: spaceAt(map as StageMap, player), targetRoomId: null, status: path.length ? ("moving" as const) : ("idle" as const), sprite: PLAYER_CHARACTER, facing },
         ...s.actors
           .filter((a) => a.kind === "agent" && a.roomId)
           .map((a) => {
             const n = occupantsByRoom.get(a.roomId!) ?? 0;
             occupantsByRoom.set(a.roomId!, n + 1);
             const position = seatIn(map as StageMap, a.roomId!, n + 1) ?? { x: 0, y: 0 };
-            return { id: a.id, name: a.name, position, space: spaceAt(map as StageMap, position), targetRoomId: null, status: "idle" as const };
+            return { id: a.id, name: a.name, position, space: spaceAt(map as StageMap, position), targetRoomId: null, status: "idle" as const, ...(a.sprite ? { sprite: a.sprite } : {}) };
           }),
       ];
       const goal = path.length ? { kind: "point" as const, point: path[path.length - 1]! } : null;
@@ -123,6 +125,11 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
         npcRoutes: false,
         revision: s.revision,
         roomNames: Object.fromEntries(s.rooms.map((r) => [r.id, r.name])),
+        ambient: { id: s.stage.ambientOverlay, intensity: Math.min(3, Math.max(1, s.stage.overlayIntensity)) as 1 | 2 | 3 },
+        // One-shot effects are keyed by announcement so each plays once, in the room the player is in.
+        effects: s.announcements.length
+          ? s.pendingEffects.map((e, i) => ({ key: `${s.announcements[s.announcements.length - 1]!.id}:${i}`, id: e.id, roomId: typeof e.at === "string" ? e.at : s.currentRoomId }))
+          : [],
       };
     };
     const render = () => view?.render(snapshot());
@@ -148,6 +155,9 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
         render();
         return;
       }
+      const ddx = to.x - from.x;
+      const ddy = to.y - from.y;
+      facing = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? "right" : "left") : ddy > 0 ? "down" : "up";
       playerPos.current = to;
       render();
       const space = spaceAt(map as StageMap, to);
@@ -235,11 +245,11 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
 
     void (async () => {
       try {
-        const { createMapView } = await import("@adventure/game-client/view");
+        const { createTiledMapView } = await import("@adventure/game-client/tiled-view");
         if (destroyed) return;
         playerPos.current = latest.current.state.playerPos;
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-        view = await createMapView(parent, snapshot(), (point) => goTo(point), reduced.matches);
+        view = await createTiledMapView(parent, snapshot(), (point) => goTo(point), reduced.matches, { assetBase: ASSET_BASE, defaultSprite: "Villager" });
         if (destroyed) {
           view.destroy();
           return;
@@ -288,5 +298,5 @@ export function MapCanvas({ state, intent, onIntentDone, onEnterRoom, onSettled,
     if (intent.kind === "room") goToRoom?.(intent.roomId);
   }, [intent]);
 
-  return <div ref={host} className="absolute inset-0 overflow-hidden bg-[#7d8c5c]" />;
+  return <div ref={host} className="absolute inset-0 overflow-hidden bg-[#4f5d3a]" />;
 }
