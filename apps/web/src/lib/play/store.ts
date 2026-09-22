@@ -41,6 +41,14 @@ export interface SaveResult {
   stageDeadlineAt: string | null;
 }
 
+/** Another writer advanced the attempt first: this request's snapshot is stale and was not stored. */
+export class RuntimeConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RuntimeConflictError";
+  }
+}
+
 export interface PlayStore {
   load(attemptId: string, userId: string): Promise<AttemptRecord | null>;
   save(record: AttemptRecord, snapshot: PlaySnapshot, events: PlayEvents): Promise<SaveResult>;
@@ -124,7 +132,7 @@ export class SupabasePlayStore implements PlayStore {
       }>();
     if (!attempt || attempt.student_id !== userId) return null;
 
-    const [{ data: version }, { data: runtime }] = await Promise.all([
+    const [{ data: version }, { data: runtime, error: runtimeError }] = await Promise.all([
       this.admin
         .from("spec_version")
         .select("id, json")
@@ -137,6 +145,9 @@ export class SupabasePlayStore implements PlayStore {
         .eq("attempt_id", attemptId)
         .maybeSingle<{ stage_spec_id: string; revision: number; snapshot: unknown }>(),
     ]);
+    // A failed read is not an absent runtime: treating it as one would start a
+    // fresh session over saved state and then collide with it on save.
+    if (runtimeError) throw new Error(`attempt_runtime: ${runtimeError.message}`);
     if (!version) return null;
     const validated = validateAdventureSpec(version.json);
     if (!validated.ok) throw new Error(`published spec v${attempt.published_version} of ${attempt.adventure_id} no longer validates`);
@@ -362,7 +373,10 @@ export class SupabasePlayStore implements PlayStore {
       p_stage_spec_id: authoredStage.id,
       p_snapshot: snapshot,
     });
-    if (runtimeError) throw new Error(`save_attempt_runtime: ${runtimeError.message}`);
+    if (runtimeError) {
+      if (runtimeError.code === "40001" || /revision conflict/.test(runtimeError.message)) throw new RuntimeConflictError(runtimeError.message);
+      throw new Error(`save_attempt_runtime: ${runtimeError.message}`);
+    }
     if (typeof revision !== "number") throw new Error("save_attempt_runtime: non-numeric revision");
     record.runtimeRevision = revision;
     return { stageDeadlineAt };

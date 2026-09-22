@@ -96,7 +96,8 @@ export type SessionError =
   | { code: "stage_closed"; message: string }
   | { code: "not_found"; message: string }
   | { code: "invalid_request"; message: string }
-  | { code: "stale_option"; message: string };
+  | { code: "stale_option"; message: string }
+  | { code: "conflict"; message: string };
 
 export type MessageOutcome = { ok: true; newMessages: PublicMessage[] } | { ok: false; error: SessionError };
 export type ActionOutcome = { ok: true; refused: string | null } | { ok: false; error: SessionError };
