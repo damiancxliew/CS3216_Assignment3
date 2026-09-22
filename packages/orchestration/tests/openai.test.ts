@@ -4,6 +4,7 @@ import {
   createOpenAiClient,
   MissingApiKeyError,
   MODEL_BY_TIER,
+  toOpenAiStrictSchema,
   type OpenAiClientOptions,
 } from '../src/llm/openai'
 
@@ -31,6 +32,37 @@ describe('OpenAI Responses API adapter', () => {
       if (originalKey === undefined) delete process.env.OPENAI_API_KEY
       else process.env.OPENAI_API_KEY = originalKey
     }
+  })
+
+  it('removes unsupported schema metadata and maps nested oneOf to anyOf', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        choice: {
+          $id: 'choice',
+          oneOf: [
+            { type: 'string', $schema: 'nested-schema' },
+            { type: 'number', $id: 'nested-id' },
+          ],
+        },
+      },
+      items: [{ $id: 'array-item', oneOf: [{ type: 'boolean' }] }],
+    }
+
+    const sanitized = toOpenAiStrictSchema(schema)
+
+    expect(sanitized).toEqual({
+      type: 'object',
+      properties: {
+        choice: {
+          anyOf: [{ type: 'string' }, { type: 'number' }],
+        },
+      },
+      items: [{ anyOf: [{ type: 'boolean' }] }],
+    })
+    expect(JSON.stringify(sanitized)).not.toContain('$schema')
+    expect(JSON.stringify(sanitized)).not.toContain('$id')
   })
 
   it('maps tier, strict schema format, instructions, input and usage through the Responses API', async () => {
