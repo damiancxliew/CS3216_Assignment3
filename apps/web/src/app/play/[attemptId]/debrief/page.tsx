@@ -50,6 +50,29 @@ export default async function DebriefPage({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
           In your simulation
         </h2>
+        {debrief.path.length ? (
+          <ol className="flex flex-col gap-3 text-sm">
+            {debrief.path.map((stage) => (
+              <li key={stage.stageIndex} className="flex flex-col gap-1">
+                <p className="text-xs uppercase tracking-wide opacity-60">
+                  Stage {stage.stageIndex + 1}: {stage.stageTitle}
+                </p>
+                <p>
+                  <span className="opacity-70">You chose: </span>
+                  {stage.chose ?? "nothing — the clock ran out and the stage went the way it would have without you"}
+                </p>
+                {stage.announcement ? <p className="opacity-90">{stage.announcement}</p> : null}
+                {stage.changes.length ? (
+                  <ul className="list-disc pl-5 text-xs opacity-70">
+                    {stage.changes.map((change, i) => (
+                      <li key={i}>{change}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        ) : null}
         <p className="text-sm">{debrief.simulatedOutcome}</p>
         <p className="text-xs opacity-70">
           This is what happened in the game, not a historical claim.

@@ -63,13 +63,13 @@ export function StageCountdown({
   }, [expired, attemptId]);
 
   if (!deadlineIso) {
-    return <span className="opacity-60">No timer on this stage</span>;
+    return <span className="opacity-80">no timer</span>;
   }
-  if (remaining === null) return <span className="opacity-60">…</span>;
+  if (remaining === null) return <span className="opacity-80">…</span>;
   if (remaining === 0) {
     return (
       <span className="font-mono">
-        0:00 <span className="opacity-60">— time is up, you passed</span>
+        0:00 <span className="opacity-80">— time is up</span>
       </span>
     );
   }

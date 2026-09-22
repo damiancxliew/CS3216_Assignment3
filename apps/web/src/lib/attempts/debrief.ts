@@ -71,10 +71,24 @@ export type Citation = {
   quote: string;
 };
 
+export type StageOutcome = {
+  stageIndex: number;
+  stageTitle: string;
+  /** The option the player committed to, or null when the timer decided for them. */
+  chose: string | null;
+  /** The resolver's public announcement. Rolls and rationale never leave the server (FR-21). */
+  announcement: string;
+  /** One line per world change the resolution recorded, in the resolver's words. */
+  changes: string[];
+  evidenceFound: number;
+};
+
 export type Debrief = {
   attemptId: string;
   adventureTitle: string;
   ending: { id: string; title: string };
+  /** What the player actually did, stage by stage — the simulation's own record. */
+  path: StageOutcome[];
   /** What happened in the simulation: invented by construction. */
   simulatedOutcome: string;
   /** What the record says, and the spans it says it in. */
@@ -116,10 +130,40 @@ export async function loadDebrief(
   const assumptionById = new Map(spec.assumptions.map((a) => [a.id, a]));
   const adventure = attempt.adventure as unknown as { title: string } | null;
 
+  // The record of play, read server-side once the student's own client has proved the attempt is
+  // theirs (the `attempt` read above goes through RLS). Resolutions hold the rolls, so only their
+  // public half is projected; commitments are joined to their option labels.
+  const [{ data: resolutions }, { data: commitments }, { data: state }] = await Promise.all([
+    specReader
+      .from("resolution")
+      .select("stage_id, outcome, created_at, stage(index, title)")
+      .eq("attempt_id", attemptId)
+      .order("created_at")
+      .returns<{ stage_id: string; outcome: { announcement?: string; worldDeltas?: { summary?: string }[] }; stage: { index: number; title: string } | null }[]>(),
+    specReader
+      .from("stage_commitment")
+      .select("stage_id, option_id, decision_option(label)")
+      .eq("attempt_id", attemptId)
+      .eq("actor_kind", "player")
+      .returns<{ stage_id: string; option_id: string | null; decision_option: { label: string } | null }[]>(),
+    specReader.from("attempt_state").select("journal").eq("attempt_id", attemptId).maybeSingle<{ journal: { id: string }[] }>(),
+  ]);
+  const choiceByStage = new Map((commitments ?? []).map((c) => [c.stage_id, c.option_id ? c.decision_option?.label ?? "an option" : null]));
+  const path: StageOutcome[] = (resolutions ?? []).map((r) => ({
+    stageIndex: r.stage?.index ?? 0,
+    stageTitle: r.stage?.title ?? `Stage ${(r.stage?.index ?? 0) + 1}`,
+    chose: choiceByStage.get(r.stage_id) ?? null,
+    announcement: r.outcome?.announcement ?? "",
+    changes: (r.outcome?.worldDeltas ?? []).map((d) => d.summary ?? "").filter(Boolean),
+    evidenceFound: 0,
+  }));
+  if (path.length > 0 && state?.journal) path[path.length - 1]!.evidenceFound = state.journal.length;
+
   return {
     attemptId: attempt.id as string,
     adventureTitle: adventure?.title ?? spec.title ?? "Your adventure",
     ending: { id: ending.id, title: ending.title },
+    path,
     simulatedOutcome: ending.summary,
     documentedHistory: {
       text: ending.historicalOutcome.text,

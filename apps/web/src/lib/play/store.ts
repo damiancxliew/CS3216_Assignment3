@@ -305,6 +305,26 @@ export class SupabasePlayStore implements PlayStore {
       if (error) throw new Error(`resolution: ${error.message}`);
     }
 
+    if (events.telemetry) {
+      const t = events.telemetry;
+      const { error } = await this.admin.from("attempt_telemetry").upsert(
+        {
+          attempt_id: record.attemptId,
+          stage_id: stageUuid(t.stageIndex),
+          stage_index: t.stageIndex,
+          ended_by: t.endedBy,
+          duration_seconds: t.durationSeconds,
+          tokens: t.tokens,
+          messages: t.messages,
+          actions: t.actions,
+          evidence_found: t.evidenceFound,
+          agent_lines: t.agentLines,
+        },
+        { onConflict: "attempt_id,stage_index" },
+      );
+      if (error) throw new Error(`attempt_telemetry: ${error.message}`);
+    }
+
     let stageDeadlineAt = record.stageDeadlineAt;
     if (events.endingId) {
       const { error } = await this.admin.rpc("complete_attempt", { p_attempt_id: record.attemptId, p_ending_id: events.endingId });

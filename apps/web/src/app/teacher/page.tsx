@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { READING_BANDS } from "@adventure/generation/spec";
+
 import { createAdventure } from "./actions";
 import { ActionForm } from "@/components/action-form";
 import { SignInButton } from "@/components/sign-in-button";
-import { Field, StatusBadge } from "@/components/ui";
+import { Field, READING_BAND_LABELS, SelectField, StatusBadge } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { createClient } from "@/lib/supabase/server";
 
@@ -90,12 +92,28 @@ export default async function TeacherHome() {
           event={ANALYTICS_EVENTS.adventureCreated}
         >
           <Field name="title" label="Title" placeholder="The founding of Singapore, 1819" />
+          <Field name="setting" label="Setting" placeholder="Singapore and Johor, February 1819" />
+          <Field name="studentRole" label="Who the student plays" placeholder="Junior interpreter to the expedition" />
           <Field
-            name="setting"
-            label="Setting"
-            placeholder="Singapore, February 1819"
-            optional
+            name="learningObjectives"
+            label="Learning objectives (one per line, up to six)"
+            placeholder={"Explain why the EIC wanted a port at the Straits\nDescribe the Johor succession dispute"}
+            multiline
+            rows={3}
           />
+          <div className="grid grid-cols-3 gap-3">
+            <SelectField
+              name="band"
+              label="Reading level"
+              defaultValue="lower-secondary"
+              options={READING_BANDS.map((band) => ({ value: band, label: READING_BAND_LABELS[band] }))}
+            />
+            <Field name="ageMin" label="Age from" defaultValue="13" />
+            <Field name="ageMax" label="Age to" defaultValue="14" />
+          </div>
+          <p className="text-xs opacity-60">
+            The reading level is what the planner writes to and what the validator checks against, so it is set here, once, for the adventure.
+          </p>
         </ActionForm>
       </section>
     </Shell>

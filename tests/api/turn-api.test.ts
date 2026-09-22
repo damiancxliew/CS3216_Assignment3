@@ -23,6 +23,11 @@ const OTHER = "student-2";
 
 const say = (line: string) => JSON.stringify({ say: line, actions: [] });
 const opener = (roomId: string) => JSON.stringify({ say: "Come in.", actions: [{ type: "open_door", roomId }] });
+/** Whoever is asked opens the door of the room they are in; the prompt names it. */
+const openOwnDoor = (request: { user: string }) => {
+  const room = /Room id for any action you propose: ([a-z0-9-]+)/.exec(request.user)?.[1];
+  return JSON.stringify({ say: "Come in, then.", actions: room ? [{ type: "open_door", roomId: room }] : [] });
+};
 
 let spec: AdventureSpec;
 
@@ -41,7 +46,7 @@ function record(overrides: Partial<AttemptRecord> = {}): AttemptRecord {
   };
 }
 
-function deps(replies: string[] = Array(60).fill(say("The river mouth is ours to give or keep.")), overrides?: Partial<AttemptRecord>) {
+function deps(replies: (string | ((request: { user: string }) => string))[] = Array(60).fill(say("The river mouth is ours to give or keep.")), overrides?: Partial<AttemptRecord>) {
   const store = new MemoryPlayStore([record(overrides)]);
   const llm = new FakeLlmClient({ replies });
   const d: PlayServiceDeps = { store, llm };
@@ -155,19 +160,21 @@ describe("POST action", () => {
 
 describe("POST decision", () => {
   async function unlockEverything(d: PlayServiceDeps) {
-    // Walk to every evidence item, knocking where needed, and examine it.
-    for (const item of spec.stages[0]!.evidence) {
+    // Visit every room: examine its evidence and hear whoever is there (knows_evidence + heard_from, K6).
+    const rooms = ok(await getState(d, ATTEMPT, STUDENT)).state.rooms;
+    for (const room of rooms) {
       let state = ok(await getState(d, ATTEMPT, STUDENT)).state;
-      if (state.currentRoomId !== item.roomId) {
-        const moved = ok(await postAction(d, ATTEMPT, STUDENT, { type: "move_room", toRoomId: item.roomId }));
+      if (state.currentRoomId !== room.id) {
+        let moved = ok(await postAction(d, ATTEMPT, STUDENT, { type: "move_room", toRoomId: room.id }));
         if (moved.value.refused) {
-          await postAction(d, ATTEMPT, STUDENT, { type: "knock", roomId: item.roomId });
-          await postAction(d, ATTEMPT, STUDENT, { type: "move_room", toRoomId: item.roomId });
+          await postAction(d, ATTEMPT, STUDENT, { type: "knock", roomId: room.id });
+          moved = ok(await postAction(d, ATTEMPT, STUDENT, { type: "move_room", toRoomId: room.id }));
         }
+        expect(moved.value.refused).toBeNull();
       }
-      await postAction(d, ATTEMPT, STUDENT, { type: "inspect", evidenceId: item.id });
       state = ok(await getState(d, ATTEMPT, STUDENT)).state;
-      expect(state.journal.map((j) => j.id)).toContain(item.id);
+      for (const item of state.evidenceHere) await postAction(d, ATTEMPT, STUDENT, { type: "inspect", evidenceId: item.id });
+      if (state.agents.some((a) => a.roomId === room.id)) await postMessage(d, ATTEMPT, STUDENT, { roomId: room.id, body: "A word, if you have one." });
     }
     return ok(await getState(d, ATTEMPT, STUDENT)).state;
   }
@@ -180,8 +187,7 @@ describe("POST decision", () => {
   });
 
   it("rejects a commit against an option set the world has moved past", async () => {
-    const closedRoom = spec.stages[0]!.rooms.find((r) => r.doorDefault === "closed")!.id;
-    const { d } = deps(Array(60).fill(opener(closedRoom)));
+    const { d } = deps([openOwnDoor]);
     const stale = ok(await getState(d, ATTEMPT, STUDENT)).state.optionsVersion;
     const state = await unlockEverything(d);
     expect(state.optionsVersion).not.toBe(stale);
@@ -190,8 +196,7 @@ describe("POST decision", () => {
   });
 
   it("resolves into a public announcement, ticks the agents to decide, and never reveals their choice (D18)", async () => {
-    const closedRoom = spec.stages[0]!.rooms.find((r) => r.doorDefault === "closed")!.id;
-    const { d, store } = deps(Array(60).fill(opener(closedRoom)));
+    const { d, store } = deps([openOwnDoor]);
     const state = await unlockEverything(d);
     expect(state.commitments.map((c) => c.actorKind)).toEqual(["player", "agent", "agent", "agent"]);
     expect(state.commitments.every((c) => !c.committed)).toBe(true);

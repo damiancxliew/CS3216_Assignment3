@@ -57,6 +57,8 @@ export interface PlaySnapshot {
   playerPos: { x: number; y: number } | null;
   /** When each line of the current stage's transcript was spoken, by seq — so a resume shows the same times. */
   spokenAt: Record<string, string>;
+  /** Per-stage counters for telemetry (P11); reset when a stage opens. */
+  stageStats: { openedAt: string; tokens: number; messages: number; actions: number; evidence: number };
   status: "active" | "completed";
   endingId: string | null;
   tokensSpent: number;
@@ -66,6 +68,12 @@ export interface PlaySnapshot {
 /** Additive to the frozen I3 projection: what the renderer needs on top of it. */
 export interface PlayState extends PublicAttemptState {
   map: PublicMap | null;
+  /** What to actually do for each goal, in plain words ("Talk to X in Y"), keyed by objective id. */
+  objectiveHints: Record<string, string>;
+  /** Generated landmark image per room, when the asset service produced one (D4). */
+  roomImages: Record<string, string>;
+  /** Generated prop image per evidence item, when one exists (D4). Keys are evidence ids. */
+  evidenceImages: Record<string, string>;
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
   actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; sprite: Character }[];
   /** Evidence in the player's room that they have not examined yet. Names only — content is what examining reveals. */
@@ -108,11 +116,38 @@ export interface SessionEvents {
   /** Index of a stage this request opened, if it advanced. */
   openedStageIndex: number | null;
   endingId: string | null;
+  /** Numbers for the stage that resolved this request (P11), if one did. */
+  telemetry: StageTelemetry | null;
+}
+
+export interface StageTelemetry {
+  stageIndex: number;
+  endedBy: "decision" | "timer";
+  durationSeconds: number;
+  tokens: number;
+  messages: number;
+  actions: number;
+  evidenceFound: number;
+  agentLines: number;
 }
 
 export interface SessionTimer {
   enabled: boolean;
   deadlineAt: string | null;
+}
+
+/**
+ * The space between buildings. Orchestration models presence as "in a room", so the outdoors is a
+ * room too: one nobody can shut, with nothing to examine, where a player hears only what is said
+ * outdoors. Walking out of a building therefore really does leave its conversation behind (D7).
+ */
+export const OUTDOORS_ROOM_ID = "outdoors";
+
+function worldFor(bundle: StageRuntimeBundle): WorldState {
+  return createWorld({
+    ...bundle.world,
+    rooms: [...bundle.world.rooms, { id: OUTDOORS_ROOM_ID, name: "Outdoors", description: "The open ground between the buildings.", doorOpen: true }],
+  });
 }
 
 /** Budget for autonomous agent activity per stage (FR-12b). Kept modest: this is money per attempt. */
@@ -140,6 +175,7 @@ export class PlaySession {
   private baseDecided: Set<string>;
   private closedEvents: Pick<SessionEvents, "utterances" | "decisions"> = { utterances: [], decisions: [] };
   private resolutionEvent: SessionEvents["resolution"] = null;
+  private telemetryEvent: StageTelemetry | null = null;
   private openedStageIndex: number | null = null;
 
   private constructor(
@@ -167,9 +203,11 @@ export class PlaySession {
       resolution: this.resolutionEvent,
       openedStageIndex: this.openedStageIndex,
       endingId: this.snap.status === "completed" ? this.snap.endingId : null,
+      telemetry: this.telemetryEvent,
     };
     this.closedEvents = { utterances: [], decisions: [] };
     this.resolutionEvent = null;
+    this.telemetryEvent = null;
     this.openedStageIndex = null;
     this.baseSeq = this.snap.world.seq;
     this.baseDecided = new Set(this.ledger.all().map((d) => d.actorId));
@@ -191,7 +229,7 @@ export class PlaySession {
 
   static start(spec: AdventureSpec, attemptId: string, publishedVersion: number, clock: SessionClock = { now: () => new Date() }, assets: AssetManifest | null = null): PlaySession {
     const bundle = toStageRuntime(spec, 0);
-    const world = createWorld(bundle.world);
+    const world = worldFor(bundle);
     const snap: PlaySnapshot = {
       version: 1,
       stageIndex: 0,
@@ -203,6 +241,7 @@ export class PlaySession {
       pendingEffects: [],
       playerPos: null,
       spokenAt: {},
+      stageStats: { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
       status: "active",
       endingId: null,
       tokensSpent: 0,
@@ -212,7 +251,11 @@ export class PlaySession {
   }
 
   static resume(spec: AdventureSpec, attemptId: string, publishedVersion: number, snapshot: PlaySnapshot, clock: SessionClock = { now: () => new Date() }, assets: AssetManifest | null = null): PlaySession {
-    return new PlaySession(spec, attemptId, publishedVersion, { ...structuredClone(snapshot), spokenAt: snapshot.spokenAt ?? {} }, clock, assets);
+    return new PlaySession(spec, attemptId, publishedVersion, {
+        ...structuredClone(snapshot),
+        spokenAt: snapshot.spokenAt ?? {},
+        stageStats: snapshot.stageStats ?? { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
+      }, clock, assets);
   }
 
   snapshot(): PlaySnapshot {
@@ -237,7 +280,8 @@ export class PlaySession {
 
   state(timer: SessionTimer): PlayState {
     const world = this.snap.world;
-    const playerRoom = world.location[PLAYER_ID] ?? null;
+    const located = world.location[PLAYER_ID] ?? null;
+    const playerRoom = located === OUTDOORS_ROOM_ID ? null : located;
     const now = this.clock.now();
     const derived = deriveOptions(world, this.bundle.options, PLAYER_ID);
     const available = new Set(derived.options.map((o) => o.id));
@@ -280,7 +324,7 @@ export class PlaySession {
         name: this.agentName(agent.id),
         role: this.spec.stakeholders.find((s) => s.id === agent.stakeholderId)?.role ?? null,
         publicPosition: agent.publicPosition.text,
-        roomId: world.location[agent.id] ?? null,
+        roomId: this.roomOf(agent.id),
         portraitUrl: this.portraitFor(agent.stakeholderId),
       })),
       transcript: this.visibleTranscript(),
@@ -307,7 +351,7 @@ export class PlaySession {
           id: agent.id,
           name: this.agentName(agent.id),
           kind: "agent" as const,
-          roomId: world.location[agent.id] ?? null,
+          roomId: this.roomOf(agent.id),
           sprite: this.characterOf(agent.stakeholderId),
         })),
       ],
@@ -318,6 +362,9 @@ export class PlaySession {
           name: item.name,
           position: compiled?.placements.find((p) => p.id === item.id)?.position ?? null,
         })),
+      objectiveHints: this.objectiveHints(),
+      roomImages: this.generatedImages("landmark", this.stage.rooms.map((r) => r.id)),
+      evidenceImages: this.generatedImages("prop", this.stage.evidence.map((e) => e.id)),
       optionsVersion: derived.version,
       stageCount: this.spec.stages.length,
       ending: ending ? { id: ending.id, title: ending.title, summary: ending.summary } : null,
@@ -356,9 +403,48 @@ export class PlaySession {
     return this.playerHeard().some((line) => line.speakerId === targetId);
   }
 
+  /**
+   * Goals are authored as outcomes ("Hear Farquhar's assessment"); students need the verb. An
+   * agent goal is met by hearing that person speak while you are with them (K6 heard_from), an
+   * evidence goal by examining the item — so say that, and where.
+   */
+  private objectiveHints(): Record<string, string> {
+    const roomName = (roomId: string | null | undefined) => this.stage.rooms.find((r) => r.id === roomId)?.name ?? null;
+    const out: Record<string, string> = {};
+    for (const objective of this.stage.objectives) {
+      const agent = this.stage.agents.find((a) => a.id === objective.targetId);
+      if (agent) {
+        const where = roomName(this.roomOf(agent.id));
+        out[objective.id] = `Talk to ${this.agentName(agent.id)}${where ? ` in ${where}` : ""} and hear what they say`;
+        continue;
+      }
+      const item = this.stage.evidence.find((e) => e.id === objective.targetId);
+      if (item) {
+        const where = roomName(item.roomId);
+        out[objective.id] = `Look at ${item.name}${where ? ` in ${where}` : ""}`;
+      }
+    }
+    return out;
+  }
+
+  /** An actor's authored room, or null when they are outdoors or nowhere. */
+  private roomOf(actorId: string): string | null {
+    const roomId = this.snap.world.location[actorId] ?? null;
+    return roomId === OUTDOORS_ROOM_ID ? null : roomId;
+  }
+
   private characterOf(stakeholderId: string): Character {
     const stakeholder = this.spec.stakeholders.find((s) => s.id === stakeholderId);
     return characterFor({ id: stakeholderId, name: stakeholder?.name ?? null, role: stakeholder?.role ?? null });
+  }
+
+  /** Ready or cached generated images of one kind, keyed by the entity they depict. Nothing for the rest. */
+  private generatedImages(kind: "landmark" | "prop", entityIds: readonly string[]): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const record of this.assets?.records ?? []) {
+      if (record.kind === kind && entityIds.includes(record.entityId) && (record.status === "ready" || record.status === "cached")) out[record.entityId] = record.url;
+    }
+    return out;
   }
 
   /** The generated portrait once it is ready or cached (D4); the hand-drawn faceset until then (D6). */
@@ -413,7 +499,7 @@ export class PlaySession {
     const world = this.snap.world;
     const here = world.location[PLAYER_ID];
     if (!world.rooms[input.roomId]) return { ok: false, error: { code: "not_found", message: "That room is not part of this stage." } };
-    if (input.roomId !== here) return { ok: false, error: { code: "invalid_request", message: "You can only speak in the room you are standing in." } };
+    if (input.roomId !== here) return { ok: false, error: { code: "invalid_request", message: "You can only speak where you are standing." } };
 
     const occupants = Object.entries(world.location)
       .filter(([actorId, roomId]) => roomId === here && actorId !== PLAYER_ID && this.bundle.stage.agents[actorId])
@@ -427,6 +513,7 @@ export class PlaySession {
       action: { type: "speak", roomId: here, body: input.body, addresseeId: addressee },
     });
     if (!spoken.ok) return { ok: false, error: { code: "invalid_request", message: spoken.reason } };
+    this.snap.stageStats.messages += 1;
 
     if (addressee) {
       const turnInput = buildAgentTurnInput(world, addressee, this.stageConfig(), 1);
@@ -438,7 +525,9 @@ export class PlaySession {
         tokenBudget: STAGE_TOKEN_BUDGET,
         tokensSpent: this.snap.tokensSpent,
       });
-      this.snap.tokensSpent += reply.turn.usage.promptTokens + reply.turn.usage.completionTokens;
+      const used = reply.turn.usage.promptTokens + reply.turn.usage.completionTokens;
+      this.snap.tokensSpent += used;
+      this.snap.stageStats.tokens += used;
     }
 
     this.bump();
@@ -472,6 +561,8 @@ export class PlaySession {
       const known = (world.evidenceKnown[PLAYER_ID] ??= []);
       if (!known.includes(item.id)) {
         known.push(item.id);
+        this.snap.stageStats.evidence += 1;
+        this.snap.stageStats.actions += 1;
         const span = item.content.spans[0];
         this.snap.journal.push({
           id: item.id,
@@ -484,6 +575,7 @@ export class PlaySession {
       return { ok: true, refused: null };
     }
 
+    this.snap.stageStats.actions += 1;
     const worldAction = action.type === "move_room" ? { type: action.type, toRoomId: action.toRoomId } : action;
     const filtered = filterActions([worldAction], { actorKind: "player", actorId: PLAYER_ID });
     const entry: ActorAction | undefined = filtered.actions[0];
@@ -493,22 +585,32 @@ export class PlaySession {
     if (action.type === "move_room" && result.ok && action.position) this.snap.playerPos = action.position;
     this.bump();
 
-    // Moving or knocking is when the world gets a beat to itself: characters act while the player
-    // walks, and someone behind a knocked door gets the chance to answer it (K4, #8).
-    if ((action.type === "move_room" || action.type === "knock") && result.ok) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE);
+    // Knocking gives whoever is behind that door a beat to answer it (K4, #8) — only them, so the
+    // wait is one model call. Walking costs nothing: characters answer when spoken to, and a stage
+    // resolving is the moment everyone acts.
+    if (action.type === "knock" && result.ok) {
+      const inside = Object.entries(world.location)
+        .filter(([actorId, roomId]) => roomId === action.roomId && actorId !== PLAYER_ID)
+        .map(([actorId]) => actorId);
+      if (inside.length > 0) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE, inside);
+    }
 
     return { ok: true, refused: result.ok ? null : result.reason };
   }
 
-  /** Let the characters act autonomously for a bounded number of ticks (FR-12a/FR-12b). */
-  async tick(client: LlmClient, maxTicks: number): Promise<void> {
+  /** Let the characters act autonomously for a bounded number of ticks (FR-12a/FR-12b); `only` narrows who. */
+  async tick(client: LlmClient, maxTicks: number, only?: readonly string[]): Promise<void> {
     if (this.snap.status !== "active") return;
+    const config = this.stageConfig();
+    const agents = only ? Object.fromEntries(Object.entries(config.agents).filter(([id]) => only.includes(id))) : config.agents;
     const run = await runStage(client, this.snap.world, {
-      ...this.stageConfig(),
+      ...config,
+      agents,
       maxTicks,
       tokenBudget: Math.max(0, STAGE_TOKEN_BUDGET - this.snap.tokensSpent),
     });
     this.snap.tokensSpent += run.telemetry.totalTokens;
+    this.snap.stageStats.tokens += run.telemetry.totalTokens;
     this.bump();
   }
 
@@ -569,6 +671,17 @@ export class PlaySession {
     this.closedEvents.utterances.push(...closing.utterances);
     this.closedEvents.decisions.push(...closing.decisions);
     this.resolutionEvent = { record, stageIndex: this.snap.stageIndex };
+    const stats = this.snap.stageStats;
+    this.telemetryEvent = {
+      stageIndex: this.snap.stageIndex,
+      endedBy: optionId === null ? "timer" : "decision",
+      durationSeconds: Math.max(0, Math.round((this.clock.now().getTime() - new Date(stats.openedAt).getTime()) / 1000)),
+      tokens: stats.tokens,
+      messages: stats.messages,
+      actions: stats.actions,
+      evidenceFound: stats.evidence,
+      agentLines: world.transcript.filter((line) => line.speakerId !== PLAYER_ID).length,
+    };
 
     const next = record.outcome.next;
     if (next.kind === "ending") {
@@ -586,10 +699,11 @@ export class PlaySession {
   private openStage(index: number): void {
     const bundle = toStageRuntime(this.spec, index);
     this.snap.stageIndex = index;
-    this.snap.world = createWorld(bundle.world);
+    this.snap.world = worldFor(bundle);
     this.snap.decisions = [];
     this.snap.playerPos = null;
     this.snap.spokenAt = {};
+    this.snap.stageStats = { openedAt: this.clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 };
     this.stage = this.spec.stages[index]!;
     this.bundle = bundle;
     this.ledger = new StageDecisions(this.participants());
