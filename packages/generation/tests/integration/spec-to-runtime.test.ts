@@ -63,6 +63,16 @@ describe('spec -> runtime adapter', () => {
     expect(world.actors['agent-temenggong-s0']!.publicRole).toBe('Administrator of Singapore on behalf of the Sultan of Johor')
   })
 
+  it('opens a closed room nobody starts in, rather than seeding a world the runtime rejects', async () => {
+    const spec = structuredClone(await loadI1Spec()) as AdventureSpec
+    const stage = spec.stages[0]!
+    for (const agent of stage.agents) if (agent.startRoomId === 'ship-cabin') agent.startRoomId = stage.spawnRoomId
+    const bundle = toStageRuntime(spec, 0)
+    const world = createWorld(bundle.world)
+    expect(world.rooms['ship-cabin']!.doorOpen).toBe(true)
+    expect(bundle.warnings.some((w) => w.includes('ship-cabin'))).toBe(true)
+  })
+
   it('maps evidence-based preconditions and reports the ones the runtime cannot express', async () => {
     const spec = await loadI1Spec()
     const bundle = toStageRuntime(spec, 0)
