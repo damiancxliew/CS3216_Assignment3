@@ -409,6 +409,17 @@ export function refineAdventureSpec(spec: AdventureSpecShape, ctx: z.RefinementC
       checkGrounding(item.content, [...p, 'content'])
     })
 
+    // A closed door can only be opened from inside (D7), so a closed room nobody starts in
+    // is sealed for the whole stage — and the runtime refuses to build such a world.
+    const occupiedAtStart = new Set([stage.spawnRoomId, ...stage.agents.map((a) => a.startRoomId)])
+    stage.rooms.forEach((room, i) => {
+      if (room.doorDefault === 'closed' && !occupiedAtStart.has(room.id))
+        issue(
+          [...path, 'rooms', i, 'doorDefault'],
+          `room "${room.id}" starts closed with nobody inside, so it can never be opened: place an agent in it, or make its door open`,
+        )
+    })
+
     const objectiveById = new Map(stage.objectives.map((o) => [o.id, o]))
     stage.objectives.forEach((objective, i) => {
       const p = [...path, 'objectives', i]

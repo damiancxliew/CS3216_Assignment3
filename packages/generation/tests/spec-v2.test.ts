@@ -116,6 +116,14 @@ describe('Adventure Spec v2 rejects', () => {
     expectInvalid(spec, 'stages.0.agents.0.startRoomId', 'unknown room')
   })
 
+  it('a closed room nobody starts in', async () => {
+    const spec = await fixture()
+    const stage = spec.stages[0]
+    const sealed = stage.rooms.find((r: Json) => r.doorDefault === 'closed' && r.id !== stage.spawnRoomId)
+    for (const agent of stage.agents) if (agent.startRoomId === sealed.id) agent.startRoomId = stage.spawnRoomId
+    expectInvalid(spec, 'stages.0.rooms', 'never be opened')
+  })
+
   it('a backward branch target', async () => {
     const spec = await fixture()
     spec.stages[1].decision.options[0].branchTarget = { kind: 'stage', stageId: 'stage-landing' }
