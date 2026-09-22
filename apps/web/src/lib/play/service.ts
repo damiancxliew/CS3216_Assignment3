@@ -8,7 +8,7 @@
 import type { LlmClient } from "@adventure/orchestration";
 
 import { PlaySession, type PlayState, type PlayerWorldAction, type SessionError, type SessionTimer } from "./session";
-import type { AttemptRecord, PlayStore } from "./store";
+import { RuntimeConflictError, type AttemptRecord, type PlayStore } from "./store";
 
 export type ServiceResult<T> = { ok: true; value: T; state: PlayState } | { ok: false; error: SessionError };
 
@@ -50,8 +50,17 @@ async function run<T>(
   if (after.revision !== startRevision) {
     const events = session.drainEvents();
     // The store owns the deadline (P6): it restamps one when a stage opens, and tells us what it now holds.
-    const saved = await deps.store.save(record, after, events);
-    timer = { enabled: saved.stageDeadlineAt !== null, deadlineAt: saved.stageDeadlineAt };
+    try {
+      const saved = await deps.store.save(record, after, events);
+      timer = { enabled: saved.stageDeadlineAt !== null, deadlineAt: saved.stageDeadlineAt };
+    } catch (error) {
+      // Someone else advanced this attempt while we worked. Say so, so the caller
+      // reloads instead of retrying a write that can never succeed.
+      if (error instanceof RuntimeConflictError) {
+        return { ok: false, error: { code: "conflict", message: "This attempt moved on while that was in flight. Reloading." } };
+      }
+      throw error;
+    }
   }
 
   if (!outcome.ok) return outcome;

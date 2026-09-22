@@ -2,7 +2,7 @@ import { loadI1Spec } from "@adventure/generation/fixtures";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { PlaySession, type PlayEvents, type PlaySnapshot } from "@/lib/play/session";
-import { SupabasePlayStore, type AttemptRecord } from "@/lib/play/store";
+import { RuntimeConflictError, SupabasePlayStore, type AttemptRecord } from "@/lib/play/store";
 
 class Query {
   private filters: Record<string, unknown> = {};
@@ -25,7 +25,8 @@ class Query {
 class FakeClient {
   readonly spec: Awaited<ReturnType<typeof loadI1Spec>>;
   runtime: { stage_spec_id: string; revision: number; snapshot: unknown } | null = null;
-  runtimeError: { message: string } | null = null;
+  runtimeError: { code?: string; message: string } | null = null;
+  runtimeReadError: { message: string } | null = null;
   upserts: { table: string; values: unknown; options: unknown }[] = [];
   attempt: Record<string, unknown>;
 
@@ -48,7 +49,7 @@ class FakeClient {
   read(table: string, filters: Record<string, unknown>) {
     if (table === "attempt") return { data: this.attempt, error: null };
     if (table === "spec_version") return { data: { id: "version", json: this.spec }, error: null };
-    if (table === "attempt_runtime") return { data: this.runtime, error: null };
+    if (table === "attempt_runtime") return this.runtimeReadError ? { data: null, error: this.runtimeReadError } : { data: this.runtime, error: null };
     if (table === "room" || table === "agent" || table === "decision_option") {
       const stageIndex = Number(String(filters.stage_id).split("-").at(-1));
       const stage = this.spec.stages[Number.isInteger(stageIndex) ? stageIndex : 0]!;
@@ -155,10 +156,19 @@ describe("SupabasePlayStore runtime validation", () => {
     expect((messageWrite!.values as { runtime_id: string }[])[0]!.runtime_id).toBe("attempt:0:1");
   });
 
-  it("surfaces optimistic runtime save errors", async () => {
-    client.runtimeError = { message: "revision conflict" };
+  it("surfaces optimistic runtime save errors, and names a revision conflict as one", async () => {
     const events: PlayEvents = { utterances: [], decisions: [], resolution: null, openedStageIndex: null, endingId: null };
 
+    client.runtimeError = { message: "out of disk" };
     await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toThrow(/save_attempt_runtime/);
+
+    client.runtimeError = { code: "40001", message: "attempt runtime revision conflict: expected 0, found 5" };
+    await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toBeInstanceOf(RuntimeConflictError);
+  });
+
+  it("refuses to treat a failed runtime read as an attempt with no saved runtime", async () => {
+    client.runtimeReadError = { message: "Timed out acquiring connection from connection pool." };
+
+    await expect(new SupabasePlayStore(client as never).load("attempt", "student")).rejects.toThrow(/attempt_runtime/);
   });
 });
