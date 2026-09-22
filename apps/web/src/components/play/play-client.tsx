@@ -79,11 +79,23 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     setState(next);
   }, []);
 
+  const [offline, setOffline] = useState(false);
+
+  // One writer at a time: the map can settle a position while a room entry is still
+  // in flight, and the server rejects the second write as a conflict it caused itself.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const serialize = useCallback(<T,>(run: () => Promise<T>): Promise<T> => {
+    const next = queue.current.then(run, run);
+    queue.current = next.catch(() => undefined);
+    return next;
+  }, []);
+
   const failures = useRef(0);
   const refresh = useCallback(async () => {
     const result = await playApi.state(attemptId);
     if (result.ok) {
       failures.current = 0;
+      setOffline(false);
       accept(result.body);
     } else {
       failures.current += 1;
@@ -95,7 +107,10 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     let timer = 0;
     const tick = async () => {
       if (document.visibilityState === "visible" && !busy) await refresh();
-      if (failures.current >= GIVE_UP_AFTER) return;
+      if (failures.current >= GIVE_UP_AFTER) {
+        setOffline(true);
+        return;
+      }
       timer = window.setTimeout(tick, Math.min(POLL_MS * 2 ** failures.current, MAX_POLL_MS));
     };
     timer = window.setTimeout(tick, POLL_MS);
@@ -124,7 +139,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     setBusy(label);
     setNotice(null);
     try {
-      const result = await run();
+      const result = await serialize(run);
       if (!result.ok) {
         setNotice(result.error.message);
         await refresh();
@@ -149,7 +164,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     setBusy("Deciding…");
     setNotice(null);
     try {
-      const result = await playApi.decide(attemptId, { optionId, optionsVersion: state.optionsVersion });
+      const result = await serialize(() => playApi.decide(attemptId, { optionId, optionsVersion: state.optionsVersion }));
       if (!result.ok) {
         setNotice(result.error.message);
         await refresh();
@@ -164,9 +179,11 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
 
   const onEnterRoom = useCallback(
     async (roomId: string, position: { x: number; y: number }) => {
-      const result = await playApi.action(attemptId, { type: "move_room", toRoomId: roomId, position });
+      const result = await serialize(() => playApi.action(attemptId, { type: "move_room", toRoomId: roomId, position }));
       if (!result.ok) {
         setNotice(result.error.message);
+        // The map is now ahead of the server; take the server's word for where the player is.
+        await refresh();
         return false;
       }
       accept(result.body.state);
@@ -176,7 +193,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
       }
       return true;
     },
-    [attemptId, accept],
+    [attemptId, accept, refresh, serialize],
   );
 
   // From the map: pick who to talk to and put the cursor in the box, so "walk up and talk" works.
@@ -188,9 +205,9 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
 
   const onSettled = useCallback(
     (position: { x: number; y: number }) => {
-      void playApi.action(attemptId, { type: "position", position }).then((r) => r.ok && accept(r.body.state));
+      void serialize(() => playApi.action(attemptId, { type: "position", position })).then((r) => r.ok && accept(r.body.state));
     },
-    [attemptId, accept],
+    [attemptId, accept, serialize],
   );
 
   if (state.status === "completed") {
@@ -491,6 +508,15 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
             </ul>
           ) : null}
 
+          {offline ? (
+            <p role="alert" className="rounded-xl border-2 border-red-600/60 bg-red-500/15 px-3 py-2 text-[15px] leading-snug">
+              Lost contact with the server, so this page has stopped updating. Your progress is saved —{" "}
+              <button type="button" className="underline underline-offset-2" onClick={() => window.location.reload()}>
+                reload to continue
+              </button>
+              .
+            </p>
+          ) : null}
           {notice ? (
             <p role="status" className="rounded-xl border-2 border-amber-500/60 bg-amber-400/15 px-3 py-2 text-[15px] leading-snug">
               {notice}
