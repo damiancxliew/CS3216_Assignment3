@@ -1,5 +1,7 @@
 import { ImageResponse } from "next/og";
 
+import { MARK_PATHS } from "@/components/ui";
+
 /**
  * Generated rather than committed as a PNG: the card is text, and a text card
  * that renders from the same strings as the page cannot drift from it. Uses
@@ -26,8 +28,11 @@ export default function OpengraphImage() {
           fontFamily: "Georgia, serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 28 }}>
-          <div style={{ width: 5, height: 30, background: "#1f4b8a", borderRadius: 2 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 28 }}>
+          <svg width={36} height={36} viewBox="0 0 32 32">
+            <path d={MARK_PATHS.record} fill="#1f4b8a" />
+            <path d={MARK_PATHS.world} fill="#5e6f3f" />
+          </svg>
           Historical Adventures
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>

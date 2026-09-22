@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { PlayClient } from "@/components/play/play-client";
-import { button } from "@/components/ui";
+import { button, Mark } from "@/components/ui";
 import { loadResumeState } from "@/lib/attempts/resume";
 import { playDeps } from "@/lib/play/http";
 import { getState } from "@/lib/play/service";
@@ -43,7 +43,10 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   return (
     <main className="flex h-screen flex-col">
       <header className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-line bg-surface px-5 py-3">
-        <h1 className="font-serif text-xl text-ink">{resume.adventureTitle}</h1>
+        <h1 className="inline-flex items-center gap-2.5 font-serif text-xl text-ink">
+          <Mark />
+          {resume.adventureTitle}
+        </h1>
         {active ? (
           <details className="group min-w-0 flex-1 text-base">
             <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-3 gap-y-1 text-ink marker:content-none">
