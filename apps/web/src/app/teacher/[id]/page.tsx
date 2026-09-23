@@ -49,6 +49,25 @@ type Adventure = {
 
 type Version = { id: string; version: number; published_at: string | null };
 
+type SourcePageMap = {
+  pages?: number;
+  chars?: number;
+  text?: string;
+  page_texts?: { page: number; text: string }[];
+};
+
+// Extracted text can run to hundreds of thousands of characters and is shipped
+// in the HTML whether the disclosure is open or not, so only a prefix renders.
+const SOURCE_TEXT_RENDER_CAP = 20_000;
+
+function sourceText(pageMap: SourcePageMap): { text: string; total: number; truncated: boolean } | null {
+  const full = pageMap.page_texts?.length
+    ? pageMap.page_texts.map((p) => p.text).join("\n\n")
+    : pageMap.text?.split("\f").join("\n\n");
+  if (!full) return null;
+  return { text: full.slice(0, SOURCE_TEXT_RENDER_CAP), total: full.length, truncated: full.length > SOURCE_TEXT_RENDER_CAP };
+}
+
 type Stage = {
   id: string;
   index: number;
@@ -102,7 +121,7 @@ export default async function AdventurePage({
         id: string;
         title: string | null;
         kind: string;
-        page_map: { pages?: number } | null;
+        page_map: SourcePageMap | null;
       }[]
     >();
   const sourceRows = sources ?? [];
@@ -174,12 +193,34 @@ export default async function AdventurePage({
             ))}
             <BriefRow label="Sources">
               <ul className="flex flex-col gap-0.5">
-                {sourceRows.map((source) => (
-                  <li key={source.id}>
-                    {source.title ?? "Untitled"}
-                    {source.page_map?.pages ? <span className="text-muted"> ({plural(source.page_map.pages, "page")})</span> : null}
-                  </li>
-                ))}
+                {sourceRows.map((source) => {
+                  const label = (
+                    <>
+                      {source.title ?? "Untitled"}
+                      {source.page_map?.pages ? <span className="text-muted"> ({plural(source.page_map.pages, "page")})</span> : null}
+                    </>
+                  );
+                  const extracted = source.page_map ? sourceText(source.page_map) : null;
+                  return (
+                    <li key={source.id}>
+                      {extracted ? (
+                        <details>
+                          <summary className="cursor-pointer">{label}</summary>
+                          <div className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere] rounded-surface border border-line bg-sunken px-4 py-3 text-base text-muted">
+                            {extracted.text}
+                          </div>
+                          {extracted.truncated ? (
+                            <p className="mt-1 text-base text-muted">
+                              Showing the first {SOURCE_TEXT_RENDER_CAP.toLocaleString()} of {extracted.total.toLocaleString()} characters.
+                            </p>
+                          ) : null}
+                        </details>
+                      ) : (
+                        label
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </BriefRow>
           </dl>
@@ -389,7 +430,7 @@ function BriefRow({ label, children }: { label: string; children: React.ReactNod
   return (
     <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:gap-4">
       <dt className="w-32 shrink-0 text-base text-muted">{label}</dt>
-      <dd className="flex-1 text-ink">{children}</dd>
+      <dd className="min-w-0 flex-1 text-ink">{children}</dd>
     </div>
   );
 }
