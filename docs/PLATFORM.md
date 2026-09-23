@@ -25,6 +25,8 @@ or CI can reproduce the exact database from a clean checkout.
 | Command | Covers |
 | --- | --- |
 | `npx vitest run tests/api` | I3 Turn API contract, timer derivation, FR-21 leak checks |
+| `npx vitest run tests/unit` | Pure-function unit tests (redirect target, countdown math) |
+| `RUN_BROWSER_TESTS=1 npx vitest run tests/browser/student-play.test.ts` | Opt-in Playwright student acceptance — see `tests/browser/README.md` |
 | `npx vitest run tests/db/share-links.test.ts` | P3 — published-only share links, join, resume, token rotation |
 | `npm run db:test` | resets the database, then runs the RLS negative tests |
 | `npm run lint` / `npm run typecheck` / `npm run build` | web app |

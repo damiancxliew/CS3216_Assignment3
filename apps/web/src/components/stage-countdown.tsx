@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { clockSkewMs, countdownLabel, remainingMs } from "./stage-countdown-time";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
 import { createClient } from "@/lib/supabase/client";
@@ -31,14 +32,15 @@ export function StageCountdown({
 }) {
   const [remaining, setRemaining] = useState<number | null>(null);
   const [expired, setExpired] = useState(false);
-  const [skewMs] = useState(() => new Date(serverNowIso).getTime() - Date.now());
+  const [skewMs] = useState(() => clockSkewMs(serverNowIso));
 
   useEffect(() => {
+    setExpired(false);
+    setRemaining(null);
     if (!deadlineIso) return;
-    const deadline = new Date(deadlineIso).getTime();
 
     const tick = () => {
-      const left = Math.max(0, deadline - (Date.now() + skewMs));
+      const left = remainingMs(deadlineIso, Date.now(), skewMs);
       setRemaining(left);
       if (left === 0) setExpired(true);
       return left;
@@ -46,7 +48,8 @@ export function StageCountdown({
 
     tick();
     const interval = setInterval(() => {
-      if (tick() === 0) clearInterval(interval);
+      const left = tick();
+      if (left === null || left === 0) clearInterval(interval);
     }, 1000);
     return () => clearInterval(interval);
   }, [deadlineIso, skewMs]);
@@ -60,7 +63,7 @@ export function StageCountdown({
       });
       if (data === true) track(ANALYTICS_EVENTS.stageTimerExpired);
     })();
-  }, [expired, attemptId]);
+  }, [expired, attemptId, deadlineIso]);
 
   if (!deadlineIso) {
     return <span className="text-sm font-normal text-muted">no timer</span>;
@@ -74,10 +77,5 @@ export function StageCountdown({
     );
   }
 
-  const total = Math.ceil(remaining / 1000);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return (
-    <span className="tabular-nums">{`${minutes}:${String(seconds).padStart(2, "0")}`}</span>
-  );
+  return <span className="tabular-nums">{countdownLabel(remaining)}</span>;
 }

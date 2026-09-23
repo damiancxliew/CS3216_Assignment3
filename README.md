@@ -58,17 +58,29 @@ from scratch, so a schema change that is not a migration does not exist.
 npm run lint
 npm run typecheck
 npm run build
-npx vitest run tests            # database, RLS and platform tests (needs supabase running)
+npx vitest run tests/api tests/unit   # Turn API, session and pure-function tests (no database)
+npm run db:test                       # database, RLS and platform tests (needs supabase running)
 ```
+
+The browser acceptance suite in `tests/browser` is opt-in: it needs Playwright
+Chromium, the deterministic model server and the dev server pointed at the local
+stack — see [`tests/browser/README.md`](tests/browser/README.md).
 
 ## Layout
 
 ```
 apps/web            Next.js App Router app: landing, teacher console, play, debrief, Turn API
 packages/generation Adventure Spec v2 schema, planner and compiler
+packages/orchestration Resolver/Orchestrator runtime, character agents and safety rails
 packages/game-core  Deterministic game logic and pathfinding
+packages/game-client Phaser settlement-map playground client
+packages/game-integration Adventure Spec to game-core spatial adapter
+scripts             Demo seeding (seed-demo) and its vitest config
 supabase/migrations The schema, in order; the only way the database changes
+tests/api           Turn API and play-session tests over the in-memory store
+tests/unit          Pure-function unit tests (no database, no network)
 tests/db            RLS negative tests and platform behaviour tests
+tests/browser       Opt-in Playwright student acceptance suite
 docs/               PRD, execution spec, platform notes, launch kit, write-ups
 ```
 

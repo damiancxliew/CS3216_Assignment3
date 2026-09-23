@@ -21,6 +21,7 @@ import {
   sourcesToDocuments,
 } from "@/lib/adventures/generate-from-sources";
 import { generateAssetsForVersion } from "@/lib/assets/generate";
+import { agentBelongsTo, stageBelongsTo } from "@/lib/adventures/ownership";
 import { persistSpecVersion, SpecPersistError } from "@/lib/adventures/persist-spec";
 import {
   type BriefInput,
@@ -474,6 +475,9 @@ export async function updateStage(
   }
 
   const admin = createAdminClient();
+  if (!(await stageBelongsTo(admin, adventureId, stageId))) {
+    return { error: "That stage is not part of this adventure" };
+  }
   const { error } = await admin
     .from("stage")
     .update({
@@ -500,6 +504,9 @@ export async function updateAgent(
   if (!name) return { error: "A stakeholder needs a name" };
 
   const admin = createAdminClient();
+  if (!(await agentBelongsTo(admin, adventureId, agentId))) {
+    return { error: "That stakeholder is not part of this adventure" };
+  }
   const { error } = await admin
     .from("agent")
     .update({
