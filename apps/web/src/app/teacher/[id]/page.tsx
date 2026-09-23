@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { DossierSections } from "./dossier";
 import { SharePanel } from "./share-panel";
 import {
   generateFromSources,
@@ -25,7 +26,9 @@ import {
 } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import type { ReadingLevel } from "@/lib/brief/schema";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { buildDossier } from "@/lib/teacher/dossier";
 
 export const metadata: Metadata = {
   title: "Adventure",
@@ -113,6 +116,13 @@ export default async function AdventurePage({
   const draft = versions.find((v) => v.published_at === null) ?? null;
   const published = versions.find((v) => v.version === adventure.published_version) ?? null;
   const editable = draft ?? null;
+  // The dossier shows the draft when one exists, else the published version.
+  const shown = draft ?? published;
+
+  // `spec_version.json` is revoked from `authenticated`, so the dossier is
+  // built with the service role now that ownership is confirmed.
+  const admin = createAdminClient();
+  const dossier = shown ? await buildDossier(admin, { adventureId: id, specVersionId: shown.id }) : null;
 
   const { data: sources } = await supabase
     .from("source")
@@ -176,6 +186,7 @@ export default async function AdventurePage({
         </span>
       }
       lede={adventure.setting}
+      width="wide"
     >
       <Section title="Brief">
         {adventure.reading_level ? (
@@ -287,6 +298,16 @@ export default async function AdventurePage({
           />
         ) : null}
       </Section>
+
+      {dossier && shown ? (
+        <DossierSections
+          dossier={dossier}
+          adventureId={adventure.id}
+          specVersionId={shown.id}
+          version={shown.version}
+          isDraft={shown === draft}
+        />
+      ) : null}
 
       {editable && stages.length > 0 ? (
         <Section

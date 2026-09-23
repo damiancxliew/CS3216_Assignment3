@@ -9,6 +9,10 @@
  * prompt-hash cache so a subject reused across stages costs nothing, and every
  * failure resolves to the curated placeholder: the manifest is always complete
  * and publish never waits on it (FR-6a).
+ *
+ * `ignoreCache` exists for the teacher's "regenerate" button: it skips the
+ * prompt-hash read so a record can be forced to re-draw, but still writes the
+ * result back so the next identical subject stays free.
  */
 import { createHash } from 'node:crypto'
 
@@ -65,6 +69,8 @@ export interface GenerateAssetsOptions {
   store: AssetStore
   quality?: ImageRequest['quality']
   maxImages?: number
+  /** Skip the prompt-hash read (regeneration); results are still written to the cache. */
+  ignoreCache?: boolean
   /** Called after every record settles, so a UI can show progress. */
   onRecord?: (record: AssetRecord) => void
 }
@@ -114,7 +120,7 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
     try {
       assertGeneratable(entry)
       const request: ImageRequest = { kind: entry.kind, prompt: buildImagePrompt(entry, spec), size: SIZES[entry.kind], quality }
-      const cached = await options.cache.get(record.promptHash)
+      const cached = options.ignoreCache ? null : await options.cache.get(record.promptHash)
       if (cached) {
         Object.assign(record, { status: 'cached', url: cached.url, model: cached.model })
         manifest.cacheHits += 1
