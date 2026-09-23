@@ -64,9 +64,10 @@ export default async function TeacherHome() {
       title="Your adventures"
       kicker={<form action="/auth/signout" method="post"><button type="submit" className="hover:text-ink">Sign out</button></form>}
       width="wide"
+      fill
     >
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-16">
-        <section className="flex flex-col gap-4">
+      <div className="grid gap-12 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-16">
+        <section className="flex flex-col gap-4 lg:max-h-full lg:overflow-y-auto">
           {adventures.length === 0 ? (
             <EmptyState title="No adventures yet">Start with the class you are teaching next.</EmptyState>
           ) : (
@@ -89,7 +90,7 @@ export default async function TeacherHome() {
           )}
         </section>
 
-        <section className="flex min-h-0 flex-col gap-5 rounded-surface border border-line bg-surface p-6 lg:sticky lg:top-10 lg:max-h-[calc(100dvh-5rem)] lg:overflow-hidden">
+        <section className="flex min-h-0 flex-col gap-5 rounded-surface border border-line bg-surface p-6 lg:max-h-full lg:overflow-hidden">
           <h2 className="font-serif text-2xl text-ink">New adventure</h2>
           <BriefChat resume={resume.success ? resume.data : undefined} />
         </section>

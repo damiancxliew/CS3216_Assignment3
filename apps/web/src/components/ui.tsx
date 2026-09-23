@@ -221,16 +221,19 @@ export function Page({
   title,
   lede,
   width = "narrow",
+  fill,
   children,
 }: {
   kicker?: React.ReactNode;
   title: React.ReactNode;
   lede?: React.ReactNode;
   width?: "narrow" | "wide";
+  /** Fill the viewport on large screens so children can scroll inside the page. */
+  fill?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <main className={`mx-auto flex min-h-screen w-full flex-col gap-10 px-6 py-10 sm:py-14 ${width === "wide" ? "max-w-5xl" : "max-w-3xl"}`}>
+    <main className={`mx-auto flex min-h-screen w-full flex-col gap-10 px-6 py-10 sm:py-14 ${width === "wide" ? "max-w-5xl" : "max-w-3xl"}${fill ? " lg:h-dvh lg:min-h-0 lg:overflow-hidden" : ""}`}>
       <div className="flex items-center justify-between gap-4">
         <Wordmark />
         {kicker ? <div className="text-base text-muted">{kicker}</div> : null}
