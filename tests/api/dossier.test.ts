@@ -101,7 +101,7 @@ describe("dossier view model", () => {
     const dossier = dossierFromSpec(spec, null);
     for (const stage of dossier.stages) {
       for (const agent of stage.agents) {
-        expect(Object.keys(agent).sort()).toEqual(["publicPosition", "stakeholderId"]);
+        expect(Object.keys(agent).sort()).toEqual(["id", "publicPosition", "stakeholderId"]);
       }
     }
   });

@@ -52,9 +52,11 @@ export type DossierStage = {
   ambientOverlay: { id: string; intensity: number } | null;
   /** `null` when this version has no compiled map for the stage (e.g. an uncompiled draft). */
   plan: DossierPlan | null;
+  /** `null` inherits the adventure default; `0` disables the timer (D12/FR-16). */
+  timerSeconds: number | null;
   rooms: DossierRoom[];
   /** Public position only — private context never reaches this object (FR-21). */
-  agents: { stakeholderId: string; publicPosition: string }[];
+  agents: { id: string; stakeholderId: string; publicPosition: string }[];
   evidence: {
     id: string;
     name: string;
@@ -66,7 +68,7 @@ export type DossierStage = {
   }[];
   objectives: { id: string; title: string }[];
   /** Options without `branchTarget`/`preconditions`: where play goes next is a spoiler. */
-  decision: { title: string; prompt: string; options: { label: string; stance: string }[] };
+  decision: { title: string; prompt: string; options: { id: string; label: string; stance: string }[] };
 };
 
 export type Dossier = {
@@ -133,6 +135,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
     title: stage.title,
     sharedContext: stage.sharedContext.text,
     ambientOverlay: resolveStageSettings(spec, stage).ambientOverlay,
+    timerSeconds: stage.timerSeconds,
     plan: (() => {
       const map = compiled?.[stage.index]?.map;
       return map ? { width: map.width, height: map.height, rooms: map.rooms, doors: map.doors } : null;
@@ -153,6 +156,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
       };
     }),
     agents: stage.agents.map((agent) => ({
+      id: agent.id,
       stakeholderId: agent.stakeholderId,
       publicPosition: agent.publicPosition.text,
     })),
@@ -177,7 +181,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
     decision: {
       title: stage.decision.title,
       prompt: stage.decision.prompt,
-      options: stage.decision.options.map((o) => ({ label: o.label, stance: o.stance })),
+      options: stage.decision.options.map((o) => ({ id: o.id, label: o.label, stance: o.stance })),
     },
   }));
 
