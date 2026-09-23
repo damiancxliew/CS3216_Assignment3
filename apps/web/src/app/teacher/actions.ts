@@ -412,6 +412,108 @@ export async function startEdit(adventureId: string): Promise<ActionResult> {
   return {};
 }
 
+/**
+ * D5/D6: artwork is also available before publish — the teacher can ask for
+ * the draft (or published) version's images up front, so the page is already a
+ * visual dossier when students arrive. Runs inside `after(...)` like publish:
+ * the manifest rows land `pending` first and settle one by one.
+ */
+export async function generateArtwork(adventureId: string): Promise<ActionResult> {
+  await requireOwnership(adventureId);
+
+  if (!process.env.OPENAI_API_KEY) {
+    return { error: "Artwork generation is not configured on this server (OPENAI_API_KEY is missing)" };
+  }
+
+  const admin = createAdminClient();
+  const { data: adventure } = await admin
+    .from("adventure")
+    .select("published_version")
+    .eq("id", adventureId)
+    .single<{ published_version: number | null }>();
+  const { data: versions } = await admin
+    .from("spec_version")
+    .select("id, version, published_at")
+    .eq("adventure_id", adventureId)
+    .order("version", { ascending: false })
+    .returns<{ id: string; version: number; published_at: string | null }[]>();
+  const shown = (versions ?? []).find((v) => v.published_at === null) ?? (versions ?? []).find((v) => v.version === adventure?.published_version);
+  if (!shown) return { error: "Generate a version first — artwork illustrates the spec" };
+
+  const { data: pending } = await admin
+    .from("asset")
+    .select("asset_id")
+    .eq("spec_version_id", shown.id)
+    .eq("status", "pending")
+    .limit(1)
+    .returns<{ asset_id: string }[]>();
+  if (pending && pending.length > 0) {
+    return { notice: `Artwork is already being generated for version ${shown.version}` };
+  }
+
+  const version = shown.version;
+  after(async () => {
+    try {
+      const result = await generateAssetsForVersion({ admin: createAdminClient(), images: new OpenAiImageService(), adventureId, version });
+      console.info("artwork generation", adventureId, `v${version}`, result);
+    } catch (error) {
+      console.error("artwork generation failed", adventureId, `v${version}`, error);
+    }
+  });
+  return { notice: `Artwork is being generated for version ${version}; the page will update as each piece lands.` };
+}
+
+/**
+ * Re-draws one asset. The cache row for its prompt hash is dropped first so
+ * the same prompt cannot come straight back from `asset_cache`; the run itself
+ * then writes the fresh result back to the cache. Artwork rows are not part
+ * of the frozen spec, so regenerating a published version's art is legal (P4).
+ */
+export async function regenerateAsset(adventureId: string, specVersionId: string, assetId: string): Promise<ActionResult> {
+  await requireOwnership(adventureId);
+
+  if (!process.env.OPENAI_API_KEY) {
+    return { error: "Artwork generation is not configured on this server (OPENAI_API_KEY is missing)" };
+  }
+
+  const admin = createAdminClient();
+  const { data: version } = await admin
+    .from("spec_version")
+    .select("id, version")
+    .eq("id", specVersionId)
+    .eq("adventure_id", adventureId)
+    .maybeSingle<{ id: string; version: number }>();
+  if (!version) return { error: "That version is not part of this adventure" };
+
+  const { data: record } = await admin
+    .from("asset")
+    .select("prompt_hash")
+    .eq("spec_version_id", specVersionId)
+    .eq("asset_id", assetId)
+    .maybeSingle<{ prompt_hash: string }>();
+  if (!record) return { error: "That artwork does not exist yet — generate the set first" };
+
+  await admin.from("asset_cache").delete().eq("prompt_hash", record.prompt_hash);
+
+  const versionNumber = version.version;
+  after(async () => {
+    try {
+      const result = await generateAssetsForVersion({
+        admin: createAdminClient(),
+        images: new OpenAiImageService(),
+        adventureId,
+        version: versionNumber,
+        onlyAssetIds: [assetId],
+        ignoreCache: true,
+      });
+      console.info("asset regeneration", adventureId, assetId, result);
+    } catch (error) {
+      console.error("asset regeneration failed", adventureId, assetId, error);
+    }
+  });
+  return { notice: "Regenerating; the page will update when the new image lands." };
+}
+
 export async function rotateShareToken(adventureId: string): Promise<ActionResult> {
   const { supabase } = await requireOwnership(adventureId);
   const { error } = await supabase.rpc("rotate_share_token", {
