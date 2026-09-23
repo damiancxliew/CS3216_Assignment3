@@ -111,7 +111,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
     let view: import("@adventure/game-client/view").MapView | null = null;
     let facing: "down" | "up" | "left" | "right" = "down";
     let path: Point[] = [];
-    let queuedTarget: Point | null = null;
+    let pathInputAt: number | undefined;
+    let queuedTarget: { point: Point; inputAt: number } | null = null;
     let sendInFlight = false;
     let pending: PendingStep[] = [];
     let nextSendAt = 0;
@@ -193,6 +194,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
       sendInFlight = true;
       let acknowledgement: { position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number };
       try {
+        nextSendAt = performance.now() + STEP_MS;
         acknowledgement = await latest.current.onStep(step.from, step.to);
       } catch {
         acknowledgement = { position: latest.current.state.playerPos, accepted: false, retry: false };
@@ -210,27 +212,28 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
       if (!acknowledgement.accepted) {
         pending = [];
         path = [];
+        pathInputAt = undefined;
         if (acknowledgement.position) playerPos.current = acknowledgement.position;
       } else if (pending.length === 0 && acknowledgement.position && (!playerPos.current || acknowledgement.position.x !== playerPos.current.x || acknowledgement.position.y !== playerPos.current.y)) {
         playerPos.current = acknowledgement.position;
         path = [];
+        pathInputAt = undefined;
       }
       const door = map.doors.find((candidate) => candidate.outside.x === acknowledgement.position?.x && candidate.outside.y === acknowledgement.position?.y && doorsOf(latest.current.state)[candidate.id] === "closed");
       latest.current.onWaitingAtDoor(door?.roomId ?? null);
       render();
       logStep(step, { ...acknowledgement, acknowledgedAt }, pending.length);
       if (path.length === 0) latest.current.onIntentDone();
-      nextSendAt = acknowledgedAt + STEP_MS;
       if (pending.length === 0 && queuedTarget) {
         const target = queuedTarget;
         queuedTarget = null;
-        goTo(target);
+        goTo(target.point, target.inputAt);
       } else {
         void drain();
       }
     };
 
-    const stepTo = (to: Point) => {
+    const stepTo = (to: Point, inputAt = performance.now()) => {
       if (latest.current.state.map?.id !== mapId || pending.length >= MAX_PENDING_STEPS) return;
       const s = latest.current.state;
       const from = playerPos.current ?? s.playerPos;
@@ -241,31 +244,34 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
         const door = map.doors.find((d) => d.position.x === to.x && d.position.y === to.y);
         if (door && doors[door.id] === "closed" && from.x === door.outside.x && from.y === door.outside.y) latest.current.onWaitingAtDoor(door.roomId);
         path = [];
+        pathInputAt = undefined;
         render();
         return;
       }
       const ddx = to.x - from.x;
       const ddy = to.y - from.y;
       facing = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? "right" : "left") : ddy > 0 ? "down" : "up";
-      const inputAt = performance.now();
-      const advanced = optimisticAdvance(from, { to, inputAt, movedAt: performance.now() }, pending);
+      const advanced = optimisticAdvance(from, { to, inputAt, movedAt: 0 }, pending);
       if (!advanced) return;
       playerPos.current = advanced.position;
       pending = advanced.queue;
       if (path[0]?.x === to.x && path[0]?.y === to.y) path.shift();
       render();
+      pending.at(-1)!.movedAt = performance.now();
       void drain();
     };
 
     const walk = window.setInterval(() => {
       if (document.visibilityState !== "visible" || path.length === 0) return;
       const next = path[0]!;
-      void stepTo(next);
+      const inputAt = pathInputAt;
+      pathInputAt = undefined;
+      void stepTo(next, inputAt);
     }, STEP_MS);
 
-    const goTo = (target: Point) => {
+    const goTo = (target: Point, inputAt = performance.now()) => {
       if (sendInFlight || pending.length > 0) {
-        queuedTarget = target;
+        queuedTarget = { point: target, inputAt };
         return;
       }
       const from = playerPos.current ?? latest.current.state.playerPos;
@@ -279,6 +285,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
         found = door ? findPath(map as StageMap, doors, from, door.outside) : null;
       }
       path = found ?? [];
+      pathInputAt = found && found.length > 0 ? inputAt : undefined;
       render();
       if (!found || found.length === 0) latest.current.onIntentDone();
     };
@@ -305,9 +312,13 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
       if (pending.length === 0 && !sendInFlight && next.playerPos && (!playerPos.current || playerPos.current.x !== next.playerPos.x || playerPos.current.y !== next.playerPos.y)) {
         playerPos.current = next.playerPos;
         path = [];
+        pathInputAt = undefined;
       }
       const current = playerPos.current;
-      if (current && !isWalkable(map as StageMap, doorsOf(next), current)) path = [];
+      if (current && !isWalkable(map as StageMap, doorsOf(next), current)) {
+        path = [];
+        pathInputAt = undefined;
+      }
       render();
     };
 
@@ -342,8 +353,9 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
       if (event.repeat || held.has(event.code || key)) return;
       held.set(event.code || key, delta);
       path = [];
+      pathInputAt = undefined;
       const from = playerPos.current ?? latest.current.state.playerPos;
-      if (from) void stepTo({ x: from.x + delta.x, y: from.y + delta.y });
+      if (from) void stepTo({ x: from.x + delta.x, y: from.y + delta.y }, event.timeStamp);
       if (repeat === undefined) {
         repeat = window.setInterval(() => {
           const d = [...held.values()].at(-1);
@@ -365,7 +377,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
         playerPos.current = latest.current.state.playerPos;
         acknowledgedRevision.current = latest.current.state.revision;
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-        view = await createTiledMapView(parent, snapshot(), (point) => goTo(point), reduced.matches, {
+        view = await createTiledMapView(parent, snapshot(), (point, inputAt) => goTo(point, inputAt), reduced.matches, {
           assetBase: ASSET_BASE,
           defaultSprite: "Villager",
           onActor: (actorId) => latest.current.onTalk(actorId),

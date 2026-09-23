@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { compileStageMap } from "@/lib/play/layout";
 import { PlaySession, type PlayEvents, type PlaySnapshot } from "@/lib/play/session";
 import { MemoryPlayStore, PlayConflictError, RuntimeConflictError, SupabasePlayStore, type AttemptRecord } from "@/lib/play/store";
+import { clearVersionCache } from "@/lib/play/version-cache";
 
 class Query {
   private filters: Record<string, unknown> = {};
@@ -33,6 +34,7 @@ class FakeClient {
   versionReadError: { message: string } | null = null;
   upserts: { table: string; values: unknown; options: unknown }[] = [];
   rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
+  reads: Record<string, number> = {};
   rpcResult: { data: unknown; error: { message: string; code?: string } | null } = { data: { runtimeRevision: 1, stageDeadlineAt: null }, error: null };
   attempt: Record<string, unknown>;
 
@@ -54,6 +56,7 @@ class FakeClient {
   from(table: string) { return new Query(this, table); }
 
   read(table: string, filters: Record<string, unknown>) {
+    this.reads[table] = (this.reads[table] ?? 0) + 1;
     if (table === "attempt") return { data: this.attempt, error: null };
     if (table === "spec_version") {
       return this.versionReadError
@@ -92,6 +95,7 @@ let record: AttemptRecord;
 let snapshot: PlaySnapshot;
 
 beforeEach(async () => {
+  clearVersionCache();
   spec = await loadI1Spec();
   client = new FakeClient(spec);
   const session = PlaySession.start(spec, "attempt", 1);
@@ -199,5 +203,18 @@ describe("SupabasePlayStore runtime validation", () => {
     client.runtimeReadError = null;
     client.versionReadError = { message: `column spec_version.compiled_stages does not exist` };
     await expect(new SupabasePlayStore(client as never).load("attempt", "student")).rejects.toThrow(/spec_version/);
+  });
+
+  it("reuses immutable version and stage rows on a second load", async () => {
+    client.runtime = { stage_spec_id: spec.stages[0]!.id, revision: 1, snapshot };
+    const store = new SupabasePlayStore(client as never);
+
+    await store.load("attempt", "student");
+    const firstVersionReads = client.reads.spec_version;
+    const firstStageReads = client.reads.stage;
+    await store.load("attempt", "student");
+
+    expect(client.reads.spec_version).toBe(firstVersionReads);
+    expect(client.reads.stage).toBe(firstStageReads);
   });
 });
