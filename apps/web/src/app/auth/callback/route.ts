@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { safeNextPath } from "@/lib/auth/safe-next";
 import { createClient } from "@/lib/supabase/server";
 
 /** OAuth redirect target: trades the code for a session cookie. */
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
   const next = url.searchParams.get("next");
   // Only same-origin paths, so a share link cannot bounce a signed-in student
   // off to someone else's site.
-  const destination = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const destination = safeNextPath(next, url.origin);
 
   if (!code) {
     return NextResponse.redirect(new URL("/?error=auth", url.origin));

@@ -682,7 +682,6 @@ export class PlaySession {
       return { ok: true, refused: null };
     }
 
-    this.snap.stageStats.actions += 1;
     const worldAction = action.type === "share_evidence"
       ? { type: "share_evidence" as const, roomId: world.location[PLAYER_ID] ?? "", evidenceId: action.evidenceId }
       : action;
@@ -691,7 +690,10 @@ export class PlaySession {
     if (!entry) return { ok: false, error: { code: "invalid_request", message: filtered.dropped[0]?.reason ?? "That is not something you can do." } };
 
     const result = applyAction(world, entry);
-    this.bump();
+    if (result.ok) {
+      this.snap.stageStats.actions += 1;
+      this.bump();
+    }
 
     // Knocking gives whoever is behind that door a beat to answer it (K4, #8) — only them, so the
     // wait is one model call. Walking costs nothing: characters answer when spoken to, and a stage

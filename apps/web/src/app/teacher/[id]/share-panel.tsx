@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { rotateShareToken } from "../actions";
 import { ActionButton } from "@/components/action-form";
@@ -23,7 +23,13 @@ export function SharePanel({
   published: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const revert = useRef<ReturnType<typeof setTimeout> | null>(null);
   const url = `${typeof window === "undefined" ? "" : window.location.origin}/join/${token}`;
+
+  useEffect(() => () => {
+    if (revert.current !== null) clearTimeout(revert.current);
+  }, []);
 
   return (
     <div className="flex flex-col gap-4">
@@ -36,16 +42,25 @@ export function SharePanel({
         <button
           type="button"
           onClick={async () => {
-            await navigator.clipboard.writeText(url);
+            try {
+              await navigator.clipboard.writeText(url);
+            } catch {
+              setCopyFailed(true);
+              return;
+            }
             track(ANALYTICS_EVENTS.shareLinkCopied);
+            setCopyFailed(false);
             setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            revert.current = setTimeout(() => setCopied(false), 2000);
           }}
           className={button.quiet}
         >
           {copied ? "Copied" : "Copy link"}
         </button>
       </div>
+      {copyFailed ? (
+        <p className="text-sm text-muted">Couldn’t copy — select the link and copy it manually.</p>
+      ) : null}
       {published ? null : (
         <p className="text-sm text-muted">Students can’t use this link until the adventure is published.</p>
       )}

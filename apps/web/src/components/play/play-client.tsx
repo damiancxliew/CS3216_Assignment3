@@ -72,6 +72,10 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   const [state, setState] = useState<PlayState>(initialState);
   const stateRef = useRef(initialState);
   const [busy, setBusy] = useState<string | null>(null);
+  const busyRef = useRef<string | null>(null);
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
   const [speaking, setSpeaking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -135,14 +139,14 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     let timer = 0;
     let cancelled = false;
     const tick = async () => {
-      if (document.visibilityState === "visible" && !busy) await refresh();
+      if (document.visibilityState === "visible" && !busyRef.current) await refresh();
       if (failures.current >= GIVE_UP_AFTER) setOffline(true);
       if (cancelled || failures.current >= GIVE_UP_AFTER) return;
       timer = window.setTimeout(tick, Math.min(POLL_MS * 2 ** failures.current, MAX_POLL_MS));
     };
     timer = window.setTimeout(tick, POLL_MS);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [refresh, busy]);
+  }, [refresh]);
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({ block: "end" });
@@ -193,7 +197,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     setSpeaking(true);
     setNotice(null);
     try {
-      const result = await playApi.message(attemptId, { roomId, body, addresseeId: effectiveAddressee });
+      const result = await serialize(() => playApi.message(attemptId, { roomId, body, addresseeId: effectiveAddressee }));
       if (!result.ok) {
         setDraft((value) => (value === "" ? body : value));
         setNotice(result.error.message);
