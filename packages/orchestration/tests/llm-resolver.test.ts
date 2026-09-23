@@ -23,7 +23,7 @@ function run(input: ResolverInput, reply: string) {
   return { client, resolver: createLlmResolver(client) }
 }
 
-describe('K9 — model-backed Resolver', () => {
+describe('D9/FR-15 — the Resolver/Orchestrator LLM', () => {
   it('replaces narration while preserving deterministic resolution fields', async () => {
     const base = resolveStageSync(fixtureResolverInput)
     const { client, resolver } = run(

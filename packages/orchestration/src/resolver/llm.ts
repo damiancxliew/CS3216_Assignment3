@@ -1,5 +1,6 @@
 /**
- * K9 — model-backed resolution narration behind the shared Resolver interface (D9/FR-15).
+ * The Resolver/Orchestrator LLM (D9/FR-15), behind the shared Resolver interface and calling
+ * through the K9 structured-output seam.
  *
  * The deterministic Resolver remains authoritative for rolls, branches, actions and disposition
  * deltas. The model only supplies bounded narration and proposals, which are validated and
