@@ -126,7 +126,7 @@ export class SupabasePlayStore implements PlayStore {
   constructor(private readonly admin: SupabaseClient) {}
 
   async load(attemptId: string, userId: string): Promise<AttemptRecord | null> {
-    const { data: attempt } = await this.admin
+    const { data: attempt, error: attemptError } = await this.admin
       .from("attempt")
       .select("id, adventure_id, published_version, student_id, status, ending_id, current_stage_id, stage_deadline_at")
       .eq("id", attemptId)
@@ -140,15 +140,16 @@ export class SupabasePlayStore implements PlayStore {
         current_stage_id: string | null;
         stage_deadline_at: string | null;
       }>();
+    if (attemptError) throw new Error(`attempt: ${attemptError.message}`);
     if (!attempt || attempt.student_id !== userId) return null;
 
-    const [{ data: version }, { data: runtime, error: runtimeError }] = await Promise.all([
+    const [{ data: version, error: versionError }, { data: runtime, error: runtimeError }] = await Promise.all([
       this.admin
         .from("spec_version")
         .select("id, json, compiled_stages")
         .eq("adventure_id", attempt.adventure_id)
         .eq("version", attempt.published_version)
-        .single<{ id: string; json: unknown; compiled_stages: unknown }>(),
+        .maybeSingle<{ id: string; json: unknown; compiled_stages: unknown }>(),
       this.admin
         .from("attempt_runtime")
         .select("stage_spec_id, revision, snapshot")
@@ -158,6 +159,9 @@ export class SupabasePlayStore implements PlayStore {
     // A failed read is not an absent runtime: treating it as one would start a
     // fresh session over saved state and then collide with it on save.
     if (runtimeError) throw new Error(`attempt_runtime: ${runtimeError.message}`);
+    // Likewise for the pinned version: a read that failed is not a version that
+    // is absent, and reporting it as one tells the student "no such attempt".
+    if (versionError) throw new Error(`spec_version: ${versionError.message}`);
     if (!version) return null;
     const validated = validatePublishedSpec(version.json);
     if (!validated.ok) throw new Error(`published spec v${attempt.published_version} of ${attempt.adventure_id} is not a readable spec`);
