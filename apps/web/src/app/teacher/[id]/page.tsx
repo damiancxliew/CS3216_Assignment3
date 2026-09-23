@@ -206,7 +206,7 @@ export default async function AdventurePage({
                       {extracted ? (
                         <details>
                           <summary className="cursor-pointer">{label}</summary>
-                          <div className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap rounded-surface border border-line bg-sunken px-4 py-3 text-base text-muted">
+                          <div className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-surface border border-line bg-sunken px-4 py-3 text-base text-muted">
                             {extracted.text}
                           </div>
                           {extracted.truncated ? (
