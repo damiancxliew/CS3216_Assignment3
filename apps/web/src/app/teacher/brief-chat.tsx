@@ -52,6 +52,10 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
     endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [state?.messages.length, pending]);
 
+  useEffect(() => {
+    autoGrow(composer.current, 240);
+  }, [text]);
+
   function run(work: () => Promise<{ ok: true; state: BriefState } | { ok: false; error: string }>) {
     setError(null);
     startTransition(async () => {
@@ -214,7 +218,10 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
               <textarea
                 ref={composer}
                 value={text}
-                onChange={(event) => setText(event.target.value)}
+                onChange={(event) => {
+                  setText(event.target.value);
+                  autoGrow(event.currentTarget, 240);
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
@@ -236,6 +243,13 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
       </footer>
     </div>
   );
+}
+
+/** The composer grows with what is typed, up to a cap, instead of scrolling. */
+function autoGrow(field: HTMLTextAreaElement | null, maxPx: number) {
+  if (!field) return;
+  field.style.height = "auto";
+  field.style.height = `${Math.min(field.scrollHeight, maxPx)}px`;
 }
 
 const STEP_LABELS: Record<string, string> = {
@@ -335,6 +349,7 @@ function SourceStep({
   onDone: () => void;
 }) {
   const [pasting, setPasting] = useState(false);
+  const pasteField = useRef<HTMLTextAreaElement>(null);
   return (
     <div className="flex flex-col gap-2 text-base">
       <form
@@ -346,12 +361,14 @@ function SourceStep({
       >
         {pasting ? (
           <textarea
+            ref={pasteField}
             name="body"
             rows={3}
             placeholder="Paste the passage students will play from…"
             aria-label="Source text"
             disabled={pending}
-            className={`${control} min-w-[16rem] flex-1`}
+            onInput={(event) => autoGrow(event.currentTarget, 240)}
+            className={`${control} min-w-[16rem] flex-1 resize-none`}
           />
         ) : (
           <input
