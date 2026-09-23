@@ -65,10 +65,17 @@ describe('OpenAI Responses API adapter', () => {
     expect(JSON.stringify(sanitized)).not.toContain('$id')
   })
 
-  it('maps tier, strict schema format, instructions, input and usage through the Responses API', async () => {
+  it('maps controls, strict schema format, instructions, input, usage and latency through the Responses API', async () => {
     const create = vi.fn().mockResolvedValue({
       output_text: '{"answer":"ok"}',
-      usage: { input_tokens: 12, output_tokens: 7 },
+      model: 'gpt-5-mini',
+      service_tier: 'priority',
+      usage: {
+        input_tokens: 12,
+        output_tokens: 7,
+        input_tokens_details: { cached_tokens: 3 },
+        output_tokens_details: { reasoning_tokens: 4 },
+      },
     })
     const options: OpenAiClientOptions = {
       apiKey: 'test-key',
@@ -77,15 +84,57 @@ describe('OpenAI Responses API adapter', () => {
     }
     const client = createOpenAiClient(options)
 
-    const result = await client.complete(request)
-    expect(result).toEqual({
-      content: '{"answer":"ok"}',
-      usage: { promptTokens: 12, completionTokens: 7 },
+    const result = await client.complete({
+      ...request,
+      reasoningEffort: 'minimal',
+      verbosity: 'low',
+      maxOutputTokens: 400,
+      serviceTier: 'fast',
     })
+    expect(result.content).toBe('{"answer":"ok"}')
+    expect(result.usage).toEqual({ promptTokens: 12, completionTokens: 7, cachedPromptTokens: 3, reasoningTokens: 4 })
+    expect(result.model).toBe('gpt-5-mini')
+    expect(result.serviceTier).toBe('priority')
+    expect(result.latencyMs).toEqual(expect.any(Number))
+    expect(result.latencyMs).toBeGreaterThanOrEqual(0)
     expect(create).toHaveBeenCalledWith({
       model: 'override-cheap',
       instructions: request.system,
       input: request.user,
+      store: false,
+      reasoning: { effort: 'minimal' },
+      max_output_tokens: 400,
+      service_tier: 'fast',
+      text: {
+        verbosity: 'low',
+        format: {
+          type: 'json_schema',
+          name: request.schemaName,
+          schema: request.jsonSchema,
+          strict: true,
+        },
+      },
+    })
+  })
+
+  it('omits undefined controls while always disabling storage', async () => {
+    const create = vi.fn().mockResolvedValue({
+      output_text: '{}',
+      model: 'gpt-5-nano',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    })
+    const client = createOpenAiClient({
+      apiKey: 'test-key',
+      client: { responses: { create } } as unknown as NonNullable<OpenAiClientOptions['client']>,
+    })
+
+    await client.complete(request)
+
+    expect(create).toHaveBeenCalledWith({
+      model: MODEL_BY_TIER.cheap,
+      instructions: request.system,
+      input: request.user,
+      store: false,
       text: {
         format: {
           type: 'json_schema',

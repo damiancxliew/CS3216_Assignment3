@@ -1,16 +1,10 @@
-import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { READING_BANDS } from "@adventure/generation/spec";
-
 import { SharePanel } from "./share-panel";
 import {
-  addFileSource,
-  addTextSource,
   generateFromSources,
-  importSpec,
   publishAdventure,
   startEdit,
   updateDefaultTimer,
@@ -19,14 +13,16 @@ import {
 } from "../actions";
 import { ActionButton, ActionForm } from "@/components/action-form";
 import {
+  button,
+  EmptyState,
   Field,
-  FileField,
+  Page,
   Section,
-  SelectField,
   StatusBadge,
   READING_BAND_LABELS,
 } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
+import type { ReadingLevel } from "@/lib/brief/schema";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -41,13 +37,14 @@ type Adventure = {
   id: string;
   student_role: string | null;
   learning_objectives: string[] | null;
-  reading_level: { band: (typeof READING_BANDS)[number]; ageMin: number; ageMax: number } | null;
+  reading_level: ReadingLevel | null;
   title: string;
   setting: string | null;
   status: "draft" | "published" | "archived";
   published_version: number | null;
   default_timer_seconds: number;
   share_token: string;
+  stage_outline: { title: string; focus: string }[];
 };
 
 type Version = { id: string; version: number; published_at: string | null };
@@ -78,7 +75,7 @@ export default async function AdventurePage({
   // authoring view matches the owner rather than relying on visibility alone.
   const { data: adventure } = await supabase
     .from("adventure")
-    .select("id, title, setting, status, published_version, default_timer_seconds, share_token, student_role, learning_objectives, reading_level")
+    .select("id, title, setting, status, published_version, default_timer_seconds, share_token, student_role, learning_objectives, reading_level, stage_outline")
     .eq("id", id)
     .eq("owner_id", user.id)
     .maybeSingle<Adventure>();
@@ -99,6 +96,7 @@ export default async function AdventurePage({
     .from("source")
     .select("id, title, kind, page_map")
     .eq("adventure_id", id)
+    .order("created_at")
     .returns<
       {
         id: string;
@@ -107,6 +105,7 @@ export default async function AdventurePage({
         page_map: { pages?: number } | null;
       }[]
     >();
+  const sourceRows = sources ?? [];
 
   const { data: stageRows } = editable
     ? await supabase
@@ -139,97 +138,72 @@ export default async function AdventurePage({
   const finished = (attempts ?? []).filter((a) => a.status === "completed");
   const minutes = (rows: { duration_seconds: number }[]) => Math.round(rows.reduce((sum, r) => sum + r.duration_seconds, 0) / 60);
   const tokens = (rows: { tokens: number }[]) => rows.reduce((sum, r) => sum + r.tokens, 0);
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-6 py-16">
-      <header className="flex flex-col gap-3">
-        <Link href="/teacher" className="inline-flex w-fit items-center gap-1 text-sm opacity-60 hover:opacity-100">
-          <ArrowLeft className="h-4 w-4" aria-hidden /> All adventures
+    <Page
+      kicker={
+        <Link href="/teacher" className="hover:text-ink">
+          All adventures
         </Link>
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">{adventure.title}</h1>
-          <StatusBadge
-            status={adventure.status}
-            version={adventure.published_version}
-          />
-        </div>
-        {adventure.setting ? <p className="opacity-70">{adventure.setting}</p> : null}
-      </header>
-
-      <Section title="Sources">
-        {sources && sources.length > 0 ? (
-          <ul className="flex flex-col gap-1 text-sm opacity-80">
-            {sources.map((source) => (
-              <li key={source.id}>
-                {source.title ?? "Untitled"}{" "}
-                <span className="opacity-50">
-                  ({source.kind}
-                  {source.page_map?.pages
-                    ? ` · ${source.page_map.pages} page${source.page_map.pages === 1 ? "" : "s"}`
-                    : ""}
-                  )
-                </span>
-              </li>
+      }
+      title={
+        <span className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+          {adventure.title}
+          <StatusBadge status={adventure.status} version={adventure.published_version} />
+        </span>
+      }
+      lede={adventure.setting}
+    >
+      <Section title="Brief">
+        {adventure.reading_level ? (
+          <dl className="flex flex-col divide-y divide-line text-base">
+            <BriefRow label="Student plays">{adventure.student_role}</BriefRow>
+            <BriefRow label="Objectives">
+              <ul className="list-disc pl-4">
+                {adventure.learning_objectives?.map((objective) => <li key={objective}>{objective}</li>)}
+              </ul>
+            </BriefRow>
+            <BriefRow label="Reading level">
+              {READING_BAND_LABELS[adventure.reading_level.band]}, ages {adventure.reading_level.ageMin} to {adventure.reading_level.ageMax}
+            </BriefRow>
+            {adventure.stage_outline.map((stage, index) => (
+              <BriefRow key={stage.title} label={`Stage ${index + 1}`}>
+                <span className="font-semibold">{stage.title}.</span> {stage.focus}
+              </BriefRow>
             ))}
-          </ul>
+            <BriefRow label="Sources">
+              <ul className="flex flex-col gap-0.5">
+                {sourceRows.map((source) => (
+                  <li key={source.id}>
+                    {source.title ?? "Untitled"}
+                    {source.page_map?.pages ? <span className="text-muted"> ({plural(source.page_map.pages, "page")})</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </BriefRow>
+          </dl>
         ) : (
-          <p className="text-sm opacity-60">No source material yet.</p>
+          <p className="text-base text-muted">
+            This adventure predates the brief conversation and cannot be generated. Create a new one from the console.
+          </p>
         )}
-        <ActionForm
-          action={addFileSource.bind(null, adventure.id)}
-          submitLabel="Upload source"
-          pendingLabel="Reading…"
-          event={ANALYTICS_EVENTS.sourceUploaded}
-        >
-          <Field name="title" label="Source title" placeholder="Uses the filename" optional />
-          <FileField
-            name="file"
-            label="PDF, .txt or .md"
-            accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
-            hint="Text is extracted page by page, because pages are what the debrief cites. A scanned PDF has no text layer — paste it below instead."
-          />
-        </ActionForm>
-
-        <details className="text-sm">
-          <summary className="cursor-pointer opacity-70">Or paste the text</summary>
-          <div className="pt-3">
-            <ActionForm
-              action={addTextSource.bind(null, adventure.id)}
-              submitLabel="Add source"
-              pendingLabel="Adding…"
-              event={ANALYTICS_EVENTS.sourceUploaded}
-            >
-              <Field
-                name="title"
-                label="Source title"
-                placeholder="Classroom handout"
-                optional
-              />
-              <Field
-                name="body"
-                label="Source text"
-                placeholder="Paste the passage students will play from…"
-                multiline
-              />
-            </ActionForm>
-          </div>
-        </details>
       </Section>
 
-      <Section title="Content">
+      <Section title="Playable version" lede="The planner turns the brief and the sources into stages, stakeholders and evidence. Every stage is editable before you publish.">
         {versions.length === 0 ? (
-          <p className="text-sm opacity-60">
-            No version yet. Generate one from the sources above to get a playable draft.
-          </p>
+          <EmptyState title="Not generated yet">
+            Generating takes a minute or two. Nothing here is visible to students until you publish.
+          </EmptyState>
         ) : (
-          <ul className="flex flex-col gap-1 text-sm opacity-80">
+          <ul className="flex flex-col divide-y divide-line border-y border-line text-base">
             {versions.map((version) => (
-              <li key={version.id}>
-                v{version.version}{" "}
-                <span className="opacity-50">
+              <li key={version.id} className="flex items-baseline justify-between gap-4 py-2.5">
+                <span className="font-semibold text-ink">Version {version.version}</span>
+                <span className="text-base text-muted">
                   {version.published_at
-                    ? `published ${new Date(version.published_at).toLocaleString()} · frozen`
-                    : "draft · editable"}
+                    ? `Published ${new Date(version.published_at).toLocaleString()}, frozen`
+                    : "Draft, editable"}
                 </span>
               </li>
             ))}
@@ -239,7 +213,7 @@ export default async function AdventurePage({
         {draft ? (
           <ActionButton
             action={publishAdventure.bind(null, adventure.id)}
-            label={`Publish v${draft.version}`}
+            label={`Publish version ${draft.version}`}
             pendingLabel="Publishing…"
             event={ANALYTICS_EVENTS.adventurePublished}
           />
@@ -252,164 +226,75 @@ export default async function AdventurePage({
           />
         ) : null}
         {published && !draft ? (
-          <p className="text-sm opacity-60">
-            v{published.version} is published and frozen. Editing copies it into a new
+          <p className="max-w-[60ch] text-base text-muted">
+            Version {published.version} is published and frozen. Editing copies it into a new
             draft; students already playing stay on the version they started.
           </p>
         ) : null}
 
         {draft ? (
-          <p className="text-sm opacity-60">
-            Publish or discard draft v{draft.version} before generating again.
-          </p>
-        ) : (
-          <details className="text-sm" open={versions.length === 0}>
-            <summary className="cursor-pointer opacity-70">
-              Generate {versions.length === 0 ? "a draft" : "a new version"} from the sources
-            </summary>
-            <div className="pt-3">
-              {!sources || sources.length === 0 ? (
-                <p className="opacity-60">Add at least one source first.</p>
-              ) : (
-                <ActionForm
-                  action={generateFromSources.bind(null, adventure.id)}
-                  submitLabel={`Generate from ${sources.length} source${sources.length === 1 ? "" : "s"}`}
-                  pendingLabel="Generating… this takes a minute or two"
-                  event={ANALYTICS_EVENTS.generationCompleted}
-                >
-                  <Field
-                    name="setting"
-                    label="Setting"
-                    placeholder="Singapore and Johor, 1819"
-                    defaultValue={adventure.setting ?? undefined}
-                  />
-                  <Field
-                    name="studentRole"
-                    label="Who the student plays"
-                    placeholder="Junior interpreter to the expedition"
-                    defaultValue={adventure.student_role ?? undefined}
-                  />
-                  <Field
-                    name="learningObjectives"
-                    label="Learning objectives (one per line, up to six)"
-                    placeholder={"Explain why the EIC wanted a port at the Straits\nDescribe the Johor succession dispute"}
-                    multiline
-                    rows={3}
-                    defaultValue={adventure.learning_objectives?.join("\n") || undefined}
-                  />
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <SelectField
-                      name="band"
-                      label="Reading level"
-                      defaultValue={adventure.reading_level?.band ?? "lower-secondary"}
-                      options={READING_BANDS.map((band) => ({ value: band, label: READING_BAND_LABELS[band] }))}
-                    />
-                    <Field name="ageMin" label="Age from" defaultValue={String(adventure.reading_level?.ageMin ?? 13)} />
-                    <Field name="ageMax" label="Age to" defaultValue={String(adventure.reading_level?.ageMax ?? 14)} />
-                    <SelectField
-                      name="stageCount"
-                      label="Stages"
-                      defaultValue="3"
-                      options={[
-                        { value: "1", label: "1" },
-                        { value: "2", label: "2" },
-                        { value: "3", label: "3" },
-                      ]}
-                    />
-                  </div>
-                </ActionForm>
-              )}
-            </div>
-          </details>
-        )}
-
-        <details className="text-sm">
-          <summary className="cursor-pointer opacity-70">Import an adventure spec</summary>
-          <div className="pt-3">
-            <ActionForm
-              action={importSpec.bind(null, adventure.id)}
-              submitLabel="Import as draft"
-              pendingLabel="Importing…"
-              event={ANALYTICS_EVENTS.generationCompleted}
-            >
-              <Field
-                name="spec"
-                label="Adventure spec v2 (JSON)"
-                placeholder='{"version": 2, "id": "…"}'
-                multiline
-                rows={8}
-              />
-            </ActionForm>
-            <p className="pt-2 opacity-60">
-              For a spec produced elsewhere (the generation CLI, a hand-authored fixture).
-              It goes through the same validation and write path as generation.
-            </p>
-          </div>
-        </details>
+          <p className="text-base text-muted">Publish or discard draft version {draft.version} before generating again.</p>
+        ) : adventure.reading_level && sourceRows.length > 0 ? (
+          <ActionButton
+            action={generateFromSources.bind(null, adventure.id)}
+            label={versions.length === 0 ? "Generate the adventure" : "Generate a new version"}
+            pendingLabel="Generating… this takes a minute or two"
+            event={ANALYTICS_EVENTS.generationCompleted}
+          />
+        ) : null}
       </Section>
 
       {editable && stages.length > 0 ? (
-        <Section title={`Editing draft v${editable.version}`}>
-          {stages.map((stage) => (
-            <div
-              key={stage.id}
-              className="flex flex-col gap-4 rounded-2xl border border-black/10 p-5 dark:border-white/15"
-            >
-              <ActionForm
-                action={updateStage.bind(null, adventure.id, stage.id)}
-                submitLabel="Save stage"
-                pendingLabel="Saving…"
-              >
-                <Field
-                  name="title"
-                  label={`Stage ${stage.index + 1}`}
-                  defaultValue={stage.title}
-                />
-                <Field
-                  name="shared_context"
-                  label="Shared context"
-                  defaultValue={stage.shared_context}
-                  multiline
-                />
-                <Field
-                  name="timer_seconds"
-                  label={`Timer override in seconds — empty inherits ${adventure.default_timer_seconds}, 0 disables`}
-                  defaultValue={
-                    stage.timer_seconds === null ? "" : String(stage.timer_seconds)
-                  }
-                  placeholder={String(adventure.default_timer_seconds)}
-                  optional
-                />
-              </ActionForm>
-
-              {stage.agent.map((agent) => (
+        <Section
+          title={`Editing draft version ${editable.version}`}
+          lede="Private motivations are written by the generator and never shown here: they live in a table no client role can read."
+        >
+          <ol className="flex flex-col gap-6">
+            {stages.map((stage) => (
+              <li key={stage.id} className="flex flex-col gap-6 rounded-surface border border-line bg-surface p-6">
                 <ActionForm
-                  key={agent.id}
-                  action={updateAgent.bind(null, adventure.id, agent.id)}
-                  submitLabel="Save stakeholder"
+                  action={updateStage.bind(null, adventure.id, stage.id)}
+                  submitLabel="Save stage"
                   pendingLabel="Saving…"
                 >
-                  <Field name="name" label="Stakeholder" defaultValue={agent.name} />
-                  <Field name="role" label="Role" defaultValue={agent.role ?? ""} optional />
+                  <Field name="title" label={`Stage ${stage.index + 1}`} defaultValue={stage.title} />
+                  <Field name="shared_context" label="Shared context" defaultValue={stage.shared_context} multiline />
                   <Field
-                    name="public_position"
-                    label="Public position"
-                    defaultValue={agent.public_position ?? ""}
-                    multiline
-                    rows={3}
+                    name="timer_seconds"
+                    label="Timer for this stage, in seconds"
+                    hint={`Empty inherits the default of ${adventure.default_timer_seconds}. 0 disables the timer.`}
+                    defaultValue={stage.timer_seconds === null ? "" : String(stage.timer_seconds)}
+                    placeholder={String(adventure.default_timer_seconds)}
+                    optional
                   />
                 </ActionForm>
-              ))}
-              <p className="text-xs opacity-50">
-                Private motivations are edited by the generator, never shown here: they
-                live in a table no client role can read.
-              </p>
-            </div>
-          ))}
+
+                {stage.agent.length ? (
+                  <div className="flex flex-col gap-6 border-t border-line pt-6">
+                    {stage.agent.map((agent) => (
+                      <ActionForm
+                        key={agent.id}
+                        action={updateAgent.bind(null, adventure.id, agent.id)}
+                        submitLabel="Save stakeholder"
+                        pendingLabel="Saving…"
+                      >
+                        <Field name="name" label="Stakeholder" defaultValue={agent.name} />
+                        <Field name="role" label="Role" defaultValue={agent.role ?? ""} optional />
+                        <Field name="public_position" label="Public position" defaultValue={agent.public_position ?? ""} multiline rows={3} />
+                      </ActionForm>
+                    ))}
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ol>
         </Section>
       ) : null}
 
-      <Section title="Stage timer">
+      <Section
+        title="Stage timer"
+        lede="The deadline is set and checked in the database when a stage opens, so refreshing, reopening the tab or changing the device clock buys no extra time."
+      >
         <ActionForm
           action={updateDefaultTimer.bind(null, adventure.id)}
           submitLabel="Save default"
@@ -417,15 +302,11 @@ export default async function AdventurePage({
         >
           <Field
             name="default_timer_seconds"
-            label="Default per stage, in seconds (0 disables timers entirely)"
+            label="Default per stage, in seconds"
+            hint="0 disables timers entirely. Each stage can override this above."
             defaultValue={String(adventure.default_timer_seconds)}
           />
         </ActionForm>
-        <p className="text-sm opacity-60">
-          The deadline itself is set and checked in the database when a stage opens,
-          so refreshing, reopening the tab or changing the device clock buys no extra
-          time. Per-stage overrides live with each stage below.
-        </p>
       </Section>
 
       <Section title="Share with students">
@@ -435,10 +316,7 @@ export default async function AdventurePage({
           published={adventure.status === "published"}
         />
         {adventure.status === "published" ? (
-          <Link
-            href={`/join/${adventure.share_token}`}
-            className="w-fit text-sm underline underline-offset-4 opacity-70 hover:opacity-100"
-          >
+          <Link href={`/join/${adventure.share_token}`} className={`${button.quiet} w-fit`}>
             Preview as a player
           </Link>
         ) : null}
@@ -446,34 +324,81 @@ export default async function AdventurePage({
 
       <Section title="Attempts">
         {attempts && attempts.length > 0 ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-6">
             {totals.length > 0 ? (
-              <p className="text-sm opacity-70">
-                {finished.length} of {attempts.length} finished · {totals.length} stage{totals.length === 1 ? "" : "s"} played ·{" "}
-                {Math.round(totals.filter((t) => t.ended_by === "timer").length / totals.length * 100)}% ended by the clock ·{" "}
-                {tokens(totals).toLocaleString()} tokens
-                {finished.length > 0 ? ` · ${Math.round(finished.reduce((sum, a) => sum + minutes(a.attempt_telemetry ?? []), 0) / finished.length)} min per finished attempt` : ""}
-              </p>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+                <Stat label="Finished" value={`${finished.length} of ${attempts.length}`} />
+                <Stat label="Stages played" value={String(totals.length)} />
+                <Stat label="Ended by the clock" value={`${Math.round((totals.filter((t) => t.ended_by === "timer").length / totals.length) * 100)}%`} />
+                <Stat label="Tokens" value={tokens(totals).toLocaleString()} />
+                {finished.length > 0 ? (
+                  <Stat
+                    label="Minutes per finished attempt"
+                    value={String(Math.round(finished.reduce((sum, a) => sum + minutes(a.attempt_telemetry ?? []), 0) / finished.length))}
+                  />
+                ) : null}
+              </dl>
             ) : null}
-            <ul className="flex flex-col gap-1 text-sm opacity-80">
-              {attempts.map((attempt) => {
-                const rows = attempt.attempt_telemetry ?? [];
-                return (
-                  <li key={attempt.id}>
-                    v{attempt.published_version} · {attempt.status}
-                    {rows.length > 0
-                      ? ` · ${rows.length} stage${rows.length === 1 ? "" : "s"} · ${minutes(rows)} min · ${tokens(rows).toLocaleString()} tokens · ${rows.reduce((n, r) => n + r.messages, 0)} messages · ${rows.reduce((n, r) => n + r.evidence_found, 0)} evidence`
-                      : ""}{" "}
-                    · <span className="opacity-50">{new Date(attempt.updated_at).toLocaleString()}</span>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[40rem] border-collapse text-base">
+                <thead>
+                  <tr className="border-b border-line text-left text-muted">
+                    <th className="py-2 pr-4 font-semibold">Version</th>
+                    <th className="py-2 pr-4 font-semibold">Status</th>
+                    <th className="py-2 pr-4 text-right font-semibold">Stages</th>
+                    <th className="py-2 pr-4 text-right font-semibold">Minutes</th>
+                    <th className="py-2 pr-4 text-right font-semibold">Messages</th>
+                    <th className="py-2 pr-4 text-right font-semibold">Evidence</th>
+                    <th className="py-2 pr-4 text-right font-semibold">Tokens</th>
+                    <th className="py-2 font-semibold">Last active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attempts.map((attempt) => {
+                    const rows = attempt.attempt_telemetry ?? [];
+                    return (
+                      <tr key={attempt.id} className="border-b border-line tabular-nums">
+                        <td className="py-2 pr-4">{attempt.published_version}</td>
+                        <td className="py-2 pr-4 capitalize">{attempt.status}</td>
+                        <td className="py-2 pr-4 text-right">{rows.length}</td>
+                        <td className="py-2 pr-4 text-right">{minutes(rows)}</td>
+                        <td className="py-2 pr-4 text-right">{rows.reduce((n, r) => n + r.messages, 0)}</td>
+                        <td className="py-2 pr-4 text-right">{rows.reduce((n, r) => n + r.evidence_found, 0)}</td>
+                        <td className="py-2 pr-4 text-right">{tokens(rows).toLocaleString()}</td>
+                        <td className="py-2 text-muted">{new Date(attempt.updated_at).toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
-          <p className="text-sm opacity-60">Nobody has joined yet.</p>
+          <EmptyState title="Nobody has joined yet">
+            {adventure.status === "published"
+              ? "Share the link above with your class. Each attempt appears here as soon as a student enters."
+              : "Attempts appear here once the adventure is published and students open the link."}
+          </EmptyState>
         )}
       </Section>
-    </main>
+    </Page>
+  );
+}
+
+function BriefRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:gap-4">
+      <dt className="w-32 shrink-0 text-base text-muted">{label}</dt>
+      <dd className="flex-1 text-ink">{children}</dd>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-base text-muted">{label}</dt>
+      <dd className="font-serif text-2xl text-ink tabular-nums">{value}</dd>
+    </div>
   );
 }

@@ -11,7 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { persistSpecVersion } from "@/lib/adventures/persist-spec";
-import { createUserClient, serviceClient, uniqueEmail } from "./helpers";
+import { createUserClient, prepareVersionMaps, serviceClient, uniqueEmail } from "./helpers";
 
 const admin = serviceClient();
 
@@ -113,6 +113,7 @@ beforeEach(async () => {
   otherTeacher = o.client;
   student = s.client;
   fixture = await seedDraft(t.userId);
+  await prepareVersionMaps(admin, fixture.specVersionId);
 });
 
 describe("publish_adventure", () => {

@@ -18,9 +18,12 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test",
     "eval:k9": "vite-node evals/run-k9.ts",
-    "eval:k10": "vite-node evals/run-k10.ts"
+    "eval:k10": "vite-node evals/run-k10.ts",
+    "eval:latency": "vite-node evals/run-latency.ts",
+    "eval:decision-latency": "vite-node evals/run-decision-latency.ts"
   },
   "dependencies": {
+    "@adventure/game-core": "file:../game-core",
     "openai": "7.15.0",
     "zod": "^4.6.5"
   },

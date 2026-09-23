@@ -5,12 +5,18 @@ import type { PublicEffect, PublicMessage } from "@/lib/turn-api/contract";
 export type ApiFailure = { code: string; message: string };
 
 async function call<T>(url: string, init?: RequestInit): Promise<{ ok: true; body: T } | { ok: false; error: ApiFailure }> {
-  const response = await fetch(url, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
+  let response: Response;
+  try {
+    response = await fetch(url, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
+  } catch {
+    return { ok: false, error: { code: "network_error", message: "Could not reach the server. Please try again." } };
+  }
   const body = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
     const error = (body as { error?: ApiFailure } | null)?.error ?? { code: "unknown", message: `HTTP ${response.status}` };
     return { ok: false, error };
   }
+  if (body === null || typeof body !== "object") return { ok: false, error: { code: "invalid_response", message: "The server returned an invalid response. Please try again." } };
   return { ok: true, body: body as T };
 }
 

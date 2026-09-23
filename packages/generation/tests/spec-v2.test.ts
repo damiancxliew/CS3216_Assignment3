@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { loadFixtureJson, loadI1Documents, loadI1Spec } from '../src/fixtures'
 import { verifyGrounding } from '../src/ingest/spans'
 import { MAX_GENERATED_ASSETS } from '../src/spec/catalogue'
-import { publicProjection, resolveStageSettings, validateAdventureSpec } from '../src/spec/v2'
+import { publicProjection, resolveStageSettings, validateAdventureSpec, validatePublishedSpec } from '../src/spec/v2'
 
 type Json = Record<string, any>
 
@@ -25,6 +25,24 @@ describe('I1 fixture', () => {
     expect(result.ok, result.ok ? '' : JSON.stringify(result.issues, null, 2)).toBe(true)
   })
 
+  it('keeps legacy missing enclosure values as explicit null', async () => {
+    const spec = await fixture()
+    spec.stages.forEach((stage: Json) => stage.rooms.forEach((room: Json) => {
+      if (room.enclosure === 'open') room.doorDefault = 'open'
+      delete room.enclosure
+    }))
+    const result = validateAdventureSpec(spec)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.spec.stages.every((stage) => stage.rooms.every((room) => room.enclosure === null))).toBe(true)
+  })
+
+  it('preserves explicit enclosure annotations through parsing and public projection', async () => {
+    const spec = await loadI1Spec()
+    expect(spec.stages.flatMap((stage) => stage.rooms).every((room) => room.enclosure !== null)).toBe(true)
+    const projected = publicProjection(spec)
+    expect(projected.stages.flatMap((stage) => stage.rooms).map((room) => room.enclosure)).toEqual(spec.stages.flatMap((stage) => stage.rooms).map((room) => room.enclosure))
+  })
+
   it('exercises the full v2 surface: 3 stages, rooms with doors, private context, branch targets, assets, overlays', async () => {
     const spec = await loadI1Spec()
     expect(spec.stages).toHaveLength(3)
@@ -38,6 +56,18 @@ describe('I1 fixture', () => {
     expect(spec.assetEligibility.length).toBeLessThanOrEqual(MAX_GENERATED_ASSETS)
     expect(spec.stages.map((s) => resolveStageSettings(spec, s).ambientOverlay.id)).toEqual(['clouds', 'rain', 'dust'])
     expect(spec.stages.map((s) => resolveStageSettings(spec, s).timerSeconds)).toEqual([480, 600, 0])
+    const enclosureById = Object.fromEntries(spec.stages.flatMap((stage) => stage.rooms.map((room) => [room.id, [room.enclosure, room.doorDefault]])))
+    expect(enclosureById).toEqual({
+      'landing-beach': ['open', null],
+      'ship-cabin': ['enclosed', 'closed'],
+      'temenggong-hall': ['enclosed', 'open'],
+      'farquhar-tent': ['enclosed', 'open'],
+      'hussein-quarters': ['enclosed', 'closed'],
+      'treaty-ground': ['open', null],
+      bazaar: ['open', null],
+      'resident-office': ['enclosed', 'closed'],
+      godown: ['enclosed', 'open'],
+    })
   })
 
   it('every source span resolves to a real page of the source (D2 spot-check)', async () => {
@@ -57,6 +87,18 @@ describe('I1 fixture', () => {
 })
 
 describe('Adventure Spec v2 rejects', () => {
+  it('invalid enclosure and doorDefault combinations', async () => {
+    const openWithDoor = await fixture()
+    openWithDoor.stages[0].rooms[0].enclosure = 'open'
+    openWithDoor.stages[0].rooms[0].doorDefault = 'open'
+    expectInvalid(openWithDoor, 'stages.0.rooms.0.doorDefault', 'open locations must have no door')
+
+    const enclosedWithoutDoor = await fixture()
+    enclosedWithoutDoor.stages[0].rooms[0].enclosure = 'enclosed'
+    enclosedWithoutDoor.stages[0].rooms[0].doorDefault = null
+    expectInvalid(enclosedWithoutDoor, 'stages.0.rooms.0.doorDefault', 'enclosed or legacy locations require')
+  })
+
   it('a missing reading level (FR-1a)', async () => {
     const spec = await fixture()
     delete spec.readingLevel
@@ -114,6 +156,24 @@ describe('Adventure Spec v2 rejects', () => {
     const spec = await fixture()
     spec.stages[0].agents[0].startRoomId = 'bazaar'
     expectInvalid(spec, 'stages.0.agents.0.startRoomId', 'unknown room')
+  })
+
+  it('a closed room nobody starts in', async () => {
+    const spec = await fixture()
+    const stage = spec.stages[0]
+    const sealed = stage.rooms.find((r: Json) => r.doorDefault === 'closed' && r.id !== stage.spawnRoomId)
+    for (const agent of stage.agents) if (agent.startRoomId === sealed.id) agent.startRoomId = stage.spawnRoomId
+    expectInvalid(spec, 'stages.0.rooms', 'never be opened')
+  })
+
+  it('but keeps an already-published version readable, so a new authoring rule cannot retire a live adventure', async () => {
+    const spec = await fixture()
+    const stage = spec.stages[0]
+    const sealed = stage.rooms.find((r: Json) => r.doorDefault === 'closed' && r.id !== stage.spawnRoomId)
+    for (const agent of stage.agents) if (agent.startRoomId === sealed.id) agent.startRoomId = stage.spawnRoomId
+    expect(validateAdventureSpec(spec).ok).toBe(false)
+    expect(validatePublishedSpec(spec).ok).toBe(true)
+    expect(validatePublishedSpec({ version: 1 }).ok).toBe(false)
   })
 
   it('a backward branch target', async () => {

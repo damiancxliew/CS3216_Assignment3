@@ -14,6 +14,7 @@ import {
 } from './types.js'
 
 const ROOM_DIMENSIONS: Record<RoomSize, number> = { small: 7, medium: 9, large: 11 }
+const LAYOUT_RANDOM_VERSION = 'settlement-1'
 
 function compareIds(left: { id: string }, right: { id: string }): number {
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
@@ -35,11 +36,12 @@ function pointKey(point: Point): string {
 
 function stageInput(value: unknown): StageLayoutInput {
   const raw = value as Record<string, unknown>
-  const rooms = (raw.rooms as readonly Record<string, unknown>[]).map((room) => ({
-    id: room.id as string,
-    size: room.size as RoomSize,
-    doorDefault: room.doorDefault as DoorState,
-  }))
+  const rooms = (raw.rooms as readonly Record<string, unknown>[]).map((room) => {
+    const enclosure = room.enclosure as 'enclosed' | 'open' | undefined
+    return enclosure === undefined
+      ? { id: room.id as string, size: room.size as RoomSize, doorDefault: room.doorDefault as DoorState | null }
+      : { id: room.id as string, size: room.size as RoomSize, enclosure, doorDefault: room.doorDefault as DoorState | null }
+  })
   const placements = (raw.placements as readonly Record<string, unknown>[]).map((placement) => ({
     id: placement.id as string,
     kind: placement.kind as 'actor' | 'evidence' | 'decision',
@@ -71,7 +73,7 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
   if (errors.length > 0) throw new Error(errors.join('; '))
   const input = stageInput(value)
   const sortedRooms = [...input.rooms].sort(compareIds)
-  const layoutRandom = randomGenerator(JSON.stringify([GENERATOR_VERSION, input.stageId, seed, 'layout']))
+  const layoutRandom = randomGenerator(JSON.stringify([LAYOUT_RANDOM_VERSION, input.stageId, seed, 'layout']))
   const slots = shuffle(Array.from({ length: sortedRooms.length }, (_, index) => index), layoutRandom)
   const width = 4 + Math.ceil(sortedRooms.length / 2) * 14
   const height = 30
@@ -87,24 +89,33 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
     const roomHeight = ROOM_DIMENSIONS[room.size]
     const x = 2 + column * 14 + Math.floor(layoutRandom() * 2)
     const y = row === 0 ? 2 : height - 3 - roomHeight
-    const mapRoom = { id: room.id, x, y, width: roomWidth, height: roomHeight }
+    const enclosure = room.enclosure ?? 'enclosed'
+    const mapRoom = { id: room.id, enclosure, x, y, width: roomWidth, height: roomHeight }
     rooms.push(mapRoom)
-    for (let roomY = y; roomY < y + roomHeight; roomY += 1) {
-      for (let roomX = x; roomX < x + roomWidth; roomX += 1) {
-        const perimeter = roomX === x || roomX === x + roomWidth - 1 || roomY === y || roomY === y + roomHeight - 1
-        tiles[roomY]![roomX] = perimeter ? 'wall' : 'floor'
-      }
-    }
     const doorX = x + Math.floor(roomWidth / 2)
     const upper = row === 0
-    const position = { x: doorX, y: upper ? y + roomHeight - 1 : y }
-    const inside = { x: doorX, y: upper ? y + roomHeight - 2 : y + 1 }
-    const outside = { x: doorX, y: upper ? y + roomHeight : y - 1 }
-    tiles[position.y]![position.x] = 'door'
-    for (let pathY = outside.y; pathY !== 15; pathY += upper ? 1 : -1) {
-      if (tiles[pathY]![doorX] === 'grass') tiles[pathY]![doorX] = 'path'
+    const edgeY = upper ? y + roomHeight - 1 : y
+    if (enclosure === 'enclosed') {
+      for (let roomY = y; roomY < y + roomHeight; roomY += 1) {
+        for (let roomX = x; roomX < x + roomWidth; roomX += 1) {
+          const perimeter = roomX === x || roomX === x + roomWidth - 1 || roomY === y || roomY === y + roomHeight - 1
+          tiles[roomY]![roomX] = perimeter ? 'wall' : 'floor'
+        }
+      }
+      const position = { x: doorX, y: edgeY }
+      const inside = { x: doorX, y: upper ? y + roomHeight - 2 : y + 1 }
+      const outside = { x: doorX, y: upper ? y + roomHeight : y - 1 }
+      tiles[position.y]![position.x] = 'door'
+      for (let pathY = outside.y; pathY !== 15; pathY += upper ? 1 : -1) {
+        if (tiles[pathY]![doorX] === 'grass') tiles[pathY]![doorX] = 'path'
+      }
+      doors.push({ id: `door:${room.id}`, roomId: room.id, position, inside, outside })
+    } else {
+      tiles[edgeY]![doorX] = 'path'
+      for (let pathY = edgeY; pathY !== 15; pathY += upper ? 1 : -1) {
+        if (tiles[pathY]![doorX] === 'grass') tiles[pathY]![doorX] = 'path'
+      }
     }
-    doors.push({ id: `door:${room.id}`, roomId: room.id, position, inside, outside })
   })
   rooms.sort(compareIds)
   doors.sort(compareIds)
@@ -112,7 +123,7 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
   const doorByRoom = new Map(doors.map((door) => [door.roomId, door]))
   const roomInputById = new Map(input.rooms.map((room) => [room.id, room]))
   const initialDoors: Record<string, DoorState> = {}
-  for (const room of rooms) initialDoors[doorByRoom.get(room.id)!.id] = roomInputById.get(room.id)!.doorDefault
+  for (const door of doors) initialDoors[door.id] = roomInputById.get(door.roomId)!.doorDefault as DoorState
 
   const placements: CompiledStage['placements'] = []
   const sortedPlacements = [...input.placements].sort(compareIds)
@@ -124,15 +135,15 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
   }
   let playerSpawn: Point | undefined
   for (const room of rooms) {
-    const door = doorByRoom.get(room.id)!
+    const door = doorByRoom.get(room.id)
     const available: Point[] = []
     for (let y = room.y + 1; y < room.y + room.height - 1; y += 1) {
       for (let x = room.x + 1; x < room.x + room.width - 1; x += 1) {
         const point = { x, y }
-        if (pointKey(point) !== pointKey(door.inside)) available.push(point)
+        if (!door || pointKey(point) !== pointKey(door.inside)) available.push(point)
       }
     }
-    shuffle(available, randomGenerator(JSON.stringify([GENERATOR_VERSION, input.stageId, seed, 'placements', room.id])))
+    shuffle(available, randomGenerator(JSON.stringify([LAYOUT_RANDOM_VERSION, input.stageId, seed, 'placements', room.id])))
     if (room.id === input.spawnRoomId) playerSpawn = available.shift()!
     for (const placement of placementsByRoom.get(room.id) ?? []) {
       const position = available.shift()

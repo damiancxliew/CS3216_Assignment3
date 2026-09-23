@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Atkinson_Hyperlegible_Next, Literata } from "next/font/google";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -7,14 +7,20 @@ import { AuthListener } from "@/components/auth-listener";
 import { Analytics } from "@/lib/analytics/posthog";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// The interface voice. Chosen for the same reason the product has reading
+// bands: thirteen-year-olds on school laptops have to read it quickly.
+const ui = Atkinson_Hyperlegible_Next({
+  variable: "--font-ui",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// The record's voice: headings and anything quoted from the sources.
+const record = Literata({
+  variable: "--font-record",
   subsets: ["latin"],
+  style: ["normal", "italic"],
+  display: "swap",
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -43,9 +49,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${ui.variable} ${record.variable}`}>
         <Analytics>
           <AuthListener />
           {children}

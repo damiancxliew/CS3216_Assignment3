@@ -9,6 +9,8 @@
  */
 import { z } from "zod";
 
+export const OUTDOORS_ROOM_ID = "__outdoors__";
+
 export const AMBIENT_OVERLAYS = [
   "clear",
   "clouds",
@@ -34,6 +36,7 @@ export const publicRoomSchema = z.object({
   id: z.string(),
   name: z.string(),
   purpose: z.string().nullable(),
+  enclosure: z.enum(["open", "enclosed"]),
   doorOpen: z.boolean(),
   occupantIds: z.array(z.string()),
 });
@@ -183,8 +186,11 @@ export const apiErrorSchema = z.object({
       "not_found",
       "invalid_request",
       "stale_option",
+      "stale_state",
+      "conflict",
       "stage_closed",
       "rate_limited",
+      "incompatible_version",
     ]),
     message: z.string(),
   }),

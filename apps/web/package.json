@@ -12,6 +12,7 @@
   "dependencies": {
     "@adventure/game-client": "*",
     "@adventure/game-core": "*",
+    "@adventure/game-integration": "file:../../packages/game-integration",
     "@adventure/generation": "*",
     "@adventure/orchestration": "^0.1.0",
     "@supabase/ssr": "^0.12.7",

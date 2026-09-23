@@ -1,5 +1,5 @@
 {
-  "$id": "adventure-spec-v2.0",
+  "$id": "adventure-spec-v2.1",
   "title": "Adventure Spec v2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
@@ -546,6 +546,21 @@
                     "cell"
                   ]
                 },
+                "enclosure": {
+                  "default": null,
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "enclosed",
+                        "open"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "size": {
                   "type": "string",
                   "enum": [
@@ -555,10 +570,17 @@
                   ]
                 },
                 "doorDefault": {
-                  "type": "string",
-                  "enum": [
-                    "open",
-                    "closed"
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "closed"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
                   ]
                 },
                 "landmark": {
@@ -594,6 +616,7 @@
                 "name",
                 "purpose",
                 "kind",
+                "enclosure",
                 "size",
                 "doorDefault",
                 "landmark"

@@ -77,6 +77,27 @@ describe("persistSpecVersion", () => {
     );
   });
 
+  it("persists open rooms with nullable doors and authored spec ids", async () => {
+    const adventureId = await newAdventure();
+    const result = await persistSpecVersion(admin, adventureId, spec, { generatorVersion: "test" });
+    const { data: stages } = await admin.from("stage").select("id, index").eq("spec_version_id", result.specVersionId).order("index");
+    const { data: rooms } = await admin.from("room").select("spec_id, door_default, stage_id").in("stage_id", stages!.map((stage) => stage.id));
+    for (const authored of fixtureSpec.stages.flatMap((stage) => stage.rooms).filter((room) => room.enclosure === "open")) {
+      const stageIndex = fixtureSpec.stages.findIndex((stage) => stage.rooms.some((room) => room.id === authored.id));
+      const row = rooms!.find((room) => room.spec_id === authored.id);
+      expect(row).toMatchObject({ door_default: null, stage_id: stages![stageIndex]!.id });
+    }
+  });
+
+  it("rejects missing enclosure before inserting a version row", async () => {
+    const adventureId = await newAdventure();
+    const broken = structuredClone(spec) as Record<string, any>;
+    broken.stages[0].rooms[0].enclosure = null;
+    await expect(persistSpecVersion(admin, adventureId, broken, { generatorVersion: "test" })).rejects.toBeInstanceOf(SpecPersistError);
+    const { count } = await admin.from("spec_version").select("id", { count: "exact", head: true }).eq("adventure_id", adventureId);
+    expect(count).toBe(0);
+  });
+
   it("rewrites agent, evidence and branch references to database uuids", async () => {
     const adventureId = await newAdventure();
     const { specVersionId, ids } = await persistSpecVersion(
@@ -198,6 +219,65 @@ describe("persistSpecVersion", () => {
       .select("id", { count: "exact", head: true })
       .eq("adventure_id", adventureId);
     expect(count).toBe(0);
+  });
+
+  it("leaves no half-written version behind when a write fails part-way", async () => {
+    const adventureId = await newAdventure();
+    // What a connection-pool timeout looked like in production: the stages,
+    // rooms and agents were written, the options never were, and the frozen
+    // version that came out of it broke every attempt that joined it.
+    const flaky = new Proxy(admin, {
+      get(target, property, receiver) {
+        if (property !== "from") return Reflect.get(target, property, receiver);
+        return (table: string) => {
+          if (table === "decision_option") throw new Error("Timed out acquiring connection from connection pool");
+          return target.from(table);
+        };
+      },
+    }) as typeof admin;
+
+    await expect(
+      persistSpecVersion(flaky, adventureId, spec, { generatorVersion: "test" }),
+    ).rejects.toThrow(/connection pool/);
+
+    const { count } = await admin
+      .from("spec_version")
+      .select("id", { count: "exact", head: true })
+      .eq("adventure_id", adventureId);
+    expect(count).toBe(0);
+  });
+
+  it("refuses to publish a draft whose rows no longer match its spec", async () => {
+    const adventureId = await newAdventure();
+    const { specVersionId } = await persistSpecVersion(admin, adventureId, spec, {
+      generatorVersion: "test",
+    });
+    const { data: stages } = await admin
+      .from("stage")
+      .select("id, spec_id")
+      .eq("spec_version_id", specVersionId)
+      .order("index");
+    await admin.from("decision_option").delete().eq("stage_id", stages![0].id);
+
+    const { data: gaps } = await admin.rpc("spec_version_gaps", {
+      p_spec_version_id: specVersionId,
+    });
+    expect((gaps as string[]).length).toBe(fixtureSpec.stages[0].decision.options.length);
+    expect((gaps as string[])[0]).toMatch(/^option /);
+
+    const teacher = await createUserClient(uniqueEmail("p5-incomplete"));
+    await admin.from("adventure").update({ owner_id: teacher.userId }).eq("id", adventureId);
+    const { error } = await teacher.client.rpc("publish_adventure", {
+      p_adventure_id: adventureId,
+    });
+    expect(error?.message).toMatch(/incomplete/);
+
+    const { data: version } = await admin
+      .from("spec_version")
+      .select("published_at")
+      .eq("id", specVersionId)
+      .single();
+    expect(version!.published_at).toBeNull();
   });
 
   it("refuses a second import while an unpublished draft is open", async () => {

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
+import { compileStage, findPath } from '@adventure/game-core'
 import { createFixtureWorld, fixtureAgentTurnInput } from '../src/fixtures'
+import type { LlmClient, LlmResponse } from '../src/llm/types'
+import { applyAction, advanceSpatialMovement, buildAgentTurnInput, createWorld, hasConversationExchange, moveActorStep, visibleTranscript, type WorldState } from '../src/index'
 import { FakeLlmClient } from '../src/llm/fake'
 import {
   DEFAULT_REPLY_RATE_LIMIT,
@@ -17,6 +20,32 @@ import {
 const reply = (say: string) => JSON.stringify({ say, actions: [] })
 
 const askedInTheHall = { ...fixtureAgentTurnInput, playerMessage: 'Would you sign, if the payment were yearly?' }
+
+function createSpatialReplyWorld(playerId = 'player'): { world: WorldState; input: ReturnType<typeof buildAgentTurnInput> } {
+  const compiled = compileStage({
+    stageId: 'reply-spatial',
+    spawnRoomId: 'yard',
+    rooms: [
+      { id: 'yard', size: 'medium', enclosure: 'open', doorDefault: null },
+      { id: 'hall', size: 'medium', enclosure: 'enclosed', doorDefault: 'open' },
+    ],
+    placements: [{ id: 'agent', kind: 'actor', roomId: 'hall' }, { id: 'decision', kind: 'decision', roomId: 'yard' }],
+  }, 'reply-seed')
+  const agentPosition = compiled.placements.find(({ id }) => id === 'agent')!.position
+  const world = createWorld({
+    rooms: compiled.map.rooms.map((room) => ({ id: room.id, name: room.id, description: room.id, doorOpen: room.enclosure === 'open' || compiled.initialDoors[`door:${room.id}`] === 'open', enclosure: room.enclosure })),
+    actors: [
+      { id: playerId, name: 'Player', publicRole: 'visitor', kind: 'player' },
+      { id: 'agent', name: 'Agent', publicRole: 'keeper', kind: 'agent' },
+    ],
+    placement: { [playerId]: 'yard', agent: 'hall' },
+    spatial: { map: compiled.map, state: { doors: { ...compiled.initialDoors }, actors: { [playerId]: compiled.playerSpawn, agent: agentPosition } } },
+  })
+  applyAction(world, { actorKind: 'player', actorId: playerId, action: { type: 'move_room', toRoomId: 'hall' } })
+  for (let step = 0; step < compiled.map.width * compiled.map.height && world.location[playerId] !== 'hall'; step += 1) advanceSpatialMovement(world)
+  const input = buildAgentTurnInput(world, 'agent', { sharedContext: 'context', stageBrief: 'brief', agents: { agent: { relevant: true, privateContext: { agentId: 'agent', motivations: [], secrets: [], knowledgeHorizon: 'now', notes: [] } } } }, 1)
+  return { world, input }
+}
 
 /** One human keeping up a conversation: a message every few seconds, well inside the rate. */
 async function conversation(count: number, gapMs: number): Promise<ReplyResult[]> {
@@ -37,6 +66,98 @@ async function conversation(count: number, gapMs: number): Promise<ReplyResult[]
   }
   return results
 }
+
+describe('spatial causal reply pipeline', () => {
+  it('does not complete an exchange for unanswered, malformed, rate-limited, or mismatched replies', async () => {
+    const { world, input } = createSpatialReplyWorld()
+    expect(applyAction(world, { actorKind: 'player', actorId: 'player', action: { type: 'speak', roomId: 'hall', body: 'Question', addresseeId: 'agent' } })).toEqual({ ok: true })
+    const sourceSeq = world.transcript.at(-1)!.seq
+    expect(hasConversationExchange(world, 'player', 'agent')).toBe(false)
+    const malformed = new FakeLlmClient({ replies: ['not-json'] })
+    const malformedResult = await replyToPlayer(malformed, world, { ...input, playerMessage: null, replyToSeqs: [sourceSeq] }, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), nowMs: 0 })
+    expect(malformedResult.source).toBe('deflection')
+    expect(hasConversationExchange(world, 'player', 'agent')).toBe(false)
+    const limited = new ReplyRateLimiter({ minIntervalMs: 1_000, burst: 1 })
+    limited.take('player', 0)
+    const limitedResult = await replyToPlayer(new FakeLlmClient({ replies: [reply('unused')] }), world, { ...input, playerMessage: null, replyToSeqs: [sourceSeq] }, { limiter: limited, inbox: new ReplyInbox(), speakerId: 'player', nowMs: 0 })
+    expect(limitedResult.source).toBe('deflection')
+    expect(hasConversationExchange(world, 'player', 'agent')).toBe(false)
+    const rejected = await submitPlayerMessage(new FakeLlmClient({ replies: [reply('unused')] }), world, input, { speakerId: 'player', speakerName: 'Player', body: 'Question', utteranceSeq: sourceSeq + 99 }, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), nowMs: 0 })
+    expect(rejected).toEqual({ status: 'rejected', reason: 'message_not_heard' })
+  })
+
+  it('keeps deferred replies tied to current hearing and refuses stale agent rooms', async () => {
+    const first = createSpatialReplyWorld()
+    expect(applyAction(first.world, { actorKind: 'player', actorId: 'player', action: { type: 'speak', roomId: 'hall', body: 'Delayed?', addresseeId: 'agent' } })).toEqual({ ok: true })
+    const firstSeq = first.world.transcript.at(-1)!.seq
+    let releaseFirst!: (response: LlmResponse) => void
+    const firstClient: LlmClient = { complete: async () => new Promise<LlmResponse>((resolve) => { releaseFirst = resolve }) }
+    const firstPending = submitPlayerMessage(firstClient, first.world, first.input, { speakerId: 'player', speakerName: 'Player', body: 'Delayed?', utteranceSeq: firstSeq }, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), nowMs: 0 })
+    expect(releaseFirst).toBeDefined()
+    const firstDoor = first.world.spatial!.map.doors.find(({ roomId }) => roomId === 'hall')!
+    for (const step of findPath(first.world.spatial!.map, first.world.spatial!.state.doors, first.world.spatial!.state.actors.player!, firstDoor.outside)!) expect(moveActorStep(first.world, 'player', step)).toEqual({ ok: true })
+    releaseFirst({ content: reply('A delayed answer.'), usage: { promptTokens: 1, completionTokens: 1 } })
+    await firstPending
+    expect(first.world.transcript.at(-1)?.recipientIds).not.toContain('player')
+    expect(visibleTranscript(first.world, 'player').map(({ body }) => body)).not.toContain('A delayed answer.')
+    expect(hasConversationExchange(first.world, 'player', 'agent')).toBe(false)
+
+    const second = createSpatialReplyWorld()
+    expect(applyAction(second.world, { actorKind: 'player', actorId: 'player', action: { type: 'speak', roomId: 'hall', body: 'Move now?', addresseeId: 'agent' } })).toEqual({ ok: true })
+    const secondSeq = second.world.transcript.at(-1)!.seq
+    let releaseSecond!: (response: LlmResponse) => void
+    const secondClient: LlmClient = { complete: async () => new Promise<LlmResponse>((resolve) => { releaseSecond = resolve }) }
+    const secondPending = submitPlayerMessage(secondClient, second.world, second.input, { speakerId: 'player', speakerName: 'Player', body: 'Move now?', utteranceSeq: secondSeq }, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), nowMs: 0 })
+    expect(releaseSecond).toBeDefined()
+    const secondDoor = second.world.spatial!.map.doors.find(({ roomId }) => roomId === 'hall')!
+    for (const step of findPath(second.world.spatial!.map, second.world.spatial!.state.doors, second.world.spatial!.state.actors.agent!, secondDoor.outside)!) expect(moveActorStep(second.world, 'agent', step)).toEqual({ ok: true })
+    releaseSecond({ content: reply('A stale answer.'), usage: { promptTokens: 1, completionTokens: 1 } })
+    await secondPending
+    expect(second.world.transcript.map(({ body }) => body)).not.toContain('A stale answer.')
+    expect(hasConversationExchange(second.world, 'player', 'agent')).toBe(false)
+  })
+
+  it('coalesces exact recorded requests and supports a differently named player actor', async () => {
+    const { world, input } = createSpatialReplyWorld('narrator')
+    const client = new FakeLlmClient({ replies: [reply('Prime.'), reply('Both heard.')] })
+    const options = { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), nowMs: 0 }
+    expect(applyAction(world, { actorKind: 'player', actorId: 'narrator', action: { type: 'speak', roomId: 'hall', body: 'First', addresseeId: 'agent' } })).toEqual({ ok: true })
+    const firstSeq = world.transcript.at(-1)!.seq
+    const first = await submitPlayerMessage(client, world, input, { speakerId: 'narrator', speakerName: 'Narrator', body: 'First', utteranceSeq: firstSeq }, options)
+    expect(first.status).toBe('answered')
+    expect(applyAction(world, { actorKind: 'player', actorId: 'narrator', action: { type: 'speak', roomId: 'hall', body: 'Second', addresseeId: 'agent' } })).toEqual({ ok: true })
+    const secondSeq = world.transcript.at(-1)!.seq
+    expect(applyAction(world, { actorKind: 'player', actorId: 'narrator', action: { type: 'speak', roomId: 'hall', body: 'Third', addresseeId: 'agent' } })).toEqual({ ok: true })
+    const thirdSeq = world.transcript.at(-1)!.seq
+    const second = await submitPlayerMessage(client, world, input, { speakerId: 'narrator', speakerName: 'Narrator', body: 'Second', utteranceSeq: secondSeq }, options)
+    const third = await submitPlayerMessage(client, world, input, { speakerId: 'narrator', speakerName: 'Narrator', body: 'Third', utteranceSeq: thirdSeq }, options)
+    expect(second.status).toBe('held')
+    expect(third.status).toBe('held')
+    const flushed = await flushReplies(client, world, () => buildAgentTurnInput(world, 'agent', { sharedContext: 'context', stageBrief: 'brief', agents: { agent: { relevant: true, privateContext: { agentId: 'agent', motivations: [], secrets: [], knowledgeHorizon: 'now', notes: [] } } } }, 1), { ...options, nowMs: 1_000 })
+    expect(flushed[0]?.answered.map(({ utteranceSeq }) => utteranceSeq)).toEqual([secondSeq, thirdSeq])
+    expect(world.transcript.at(-1)?.replyToSeqs).toEqual([secondSeq, thirdSeq])
+    expect(hasConversationExchange(world, 'narrator', 'agent')).toBe(true)
+  })
+
+  it('requires an explicit heard utterance sequence and preserves same-text causality', async () => {
+    const { world, input } = createSpatialReplyWorld()
+    const body = 'Will you answer?'
+    expect(applyAction(world, { actorKind: 'player', actorId: 'player', action: { type: 'speak', roomId: 'hall', body, addresseeId: 'agent' } })).toEqual({ ok: true })
+    const firstSeq = world.transcript.at(-1)!.seq
+    expect(applyAction(world, { actorKind: 'player', actorId: 'player', action: { type: 'speak', roomId: 'hall', body, addresseeId: 'agent' } })).toEqual({ ok: true })
+    const secondSeq = world.transcript.at(-1)!.seq
+    const rejected = await submitPlayerMessage(new FakeLlmClient({ replies: [reply('no call')] }), world, input, { speakerId: 'player', speakerName: 'Player', body }, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), nowMs: 0 })
+    expect(rejected).toEqual({ status: 'rejected', reason: 'message_not_heard' })
+    const client = new FakeLlmClient({ replies: [reply('I answer the first.'), reply('I answer the second.')] })
+    const options = { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), nowMs: 0 }
+    const first = await submitPlayerMessage(client, world, input, { speakerId: 'player', speakerName: 'Player', body, utteranceSeq: firstSeq }, options)
+    expect(first.status).toBe('answered')
+    expect(world.transcript.at(-1)?.replyToSeqs).toEqual([firstSeq])
+    const second = await submitPlayerMessage(client, world, { ...input, replyToSeqs: [secondSeq] }, { speakerId: 'player', speakerName: 'Player', body, utteranceSeq: secondSeq }, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), nowMs: 10_000 })
+    expect(second.status).toBe('answered')
+    expect(world.transcript.at(-1)?.replyToSeqs).toEqual([secondSeq])
+  })
+})
 
 describe('answering a human (FR-12b, revised)', () => {
   it('answers a whole stage of human-paced conversation with the model', async () => {

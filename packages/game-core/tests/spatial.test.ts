@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { settlementFixture } from '../fixtures/settlement.js'
 import {
   areInSameRoom,
+  canHearSpeech,
   compileStage,
   findPath,
   isInPhysicalInteractionRange,
@@ -20,7 +21,7 @@ import type { CompiledStage, DoorStates, StageLayoutInput, StageMap } from '../s
 type MutableLayout = {
   stageId: string
   spawnRoomId: string
-  rooms: { id: string; size: 'small' | 'medium' | 'large'; doorDefault: 'open' | 'closed' }[]
+  rooms: { id: string; size: 'small' | 'medium' | 'large'; enclosure?: 'enclosed' | 'open'; doorDefault: 'open' | 'closed' | null }[]
   placements: { id: string; kind: 'actor' | 'evidence' | 'decision'; roomId: string }[]
 }
 
@@ -30,6 +31,24 @@ function clone<T>(value: T): T {
 
 function pointKey(point: { x: number; y: number }): string {
   return `${point.x},${point.y}`
+}
+
+function outdoorDistance(map: StageMap, from: { x: number; y: number }, to: { x: number; y: number }): number | null {
+  const queue = [{ point: from, distance: 0 }]
+  const visited = new Set([pointKey(from)])
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    if (pointKey(current.point) === pointKey(to)) return current.distance
+    for (const offset of [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]) {
+      const next = { x: current.point.x + offset.x, y: current.point.y + offset.y }
+      const tile = map.tiles[next.y]?.[next.x]
+      const key = pointKey(next)
+      if (visited.has(key) || !['grass', 'path'].includes(tile ?? '') || spaceAt(map, next)?.kind !== 'outdoor') continue
+      visited.add(key)
+      queue.push({ point: next, distance: current.distance + 1 })
+    }
+  }
+  return null
 }
 
 function mutableLayout(value: StageLayoutInput): MutableLayout {
@@ -208,6 +227,15 @@ describe('settlement compiler', () => {
     expect(validateStageLayout({ ...layout(2), stageId: 'bad id' }).valid).toBe(false)
     expect(() => compileStage(layout(2), 'bad seed!')).toThrow(/seed/)
     expect(() => compileStage(layout(2), '')).toThrow(/seed/)
+    const openWithDoor = mutableLayout(layout(2))
+    openWithDoor.rooms[0] = { ...openWithDoor.rooms[0]!, enclosure: 'open', doorDefault: 'closed' }
+    expect(validateStageLayout(openWithDoor).valid).toBe(false)
+    const enclosedWithoutDoorState = mutableLayout(layout(2))
+    enclosedWithoutDoorState.rooms[0] = { ...enclosedWithoutDoorState.rooms[0]!, enclosure: 'enclosed', doorDefault: null }
+    expect(validateStageLayout(enclosedWithoutDoorState).valid).toBe(false)
+    const openWithOpenState = mutableLayout(layout(2))
+    openWithOpenState.rooms[0] = { ...openWithOpenState.rooms[0]!, enclosure: 'open', doorDefault: 'open' }
+    expect(() => compileStage(openWithOpenState, 'seed')).toThrow(/doorDefault/)
   })
 
   it('does not throw on malformed values for any public validator', () => {
@@ -437,6 +465,100 @@ describe('settlement compiler', () => {
     expect(source.map.tiles[0]![0]).not.toBe('grass')
     expect(source.map.rooms[0]!.x).not.toBe(99)
     expect(source.map.doors[0]!.position.x).not.toBe(99)
+  })
+
+  it('supports open locations, outdoor boundaries, and bounded speech hearing', () => {
+    const input: StageLayoutInput = {
+      stageId: 'open-spaces',
+      spawnRoomId: 'grove',
+      rooms: [
+        { id: 'grove', size: 'medium', enclosure: 'open', doorDefault: null },
+        { id: 'archive', size: 'small', enclosure: 'enclosed', doorDefault: 'closed' },
+      ],
+      placements: [{ id: 'decision', kind: 'decision', roomId: 'grove' }],
+    }
+    const compiled = compileStage(input, 'open-seed')
+    expect(compiled.map.doors.map(({ roomId }) => roomId)).toEqual(['archive'])
+    const grove = compiled.map.rooms.find(({ id }) => id === 'grove')!
+    expect(spaceAt(compiled.map, { x: grove.x, y: grove.y })).toEqual({ kind: 'outdoor', locationId: grove.id })
+    expect(spaceAt(compiled.map, { x: grove.x + grove.width - 1, y: grove.y + grove.height - 1 })).toEqual({ kind: 'outdoor', locationId: grove.id })
+    expect(areInSameRoom(compiled.map, { x: grove.x + 1, y: grove.y + 1 }, { x: grove.x + 2, y: grove.y + 2 })).toBe(false)
+    expect(isInPhysicalInteractionRange(compiled.map, compiled.initialDoors, { x: grove.x, y: grove.y + 1 }, { x: grove.x - 1, y: grove.y + 1 })).toBe(true)
+    expect(canHearSpeech(compiled.map, { x: 1, y: 1 }, { x: 1, y: 1 })).toBe(true)
+    expect(canHearSpeech(compiled.map, { x: 1, y: 1 }, { x: 4, y: 1 })).toBe(true)
+    expect(canHearSpeech(compiled.map, { x: 1, y: 1 }, { x: 5, y: 1 })).toBe(false)
+    const enclosed = compiled.map.rooms.find(({ id }) => id === 'archive')!
+    const inside = { x: enclosed.x + 1, y: enclosed.y + 1 }
+    const farInside = { x: enclosed.x + enclosed.width - 2, y: enclosed.y + enclosed.height - 2 }
+    expect(canHearSpeech(compiled.map, inside, farInside)).toBe(true)
+    expect(canHearSpeech(compiled.map, inside, { x: 1, y: 1 })).toBe(false)
+    const door = compiled.map.doors[0]!
+    expect(canHearSpeech(compiled.map, door.outside, door.inside)).toBe(false)
+    expect(canHearSpeech(compiled.map, door.position, door.position)).toBe(false)
+    expect(canHearSpeech(compiled.map, { x: 0.5, y: 1 }, { x: 1, y: 1 })).toBe(false)
+    expect(canHearSpeech(compiled.map, { x: -1, y: 1 }, { x: 1, y: 1 })).toBe(false)
+  })
+
+  it('rejects hearing through an outdoor obstacle when the path exceeds three steps', () => {
+    const compiled = compileStage({
+      stageId: 'hearing-obstacle',
+      spawnRoomId: 'yard',
+      rooms: [
+        { id: 'yard', size: 'large', enclosure: 'open', doorDefault: null },
+        { id: 'plaza', size: 'small', enclosure: 'open', doorDefault: null },
+      ],
+      placements: [{ id: 'decision', kind: 'decision', roomId: 'yard' }],
+    }, 'hearing-seed')
+    const map = clone(compiled.map)
+    let pair: { from: { x: number; y: number }; to: { x: number; y: number }; distance: number } | undefined
+    for (let y = 2; y < map.height - 3 && !pair; y += 1) {
+      for (let x = 2; x < map.width - 3 && !pair; x += 1) {
+        const obstacle = [{ x, y: y + 1 }, { x: x + 1, y: y + 1 }]
+        const from = { x: x + 1, y }
+        const to = { x, y: y + 2 }
+        const points = [...obstacle, from, to]
+        if (!points.every((point) => ['grass', 'path'].includes(map.tiles[point.y]?.[point.x] ?? '') && spaceAt(map, point)?.kind === 'outdoor')) continue
+        map.tiles[obstacle[0]!.y]![obstacle[0]!.x] = 'wall'
+        map.tiles[obstacle[1]!.y]![obstacle[1]!.x] = 'wall'
+        const distance = outdoorDistance(map, from, to)
+        if (distance !== null && distance > 3) pair = { from, to, distance }
+        else {
+          map.tiles[obstacle[0]!.y]![obstacle[0]!.x] = compiled.map.tiles[obstacle[0]!.y]![obstacle[0]!.x]!
+          map.tiles[obstacle[1]!.y]![obstacle[1]!.x] = compiled.map.tiles[obstacle[1]!.y]![obstacle[1]!.x]!
+        }
+      }
+    }
+    expect(pair).toBeDefined()
+    if (!pair) return
+    expect(pair.distance).toBeGreaterThan(3)
+    expect(Math.abs(pair.from.x - pair.to.x) + Math.abs(pair.from.y - pair.to.y)).toBeLessThanOrEqual(3)
+    expect(canHearSpeech(map, pair.from, pair.to)).toBe(false)
+  })
+
+  it('keeps mixed and open map geometry stable across reordered inputs and private extras', () => {
+    const base = {
+      stageId: 'mixed-private',
+      spawnRoomId: 'market',
+      rooms: [
+        { id: 'market', size: 'large' as const, enclosure: 'open' as const, doorDefault: null },
+        { id: 'office', size: 'small' as const, enclosure: 'enclosed' as const, doorDefault: 'open' as const },
+      ],
+      placements: [{ id: 'decision', kind: 'decision' as const, roomId: 'market' }],
+    }
+    const first = compileStage({
+      ...base,
+      privateContext: 'private-a',
+      rooms: base.rooms.map((room) => ({ ...room, privateNote: 'private-a' })),
+      placements: base.placements.map((placement) => ({ ...placement, content: 'private-a' })),
+    }, 'private-seed')
+    const second = compileStage({
+      ...base,
+      privateContext: 'private-b',
+      rooms: [...base.rooms].reverse().map((room) => ({ ...room, privateNote: 'private-b' })),
+      placements: [...base.placements].reverse().map((placement) => ({ ...placement, content: 'private-b' })),
+    }, 'private-seed')
+    expect(second.map).toEqual(first.map)
+    expect(second.map.id).toBe(first.map.id)
   })
 
   it('does not mutate frozen inputs, maps, or door states', () => {

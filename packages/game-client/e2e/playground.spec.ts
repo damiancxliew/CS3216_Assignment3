@@ -195,11 +195,14 @@ test('door canvas glyph follows closed-open-closed state', async ({ page }) => {
   await expect(page.locator('canvas[aria-label="Settlement map"]')).toBeVisible()
   await expect.poll(() => snapshot(page)).toMatchObject({ map: { width: expect.any(Number) } })
   await pauseAndDisableRoutes(page)
-  await expect.poll(() => doorPixel(page, 'archive')).toEqual([161, 79, 60, 255])
+  const closedPixel = await doorPixel(page, 'archive')
+  await expect.poll(async () => (await snapshot(page)).doors['door:archive']).toBe('closed')
   await page.getByRole('button', { name: 'Open Archive door' }).press('Enter')
-  await expect.poll(() => doorPixel(page, 'archive')).toEqual([200, 173, 120, 255])
+  await expect.poll(async () => (await snapshot(page)).doors['door:archive']).toBe('open')
+  await expect.poll(() => doorPixel(page, 'archive')).not.toEqual(closedPixel)
   await page.getByRole('button', { name: 'Close Archive door' }).press('Enter')
-  await expect.poll(() => doorPixel(page, 'archive')).toEqual([161, 79, 60, 255])
+  await expect.poll(async () => (await snapshot(page)).doors['door:archive']).toBe('closed')
+  await expect.poll(() => doorPixel(page, 'archive')).toEqual(closedPixel)
 })
 
 test('semantic canvas click-to-walk uses responsive map bounds', async ({ page }) => {

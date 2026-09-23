@@ -9,7 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { createUserClient, serviceClient, uniqueEmail } from "./helpers";
+import { createUserClient, prepareVersionMaps, serviceClient, uniqueEmail } from "./helpers";
 
 const admin = serviceClient();
 
@@ -138,6 +138,7 @@ async function seedAdventure(title: string, teacherId: string, studentId: string
     json: { tiles: [] },
   });
 
+  await prepareVersionMaps(admin, specVersion.id);
   const { error: publishError } = await admin
     .from("spec_version")
     .update({ published_at: new Date().toISOString() })

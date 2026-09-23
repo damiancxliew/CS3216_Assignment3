@@ -1,13 +1,14 @@
 export { closeSpatialDoor, moveActor, projectActorPositions, walkActorTowardRoom } from './actors.js'
 export { compileStage } from './compiler.js'
 export { validateCompiledStage, validateStageLayout, validateStageMap } from './validation.js'
-export { areInSameRoom, canStep, findPath, isInPhysicalInteractionRange, isWalkable, spaceAt } from './spatial.js'
+export { areInSameRoom, canHearSpeech, canStep, findPath, isInPhysicalInteractionRange, isWalkable, spaceAt } from './spatial.js'
 export { MAP_SCHEMA_VERSION, GENERATOR_VERSION } from './types.js'
 export type {
   ActorPositions,
   CompiledStage,
   DoorState,
   DoorStates,
+  Enclosure,
   MapDoor,
   MapRoom,
   Point,
@@ -37,6 +38,7 @@ export function projectMap(value: CompiledStage): StageMap {
     tiles: map.tiles.map((row) => row.slice()),
     rooms: map.rooms.map((room) => ({
       id: room.id,
+      enclosure: room.enclosure,
       x: room.x,
       y: room.y,
       width: room.width,

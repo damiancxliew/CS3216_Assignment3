@@ -89,6 +89,12 @@ describe('character agent runtime (K2)', () => {
   it('never sends another agent\u2019s private context to the model', async () => {
     const { client } = await sendsOnlyOwnContext()
     expect(client.requests).toHaveLength(1)
+    expect(client.requests[0]).toMatchObject({
+      reasoningEffort: 'none',
+      verbosity: 'low',
+      maxOutputTokens: 400,
+      serviceTier: 'fast',
+    })
     expect(findLeakedText(client.requests, otherAgentSecrets)).toEqual([])
   })
 

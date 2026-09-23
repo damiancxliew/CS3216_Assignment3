@@ -4,14 +4,20 @@
  * *draft* `spec_version` plus its stages, rooms, agents, private context,
  * evidence, objectives and decision options.
  *
- * Two rules it exists to enforce:
+ * Three rules it exists to enforce:
  *  - Drafts only. Published versions are frozen by trigger (P4), so this never
  *    writes into one — a teacher who regenerates gets a new version number.
+ *  - All of the version or none of it. The rows are written one statement at a
+ *    time, so a failure part-way through would otherwise leave a draft whose
+ *    json promises rows that were never inserted; the version row is deleted
+ *    on the way out and the children cascade with it.
  *  - Spec ids are slugs, database ids are uuids. Every reference (an agent's
  *    starting room, an option's branch target, an objective's prerequisites) is
  *    rewritten to the uuid of the row that was actually inserted, so nothing
  *    downstream has to resolve slugs against the json blob.
  */
+import { compileAdventure, createSpatialStageWorld } from "@adventure/game-integration";
+import { randomUUID } from "node:crypto";
 import { validateAdventureSpec } from "@adventure/generation/spec";
 import type { AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -66,6 +72,9 @@ export async function persistSpecVersion(
     );
   }
   const spec: AdventureSpec = validation.spec;
+  const compilation = compileAdventure(spec, randomUUID());
+  if (!compilation.ok) throw new SpecPersistError("spec cannot be compiled and was not persisted", compilation.issues);
+  for (let index = 0; index < compilation.stages.length; index += 1) createSpatialStageWorld(spec, index, compilation.stages[index]!);
 
   const { data: existing, error: versionError } = await admin
     .from("spec_version")
@@ -97,6 +106,23 @@ export async function persistSpecVersion(
       .single(),
   );
 
+  try {
+    const ids = await writeSpecRows(admin, specVersion.id, spec);
+    const { error: mapsError } = await admin.rpc("set_version_maps", { p_spec_version_id: specVersion.id, p_maps: compilation.stages });
+    if (mapsError) throw new SpecPersistError(mapsError.message);
+    return { specVersionId: specVersion.id, version, ids };
+  } catch (error) {
+    await admin.from("spec_version").delete().eq("id", specVersion.id);
+    throw error;
+  }
+}
+
+/** Writes every relational row of `spec` under an existing draft version. */
+async function writeSpecRows(
+  admin: SupabaseClient,
+  specVersionId: string,
+  spec: AdventureSpec,
+): Promise<Map<string, string>> {
   const ids = new Map<string, string>();
   const uuid = (slug: string): string => {
     const id = ids.get(slug);
@@ -111,7 +137,7 @@ export async function persistSpecVersion(
       admin
         .from("stage")
         .insert({
-          spec_version_id: specVersion.id,
+          spec_version_id: specVersionId,
           spec_id: stage.id,
           index: stage.index,
           title: stage.title,
@@ -265,5 +291,18 @@ export async function persistSpecVersion(
     if (error) throw new SpecPersistError(error.message);
   }
 
-  return { specVersionId: specVersion.id, version, ids };
+  // The play route joins the json against these rows on every turn, so a
+  // version that is missing any of them is not worth keeping.
+  const { data: gaps, error: gapError } = await admin.rpc("spec_version_gaps", {
+    p_spec_version_id: specVersionId,
+  });
+  if (gapError) throw new SpecPersistError(gapError.message);
+  const missing = (gaps ?? []) as string[];
+  if (missing.length > 0) {
+    throw new SpecPersistError(
+      `the spec was only written in part (${missing.length} row${missing.length === 1 ? "" : "s"} missing, e.g. ${missing[0]})`,
+    );
+  }
+
+  return ids;
 }
