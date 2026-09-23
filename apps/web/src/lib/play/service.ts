@@ -100,6 +100,8 @@ export async function postMessage(deps: PlayServiceDeps, attemptId: string, user
     if (begun.ticket) {
       const ticket = begun.ticket;
       work.produce = () => session.produceReply(deps.llm, ticket);
+    } else {
+      await session.maintainOptionsAfterTurn(deps.llm);
     }
     return { ok: true, value: begun };
   });
@@ -111,7 +113,9 @@ export async function postMessage(deps: PlayServiceDeps, attemptId: string, user
   for (let retry = 0; retry < 3; retry += 1) {
     const final = await run(deps, attemptId, userId, async (session) => {
       const completed = session.completeReply(ticket, reply);
-      return completed.ok ? { ok: true, value: completed.newMessages } : completed;
+      if (!completed.ok) return completed;
+      await session.maintainOptionsAfterTurn(deps.llm);
+      return { ok: true, value: completed.newMessages };
     });
     if (!final.ok) {
       if (final.error.code === "stale_state" && retry < 2) continue;
