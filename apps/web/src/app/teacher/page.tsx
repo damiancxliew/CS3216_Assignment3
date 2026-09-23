@@ -90,7 +90,7 @@ export default async function TeacherHome() {
           )}
         </section>
 
-        <section className="flex min-h-0 flex-col gap-5 rounded-surface border border-line bg-surface p-6 lg:max-h-full lg:overflow-hidden">
+        <section className="flex min-h-0 flex-col gap-5 rounded-surface border border-line bg-surface p-6 lg:max-h-full lg:overflow-y-auto">
           <h2 className="font-serif text-2xl text-ink">New adventure</h2>
           <BriefChat resume={resume.success ? resume.data : undefined} />
         </section>

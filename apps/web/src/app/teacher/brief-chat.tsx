@@ -128,7 +128,7 @@ export function BriefChat({ resume }: { resume?: BriefState }) {
     <div className="flex min-h-0 flex-1 flex-col gap-5">
       <Progress draft={state.draft} slot={slot} />
 
-      <ol className="flex max-h-[28rem] min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1 text-base lg:max-h-none lg:min-h-[6rem]" aria-live="polite">
+      <ol className="flex max-h-[28rem] min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1 text-base lg:max-h-none lg:min-h-[5rem]" aria-live="polite">
         {state.messages.map((message, index) => (
           <li
             key={index}
