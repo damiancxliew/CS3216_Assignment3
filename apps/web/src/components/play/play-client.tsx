@@ -235,15 +235,15 @@ export function PlayClient({
     }
   }
 
-  const onStep = useCallback(
-    async (from: Point, to: Point) => {
+  const onSteps = useCallback(
+    async (from: Point, path: Point[]) => {
       const before = stateRef.current;
       if (before.status !== "active" || busy === "Deciding…" || busy === "Knocking…") return { position: before.playerPos, accepted: false, retry: false };
       try {
         let requestSentAt = 0;
         const result = await serialize(() => {
           requestSentAt = performance.now();
-          return playApi.action(attemptId, { type: "move_step", stageId: before.stage.id, from, to });
+          return playApi.action(attemptId, { type: "move_steps", stageId: before.stage.id, from, path });
         });
         const acknowledgedAt = performance.now();
         if (!result.ok) {
@@ -333,7 +333,7 @@ export function PlayClient({
           audio={{ muted, cues }}
           intent={intent}
           onIntentDone={() => setIntent(null)}
-          onStep={onStep}
+          onSteps={onSteps}
           onWaitingAtDoor={setWaitingAtDoor}
           onTalk={onTalk}
         />

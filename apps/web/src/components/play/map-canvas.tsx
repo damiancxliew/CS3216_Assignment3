@@ -22,7 +22,7 @@ import type { SoundCueId } from "@adventure/game-client";
 import { useEffect, useRef } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
-import { MAX_PENDING_STEPS, optimisticAdvance, settleStep, type PendingStep } from "@/lib/play/optimistic-queue";
+import { MAX_PENDING_STEPS, optimisticAdvance, settleBatch, type PendingStep } from "@/lib/play/optimistic-queue";
 import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PlayState } from "@/lib/play/session";
 import type { ServerTiming } from "./api";
@@ -50,7 +50,7 @@ export interface MapCanvasProps {
   intent: MapIntent;
   onIntentDone: () => void;
   /** The player stepped into a room the server does not know they are in. Resolve to false to put them back. */
-  onStep: (from: Point, to: Point) => Promise<{ position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number }>;
+  onSteps: (from: Point, path: Point[]) => Promise<{ position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number }>;
   /** The player stopped somewhere; remember it for resume. */
   /** The player is standing outside a closed door. */
   onWaitingAtDoor: (roomId: string | null) => void;
@@ -90,10 +90,10 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitingAtDoor, onTalk }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
-  const latest = useRef({ state, audio, intent, onIntentDone, onStep, onWaitingAtDoor, onTalk });
-  latest.current = { state, audio, intent, onIntentDone, onStep, onWaitingAtDoor, onTalk };
+  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk });
+  latest.current = { state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk };
   const playerPos = useRef<Point | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
   const intentHandlerRef = useRef<((next: MapIntent) => void) | null>(null);
@@ -169,12 +169,13 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
     const render = () => view?.render(snapshot());
     renderRef.current = render;
 
-    const logStep = (step: PendingStep, acknowledgement: { timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number }, queueDepth: number) => {
+    const logBatch = (step: PendingStep, acknowledgement: { timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number }, stepsSent: number, queueDepth: number) => {
       if (!perfEnabled || !step.requestSentAt) return;
       console.info("[play-perf] step", {
         keydownToLocalMoveMs: Number((step.movedAt - step.inputAt).toFixed(1)),
         requestToAckMs: Number(((acknowledgement.acknowledgedAt ?? performance.now()) - step.requestSentAt).toFixed(1)),
         serverTiming: acknowledgement.timings ?? {},
+        stepsSent,
         queueDepth,
       });
     };
@@ -189,13 +190,15 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
         }, wait);
         return;
       }
-      const step = pending[0]!;
+      const batch = pending;
+      const count = batch.length;
+      const step = batch[0]!;
       step.requestSentAt ??= performance.now();
       sendInFlight = true;
       let acknowledgement: { position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number };
       try {
-        nextSendAt = performance.now() + STEP_MS;
-        acknowledgement = await latest.current.onStep(step.from, step.to);
+        nextSendAt = performance.now() + STEP_MS * count;
+        acknowledgement = await latest.current.onSteps(step.from, batch.map((queued) => queued.to));
       } catch {
         acknowledgement = { position: latest.current.state.playerPos, accepted: false, retry: false };
       }
@@ -208,7 +211,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
         return;
       }
 
-      pending = settleStep(pending, acknowledgement.accepted ? "accepted" : "rollback");
+      pending = settleBatch(pending, acknowledgement.accepted ? "accepted" : "rollback", count);
       if (!acknowledgement.accepted) {
         pending = [];
         path = [];
@@ -222,7 +225,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
       const door = map.doors.find((candidate) => candidate.outside.x === acknowledgement.position?.x && candidate.outside.y === acknowledgement.position?.y && doorsOf(latest.current.state)[candidate.id] === "closed");
       latest.current.onWaitingAtDoor(door?.roomId ?? null);
       render();
-      logStep(step, { ...acknowledgement, acknowledgedAt }, pending.length);
+      logBatch(step, { ...acknowledgement, acknowledgedAt }, count, pending.length);
       if (path.length === 0) latest.current.onIntentDone();
       if (pending.length === 0 && queuedTarget) {
         const target = queuedTarget;
