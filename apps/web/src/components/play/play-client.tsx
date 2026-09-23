@@ -252,7 +252,7 @@ export function PlayClient({
           }
           setNotice(result.error.message);
           await refresh();
-          return { position: stateRef.current.playerPos, accepted: false, retry: result.error.code === "rate_limited", timings: result.timings, requestSentAt, acknowledgedAt };
+          return { position: stateRef.current.playerPos, accepted: false, retry: false, timings: result.timings, requestSentAt, acknowledgedAt };
         }
         accept(result.body.state);
         if (result.body.refused) setNotice(result.body.refused);
