@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { BriefChat } from "./brief-chat";
+import { TeacherWorkspace } from "./workspace";
 import { SignInButton } from "@/components/sign-in-button";
 import { EmptyState, Page, StatusBadge } from "@/components/ui";
 import { briefStateSchema } from "@/lib/brief/schema";
@@ -66,9 +66,10 @@ export default async function TeacherHome() {
       width="wide"
       fill
     >
-      <div className="grid gap-12 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-16">
-        <section className="flex flex-col gap-4 lg:max-h-full lg:overflow-y-auto">
-          {adventures.length === 0 ? (
+      <TeacherWorkspace
+        resume={resume.success ? resume.data : undefined}
+        adventures={
+          adventures.length === 0 ? (
             <EmptyState title="No adventures yet">Start with the class you are teaching next.</EmptyState>
           ) : (
             <ul className="flex flex-col divide-y divide-line border-y border-line">
@@ -87,14 +88,9 @@ export default async function TeacherHome() {
                 </li>
               ))}
             </ul>
-          )}
-        </section>
-
-        <section className="flex min-h-0 flex-col gap-5 rounded-surface border border-line bg-surface p-6 lg:max-h-full lg:overflow-y-auto">
-          <h2 className="font-serif text-2xl text-ink">New adventure</h2>
-          <BriefChat resume={resume.success ? resume.data : undefined} />
-        </section>
-      </div>
+          )
+        }
+      />
     </Page>
   );
 }
