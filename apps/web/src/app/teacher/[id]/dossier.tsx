@@ -114,13 +114,20 @@ export function DossierSections({
             return (
               <li key={stage.id} className="flex flex-col gap-6 overflow-hidden rounded-surface border border-line bg-surface">
                 <div className="relative">
-                  <Artwork
-                    kind="landmark"
-                    alt={banner?.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`}
-                    imageUrl={banner?.imageUrl ?? null}
-                    imageStatus={banner?.imageStatus ?? "placeholder"}
-                    className="w-full aspect-[3/1] rounded-none"
-                  />
+                  {banner?.imageStatus === "generated" && banner.imageUrl ? (
+                    <img
+                      src={banner.imageUrl}
+                      alt={banner.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`}
+                      width={1536}
+                      height={512}
+                      loading="lazy"
+                      className="w-full aspect-[3/1] object-cover"
+                    />
+                  ) : (
+                    // No generated banner: a modest band, not a tile — the
+                    // stage title below already says everything a glyph would.
+                    <div role="img" aria-label={`Stage ${stage.index + 1}`} className="h-36 w-full bg-sunken" />
+                  )}
                   <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-baseline justify-between gap-2 bg-ink/60 px-5 py-3">
                     <p className="font-serif text-xl text-paper">
                       {stage.index + 1}. {stage.title}
@@ -136,7 +143,11 @@ export function DossierSections({
                 <div className="flex flex-col gap-6 px-6 pb-6">
                   <p className="max-w-[64ch] text-base text-muted">{stage.sharedContext}</p>
 
-                  {stage.plan ? <StageMapPlan map={stage.plan} names={roomNames} /> : null}
+                  {stage.plan ? (
+                    <div className="mx-auto w-full" style={{ maxWidth: `${(stage.plan.width / stage.plan.height) * 460}px` }}>
+                      <StageMapPlan map={stage.plan} names={roomNames} />
+                    </div>
+                  ) : null}
 
                   <div className="flex flex-col gap-3">
                     <h3 className="text-base font-semibold text-ink">Rooms</h3>
