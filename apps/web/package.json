@@ -24,6 +24,7 @@
     "posthog-js": "^1.434.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "unpdf": "^1.8.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
