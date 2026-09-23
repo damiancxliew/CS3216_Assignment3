@@ -5,8 +5,6 @@
  * (FR-21). All server-rendered; the only client islands are the action
  * buttons and the progress poller.
  */
-import type { StageMap } from "@adventure/game-core";
-
 import { generateArtwork, regenerateAsset } from "../actions";
 import { ActionButton } from "@/components/action-form";
 import { StageMapPlan } from "@/components/teacher/stage-map";
@@ -41,23 +39,24 @@ function Artwork({
   alt,
   imageUrl,
   imageStatus,
-  className = "aspect-square",
+  className = "w-full aspect-square",
 }: {
   kind: "portrait" | "landmark" | "prop";
   alt: string;
   imageUrl: string | null;
   imageStatus: ImageStatus;
+  /** Owns sizing entirely — the branches add no width of their own. */
   className?: string;
 }) {
   if (imageStatus === "generated" && imageUrl) {
-    return <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className={`w-full rounded-surface object-cover ${className}`} />;
+    return <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className={`rounded-surface object-cover ${className}`} />;
   }
   if (kind === "portrait" && imageStatus === "placeholder" && imageUrl) {
     // Portraits have a curated faceset as their placeholder (D6).
-    return <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className={`w-full rounded-surface object-cover ${className}`} />;
+    return <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className={`rounded-surface object-cover ${className}`} />;
   }
   return (
-    <div role="img" aria-label={alt} className={`flex w-full flex-col items-center justify-center gap-2 rounded-surface bg-sunken text-muted ${className}`}>
+    <div role="img" aria-label={alt} className={`flex flex-col items-center justify-center gap-2 rounded-surface bg-sunken text-muted ${className}`}>
       {imageStatus === "pending" ? <Skeleton className="h-2/3 w-2/3" /> : <KindGlyph kind={kind} />}
       {imageStatus === "failed" ? <span className="text-sm">Artwork failed</span> : null}
     </div>
@@ -78,15 +77,12 @@ function RegenerateButton({ adventureId, specVersionId, assetId }: { adventureId
 
 export function DossierSections({
   dossier,
-  maps,
   adventureId,
   specVersionId,
   version,
   isDraft,
 }: {
   dossier: Dossier;
-  /** Compiled floor plans by stage index; absent stages mean the map isn't compiled yet. */
-  maps: Record<number, StageMap>;
   adventureId: string;
   specVersionId: string;
   version: number;
@@ -123,7 +119,7 @@ export function DossierSections({
                     alt={banner?.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`}
                     imageUrl={banner?.imageUrl ?? null}
                     imageStatus={banner?.imageStatus ?? "placeholder"}
-                    className="aspect-[3/1] rounded-none"
+                    className="w-full aspect-[3/1] rounded-none"
                   />
                   <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-baseline justify-between gap-2 bg-ink/60 px-5 py-3">
                     <p className="font-serif text-xl text-paper">
@@ -140,7 +136,7 @@ export function DossierSections({
                 <div className="flex flex-col gap-6 px-6 pb-6">
                   <p className="max-w-[64ch] text-base text-muted">{stage.sharedContext}</p>
 
-                  {maps[stage.index] ? <StageMapPlan map={maps[stage.index]} names={roomNames} /> : null}
+                  {stage.plan ? <StageMapPlan map={stage.plan} names={roomNames} /> : null}
 
                   <div className="flex flex-col gap-3">
                     <h3 className="text-base font-semibold text-ink">Rooms</h3>
