@@ -185,12 +185,24 @@ const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
   "text/markdown": "text",
 };
 
+/** Per-page text the client extracted from a PDF itself; untrusted, so the caps are re-checked by `extractDocument`. */
+const clientPagesSchema = z.array(z.string()).min(1).max(LIMITS.maxPages);
+
 /** A pasted passage and an uploaded file come out identical, so the two are never stored differently. */
 async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocument; storageKey: string } | { error: string }> {
   const body = String(formData.get("body") ?? "").trim();
   const file = formData.get("file");
 
   try {
+    const rawPages = formData.get("pages");
+    if (rawPages !== null) {
+      const parsed = clientPagesSchema.safeParse(JSON.parse(String(rawPages)));
+      if (!parsed.success) return { error: "Could not read that PDF — paste the text instead" };
+      const filename = String(formData.get("filename") ?? "").trim();
+      if (!filename) return { error: "Could not read that PDF — paste the text instead" };
+      const doc = await extractDocument({ id: slugify(filename), title: filename, kind: "pdf", pages: parsed.data });
+      return { doc, storageKey: `upload:${crypto.randomUUID()}/${filename}` };
+    }
     if (body) {
       const doc = await extractDocument({ id: slugify("Pasted source", "pasted-source"), title: "Pasted source", kind: "text", text: body });
       return { doc, storageKey: `inline:${crypto.randomUUID()}` };
