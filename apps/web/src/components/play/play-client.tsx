@@ -247,8 +247,11 @@ export function PlayClient({
         });
         const acknowledgedAt = performance.now();
         if (!result.ok) {
+          if (result.error.code === "rate_limited") {
+            return { position: stateRef.current.playerPos, accepted: false, retry: true, timings: result.timings, requestSentAt, acknowledgedAt };
+          }
           setNotice(result.error.message);
-          if (result.error.code !== "rate_limited") await refresh();
+          await refresh();
           return { position: stateRef.current.playerPos, accepted: false, retry: result.error.code === "rate_limited", timings: result.timings, requestSentAt, acknowledgedAt };
         }
         accept(result.body.state);

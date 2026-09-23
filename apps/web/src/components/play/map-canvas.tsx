@@ -28,6 +28,7 @@ import type { PlayState } from "@/lib/play/session";
 import type { ServerTiming } from "./api";
 
 const STEP_MS = 160;
+const STEP_SEND_MARGIN_MS = 20;
 
 const KEYS: Record<string, Point> = {
   ArrowUp: { x: 0, y: -1 },
@@ -197,7 +198,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       sendInFlight = true;
       let acknowledgement: { position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number };
       try {
-        nextSendAt = performance.now() + STEP_MS * count;
+        nextSendAt = performance.now() + STEP_MS * count + STEP_SEND_MARGIN_MS;
         acknowledgement = await latest.current.onSteps(step.from, batch.map((queued) => queued.to));
       } catch {
         acknowledgement = { position: latest.current.state.playerPos, accepted: false, retry: false };
