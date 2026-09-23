@@ -14,6 +14,7 @@
 import { PLAYER_ID } from "@adventure/generation/runtime";
 import type { AssetManifest } from "@adventure/generation/assets";
 import { validatePublishedSpec, type AdventureSpec } from "@adventure/generation/spec";
+import type { MintedOption } from "@adventure/orchestration";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { loadManifest } from "@/lib/assets/supabase";
@@ -341,8 +342,32 @@ export class SupabasePlayStore implements PlayStore {
       const b = await bind(stageIndex);
       const agentId = decision.actorKind === "agent" ? b.agents.get(decision.actorId) ?? null : null;
       if (decision.actorKind === "agent" && !agentId) throw new Error(`agent: missing authored id ${decision.actorId}`);
-      return { stage_id: stageUuid(stageIndex), actor_kind: decision.actorKind, player_id: decision.actorKind === "player" ? record.studentId : null, agent_id: agentId, option_id: decision.optionId ? b.options.get(decision.optionId) ?? null : null };
+      const authoredOptionId = decision.optionId ? b.options.get(decision.optionId) ?? null : null;
+      return {
+        stage_id: stageUuid(stageIndex),
+        actor_kind: decision.actorKind,
+        player_id: decision.actorKind === "player" ? record.studentId : null,
+        agent_id: agentId,
+        option_id: authoredOptionId,
+        minted_spec_id: authoredOptionId === null && decision.optionId ? decision.optionId : null,
+      };
     }));
+    const persistedMintedOptions = (snapshot.mintedOptions ?? []).map((option: MintedOption) => {
+      const branchTargetStageId = option.branchTarget.kind === "stage" ? option.branchTarget.stageId : null;
+      const branchTargetIndex = branchTargetStageId === null
+        ? null
+        : record.spec.stages.findIndex((stage) => stage.id === branchTargetStageId);
+      if (branchTargetIndex !== null && branchTargetIndex < 0) {
+        throw new Error(`minted option branch target ${branchTargetStageId} is not in the authored spec`);
+      }
+      return {
+        stage_id: stageUuid(snapshot.stageIndex),
+        spec_id: option.id,
+        label: option.label,
+        preconditions: option.preconditions,
+        branch_target: branchTargetIndex === null ? null : stageUuid(branchTargetIndex),
+      };
+    });
     const resolution = events.resolution ? (() => {
       const { record: r } = events.resolution;
       return { stage_id: stageUuid(events.resolution!.stageIndex), actions: r.actions, outcome: { ...r.outcome, rationale: r.rationale, privateNotes: r.privateNotes }, rolls: r.rolls };
@@ -360,6 +385,7 @@ export class SupabasePlayStore implements PlayStore {
       p_telemetry: telemetry,
       p_opened_stage_id: openedStageId,
       p_ending_id: events.endingId,
+      p_minted_options: persistedMintedOptions,
     }));
     if (error && (error.code === "40001" || /revision conflict/.test(error.message))) throw new PlayConflictError();
     if (error) throw new Error(`save_play_turn: ${error.message}`);

@@ -32,6 +32,7 @@ type Fixture = {
   roomMessageId: string;
   privateMessageId: string;
   resolutionId: string;
+  mintedOptionId: string;
   playerCommitmentId: string;
   agentCommitmentId: string;
 };
@@ -158,6 +159,15 @@ async function seedAdventure(title: string, teacherId: string, studentId: string
     .insert({ attempt_id: attempt.id, world_state: { mood: "tense" } });
   if (stateError) throw stateError;
 
+  const mintedOption = await insert("minted_option", {
+    attempt_id: attempt.id,
+    stage_id: stage.id,
+    spec_id: "minted-vote-for-the-blockade",
+    label: "Offer a temporary anchorage",
+    preconditions: [{ kind: "actor_in_room", actorId: "player", roomId: room.id }],
+    branch_target: null,
+  });
+
   const { error: memoryError } = await admin.from("agent_memory").insert({
     attempt_id: attempt.id,
     agent_id: agent.id,
@@ -227,6 +237,7 @@ async function seedAdventure(title: string, teacherId: string, studentId: string
     roomMessageId: roomMessage.id,
     privateMessageId: privateMessage.id,
     resolutionId: resolution.id,
+    mintedOptionId: mintedOption.id,
     playerCommitmentId: playerCommitment.id,
     agentCommitmentId: agentCommitment.id,
   } satisfies Fixture;
@@ -423,6 +434,50 @@ describe("decision_option", () => {
       expect(denied.error).not.toBeNull();
       expect(denied.data ?? []).toHaveLength(0);
     }
+  });
+});
+
+describe("minted_option", () => {
+  it("is not frozen with the published decision catalogue", async () => {
+    const authored = await admin.from("decision_option").insert({
+      stage_id: fixtureA.stageId,
+      label: "Must fail after publish",
+    });
+    expect(authored.error).not.toBeNull();
+
+    const minted = await admin.from("minted_option").insert({
+      attempt_id: fixtureA.attemptId,
+      stage_id: fixtureA.stageId,
+      spec_id: `minted-published-${Date.now()}`,
+      label: "May be added after publish",
+      preconditions: [],
+    });
+    expect(minted.error).toBeNull();
+  });
+
+  it("exposes only the public identity to the owning student and teacher", async () => {
+    for (const client of [studentA, teacherA]) {
+      const { data, error } = await client
+        .from("minted_option")
+        .select("id, attempt_id, stage_id, spec_id, label")
+        .eq("id", fixtureA.mintedOptionId);
+      expect(error).toBeNull();
+      expect(data ?? []).toHaveLength(1);
+
+      for (const column of ["preconditions", "branch_target"]) {
+        const denied = await client
+          .from("minted_option")
+          .select(column)
+          .eq("id", fixtureA.mintedOptionId);
+        expect(denied.error).not.toBeNull();
+        expect(denied.data ?? []).toHaveLength(0);
+      }
+    }
+  });
+
+  it("is invisible to a different student's attempt", async () => {
+    expect((await rows(studentB, "minted_option", fixtureA.mintedOptionId)).count).toBe(0);
+    expect((await rows(teacherB, "minted_option", fixtureA.mintedOptionId)).count).toBe(0);
   });
 });
 

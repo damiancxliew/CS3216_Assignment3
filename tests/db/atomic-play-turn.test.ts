@@ -12,7 +12,7 @@ let teacher: { client: SupabaseClient; userId: string };
 let student: { client: SupabaseClient; userId: string };
 let spec: Awaited<ReturnType<typeof loadI1Spec>>;
 
-type Seeded = { attemptId: string; adventureId: string; stageIds: string[]; roomId: string; optionId: string };
+type Seeded = { attemptId: string; adventureId: string; stageIds: string[]; roomId: string; optionId: string; mintedOptionId: string };
 
 beforeAll(async () => {
   teacher = await createUserClient(uniqueEmail("atomic-turn-teacher"));
@@ -34,7 +34,23 @@ async function seed(): Promise<Seeded> {
   if (roomError) throw roomError;
   const { data: options, error: optionError } = await admin.from("decision_option").select("id").eq("stage_id", stages![0]!.id).limit(1);
   if (optionError) throw optionError;
-  return { attemptId: attemptId as string, adventureId: adventure.id, stageIds: stages!.map((stage) => stage.id), roomId: rooms![0]!.id, optionId: options![0]!.id };
+  const { data: minted, error: mintedError } = await admin.from("minted_option").insert({
+    attempt_id: attemptId,
+    stage_id: stages![0]!.id,
+    spec_id: `minted-atomic-${attemptId}`,
+    label: "Offer a temporary anchorage",
+    preconditions: [{ kind: "actor_in_room", actorId: "player", roomId: "landing-beach" }],
+    branch_target: stages![1]!.id,
+  }).select("id").single();
+  if (mintedError) throw mintedError;
+  return {
+    attemptId: attemptId as string,
+    adventureId: adventure.id,
+    stageIds: stages!.map((stage) => stage.id),
+    roomId: rooms![0]!.id,
+    optionId: options![0]!.id,
+    mintedOptionId: minted!.id,
+  };
 }
 
 function message(attemptId: string, roomId: string, body: string) {
@@ -87,6 +103,144 @@ describe("save_play_turn", () => {
     expect(errorCode(invalidEnding)).toBe("22023");
     const publicAfter = (await admin.from("attempt_state").select("world_state, journal, player_pos").eq("attempt_id", seeded.attemptId).single()).data;
     expect(publicAfter).toEqual(publicBefore);
+  });
+
+  it("persists a minted commitment and rejects mixed authored/minted choices", async () => {
+    const seeded = await seed();
+    const base = snapshot(seeded.attemptId, 0);
+    const mintedSpecId = `minted-rpc-${seeded.attemptId}`;
+    const mintedPayload = {
+      stage_id: seeded.stageIds[0],
+      spec_id: mintedSpecId,
+      label: "Open a second channel",
+      preconditions: [{ kind: "actor_in_room", actorId: "player", roomId: "landing-beach" }],
+      branch_target: seeded.stageIds[1],
+    };
+    const mintedWrite = await admin.rpc("save_play_turn", {
+      p_attempt_id: seeded.attemptId,
+      p_expected_revision: 0,
+      p_stage_spec_id: "stage-landing",
+      p_snapshot: withRevision(base, 1),
+      p_messages: [],
+      p_commitments: [],
+      p_resolution: null,
+      p_telemetry: null,
+      p_opened_stage_id: null,
+      p_ending_id: null,
+      p_minted_options: [mintedPayload],
+    });
+    expect(mintedWrite.error).toBeNull();
+    const mintedRow = (await admin
+      .from("minted_option")
+      .select("id")
+      .eq("attempt_id", seeded.attemptId)
+      .eq("spec_id", mintedSpecId)
+      .single()).data;
+    expect(mintedRow).not.toBeNull();
+
+    const persisted = await admin.rpc("save_play_turn", {
+      p_attempt_id: seeded.attemptId,
+      p_expected_revision: 1,
+      p_stage_spec_id: "stage-landing",
+      p_snapshot: withRevision(base, 2),
+      p_messages: [],
+      p_commitments: [{
+        stage_id: seeded.stageIds[0],
+        actor_kind: "player",
+        player_id: student.userId,
+        agent_id: null,
+        option_id: null,
+        minted_option_id: mintedRow!.id,
+      }],
+      p_resolution: null,
+      p_telemetry: null,
+      p_opened_stage_id: null,
+      p_ending_id: null,
+    });
+    expect(persisted.error).toBeNull();
+    const commitment = (await admin
+      .from("stage_commitment")
+      .select("option_id, minted_option_id")
+      .eq("attempt_id", seeded.attemptId)
+      .single()).data;
+    expect(commitment).toEqual({ option_id: null, minted_option_id: mintedRow!.id });
+
+    const mixed = await admin.rpc("save_play_turn", {
+      p_attempt_id: seeded.attemptId,
+      p_expected_revision: 2,
+      p_stage_spec_id: "stage-landing",
+      p_snapshot: withRevision(base, 3),
+      p_messages: [],
+      p_commitments: [{
+        stage_id: seeded.stageIds[0],
+        actor_kind: "player",
+        player_id: student.userId,
+        agent_id: null,
+        option_id: seeded.optionId,
+        minted_option_id: mintedRow!.id,
+      }],
+      p_resolution: null,
+      p_telemetry: null,
+      p_opened_stage_id: null,
+      p_ending_id: null,
+    });
+    expect(errorCode(mixed)).toBe("22023");
+  });
+
+  it("rejects minted commitments from another attempt or another stage", async () => {
+    const owner = await seed();
+    const other = await seed();
+    const base = snapshot(owner.attemptId, 0);
+    const wrongAttempt = await admin.rpc("save_play_turn", {
+      p_attempt_id: owner.attemptId,
+      p_expected_revision: 0,
+      p_stage_spec_id: "stage-landing",
+      p_snapshot: withRevision(base, 1),
+      p_messages: [],
+      p_commitments: [{
+        stage_id: owner.stageIds[0],
+        actor_kind: "player",
+        player_id: student.userId,
+        agent_id: null,
+        option_id: null,
+        minted_option_id: other.mintedOptionId,
+      }],
+      p_resolution: null,
+      p_telemetry: null,
+      p_opened_stage_id: null,
+      p_ending_id: null,
+    });
+    expect(errorCode(wrongAttempt)).toBe("22023");
+
+    const wrongStage = await admin.from("minted_option").insert({
+      attempt_id: owner.attemptId,
+      stage_id: owner.stageIds[1],
+      spec_id: `minted-atomic-stage-${owner.attemptId}`,
+      label: "Open a second channel",
+      preconditions: [],
+      branch_target: null,
+    }).select("id").single();
+    expect(wrongStage.error).toBeNull();
+    const wrongStageCommitment = await admin.rpc("save_play_turn", {
+      p_attempt_id: owner.attemptId,
+      p_expected_revision: 0,
+      p_stage_spec_id: "stage-landing",
+      p_snapshot: withRevision(base, 1),
+      p_messages: [],
+      p_commitments: [{
+        stage_id: owner.stageIds[0],
+        actor_kind: "player",
+        player_id: student.userId,
+        agent_id: null,
+        option_id: null,
+        minted_option_id: wrongStage.data!.id,
+      }],
+      p_resolution: null,
+      p_telemetry: null,
+      p_opened_stage_id: null,
+      p_ending_id: null,
+    });
+    expect(errorCode(wrongStageCommitment)).toBe("22023");
   });
 
   it("commits initial and stage-transition saves, then rejects an old revision without duplicates", async () => {
