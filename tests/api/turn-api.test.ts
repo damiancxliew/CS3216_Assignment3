@@ -50,7 +50,12 @@ function privateSecrets(currentSpec: AdventureSpec, store: MemoryPlayStore): str
     const rationale = entry.events.resolution?.record.rationale;
     return rationale === undefined ? [] : [rationale];
   });
-  return [...new Set([...context, ...rationales])];
+  const secrets = [...new Set([...context, ...rationales])];
+  expect(
+    secrets.filter((secret) => secret.trim().length >= 8).length,
+    "Private-text audit is toothless without at least four usable secrets.",
+  ).toBeGreaterThan(3);
+  return secrets;
 }
 
 function expectAudited(label: string, payload: unknown, secrets: readonly string[]): void {
@@ -392,6 +397,13 @@ describe("server authority (FR-21)", () => {
 
     const secrets = privateSecrets(spec, store);
     for (const [label, payload] of payloads) expectAudited(label, payload, secrets);
+
+    const secret = secrets.find((candidate) => candidate.trim().length >= 8);
+    expect(secret, "The negative control needs a usable private secret.").toBeDefined();
+    if (secret === undefined) return;
+    const leaked = auditClientPayload({ state: { announcement: secret } }, secrets);
+    expect(leaked.ok).toBe(false);
+    expect(leaked.leakedText).toContain("$.state.announcement");
   });
 
   it("keeps every API route behind the response wrapper", () => {
