@@ -239,7 +239,7 @@ export default async function AdventurePage({
         ) : (
           <ul className="flex flex-col divide-y divide-line border-y border-line text-base">
             {versions.map((version) => (
-              <li key={version.id} className="flex items-baseline justify-between gap-4 py-2.5">
+              <li key={version.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2.5">
                 <span className="font-semibold text-ink">Version {version.version}</span>
                 <span className="text-base text-muted">
                   {version.published_at

@@ -41,9 +41,9 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   const active = initial.ok && initial.state.status === "active" ? initial.state : null;
 
   return (
-    <main className="flex min-h-screen flex-col lg:h-screen">
-      <header className="flex flex-col items-start gap-x-6 gap-y-2 border-b border-line bg-surface px-5 py-3 lg:flex-row lg:items-baseline">
-        <h1 className="inline-flex max-w-full break-words items-center gap-2.5 font-serif text-xl text-ink">
+    <main className="flex h-dvh min-h-0 flex-col">
+      <header className="flex shrink-0 flex-col items-start gap-x-6 gap-y-2 border-b border-line bg-surface px-5 py-3 lg:flex-row lg:items-baseline">
+        <h1 className="inline-flex max-w-full break-words items-center gap-2.5 font-serif text-lg text-ink sm:text-xl">
           <Mark />
           {resume.adventureTitle}
         </h1>
@@ -58,7 +58,7 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
                 <span className="hidden group-open:inline">Hide</span>
               </span>
             </summary>
-            <div className="mt-3 flex max-w-[64ch] flex-col gap-3 pb-1 text-lg leading-relaxed text-ink">
+            <div className="mt-3 flex max-h-[40dvh] max-w-[64ch] flex-col gap-3 overflow-y-auto pb-1 text-base leading-relaxed text-ink lg:max-h-none lg:overflow-visible lg:text-lg">
               <p>{active.stage.sharedContext}</p>
               {resume.recap.length && active.revision > 0 ? (
                 <ul className="flex list-disc flex-col gap-1 pl-6 text-base text-muted">
