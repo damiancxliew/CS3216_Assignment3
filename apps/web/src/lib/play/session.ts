@@ -58,8 +58,6 @@ import type { PublicAttemptState, PublicMessage } from "@/lib/turn-api/contract"
 
 export { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 
-const STEP_RATE = { minIntervalMs: 160, burst: 8 };
-
 export type JournalEntry = { id: string; text: string; sourceSpan: string | null; collectedAt: string };
 export type Announcement = { id: string; body: string; createdAt: string };
 export interface PendingReply {
@@ -95,6 +93,7 @@ export interface PlaySnapshot {
   endingId: string | null;
   tokensSpent: number;
   revision: number;
+  /** Walking allowance: one token per `STEP_INTERVAL_MS`, capped at `STEP_BURST`. */
   stepRate?: { tokens: number; lastMs: number };
   pendingReply?: PendingReply | null;
   replyRate?: { tokens: number; lastMs: number };
@@ -200,6 +199,15 @@ const MINT_TRANSCRIPT_WINDOW = 120;
 const AUTONOMOUS_TICKS_PER_MOVE = 1;
 const DECISION_TICKS = 2;
 
+/**
+ * Walking speed is a long-run average, not a deadline per request: a request that
+ * arrives late (network, a slow write) finds the tokens its steps earned waiting for
+ * it, so latency costs the player nothing and a held key never has to stall.
+ */
+const STEP_INTERVAL_MS = 160;
+/** Tokens a standing player banks, so one request may carry a batch of steps. */
+const STEP_BURST = 8;
+
 function messageId(attemptId: string, stageId: string, line: Utterance): string {
   return `${attemptId}:${stageId}:${line.seq}`;
 }
@@ -293,7 +301,7 @@ export class PlaySession {
       endingId: null,
       tokensSpent: 0,
       revision: 0,
-      stepRate: { tokens: STEP_RATE.burst, lastMs: 0 },
+      stepRate: { tokens: 1, lastMs: clock.now().getTime() },
       pendingReply: null,
       replyRate: { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     };
@@ -314,7 +322,7 @@ export class PlaySession {
       ...cloned,
       spokenAt: cloned.spokenAt ?? {},
       stageStats: cloned.stageStats ?? { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
-      stepRate: cloned.stepRate ?? { tokens: STEP_RATE.burst, lastMs: 0 },
+      stepRate: cloned.stepRate ?? { tokens: 1, lastMs: clock.now().getTime() },
       pendingReply: cloned.pendingReply ?? null,
       replyRate: cloned.replyRate ?? { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     }, clock, assets, compiledStages);
@@ -666,6 +674,16 @@ export class PlaySession {
   // player world actions
   // ---------------------------------------------------------------------------
 
+  /** Steps the player may take right now. A batch is allowed on one token and may overdraw the rest. */
+  private walkAllowance(now: number): number {
+    const rate = this.snap.stepRate ?? { tokens: 1, lastMs: now };
+    return Math.min(STEP_BURST, rate.tokens + Math.max(0, now - rate.lastMs) / STEP_INTERVAL_MS);
+  }
+
+  private spendWalk(now: number, allowance: number, steps: number): void {
+    this.snap.stepRate = { tokens: allowance - steps, lastMs: now };
+  }
+
   async action(client: LlmClient, action: PlayerWorldAction): Promise<ActionOutcome> {
     const closed = this.closed();
     if (closed) return { ok: false, error: closed };
@@ -676,13 +694,12 @@ export class PlaySession {
       const current = spatial.state.actors[PLAYER_ID]!;
       if (action.stageId !== this.stage.id || current.x !== action.from.x || current.y !== action.from.y) return { ok: false, error: { code: "stale_state", message: "The stage or position changed. Refresh and try again." } };
       const now = this.clock.now().getTime();
-      const elapsed = Math.max(0, now - (this.snap.stepRate?.lastMs ?? 0));
-      const tokens = Math.min(STEP_RATE.burst, (this.snap.stepRate?.tokens ?? STEP_RATE.burst) + elapsed / STEP_RATE.minIntervalMs);
-      if (tokens < 1) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
+      const allowance = this.walkAllowance(now);
+      if (allowance < 1) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
       const moved = moveActorStep(this.snap.world, PLAYER_ID, action.to);
       if (!moved.ok) return { ok: true, refused: moved.reason };
       advanceSpatialMovement(this.snap.world);
-      this.snap.stepRate = { tokens: tokens - 1, lastMs: Math.max(now, this.snap.stepRate?.lastMs ?? 0) };
+      this.spendWalk(now, allowance, 1);
       this.snap.stageStats.actions += 1;
       this.bump();
       await this.maintainOptions(client);
@@ -694,16 +711,14 @@ export class PlaySession {
       const current = spatial.state.actors[PLAYER_ID]!;
       if (action.stageId !== this.stage.id || current.x !== action.from.x || current.y !== action.from.y) return { ok: false, error: { code: "stale_state", message: "The stage or position changed. Refresh and try again." } };
       const now = this.clock.now().getTime();
-      const needed = action.path.length;
-      const elapsed = Math.max(0, now - (this.snap.stepRate?.lastMs ?? 0));
-      const tokens = Math.min(STEP_RATE.burst, (this.snap.stepRate?.tokens ?? STEP_RATE.burst) + elapsed / STEP_RATE.minIntervalMs);
-      if (tokens < needed) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
+      const allowance = this.walkAllowance(now);
+      if (allowance < 1) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
       let appliedCount = 0;
       for (const to of action.path) {
         const moved = moveActorStep(this.snap.world, PLAYER_ID, to);
         if (!moved.ok) {
           if (appliedCount > 0) {
-            this.snap.stepRate = { tokens: tokens - appliedCount, lastMs: Math.max(now, this.snap.stepRate?.lastMs ?? 0) };
+            this.spendWalk(now, allowance, appliedCount);
             this.snap.stageStats.actions += appliedCount;
             this.bump();
             await this.maintainOptions(client);
@@ -713,7 +728,7 @@ export class PlaySession {
         advanceSpatialMovement(this.snap.world);
         appliedCount += 1;
       }
-      this.snap.stepRate = { tokens: tokens - appliedCount, lastMs: Math.max(now, this.snap.stepRate?.lastMs ?? 0) };
+      this.spendWalk(now, allowance, appliedCount);
       this.snap.stageStats.actions += appliedCount;
       this.bump();
       await this.maintainOptions(client);
@@ -927,6 +942,7 @@ export class PlaySession {
     this.snap.stageStats = { openedAt: this.clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 };
     this.snap.mintedOptions = [];
     this.snap.mintedAtSeq = 0;
+    this.snap.stepRate = { tokens: 1, lastMs: this.clock.now().getTime() };
     this.snap.pendingReply = null;
     this.stage = this.spec.stages[index]!;
     this.bundle = bundle;

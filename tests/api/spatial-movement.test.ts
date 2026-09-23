@@ -34,21 +34,6 @@ function straightPath(session: PlaySession, length: number): Point[] {
   return path;
 }
 
-function walkablePath(session: PlaySession, length: number): Point[] {
-  const spatial = session.world.spatial!;
-  let current = spatial.state.actors.player!;
-  let previous: Point | null = null;
-  return Array.from({ length }, () => {
-    const candidates = [{ x: current.x + 1, y: current.y }, { x: current.x - 1, y: current.y }, { x: current.x, y: current.y + 1 }, { x: current.x, y: current.y - 1 }];
-    const next = candidates.find((point) => isWalkable(spatial.map, spatial.state.doors, point) && (!previous || point.x !== previous.x || point.y !== previous.y))
-      ?? candidates.find((point) => isWalkable(spatial.map, spatial.state.doors, point));
-    if (!next) throw new Error(`fixture player has no walkable path of ${length} tiles`);
-    previous = current;
-    current = next;
-    return next;
-  });
-}
-
 describe("authoritative spatial movement", () => {
   it("moves one adjacent tile, advances a targeted NPC, and never calls the model", async () => {
     const timer = clock();
@@ -69,7 +54,7 @@ describe("authoritative spatial movement", () => {
     expect(session.snapshot().playerPos).toEqual(to);
   });
 
-  it("rejects stale origin and stale stage while accepting token-bucket movement", async () => {
+  it("rejects stale origin, stale stage, and cadence violations without moving", async () => {
     const timer = clock();
     const session = PlaySession.start(spec, "movement-rejections", 1, timer);
     const llm = new FakeLlmClient({ replies: ['{"say":"unused","actions":[]}'] });
@@ -82,34 +67,46 @@ describe("authoritative spatial movement", () => {
     await expect(session.action(llm, { type: "move_step", stageId: spec.stages[0]!.id, from: current, to })).resolves.toEqual({ ok: true, refused: null });
     const moved = structuredClone(session.world.spatial!.state.actors.player);
     const next = adjacent(session.world.spatial!.map, session.world.spatial!.state.doors, moved!);
-    await expect(session.action(llm, { type: "move_step", stageId: spec.stages[0]!.id, from: moved!, to: next })).resolves.toEqual({ ok: true, refused: null });
-    expect(session.world.spatial!.state.actors.player).toEqual(next);
+    await expect(session.action(llm, { type: "move_step", stageId: spec.stages[0]!.id, from: moved!, to: next })).resolves.toMatchObject({ ok: false, error: { code: "rate_limited" } });
+    expect(session.world.spatial!.state.actors.player).toEqual(moved);
   });
 
-  it("allows a burst before refilling and sustains one step per 160ms", async () => {
+  it("moves a multi-tile batch and preserves batch pacing", async () => {
     const timer = clock();
     const session = PlaySession.start(spec, "movement-batch", 1, timer);
     const llm = new FakeLlmClient({ replies: ['{"say":"unused","actions":[]}'] });
-    const path = walkablePath(session, 8);
+    const path = straightPath(session, 3);
     const stageId = spec.stages[0]!.id;
     const result = await session.action(llm, { type: "move_steps", stageId, from: session.world.spatial!.state.actors.player!, path });
     expect(result).toEqual({ ok: true, refused: null });
     expect(session.snapshot().playerPos).toEqual(path.at(-1));
-    expect(session.snapshot().stageStats.actions).toBe(8);
+    expect(session.snapshot().stageStats.actions).toBe(3);
 
     const nextPath = straightPath(session, 1);
     await expect(session.action(llm, { type: "move_steps", stageId, from: path.at(-1)!, path: nextPath })).resolves.toMatchObject({ ok: false, error: { code: "rate_limited" } });
-    timer.advance(160);
+    timer.advance(480);
     await expect(session.action(llm, { type: "move_steps", stageId, from: path.at(-1)!, path: nextPath })).resolves.toEqual({ ok: true, refused: null });
+  });
 
-    const sustainedTimer = clock();
-    const sustained = PlaySession.start(spec, "movement-sustained", 1, sustainedTimer);
-    for (let index = 0; index < 12; index += 1) {
-      const from = sustained.world.spatial!.state.actors.player!;
-      const to = adjacent(sustained.world.spatial!.map, sustained.world.spatial!.state.doors, from);
-      await expect(sustained.action(llm, { type: "move_step", stageId, from, to })).resolves.toEqual({ ok: true, refused: null });
-      sustainedTimer.advance(160);
-    }
+  it("banks the walking a late request earned, so a jittery round trip does not refuse the next batch", async () => {
+    const timer = clock();
+    const session = PlaySession.start(spec, "movement-jitter", 1, timer);
+    const llm = new FakeLlmClient({ replies: ['{"say":"unused","actions":[]}'] });
+    const stageId = spec.stages[0]!.id;
+    const start = session.world.spatial!.state.actors.player!;
+    const next = adjacent(session.world.spatial!.map, session.world.spatial!.state.doors, start);
+    // A player holding a key makes four steps per request. The first request lands
+    // 80ms after they were earned, the second 80ms before: the same average speed,
+    // and neither may be refused, or the walk stops in the middle.
+    const batch = [next, start, next, start];
+    timer.advance(640 + 80);
+    await expect(session.action(llm, { type: "move_steps", stageId, from: start, path: batch })).resolves.toEqual({ ok: true, refused: null });
+    timer.advance(640 - 80);
+    await expect(session.action(llm, { type: "move_steps", stageId, from: start, path: batch })).resolves.toEqual({ ok: true, refused: null });
+    // Sustained walking is still capped: once the banked allowance is spent, a batch
+    // that outruns the clock is refused.
+    await expect(session.action(llm, { type: "move_steps", stageId, from: start, path: batch })).resolves.toEqual({ ok: true, refused: null });
+    await expect(session.action(llm, { type: "move_steps", stageId, from: start, path: batch })).resolves.toMatchObject({ ok: false, error: { code: "rate_limited" } });
   });
 
   it("applies a valid prefix before refusing a blocked batch and rejects invalid batches", async () => {
