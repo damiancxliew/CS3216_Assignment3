@@ -9,8 +9,25 @@ import type { StageMap } from "@adventure/game-core";
 /** The SVG only draws rooms and doors; `tiles` and `seed` are never needed. */
 type Plan = Pick<StageMap, "width" | "height" | "rooms" | "doors">;
 
-/** A label needs a few tiles of room; below this the centred text would spill. */
-const MIN_LABEL_TILES = 6;
+/**
+ * Label sizing is a heuristic, not a measurement: at font-size LABEL_FONT a
+ * glyph advances up to ~0.75F in tile units for capital-heavy names, so a
+ * room fits `floor((width - padding) / 0.75F)` characters. Below ~4 the name
+ * is dropped; longer names are truncated, never squeezed.
+ */
+const LABEL_FONT = 1.4;
+const LABEL_PAD = 0.8;
+const GLYPH_ADVANCE = 0.75;
+const MIN_LABEL_CHARS = 4;
+const MIN_LABEL_HEIGHT = 2;
+
+function roomLabel(room: Plan["rooms"][number], name: string): string | null {
+  if (room.height < MIN_LABEL_HEIGHT) return null;
+  const budget = Math.floor((room.width - LABEL_PAD) / (GLYPH_ADVANCE * LABEL_FONT));
+  if (budget < MIN_LABEL_CHARS) return null;
+  if (name.length <= budget) return name;
+  return name.slice(0, budget).trimEnd() + "…";
+}
 
 export function StageMapPlan({ map, names = {} }: { map: Plan; names?: Record<string, string> }) {
   return (
@@ -42,20 +59,23 @@ export function StageMapPlan({ map, names = {} }: { map: Plan; names?: Record<st
           className="fill-line-strong"
         />
       ))}
-      {map.rooms
-        .filter((room) => room.width >= MIN_LABEL_TILES)
-        .map((room) => (
+      {map.rooms.map((room) => {
+        const label = roomLabel(room, names[room.id] ?? room.id);
+        if (!label) return null;
+        return (
           <text
             key={room.id}
             x={room.x + room.width / 2}
             y={room.y + room.height / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            className="fill-muted text-[1.4px]"
+            fontSize={LABEL_FONT}
+            className="fill-muted"
           >
-            {names[room.id] ?? room.id}
+            {label}
           </text>
-        ))}
+        );
+      })}
     </svg>
   );
 }
