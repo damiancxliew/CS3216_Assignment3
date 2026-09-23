@@ -30,6 +30,7 @@ class FakeClient {
   runtime: { stage_spec_id: string; revision: number; snapshot: unknown } | null = null;
   runtimeError: { code?: string; message: string } | null = null;
   runtimeReadError: { message: string } | null = null;
+  versionReadError: { message: string } | null = null;
   upserts: { table: string; values: unknown; options: unknown }[] = [];
   rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
   rpcResult: { data: unknown; error: { message: string; code?: string } | null } = { data: { runtimeRevision: 1, stageDeadlineAt: null }, error: null };
@@ -54,7 +55,11 @@ class FakeClient {
 
   read(table: string, filters: Record<string, unknown>) {
     if (table === "attempt") return { data: this.attempt, error: null };
-    if (table === "spec_version") return { data: { id: "version", json: this.spec, compiled_stages: this.compiledStages }, error: null };
+    if (table === "spec_version") {
+      return this.versionReadError
+        ? { data: null, error: this.versionReadError }
+        : { data: { id: "version", json: this.spec, compiled_stages: this.compiledStages }, error: null };
+    }
     if (table === "attempt_runtime") return this.runtimeReadError ? { data: null, error: this.runtimeReadError } : { data: this.runtime, error: null };
     if (table === "room" || table === "agent" || table === "decision_option") {
       const stageIndex = Number(String(filters.stage_id).split("-").at(-1));
@@ -188,5 +193,11 @@ describe("SupabasePlayStore runtime validation", () => {
     await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toThrow(/save_play_turn/);
     client.runtimeReadError = { message: "Timed out acquiring connection from connection pool." };
     await expect(new SupabasePlayStore(client as never).load("attempt", "student")).rejects.toThrow(/attempt_runtime/);
+  });
+
+  it("refuses a failed pinned-version read instead of reporting no such attempt", async () => {
+    client.runtimeReadError = null;
+    client.versionReadError = { message: `column spec_version.compiled_stages does not exist` };
+    await expect(new SupabasePlayStore(client as never).load("attempt", "student")).rejects.toThrow(/spec_version/);
   });
 });
