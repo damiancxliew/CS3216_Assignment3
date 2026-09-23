@@ -121,6 +121,7 @@ export interface PlayState extends PublicAttemptState {
 
 export type PlayerWorldAction =
   | { type: "move_step"; stageId: string; from: Point; to: Point }
+  | { type: "move_steps"; stageId: string; from: Point; path: Point[] }
   | { type: "move_room"; toRoomId: string; position?: { x: number; y: number } }
   | { type: "open_door"; roomId: string }
   | { type: "close_door"; roomId: string }
@@ -679,6 +680,34 @@ export class PlaySession {
       advanceSpatialMovement(this.snap.world);
       this.snap.nextStepAt = now + 160;
       this.snap.stageStats.actions += 1;
+      this.bump();
+      await this.maintainOptions(client);
+      return { ok: true, refused: null };
+    }
+    if (action.type === "move_steps") {
+      if (action.path.length === 0 || action.path.length > 8) return { ok: false, error: { code: "invalid_request", message: "A movement batch must contain between one and eight steps." } };
+      const spatial = this.snap.world.spatial!;
+      const current = spatial.state.actors[PLAYER_ID]!;
+      if (action.stageId !== this.stage.id || current.x !== action.from.x || current.y !== action.from.y) return { ok: false, error: { code: "stale_state", message: "The stage or position changed. Refresh and try again." } };
+      const now = this.clock.now().getTime();
+      if (now < (this.snap.nextStepAt ?? 0)) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
+      let appliedCount = 0;
+      for (const to of action.path) {
+        const moved = moveActorStep(this.snap.world, PLAYER_ID, to);
+        if (!moved.ok) {
+          if (appliedCount > 0) {
+            this.snap.nextStepAt = now + 160 * appliedCount;
+            this.snap.stageStats.actions += appliedCount;
+            this.bump();
+            await this.maintainOptions(client);
+          }
+          return { ok: true, refused: moved.reason };
+        }
+        advanceSpatialMovement(this.snap.world);
+        appliedCount += 1;
+      }
+      this.snap.nextStepAt = now + 160 * appliedCount;
+      this.snap.stageStats.actions += appliedCount;
       this.bump();
       await this.maintainOptions(client);
       return { ok: true, refused: null };

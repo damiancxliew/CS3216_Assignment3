@@ -23,6 +23,17 @@ function adjacent(map: Parameters<typeof isWalkable>[0], doors: Parameters<typeo
   return found;
 }
 
+function straightPath(session: PlaySession, length: number): Point[] {
+  const spatial = session.world.spatial!;
+  const from = spatial.state.actors.player!;
+  const directions = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+  const path = directions
+    .map((direction) => Array.from({ length }, (_, index) => ({ x: from.x + direction.x * (index + 1), y: from.y + direction.y * (index + 1) })))
+    .find((candidate) => candidate.every((point) => isWalkable(spatial.map, spatial.state.doors, point)));
+  if (!path) throw new Error(`fixture player has no straight path of ${length} tiles`);
+  return path;
+}
+
 describe("authoritative spatial movement", () => {
   it("moves one adjacent tile, advances a targeted NPC, and never calls the model", async () => {
     const timer = clock();
@@ -58,6 +69,49 @@ describe("authoritative spatial movement", () => {
     const next = adjacent(session.world.spatial!.map, session.world.spatial!.state.doors, moved!);
     await expect(session.action(llm, { type: "move_step", stageId: spec.stages[0]!.id, from: moved!, to: next })).resolves.toMatchObject({ ok: false, error: { code: "rate_limited" } });
     expect(session.world.spatial!.state.actors.player).toEqual(moved);
+  });
+
+  it("moves a multi-tile batch and preserves batch pacing", async () => {
+    const timer = clock();
+    const session = PlaySession.start(spec, "movement-batch", 1, timer);
+    const llm = new FakeLlmClient({ replies: ['{"say":"unused","actions":[]}'] });
+    const path = straightPath(session, 3);
+    const stageId = spec.stages[0]!.id;
+    const result = await session.action(llm, { type: "move_steps", stageId, from: session.world.spatial!.state.actors.player!, path });
+    expect(result).toEqual({ ok: true, refused: null });
+    expect(session.snapshot().playerPos).toEqual(path.at(-1));
+    expect(session.snapshot().stageStats.actions).toBe(3);
+
+    const nextPath = straightPath(session, 1);
+    await expect(session.action(llm, { type: "move_steps", stageId, from: path.at(-1)!, path: nextPath })).resolves.toMatchObject({ ok: false, error: { code: "rate_limited" } });
+    timer.advance(480);
+    await expect(session.action(llm, { type: "move_steps", stageId, from: path.at(-1)!, path: nextPath })).resolves.toEqual({ ok: true, refused: null });
+  });
+
+  it("applies a valid prefix before refusing a blocked batch and rejects invalid batches", async () => {
+    const timer = clock();
+    const session = PlaySession.start(spec, "movement-batch-partial", 1, timer);
+    const llm = new FakeLlmClient({ replies: ['{"say":"unused","actions":[]}'] });
+    const spatial = session.world.spatial!;
+    const initial = spatial.state.actors.player!;
+    const door = spatial.map.doors.find((candidate) => spatial.state.doors[candidate.id] === "closed")!;
+    const route = findPath(spatial.map, spatial.state.doors, initial, door.outside);
+    expect(route).not.toBeNull();
+    expect(route!.length).toBeGreaterThan(1);
+    for (const point of route!.slice(0, -1)) expect(moveActorStep(session.world, "player", point)).toMatchObject({ ok: true });
+    const from = spatial.state.actors.player!;
+    const first = door.outside;
+    const blocked = door.position;
+    const stageId = spec.stages[0]!.id;
+    const refused = await session.action(llm, { type: "move_steps", stageId, from, path: [first, blocked, { x: blocked.x + 1, y: blocked.y }] });
+    expect(refused).toMatchObject({ ok: true, refused: expect.any(String) });
+    expect(session.snapshot().playerPos).toEqual(first);
+    expect(session.snapshot().stageStats.actions).toBe(1);
+
+    timer.advance(160);
+    await expect(session.action(llm, { type: "move_steps", stageId, from: { x: first.x + 1, y: first.y }, path: [first] })).resolves.toMatchObject({ ok: false, error: { code: "stale_state" } });
+    await expect(session.action(llm, { type: "move_steps", stageId, from: first, path: [] })).resolves.toMatchObject({ ok: false, error: { code: "invalid_request" } });
+    await expect(session.action(llm, { type: "move_steps", stageId, from: first, path: Array.from({ length: 9 }, () => first) })).resolves.toMatchObject({ ok: false, error: { code: "invalid_request" } });
   });
 
   it("refuses blocked doors, diagonal steps, and long jumps without changing position", async () => {

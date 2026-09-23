@@ -24,11 +24,12 @@ export function optimisticAdvance(
   };
 }
 
-export function settleStep(
+export function settleBatch(
   queue: readonly PendingStep[],
   settlement: StepSettlement,
+  sentCount: number,
 ): PendingStep[] {
-  if (settlement === "accepted") return queue.slice(1);
+  if (settlement === "accepted") return queue.slice(sentCount);
   if (settlement === "retry") return [...queue];
   return [];
 }
