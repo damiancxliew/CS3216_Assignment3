@@ -1,5 +1,5 @@
 ---
-name: teacher-console-local-testing
+name: teacher-console-testing
 description: Run teacher console UI tests against local Next.js and Supabase with isolated teacher accounts and source fixtures.
 ---
 
@@ -32,7 +32,28 @@ description: Run teacher console UI tests against local Next.js and Supabase wit
   a clean navigation that waits for hydration before DOM-inspection tools run.
   Capture raw console and pageerror events rather than suppressing warnings.
 
+## Source upload fixtures and diagnostics
+
+- Check `LIMITS.minPdfChars` in `packages/generation/src/ingest/extract.ts`
+  before generating normal PDF fixtures. The current threshold is 200
+  non-whitespace characters across the document; a shorter genuine text-layer
+  PDF may correctly return the same error as a scanned PDF.
+- Validate normal fixtures have enough extracted text and image-only fixtures
+  extract zero characters before UI execution. Use `unpdf` from the installed
+  workspace dependencies; do not assume a visually rendered PDF has extractable text.
+- A failed upload may retain the file input's selected filename. Selecting the
+  same path again may not fire a change event. Report retry behavior separately;
+  toggling "Paste text instead" then "Upload a file instead" clears the input
+  when fixture correction is needed.
+- For browser-extracted large PDF uploads, passively capture the actual POST
+  body byte length and multipart field names. Expect pages and filename rather
+  than raw PDF bytes. Source state in subsequent requests also includes prior
+  filenames, so do not identify uploads from filename substring alone.
+- Capture the Reading state immediately after choosing a large file, without
+  artificial throttling, and verify subsequent picker reuse through the UI.
+
 ## Devin Secrets Needed
 
 - `OPENAI_API_KEY` (repo-scoped): needed for real assistant brief turns.
-- Local Supabase URL/keys must be configured in the gitignored `.env.local`.
+- Local Supabase URL/keys must be configured in the gitignored `.env.local`
+  or exported into the Next.js process using `npx supabase status -o env`.
