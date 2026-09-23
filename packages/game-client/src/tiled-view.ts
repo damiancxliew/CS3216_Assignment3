@@ -98,8 +98,20 @@ class TiledScene extends Phaser.Scene {
   private labels: Phaser.GameObjects.Text[] = []
   private markers = new Map<
     string,
-    { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; hint: Phaser.GameObjects.Text | null; key: string; facing: Facing; last: Point }
+    {
+      container: Phaser.GameObjects.Container
+      sprite: Phaser.GameObjects.Sprite
+      label: Phaser.GameObjects.Text
+      hint: Phaser.GameObjects.Text | null
+      hintTween: Phaser.Tweens.Tween | null
+      labelAbove: boolean
+      key: string
+      facing: Facing
+      last: Point
+    }
   >()
+  /** Tiles whose nameplate would land on a door, i.e. the tile above each door. */
+  private plateBlocked = new Set<string>()
   private loadedSprites = new Set<string>()
   private ambientId: string | null = null
   private ambientObjects: Phaser.GameObjects.GameObject[] = []
@@ -224,6 +236,7 @@ class TiledScene extends Phaser.Scene {
 
   private buildMap(): void {
     this.map?.destroy()
+    this.plateBlocked = new Set(this.current.map.doors.map((door) => `${door.position.x},${door.position.y - 1}`))
     this.doors.forEach((d) => d.destroy())
     this.doors.clear()
     this.labels.forEach((l) => l.destroy())
@@ -272,9 +285,11 @@ class TiledScene extends Phaser.Scene {
           }
         }
       }
+      // A door on the top wall keeps the room name outside the room, above the wall.
+      const doorOnTopWall = source.doors.some((door) => door.roomId === room.id && door.position.y === room.y)
       this.labels.push(
         this.add
-          .text((room.x + room.width / 2) * T, room.y * T + 1, this.roomName(room.id), {
+          .text((room.x + room.width / 2) * T, doorOnTopWall ? room.y * T - 1 : room.y * T + 1, this.roomName(room.id), {
             color: '#fff8e7',
             fontFamily: 'system-ui, "Segoe UI", sans-serif',
             fontSize: '9px',
@@ -283,7 +298,7 @@ class TiledScene extends Phaser.Scene {
             padding: { x: 4, y: 2 },
             resolution: 8,
           })
-          .setOrigin(0.5, 0)
+          .setOrigin(0.5, doorOnTopWall ? 1 : 0)
           .setDepth(30)
           .setAlpha(0.95),
       )
@@ -350,6 +365,8 @@ class TiledScene extends Phaser.Scene {
         marker.sprite.setFrame(DIRECTIONS.indexOf(facing))
       }
       marker.container.setDepth(10 + actor.position.y / 1000 + (actor.id === 'player' ? 0.5 : 0))
+      // A nameplate below the feet would sit on the door the character is standing at.
+      this.placeLabel(marker, this.plateBlocked.has(`${actor.position.x},${actor.position.y}`))
       // Someone you can talk to right now gets a prompt above their head.
       marker.hint?.setVisible(playerRoomId !== null && actor.space?.kind === 'room' && actor.space.roomId === playerRoomId)
       if (snap || this.reducedMotion) {
@@ -372,6 +389,19 @@ class TiledScene extends Phaser.Scene {
     this.followPlayer()
   }
 
+  /** Nameplate under the feet by default, flipped over the head where it would cover a door. */
+  private placeLabel(marker: { label: Phaser.GameObjects.Text; hint: Phaser.GameObjects.Text | null; hintTween: Phaser.Tweens.Tween | null; labelAbove: boolean }, above: boolean): void {
+    if (marker.labelAbove === above) return
+    marker.labelAbove = above
+    marker.label.setOrigin(0.5, above ? 1 : 0).setY(above ? -9 : 9)
+    if (!marker.hint) return
+    const hintY = above ? -9 - marker.label.height : -13
+    marker.hintTween?.remove()
+    marker.hintTween = null
+    marker.hint.setY(hintY)
+    if (!this.reducedMotion) marker.hintTween = this.tweens.add({ targets: marker.hint, y: hintY - 2, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+  }
+
   private createMarker(player: boolean, name: string, key: string, position: Point) {
     const container = this.add.container(0, 0)
     const shadow = this.add.ellipse(0, 6, 10, 4, 0x000000, 0.25)
@@ -390,6 +420,7 @@ class TiledScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setAlpha(0.95)
     let hint: Phaser.GameObjects.Text | null = null
+    let hintTween: Phaser.Tweens.Tween | null = null
     if (!player) {
       hint = this.add
         .text(0, -13, 'click to talk', {
@@ -403,10 +434,10 @@ class TiledScene extends Phaser.Scene {
         })
         .setOrigin(0.5, 1)
         .setVisible(false)
-      if (!this.reducedMotion) this.tweens.add({ targets: hint, y: -15, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+      if (!this.reducedMotion) hintTween = this.tweens.add({ targets: hint, y: -15, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
     }
     container.add(hint ? [shadow, sprite, label, hint] : [shadow, sprite, label])
-    return { container, sprite, hint, key, facing: 'down' as Facing, last: { x: position.x, y: position.y } }
+    return { container, sprite, label, hint, hintTween, labelAbove: false, key, facing: 'down' as Facing, last: { x: position.x, y: position.y } }
   }
 
   // ---------------------------------------------------------------------------
