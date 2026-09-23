@@ -32,6 +32,25 @@ description: Run teacher console UI tests against local Next.js and Supabase wit
   a clean navigation that waits for hydration before DOM-inspection tools run.
   Capture raw console and pageerror events rather than suppressing warnings.
 
+## Source upload fixtures and diagnostics
+
+- Check `LIMITS.minPdfChars` in `packages/generation/src/ingest/extract.ts`
+  before generating normal PDF fixtures. The current threshold is 200
+  non-whitespace characters across the document; a shorter genuine text-layer
+  PDF may correctly return the same error as a scanned PDF.
+- Validate normal fixtures have enough extracted text and image-only fixtures
+  extract zero characters before UI execution. Use `unpdf` from the installed
+  workspace dependencies; do not assume a visually rendered PDF has extractable text.
+- The file input is cleared on submit, so re-picking the same path fires a fresh
+  change event. If a build predates that, toggling "Paste text instead" and back
+  clears the input when fixture correction is needed.
+- For browser-extracted large PDF uploads, passively capture the actual POST
+  body byte length and multipart field names. Expect pages and filename rather
+  than raw PDF bytes. Source state in subsequent requests also includes prior
+  filenames, so do not identify uploads from filename substring alone.
+- Capture the Reading state immediately after choosing a large file, without
+  artificial throttling, and verify subsequent picker reuse through the UI.
+
 ## Dossier fixtures and visual evidence
 
 - For a generated draft without an OpenAI call, load `loadI1Spec` from
