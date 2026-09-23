@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { addBriefSource, briefTurn, discardBrief, finishBrief, startBrief } from "./actions";
+import { extractPdfPagesInBrowser } from "@/lib/brief/extract-pdf-client";
 import { button, control, ErrorText, Pending, Thinking } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
@@ -12,6 +13,8 @@ import {
   type BriefInput,
   type BriefState,
   currentSlot,
+  MAX_CLIENT_PDF_BYTES,
+  MAX_UPLOAD_BYTES,
   quickReplies,
   READING_BAND_LABELS,
   type Slot,
@@ -59,12 +62,16 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
   function run(work: () => Promise<{ ok: true; state: BriefState } | { ok: false; error: string }>) {
     setError(null);
     startTransition(async () => {
-      const result = await work();
-      if (result.ok) {
-        setState(result.state);
-        setText("");
-      } else {
-        setError(result.error);
+      try {
+        const result = await work();
+        if (result.ok) {
+          setState(result.state);
+          setText("");
+        } else {
+          setError(result.error);
+        }
+      } catch {
+        setError("That didn’t reach the server — the file may be too large. Try again, or paste the text instead.");
       }
     });
   }
@@ -75,8 +82,31 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
 
   function upload(formData: FormData, form: HTMLFormElement) {
     if (!state) return;
+    const file = formData.get("file");
+    const isPdf = file instanceof File && (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+    if (file instanceof File && isPdf && file.size > MAX_CLIENT_PDF_BYTES) {
+      setError(`That file is ${(file.size / 1_048_576).toFixed(1)} MB; the limit is ${MAX_CLIENT_PDF_BYTES / 1_048_576} MB`);
+      return;
+    }
+    if (file instanceof File && !isPdf && file.size > MAX_UPLOAD_BYTES) {
+      setError(`That file is ${(file.size / 1_048_576).toFixed(1)} MB; the limit is ${MAX_UPLOAD_BYTES / 1_048_576} MB`);
+      return;
+    }
     run(async () => {
-      const result = await addBriefSource(state, formData);
+      let payload = formData;
+      if (file instanceof File && isPdf) {
+        try {
+          const pages = await extractPdfPagesInBrowser(file);
+          payload = new FormData();
+          payload.set("pages", JSON.stringify(pages));
+          payload.set("filename", file.name);
+        } catch {
+          if (file.size > MAX_UPLOAD_BYTES) {
+            return { ok: false as const, error: "Could not read that PDF in the browser, and it’s too large to send — paste the text instead." };
+          }
+        }
+      }
+      const result = await addBriefSource(state, payload);
       if (result.ok) {
         track(ANALYTICS_EVENTS.sourceUploaded);
         form.reset();
@@ -358,7 +388,10 @@ function SourceStep({
         className="flex flex-wrap items-center gap-3"
         onSubmit={(event) => {
           event.preventDefault();
-          onUpload(new FormData(event.currentTarget), event.currentTarget);
+          const formData = new FormData(event.currentTarget);
+          const fileInput = event.currentTarget.querySelector<HTMLInputElement>('input[type="file"]');
+          if (fileInput) fileInput.value = "";
+          onUpload(formData, event.currentTarget);
         }}
       >
         {pasting ? (
@@ -379,12 +412,19 @@ function SourceStep({
             accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
             aria-label="PDF, .txt or .md"
             disabled={pending}
+            onChange={(event) => event.currentTarget.form?.requestSubmit()}
             className={`${control} min-w-[16rem] flex-1 file:mr-3 file:rounded-control file:border-0 file:bg-ink file:px-3 file:py-1 file:text-sm file:font-semibold file:text-paper`}
           />
         )}
-        <button type="submit" disabled={pending} className={button.quiet}>
-          {pending ? <Pending>Reading</Pending> : pasting ? "Add the passage" : "Upload"}
-        </button>
+        {pasting ? (
+          <button type="submit" disabled={pending} className={button.quiet}>
+            {pending ? <Pending>Reading</Pending> : "Add the passage"}
+          </button>
+        ) : pending ? (
+          <span className={button.quiet}>
+            <Pending>Reading</Pending>
+          </span>
+        ) : null}
         <button type="button" onClick={() => setPasting((p) => !p)} disabled={pending} className={button.quiet}>
           {pasting ? "Upload a file instead" : "Paste text instead"}
         </button>
@@ -392,7 +432,9 @@ function SourceStep({
           <Check className="h-4 w-4" aria-hidden /> {SOURCES_DONE}
         </Chip>
       </form>
-      {!pasting ? <p className="text-sm text-muted">A scanned PDF has no text layer; paste its text instead.</p> : null}
+      {!pasting ? (
+        <p className="text-sm text-muted">Any size PDF — the text is read here in your browser. A scanned PDF has no text layer; paste its text instead.</p>
+      ) : null}
     </div>
   );
 }
