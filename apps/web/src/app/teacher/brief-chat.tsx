@@ -388,7 +388,10 @@ function SourceStep({
         className="flex flex-wrap items-center gap-3"
         onSubmit={(event) => {
           event.preventDefault();
-          onUpload(new FormData(event.currentTarget), event.currentTarget);
+          const formData = new FormData(event.currentTarget);
+          const fileInput = event.currentTarget.querySelector<HTMLInputElement>('input[type="file"]');
+          if (fileInput) fileInput.value = "";
+          onUpload(formData, event.currentTarget);
         }}
       >
         {pasting ? (
