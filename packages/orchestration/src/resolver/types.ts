@@ -50,6 +50,10 @@ export interface ResolverInput {
   actions: ActorAction[]
   /** How much of the stage's evidence the player actually found — earned, not rolled. */
   evidenceCollected: number
+  /** Public room-scoped lines the Resolver may use to narrate the stage. */
+  transcript?: readonly { roomId: string; speakerName: string; body: string }[]
+  /** Closed set of world-state paths the Resolver may propose changing. */
+  writableStatePaths?: readonly string[]
   /** Effects proposed elsewhere (e.g. by a stage transition). Allow-listed before use (FR-15b). */
   candidateEffects?: readonly unknown[]
 }
@@ -59,6 +63,8 @@ export interface ResolverTelemetry {
   droppedActions: number
   droppedEffects: number
   droppedAgentDeltas: number
+  droppedWorldDeltas: number
+  llmFallback: boolean
   /** LLM repair round-trips used (FR-4/D14). Always 0 for the deterministic fake Resolver. */
   repairRounds: number
 }
@@ -118,6 +124,17 @@ export const resolverInputSchema = z.object({
     }),
   actions: z.array(z.object({ actorKind: z.enum(['player', 'agent']), actorId: id, action: z.unknown() })),
   evidenceCollected: recoverableNumber,
+  transcript: z
+    .array(
+      z.object({
+        roomId: id,
+        speakerName: z.string().min(1).max(200),
+        body: z.string().min(1).max(2000),
+      }),
+    )
+    .max(400)
+    .optional(),
+  writableStatePaths: z.array(z.string().max(120)).max(64).optional(),
   candidateEffects: z.array(z.unknown()).optional(),
 })
 
