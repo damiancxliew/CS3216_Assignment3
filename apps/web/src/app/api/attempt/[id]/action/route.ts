@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-import { errorResponse, playDeps, publicJson, readJson, requireUserId } from "@/lib/play/http";
+import { errorResponse, playDeps, publicJson, readJson, requireUserId, withPlayPerf } from "@/lib/play/http";
 import { postAction } from "@/lib/play/service";
+import { createTimings } from "@/lib/play/timing";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -27,13 +28,14 @@ const actionRequestSchema = z.discriminatedUnion("type", [
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const userId = await requireUserId();
-  if (typeof userId !== "string") return userId;
+  const timings = createTimings();
+  const userId = await timings.time("auth", requireUserId);
+  if (typeof userId !== "string") return withPlayPerf(userId, timings, { route: "action", type: "unknown", attemptId: id });
 
   const parsed = actionRequestSchema.safeParse(await readJson(request));
-  if (!parsed.success) return errorResponse({ code: "invalid_request", message: "Unknown action." });
+  if (!parsed.success) return withPlayPerf(errorResponse({ code: "invalid_request", message: "Unknown action." }), timings, { route: "action", type: "unknown", attemptId: id });
 
-  const result = await postAction(playDeps(), id, userId, parsed.data);
-  if (!result.ok) return errorResponse(result.error);
-  return publicJson({ accepted: true, refused: result.value.refused, state: result.state });
+  const result = await postAction({ ...playDeps(), timings }, id, userId, parsed.data);
+  const response = result.ok ? publicJson({ accepted: true, refused: result.value.refused, state: result.state }) : errorResponse(result.error);
+  return withPlayPerf(response, timings, { route: "action", type: parsed.data.type, attemptId: id });
 }

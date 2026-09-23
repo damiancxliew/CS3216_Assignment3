@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { extractText, getDocumentProxy } from 'unpdf'
 import { describe, expect, it } from 'vitest'
 
 import { FIXTURES_DIR, I1_FIXTURE } from '../src/fixtures'
@@ -76,6 +77,26 @@ describe('D1 — limits and failure modes', () => {
   it('rejects an oversized upload before parsing', async () => {
     const bytes = new Uint8Array(LIMITS.maxUploadBytes + 1)
     await expect(extractDocument({ id: 'big', title: 'big', kind: 'pdf', bytes })).rejects.toMatchObject({ code: 'too-large' })
+  })
+
+  it('accepts pages the client extracted itself, identically to bytes', async () => {
+    const raw = await readFile(join(FIXTURES_DIR, I1_FIXTURE.source.file), 'utf8')
+    const bytes = await makePdf(raw.replace(/\r\n/g, '\n').split('\f'))
+    // the browser sends the same per-page text unpdf produces
+    const pdf = await getDocumentProxy(bytes.slice())
+    const { text } = await extractText(pdf, { mergePages: false })
+    const fromBytes = await extractDocument({ id: 'handout-pdf', title: 'handout', kind: 'pdf', bytes })
+    const fromPages = await extractDocument({ id: 'handout-pdf', title: 'handout', kind: 'pdf', pages: text })
+    expect(fromPages.pageCount).toBe(fromBytes.pageCount)
+    expect(fromPages.pages).toEqual(fromBytes.pages)
+    expect(fromPages.contentHash).toBe(fromBytes.contentHash)
+  })
+
+  it('rejects client-supplied pages over the page cap and with no text layer', async () => {
+    const tooMany = Array.from({ length: LIMITS.maxPages + 1 }, () => 'word '.repeat(20))
+    await expect(extractDocument({ id: 'many', title: 'many', kind: 'pdf', pages: tooMany })).rejects.toMatchObject({ code: 'too-many-pages' })
+    await expect(extractDocument({ id: 'scan', title: 'scan', kind: 'pdf', pages: ['', '   '] })).rejects.toMatchObject({ code: 'no-text-layer' })
+    await expect(extractDocument({ id: 'none', title: 'none', kind: 'pdf', pages: [] })).rejects.toMatchObject({ code: 'empty' })
   })
 
   it('rejects a PDF with no text layer', async () => {

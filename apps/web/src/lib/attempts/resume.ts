@@ -31,6 +31,8 @@ export type JournalEntry = z.infer<typeof journalEntrySchema>;
 export type ResumeState = {
   attemptId: string;
   adventureTitle: string;
+  /** Whether the teacher lets a finished attempt be followed by a fresh one. */
+  retriesAllowed: boolean;
   status: "active" | "spectating" | "completed" | "abandoned";
   stage: { id: string; index: number; title: string; sharedContext: string } | null;
   stageCount: number;
@@ -54,14 +56,14 @@ export async function loadResumeState(
   const { data: attempt } = await supabase
     .from("attempt")
     .select(
-      "id, status, current_stage_id, stage_deadline_at, published_version, adventure(id, title)",
+      "id, status, current_stage_id, stage_deadline_at, published_version, adventure(id, title, allow_retries)",
     )
     .eq("id", attemptId)
     .maybeSingle();
 
   if (!attempt) return null;
 
-  const adventure = attempt.adventure as unknown as { id: string; title: string };
+  const adventure = attempt.adventure as unknown as { id: string; title: string; allow_retries: boolean };
 
   const [{ data: state }, { data: stage }, { data: messages }, { data: commitments }] =
     await Promise.all([
@@ -117,6 +119,7 @@ export async function loadResumeState(
   const resumed: Omit<ResumeState, "recap"> = {
     attemptId: attempt.id as string,
     adventureTitle: adventure?.title ?? "Your adventure",
+    retriesAllowed: adventure?.allow_retries ?? false,
     status: attempt.status as ResumeState["status"],
     stage: stage
       ? {

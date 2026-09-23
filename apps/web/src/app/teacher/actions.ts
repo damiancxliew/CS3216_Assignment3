@@ -185,12 +185,24 @@ const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
   "text/markdown": "text",
 };
 
+/** Per-page text the client extracted from a PDF itself; untrusted, so the caps are re-checked by `extractDocument`. */
+const clientPagesSchema = z.array(z.string()).min(1).max(LIMITS.maxPages);
+
 /** A pasted passage and an uploaded file come out identical, so the two are never stored differently. */
 async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocument; storageKey: string } | { error: string }> {
   const body = String(formData.get("body") ?? "").trim();
   const file = formData.get("file");
 
   try {
+    const rawPages = formData.get("pages");
+    if (rawPages !== null) {
+      const parsed = clientPagesSchema.safeParse(JSON.parse(String(rawPages)));
+      if (!parsed.success) return { error: "Could not read that PDF — paste the text instead" };
+      const filename = String(formData.get("filename") ?? "").trim();
+      if (!filename) return { error: "Could not read that PDF — paste the text instead" };
+      const doc = await extractDocument({ id: slugify(filename), title: filename, kind: "pdf", pages: parsed.data });
+      return { doc, storageKey: `upload:${crypto.randomUUID()}/${filename}` };
+    }
     if (body) {
       const doc = await extractDocument({ id: slugify("Pasted source", "pasted-source"), title: "Pasted source", kind: "text", text: body });
       return { doc, storageKey: `inline:${crypto.randomUUID()}` };
@@ -571,6 +583,31 @@ async function applyEdit(adventureId: string, specVersionId: string, edit: SpecE
   if (result.error) return { error: result.error };
   revalidatePath(`/teacher/${adventureId}`);
   return { notice: "Saved." };
+}
+
+/**
+ * Whether a finished attempt can be followed by a fresh one. The database is
+ * what enforces it — both the share link and the ending's own button create
+ * attempts through owner-checked RPCs — so this only records the decision.
+ */
+export async function updateRetries(
+  adventureId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { supabase } = await requireOwnership(adventureId);
+
+  const choice = String(formData.get("allow_retries") ?? "");
+  if (choice !== "on" && choice !== "off") return { error: "Choose whether retries are allowed" };
+
+  const { error } = await supabase
+    .from("adventure")
+    .update({ allow_retries: choice === "on" })
+    .eq("id", adventureId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/teacher/${adventureId}`);
+  return {};
 }
 
 const text = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();

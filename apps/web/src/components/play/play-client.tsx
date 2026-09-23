@@ -21,6 +21,7 @@ import type { Point } from "@adventure/game-core";
 import { playApi } from "./api";
 import type { MapIntent } from "./map-canvas";
 import { useSoundCues } from "./sound";
+import { restartAttempt } from "@/app/play/[attemptId]/actions";
 import { StageCountdown } from "@/components/stage-countdown";
 import { Pending, Spinner, Thinking } from "@/components/ui";
 import type { PlayState } from "@/lib/play/session";
@@ -67,7 +68,15 @@ const subtle =
   "inline-flex min-h-9 items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:opacity-60";
 const label = "text-sm font-semibold text-muted";
 
-export function PlayClient({ attemptId, initialState }: { attemptId: string; initialState: PlayState }) {
+export function PlayClient({
+  attemptId,
+  initialState,
+  retriesAllowed,
+}: {
+  attemptId: string;
+  initialState: PlayState;
+  retriesAllowed: boolean;
+}) {
   const router = useRouter();
   const [state, setState] = useState<PlayState>(initialState);
   const stateRef = useRef(initialState);
@@ -231,15 +240,20 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
       const before = stateRef.current;
       if (before.status !== "active" || busy === "Deciding…" || busy === "Knocking…") return { position: before.playerPos, accepted: false, retry: false };
       try {
-        const result = await serialize(() => playApi.action(attemptId, { type: "move_step", stageId: before.stage.id, from, to }));
+        let requestSentAt = 0;
+        const result = await serialize(() => {
+          requestSentAt = performance.now();
+          return playApi.action(attemptId, { type: "move_step", stageId: before.stage.id, from, to });
+        });
+        const acknowledgedAt = performance.now();
         if (!result.ok) {
           setNotice(result.error.message);
           if (result.error.code !== "rate_limited") await refresh();
-          return { position: stateRef.current.playerPos, accepted: false, retry: result.error.code === "rate_limited" };
+          return { position: stateRef.current.playerPos, accepted: false, retry: result.error.code === "rate_limited", timings: result.timings, requestSentAt, acknowledgedAt };
         }
         accept(result.body.state);
         if (result.body.refused) setNotice(result.body.refused);
-        return { position: stateRef.current.playerPos, accepted: !result.body.refused && stateRef.current.stage.id === before.stage.id, retry: false };
+        return { position: stateRef.current.playerPos, accepted: !result.body.refused && stateRef.current.stage.id === before.stage.id, retry: false, timings: result.timings, requestSentAt, acknowledgedAt };
       } catch {
         setNotice("Could not reach the server. Please try again.");
         return { position: stateRef.current.playerPos, accepted: false, retry: false };
@@ -269,9 +283,39 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
         <h2 className="font-serif text-4xl text-ink">{state.ending?.title ?? "The adventure is over"}</h2>
         {lastResolution ? <p className="text-lg leading-relaxed text-ink">{lastResolution}</p> : null}
         {state.ending ? <p className="text-lg leading-relaxed text-muted">{state.ending.summary}</p> : null}
-        <Link href={`/play/${attemptId}/debrief`} className={`${primary} mt-2 w-fit min-h-12 px-6 text-lg`}>
-          Read the debrief
-        </Link>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <Link href={`/play/${attemptId}/debrief`} className={`${primary} min-h-12 px-6 text-lg`}>
+            Read the debrief
+          </Link>
+          {retriesAllowed ? (
+            <button
+              type="button"
+              className={`${chip} min-h-12 px-5`}
+              disabled={busy !== null}
+              onClick={async () => {
+                setBusy("Starting again…");
+                setNotice(null);
+                const result = await restartAttempt(attemptId);
+                if (!result.ok) {
+                  setNotice(result.error);
+                  setBusy(null);
+                  return;
+                }
+                router.push(`/play/${result.attemptId}`);
+              }}
+            >
+              {busy === "Starting again…" ? <Pending>Starting again…</Pending> : "Play it again"}
+            </button>
+          ) : null}
+          <Link href="/" className={`${subtle} min-h-12 px-5 text-base`}>
+            Leave for the home page
+          </Link>
+        </div>
+        {notice ? (
+          <p role="alert" className="rounded-control border border-danger/50 bg-danger-wash px-3.5 py-2.5 text-base text-ink">
+            {notice}
+          </p>
+        ) : null}
       </section>
     );
   }

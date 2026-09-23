@@ -10,6 +10,12 @@ import { READING_BANDS } from "@adventure/generation/spec";
 
 export const STAGE_COUNTS = [1, 2, 3] as const;
 
+/** Mirrors `LIMITS.maxUploadBytes` from `@adventure/generation`, which can't be imported client-side (it pulls in `node:crypto`/`unpdf`). */
+export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+
+/** Bounds the in-browser PDF read only — the bytes never leave the tab, so this is just a guard against crashing it. */
+export const MAX_CLIENT_PDF_BYTES = 150 * 1024 * 1024;
+
 export const stageOutlineSchema = z.object({
   title: z.string().trim().min(1).max(120),
   /** One line: the situation and the decision the student faces in this stage. */

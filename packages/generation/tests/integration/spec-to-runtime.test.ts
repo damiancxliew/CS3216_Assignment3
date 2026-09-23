@@ -17,9 +17,10 @@ import {
   hasConversationExchange,
   runStage,
   type WorldState,
+  type MintedOption,
 } from '../../../orchestration/src/index'
 import { loadI1Spec } from '../../src/fixtures'
-import { PLAYER_ID, toResolverInput, toStageRuntime } from '../../src/runtime/adapter'
+import { PLAYER_ID, toDecisionView, toResolverInput, toStageRuntime } from '../../src/runtime/adapter'
 import { MAX_AGENTS_PER_STAGE, type AdventureSpec } from '../../src/spec/v2'
 
 const yieldingClient = () => new FakeLlmClient({ replies: [JSON.stringify({ say: '', actions: [{ type: 'yield' }] })] })
@@ -164,6 +165,27 @@ describe('spec -> runtime adapter', () => {
     const { record } = await fakeResolver.resolveStage(input)
     expect(record.rationale).toContain('agent_stance')
     expect(JSON.stringify(record.outcome)).not.toContain('agent_stance')
+  })
+
+  it("maps a minted option into the resolver decision view when the authored spec does not contain it", async () => {
+    const spec = await loadI1Spec()
+    const bundle = toStageRuntime(spec, 0)
+    const minted: MintedOption = {
+      id: "minted-stage-landing-1234",
+      label: "Offer a temporary anchorage",
+      preconditions: [{ kind: "actor_in_room", actorId: PLAYER_ID, roomId: "landing-beach" }],
+      branchTarget: { kind: "stage", stageId: "stage-sultan" },
+      stance: "cooperative",
+      stageId: bundle.stageId,
+    }
+
+    expect(toDecisionView(spec, 0, minted.id, [minted])).toEqual({
+      optionId: minted.id,
+      label: minted.label,
+      stance: minted.stance,
+      branchTarget: minted.branchTarget,
+    })
+    expect(() => toDecisionView(spec, 0, minted.id)).toThrow(`stage 0 has no option ${minted.id}`)
   })
 })
 

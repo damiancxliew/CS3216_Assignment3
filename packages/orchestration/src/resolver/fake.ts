@@ -149,7 +149,7 @@ function normalizeInput(rawInput: ResolverInput): ResolverInput {
     )
   }
 
-  const { candidateEffects, actions: rawActions, ...rest } = parsed.data
+  const { candidateEffects, transcript, writableStatePaths, actions: rawActions, ...rest } = parsed.data
   const actions = rawActions as ResolverInput['actions']
   return {
     ...rest,
@@ -166,6 +166,8 @@ function normalizeInput(rawInput: ResolverInput): ResolverInput {
         : 0,
       ...(agent.commitment === undefined ? {} : { commitment: agent.commitment }),
     })),
+    ...(transcript === undefined ? {} : { transcript }),
+    ...(writableStatePaths === undefined ? {} : { writableStatePaths }),
     ...(candidateEffects === undefined ? {} : { candidateEffects }),
   }
 }
@@ -290,6 +292,8 @@ export function resolveStageSync(rawInput: ResolverInput): ResolverResult {
       droppedActions,
       droppedEffects,
       droppedAgentDeltas: allAgentDeltas.length - agentDeltas.length,
+      droppedWorldDeltas: 0,
+      llmFallback: false,
       repairRounds: 0,
     },
   }

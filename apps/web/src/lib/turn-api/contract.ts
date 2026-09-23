@@ -9,6 +9,8 @@
  */
 import { z } from "zod";
 
+export { FORBIDDEN_RESPONSE_KEYS, findForbiddenKeys } from "@adventure/orchestration";
+
 export const OUTDOORS_ROOM_ID = "__outdoors__";
 
 export const AMBIENT_OVERLAYS = [
@@ -203,38 +205,3 @@ export type PublicEffect = z.infer<typeof publicEffectSchema>;
 export type MessageResponse = z.infer<typeof messageResponseSchema>;
 export type DecisionResponse = z.infer<typeof decisionResponseSchema>;
 export type ApiError = z.infer<typeof apiErrorSchema>;
-
-/** Keys that must never appear anywhere in a client payload (FR-21). */
-export const FORBIDDEN_RESPONSE_KEYS = [
-  "privateContext",
-  "private_context",
-  "privateNotes",
-  "private_notes",
-  "rolls",
-  "roll",
-  "rationale",
-  "resolverRationale",
-  "knowledgeHorizon",
-  "knowledge_horizon",
-  "hiddenState",
-  "seed",
-] as const;
-
-/** Walks a payload and returns every forbidden key found, at any depth. */
-export function findForbiddenKeys(payload: unknown, path = "$"): string[] {
-  if (Array.isArray(payload)) {
-    return payload.flatMap((item, i) => findForbiddenKeys(item, `${path}[${i}]`));
-  }
-  if (payload !== null && typeof payload === "object") {
-    return Object.entries(payload as Record<string, unknown>).flatMap(
-      ([key, value]) => {
-        const here = `${path}.${key}`;
-        const hit = (FORBIDDEN_RESPONSE_KEYS as readonly string[]).includes(key)
-          ? [here]
-          : [];
-        return [...hit, ...findForbiddenKeys(value, here)];
-      },
-    );
-  }
-  return [];
-}

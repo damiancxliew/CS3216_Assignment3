@@ -83,7 +83,7 @@ export interface TiledViewOptions {
 
 class TiledScene extends Phaser.Scene {
   private current: PlaygroundSnapshot
-  private readonly onDestination: (point: Point) => void
+  private readonly onDestination: (point: Point, inputAt?: number) => void
   private readonly onReady: () => void
   private readonly base: string
   private readonly defaultSprite: string
@@ -111,7 +111,7 @@ class TiledScene extends Phaser.Scene {
   private ambientLoopKey: string | null = null
   private following = false
 
-  constructor(snapshot: PlaygroundSnapshot, onDestination: (point: Point) => void, reducedMotion: boolean, onReady: () => void, options: TiledViewOptions) {
+  constructor(snapshot: PlaygroundSnapshot, onDestination: (point: Point, inputAt?: number) => void, reducedMotion: boolean, onReady: () => void, options: TiledViewOptions) {
     super({ key: 'tiled-map' })
     this.current = snapshot
     this.onDestination = onDestination
@@ -151,7 +151,7 @@ class TiledScene extends Phaser.Scene {
         this.onActor(actor.id)
         return
       }
-      this.onDestination(point)
+      this.onDestination(point, pointer.time || performance.now())
       this.game.canvas.focus()
     })
     this.game.canvas.tabIndex = 0
@@ -631,7 +631,7 @@ class TiledScene extends Phaser.Scene {
 export function createTiledMapView(
   parent: HTMLElement,
   snapshot: PlaygroundSnapshot,
-  onDestination: (point: Point) => void,
+  onDestination: (point: Point, inputAt?: number) => void,
   reducedMotion: boolean,
   options: TiledViewOptions,
 ): Promise<MapView> {

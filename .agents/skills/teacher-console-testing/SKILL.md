@@ -32,7 +32,50 @@ description: Run teacher console UI tests against local Next.js and Supabase wit
   a clean navigation that waits for hydration before DOM-inspection tools run.
   Capture raw console and pageerror events rather than suppressing warnings.
 
+## Source upload fixtures and diagnostics
+
+- Check `LIMITS.minPdfChars` in `packages/generation/src/ingest/extract.ts`
+  before generating normal PDF fixtures. The current threshold is 200
+  non-whitespace characters across the document; a shorter genuine text-layer
+  PDF may correctly return the same error as a scanned PDF.
+- Validate normal fixtures have enough extracted text and image-only fixtures
+  extract zero characters before UI execution. Use `unpdf` from the installed
+  workspace dependencies; do not assume a visually rendered PDF has extractable text.
+- The file input is cleared on submit, so re-picking the same path fires a fresh
+  change event. If a build predates that, toggling "Paste text instead" and back
+  clears the input when fixture correction is needed.
+- For browser-extracted large PDF uploads, passively capture the actual POST
+  body byte length and multipart field names. Expect pages and filename rather
+  than raw PDF bytes. Source state in subsequent requests also includes prior
+  filenames, so do not identify uploads from filename substring alone.
+- Capture the Reading state immediately after choosing a large file, without
+  artificial throttling, and verify subsequent picker reuse through the UI.
+
+## Dossier fixtures and visual evidence
+
+- For a generated draft without an OpenAI call, load `loadI1Spec` from
+  `@adventure/generation/fixtures` and use `persistSpecVersion` from
+  `apps/web/src/lib/adventures/persist-spec.ts` for an adventure owned by an
+  isolated teacher. This runs validation and compilation on a source fixture.
+- Preserve assumption IDs referenced by fixture entities; deleting assumptions
+  alone may fail validation. Use a separate validated fixture for an empty-list case.
+- Compiled maps are stored in `spec_version.compiled_stages`, with legacy data
+  potentially in `compiled_spec`. For a genuine no-map draft, clear both fields
+  on only the disposable version; deleting `map_artifact` rows is not sufficient.
+- Measure SVG label `getBBox()` coordinates against the matching room rectangle
+  in SVG units. Pair geometry checks with screenshots at desktop and narrow widths;
+  DOM presence alone does not prove the plan is visible.
+- If a branch changes during testing and stale vendor chunks or CSS requests fail,
+  stop the app, move its `.next` cache aside, then restart. Audit a new server log
+  and clean browser navigation separately from the superseded HMR run.
+- Browser observers should select the app tab by URL, not page-array position.
+  Log the observed URL and a document response to prove the observer is attached.
+
 ## Devin Secrets Needed
 
-- `OPENAI_API_KEY` (repo-scoped): needed for real assistant brief turns.
-- Local Supabase URL/keys must be configured in the gitignored `.env.local`.
+- `OPENAI_API_KEY` (repo-scoped): needed for real assistant brief turns and artwork
+  generation/polling completion, but not for source-fixture or missing-key tests.
+- Local Supabase URL/keys must be configured in the gitignored `.env.local` or
+  exported to the server process. `supabase status -o env` supplies local API URL,
+  anon key, and service-role key; map these to `NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
