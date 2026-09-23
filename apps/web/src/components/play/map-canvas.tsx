@@ -22,13 +22,12 @@ import type { SoundCueId } from "@adventure/game-client";
 import { useEffect, useRef } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
-import { MAX_PENDING_STEPS, optimisticAdvance, settleBatch, type PendingStep } from "@/lib/play/optimistic-queue";
+import { MAX_PENDING_STEPS, MAX_STEPS_PER_REQUEST, optimisticAdvance, settleBatch, type PendingStep } from "@/lib/play/optimistic-queue";
 import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PlayState } from "@/lib/play/session";
 import type { ServerTiming } from "./api";
 
 const STEP_MS = 160;
-const STEP_SEND_MARGIN_MS = 20;
 
 const KEYS: Record<string, Point> = {
   ArrowUp: { x: 0, y: -1 },
@@ -191,14 +190,16 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         }, wait);
         return;
       }
-      const batch = pending;
+      const batch = pending.slice(0, MAX_STEPS_PER_REQUEST);
       const count = batch.length;
       const step = batch[0]!;
       step.requestSentAt ??= performance.now();
       sendInFlight = true;
       let acknowledgement: { position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number };
       try {
-        nextSendAt = performance.now() + STEP_MS * count + STEP_SEND_MARGIN_MS;
+        // One request per step-worth of walking: the server grants exactly that, so
+        // pacing to it keeps the queue level however long a round trip takes.
+        nextSendAt = performance.now() + STEP_MS * count;
         acknowledgement = await latest.current.onSteps(step.from, batch.map((queued) => queued.to));
       } catch {
         acknowledgement = { position: latest.current.state.playerPos, accepted: false, retry: false };

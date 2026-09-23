@@ -17,7 +17,7 @@ describe("optimistic movement queue", () => {
     expect(settleBatch(first!.queue, "accepted", 1)).toEqual([]);
   });
 
-  it("caps unacknowledged movement at six steps", () => {
+  it("caps unacknowledged movement at the queue depth", () => {
     let queue: PendingStep[] = [];
     let position = point(0, 0);
     for (let i = 0; i < MAX_PENDING_STEPS; i += 1) {

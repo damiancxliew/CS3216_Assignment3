@@ -1,6 +1,15 @@
 import type { Point } from "@adventure/game-core";
 
-export const MAX_PENDING_STEPS = 6;
+/**
+ * How far the walk may run ahead of the server. It only has to cover the steps a
+ * player takes while a request is in flight, but it covers several seconds of them:
+ * the server credits a late request with the tokens its steps earned, so a slow
+ * round trip lengthens the queue instead of stopping the walk.
+ */
+export const MAX_PENDING_STEPS = 16;
+
+/** The server takes at most eight steps per request. */
+export const MAX_STEPS_PER_REQUEST = 8;
 
 export interface PendingStep {
   from: Point;

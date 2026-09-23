@@ -65,6 +65,8 @@ const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert',
 const MUSIC_VOLUME = 0.35
 
 const DIRECTIONS = ['down', 'up', 'left', 'right'] as const
+/** One tile takes exactly this long, so a walk of many tiles is one unbroken slide. */
+const STEP_MS = 160
 type Facing = (typeof DIRECTIONS)[number]
 
 function jitter(x: number, y: number, salt: number): number {
@@ -108,6 +110,8 @@ class TiledScene extends Phaser.Scene {
       key: string
       facing: Facing
       last: Point
+      /** Pending "stop walking": re-armed by each step, so a continuous walk keeps its animation. */
+      idle: Phaser.Time.TimerEvent | null
     }
   >()
   /** Tiles whose nameplate would land on a door, i.e. the tile above each door. */
@@ -356,12 +360,16 @@ class TiledScene extends Phaser.Scene {
       marker.last = { x: actor.position.x, y: actor.position.y }
       const animKey = `char-${key}-${facing}`
       if (moved && !this.reducedMotion && this.anims.exists(animKey)) {
+        const walker = marker
         marker.sprite.play(animKey, true)
-        this.time.delayedCall(260, () => {
-          if (marker && marker.sprite.anims.currentAnim?.key === animKey && marker.sprite.anims.isPlaying) marker.sprite.stop()
-          if (marker && this.textures.exists(`char-${key}`)) marker.sprite.setFrame(DIRECTIONS.indexOf(facing))
+        marker.idle?.remove()
+        marker.idle = this.time.delayedCall(STEP_MS + 100, () => {
+          walker.idle = null
+          if (!walker.sprite.active) return
+          if (walker.sprite.anims.currentAnim?.key === animKey && walker.sprite.anims.isPlaying) walker.sprite.stop()
+          if (this.textures.exists(`char-${key}`)) walker.sprite.setFrame(DIRECTIONS.indexOf(facing))
         })
-      } else if (this.textures.exists(`char-${key}`)) {
+      } else if (marker.idle === null && this.textures.exists(`char-${key}`)) {
         marker.sprite.setFrame(DIRECTIONS.indexOf(facing))
       }
       marker.container.setDepth(10 + actor.position.y / 1000 + (actor.id === 'player' ? 0.5 : 0))
@@ -374,7 +382,7 @@ class TiledScene extends Phaser.Scene {
         marker.container.setPosition(x, y)
       } else if (marker.container.x !== x || marker.container.y !== y) {
         this.tweens.killTweensOf(marker.container)
-        this.tweens.add({ targets: marker.container, x, y, duration: 140, ease: 'Linear' })
+        this.tweens.add({ targets: marker.container, x, y, duration: STEP_MS, ease: 'Linear' })
       }
     }
     for (const [id, marker] of this.markers) {
@@ -437,7 +445,7 @@ class TiledScene extends Phaser.Scene {
       if (!this.reducedMotion) hintTween = this.tweens.add({ targets: hint, y: -15, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
     }
     container.add(hint ? [shadow, sprite, label, hint] : [shadow, sprite, label])
-    return { container, sprite, label, hint, hintTween, labelAbove: false, key, facing: 'down' as Facing, last: { x: position.x, y: position.y } }
+    return { container, sprite, label, hint, hintTween, labelAbove: false, key, facing: 'down' as Facing, last: { x: position.x, y: position.y }, idle: null }
   }
 
   // ---------------------------------------------------------------------------
