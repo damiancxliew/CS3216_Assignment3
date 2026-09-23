@@ -59,6 +59,7 @@ declare
   v_stage_ids uuid[];
   v_revision bigint;
   v_deadline timestamptz;
+  v_minted_option_id uuid;
   r record;
 begin
   if auth.role() is distinct from 'service_role' then
@@ -134,26 +135,34 @@ begin
 
   for r in select * from jsonb_to_recordset(p_commitments) as c(
     stage_id uuid, actor_kind actor_kind, player_id uuid, agent_id uuid,
-    option_id uuid, minted_option_id uuid
+    option_id uuid, minted_spec_id text
   ) loop
+    v_minted_option_id := null;
+    if r.minted_spec_id is not null then
+      select id into v_minted_option_id
+      from minted_option
+      where attempt_id = p_attempt_id
+        and stage_id = r.stage_id
+        and spec_id = r.minted_spec_id;
+      if not found then
+        raise exception 'invalid stage commitment' using errcode = '22023';
+      end if;
+    end if;
     if r.stage_id is null or not (r.stage_id = any(v_stage_ids))
        or (r.actor_kind = 'player' and r.player_id is distinct from v_attempt.student_id)
        or (r.actor_kind = 'agent' and not exists (select 1 from agent where id = r.agent_id and stage_id = r.stage_id))
-       or (r.option_id is not null and r.minted_option_id is not null)
+       or (r.option_id is not null and r.minted_spec_id is not null)
        or (r.option_id is not null and not exists (select 1 from decision_option where id = r.option_id and stage_id = r.stage_id))
-       or (r.minted_option_id is not null and not exists (
-         select 1 from minted_option
-         where id = r.minted_option_id and attempt_id = p_attempt_id and stage_id = r.stage_id
-       )) then
+       then
       raise exception 'invalid stage commitment' using errcode = '22023';
     end if;
     insert into stage_commitment (attempt_id, stage_id, actor_kind, player_id, agent_id, option_id, minted_option_id)
-    values (p_attempt_id, r.stage_id, r.actor_kind, r.player_id, r.agent_id, r.option_id, r.minted_option_id)
+    values (p_attempt_id, r.stage_id, r.actor_kind, r.player_id, r.agent_id, r.option_id, v_minted_option_id)
     on conflict do nothing;
     if exists (
       select 1 from stage_commitment c where c.attempt_id = p_attempt_id and c.stage_id = r.stage_id
         and coalesce(c.player_id, c.agent_id) = coalesce(r.player_id, r.agent_id)
-        and (c.option_id is distinct from r.option_id or c.minted_option_id is distinct from r.minted_option_id)
+        and (c.option_id is distinct from r.option_id or c.minted_option_id is distinct from v_minted_option_id)
     ) then raise exception 'commitment replay conflict' using errcode = '40001'; end if;
   end loop;
 

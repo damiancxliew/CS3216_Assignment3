@@ -12,7 +12,7 @@ let teacher: { client: SupabaseClient; userId: string };
 let student: { client: SupabaseClient; userId: string };
 let spec: Awaited<ReturnType<typeof loadI1Spec>>;
 
-type Seeded = { attemptId: string; adventureId: string; stageIds: string[]; roomId: string; optionId: string; mintedOptionId: string };
+type Seeded = { attemptId: string; adventureId: string; stageIds: string[]; roomId: string; optionId: string; mintedSpecId: string };
 
 beforeAll(async () => {
   teacher = await createUserClient(uniqueEmail("atomic-turn-teacher"));
@@ -34,14 +34,15 @@ async function seed(): Promise<Seeded> {
   if (roomError) throw roomError;
   const { data: options, error: optionError } = await admin.from("decision_option").select("id").eq("stage_id", stages![0]!.id).limit(1);
   if (optionError) throw optionError;
-  const { data: minted, error: mintedError } = await admin.from("minted_option").insert({
+  const mintedSpecId = `minted-atomic-${attemptId}`;
+  const { error: mintedError } = await admin.from("minted_option").insert({
     attempt_id: attemptId,
     stage_id: stages![0]!.id,
-    spec_id: `minted-atomic-${attemptId}`,
+    spec_id: mintedSpecId,
     label: "Offer a temporary anchorage",
     preconditions: [{ kind: "actor_in_room", actorId: "player", roomId: "landing-beach" }],
     branch_target: stages![1]!.id,
-  }).select("id").single();
+  });
   if (mintedError) throw mintedError;
   return {
     attemptId: attemptId as string,
@@ -49,7 +50,7 @@ async function seed(): Promise<Seeded> {
     stageIds: stages!.map((stage) => stage.id),
     roomId: rooms![0]!.id,
     optionId: options![0]!.id,
-    mintedOptionId: minted!.id,
+    mintedSpecId,
   };
 }
 
@@ -105,7 +106,7 @@ describe("save_play_turn", () => {
     expect(publicAfter).toEqual(publicBefore);
   });
 
-  it("persists a minted commitment and rejects mixed authored/minted choices", async () => {
+  it("persists a same-turn minted commitment and rejects mixed authored/minted choices", async () => {
     const seeded = await seed();
     const base = snapshot(seeded.attemptId, 0);
     const mintedSpecId = `minted-rpc-${seeded.attemptId}`;
@@ -122,7 +123,14 @@ describe("save_play_turn", () => {
       p_stage_spec_id: "stage-landing",
       p_snapshot: withRevision(base, 1),
       p_messages: [],
-      p_commitments: [],
+      p_commitments: [{
+        stage_id: seeded.stageIds[0],
+        actor_kind: "player",
+        player_id: student.userId,
+        agent_id: null,
+        option_id: null,
+        minted_spec_id: mintedSpecId,
+      }],
       p_resolution: null,
       p_telemetry: null,
       p_opened_stage_id: null,
@@ -137,27 +145,6 @@ describe("save_play_turn", () => {
       .eq("spec_id", mintedSpecId)
       .single()).data;
     expect(mintedRow).not.toBeNull();
-
-    const persisted = await admin.rpc("save_play_turn", {
-      p_attempt_id: seeded.attemptId,
-      p_expected_revision: 1,
-      p_stage_spec_id: "stage-landing",
-      p_snapshot: withRevision(base, 2),
-      p_messages: [],
-      p_commitments: [{
-        stage_id: seeded.stageIds[0],
-        actor_kind: "player",
-        player_id: student.userId,
-        agent_id: null,
-        option_id: null,
-        minted_option_id: mintedRow!.id,
-      }],
-      p_resolution: null,
-      p_telemetry: null,
-      p_opened_stage_id: null,
-      p_ending_id: null,
-    });
-    expect(persisted.error).toBeNull();
     const commitment = (await admin
       .from("stage_commitment")
       .select("option_id, minted_option_id")
@@ -167,7 +154,7 @@ describe("save_play_turn", () => {
 
     const mixed = await admin.rpc("save_play_turn", {
       p_attempt_id: seeded.attemptId,
-      p_expected_revision: 2,
+      p_expected_revision: 1,
       p_stage_spec_id: "stage-landing",
       p_snapshot: withRevision(base, 3),
       p_messages: [],
@@ -177,7 +164,7 @@ describe("save_play_turn", () => {
         player_id: student.userId,
         agent_id: null,
         option_id: seeded.optionId,
-        minted_option_id: mintedRow!.id,
+        minted_spec_id: mintedSpecId,
       }],
       p_resolution: null,
       p_telemetry: null,
@@ -203,7 +190,7 @@ describe("save_play_turn", () => {
         player_id: student.userId,
         agent_id: null,
         option_id: null,
-        minted_option_id: other.mintedOptionId,
+        minted_spec_id: other.mintedSpecId,
       }],
       p_resolution: null,
       p_telemetry: null,
@@ -233,7 +220,7 @@ describe("save_play_turn", () => {
         player_id: student.userId,
         agent_id: null,
         option_id: null,
-        minted_option_id: wrongStage.data!.id,
+        minted_spec_id: `minted-atomic-stage-${owner.attemptId}`,
       }],
       p_resolution: null,
       p_telemetry: null,
