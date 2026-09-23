@@ -8,7 +8,7 @@ import { useEffect } from "react";
  * re-renders the page every few seconds until nothing is `pending` any more.
  * Renders nothing itself.
  */
-export function ArtworkPoller({ pending }: { pending: number; generated: number }) {
+export function ArtworkPoller({ pending }: { pending: number }) {
   const router = useRouter();
   useEffect(() => {
     if (pending <= 0) return;

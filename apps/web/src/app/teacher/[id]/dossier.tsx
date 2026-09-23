@@ -113,7 +113,7 @@ export function DossierSections({
       <Section title="Stages">
         <ol className="flex flex-col gap-8">
           {dossier.stages.map((stage) => {
-            const banner = stage.rooms.find((r) => r.landmark) ?? stage.rooms.find((r) => r.id === stage.id) ?? stage.rooms[0];
+            const banner = stage.rooms.find((r) => r.landmark) ?? stage.rooms[0];
             const roomNames = Object.fromEntries(stage.rooms.map((r) => [r.id, r.name]));
             return (
               <li key={stage.id} className="flex flex-col gap-6 overflow-hidden rounded-surface border border-line bg-surface">
@@ -270,7 +270,7 @@ export function DossierSections({
             label={`Generate artwork for ${isDraft ? "draft " : ""}v${version}`}
             pendingLabel="Starting…"
           />
-          <ArtworkPoller pending={dossier.assets.pending} generated={dossier.assets.generated} />
+          <ArtworkPoller pending={dossier.assets.pending} />
         </div>
       </Section>
     </>
