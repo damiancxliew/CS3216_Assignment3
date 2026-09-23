@@ -51,6 +51,27 @@ describe('teacher input (FR-1a)', () => {
     }
     expect(llm.requests).toHaveLength(0)
   })
+
+  it('passes the teacher\'s stage plan to the planner, in order', async () => {
+    const llm = new FakeLlmClient([await plannerReply()])
+    const stageOutline = [
+      { title: 'The Landing', focus: 'Decide whether to trust the Temenggong.' },
+      { title: 'The Succession', focus: 'Decide which claimant to back.' },
+      { title: 'The Treaty', focus: 'Decide what to concede for the port.' },
+    ]
+    const result = await generateAdventure({ teacher: { ...TEACHER, stageOutline }, documents: [...(await loadI1Documents()).values()], llm })
+    expect(result.status).toBe('ok')
+    const user = llm.requests[0]!.user
+    expect(user).toContain('Stage plan')
+    expect(user.indexOf('1. The Landing — Decide whether to trust the Temenggong.')).toBeLessThan(user.indexOf('2. The Succession'))
+    expect(llm.requests[0]!.system).not.toContain('The Landing')
+  })
+
+  it('leaves the stage plan to the planner when the teacher gave none', async () => {
+    const llm = new FakeLlmClient([await plannerReply()])
+    await generateAdventure({ teacher: TEACHER, documents: [...(await loadI1Documents()).values()], llm })
+    expect(llm.requests[0]!.user).not.toContain('Stage plan')
+  })
 })
 
 describe('planner prompt versions', () => {

@@ -126,6 +126,7 @@ export type SessionError =
   | { code: "not_found"; message: string }
   | { code: "invalid_request"; message: string }
   | { code: "stale_option"; message: string }
+  | { code: "conflict"; message: string }
   | { code: "stale_state"; message: string }
   | { code: "rate_limited"; message: string }
   | { code: "incompatible_version"; message: string };

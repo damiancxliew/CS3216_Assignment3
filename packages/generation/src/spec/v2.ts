@@ -416,6 +416,17 @@ export function refineAdventureSpec(spec: AdventureSpecShape, ctx: z.RefinementC
       checkGrounding(item.content, [...p, 'content'])
     })
 
+    // A closed door can only be opened from inside (D7), so a closed room nobody starts in
+    // is sealed for the whole stage — and the runtime refuses to build such a world.
+    const occupiedAtStart = new Set([stage.spawnRoomId, ...stage.agents.map((a) => a.startRoomId)])
+    stage.rooms.forEach((room, i) => {
+      if (room.doorDefault === 'closed' && !occupiedAtStart.has(room.id))
+        issue(
+          [...path, 'rooms', i, 'doorDefault'],
+          `room "${room.id}" starts closed with nobody inside, so it can never be opened: place an agent in it, or make its door open`,
+        )
+    })
+
     const objectiveById = new Map(stage.objectives.map((o) => [o.id, o]))
     stage.objectives.forEach((objective, i) => {
       const p = [...path, 'objectives', i]
@@ -526,6 +537,21 @@ export function formatIssuePath(path: PropertyKey[]): string {
 /** Validate untrusted JSON as an Adventure Spec v2. Never throws. */
 export function validateAdventureSpec(value: unknown): SpecValidation {
   const parsed = adventureSpecSchema.safeParse(value)
+  if (parsed.success) return { ok: true, spec: parsed.data }
+  return {
+    ok: false,
+    issues: parsed.error.issues.map((i) => ({ path: formatIssuePath(i.path), message: i.message })),
+  }
+}
+
+/**
+ * Validate a version that was already published. Published versions are frozen
+ * and in-flight attempts depend on them, so they are held to the shape only:
+ * an authoring rule added later must not retire an adventure teachers are
+ * already running. Never use this to accept new authoring.
+ */
+export function validatePublishedSpec(value: unknown): SpecValidation {
+  const parsed = adventureSpecObjectSchema.safeParse(value)
   if (parsed.success) return { ok: true, spec: parsed.data }
   return {
     ok: false,

@@ -25,7 +25,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { persistSpecVersion, SpecPersistError, type PersistedVersion } from "./persist-spec";
 
-/** A `source` row as the console stores it (`addTextSource`, `addFileSource`). */
+/** A `source` row as the console stores it (`addBriefSource`). */
 export type SourceRow = {
   id: string;
   title: string | null;
@@ -55,10 +55,10 @@ function storedPages(pageMap: unknown): ExtractedPage[] | undefined {
   return pages.length > 0 ? pages : undefined;
 }
 
-/** What the teacher fills in on the generate form; everything the planner needs that the adventure row does not hold. */
+/** The brief stored on the adventure row: everything the planner needs besides the title and timer. */
 export type GenerationBrief = Pick<
   TeacherInputRaw,
-  "setting" | "studentRole" | "learningObjectives" | "readingLevel" | "stageCount"
+  "setting" | "studentRole" | "learningObjectives" | "readingLevel" | "stageCount" | "stageOutline"
 >;
 
 export type GenerateFromSourcesResult =

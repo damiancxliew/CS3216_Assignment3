@@ -9,7 +9,7 @@ import type { LlmClient, ReplyResult } from "@adventure/orchestration";
 
 import { PlaySession, type PlayState, type PlayerWorldAction, type SessionError, type SessionTimer } from "./session";
 import { SpatialCompatibilityError } from "./layout";
-import { PlayConflictError, type AttemptRecord, type PlayStore } from "./store";
+import { RuntimeConflictError, type AttemptRecord, type PlayStore } from "./store";
 import type { PublicMessage } from "@/lib/turn-api/contract";
 
 export type ServiceResult<T> = { ok: true; value: T; state: PlayState } | { ok: false; error: SessionError };
@@ -72,7 +72,9 @@ async function run<T>(
       const saved = await deps.store.save(record, after, events);
       timer = { enabled: saved.stageDeadlineAt !== null, deadlineAt: saved.stageDeadlineAt };
     } catch (error) {
-      if (error instanceof PlayConflictError) return { ok: false, error: { code: "stale_state", message: error.message } };
+      // Someone else advanced this attempt while we worked. Say so, so the caller
+      // reloads instead of retrying a write that can never succeed.
+      if (error instanceof RuntimeConflictError) return { ok: false, error: { code: "stale_state", message: error.message } };
       throw error;
     }
   }

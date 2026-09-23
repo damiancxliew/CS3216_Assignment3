@@ -187,6 +187,7 @@ export const apiErrorSchema = z.object({
       "invalid_request",
       "stale_option",
       "stale_state",
+      "conflict",
       "stage_closed",
       "rate_limited",
       "incompatible_version",

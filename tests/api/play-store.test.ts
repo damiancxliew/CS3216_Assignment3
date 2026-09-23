@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { compileStageMap } from "@/lib/play/layout";
 import { PlaySession, type PlayEvents, type PlaySnapshot } from "@/lib/play/session";
-import { MemoryPlayStore, PlayConflictError, SupabasePlayStore, type AttemptRecord } from "@/lib/play/store";
+import { MemoryPlayStore, PlayConflictError, RuntimeConflictError, SupabasePlayStore, type AttemptRecord } from "@/lib/play/store";
 
 class Query {
   private filters: Record<string, unknown> = {};
@@ -28,7 +28,8 @@ class FakeClient {
   readonly spec: Awaited<ReturnType<typeof loadI1Spec>>;
   readonly compiledStages: CompiledStage[];
   runtime: { stage_spec_id: string; revision: number; snapshot: unknown } | null = null;
-  runtimeError: { message: string } | null = null;
+  runtimeError: { code?: string; message: string } | null = null;
+  runtimeReadError: { message: string } | null = null;
   upserts: { table: string; values: unknown; options: unknown }[] = [];
   rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
   rpcResult: { data: unknown; error: { message: string; code?: string } | null } = { data: { runtimeRevision: 1, stageDeadlineAt: null }, error: null };
@@ -54,7 +55,7 @@ class FakeClient {
   read(table: string, filters: Record<string, unknown>) {
     if (table === "attempt") return { data: this.attempt, error: null };
     if (table === "spec_version") return { data: { id: "version", json: this.spec, compiled_stages: this.compiledStages }, error: null };
-    if (table === "attempt_runtime") return { data: this.runtime, error: null };
+    if (table === "attempt_runtime") return this.runtimeReadError ? { data: null, error: this.runtimeReadError } : { data: this.runtime, error: null };
     if (table === "room" || table === "agent" || table === "decision_option") {
       const stageIndex = Number(String(filters.stage_id).split("-").at(-1));
       const stage = this.spec.stages[Number.isInteger(stageIndex) ? stageIndex : 0]!;
@@ -173,10 +174,19 @@ describe("SupabasePlayStore runtime validation", () => {
     expect(store.saved).toHaveLength(1);
   });
 
-  it("maps a save_play_turn conflict to PlayConflictError", async () => {
+  it("maps a save_play_turn conflict to RuntimeConflictError", async () => {
     client.rpcResult = { data: null, error: { code: "40001", message: "revision conflict" } };
     const events: PlayEvents = { utterances: [], decisions: [], resolution: null, openedStageIndex: null, endingId: null, telemetry: null };
 
+    await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toBeInstanceOf(RuntimeConflictError);
     await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toMatchObject({ name: "PlayConflictError", message: "The attempt changed. Refresh and try again." });
+  });
+
+  it("surfaces non-conflict save errors and refuses failed runtime reads", async () => {
+    client.rpcResult = { data: null, error: { message: "out of disk" } };
+    const events: PlayEvents = { utterances: [], decisions: [], resolution: null, openedStageIndex: null, endingId: null, telemetry: null };
+    await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toThrow(/save_play_turn/);
+    client.runtimeReadError = { message: "Timed out acquiring connection from connection pool." };
+    await expect(new SupabasePlayStore(client as never).load("attempt", "student")).rejects.toThrow(/attempt_runtime/);
   });
 });

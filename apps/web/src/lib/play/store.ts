@@ -13,7 +13,7 @@
  */
 import { PLAYER_ID } from "@adventure/generation/runtime";
 import type { AssetManifest } from "@adventure/generation/assets";
-import { validateAdventureSpec, type AdventureSpec } from "@adventure/generation/spec";
+import { validatePublishedSpec, type AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { loadManifest } from "@/lib/assets/supabase";
@@ -44,7 +44,15 @@ export interface SaveResult {
   stageDeadlineAt: string | null;
 }
 
-export class PlayConflictError extends Error {
+/** Another writer advanced the attempt first: this request's snapshot is stale and was not stored. */
+export class RuntimeConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RuntimeConflictError";
+  }
+}
+
+export class PlayConflictError extends RuntimeConflictError {
   constructor() {
     super("The attempt changed. Refresh and try again.");
     this.name = "PlayConflictError";
@@ -134,7 +142,7 @@ export class SupabasePlayStore implements PlayStore {
       }>();
     if (!attempt || attempt.student_id !== userId) return null;
 
-    const [{ data: version }, { data: runtime }] = await Promise.all([
+    const [{ data: version }, { data: runtime, error: runtimeError }] = await Promise.all([
       this.admin
         .from("spec_version")
         .select("id, json, compiled_stages")
@@ -147,9 +155,12 @@ export class SupabasePlayStore implements PlayStore {
         .eq("attempt_id", attemptId)
         .maybeSingle<{ stage_spec_id: string; revision: number; snapshot: unknown }>(),
     ]);
+    // A failed read is not an absent runtime: treating it as one would start a
+    // fresh session over saved state and then collide with it on save.
+    if (runtimeError) throw new Error(`attempt_runtime: ${runtimeError.message}`);
     if (!version) return null;
-    const validated = validateAdventureSpec(version.json);
-    if (!validated.ok) throw new Error(`published spec v${attempt.published_version} of ${attempt.adventure_id} no longer validates`);
+    const validated = validatePublishedSpec(version.json);
+    if (!validated.ok) throw new Error(`published spec v${attempt.published_version} of ${attempt.adventure_id} is not a readable spec`);
     const compiledStages = readCompiledStages(validated.spec, version.compiled_stages);
 
     let currentStageIndex: number | null = null;
@@ -293,7 +304,7 @@ export class SupabasePlayStore implements PlayStore {
       p_opened_stage_id: openedStageId,
       p_ending_id: events.endingId,
     });
-    if (error?.code === "40001") throw new PlayConflictError();
+    if (error && (error.code === "40001" || /revision conflict/.test(error.message))) throw new PlayConflictError();
     if (error) throw new Error(`save_play_turn: ${error.message}`);
     const result = data as { runtimeRevision?: unknown; stageDeadlineAt?: unknown } | null;
     if (!result || typeof result.runtimeRevision !== "number" || (result.stageDeadlineAt !== null && typeof result.stageDeadlineAt !== "string")) throw new Error("save_play_turn: invalid response");

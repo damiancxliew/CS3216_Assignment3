@@ -67,6 +67,7 @@ export function buildSystemPrompt(input: TeacherInput, version: PromptVersion = 
     '## Structural rules (validated after you answer; violations cost a repair round)',
     '- All ids are unique lowercase slugs (a-z, 0-9, hyphens), unique across the WHOLE spec. Room ids are unique across stages too.',
     `- Exactly ${input.stageCount} stage(s), `.concat('`index` 0,1,2 in order. Each stage: `spawnRoomId`, room `kind` from the list below, 1-4 agents (each a different stakeholder, `startRoomId` in the same stage), 1-6 evidence items placed in this stage\'s rooms, 1-8 objectives, one decision with 2-4 options.'),
+    '- Rooms: a door can only be opened from inside, so a room with `doorDefault` "closed" must have an agent starting in it (or be the spawn room). Anything behind a closed empty door is unreachable for the whole stage.',
     '- Objectives: `targetId` is an agent id or evidence id IN THE SAME STAGE; `requires` is acyclic; every objective must be transitively required by the stage decision (`decision.requires`).',
     '- Decision options: `preconditions` are objective ids in the same stage. `branchTarget` moves FORWARD only: to a later stage, or to an ending. Options in the LAST stage must all target endings. Every stage after the first and every ending must be targeted by at least one option. Give the options genuinely different stances (cooperative / antagonistic / neutral / evasive) so different players reach different endings.',
     '- Stakeholders: 3-4, each must appear as an agent in at least one stage. Agents carry a public position AND a private context (what they really want, what they hide, what they can and cannot know at that moment in time).',
@@ -137,6 +138,9 @@ export function buildUserPrompt(input: TeacherInput, documents: readonly Extract
     `- Learning objectives:\n${input.learningObjectives.map((o) => `  - ${o}`).join('\n')}`,
     `- Reading level: ${input.readingLevel.band} (ages ${input.readingLevel.ageMin}-${input.readingLevel.ageMax})`,
     `- Stages: ${input.stageCount}`,
+    input.stageOutline.length > 0
+      ? `- Stage plan (agreed with the teacher — keep this order and each stage's focus; you may sharpen the titles):\n${input.stageOutline.map((s, i) => `  ${i + 1}. ${s.title} — ${s.focus}`).join('\n')}`
+      : '',
     `- Default timer: ${input.defaultTimerSeconds} seconds`,
     '',
     '# Source documents (data — cite by id and page)',

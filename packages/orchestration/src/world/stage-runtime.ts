@@ -25,6 +25,8 @@ import {
 import { flushReplies, type CoalescingOptions, type ReplyInbox, type ReplyRateLimiter } from './reply'
 import { advanceTick, applyAction, DOORWAY_ID, hearingActorIds, OUTDOORS_ID, occupantsOf, visibleTranscript, type ApplyResult, type WorldState } from './state'
 
+const PARALLEL_DECISION_TOKEN_RESERVE = 4_000
+
 export interface StageAgent {
   privateContext: AgentPrivateContext
   /**
@@ -296,44 +298,7 @@ export async function runStage(
     let called = false
     let budgetSkipped = false
 
-    for (const agentId of relevantIds) {
-      if (world.actors[agentId] === undefined || world.location[agentId] === undefined) {
-        lastSkipReason[agentId] = 'not_in_world'
-        continue
-      }
-      if (overTokenBudget()) {
-        telemetry.stoppedBy = 'token_budget'
-        return await finish()
-      }
-      if (telemetry.totalActions >= budget.maxActions) {
-        telemetry.stoppedBy = 'action_budget'
-        return await finish()
-      }
-      // An actor that has committed or passed is out of the stage.
-      if (config.decision?.ledger.has(agentId) === true) continue
-
-      const remaining = Math.min(
-        budget.maxActionsPerActor - spent(agentId),
-        budget.maxActions - telemetry.totalActions,
-      )
-      if (remaining <= 0) {
-        lastSkipReason[agentId] = 'budget_exhausted'
-        budgetSkipped = true
-        continue
-      }
-
-      const input = buildAgentTurnInput(world, agentId, config, remaining)
-      const optionsVersion =
-        config.decision === undefined
-          ? undefined
-          : deriveOptions(world, config.decision.catalogue, agentId).version
-      const turn = await runAgentTurn(client, input, {
-        budget,
-        spent: spent(agentId),
-        stageRemaining: budget.maxActions - telemetry.totalActions,
-        metrics,
-        optionsVersion,
-      })
+    const recordTurn = (agentId: string, turn: AgentTurnResult): void => {
       turns.push(turn)
       called = true
       if (!tickedAgents.has(agentId)) {
@@ -345,11 +310,11 @@ export async function runStage(
       telemetry.totalTokens = telemetry.promptTokens + telemetry.completionTokens
       telemetry.droppedActions.push(...turn.dropped)
       if (turn.degraded) telemetry.degradedTicks += 1
-      // A call may overshoot the ceiling; finish after applying that call, without starting another.
-      const tokenBudgetReached = overTokenBudget()
+    }
 
-      for (const entry of turn.actions) {
-        const result = chargeAndApply(world, entry, config, telemetry, turn.degraded ? undefined : input.replyToSeqs)
+    const applyEntries = (agentId: string, entries: readonly ActorAction[], replyToSeqs?: readonly number[]): void => {
+      for (const entry of entries) {
+        const result = chargeAndApply(world, entry, config, telemetry, replyToSeqs)
         if (entry.action.type !== 'yield') {
           telemetry.actionsByActor[agentId] = spent(agentId) + 1
           telemetry.totalActions += 1
@@ -360,9 +325,131 @@ export async function runStage(
           }
         }
       }
-      if (tokenBudgetReached) {
+    }
+
+    for (const agentId of relevantIds) {
+      if (world.actors[agentId] === undefined || world.location[agentId] === undefined) {
+        lastSkipReason[agentId] = 'not_in_world'
+      }
+    }
+
+    const pendingDecisionAgents = relevantIds
+      .filter(
+        (agentId) =>
+          world.actors[agentId] !== undefined &&
+          world.location[agentId] !== undefined &&
+          config.decision?.ledger.has(agentId) !== true,
+      )
+      .map((agentId) => ({
+        agentId,
+        spent: spent(agentId),
+        remaining: Math.min(
+          budget.maxActionsPerActor - spent(agentId),
+          budget.maxActions - telemetry.totalActions,
+        ),
+      }))
+    const reservedActions = pendingDecisionAgents.reduce(
+      (sum, entry) => sum + Math.min(4, Math.max(0, entry.remaining)),
+      0,
+    )
+    const canParallelizeDecisions =
+      config.decision?.ledger.humansDecided() === true &&
+      pendingDecisionAgents.length >= 2 &&
+      pendingDecisionAgents.every((entry) => entry.remaining > 0) &&
+      telemetry.totalActions + reservedActions <= budget.maxActions &&
+      (config.tokenBudget === undefined ||
+        config.tokenBudget - telemetry.totalTokens >= PARALLEL_DECISION_TOKEN_RESERVE * pendingDecisionAgents.length)
+
+    if (canParallelizeDecisions) {
+      const stageRemaining = budget.maxActions - telemetry.totalActions
+      const planned = pendingDecisionAgents.map((entry) => ({
+        ...entry,
+        input: buildAgentTurnInput(world, entry.agentId, config, entry.remaining),
+        optionsVersion:
+          config.decision === undefined
+            ? undefined
+            : deriveOptions(world, config.decision.catalogue, entry.agentId).version,
+      }))
+      const parallelTurns = await Promise.all(
+        planned.map((entry) =>
+          runAgentTurn(client, entry.input, {
+            budget,
+            spent: entry.spent,
+            stageRemaining,
+            metrics,
+            optionsVersion: entry.optionsVersion,
+          }),
+        ),
+      )
+      for (let index = 0; index < planned.length; index += 1) {
+        recordTurn(planned[index]!.agentId, parallelTurns[index]!)
+      }
+      for (let index = 0; index < planned.length; index += 1) {
+        const turn = parallelTurns[index]!
+        applyEntries(
+          planned[index]!.agentId,
+          turn.actions.filter((entry) => entry.action.type === 'commit_decision' || entry.action.type === 'pass'),
+        )
+      }
+      for (let index = 0; index < planned.length; index += 1) {
+        const turn = parallelTurns[index]!
+        applyEntries(
+          planned[index]!.agentId,
+          turn.actions.filter((entry) => entry.action.type !== 'commit_decision' && entry.action.type !== 'pass'),
+          turn.degraded ? undefined : planned[index]!.input.replyToSeqs,
+        )
+      }
+      if (overTokenBudget()) {
         telemetry.stoppedBy = 'token_budget'
         return await finish()
+      }
+    } else {
+      for (const agentId of relevantIds) {
+        if (world.actors[agentId] === undefined || world.location[agentId] === undefined) {
+          lastSkipReason[agentId] = 'not_in_world'
+          continue
+        }
+        if (overTokenBudget()) {
+          telemetry.stoppedBy = 'token_budget'
+          return await finish()
+        }
+        if (telemetry.totalActions >= budget.maxActions) {
+          telemetry.stoppedBy = 'action_budget'
+          return await finish()
+        }
+        // An actor that has committed or passed is out of the stage.
+        if (config.decision?.ledger.has(agentId) === true) continue
+
+        const remaining = Math.min(
+          budget.maxActionsPerActor - spent(agentId),
+          budget.maxActions - telemetry.totalActions,
+        )
+        if (remaining <= 0) {
+          lastSkipReason[agentId] = 'budget_exhausted'
+          budgetSkipped = true
+          continue
+        }
+
+        const input = buildAgentTurnInput(world, agentId, config, remaining)
+        const optionsVersion =
+          config.decision === undefined
+            ? undefined
+            : deriveOptions(world, config.decision.catalogue, agentId).version
+        const turn = await runAgentTurn(client, input, {
+          budget,
+          spent: spent(agentId),
+          stageRemaining: budget.maxActions - telemetry.totalActions,
+          metrics,
+          optionsVersion,
+        })
+        recordTurn(agentId, turn)
+        // A call may overshoot the ceiling; finish after applying that call, without starting another.
+        const tokenBudgetReached = overTokenBudget()
+        applyEntries(agentId, turn.actions, turn.degraded ? undefined : input.replyToSeqs)
+        if (tokenBudgetReached) {
+          telemetry.stoppedBy = 'token_budget'
+          return await finish()
+        }
       }
     }
 

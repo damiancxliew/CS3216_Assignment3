@@ -27,6 +27,13 @@ export interface AgentTurnResult {
   usage: TokenUsage
 }
 
+export const CHARACTER_LLM_PROFILE = {
+  reasoningEffort: 'none',
+  verbosity: 'low',
+  maxOutputTokens: 400,
+  serviceTier: 'fast',
+} as const
+
 export interface AgentTurnOptions {
   budget?: ActionBudget
   /** Actions this agent has already spent this stage (FR-12b). */
@@ -84,6 +91,7 @@ export async function runAgentTurn(
       modelTier: options.modelTier ?? TIER_BY_ROLE.characterAgent,
       system: prompt.system,
       user: prompt.user,
+      ...CHARACTER_LLM_PROFILE,
     },
     options.metrics,
   )

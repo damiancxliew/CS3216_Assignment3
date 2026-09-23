@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { READING_BANDS } from "@adventure/generation/spec";
-
-import { createAdventure } from "./actions";
-import { ActionForm } from "@/components/action-form";
+import { BriefChat } from "./brief-chat";
 import { SignInButton } from "@/components/sign-in-button";
-import { Field, READING_BAND_LABELS, SelectField, StatusBadge } from "@/components/ui";
-import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
+import { EmptyState, Page, StatusBadge } from "@/components/ui";
+import { briefStateSchema } from "@/lib/brief/schema";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -32,102 +29,71 @@ export default async function TeacherHome() {
 
   if (!user) {
     return (
-      <Shell>
-        <p className="opacity-80">
-          Sign in to build an adventure from your own source material.
-        </p>
-        <SignInButton next="/teacher" label="Teacher sign-in with Google" />
-      </Shell>
+      <Page title="Your adventures" lede="Sign in to build an adventure from your own source material.">
+        <SignInButton next="/teacher" label="Sign in with Google" />
+      </Page>
     );
   }
 
   // `adventure_select` also admits students playing a published adventure, so
   // the authoring surface filters on ownership rather than leaning on RLS.
-  const { data } = await supabase
-    .from("adventure")
-    .select("id, title, setting, status, published_version, updated_at")
-    .eq("owner_id", user.id)
-    .order("updated_at", { ascending: false })
-    .returns<AdventureRow[]>();
+  // A row still carrying a brief conversation is not an adventure yet: it is
+  // offered back to the chat to resume instead of being listed.
+  const [{ data }, { data: unfinished }] = await Promise.all([
+    supabase
+      .from("adventure")
+      .select("id, title, setting, status, published_version, updated_at")
+      .eq("owner_id", user.id)
+      .is("brief_state", null)
+      .order("updated_at", { ascending: false })
+      .returns<AdventureRow[]>(),
+    supabase
+      .from("adventure")
+      .select("brief_state")
+      .eq("owner_id", user.id)
+      .not("brief_state", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ brief_state: unknown }>(),
+  ]);
   const adventures = data ?? [];
+  const resume = briefStateSchema.safeParse(unfinished?.brief_state);
 
   return (
-    <Shell>
-      <section className="flex flex-col gap-4">
-        {adventures.length === 0 ? (
-          <p className="opacity-70">
-            Nothing here yet. Start with the class you are teaching next.
-          </p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-black/10 dark:divide-white/10">
-            {adventures.map((adventure) => (
-              <li key={adventure.id}>
-                <Link
-                  href={`/teacher/${adventure.id}`}
-                  className="flex items-baseline justify-between gap-4 py-3 transition hover:opacity-70"
-                >
-                  <span className="flex flex-col">
-                    <span className="font-medium">{adventure.title}</span>
-                    {adventure.setting ? (
-                      <span className="text-sm opacity-60">{adventure.setting}</span>
-                    ) : null}
-                  </span>
-                  <StatusBadge
-                    status={adventure.status}
-                    version={adventure.published_version}
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+    <Page
+      title="Your adventures"
+      kicker={<form action="/auth/signout" method="post"><button type="submit" className="hover:text-ink">Sign out</button></form>}
+      width="wide"
+    >
+      <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+        <section className="flex flex-col gap-4">
+          {adventures.length === 0 ? (
+            <EmptyState title="No adventures yet">Start with the class you are teaching next.</EmptyState>
+          ) : (
+            <ul className="flex flex-col divide-y divide-line border-y border-line">
+              {adventures.map((adventure) => (
+                <li key={adventure.id}>
+                  <Link
+                    href={`/teacher/${adventure.id}`}
+                    className="group flex items-baseline justify-between gap-4 py-4 transition-colors hover:text-record"
+                  >
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-serif text-xl text-ink group-hover:text-record">{adventure.title}</span>
+                      {adventure.setting ? <span className="text-base text-muted">{adventure.setting}</span> : null}
+                    </span>
+                    <StatusBadge status={adventure.status} version={adventure.published_version} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-black/10 p-6 dark:border-white/15">
-        <h2 className="text-lg font-medium">New adventure</h2>
-        <ActionForm
-          action={createAdventure}
-          submitLabel="Create"
-          pendingLabel="Creating…"
-          event={ANALYTICS_EVENTS.adventureCreated}
-        >
-          <Field name="title" label="Title" placeholder="The founding of Singapore, 1819" />
-          <Field name="setting" label="Setting" placeholder="Singapore and Johor, February 1819" />
-          <Field name="studentRole" label="Who the student plays" placeholder="Junior interpreter to the expedition" />
-          <Field
-            name="learningObjectives"
-            label="Learning objectives (one per line, up to six)"
-            placeholder={"Explain why the EIC wanted a port at the Straits\nDescribe the Johor succession dispute"}
-            multiline
-            rows={3}
-          />
-          <div className="grid grid-cols-3 gap-3">
-            <SelectField
-              name="band"
-              label="Reading level"
-              defaultValue="lower-secondary"
-              options={READING_BANDS.map((band) => ({ value: band, label: READING_BAND_LABELS[band] }))}
-            />
-            <Field name="ageMin" label="Age from" defaultValue="13" />
-            <Field name="ageMax" label="Age to" defaultValue="14" />
-          </div>
-          <p className="text-xs opacity-60">
-            The reading level is what the planner writes to and what the validator checks against, so it is set here, once, for the adventure.
-          </p>
-        </ActionForm>
-      </section>
-    </Shell>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-6 py-16">
-      <header className="flex flex-col gap-2">
-        <p className="text-sm uppercase tracking-widest opacity-60">Teacher console</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Your adventures</h1>
-      </header>
-      {children}
-    </main>
+        <section className="flex flex-col gap-5 rounded-surface border border-line bg-surface p-6">
+          <h2 className="font-serif text-2xl text-ink">New adventure</h2>
+          <BriefChat resume={resume.success ? resume.data : undefined} />
+        </section>
+      </div>
+    </Page>
   );
 }

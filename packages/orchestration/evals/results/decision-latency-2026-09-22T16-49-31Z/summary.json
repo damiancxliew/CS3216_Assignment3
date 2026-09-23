@@ -1,0 +1,256 @@
+{
+  "label": "decision-latency-2026-09-22T16-49-31Z",
+  "model": "gpt-5.6-luna",
+  "requestedServiceTier": "fast",
+  "startedAt": "2026-09-22T16:49:31.859Z",
+  "finishedAt": "2026-09-22T16:50:29.315Z",
+  "repetitions": 10,
+  "cases": [
+    {
+      "mode": "sequential",
+      "repetition": 1,
+      "status": "ok",
+      "latencyMs": 3918,
+      "decisions": 2,
+      "promptTokens": 1892,
+      "completionTokens": 108,
+      "estimatedCostUsd": 0.001016,
+      "error": null
+    },
+    {
+      "mode": "parallel",
+      "repetition": 1,
+      "status": "ok",
+      "latencyMs": 1981,
+      "decisions": 2,
+      "promptTokens": 1866,
+      "completionTokens": 142,
+      "estimatedCostUsd": 0.0010872,
+      "error": null
+    },
+    {
+      "mode": "parallel",
+      "repetition": 2,
+      "status": "ok",
+      "latencyMs": 1949,
+      "decisions": 2,
+      "promptTokens": 1866,
+      "completionTokens": 149,
+      "estimatedCostUsd": 0.001104,
+      "error": null
+    },
+    {
+      "mode": "sequential",
+      "repetition": 2,
+      "status": "ok",
+      "latencyMs": 2810,
+      "decisions": 2,
+      "promptTokens": 1887,
+      "completionTokens": 147,
+      "estimatedCostUsd": 0.0011076,
+      "error": null
+    },
+    {
+      "mode": "sequential",
+      "repetition": 3,
+      "status": "ok",
+      "latencyMs": 2933,
+      "decisions": 2,
+      "promptTokens": 1893,
+      "completionTokens": 148,
+      "estimatedCostUsd": 0.0011124000000000002,
+      "error": null
+    },
+    {
+      "mode": "parallel",
+      "repetition": 3,
+      "status": "ok",
+      "latencyMs": 1638,
+      "decisions": 2,
+      "promptTokens": 1866,
+      "completionTokens": 145,
+      "estimatedCostUsd": 0.0010944000000000001,
+      "error": null
+    },
+    {
+      "mode": "parallel",
+      "repetition": 4,
+      "status": "ok",
+      "latencyMs": 2514,
+      "decisions": 2,
+      "promptTokens": 1866,
+      "completionTokens": 142,
+      "estimatedCostUsd": 0.0010872,
+      "error": null
+    },
+    {
+      "mode": "sequential",
+      "repetition": 4,
+      "status": "ok",
+      "latencyMs": 2974,
+      "decisions": 2,
+      "promptTokens": 1894,
+      "completionTokens": 157,
+      "estimatedCostUsd": 0.0011344,
+      "error": null
+    },
+    {
+      "mode": "sequential",
+      "repetition": 5,
+      "status": "ok",
+      "latencyMs": 3703,
+      "decisions": 2,
+      "promptTokens": 1892,
+      "completionTokens": 157,
+      "estimatedCostUsd": 0.0011336000000000002,
+      "error": null
+    },
+    {
+      "mode": "parallel",
+      "repetition": 5,
+      "status": "ok",
+      "latencyMs": 2534,
+      "decisions": 2,
+      "promptTokens": 1866,
+      "completionTokens": 150,
+      "estimatedCostUsd": 0.0011064,
+      "error": null
+    },
+    {
+      "mode": "parallel",
+      "repetition": 6,
+      "status": "ok",
+      "latencyMs": 1515,
+      "decisions": 2,
+      "promptTokens": 1866,
+      "completionTokens": 157,
+      "estimatedCostUsd": 0.0011232,
+      "error": null
+    },
+    {
+      "mode": "sequential",
+      "repetition": 6,
+      "status": "ok",
+      "latencyMs": 2564,
+      "decisions": 2,
+      "promptTokens": 1896,
+      "completionTokens": 112,
+      "estimatedCostUsd": 0.0010272,
+      "error": null
+    },
+    {
+      "mode": "sequential",
+      "repetition": 7,
+      "status": "ok",
+      "latencyMs": 4225,
+      "decisions": 2,
+      "promptTokens": 1891,
+      "completionTokens": 202,
+      "estimatedCostUsd": 0.0012412,
+      "error": null
+    },
+    {
+      "mode": "parallel",
+      "repetition": 7,
+      "status": "ok",
+      "latencyMs": 2274,
+      "decisions": 2,
+      "promptTokens": 1866,
+      "completionTokens": 140,
+      "estimatedCostUsd": 0.0010824,
+      "error": null
+    },
+    {
+      "mode": "parallel",
+      "repetition": 8,
+      "status": "ok",
+      "latencyMs": 4940,
+      "decisions": 2,
+      "promptTokens": 1866,
+      "completionTokens": 149,
+      "estimatedCostUsd": 0.001104,
+      "error": null
+    },
+    {
+      "mode": "sequential",
+      "repetition": 8,
+      "status": "ok",
+      "latencyMs": 4282,
+      "decisions": 2,
+      "promptTokens": 1889,
+      "completionTokens": 202,
+      "estimatedCostUsd": 0.0012404,
+      "error": null
+    },
+    {
+      "mode": "sequential",
+      "repetition": 9,
+      "status": "ok",
+      "latencyMs": 2896,
+      "decisions": 2,
+      "promptTokens": 1887,
+      "completionTokens": 194,
+      "estimatedCostUsd": 0.0012204000000000002,
+      "error": null
+    },
+    {
+      "mode": "parallel",
+      "repetition": 9,
+      "status": "ok",
+      "latencyMs": 1817,
+      "decisions": 2,
+      "promptTokens": 1866,
+      "completionTokens": 149,
+      "estimatedCostUsd": 0.001104,
+      "error": null
+    },
+    {
+      "mode": "parallel",
+      "repetition": 10,
+      "status": "ok",
+      "latencyMs": 2077,
+      "decisions": 2,
+      "promptTokens": 1866,
+      "completionTokens": 152,
+      "estimatedCostUsd": 0.0011112000000000001,
+      "error": null
+    },
+    {
+      "mode": "sequential",
+      "repetition": 10,
+      "status": "ok",
+      "latencyMs": 3905,
+      "decisions": 2,
+      "promptTokens": 1892,
+      "completionTokens": 187,
+      "estimatedCostUsd": 0.0012056,
+      "error": null
+    }
+  ],
+  "aggregates": [
+    {
+      "mode": "sequential",
+      "calls": 10,
+      "successfulCalls": 10,
+      "meanLatencyMs": 3421,
+      "p50LatencyMs": 2974,
+      "p90LatencyMs": 4225,
+      "promptTokens": 18913,
+      "completionTokens": 1614,
+      "estimatedCostUsd": 0.0114388
+    },
+    {
+      "mode": "parallel",
+      "calls": 10,
+      "successfulCalls": 10,
+      "meanLatencyMs": 2323.9,
+      "p50LatencyMs": 1981,
+      "p90LatencyMs": 2534,
+      "promptTokens": 18660,
+      "completionTokens": 1475,
+      "estimatedCostUsd": 0.011004
+    }
+  ],
+  "p50Speedup": 1.5012619888944978,
+  "p90Speedup": 1.6673243883188635
+}

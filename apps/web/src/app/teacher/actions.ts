@@ -14,11 +14,26 @@ import {
 } from "@adventure/generation";
 import { OpenAiImageService } from "@adventure/generation/assets";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
-import { READING_BANDS } from "@adventure/generation/spec";
 
-import { generateFromSources as runGeneration } from "@/lib/adventures/generate-from-sources";
+import {
+  generateFromSources as runGeneration,
+  type SourceRow,
+  sourcesToDocuments,
+} from "@/lib/adventures/generate-from-sources";
 import { generateAssetsForVersion } from "@/lib/assets/generate";
 import { persistSpecVersion, SpecPersistError } from "@/lib/adventures/persist-spec";
+import {
+  type BriefInput,
+  type BriefSource,
+  type BriefState,
+  briefStateSchema,
+  completeBrief,
+  currentSlot,
+  initialBriefState,
+  readingLevelSchema,
+  stageOutlineSchema,
+} from "@/lib/brief/schema";
+import { runBriefTurn, type TurnResult } from "@/lib/brief/turn";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -57,75 +72,84 @@ async function requireOwnership(adventureId: string) {
 /** `notice` is for a success that still has something to tell the teacher (FR-3: missing information is reported, never hidden). */
 export type ActionResult = { error?: string; notice?: string };
 
-/** The teacher's brief (PRD §6). The reading level is mandatory from the first step (FR-1a). */
-const teacherBrief = z.object({
-  setting: z.string().trim().min(1, "Describe the setting").max(200),
-  studentRole: z.string().trim().min(1, "Say who the student plays").max(200),
-  learningObjectives: z
-    .string()
-    .transform((s) => s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean))
-    .pipe(z.array(z.string().max(300)).min(1, "Give at least one learning objective").max(6, "At most six learning objectives")),
-  band: z.enum(READING_BANDS, { message: "Choose a reading level" }),
-  ageMin: z.coerce.number({ message: "Give an age range" }).int().min(7).max(19),
-  ageMax: z.coerce.number({ message: "Give an age range" }).int().min(7).max(19),
-});
-
-function briefFrom(formData: FormData) {
-  return {
-    setting: formData.get("setting"),
-    studentRole: formData.get("studentRole"),
-    learningObjectives: formData.get("learningObjectives") ?? "",
-    band: formData.get("band"),
-    ageMin: formData.get("ageMin"),
-    ageMax: formData.get("ageMax"),
-  };
-}
-
-const newAdventure = teacherBrief.extend({
-  title: z.string().trim().min(1, "Give the adventure a title").max(120),
-});
-
-export async function createAdventure(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
+/**
+ * The teacher's brief (PRD §6) is agreed in conversation, one turn per call.
+ * The adventure row exists from the first question so the sources uploaded
+ * mid-conversation have somewhere to live, and the conversation is mirrored
+ * onto that row after every turn so it can be resumed. The reading level is
+ * mandatory (FR-1a) because the conversation will not finish without it.
+ */
+export async function startBrief(): Promise<TurnResult> {
   const { supabase, user } = await requireUser();
-  const parsed = newAdventure.safeParse({ title: formData.get("title"), ...briefFrom(formData) });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  }
-  if (parsed.data.ageMin > parsed.data.ageMax) return { error: "The age range is upside down" };
-
   const { data, error } = await supabase
     .from("adventure")
-    .insert({
-      owner_id: user.id,
-      title: parsed.data.title,
-      setting: parsed.data.setting,
-      student_role: parsed.data.studentRole,
-      learning_objectives: parsed.data.learningObjectives,
-      reading_level: { band: parsed.data.band, ageMin: parsed.data.ageMin, ageMax: parsed.data.ageMax },
-    })
+    .insert({ owner_id: user.id, title: "Untitled adventure" })
     .select("id")
-    .single();
-  if (error) return { error: error.message };
+    .single<{ id: string }>();
+  if (error) return { ok: false, error: error.message };
+  return saveBrief(initialBriefState(data.id));
+}
 
-  redirect(`/teacher/${data.id}`);
+/** Re-establishes ownership of the adventure the conversation belongs to and re-validates the state the client sent back. */
+async function requireBrief(state: BriefState): Promise<{ state: BriefState } | { error: string }> {
+  const parsed = briefStateSchema.safeParse(state);
+  if (!parsed.success) return { error: "The conversation got out of step — reload to start again" };
+  await requireOwnership(parsed.data.adventureId);
+  return { state: parsed.data };
+}
+
+/** The sources uploaded so far, both as the chat lists them and as the documents the assistant reads. */
+async function loadBriefSources(adventureId: string) {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("source")
+    .select("id, title, kind, page_map, content_hash")
+    .eq("adventure_id", adventureId)
+    .order("created_at")
+    .returns<(SourceRow & { page_map: { pages?: number } | null })[]>();
+  const rows = data ?? [];
+  const list: BriefSource[] = rows.map((row) => ({ id: row.id, title: row.title ?? "Untitled", pages: row.page_map?.pages ?? 0 }));
+  return { list, documents: sourcesToDocuments(rows).documents };
+}
+
+async function saveBrief(state: BriefState): Promise<TurnResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("adventure").update({ brief_state: state }).eq("id", state.adventureId);
+  return error ? { ok: false, error: error.message } : { ok: true, state };
+}
+
+export async function briefTurn(state: BriefState, input: BriefInput): Promise<TurnResult> {
+  const checked = await requireBrief(state);
+  if ("error" in checked) return { ok: false, error: checked.error };
+  if (!process.env.OPENAI_API_KEY) {
+    return { ok: false, error: "The assistant is not configured on this server (OPENAI_API_KEY is missing)" };
+  }
+  const { list, documents } = await loadBriefSources(checked.state.adventureId);
+  const result = await runBriefTurn({ ...checked.state, sources: list }, input, new OpenAiLlmClient({ timeoutMs: 90_000 }), documents);
+  return result.ok ? saveBrief(result.state) : result;
 }
 
 /**
- * Both source routes land here so a pasted passage and an uploaded PDF are
- * stored identically: pages are the unit of citation (D1/FR-1), so `page_map`
- * always carries per-page text, whatever the teacher dropped in.
+ * The upload step of the conversation. A PDF's text layer is extracted
+ * server-side — a scanned image has none, and the teacher is told to paste
+ * instead rather than getting an adventure grounded in nothing. Pages are the
+ * unit of citation (D1/FR-1), so `page_map` always carries per-page text,
+ * whatever the teacher dropped in.
  */
-async function insertSource(
-  adventureId: string,
-  storageKey: string,
-  doc: ExtractedDocument,
-): Promise<ActionResult> {
+export async function addBriefSource(state: BriefState, formData: FormData): Promise<TurnResult> {
+  const checked = await requireBrief(state);
+  if ("error" in checked) return { ok: false, error: checked.error };
+  if (currentSlot(checked.state.draft).name !== "sources") {
+    return { ok: false, error: "Reopen the sources step from the summary to add another" };
+  }
+
+  const extracted = await extractUpload(formData);
+  if ("error" in extracted) return { ok: false, error: extracted.error };
+  const { doc, storageKey } = extracted;
+
   const admin = createAdminClient();
   const { error } = await admin.from("source").insert({
-    adventure_id: adventureId,
+    adventure_id: checked.state.adventureId,
     kind: doc.kind,
     title: doc.title,
     storage_key: storageKey,
@@ -138,41 +162,20 @@ async function insertSource(
       text: doc.pages.map((p) => p.text).join("\f"),
     },
   });
-  if (error) return { error: error.message };
+  if (error) return { ok: false, error: error.message };
 
-  revalidatePath(`/teacher/${adventureId}`);
-  return {};
-}
-
-function extractionMessage(error: unknown): string {
-  if (error instanceof ExtractionError) return error.message;
-  return error instanceof Error ? error.message : "Could not read that source";
-}
-
-export async function addTextSource(
-  adventureId: string,
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  await requireOwnership(adventureId);
-
-  const title = String(formData.get("title") ?? "").trim() || "Pasted source";
-  const body = String(formData.get("body") ?? "").trim();
-  if (!body) return { error: "Paste the source text first" };
-
-  let doc: ExtractedDocument;
-  try {
-    doc = await extractDocument({
-      id: slugify(title, "pasted-source"),
-      title,
-      kind: "text",
-      text: body,
-    });
-  } catch (error) {
-    return { error: extractionMessage(error) };
-  }
-
-  return insertSource(adventureId, `inline:${crypto.randomUUID()}`, doc);
+  const { list } = await loadBriefSources(checked.state.adventureId);
+  const pages = `${doc.pageCount} page${doc.pageCount === 1 ? "" : "s"}`;
+  const warnings = doc.warnings.length > 0 ? ` ${doc.warnings.join(" ")}` : "";
+  return saveBrief({
+    ...checked.state,
+    sources: list,
+    messages: [
+      ...checked.state.messages,
+      { role: "user", text: `Added “${doc.title}”`, slot: "sources" },
+      { role: "assistant", text: `Got “${doc.title}”, ${pages}.${warnings} Add another, or tell me that’s all of them.`, slot: "sources" },
+    ],
+  });
 }
 
 const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
@@ -181,73 +184,95 @@ const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
   "text/markdown": "text",
 };
 
-/**
- * Upload route for the material a teacher already has: a PDF handout, or a
- * plain-text/markdown passage. The PDF's text layer is extracted server-side —
- * a scanned image has none, and the teacher is told to paste instead rather
- * than getting an adventure grounded in nothing.
- */
-export async function addFileSource(
-  adventureId: string,
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  await requireOwnership(adventureId);
-
+/** A pasted passage and an uploaded file come out identical, so the two are never stored differently. */
+async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocument; storageKey: string } | { error: string }> {
+  const title = String(formData.get("title") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim();
   const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: "Choose a PDF or text file first" };
-  }
-  if (file.size > LIMITS.maxUploadBytes) {
-    return {
-      error: `That file is ${(file.size / 1_048_576).toFixed(1)} MB; the limit is ${LIMITS.maxUploadBytes / 1_048_576} MB`,
-    };
-  }
 
-  const extension = file.name.toLowerCase().split(".").pop() ?? "";
-  const kind =
-    UPLOAD_KINDS[file.type] ??
-    (extension === "pdf" ? "pdf" : ["txt", "md"].includes(extension) ? "text" : null);
-  if (!kind) return { error: "Only PDF, .txt and .md files are supported" };
-
-  const title = String(formData.get("title") ?? "").trim() || file.name;
-  const bytes = new Uint8Array(await file.arrayBuffer());
-
-  let doc: ExtractedDocument;
   try {
-    doc = await extractDocument(
-      kind === "pdf"
-        ? { id: slugify(file.name), title, kind, bytes }
-        : { id: slugify(file.name), title, kind, text: new TextDecoder().decode(bytes) },
-    );
-  } catch (error) {
-    return { error: extractionMessage(error) };
-  }
+    if (body) {
+      const name = title || "Pasted source";
+      const doc = await extractDocument({ id: slugify(name, "pasted-source"), title: name, kind: "text", text: body });
+      return { doc, storageKey: `inline:${crypto.randomUUID()}` };
+    }
+    if (!(file instanceof File) || file.size === 0) return { error: "Choose a PDF or text file, or paste the text" };
+    if (file.size > LIMITS.maxUploadBytes) {
+      return { error: `That file is ${(file.size / 1_048_576).toFixed(1)} MB; the limit is ${LIMITS.maxUploadBytes / 1_048_576} MB` };
+    }
+    const extension = file.name.toLowerCase().split(".").pop() ?? "";
+    const kind = UPLOAD_KINDS[file.type] ?? (extension === "pdf" ? "pdf" : ["txt", "md"].includes(extension) ? "text" : null);
+    if (!kind) return { error: "Only PDF, .txt and .md files are supported" };
 
-  return insertSource(adventureId, `upload:${crypto.randomUUID()}/${file.name}`, doc);
+    const name = title || file.name;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const doc = await extractDocument(
+      kind === "pdf"
+        ? { id: slugify(file.name), title: name, kind, bytes }
+        : { id: slugify(file.name), title: name, kind, text: new TextDecoder().decode(bytes) },
+    );
+    return { doc, storageKey: `upload:${crypto.randomUUID()}/${file.name}` };
+  } catch (error) {
+    if (error instanceof ExtractionError) return { error: error.message };
+    return { error: error instanceof Error ? error.message : "Could not read that source" };
+  }
 }
 
-const generationBrief = teacherBrief.extend({
-  stageCount: z.coerce.number().pipe(z.union([z.literal(1), z.literal(2), z.literal(3)])),
+/** The brief is settled: write it onto the row and clear the conversation. */
+export async function finishBrief(state: BriefState): Promise<ActionResult> {
+  const checked = await requireBrief(state);
+  if ("error" in checked) return { error: checked.error };
+  const brief = completeBrief(checked.state.draft);
+  if (!brief) return { error: "The brief isn’t finished yet" };
+  const { list } = await loadBriefSources(checked.state.adventureId);
+  if (list.length === 0) return { error: "Add at least one source before creating the adventure" };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("adventure")
+    .update({
+      title: brief.title,
+      setting: brief.setting,
+      student_role: brief.studentRole,
+      learning_objectives: brief.learningObjectives,
+      reading_level: brief.readingLevel,
+      stage_outline: brief.stageOutline,
+      brief_state: null,
+    })
+    .eq("id", checked.state.adventureId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/teacher");
+  redirect(`/teacher/${checked.state.adventureId}`);
+}
+
+/** Throws away an unfinished brief and the sources uploaded to it. A confirmed adventure is never deleted here. */
+export async function discardBrief(adventureId: string): Promise<ActionResult> {
+  const { supabase } = await requireOwnership(adventureId);
+  const { error } = await supabase.from("adventure").delete().eq("id", adventureId).not("brief_state", "is", null);
+  if (error) return { error: error.message };
+  revalidatePath("/teacher");
+  return {};
+}
+
+/** The brief as stored on the adventure row; `null` for an adventure created before the brief was mandatory. */
+const storedBrief = z.object({
+  setting: z.string().min(1),
+  student_role: z.string().min(1),
+  learning_objectives: z.array(z.string()).min(1).max(6),
+  reading_level: readingLevelSchema,
+  stage_outline: z.array(stageOutlineSchema).max(3),
 });
 
 /**
  * D1–D4 → P5: run the planner over the adventure's stored sources and land the
  * result as the next draft version. The brief (setting, role, objectives,
- * reading level) is the part of the planner's input the adventure row does not
- * hold; FR-1a makes the reading level mandatory, so it is required here too.
+ * reading level, stage plan) was agreed when the adventure was created and is
+ * read from the row, so every generation of the same adventure starts from
+ * the same brief.
  */
-export async function generateFromSources(
-  adventureId: string,
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
+export async function generateFromSources(adventureId: string): Promise<ActionResult> {
   const { user } = await requireOwnership(adventureId);
-
-  const parsed = generationBrief.safeParse({ ...briefFrom(formData), stageCount: formData.get("stageCount") ?? 3 });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  const { band, ageMin, ageMax, ...rest } = parsed.data;
-  if (ageMin > ageMax) return { error: "The age range is upside down" };
 
   if (!process.env.OPENAI_API_KEY) {
     return { error: "Generation is not configured on this server (OPENAI_API_KEY is missing)" };
@@ -257,9 +282,9 @@ export async function generateFromSources(
   const [{ data: adventure }, { data: sources }] = await Promise.all([
     admin
       .from("adventure")
-      .select("title, default_timer_seconds")
+      .select("title, default_timer_seconds, setting, student_role, learning_objectives, reading_level, stage_outline")
       .eq("id", adventureId)
-      .single<{ title: string; default_timer_seconds: number }>(),
+      .single<{ title: string; default_timer_seconds: number } & Record<string, unknown>>(),
     admin
       .from("source")
       .select("id, title, kind, page_map, content_hash")
@@ -277,18 +302,25 @@ export async function generateFromSources(
   ]);
   if (!adventure) return { error: "Adventure not found" };
 
-  // The brief the teacher generated from becomes the adventure's brief, so the next generation starts from it.
-  await admin
-    .from("adventure")
-    .update({ setting: rest.setting, student_role: rest.studentRole, learning_objectives: rest.learningObjectives, reading_level: { band, ageMin, ageMax } })
-    .eq("id", adventureId);
+  const brief = storedBrief.safeParse(adventure);
+  if (!brief.success) {
+    return { error: "This adventure has no brief. It predates the assistant — create a new adventure to set one up." };
+  }
+  const { setting, student_role, learning_objectives, reading_level, stage_outline } = brief.data;
 
   const result = await runGeneration({
     admin,
     adventureId,
     adventure,
     sources: sources ?? [],
-    brief: { ...rest, readingLevel: { band, ageMin, ageMax } },
+    brief: {
+      setting,
+      studentRole: student_role,
+      learningObjectives: learning_objectives,
+      readingLevel: reading_level,
+      stageOutline: stage_outline,
+      stageCount: stage_outline.length === 0 ? 3 : (stage_outline.length as 1 | 2 | 3),
+    },
     llm: new OpenAiLlmClient(),
     createdBy: user.id,
   });

@@ -22,6 +22,12 @@ describe('structured outputs with bounded repair (K9/FR-4)', () => {
     expect(client.lastRequest?.jsonSchema).toMatchObject({ type: 'object', required: ['answer'] })
   })
 
+  it('forwards service tier controls through the provider request', async () => {
+    const client = new FakeLlmClient({ replies: [JSON.stringify({ answer: 'yes' })] })
+    await callStructured(client, { ...call, serviceTier: 'fast' })
+    expect(client.lastRequest?.serviceTier).toBe('fast')
+  })
+
   it('stops after at most two repair rounds', async () => {
     const client = new FakeLlmClient({ replies: ['{}'] })
     const result = await callStructured(client, call)

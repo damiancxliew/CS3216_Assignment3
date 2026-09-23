@@ -103,7 +103,7 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
   });
   try {
     await page.goto(joinUrl, { waitUntil: "networkidle" });
-    await tabTo(page, (text) => text.includes("Local dev sign-in"), 20);
+    await tabTo(page, (text, tag) => tag === "SUMMARY" && text.includes("Local dev sign-in"), 30);
     await page.keyboard.press("Enter");
     await tabTo(page, (_text, tag) => tag === "INPUT", 20);
     await page.keyboard.press("Control+A");

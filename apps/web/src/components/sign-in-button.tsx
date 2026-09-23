@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { DevSignIn } from "@/components/dev-sign-in";
+import { button, Pending } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
 import { createClient } from "@/lib/supabase/client";
@@ -10,9 +11,11 @@ import { createClient } from "@/lib/supabase/client";
 export function SignInButton({
   next = "/",
   label = "Continue with Google",
+  variant = "primary",
 }: {
   next?: string;
   label?: string;
+  variant?: "primary" | "quiet";
 }) {
   const [pending, setPending] = useState(false);
 
@@ -34,13 +37,8 @@ export function SignInButton({
 
   return (
     <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        onClick={signIn}
-        disabled={pending}
-        className="inline-flex w-fit items-center gap-2 rounded-full border border-black/15 px-5 py-2.5 text-sm font-medium transition hover:bg-black/5 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
-      >
-        {pending ? "Redirecting…" : label}
+      <button type="button" onClick={signIn} disabled={pending} className={`${button[variant]} w-fit`}>
+        {pending ? <Pending>Taking you to Google…</Pending> : label}
       </button>
       <DevSignIn next={next} />
     </div>

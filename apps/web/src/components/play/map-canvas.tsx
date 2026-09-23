@@ -326,7 +326,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
         reduced.addEventListener("change", (e) => view?.setReducedMotion(e.matches), { signal: controller.signal });
       } catch (error) {
         const note = document.createElement("p");
-        note.className = "p-4 text-sm opacity-70";
+        note.className = "p-4 text-sm text-muted";
         note.textContent = `The map could not start (${error instanceof Error ? error.message : "unknown error"}). The controls on the right still work.`;
         parent.replaceChildren(note);
       }
