@@ -14,7 +14,8 @@ export const button = {
     "inline-flex min-h-11 items-center justify-center gap-2 rounded-control bg-ink px-4 py-2 text-base font-semibold text-paper transition-colors hover:bg-record disabled:cursor-not-allowed disabled:opacity-60",
   quiet:
     "inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-4 py-2 text-base font-semibold text-ink transition-colors hover:border-ink hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60",
-  link: "text-base text-muted underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink",
+  subtle:
+    "inline-flex min-h-9 items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-60",
 };
 
 export const control =

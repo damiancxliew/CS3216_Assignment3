@@ -53,7 +53,7 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
               <span className="font-semibold">
                 Stage {active.stage.index + 1} of {active.stageCount}: {active.stage.title}
               </span>
-              <span className="text-base text-muted underline decoration-line-strong underline-offset-4 group-hover:text-ink">
+              <span className={button.subtle}>
                 <span className="group-open:hidden">What is going on?</span>
                 <span className="hidden group-open:inline">Hide</span>
               </span>
@@ -78,7 +78,7 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
         <section className="m-6 flex max-w-xl flex-col gap-3 rounded-surface border border-line bg-surface p-6">
           <p className="text-ink">This attempt cannot be played right now: {initial.error.message}</p>
           {resume.status === "completed" ? (
-            <Link href={`/play/${attemptId}/debrief`} className={`${button.link} w-fit`}>
+            <Link href={`/play/${attemptId}/debrief`} className={`${button.quiet} w-fit`}>
               Read your debrief
             </Link>
           ) : null}
