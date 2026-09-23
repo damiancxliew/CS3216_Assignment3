@@ -14,8 +14,10 @@
 import { ArrowRight, Check, CornerDownRight, Lock, Search, Timer, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { Point } from "@adventure/game-core";
 import { playApi } from "./api";
 import type { MapIntent } from "./map-canvas";
 import { useSoundCues } from "./sound";
@@ -66,8 +68,11 @@ const subtle =
 const label = "text-sm font-semibold text-muted";
 
 export function PlayClient({ attemptId, initialState }: { attemptId: string; initialState: PlayState }) {
+  const router = useRouter();
   const [state, setState] = useState<PlayState>(initialState);
+  const stateRef = useRef(initialState);
   const [busy, setBusy] = useState<string | null>(null);
+  const [speaking, setSpeaking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [pendingSpeech, setPendingSpeech] = useState<{ id: string; roomId: string; body: string } | null>(null);
@@ -80,12 +85,25 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
   const revision = useRef(initialState.revision);
+  const serverViewKey = useRef(`${initialState.stage.id}:${initialState.status}`);
   const { muted, toggleMuted, cues } = useSoundCues(state, notice);
+
+  useEffect(() => {
+    const key = `${state.stage.id}:${state.status}`;
+    if (key === serverViewKey.current) return;
+    serverViewKey.current = key;
+    router.refresh();
+  }, [router, state.stage.id, state.status]);
+
+  useEffect(() => {
+    if (state.pendingDialogue && pendingSpeech) setPendingSpeech(null);
+  }, [pendingSpeech, state.pendingDialogue]);
 
   const accept = useCallback((next: PlayState) => {
     // Out-of-order replies are discarded (I3: revision is monotonic per attempt).
     if (next.revision < revision.current) return;
     revision.current = next.revision;
+    stateRef.current = next;
     setState(next);
   }, []);
 
@@ -103,13 +121,14 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
 
   useEffect(() => {
     let timer = 0;
+    let cancelled = false;
     const tick = async () => {
       if (document.visibilityState === "visible" && !busy) await refresh();
-      if (failures.current >= GIVE_UP_AFTER) return;
+      if (cancelled || failures.current >= GIVE_UP_AFTER) return;
       timer = window.setTimeout(tick, Math.min(POLL_MS * 2 ** failures.current, MAX_POLL_MS));
     };
     timer = window.setTimeout(tick, POLL_MS);
-    return () => window.clearTimeout(timer);
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [refresh, busy]);
 
   useEffect(() => {
@@ -126,9 +145,12 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   }, [state.stage.id]);
 
   const here = state.rooms.find((r) => r.id === state.currentRoomId) ?? null;
-  const peopleHere = state.agents.filter((a) => a.roomId === state.currentRoomId);
+  const peopleHere = state.agents.filter((a) => state.hearingActorIds.includes(a.id));
   const effectiveAddressee = peopleHere.some((a) => a.id === addressee) ? addressee : peopleHere[0]?.id ?? null;
   const talkingTo = peopleHere.find((a) => a.id === effectiveAddressee) ?? null;
+  const waitingRoom = waitingAtDoor ? state.rooms.find((room) => room.id === waitingAtDoor) : null;
+  const waitingDoor = waitingAtDoor ? state.map?.doors.find((door) => door.roomId === waitingAtDoor) : null;
+  const knockReady = waitingRoom?.doorOpen === false && waitingDoor !== null && waitingDoor !== undefined && state.playerPos !== null && state.playerPos.x === waitingDoor.outside.x && state.playerPos.y === waitingDoor.outside.y;
 
   async function act(label: string, run: () => Promise<{ ok: true; body: { state: PlayState; refused?: string | null } } | { ok: false; error: { message: string } }>) {
     setBusy(label);
@@ -149,30 +171,24 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   }
 
   async function send() {
+    const current = stateRef.current;
     const body = draft.trim();
-    const roomId = state.currentRoomId;
-    if (!body || !roomId || busy !== null) return;
+    const roomId = current.currentRoomId;
+    if (!body || !roomId || busy !== null || speaking || current.pendingDialogue) return;
     setDraft("");
     setPendingSpeech({ id: crypto.randomUUID(), roomId, body });
-    setBusy("Speaking…");
+    setSpeaking(true);
     setNotice(null);
     try {
       const result = await playApi.message(attemptId, { roomId, body, addresseeId: effectiveAddressee });
       if (!result.ok) {
-        setPendingSpeech(null);
-        setDraft((current) => (current === "" ? body : current));
+        setDraft((value) => (value === "" ? body : value));
         setNotice(result.error.message);
         await refresh();
-        return;
-      }
-      setPendingSpeech(null);
-      accept(result.body.state);
-    } catch (error) {
-      setPendingSpeech(null);
-      setDraft((current) => (current === "" ? body : current));
-      setNotice(error instanceof Error ? error.message : "Could not send that message.");
+      } else accept(result.body.state);
     } finally {
-      setBusy(null);
+      setPendingSpeech(null);
+      setSpeaking(false);
     }
   }
 
@@ -193,36 +209,39 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     }
   }
 
-  const onEnterRoom = useCallback(
-    async (roomId: string, position: { x: number; y: number }) => {
-      const result = await playApi.action(attemptId, { type: "move_room", toRoomId: roomId, position });
-      if (!result.ok) {
-        setNotice(result.error.message);
-        return false;
+  const onStep = useCallback(
+    async (from: Point, to: Point) => {
+      const before = stateRef.current;
+      if (before.status !== "active" || busy === "Deciding…" || busy === "Knocking…") return { position: before.playerPos, accepted: false, retry: false };
+      try {
+        const result = await playApi.action(attemptId, { type: "move_step", stageId: before.stage.id, from, to });
+        if (!result.ok) {
+          setNotice(result.error.message);
+          if (result.error.code !== "rate_limited") await refresh();
+          return { position: stateRef.current.playerPos, accepted: false, retry: result.error.code === "rate_limited" };
+        }
+        accept(result.body.state);
+        if (result.body.refused) setNotice(result.body.refused);
+        return { position: stateRef.current.playerPos, accepted: !result.body.refused && stateRef.current.stage.id === before.stage.id, retry: false };
+      } catch {
+        setNotice("Could not reach the server. Please try again.");
+        return { position: stateRef.current.playerPos, accepted: false, retry: false };
       }
-      accept(result.body.state);
-      if (result.body.refused) {
-        setNotice(result.body.refused);
-        return false;
-      }
-      return true;
     },
-    [attemptId, accept],
+    [attemptId, accept, refresh, busy],
   );
 
   // From the map: pick who to talk to and put the cursor in the box, so "walk up and talk" works.
   const onTalk = useCallback((actorId: string) => {
     setAddressee(actorId);
+    if (!stateRef.current.hearingActorIds.includes(actorId)) {
+      const point = stateRef.current.actors.find((actor) => actor.id === actorId)?.position;
+      if (point) setIntent({ kind: "point", point });
+      return;
+    }
     composer.current?.focus();
     composer.current?.scrollIntoView({ block: "nearest" });
   }, []);
-
-  const onSettled = useCallback(
-    (position: { x: number; y: number }) => {
-      void playApi.action(attemptId, { type: "position", position }).then((r) => r.ok && accept(r.body.state));
-    },
-    [attemptId, accept],
-  );
 
   if (state.status === "completed") {
     return (
@@ -253,12 +272,11 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           audio={{ muted, cues }}
           intent={intent}
           onIntentDone={() => setIntent(null)}
-          onEnterRoom={onEnterRoom}
-          onSettled={onSettled}
+          onStep={onStep}
           onWaitingAtDoor={setWaitingAtDoor}
           onTalk={onTalk}
         />
-        <p className="pointer-events-none absolute bottom-3 left-3 max-w-[calc(100%-10rem)] rounded-control bg-ink/85 px-3.5 py-2 text-base font-semibold text-paper">
+        <p className="pointer-events-none absolute bottom-16 left-3 right-3 rounded-control bg-ink/85 px-3.5 py-2 text-base font-semibold text-paper lg:bottom-3 lg:right-36">
           Arrows or WASD to walk. Click a character to talk, or press Enter to talk to whoever is with you.
         </p>
         <button
@@ -281,9 +299,9 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
         ) : null}
       </section>
 
-      <aside className="flex min-h-0 w-full min-w-0 flex-col border-t border-line bg-paper text-base lg:w-[30rem] lg:border-l lg:border-t-0">
+      <aside className="flex min-h-0 w-full min-w-0 flex-col overflow-y-auto border-t border-line bg-paper text-base lg:w-[30rem] lg:border-l lg:border-t-0">
         {/* ── Top: where you are, where you can go ─────────────────────────── */}
-        <section className="flex flex-col gap-3 border-b border-line px-5 py-4" aria-labelledby="where">
+        <section className="flex shrink-0 flex-col gap-3 border-b border-line px-5 py-4" aria-labelledby="where">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className={label}>You are in</p>
@@ -313,7 +331,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                   {!r.doorOpen ? <Lock className="h-4 w-4 text-muted" aria-label="door closed" /> : null}
                 </button>
               ))}
-            {here ? (
+            {here?.enclosure === "enclosed" ? (
               <button
                 type="button"
                 className={chip}
@@ -323,18 +341,22 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                 {here.doorOpen ? "Close door" : "Open door"}
               </button>
             ) : null}
-            {waitingAtDoor ? (
-              <button type="button" className={`${primary} min-h-10 py-1.5 text-sm`} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor }))}>
-                Knock on {state.rooms.find((r) => r.id === waitingAtDoor)?.name ?? "the door"}
+            {knockReady ? (
+              <button type="button" className={`${primary} min-h-10 py-1.5 text-sm`} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor! }))}>
+                Knock on {waitingRoom?.name ?? "the door"}
               </button>
             ) : null}
           </div>
           {state.evidenceHere.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 border-l-[3px] border-world py-1 pl-3">
               <span className="text-base font-semibold text-world">Look at</span>
-              {state.evidenceHere.map((item) => (
+              {state.evidenceHere.map((item) => item.canInspect ? (
                 <button key={item.id} type="button" className={chip} disabled={busy !== null} onClick={() => act("Examining…", () => playApi.action(attemptId, { type: "inspect", evidenceId: item.id }))}>
                   <Search className="h-4 w-4" aria-hidden /> {item.name}
+                </button>
+              ) : (
+                <button key={item.id} type="button" className={chip} disabled={busy !== null || item.position === null} onClick={() => item.position && setIntent({ kind: "point", point: item.position })}>
+                  Walk to {item.name}
                 </button>
               ))}
             </div>
@@ -342,7 +364,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
         </section>
 
         {/* ── Middle: the conversation. This is the game; it gets the height. ── */}
-        <section className="flex min-h-0 flex-1 flex-col" aria-labelledby="talk">
+        <section className="flex min-h-[14rem] shrink-0 flex-1 flex-col" aria-labelledby="talk">
           {peopleHere.length ? (
             <div className="flex gap-2 overflow-x-auto px-5 pt-4" role="radiogroup" aria-label="Who you are talking to" id="talk">
               {peopleHere.map((a) => {
@@ -404,7 +426,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                 </div>
               </div>
             ) : null}
-            {busy === "Speaking…" ? <div className="px-2"><Thinking label={`${talkingTo?.name ?? "They"} is thinking`} /></div> : null}
+            {speaking || state.pendingDialogue ? <div className="px-2"><Thinking label={`${talkingTo?.name ?? "They"} is thinking`} /></div> : null}
             <div ref={transcriptEnd} />
           </div>
 
@@ -420,19 +442,19 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
               aria-label="What you say"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              disabled={busy !== null || !peopleHere.length}
+              disabled={busy !== null || speaking || state.pendingDialogue || !peopleHere.length}
               placeholder={talkingTo ? `Ask ${talkingTo.name.split(" ").at(-1)} something…` : "Find someone to talk to first"}
               className="min-h-12 min-w-0 flex-1 rounded-control border border-line bg-surface px-4 py-2 text-base text-ink placeholder:text-muted focus:border-record focus:outline-none disabled:opacity-60"
               maxLength={2000}
             />
-            <button type="submit" className={`${primary} min-h-12`} disabled={busy !== null || !draft.trim() || !peopleHere.length}>
-              {busy === "Speaking…" ? <Pending>Saying it</Pending> : "Say it"}
+            <button type="submit" className={`${primary} min-h-11`} disabled={busy !== null || speaking || state.pendingDialogue || !draft.trim() || !peopleHere.length}>
+              {speaking || state.pendingDialogue ? <Pending>Saying it</Pending> : "Say it"}
             </button>
           </form>
         </section>
 
         {/* ── Bottom, always visible: goals + the decision ─────────────────── */}
-        <section className="flex flex-col gap-3 border-t border-line bg-sunken/60 px-5 py-4" aria-labelledby="decide">
+        <section className="flex shrink-0 flex-col gap-3 border-t border-line bg-sunken/60 px-5 py-4" aria-labelledby="decide">
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-base text-ink">
               <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>
@@ -501,7 +523,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
                         <button
                           type="button"
                           className={`${o.available ? primary : chip} w-full flex-col items-start gap-0.5 text-left ${o.available ? "" : "min-h-11"}`}
-                          disabled={!o.available || busy !== null}
+                          disabled={!o.available || busy !== null || speaking || state.pendingDialogue}
                           onClick={() => decide(o.id)}
                         >
                           <span className="leading-snug">{o.label}</span>
@@ -536,6 +558,11 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
             </ul>
           ) : null}
 
+          {state.announcements.length ? (
+            <div role="log" aria-label="Announcements" className="flex flex-col gap-1.5">
+              {state.announcements.map((announcement) => <p key={announcement.id} role="status" className="rounded-control border border-line bg-surface px-3.5 py-2.5 text-base leading-snug text-ink">{announcement.body}</p>)}
+            </div>
+          ) : null}
           {notice ? (
             <p role="status" className="rounded-control border border-signal bg-signal-wash px-3.5 py-2.5 text-base leading-snug text-ink">
               {notice}

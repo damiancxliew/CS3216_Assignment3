@@ -31,7 +31,7 @@ import {
 } from './catalogue'
 
 export const SPEC_VERSION = 2 as const
-export const SPEC_SCHEMA_ID = 'adventure-spec-v2.0'
+export const SPEC_SCHEMA_ID = 'adventure-spec-v2.1'
 
 export const MAX_STAGES = 3
 export const MIN_STAKEHOLDERS = 3
@@ -173,8 +173,9 @@ export const roomSchema = z.object({
   name: text(100),
   purpose: text(400),
   kind: z.enum(ROOM_KINDS),
+  enclosure: z.enum(['enclosed', 'open']).nullable().default(null),
   size: z.enum(ROOM_SIZES),
-  doorDefault: z.enum(['open', 'closed']),
+  doorDefault: z.enum(['open', 'closed']).nullable(),
   /** A named, story-specific feature of the room (a gallows, a treaty table). Null for plain rooms. */
   landmark: z.object({ name: text(100), description: text(300) }).nullable(),
 })
@@ -386,6 +387,12 @@ export function refineAdventureSpec(spec: AdventureSpecShape, ctx: z.RefinementC
     const agentIds = new Set(stage.agents.map((a) => a.id))
     const evidenceIds = new Set(stage.evidence.map((e) => e.id))
     const objectiveIds = new Set(stage.objectives.map((o) => o.id))
+
+    stage.rooms.forEach((room, ri) => {
+      const doorPath = [...path, 'rooms', ri, 'doorDefault']
+      if (room.enclosure === 'open' && room.doorDefault !== null) issue(doorPath, 'open locations must have no door (doorDefault null)')
+      else if (room.enclosure !== 'open' && room.doorDefault === null) issue(doorPath, 'enclosed or legacy locations require open or closed doorDefault')
+    })
 
     if (!roomIds.has(stage.spawnRoomId)) issue([...path, 'spawnRoomId'], `unknown room "${stage.spawnRoomId}" in this stage`)
     checkGrounding(stage.sharedContext, [...path, 'sharedContext'])

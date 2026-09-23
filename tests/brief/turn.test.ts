@@ -10,10 +10,21 @@ import { describe, expect, it } from "vitest";
 import { completeBrief, currentSlot, initialBriefState, quickReplies, type BriefState } from "@/lib/brief/schema";
 import { runBriefTurn } from "@/lib/brief/turn";
 
+const ADVENTURE_ID = "00000000-0000-4000-8000-000000000001";
+const DIGEST = { summary: "A local test source.", title: "A Post at the River Mouth", setting: "Singapore and Johor, February 1819", studentRole: "Junior interpreter to the expedition" };
 const none = () => new FakeLlmClient([]);
+const defaultLlm = () => new FakeLlmClient([{ json: { reply: "What should students learn?", objectives: [], complete: false } }]);
 
-async function say(state: BriefState, text: string, llm = none()): Promise<BriefState> {
-  const result = await runBriefTurn(state, { text }, llm);
+function afterSources(): BriefState {
+  return {
+    ...initialBriefState(ADVENTURE_ID),
+    draft: { sources: DIGEST },
+    messages: [{ role: "assistant", text: "What should the adventure be called?", slot: "title", proposedText: DIGEST.title }],
+  };
+}
+
+async function say(state: BriefState, text: string, llm = defaultLlm()): Promise<BriefState> {
+  const result = await runBriefTurn(state, { text }, llm, []);
   if (!result.ok) throw new Error(result.error);
   return result.state;
 }
@@ -24,15 +35,26 @@ function lastText(state: BriefState): string {
 
 /** Answers everything up to the learning objectives, which need the model. */
 async function throughRole(): Promise<BriefState> {
-  let state = initialBriefState();
+  let state = afterSources();
   state = await say(state, "A Post at the River Mouth");
   state = await say(state, "Singapore and Johor, February 1819");
   return say(state, "Junior interpreter to the expedition");
 }
 
 describe("scripted slots", () => {
+  it("requires an uploaded source before the title", async () => {
+    const llm = none();
+    const result = await runBriefTurn(initialBriefState(ADVENTURE_ID), { text: "Done" }, llm, []);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(currentSlot(result.state.draft)).toEqual({ name: "sources" });
+      expect(lastText(result.state)).toMatch(/upload|paste/i);
+    }
+    expect(llm.requests).toHaveLength(0);
+  });
+
   it("opens with the title and walks the fixed order", async () => {
-    let state = initialBriefState();
+    let state = afterSources();
     expect(currentSlot(state.draft)).toEqual({ name: "title" });
     expect(lastText(state)).toMatch(/called/);
 
@@ -50,8 +72,8 @@ describe("scripted slots", () => {
   });
 
   it("re-asks with a reason instead of accepting a bad answer", async () => {
-    let state = initialBriefState();
-    const result = await runBriefTurn(state, { text: "   " }, none());
+    let state = afterSources();
+    const result = await runBriefTurn(state, { text: "   " }, none(), []);
     expect(result).toEqual({ ok: false, error: expect.stringMatching(/answer/) });
 
     state = await say(state, "x".repeat(121));
@@ -61,8 +83,10 @@ describe("scripted slots", () => {
 
   it("parses reading band labels, age ranges and stage counts", async () => {
     let state: BriefState = {
-      draft: { title: "t", setting: "s", studentRole: "r", learningObjectives: ["Explain x"] },
+      adventureId: ADVENTURE_ID,
+      draft: { sources: DIGEST, title: "t", setting: "s", studentRole: "r", learningObjectives: ["Explain x"] },
       messages: [],
+      sources: [],
     };
     expect(currentSlot(state.draft)).toEqual({ name: "band" });
     expect(quickReplies(state.draft, { name: "band" })).toContain("Lower secondary");
@@ -109,7 +133,7 @@ describe("model-assisted slots", () => {
     expect(currentSlot(state.draft)).toEqual({ name: "learningObjectives" });
     expect(state.messages.at(-1)).toMatchObject({ role: "assistant", proposedObjectives: ["Explain A", "Describe B"] });
 
-    const accepted = await runBriefTurn(state, { accept: true }, none());
+    const accepted = await runBriefTurn(state, { accept: true }, none(), []);
     expect(accepted.ok && accepted.state.draft.learningObjectives).toEqual(["Explain A", "Describe B"]);
   });
 
@@ -123,8 +147,10 @@ describe("model-assisted slots", () => {
       { json: { reply: "Stage 2: the succession. What should the student decide?", stage: null, complete: false } },
     ]);
     let state: BriefState = {
-      draft: { title: "t", setting: "s", studentRole: "r", learningObjectives: ["Explain x"], band: "lower-secondary", ages: { ageMin: 13, ageMax: 14 } },
+      adventureId: ADVENTURE_ID,
+      draft: { sources: DIGEST, title: "t", setting: "s", studentRole: "r", learningObjectives: ["Explain x"], band: "lower-secondary", ages: { ageMin: 13, ageMax: 14 } },
       messages: [],
+      sources: [],
     };
     state = await say(state, "2", llm);
     expect(state.draft.stageCount).toBe(2);
@@ -142,14 +168,16 @@ describe("model-assisted slots", () => {
 
   it("reports the model being unavailable without corrupting the state", async () => {
     const state = await throughRole();
-    const result = await runBriefTurn(state, { text: "anything" }, new FakeLlmClient([{ error: "boom" }]));
+    const result = await runBriefTurn(state, { text: "anything" }, new FakeLlmClient([{ error: "boom" }]), []);
     expect(result).toEqual({ ok: false, error: expect.stringMatching(/couldn’t answer/) });
   });
 });
 
 describe("summary and changes", () => {
   const filled: BriefState = {
+    adventureId: ADVENTURE_ID,
     draft: {
+      sources: DIGEST,
       title: "t",
       setting: "s",
       studentRole: "r",
@@ -160,6 +188,7 @@ describe("summary and changes", () => {
       stageOutline: [{ title: "Only", focus: "Decide." }],
     },
     messages: [],
+    sources: [],
   };
 
   it("is complete once every slot is filled", () => {
@@ -176,7 +205,7 @@ describe("summary and changes", () => {
   });
 
   it("reopens one slot from the summary and returns to it afterwards", async () => {
-    const result = await runBriefTurn(filled, { change: "setting" }, none());
+    const result = await runBriefTurn(filled, { change: "setting" }, none(), []);
     expect(result.ok && currentSlot(result.state.draft)).toEqual({ name: "setting" });
     expect(result.ok && result.state.draft.title).toBe("t");
 
@@ -186,13 +215,13 @@ describe("summary and changes", () => {
   });
 
   it("changing the stage count discards the stage plan", async () => {
-    const result = await runBriefTurn(filled, { change: "stageCount" }, none());
+    const result = await runBriefTurn(filled, { change: "stageCount" }, none(), []);
     expect(result.ok && result.state.draft.stageOutline).toBeUndefined();
     expect(result.ok && currentSlot(result.state.draft)).toEqual({ name: "stageCount" });
   });
 
   it("refuses free text at the summary", async () => {
-    const result = await runBriefTurn(filled, { text: "hello" }, none());
+    const result = await runBriefTurn(filled, { text: "hello" }, none(), []);
     expect(result.ok).toBe(false);
   });
 });

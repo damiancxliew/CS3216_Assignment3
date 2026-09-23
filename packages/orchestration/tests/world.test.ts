@@ -45,6 +45,14 @@ function closedDoorExchange(): WorldState {
 }
 
 describe('room-scoped visibility (K3)', () => {
+  it('honors stamped recipients in nonspatial worlds while retaining legacy unstamped history', () => {
+    const world = createFixtureWorld()
+    world.transcript.push({ tick: 0, seq: 1, roomId: 'room-audience-hall', speakerId: 'player', speakerName: 'You', addresseeId: null, body: 'Only player', recipientIds: ['player'] })
+    world.transcript.push({ tick: 0, seq: 2, roomId: 'room-audience-hall', speakerId: 'agent-farquhar', speakerName: 'William Farquhar', addresseeId: null, body: 'Legacy line' })
+    expect(visibleTranscript(world, 'player').map(({ body }) => body)).toEqual(['Only player', 'Legacy line'])
+    expect(visibleTranscript(world, 'agent-temenggong').map(({ body }) => body)).toEqual(['Legacy line'])
+  })
+
   it('delivers a player message only to its addressee', () => {
     const world = createFixtureWorld()
     applyAction(world, {

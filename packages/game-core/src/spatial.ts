@@ -16,14 +16,23 @@ function doorAt(map: StageMap, point: Point) {
   return map.doors.find((door) => pointKey(door.position) === pointKey(point))
 }
 
+function containsPoint(room: StageMap['rooms'][number], point: Point): boolean {
+  return point.x >= room.x && point.x < room.x + room.width && point.y >= room.y && point.y < room.y + room.height
+}
+
 function roomAt(map: StageMap, point: Point) {
   return map.rooms.find(
     (room) =>
+      room.enclosure === 'enclosed' &&
       point.x > room.x &&
       point.x < room.x + room.width - 1 &&
       point.y > room.y &&
       point.y < room.y + room.height - 1,
   )
+}
+
+function openLocationAt(map: StageMap, point: Point) {
+  return map.rooms.find((room) => room.enclosure === 'open' && containsPoint(room, point))
 }
 
 export function spaceAt(map: StageMap, point: Point): Space | null {
@@ -37,7 +46,10 @@ export function spaceAt(map: StageMap, point: Point): Space | null {
     const room = roomAt(map, point)
     return room ? { kind: 'room', roomId: room.id } : null
   }
-  if (tile === 'grass' || tile === 'path') return { kind: 'outdoor' }
+  if (tile === 'grass' || tile === 'path') {
+    const location = openLocationAt(map, point)
+    return location ? { kind: 'outdoor', locationId: location.id } : { kind: 'outdoor' }
+  }
   return null
 }
 
@@ -102,6 +114,39 @@ export function findPath(map: StageMap, doors: DoorStates, from: Point, to: Poin
     }
   }
   return null
+}
+
+function isOutdoorWalkable(map: StageMap, point: Point): boolean {
+  if (!inBounds(map, point)) return false
+  const tile = map.tiles[point.y]?.[point.x]
+  return (tile === 'grass' || tile === 'path') && spaceAt(map, point)?.kind === 'outdoor'
+}
+
+export function canHearSpeech(map: StageMap, from: Point, to: Point): boolean {
+  if (areInSameRoom(map, from, to)) return true
+  if (!isOutdoorWalkable(map, from) || !isOutdoorWalkable(map, to)) return false
+  if (pointKey(from) === pointKey(to)) return true
+  const visited = new Set<string>([pointKey(from)])
+  const queue: { point: Point; distance: number }[] = [{ point: from, distance: 0 }]
+  const neighbors = [
+    { x: 1, y: 0 },
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 0, y: -1 },
+  ]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    if (current.distance >= 3) continue
+    for (const offset of neighbors) {
+      const next = { x: current.point.x + offset.x, y: current.point.y + offset.y }
+      const nextKey = pointKey(next)
+      if (visited.has(nextKey) || !isOutdoorWalkable(map, next)) continue
+      if (nextKey === pointKey(to)) return true
+      visited.add(nextKey)
+      queue.push({ point: next, distance: current.distance + 1 })
+    }
+  }
+  return false
 }
 
 export function isInPhysicalInteractionRange(map: StageMap, doors: DoorStates, from: Point, target: Point): boolean {

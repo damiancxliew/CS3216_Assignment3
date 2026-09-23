@@ -14,6 +14,7 @@ import {
   createWorld,
   deriveOptions,
   fakeResolver,
+  hasConversationExchange,
   runStage,
   type WorldState,
 } from '../../../orchestration/src/index'
@@ -44,6 +45,24 @@ function hearEveryone(world: WorldState, spec: AdventureSpec, stageIndex: number
   }
 }
 
+function completeAgentObjectives(world: WorldState, spec: AdventureSpec, stageIndex: number): void {
+  const stage = spec.stages[stageIndex]!
+  for (const objective of stage.objectives) {
+    const agent = stage.agents.find(({ id }) => id === objective.targetId)
+    if (agent === undefined) continue
+    const room = stage.rooms.find(({ id }) => id === agent.startRoomId)!
+    if (room.doorDefault === 'closed') applyAction(world, { actorKind: 'agent', actorId: agent.id, action: { type: 'open_door', roomId: room.id } })
+    const currentRoom = world.rooms[world.location[PLAYER_ID] ?? '']
+    if (currentRoom !== undefined && !currentRoom.doorOpen) applyAction(world, { actorKind: 'player', actorId: PLAYER_ID, action: { type: 'open_door', roomId: currentRoom.id } })
+    applyAction(world, { actorKind: 'player', actorId: PLAYER_ID, action: { type: 'move_room', toRoomId: room.id } })
+    const request = applyAction(world, { actorKind: 'player', actorId: PLAYER_ID, action: { type: 'speak', roomId: room.id, body: `I need to speak with ${agent.id}.`, addresseeId: agent.id } })
+    expect(request.ok).toBe(true)
+    const requestSeq = world.transcript.at(-1)!.seq
+    expect(applyAction(world, { actorKind: 'agent', actorId: agent.id, action: { type: 'speak', roomId: room.id, body: 'I hear you.', addresseeId: PLAYER_ID } }, { replyToSeqs: [requestSeq] }).ok).toBe(true)
+    expect(hasConversationExchange(world, PLAYER_ID, agent.id)).toBe(true)
+  }
+}
+
 describe('spec -> runtime adapter', () => {
   it('never authors more agents per stage than the resolver can report deltas for (I4 cap)', () => {
     expect(MAX_AGENTS_PER_STAGE).toBeLessThanOrEqual(MAX_AGENT_DELTAS)
@@ -54,6 +73,7 @@ describe('spec -> runtime adapter', () => {
     const bundle = toStageRuntime(spec, 0)
     const world = createWorld(bundle.world)
     expect(Object.keys(world.rooms).sort()).toEqual(['landing-beach', 'ship-cabin', 'temenggong-hall'])
+    expect(world.rooms['landing-beach']!.doorOpen).toBe(true)
     expect(world.rooms['ship-cabin']!.doorOpen).toBe(false)
     expect(world.rooms['temenggong-hall']!.description).toContain("The Temenggong's dais")
     expect(Object.values(world.actors).filter((a) => a.kind === 'agent')).toHaveLength(3)
@@ -79,9 +99,29 @@ describe('spec -> runtime adapter', () => {
     const signOption = bundle.options.find((o) => o.id === 'opt-sign-preliminary')!
     // the decision.requires gate (read instructions) and "meet the Temenggong" are both expressible (K6)
     expect(signOption.preconditions).toContainEqual({ kind: 'knows_evidence', actorId: PLAYER_ID, evidenceId: 'ev-instructions' })
-    expect(signOption.preconditions).toContainEqual({ kind: 'heard_from', actorId: PLAYER_ID, speakerId: 'agent-temenggong-s0' })
+    expect(signOption.preconditions).toContainEqual({ kind: 'spoke_with', actorId: PLAYER_ID, otherActorId: 'agent-temenggong-s0' })
     expect(bundle.warnings.some((w) => w.includes('dropped'))).toBe(false)
     expect(bundle.fallbackNext).toEqual({ kind: 'stage', stageId: 'stage-sultan' }) // the evasive option
+  })
+
+  it('maps transitive evidence and conversation requirements without unlocking early', async () => {
+    const source = await loadI1Spec()
+    const spec = structuredClone(source)
+    const stage = spec.stages[0]!
+    stage.objectives.find(({ id }) => id === 'obj-meet-temenggong')!.requires = ['obj-read-instructions']
+    stage.decision.requires = []
+    stage.decision.options.find(({ id }) => id === 'opt-sign-preliminary')!.preconditions = ['obj-meet-temenggong']
+    const bundle = toStageRuntime(spec, 0)
+    const option = bundle.options.find(({ id }) => id === 'opt-sign-preliminary')!
+    expect(option.preconditions).toEqual(expect.arrayContaining([
+      { kind: 'knows_evidence', actorId: PLAYER_ID, evidenceId: 'ev-instructions' },
+      { kind: 'spoke_with', actorId: PLAYER_ID, otherActorId: 'agent-temenggong-s0' },
+    ]))
+    const world = createWorld(bundle.world)
+    world.evidenceKnown[PLAYER_ID] = ['ev-instructions']
+    expect(deriveOptions(world, bundle.options, PLAYER_ID).options).not.toContainEqual(expect.objectContaining({ id: option.id }))
+    completeAgentObjectives(world, spec, 0)
+    expect(deriveOptions(world, bundle.options, PLAYER_ID).options).toContainEqual(expect.objectContaining({ id: option.id }))
   })
 
   it("an agent's turn input carries its own private context and nobody else's (K2/FR-21)", async () => {
@@ -152,6 +192,7 @@ describe('I1 fixture -> K4 stage loop -> K6 options -> K1/K7 resolver -> ending 
 
       const evidenceCollected = collectEvidence(world, spec, stageIndex)
       hearEveryone(world, spec, stageIndex)
+      completeAgentObjectives(world, spec, stageIndex)
       const after = deriveOptions(world, bundle.options, PLAYER_ID)
       expect(after.options.map((o) => o.id).sort()).toEqual(bundle.options.map((o) => o.id).sort())
       expect(JSON.stringify(after)).not.toContain('preconditions') // public projection only

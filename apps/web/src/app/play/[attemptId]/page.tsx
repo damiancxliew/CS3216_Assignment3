@@ -41,14 +41,14 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   const active = initial.ok && initial.state.status === "active" ? initial.state : null;
 
   return (
-    <main className="flex h-screen flex-col">
-      <header className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-line bg-surface px-5 py-3">
-        <h1 className="inline-flex items-center gap-2.5 font-serif text-xl text-ink">
+    <main className="flex min-h-screen flex-col lg:h-screen">
+      <header className="flex flex-col items-start gap-x-6 gap-y-2 border-b border-line bg-surface px-5 py-3 lg:flex-row lg:items-baseline">
+        <h1 className="inline-flex max-w-full break-words items-center gap-2.5 font-serif text-xl text-ink">
           <Mark />
           {resume.adventureTitle}
         </h1>
         {active ? (
-          <details className="group min-w-0 flex-1 text-base">
+          <details className="group w-full min-w-0 text-base lg:w-auto lg:flex-1">
             <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-3 gap-y-1 text-ink marker:content-none">
               <span className="font-semibold">
                 Stage {active.stage.index + 1} of {active.stageCount}: {active.stage.title}

@@ -2,7 +2,7 @@ import { build } from 'esbuild'
 import { chromium } from 'playwright'
 import { describe, expect, it } from 'vitest'
 import { settlementFixture } from '../fixtures/settlement.js'
-import { closeSpatialDoor, compileStage, projectActorPositions, walkActorTowardRoom } from '../src/index.js'
+import { canHearSpeech, closeSpatialDoor, compileStage, projectActorPositions, walkActorTowardRoom } from '../src/index.js'
 
 type Core = typeof import('../src/index.js')
 
@@ -23,6 +23,30 @@ const reversed = {
   ...input,
   rooms: [...input.rooms].reverse(),
   placements: [...input.placements].reverse(),
+}
+const allOpen = {
+  stageId: 'browser-open',
+  spawnRoomId: 'grove',
+  rooms: [
+    { id: 'grove', size: 'medium' as const, enclosure: 'open' as const, doorDefault: null },
+    { id: 'plaza', size: 'small' as const, enclosure: 'open' as const, doorDefault: null },
+  ],
+  placements: [
+    { id: 'decision', kind: 'decision' as const, roomId: 'grove' },
+    { id: 'actor', kind: 'actor' as const, roomId: 'plaza' },
+  ],
+}
+const mixed = {
+  stageId: 'browser-mixed',
+  spawnRoomId: 'grove',
+  rooms: [
+    { id: 'grove', size: 'medium' as const, enclosure: 'open' as const, doorDefault: null },
+    { id: 'archive', size: 'small' as const, enclosure: 'enclosed' as const, doorDefault: 'closed' as const },
+  ],
+  placements: [
+    { id: 'decision', kind: 'decision' as const, roomId: 'grove' },
+    { id: 'actor', kind: 'actor' as const, roomId: 'archive' },
+  ],
 }
 const distinct = {
   stageId: 'browser-small',
@@ -55,7 +79,7 @@ describe('browser parity', () => {
       const page = await browser.newPage()
       await page.setContent('<!doctype html><html><body></body></html>')
       await page.addScriptTag({ content: source! })
-      for (const variant of [input, reversed, distinct]) {
+      for (const variant of [input, reversed, distinct, allOpen, mixed]) {
         for (let index = 0; index < 20; index += 1) {
           const seed = `browser-${index}`
           const nodeArtifact = JSON.stringify(compileStage(variant, seed))
@@ -67,6 +91,15 @@ describe('browser parity', () => {
             { value: variant, currentSeed: seed },
           )
           expect(browserArtifact).toBe(nodeArtifact)
+          const nodeHearing = canHearSpeech(compileStage(variant, seed).map, { x: 1, y: 1 }, { x: 4, y: 1 })
+          const browserHearing = await page.evaluate(
+            ({ value, currentSeed }) => {
+              const core = (globalThis as unknown as { GameCore: Core }).GameCore
+              return core.canHearSpeech(core.compileStage(value, currentSeed).map, { x: 1, y: 1 }, { x: 4, y: 1 })
+            },
+            { value: variant, currentSeed: seed },
+          )
+          expect(browserHearing).toBe(nodeHearing)
         }
       }
       const pathResult = await page.evaluate((value) => {

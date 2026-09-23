@@ -16,6 +16,8 @@
  *    rewritten to the uuid of the row that was actually inserted, so nothing
  *    downstream has to resolve slugs against the json blob.
  */
+import { compileAdventure, createSpatialStageWorld } from "@adventure/game-integration";
+import { randomUUID } from "node:crypto";
 import { validateAdventureSpec } from "@adventure/generation/spec";
 import type { AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -70,6 +72,9 @@ export async function persistSpecVersion(
     );
   }
   const spec: AdventureSpec = validation.spec;
+  const compilation = compileAdventure(spec, randomUUID());
+  if (!compilation.ok) throw new SpecPersistError("spec cannot be compiled and was not persisted", compilation.issues);
+  for (let index = 0; index < compilation.stages.length; index += 1) createSpatialStageWorld(spec, index, compilation.stages[index]!);
 
   const { data: existing, error: versionError } = await admin
     .from("spec_version")
@@ -103,6 +108,8 @@ export async function persistSpecVersion(
 
   try {
     const ids = await writeSpecRows(admin, specVersion.id, spec);
+    const { error: mapsError } = await admin.rpc("set_version_maps", { p_spec_version_id: specVersion.id, p_maps: compilation.stages });
+    if (mapsError) throw new SpecPersistError(mapsError.message);
     return { specVersionId: specVersion.id, version, ids };
   } catch (error) {
     await admin.from("spec_version").delete().eq("id", specVersion.id);

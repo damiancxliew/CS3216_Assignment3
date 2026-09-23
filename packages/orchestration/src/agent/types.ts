@@ -59,6 +59,7 @@ export interface RoomView {
   /** Who else is in the room right now. Public profiles only. */
   occupants: readonly AgentPublicProfile[]
   doorOpen: boolean
+  enclosure?: 'enclosed' | 'open'
 }
 
 /** Everything the agent is asked to respond to. Assembled server-side, per agent, per tick. */
@@ -83,6 +84,8 @@ export interface AgentTurnInput {
    * one reply serves the room, rather than each speaker being answered in turn. Untrusted text.
    */
   addressedBy?: readonly AddressedLine[] | undefined
+  replyToSeqs?: readonly number[] | undefined
+  moveTargets?: readonly { id: string; name: string }[] | undefined
   /** Actions the agent has left this stage (FR-12b). Zero means it should yield. */
   actionsRemaining: number
   /**

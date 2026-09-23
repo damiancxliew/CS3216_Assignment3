@@ -1,3 +1,4 @@
+import { compileStage } from "@adventure/game-core";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const SUPABASE_URL =
@@ -36,4 +37,20 @@ export async function createUserClient(email: string, password = "password123!")
 
 export function uniqueEmail(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`;
+}
+
+export async function prepareVersionMaps(admin: SupabaseClient, specVersionId: string): Promise<void> {
+  const { data: stages, error } = await admin.from("stage").select("id, index, spec_id").eq("spec_version_id", specVersionId).order("index");
+  if (error) throw error;
+  const maps = (stages ?? []).map((stage) => compileStage({
+    stageId: stage.spec_id ?? `fixture-stage-${stage.index}`,
+    spawnRoomId: `fixture-room-${stage.index}-0`,
+    rooms: [
+      { id: `fixture-room-${stage.index}-0`, size: "small" as const, enclosure: "open" as const, doorDefault: null },
+      { id: `fixture-room-${stage.index}-1`, size: "small" as const, enclosure: "open" as const, doorDefault: null },
+    ],
+    placements: [{ id: `fixture-decision-${stage.index}`, kind: "decision" as const, roomId: `fixture-room-${stage.index}-0` }],
+  }, "metadata-fixture"));
+  const { error: rpcError } = await admin.rpc("set_version_maps", { p_spec_version_id: specVersionId, p_maps: maps });
+  if (rpcError) throw rpcError;
 }

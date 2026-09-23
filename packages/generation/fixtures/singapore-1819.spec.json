@@ -134,8 +134,9 @@
           "name": "The landing beach",
           "purpose": "Where the expedition's boats have come ashore; Farquhar is organising the party.",
           "kind": "dock",
+          "enclosure": "open",
           "size": "medium",
-          "doorDefault": "open",
+          "doorDefault": null,
           "landmark": null
         },
         {
@@ -143,6 +144,7 @@
           "name": "Raffles' cabin aboard the Indiana",
           "purpose": "Raffles' papers and instructions are kept here.",
           "kind": "office",
+          "enclosure": "enclosed",
           "size": "small",
           "doorDefault": "closed",
           "landmark": null
@@ -152,6 +154,7 @@
           "name": "The Temenggong's hall",
           "purpose": "The Temenggong receives visitors and holds council here.",
           "kind": "hall",
+          "enclosure": "enclosed",
           "size": "large",
           "doorDefault": "open",
           "landmark": { "name": "The Temenggong's dais", "description": "A raised seat under a woven canopy where the Temenggong receives guests." }
@@ -295,6 +298,7 @@
           "name": "Farquhar's tent",
           "purpose": "The expedition's working headquarters on shore.",
           "kind": "camp",
+          "enclosure": "enclosed",
           "size": "small",
           "doorDefault": "open",
           "landmark": null
@@ -304,6 +308,7 @@
           "name": "Tengku Hussein's quarters",
           "purpose": "Where the newly arrived prince receives visitors in private.",
           "kind": "chamber",
+          "enclosure": "enclosed",
           "size": "small",
           "doorDefault": "closed",
           "landmark": null
@@ -313,8 +318,9 @@
           "name": "The treaty ground",
           "purpose": "An open space by the river where the treaty is to be signed.",
           "kind": "courtyard",
+          "enclosure": "open",
           "size": "large",
-          "doorDefault": "open",
+          "doorDefault": null,
           "landmark": { "name": "The treaty table", "description": "A long table under an awning, laid with the treaty and seals." }
         }
       ],
@@ -457,8 +463,9 @@
           "name": "The riverside bazaar",
           "purpose": "Traders from across the region do business here without paying duties.",
           "kind": "market",
+          "enclosure": "open",
           "size": "large",
-          "doorDefault": "open",
+          "doorDefault": null,
           "landmark": null
         },
         {
@@ -466,6 +473,7 @@
           "name": "The Resident's office",
           "purpose": "Farquhar's accounts and licences are kept here.",
           "kind": "office",
+          "enclosure": "enclosed",
           "size": "medium",
           "doorDefault": "closed",
           "landmark": null
@@ -475,6 +483,7 @@
           "name": "A merchant's godown",
           "purpose": "A warehouse by the river; the Temenggong's people collect their dues here.",
           "kind": "warehouse",
+          "enclosure": "enclosed",
           "size": "medium",
           "doorDefault": "open",
           "landmark": null

@@ -23,6 +23,7 @@
     "eval:decision-latency": "vite-node evals/run-decision-latency.ts"
   },
   "dependencies": {
+    "@adventure/game-core": "file:../game-core",
     "openai": "7.15.0",
     "zod": "^4.6.5"
   },

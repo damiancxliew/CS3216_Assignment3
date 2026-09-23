@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { loadFixtureJson, loadI1Documents } from '../src/fixtures'
 import { extractDocument } from '../src/ingest/extract'
 import { FakeLlmClient } from '../src/llm/client'
+import { toOpenAiStrictSchema } from '../src/llm/openai'
 import { MAX_REPAIRS, generateAdventure } from '../src/planner/pipeline'
+import { buildSystemPrompt, PROMPT_VERSION, PROMPT_VERSIONS } from '../src/planner/prompt'
 import { type TeacherInputRaw, plannerOutputJsonSchema, teacherInputSchema } from '../src/planner/schema'
+import { adventureSpecJsonSchema } from '../src/spec/json-schema'
 
 type Json = Record<string, any>
 
@@ -16,6 +19,8 @@ const TEACHER = {
   readingLevel: { band: 'lower-secondary', ageMin: 13, ageMax: 14 },
   stageCount: 3,
 } satisfies TeacherInputRaw
+
+const TEACHER_INPUT = teacherInputSchema.parse(TEACHER)
 
 /** The fixture, re-shaped as what the planner is asked to return. */
 async function plannerReply(mutate?: (adventure: Json) => void): Promise<{ json: Json }> {
@@ -66,6 +71,26 @@ describe('teacher input (FR-1a)', () => {
     const llm = new FakeLlmClient([await plannerReply()])
     await generateAdventure({ teacher: TEACHER, documents: [...(await loadI1Documents()).values()], llm })
     expect(llm.requests[0]!.user).not.toContain('Stage plan')
+  })
+})
+
+describe('planner prompt versions', () => {
+  it('keeps v1/v2 map wording and adds the exact v3 spatial rules', () => {
+    const oldMapWording = 'A spec with 3-4 historical stakeholders, 1-3 stages (each stage = one map of 2-5 rooms with doors + one decision), evidence items the player can inspect, objectives, decision options with branch targets, endings with a debrief, and a list of which entities may have an image generated. You describe WHAT exists; a deterministic compiler lays out the map. Never output coordinates, tile data, sprite names, or code.'
+    const v1 = buildSystemPrompt(TEACHER_INPUT, 'planner-v1')
+    const v2 = buildSystemPrompt(TEACHER_INPUT, 'planner-v2')
+    const v3 = buildSystemPrompt(TEACHER_INPUT, 'planner-v3')
+    expect(PROMPT_VERSIONS).toEqual(['planner-v1', 'planner-v2', 'planner-v3'])
+    expect(PROMPT_VERSION).toBe('planner-v3')
+    expect(v1).toContain(oldMapWording)
+    expect(v2).toContain(oldMapWording)
+    expect(v1).not.toContain('## Spatial locations')
+    expect(v2).not.toContain('## Spatial locations')
+    expect(v3).toContain('A spec with 3-4 historical stakeholders, 1-3 stages (each stage = one map of 2-5 named locations + one decision)')
+    expect(v3).toContain('- Every location must explicitly set enclosure to "enclosed" or "open"; never null.')
+    expect(v3).toContain('- Enclosed locations have one door or gate and doorDefault must be "open" or "closed". Open locations have no door and doorDefault must be null.')
+    expect(v3).toContain('- Speech in an enclosed location reaches all occupants. Speech outdoors reaches only listeners within three outdoor walking steps')
+    expect(v3).toContain('- Objectives targeting an agent require the player to address that agent and receive an audible reply.')
   })
 })
 
@@ -193,5 +218,19 @@ describe('untrusted documents (FR-20)', () => {
     expect(schema.required).toEqual(['adventure', 'missingInformation'])
     expect(schema.properties.adventure.properties.readingLevel).toBeUndefined()
     expect(schema.properties.adventure.properties.sources).toBeUndefined()
+  })
+
+  it('removes provider defaults and keeps every provider object property required recursively', () => {
+    const schema = toOpenAiStrictSchema(adventureSpecJsonSchema()) as Json
+    const walk = (node: any, path: string): void => {
+      expect(node, path).not.toHaveProperty('default')
+      if (node?.type === 'object' && node.properties) {
+        expect(Object.keys(node.properties).sort(), `${path}.required`).toEqual([...(node.required ?? [])].sort())
+        Object.entries(node.properties).forEach(([key, child]) => walk(child, `${path}.${key}`))
+      }
+      if (node?.items) walk(node.items, `${path}[]`)
+      for (const branch of node?.anyOf ?? node?.oneOf ?? []) walk(branch, `${path}|`)
+    }
+    walk(schema, '$')
   })
 })

@@ -4,6 +4,7 @@ import {
   MAP_SCHEMA_VERSION,
   type CompiledStage,
   type DoorState,
+  type Enclosure,
   type MapDoor,
   type MapRoom,
   type Point,
@@ -16,6 +17,7 @@ const ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 const SEED_PATTERN = /^[A-Za-z0-9._-]{1,64}$/
 const TILE_VALUES = new Set<Tile>(['grass', 'path', 'wall', 'floor', 'door'])
 const SIZE_VALUES = new Set(['small', 'medium', 'large'])
+const ENCLOSURE_VALUES = new Set<Enclosure>(['enclosed', 'open'])
 const DOOR_STATE_VALUES = new Set<DoorState>(['open', 'closed'])
 const PLACEMENT_KIND_VALUES = new Set(['actor', 'evidence', 'decision'])
 
@@ -46,12 +48,7 @@ function isInteger(value: unknown): value is number {
 }
 
 function isPoint(value: unknown): value is Point {
-  return (
-    isRecord(value) &&
-    hasExactKeys(value, ['x', 'y']) &&
-    isInteger(value.x) &&
-    isInteger(value.y)
-  )
+  return isRecord(value) && hasExactKeys(value, ['x', 'y']) && isInteger(value.x) && isInteger(value.y)
 }
 
 function isSlug(value: unknown): value is string {
@@ -110,7 +107,15 @@ export function validateStageLayout(value: unknown): ValidationResult {
     if (typeof room.size !== 'string' || !SIZE_VALUES.has(room.size)) {
       errors.push(`rooms[${index}].size: expected small, medium, or large`)
     }
-    if (typeof room.doorDefault !== 'string' || !DOOR_STATE_VALUES.has(room.doorDefault as DoorState)) {
+    if (Object.prototype.hasOwnProperty.call(room, 'enclosure')) {
+      if (typeof room.enclosure !== 'string' || !ENCLOSURE_VALUES.has(room.enclosure as Enclosure)) {
+        errors.push(`rooms[${index}].enclosure: expected enclosed or open`)
+      }
+    }
+    const enclosure = room.enclosure === 'open' ? 'open' : 'enclosed'
+    if (enclosure === 'open') {
+      if (room.doorDefault !== null) errors.push(`rooms[${index}].doorDefault: open locations require null`)
+    } else if (typeof room.doorDefault !== 'string' || !DOOR_STATE_VALUES.has(room.doorDefault as DoorState)) {
       errors.push(`rooms[${index}].doorDefault: expected open or closed`)
     }
   })
@@ -153,31 +158,32 @@ function tileAt(map: StageMap, point: Point): Tile | undefined {
 }
 
 function rectanglesOverlap(left: MapRoom, right: MapRoom): boolean {
-  return (
-    left.x < right.x + right.width &&
-    right.x < left.x + left.width &&
-    left.y < right.y + right.height &&
-    right.y < left.y + left.height
-  )
+  return left.x < right.x + right.width && right.x < left.x + left.width && left.y < right.y + right.height && right.y < left.y + left.height
+}
+
+function roomContains(room: MapRoom, point: Point): boolean {
+  return point.x >= room.x && point.x < room.x + room.width && point.y >= room.y && point.y < room.y + room.height
 }
 
 function roomAt(map: StageMap, point: Point): MapRoom | undefined {
+  return map.rooms.find((room) => roomContains(room, point))
+}
+
+function enclosedInteriorAt(map: StageMap, point: Point): MapRoom | undefined {
   return map.rooms.find(
     (room) =>
-      point.x >= room.x &&
-      point.x < room.x + room.width &&
-      point.y >= room.y &&
-      point.y < room.y + room.height,
+      room.enclosure === 'enclosed' &&
+      point.x > room.x &&
+      point.x < room.x + room.width - 1 &&
+      point.y > room.y &&
+      point.y < room.y + room.height - 1,
   )
 }
 
-function expectedRoomTile(room: MapRoom, point: Point, doorPositions: Set<string>): Tile {
+function expectedRoomTile(room: MapRoom, point: Point, doorPositions: Set<string>): Tile | 'outdoor' {
+  if (room.enclosure === 'open') return 'outdoor'
   if (doorPositions.has(`${point.x},${point.y}`)) return 'door'
-  const perimeter =
-    point.x === room.x ||
-    point.x === room.x + room.width - 1 ||
-    point.y === room.y ||
-    point.y === room.y + room.height - 1
+  const perimeter = point.x === room.x || point.x === room.x + room.width - 1 || point.y === room.y || point.y === room.y + room.height - 1
   return perimeter ? 'wall' : 'floor'
 }
 
@@ -219,20 +225,13 @@ function validateDoorGeometry(map: StageMap, room: MapRoom, door: MapDoor, error
     errors.push(`doors.${door.id}: approaches must be opposite orthogonal neighbors`)
     return
   }
-  if (!(
-    door.inside.x > room.x &&
-    door.inside.x < room.x + room.width - 1 &&
-    door.inside.y > room.y &&
-    door.inside.y < room.y + room.height - 1
-  )) {
+  if (!(door.inside.x > room.x && door.inside.x < room.x + room.width - 1 && door.inside.y > room.y && door.inside.y < room.y + room.height - 1)) {
     errors.push(`doors.${door.id}: inside approach must be an interior tile`)
   }
-  if (roomAt(map, door.outside)) errors.push(`doors.${door.id}: outside approach must be outdoors`)
+  if (enclosedInteriorAt(map, door.outside)) errors.push(`doors.${door.id}: outside approach must be outdoors`)
   if (tileAt(map, door.position) !== 'door') errors.push(`doors.${door.id}: position is not a door tile`)
   if (tileAt(map, door.inside) !== 'floor') errors.push(`doors.${door.id}: inside approach is not floor`)
-  if (!['grass', 'path'].includes(tileAt(map, door.outside) ?? '')) {
-    errors.push(`doors.${door.id}: outside approach is not outdoor`)
-  }
+  if (!['grass', 'path'].includes(tileAt(map, door.outside) ?? '')) errors.push(`doors.${door.id}: outside approach is not outdoor`)
 }
 
 function openWalkable(map: StageMap, doorIds: Set<string>, point: Point): boolean {
@@ -244,10 +243,19 @@ function openWalkable(map: StageMap, doorIds: Set<string>, point: Point): boolea
 
 function reachablePoints(map: StageMap): Set<string> {
   const openDoors = new Set(map.doors.map((door) => door.id))
-  const starts = map.doors.length > 0 ? [map.doors[0]!.outside] : []
-  const visited = new Set<string>()
-  const queue = starts.map((point) => ({ x: point.x, y: point.y }))
-  for (const point of queue) visited.add(pointKey(point))
+  let start: Point | undefined
+  for (let y = 0; y < map.height && !start; y += 1) {
+    for (let x = 0; x < map.width; x += 1) {
+      const point = { x, y }
+      if (['grass', 'path'].includes(tileAt(map, point) ?? '')) {
+        start = point
+        break
+      }
+    }
+  }
+  if (!start) return new Set()
+  const visited = new Set<string>([pointKey(start)])
+  const queue = [start]
   const neighbors = [
     { x: 1, y: 0 },
     { x: -1, y: 0 },
@@ -285,14 +293,11 @@ function validateMapShape(value: unknown, errors: string[]): value is StageMap {
   if (!Array.isArray(value.rooms)) errors.push('map.rooms: expected an array')
   else if (value.rooms.length < 2 || value.rooms.length > 5) errors.push('map.rooms: expected 2 to 5 rooms')
   if (!Array.isArray(value.doors)) errors.push('map.doors: expected an array')
-  else if (!Array.isArray(value.rooms) || value.doors.length !== value.rooms.length) errors.push('map.doors: expected one door per room')
   if (errors.length > 0) return false
   const tiles = value.tiles as unknown[]
   const rooms = value.rooms as unknown[]
   const doors = value.doors as unknown[]
-  if (!hasOnlyIndexedKeys(tiles) || !hasOnlyIndexedKeys(rooms) || !hasOnlyIndexedKeys(doors)) {
-    errors.push('map: expected dense arrays')
-  }
+  if (!hasOnlyIndexedKeys(tiles) || !hasOnlyIndexedKeys(rooms) || !hasOnlyIndexedKeys(doors)) errors.push('map: expected dense arrays')
   if (errors.length > 0) return false
   for (let y = 0; y < tiles.length; y += 1) {
     const row = tiles[y]
@@ -314,33 +319,29 @@ export function validateStageMap(value: unknown): ValidationResult {
   const roomIds = new Set<string>()
   for (let index = 0; index < map.rooms.length; index += 1) {
     const room = map.rooms[index]
-    if (!isRecord(room) || !hasExactKeys(room, ['id', 'x', 'y', 'width', 'height'])) {
+    if (!isRecord(room) || !hasExactKeys(room, ['id', 'enclosure', 'x', 'y', 'width', 'height'])) {
       errors.push(`rooms[${index}]: unexpected or missing fields`)
       continue
     }
     if (!isSlug(room.id)) errors.push(`rooms[${index}].id: invalid id`)
     if (typeof room.id === 'string' && roomIds.has(room.id)) errors.push(`rooms[${index}].id: duplicate id`)
     if (typeof room.id === 'string') roomIds.add(room.id)
+    if (typeof room.enclosure !== 'string' || !ENCLOSURE_VALUES.has(room.enclosure as Enclosure)) errors.push(`rooms[${index}].enclosure: invalid enclosure`)
     if (![room.x, room.y, room.width, room.height].every(isInteger)) {
       errors.push(`rooms[${index}]: coordinates and dimensions must be integers`)
       continue
     }
-    if (room.width < 5 || room.width > 16 || room.height < 5 || room.height > 16) {
-      errors.push(`rooms[${index}]: dimensions out of bounds`)
-    }
-    if (room.x < 1 || room.y < 1 || room.x + room.width > map.width - 1 || room.y + room.height > map.height - 1) {
-      errors.push(`rooms[${index}]: outside map border`)
-    }
+    if (room.width < 5 || room.width > 16 || room.height < 5 || room.height > 16) errors.push(`rooms[${index}]: dimensions out of bounds`)
+    if (room.x < 1 || room.y < 1 || room.x + room.width > map.width - 1 || room.y + room.height > map.height - 1) errors.push(`rooms[${index}]: outside map border`)
   }
   if (roomIds.has(map.stageId)) errors.push('map.stageId: must be distinct from room ids')
   if (errors.length > 0) return result(errors)
   for (let left = 0; left < map.rooms.length; left += 1) {
     for (let right = left + 1; right < map.rooms.length; right += 1) {
-      const first = map.rooms[left]!
-      const second = map.rooms[right]!
-      if (rectanglesOverlap(first, second)) errors.push('rooms: rectangles overlap')
+      if (rectanglesOverlap(map.rooms[left]!, map.rooms[right]!)) errors.push('rooms: rectangles overlap')
     }
   }
+
   const doorIds = new Set<string>()
   const doorByRoom = new Map<string, MapDoor>()
   const doorPositions = new Set<string>()
@@ -366,12 +367,19 @@ export function validateStageMap(value: unknown): ValidationResult {
       doorPositions.add(positionKey)
     }
   }
+  for (const room of map.rooms) {
+    if (room.enclosure === 'enclosed' && !doorByRoom.has(room.id)) errors.push(`rooms.${room.id}: missing door`)
+    if (room.enclosure === 'open' && doorByRoom.has(room.id)) errors.push(`rooms.${room.id}: open location cannot have a door`)
+  }
+  const enclosedCount = map.rooms.filter(({ enclosure }) => enclosure === 'enclosed').length
+  if (map.doors.length !== enclosedCount) errors.push('map.doors: expected exactly one door per enclosed room')
   if (errors.length > 0) return result(errors)
   for (const room of map.rooms) {
-    if (!doorByRoom.has(room.id)) errors.push(`rooms.${room.id}: missing door`)
-    else validateDoorGeometry(map, room, doorByRoom.get(room.id)!, errors)
+    const door = doorByRoom.get(room.id)
+    if (door) validateDoorGeometry(map, room, door, errors)
   }
   if (errors.length > 0) return result(errors)
+
   for (let y = 0; y < map.height; y += 1) {
     for (let x = 0; x < map.width; x += 1) {
       const point = { x, y }
@@ -383,9 +391,8 @@ export function validateStageMap(value: unknown): ValidationResult {
       }
       const room = roomAt(map, point)
       if (room) {
-        if (tile !== expectedRoomTile(room, point, doorPositions)) {
-          errors.push(`tiles[${y}][${x}]: room geometry mismatch`)
-        }
+        const expected = expectedRoomTile(room, point, doorPositions)
+        if (expected === 'outdoor' ? !['grass', 'path'].includes(tile ?? '') : tile !== expected) errors.push(`tiles[${y}][${x}]: room geometry mismatch`)
       } else if (!['grass', 'path'].includes(tile ?? '')) {
         errors.push(`tiles[${y}][${x}]: stray non-outdoor tile`)
       }
@@ -397,9 +404,17 @@ export function validateStageMap(value: unknown): ValidationResult {
     if (!reachable.has(pointKey(door.inside))) errors.push(`doors.${door.id}: inside approach unreachable`)
   }
   for (const room of map.rooms) {
-    for (let y = room.y + 1; y < room.y + room.height - 1; y += 1) {
-      for (let x = room.x + 1; x < room.x + room.width - 1; x += 1) {
-        if (!reachable.has(`${x},${y}`)) errors.push(`rooms.${room.id}: interior unreachable`)
+    if (room.enclosure === 'enclosed') {
+      for (let y = room.y + 1; y < room.y + room.height - 1; y += 1) {
+        for (let x = room.x + 1; x < room.x + room.width - 1; x += 1) {
+          if (!reachable.has(`${x},${y}`)) errors.push(`rooms.${room.id}: interior unreachable`)
+        }
+      }
+    } else {
+      for (let y = room.y; y < room.y + room.height; y += 1) {
+        for (let x = room.x; x < room.x + room.width; x += 1) {
+          if (['grass', 'path'].includes(tileAt(map, { x, y }) ?? '') && !reachable.has(`${x},${y}`)) errors.push(`rooms.${room.id}: outdoor location unreachable`)
+        }
       }
     }
   }
@@ -413,9 +428,7 @@ function exactObjectKeys(value: unknown, keys: readonly string[]): value is Reco
 
 export function validateCompiledStage(value: unknown): ValidationResult {
   const errors: string[] = []
-  if (!exactObjectKeys(value, ['map', 'playerSpawn', 'initialDoors', 'placements'])) {
-    return result(['compiled: unexpected or missing fields'])
-  }
+  if (!exactObjectKeys(value, ['map', 'playerSpawn', 'initialDoors', 'placements'])) return result(['compiled: unexpected or missing fields'])
   const compiled = value as unknown as CompiledStage
   const mapResult = validateStageMap(compiled.map)
   errors.push(...mapResult.errors)
@@ -429,18 +442,31 @@ export function validateCompiledStage(value: unknown): ValidationResult {
   const doors = compiled.initialDoors
   const doorIds = new Set(compiled.map.doors.map((door) => door.id))
   const initialDoorIds = Object.keys(doors)
-  if (initialDoorIds.length !== doorIds.size || initialDoorIds.some((id) => !doorIds.has(id))) {
-    errors.push('initialDoors: keys must exactly match map doors')
-  }
+  if (initialDoorIds.length !== doorIds.size || initialDoorIds.some((id) => !doorIds.has(id))) errors.push('initialDoors: keys must exactly match map doors')
   for (const doorId of initialDoorIds) {
     if (!DOOR_STATE_VALUES.has(doors[doorId] as DoorState)) errors.push(`initialDoors.${doorId}: invalid state`)
   }
   const placementIds = new Set<string>()
   const occupied = new Set<string>()
+  const placementRoom = (point: Point, roomId: unknown): MapRoom | undefined => {
+    const room = compiled.map.rooms.find((entry) => entry.id === roomId)
+    if (!room || !roomContains(room, point)) return undefined
+    if (room.enclosure === 'enclosed') {
+      if (!enclosedInteriorAt(compiled.map, point) || tileAt(compiled.map, point) !== 'floor') return undefined
+    } else if (
+      point.x <= room.x ||
+      point.x >= room.x + room.width - 1 ||
+      point.y <= room.y ||
+      point.y >= room.y + room.height - 1 ||
+      !['grass', 'path'].includes(tileAt(compiled.map, point) ?? '')
+    ) {
+      return undefined
+    }
+    return room
+  }
   if (isPoint(compiled.playerSpawn)) {
-    if (!inBounds(compiled.map, compiled.playerSpawn) || tileAt(compiled.map, compiled.playerSpawn) !== 'floor') errors.push('playerSpawn: must be a room interior')
-    const spawnRoom = roomAt(compiled.map, compiled.playerSpawn)
-    if (!spawnRoom) errors.push('playerSpawn: must be inside a room')
+    if (!inBounds(compiled.map, compiled.playerSpawn)) errors.push('playerSpawn: must be a declared location')
+    else if (!placementRoom(compiled.playerSpawn, compiled.map.rooms.find((room) => roomContains(room, compiled.playerSpawn))?.id)) errors.push('playerSpawn: must be a walkable declared location')
     if (compiled.map.doors.some((door) => pointKey(door.inside) === pointKey(compiled.playerSpawn))) errors.push('playerSpawn: reserved door approach')
     occupied.add(pointKey(compiled.playerSpawn))
   }
@@ -454,20 +480,14 @@ export function validateCompiledStage(value: unknown): ValidationResult {
     if (!isSlug(placement.id)) errors.push(`placements[${index}].id: invalid id`)
     if (typeof placement.id === 'string' && placementIds.has(placement.id)) errors.push(`placements[${index}].id: duplicate id`)
     if (typeof placement.id === 'string') placementIds.add(placement.id)
-    if (typeof placement.kind !== 'string' || !PLACEMENT_KIND_VALUES.has(placement.kind)) {
-      errors.push(`placements[${index}].kind: invalid kind`)
-    } else counts[placement.kind as keyof typeof counts] += 1
-    if (typeof placement.roomId !== 'string' || !compiled.map.rooms.some((room) => room.id === placement.roomId)) {
-      errors.push(`placements[${index}].roomId: unknown room id`)
-    }
+    if (typeof placement.kind !== 'string' || !PLACEMENT_KIND_VALUES.has(placement.kind)) errors.push(`placements[${index}].kind: invalid kind`)
+    else counts[placement.kind as keyof typeof counts] += 1
+    if (typeof placement.roomId !== 'string' || !compiled.map.rooms.some((room) => room.id === placement.roomId)) errors.push(`placements[${index}].roomId: unknown room id`)
     if (!isPoint(placement.position)) {
       errors.push(`placements[${index}].position: expected an integer point`)
       continue
     }
-    const room = compiled.map.rooms.find(({ id }) => id === placement.roomId)
-    if (!room || placement.position.x <= room.x || placement.position.x >= room.x + room.width - 1 || placement.position.y <= room.y || placement.position.y >= room.y + room.height - 1 || tileAt(compiled.map, placement.position) !== 'floor') {
-      errors.push(`placements[${index}].position: must be a room interior`)
-    }
+    if (!placementRoom(placement.position, placement.roomId)) errors.push(`placements[${index}].position: must be a walkable declared location`)
     if (compiled.map.doors.some((door) => pointKey(door.inside) === pointKey(placement.position))) errors.push(`placements[${index}].position: reserved door approach`)
     const key = pointKey(placement.position)
     if (occupied.has(key)) errors.push(`placements[${index}].position: occupied`)

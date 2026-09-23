@@ -102,6 +102,7 @@ export interface PendingMessage {
   speakerId: string
   speakerName: string
   body: string
+  utteranceSeq?: number
 }
 
 export interface CoalescingWindow {
@@ -296,6 +297,7 @@ export interface CoalescingOptions extends ReplyOptions {
 
 export type SubmitResult =
   | { status: 'answered'; reply: ReplyResult; answered: readonly PendingMessage[] }
+  | { status: 'rejected'; reason: 'message_not_heard' }
   /**
    * Held: either the speaker is over their rate, or the character is mid-window. Either way the
    * message is answered on the next flush, together with whatever else arrives before then.
@@ -305,10 +307,12 @@ export type SubmitResult =
 /** Put the waiting messages to the character as one thing to answer, not as a queue to work through. */
 function withMessages(input: AgentTurnInput, messages: readonly PendingMessage[]): AgentTurnInput {
   const last = messages[messages.length - 1]
+  const replyToSeqs = messages.flatMap((message) => message.utteranceSeq === undefined ? [] : [message.utteranceSeq])
   return {
     ...input,
     addressedBy: messages,
     playerMessage: last?.body ?? input.playerMessage,
+    replyToSeqs,
   }
 }
 
@@ -320,6 +324,19 @@ function withMessages(input: AgentTurnInput, messages: readonly PendingMessage[]
  *
  * A lone player never waits, since neither rail is ever met with one speaker in a clear window.
  */
+function spatialMessageSource(world: WorldState, agentId: string, message: PendingMessage): number | undefined {
+  if (message.utteranceSeq === undefined || !Number.isInteger(message.utteranceSeq)) return undefined
+  const source = world.transcript.find((line) =>
+    line.seq === message.utteranceSeq &&
+    line.speakerId === message.speakerId &&
+    world.actors[line.speakerId]?.kind === 'player' &&
+    line.body === message.body &&
+    line.addresseeId === agentId &&
+    line.recipientIds?.includes(agentId) === true,
+  )
+  return source?.seq
+}
+
 export async function submitPlayerMessage(
   client: LlmClient,
   world: WorldState,
@@ -329,6 +346,11 @@ export async function submitPlayerMessage(
 ): Promise<SubmitResult> {
   const agentId = input.self.id
   const mode = replyMode(options.tokenBudget, options.tokensSpent)
+  if (world.spatial !== undefined) {
+    const sourceSeq = spatialMessageSource(world, agentId, message)
+    if (sourceSeq === undefined) return { status: 'rejected', reason: 'message_not_heard' }
+    message = { ...message, utteranceSeq: sourceSeq }
+  }
 
   const hold = (heldBy: 'speaker_rate' | 'coalescing_window'): SubmitResult => {
     options.inbox.add(agentId, message)
@@ -374,7 +396,8 @@ export async function flushReplies(
     const input = inputFor(agentId)
     if (input === null) continue
     const previousLastAnsweredMs = options.inbox.lastAnsweredAt(agentId)
-    const answered = options.inbox.drain(agentId, options.nowMs)
+    let answered = options.inbox.drain(agentId, options.nowMs)
+    if (world.spatial !== undefined) answered = answered.filter((message) => spatialMessageSource(world, agentId, message) !== undefined)
     if (answered.length === 0) continue
     try {
       const reply = await answerNow(
@@ -437,8 +460,13 @@ async function answerNow(
     )
   }
   if (result.source === 'model') {
+    const replyToSeqs = input.replyToSeqs !== undefined && input.replyToSeqs.length > 0
+      ? input.replyToSeqs
+      : undefined
+    const lastSource = replyToSeqs === undefined ? undefined : world.transcript.find((line) => line.seq === replyToSeqs[replyToSeqs.length - 1])
+    const causalReply = replyToSeqs !== undefined && (input.playerMessage === null || lastSource?.body === input.playerMessage) ? replyToSeqs : undefined
     for (const entry of result.turn.actions) {
-      if (entry.action.type !== 'yield') applyAction(world, entry)
+      if (entry.action.type !== 'yield') applyAction(world, entry, entry.action.type === 'speak' && causalReply !== undefined ? { replyToSeqs: causalReply } : {})
     }
   }
   return result

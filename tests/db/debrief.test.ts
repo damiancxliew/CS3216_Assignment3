@@ -12,7 +12,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { loadDebrief } from "@/lib/attempts/debrief";
 
-import { createUserClient, serviceClient, uniqueEmail } from "./helpers";
+import { createUserClient, prepareVersionMaps, serviceClient, uniqueEmail } from "./helpers";
 
 const admin = serviceClient();
 
@@ -87,6 +87,7 @@ async function seedCompletedAttempt() {
     .from("stage")
     .insert({ spec_version_id: version!.id, index: 0, title: "The table" });
 
+  await prepareVersionMaps(admin, version!.id);
   await teacher.client.rpc("publish_adventure", { p_adventure_id: adventure!.id });
 
   const { data: attemptId } = await student.client.rpc("join_adventure", {
@@ -156,6 +157,8 @@ describe("debrief", () => {
       .update({ json: specJson("A rewritten ending the student never played.") })
       .eq("adventure_id", adventureId)
       .eq("version", 2);
+    const { data: draft } = await admin.from("spec_version").select("id").eq("adventure_id", adventureId).eq("version", 2).single();
+    await prepareVersionMaps(admin, draft!.id);
     await teacher.client.rpc("publish_adventure", { p_adventure_id: adventureId });
 
     const debrief = await loadDebrief(student.client, attemptId, admin);
