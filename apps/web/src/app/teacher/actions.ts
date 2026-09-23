@@ -186,14 +186,12 @@ const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
 
 /** A pasted passage and an uploaded file come out identical, so the two are never stored differently. */
 async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocument; storageKey: string } | { error: string }> {
-  const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
   const file = formData.get("file");
 
   try {
     if (body) {
-      const name = title || "Pasted source";
-      const doc = await extractDocument({ id: slugify(name, "pasted-source"), title: name, kind: "text", text: body });
+      const doc = await extractDocument({ id: slugify("Pasted source", "pasted-source"), title: "Pasted source", kind: "text", text: body });
       return { doc, storageKey: `inline:${crypto.randomUUID()}` };
     }
     if (!(file instanceof File) || file.size === 0) return { error: "Choose a PDF or text file, or paste the text" };
@@ -204,12 +202,11 @@ async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocume
     const kind = UPLOAD_KINDS[file.type] ?? (extension === "pdf" ? "pdf" : ["txt", "md"].includes(extension) ? "text" : null);
     if (!kind) return { error: "Only PDF, .txt and .md files are supported" };
 
-    const name = title || file.name;
     const bytes = new Uint8Array(await file.arrayBuffer());
     const doc = await extractDocument(
       kind === "pdf"
-        ? { id: slugify(file.name), title: name, kind, bytes }
-        : { id: slugify(file.name), title: name, kind, text: new TextDecoder().decode(bytes) },
+        ? { id: slugify(file.name), title: file.name, kind, bytes }
+        : { id: slugify(file.name), title: file.name, kind, text: new TextDecoder().decode(bytes) },
     );
     return { doc, storageKey: `upload:${crypto.randomUUID()}/${file.name}` };
   } catch (error) {

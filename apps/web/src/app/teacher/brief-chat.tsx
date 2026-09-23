@@ -326,7 +326,6 @@ function SourceStep({
           onUpload(new FormData(event.currentTarget), event.currentTarget);
         }}
       >
-        <input name="title" placeholder="Source title (optional, uses the filename)" aria-label="Source title" disabled={pending} className={control} />
         {pasting ? (
           <textarea
             name="body"
