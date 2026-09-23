@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { SignInButton } from "@/components/sign-in-button";
+import { LandingCta } from "@/components/landing-cta";
 import { button, RecordEntry, WorldEntry, Wordmark } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
@@ -119,7 +119,7 @@ export default function Home() {
             them. A student finds out what their decisions cost.
           </p>
           <div className="flex flex-wrap items-center gap-4">
-            <SignInButton next="/teacher" label="Sign in with Google to build one" />
+            <LandingCta label="Sign in with Google to build one" />
             <a href="#reel" className={button.quiet}>
               See a real run
             </a>
@@ -196,7 +196,7 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <SignInButton next="/teacher" />
+        <LandingCta />
       </section>
 
       <footer className="flex flex-wrap items-baseline justify-between gap-4 border-t border-line pt-8 text-base text-muted">
