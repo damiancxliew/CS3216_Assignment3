@@ -191,6 +191,9 @@ function worldFor(spec: AdventureSpec, index: number, attemptId: string, compile
 
 /** Budget for autonomous agent activity per stage (FR-12b). Kept modest: this is money per attempt. */
 const STAGE_TOKEN_BUDGET = 60_000;
+const MINTED_OPTIONS_CAP = 2;
+const MINT_TRIGGER_TRANSCRIPT_LINES = 6;
+const MINT_TRANSCRIPT_WINDOW = 120;
 const AUTONOMOUS_TICKS_PER_MOVE = 1;
 const DECISION_TICKS = 2;
 
@@ -672,10 +675,7 @@ export class PlaySession {
       const now = this.clock.now().getTime();
       if (now < (this.snap.nextStepAt ?? 0)) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
       const moved = moveActorStep(this.snap.world, PLAYER_ID, action.to);
-      if (!moved.ok) {
-        await this.maintainOptions(client);
-        return { ok: true, refused: moved.reason };
-      }
+      if (!moved.ok) return { ok: true, refused: moved.reason };
       advanceSpatialMovement(this.snap.world);
       this.snap.nextStepAt = now + 160;
       this.snap.stageStats.actions += 1;
@@ -689,10 +689,7 @@ export class PlaySession {
       if (!item) return { ok: false, error: { code: "not_found", message: "There is no such thing here." } };
       const placement = this.map()?.placements.find((p) => p.id === item.id);
       const playerPoint = world.spatial?.state.actors[PLAYER_ID] ?? null;
-      if (!placement || !playerPoint || !world.spatial || !isInPhysicalInteractionRange(world.spatial.map, world.spatial.state.doors, playerPoint, placement.position)) {
-        await this.maintainOptions(client);
-        return { ok: true, refused: "Walk closer to examine that." };
-      }
+      if (!placement || !playerPoint || !world.spatial || !isInPhysicalInteractionRange(world.spatial.map, world.spatial.state.doors, playerPoint, placement.position)) return { ok: true, refused: "Walk closer to examine that." };
       const known = (world.evidenceKnown[PLAYER_ID] ??= []);
       if (!known.includes(item.id)) {
         known.push(item.id);
@@ -706,8 +703,8 @@ export class PlaySession {
           collectedAt: this.clock.now().toISOString(),
         });
         this.bump();
+        await this.maintainOptions(client);
       }
-      await this.maintainOptions(client);
       return { ok: true, refused: null };
     }
 
@@ -734,20 +731,19 @@ export class PlaySession {
       if (inside.length > 0) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE, inside);
     }
 
-    await this.maintainOptions(client);
+    if (result.ok) await this.maintainOptions(client);
     return { ok: true, refused: result.ok ? null : result.reason };
   }
 
-  private async maintainOptions(client: LlmClient): Promise<void> {
+  async maintainOptions(client: LlmClient): Promise<void> {
     if (this.snap.status !== "active" || this.ledger.has(PLAYER_ID)) return;
-    if ((this.snap.mintedOptions ?? []).length >= 2) return;
+    if ((this.snap.mintedOptions ?? []).length >= MINTED_OPTIONS_CAP) return;
     const transcriptLength = this.snap.world.transcript.length;
-    if (transcriptLength - (this.snap.mintedAtSeq ?? 0) < 6) return;
+    if (transcriptLength - (this.snap.mintedAtSeq ?? 0) < MINT_TRIGGER_TRANSCRIPT_LINES) return;
     if (STAGE_TOKEN_BUDGET - this.snap.tokensSpent <= 0) return;
 
     this.snap.mintedAtSeq = transcriptLength;
     const metrics = new StructuredCallMetrics();
-    let minted: MintedOption[] = [];
     try {
       const privateTexts = this.stage.agents.flatMap((agent) => [
         agent.privateContext.persona,
@@ -759,7 +755,7 @@ export class PlaySession {
         stageId: this.stage.id,
         world: this.snap.world,
         catalogue: this.optionCatalogue(),
-        transcript: this.snap.world.transcript.slice(-120).map((line) => ({
+        transcript: this.snap.world.transcript.slice(-MINT_TRANSCRIPT_WINDOW).map((line) => ({
           roomId: line.roomId,
           speakerName: line.speakerName,
           body: line.body,
@@ -770,22 +766,17 @@ export class PlaySession {
           description: option.label,
         })),
         privateTexts,
-        maxMinted: 2,
+        maxMinted: MINTED_OPTIONS_CAP,
       }, { metrics });
-      minted = result.options;
+      if (result.options.length > 0) this.snap.mintedOptions = [...(this.snap.mintedOptions ?? []), ...result.options];
     } catch {
-      minted = [];
+      return;
     } finally {
       const used = metrics.totalTokens;
       this.snap.tokensSpent += used;
       this.snap.stageStats.tokens += used;
-      if (minted.length > 0) this.snap.mintedOptions = [...(this.snap.mintedOptions ?? []), ...minted];
       this.bump();
     }
-  }
-
-  async maintainOptionsAfterTurn(client: LlmClient): Promise<void> {
-    await this.maintainOptions(client);
   }
 
   /** Let the characters act autonomously for a bounded number of ticks (FR-12a/FR-12b); `only` narrows who. */
@@ -898,8 +889,8 @@ export class PlaySession {
     this.snap.playerPos = this.snap.world.spatial?.state.actors[PLAYER_ID] ?? null;
     this.snap.spokenAt = {};
     this.snap.stageStats = { openedAt: this.clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 };
-    delete this.snap.mintedOptions;
-    delete this.snap.mintedAtSeq;
+    this.snap.mintedOptions = [];
+    this.snap.mintedAtSeq = 0;
     this.snap.nextStepAt = 0;
     this.snap.pendingReply = null;
     this.stage = this.spec.stages[index]!;

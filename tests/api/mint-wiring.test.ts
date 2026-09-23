@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { getState, postDecision, postMessage, type PlayServiceDeps } from "@/lib/play/service";
 import { MemoryPlayStore, type AttemptRecord } from "@/lib/play/store";
+import { PlaySession } from "@/lib/play/session";
 
 const STUDENT = "student-mint";
 
@@ -149,5 +150,27 @@ describe("in-memory Resolver option minting", () => {
     expect(result.ok, JSON.stringify(result)).toBe(true);
     if (!result.ok) return;
     expect(result.state.options.some((option) => option.id.startsWith("minted-"))).toBe(false);
+  });
+
+  it("does not mint after a refused move", async () => {
+    let now = Date.parse("2026-09-22T12:00:00.000Z");
+    const session = PlaySession.start(spec, "mint-refused-move", 1, { now: () => new Date(now) });
+    for (let index = 0; index < 6; index += 1) {
+      const message = session.beginMessage({ roomId: "landing-beach", body: `A public line ${index}.` });
+      expect(message.ok).toBe(true);
+      now += 1000;
+    }
+    const before = session.snapshot();
+    const client = new FakeLlmClient({ replies: [mintReply()] });
+    const refused = await session.action(client, {
+      type: "move_step",
+      stageId: spec.stages[before.stageIndex]!.id,
+      from: before.playerPos!,
+      to: { x: before.playerPos!.x + 99, y: before.playerPos!.y + 99 },
+    });
+
+    expect(refused).toMatchObject({ ok: true, refused: expect.any(String) });
+    expect(client.requests).toHaveLength(0);
+    expect(session.snapshot().mintedAtSeq).toBe(before.mintedAtSeq);
   });
 });

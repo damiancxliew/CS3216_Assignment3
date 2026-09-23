@@ -101,7 +101,7 @@ export async function postMessage(deps: PlayServiceDeps, attemptId: string, user
       const ticket = begun.ticket;
       work.produce = () => session.produceReply(deps.llm, ticket);
     } else {
-      await session.maintainOptionsAfterTurn(deps.llm);
+      await session.maintainOptions(deps.llm);
     }
     return { ok: true, value: begun };
   });
@@ -114,7 +114,7 @@ export async function postMessage(deps: PlayServiceDeps, attemptId: string, user
     const final = await run(deps, attemptId, userId, async (session) => {
       const completed = session.completeReply(ticket, reply);
       if (!completed.ok) return completed;
-      await session.maintainOptionsAfterTurn(deps.llm);
+      await session.maintainOptions(deps.llm);
       return { ok: true, value: completed.newMessages };
     });
     if (!final.ok) {
