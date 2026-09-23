@@ -21,7 +21,7 @@ import {
   sourcesToDocuments,
 } from "@/lib/adventures/generate-from-sources";
 import { generateAssetsForVersion } from "@/lib/assets/generate";
-import { agentBelongsTo, stageBelongsTo } from "@/lib/adventures/ownership";
+import { applySpecEdit, type SpecEdit } from "@/lib/teacher/edit-spec";
 import { persistSpecVersion, SpecPersistError } from "@/lib/adventures/persist-spec";
 import {
   type BriefInput,
@@ -559,72 +559,60 @@ export async function updateDefaultTimer(
   return {};
 }
 
-/** Edits land on the draft version; the published one is frozen by trigger. */
-export async function updateStage(
-  adventureId: string,
-  stageId: string,
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
+/**
+ * Inline edits from the dossier. The draft's `spec_version.json` is the source
+ * of truth — the relational rows are mirrored afterwards — and the maps are
+ * recompiled so `compiled_spec` never drifts from the json the publish trigger
+ * checks (P4). Published versions refuse; the trigger would reject anyway.
+ */
+async function applyEdit(adventureId: string, specVersionId: string, edit: SpecEdit): Promise<ActionResult> {
   await requireOwnership(adventureId);
+  const result = await applySpecEdit(createAdminClient(), { adventureId, specVersionId }, edit);
+  if (result.error) return { error: result.error };
+  revalidatePath(`/teacher/${adventureId}`);
+  return { notice: "Saved." };
+}
 
-  const title = String(formData.get("title") ?? "").trim();
-  if (!title) return { error: "A stage needs a title" };
+const text = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
 
+export async function editStage(adventureId: string, specVersionId: string, stageId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const timer = parseTimer(formData.get("timer_seconds"));
-  if (timer === "invalid") {
-    return { error: "Leave the timer empty to inherit, or give seconds (0 disables)" };
-  }
-
-  const admin = createAdminClient();
-  if (!(await stageBelongsTo(admin, adventureId, stageId))) {
-    return { error: "That stage is not part of this adventure" };
-  }
-  const { error } = await admin
-    .from("stage")
-    .update({
-      title,
-      shared_context: String(formData.get("shared_context") ?? ""),
-      timer_seconds: timer,
-    })
-    .eq("id", stageId);
-  if (error) return { error: describeFrozen(error.message) };
-
-  revalidatePath(`/teacher/${adventureId}`);
-  return {};
+  if (timer === "invalid") return { error: "Leave the timer empty to inherit, or give seconds (0 disables)" };
+  return applyEdit(adventureId, specVersionId, { kind: "stage", stageId, title: text(formData, "title"), sharedContext: text(formData, "shared_context"), timerSeconds: timer });
 }
 
-export async function updateAgent(
-  adventureId: string,
-  agentId: string,
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  await requireOwnership(adventureId);
-
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { error: "A stakeholder needs a name" };
-
-  const admin = createAdminClient();
-  if (!(await agentBelongsTo(admin, adventureId, agentId))) {
-    return { error: "That stakeholder is not part of this adventure" };
-  }
-  const { error } = await admin
-    .from("agent")
-    .update({
-      name,
-      role: String(formData.get("role") ?? "") || null,
-      public_position: String(formData.get("public_position") ?? "") || null,
-    })
-    .eq("id", agentId);
-  if (error) return { error: describeFrozen(error.message) };
-
-  revalidatePath(`/teacher/${adventureId}`);
-  return {};
+export async function editStakeholder(adventureId: string, specVersionId: string, stakeholderId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "stakeholder", stakeholderId, name: text(formData, "name"), role: text(formData, "role"), summary: text(formData, "summary") });
 }
 
-function describeFrozen(message: string): string {
-  return message.includes("immutable")
-    ? "This version is published and frozen. Choose “Edit as a new version” first."
-    : message;
+export async function editAgentPosition(adventureId: string, specVersionId: string, stageId: string, agentId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "agentPosition", stageId, agentId, publicPosition: text(formData, "public_position") });
+}
+
+export async function editRoom(adventureId: string, specVersionId: string, stageId: string, roomId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "room", stageId, roomId, name: text(formData, "name"), purpose: text(formData, "purpose") });
+}
+
+export async function editEvidence(adventureId: string, specVersionId: string, stageId: string, evidenceId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "evidence", stageId, evidenceId, name: text(formData, "name"), text: text(formData, "text") });
+}
+
+export async function editObjective(adventureId: string, specVersionId: string, stageId: string, objectiveId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "objective", stageId, objectiveId, title: text(formData, "title") });
+}
+
+export async function editDecision(adventureId: string, specVersionId: string, stageId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const ids = formData.getAll("option_id").map(String);
+  const labels = formData.getAll("option_label").map((v) => String(v).trim());
+  const optionLabels = ids.map((id, i) => ({ id, label: labels[i] ?? "" }));
+  return applyEdit(adventureId, specVersionId, { kind: "decision", stageId, title: text(formData, "title"), prompt: text(formData, "prompt"), optionLabels });
+}
+
+export async function editEnding(adventureId: string, specVersionId: string, endingId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const reflectionQuestions = text(formData, "reflection_questions").split("\n").map((q) => q.trim()).filter(Boolean);
+  return applyEdit(adventureId, specVersionId, { kind: "ending", endingId, title: text(formData, "title"), summary: text(formData, "summary"), divergence: text(formData, "divergence"), reflectionQuestions });
+}
+
+export async function editAssumption(adventureId: string, specVersionId: string, assumptionId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "assumption", assumptionId, text: text(formData, "text"), reason: text(formData, "reason") });
 }
