@@ -88,6 +88,27 @@ describe("authoritative spatial movement", () => {
     await expect(session.action(llm, { type: "move_steps", stageId, from: path.at(-1)!, path: nextPath })).resolves.toEqual({ ok: true, refused: null });
   });
 
+  it("banks the walking a late request earned, so a jittery round trip does not refuse the next batch", async () => {
+    const timer = clock();
+    const session = PlaySession.start(spec, "movement-jitter", 1, timer);
+    const llm = new FakeLlmClient({ replies: ['{"say":"unused","actions":[]}'] });
+    const stageId = spec.stages[0]!.id;
+    const start = session.world.spatial!.state.actors.player!;
+    const next = adjacent(session.world.spatial!.map, session.world.spatial!.state.doors, start);
+    // A player holding a key makes four steps per request. The first request lands
+    // 80ms after they were earned, the second 80ms before: the same average speed,
+    // and neither may be refused, or the walk stops in the middle.
+    const batch = [next, start, next, start];
+    timer.advance(640 + 80);
+    await expect(session.action(llm, { type: "move_steps", stageId, from: start, path: batch })).resolves.toEqual({ ok: true, refused: null });
+    timer.advance(640 - 80);
+    await expect(session.action(llm, { type: "move_steps", stageId, from: start, path: batch })).resolves.toEqual({ ok: true, refused: null });
+    // Sustained walking is still capped: once the banked allowance is spent, a batch
+    // that outruns the clock is refused.
+    await expect(session.action(llm, { type: "move_steps", stageId, from: start, path: batch })).resolves.toEqual({ ok: true, refused: null });
+    await expect(session.action(llm, { type: "move_steps", stageId, from: start, path: batch })).resolves.toMatchObject({ ok: false, error: { code: "rate_limited" } });
+  });
+
   it("applies a valid prefix before refusing a blocked batch and rejects invalid batches", async () => {
     const timer = clock();
     const session = PlaySession.start(spec, "movement-batch-partial", 1, timer);
