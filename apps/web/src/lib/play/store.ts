@@ -143,42 +143,42 @@ export class SupabasePlayStore implements PlayStore {
   constructor(private readonly admin: SupabaseClient) {}
 
   async load(attemptId: string, userId: string, timings?: PlayTimings): Promise<AttemptRecord | null> {
-    const { data: attempt, error: attemptError } = await timed(timings, "load.attempt", () => this.admin
-      .from("attempt")
-      .select("id, adventure_id, published_version, student_id, status, ending_id, current_stage_id, stage_deadline_at")
-      .eq("id", attemptId)
-      .maybeSingle<{
-        id: string;
-        adventure_id: string;
-        published_version: number;
-        student_id: string;
-        status: AttemptRecord["status"];
-        ending_id: string | null;
-        current_stage_id: string | null;
-        stage_deadline_at: string | null;
-      }>());
-    if (attemptError) throw new Error(`attempt: ${attemptError.message}`);
-    if (!attempt || attempt.student_id !== userId) return null;
-
-    const cachedVersion = getVersion(attempt.adventure_id, attempt.published_version);
-    const [{ data: version, error: versionError }, { data: runtime, error: runtimeError }] = await Promise.all([
-      cachedVersion
-        ? timed(timings, "load.version", () => ({ data: { id: cachedVersion.specVersionId }, error: null }))
-        : timed(timings, "load.version", () => this.admin
-          .from("spec_version")
-          .select("id, json, compiled_stages")
-          .eq("adventure_id", attempt.adventure_id)
-          .eq("version", attempt.published_version)
-          .maybeSingle<{ id: string; json: unknown; compiled_stages: unknown }>()),
+    const [{ data: attempt, error: attemptError }, { data: runtime, error: runtimeError }] = await Promise.all([
+      timed(timings, "load.attempt", () => this.admin
+        .from("attempt")
+        .select("id, adventure_id, published_version, student_id, status, ending_id, current_stage_id, stage_deadline_at")
+        .eq("id", attemptId)
+        .maybeSingle<{
+          id: string;
+          adventure_id: string;
+          published_version: number;
+          student_id: string;
+          status: AttemptRecord["status"];
+          ending_id: string | null;
+          current_stage_id: string | null;
+          stage_deadline_at: string | null;
+        }>()),
       timed(timings, "load.runtime", () => this.admin
         .from("attempt_runtime")
         .select("stage_spec_id, revision, snapshot")
         .eq("attempt_id", attemptId)
         .maybeSingle<{ stage_spec_id: string; revision: number; snapshot: unknown }>()),
     ]);
+    if (attemptError) throw new Error(`attempt: ${attemptError.message}`);
+    if (!attempt || attempt.student_id !== userId) return null;
     // A failed read is not an absent runtime: treating it as one would start a
     // fresh session over saved state and then collide with it on save.
     if (runtimeError) throw new Error(`attempt_runtime: ${runtimeError.message}`);
+
+    const cachedVersion = getVersion(attempt.adventure_id, attempt.published_version);
+    const { data: version, error: versionError } = await timed(timings, "load.version", () => cachedVersion
+      ? { data: { id: cachedVersion.specVersionId }, error: null }
+      : this.admin
+        .from("spec_version")
+        .select("id, json, compiled_stages")
+        .eq("adventure_id", attempt.adventure_id)
+        .eq("version", attempt.published_version)
+        .maybeSingle<{ id: string; json: unknown; compiled_stages: unknown }>());
     // Likewise for the pinned version: a read that failed is not a version that
     // is absent, and reporting it as one tells the student "no such attempt".
     if (versionError) throw new Error(`spec_version: ${versionError.message}`);

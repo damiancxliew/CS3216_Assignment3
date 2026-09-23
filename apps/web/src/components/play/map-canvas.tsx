@@ -28,7 +28,7 @@ import type { PlayState } from "@/lib/play/session";
 import type { ServerTiming } from "./api";
 
 const STEP_MS = 160;
-const STEP_SEND_MARGIN_MS = 20;
+const MAX_BATCH_STEPS = 8;
 
 const KEYS: Record<string, Point> = {
   ArrowUp: { x: 0, y: -1 },
@@ -191,14 +191,14 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         }, wait);
         return;
       }
-      const batch = pending;
+      const batch = pending.slice(0, MAX_BATCH_STEPS);
       const count = batch.length;
       const step = batch[0]!;
       step.requestSentAt ??= performance.now();
       sendInFlight = true;
       let acknowledgement: { position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number };
       try {
-        nextSendAt = performance.now() + STEP_MS * count + STEP_SEND_MARGIN_MS;
+        nextSendAt = performance.now() + STEP_MS * count;
         acknowledgement = await latest.current.onSteps(step.from, batch.map((queued) => queued.to));
       } catch {
         acknowledgement = { position: latest.current.state.playerPos, accepted: false, retry: false };

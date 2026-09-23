@@ -58,6 +58,8 @@ import type { PublicAttemptState, PublicMessage } from "@/lib/turn-api/contract"
 
 export { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 
+const STEP_RATE = { minIntervalMs: 160, burst: 8 };
+
 export type JournalEntry = { id: string; text: string; sourceSpan: string | null; collectedAt: string };
 export type Announcement = { id: string; body: string; createdAt: string };
 export interface PendingReply {
@@ -93,7 +95,7 @@ export interface PlaySnapshot {
   endingId: string | null;
   tokensSpent: number;
   revision: number;
-  nextStepAt?: number;
+  stepRate?: { tokens: number; lastMs: number };
   pendingReply?: PendingReply | null;
   replyRate?: { tokens: number; lastMs: number };
 }
@@ -291,7 +293,7 @@ export class PlaySession {
       endingId: null,
       tokensSpent: 0,
       revision: 0,
-      nextStepAt: 0,
+      stepRate: { tokens: STEP_RATE.burst, lastMs: 0 },
       pendingReply: null,
       replyRate: { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     };
@@ -312,7 +314,7 @@ export class PlaySession {
       ...cloned,
       spokenAt: cloned.spokenAt ?? {},
       stageStats: cloned.stageStats ?? { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
-      nextStepAt: cloned.nextStepAt ?? 0,
+      stepRate: cloned.stepRate ?? { tokens: STEP_RATE.burst, lastMs: 0 },
       pendingReply: cloned.pendingReply ?? null,
       replyRate: cloned.replyRate ?? { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     }, clock, assets, compiledStages);
@@ -674,11 +676,13 @@ export class PlaySession {
       const current = spatial.state.actors[PLAYER_ID]!;
       if (action.stageId !== this.stage.id || current.x !== action.from.x || current.y !== action.from.y) return { ok: false, error: { code: "stale_state", message: "The stage or position changed. Refresh and try again." } };
       const now = this.clock.now().getTime();
-      if (now < (this.snap.nextStepAt ?? 0)) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
+      const elapsed = Math.max(0, now - (this.snap.stepRate?.lastMs ?? 0));
+      const tokens = Math.min(STEP_RATE.burst, (this.snap.stepRate?.tokens ?? STEP_RATE.burst) + elapsed / STEP_RATE.minIntervalMs);
+      if (tokens < 1) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
       const moved = moveActorStep(this.snap.world, PLAYER_ID, action.to);
       if (!moved.ok) return { ok: true, refused: moved.reason };
       advanceSpatialMovement(this.snap.world);
-      this.snap.nextStepAt = now + 160;
+      this.snap.stepRate = { tokens: tokens - 1, lastMs: Math.max(now, this.snap.stepRate?.lastMs ?? 0) };
       this.snap.stageStats.actions += 1;
       this.bump();
       await this.maintainOptions(client);
@@ -690,13 +694,16 @@ export class PlaySession {
       const current = spatial.state.actors[PLAYER_ID]!;
       if (action.stageId !== this.stage.id || current.x !== action.from.x || current.y !== action.from.y) return { ok: false, error: { code: "stale_state", message: "The stage or position changed. Refresh and try again." } };
       const now = this.clock.now().getTime();
-      if (now < (this.snap.nextStepAt ?? 0)) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
+      const needed = action.path.length;
+      const elapsed = Math.max(0, now - (this.snap.stepRate?.lastMs ?? 0));
+      const tokens = Math.min(STEP_RATE.burst, (this.snap.stepRate?.tokens ?? STEP_RATE.burst) + elapsed / STEP_RATE.minIntervalMs);
+      if (tokens < needed) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
       let appliedCount = 0;
       for (const to of action.path) {
         const moved = moveActorStep(this.snap.world, PLAYER_ID, to);
         if (!moved.ok) {
           if (appliedCount > 0) {
-            this.snap.nextStepAt = now + 160 * appliedCount;
+            this.snap.stepRate = { tokens: tokens - appliedCount, lastMs: Math.max(now, this.snap.stepRate?.lastMs ?? 0) };
             this.snap.stageStats.actions += appliedCount;
             this.bump();
             await this.maintainOptions(client);
@@ -706,7 +713,7 @@ export class PlaySession {
         advanceSpatialMovement(this.snap.world);
         appliedCount += 1;
       }
-      this.snap.nextStepAt = now + 160 * appliedCount;
+      this.snap.stepRate = { tokens: tokens - appliedCount, lastMs: Math.max(now, this.snap.stepRate?.lastMs ?? 0) };
       this.snap.stageStats.actions += appliedCount;
       this.bump();
       await this.maintainOptions(client);
@@ -920,7 +927,6 @@ export class PlaySession {
     this.snap.stageStats = { openedAt: this.clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 };
     this.snap.mintedOptions = [];
     this.snap.mintedAtSeq = 0;
-    this.snap.nextStepAt = 0;
     this.snap.pendingReply = null;
     this.stage = this.spec.stages[index]!;
     this.bundle = bundle;

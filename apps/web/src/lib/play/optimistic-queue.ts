@@ -1,6 +1,6 @@
 import type { Point } from "@adventure/game-core";
 
-export const MAX_PENDING_STEPS = 6;
+export const MAX_PENDING_STEPS = 12;
 
 export interface PendingStep {
   from: Point;
