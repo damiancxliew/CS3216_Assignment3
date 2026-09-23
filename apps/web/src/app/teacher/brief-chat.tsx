@@ -245,11 +245,13 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
   );
 }
 
-/** The composer grows with what is typed, up to a cap, instead of scrolling. */
+/** The composer grows with what is typed, up to a share of the viewport, instead of scrolling. */
 function autoGrow(field: HTMLTextAreaElement | null, maxPx: number) {
   if (!field) return;
   field.style.height = "auto";
-  field.style.height = `${Math.min(field.scrollHeight, maxPx)}px`;
+  const chrome = field.offsetHeight - field.clientHeight; // borders, which scrollHeight omits
+  const cap = Math.min(maxPx, Math.round(window.innerHeight * 0.25));
+  field.style.height = `${Math.min(field.scrollHeight + chrome, cap)}px`;
 }
 
 const STEP_LABELS: Record<string, string> = {
