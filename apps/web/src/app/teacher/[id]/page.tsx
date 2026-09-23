@@ -206,7 +206,7 @@ export default async function AdventurePage({
                       {extracted ? (
                         <details>
                           <summary className="cursor-pointer">{label}</summary>
-                          <div className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-surface border border-line bg-sunken px-4 py-3 text-base text-muted">
+                          <div className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere] rounded-surface border border-line bg-sunken px-4 py-3 text-base text-muted">
                             {extracted.text}
                           </div>
                           {extracted.truncated ? (
@@ -430,7 +430,7 @@ function BriefRow({ label, children }: { label: string; children: React.ReactNod
   return (
     <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:gap-4">
       <dt className="w-32 shrink-0 text-base text-muted">{label}</dt>
-      <dd className="flex-1 text-ink">{children}</dd>
+      <dd className="min-w-0 flex-1 text-ink">{children}</dd>
     </div>
   );
 }
