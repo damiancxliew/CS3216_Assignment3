@@ -17,6 +17,7 @@ const point = z.object({ x: z.number().int(), y: z.number().int() }).strict();
  */
 const actionRequestSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("move_step"), stageId: z.string().min(1), from: point, to: point }).strict(),
+  z.object({ type: z.literal("move_steps"), stageId: z.string().min(1), from: point, path: z.array(point).min(1).max(8) }).strict(),
   z.object({ type: z.literal("move_room"), toRoomId: z.string().min(1), position: point.optional() }),
   z.object({ type: z.literal("open_door"), roomId: z.string().min(1) }),
   z.object({ type: z.literal("close_door"), roomId: z.string().min(1) }),

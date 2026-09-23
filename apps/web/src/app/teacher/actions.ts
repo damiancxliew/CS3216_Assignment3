@@ -21,7 +21,7 @@ import {
   sourcesToDocuments,
 } from "@/lib/adventures/generate-from-sources";
 import { generateAssetsForVersion } from "@/lib/assets/generate";
-import { agentBelongsTo, stageBelongsTo } from "@/lib/adventures/ownership";
+import { applySpecEdit, type SpecEdit } from "@/lib/teacher/edit-spec";
 import { persistSpecVersion, SpecPersistError } from "@/lib/adventures/persist-spec";
 import {
   type BriefInput,
@@ -185,12 +185,24 @@ const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
   "text/markdown": "text",
 };
 
+/** Per-page text the client extracted from a PDF itself; untrusted, so the caps are re-checked by `extractDocument`. */
+const clientPagesSchema = z.array(z.string()).min(1).max(LIMITS.maxPages);
+
 /** A pasted passage and an uploaded file come out identical, so the two are never stored differently. */
 async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocument; storageKey: string } | { error: string }> {
   const body = String(formData.get("body") ?? "").trim();
   const file = formData.get("file");
 
   try {
+    const rawPages = formData.get("pages");
+    if (rawPages !== null) {
+      const parsed = clientPagesSchema.safeParse(JSON.parse(String(rawPages)));
+      if (!parsed.success) return { error: "Could not read that PDF — paste the text instead" };
+      const filename = String(formData.get("filename") ?? "").trim();
+      if (!filename) return { error: "Could not read that PDF — paste the text instead" };
+      const doc = await extractDocument({ id: slugify(filename), title: filename, kind: "pdf", pages: parsed.data });
+      return { doc, storageKey: `upload:${crypto.randomUUID()}/${filename}` };
+    }
     if (body) {
       const doc = await extractDocument({ id: slugify("Pasted source", "pasted-source"), title: "Pasted source", kind: "text", text: body });
       return { doc, storageKey: `inline:${crypto.randomUUID()}` };
@@ -412,6 +424,108 @@ export async function startEdit(adventureId: string): Promise<ActionResult> {
   return {};
 }
 
+/**
+ * D5/D6: artwork is also available before publish — the teacher can ask for
+ * the draft (or published) version's images up front, so the page is already a
+ * visual dossier when students arrive. Runs inside `after(...)` like publish:
+ * the manifest rows land `pending` first and settle one by one.
+ */
+export async function generateArtwork(adventureId: string): Promise<ActionResult> {
+  await requireOwnership(adventureId);
+
+  if (!process.env.OPENAI_API_KEY) {
+    return { error: "Artwork generation is not configured on this server (OPENAI_API_KEY is missing)" };
+  }
+
+  const admin = createAdminClient();
+  const { data: adventure } = await admin
+    .from("adventure")
+    .select("published_version")
+    .eq("id", adventureId)
+    .single<{ published_version: number | null }>();
+  const { data: versions } = await admin
+    .from("spec_version")
+    .select("id, version, published_at")
+    .eq("adventure_id", adventureId)
+    .order("version", { ascending: false })
+    .returns<{ id: string; version: number; published_at: string | null }[]>();
+  const shown = (versions ?? []).find((v) => v.published_at === null) ?? (versions ?? []).find((v) => v.version === adventure?.published_version);
+  if (!shown) return { error: "Generate a version first — artwork illustrates the spec" };
+
+  const { data: pending } = await admin
+    .from("asset")
+    .select("asset_id")
+    .eq("spec_version_id", shown.id)
+    .eq("status", "pending")
+    .limit(1)
+    .returns<{ asset_id: string }[]>();
+  if (pending && pending.length > 0) {
+    return { notice: `Artwork is already being generated for version ${shown.version}` };
+  }
+
+  const version = shown.version;
+  after(async () => {
+    try {
+      const result = await generateAssetsForVersion({ admin: createAdminClient(), images: new OpenAiImageService(), adventureId, version });
+      console.info("artwork generation", adventureId, `v${version}`, result);
+    } catch (error) {
+      console.error("artwork generation failed", adventureId, `v${version}`, error);
+    }
+  });
+  return { notice: `Artwork is being generated for version ${version}; the page will update as each piece lands.` };
+}
+
+/**
+ * Re-draws one asset. The cache row for its prompt hash is dropped first so
+ * the same prompt cannot come straight back from `asset_cache`; the run itself
+ * then writes the fresh result back to the cache. Artwork rows are not part
+ * of the frozen spec, so regenerating a published version's art is legal (P4).
+ */
+export async function regenerateAsset(adventureId: string, specVersionId: string, assetId: string): Promise<ActionResult> {
+  await requireOwnership(adventureId);
+
+  if (!process.env.OPENAI_API_KEY) {
+    return { error: "Artwork generation is not configured on this server (OPENAI_API_KEY is missing)" };
+  }
+
+  const admin = createAdminClient();
+  const { data: version } = await admin
+    .from("spec_version")
+    .select("id, version")
+    .eq("id", specVersionId)
+    .eq("adventure_id", adventureId)
+    .maybeSingle<{ id: string; version: number }>();
+  if (!version) return { error: "That version is not part of this adventure" };
+
+  const { data: record } = await admin
+    .from("asset")
+    .select("prompt_hash")
+    .eq("spec_version_id", specVersionId)
+    .eq("asset_id", assetId)
+    .maybeSingle<{ prompt_hash: string }>();
+  if (!record) return { error: "That artwork does not exist yet — generate the set first" };
+
+  await admin.from("asset_cache").delete().eq("prompt_hash", record.prompt_hash);
+
+  const versionNumber = version.version;
+  after(async () => {
+    try {
+      const result = await generateAssetsForVersion({
+        admin: createAdminClient(),
+        images: new OpenAiImageService(),
+        adventureId,
+        version: versionNumber,
+        onlyAssetIds: [assetId],
+        ignoreCache: true,
+      });
+      console.info("asset regeneration", adventureId, assetId, result);
+    } catch (error) {
+      console.error("asset regeneration failed", adventureId, assetId, error);
+    }
+  });
+  return { notice: "Regenerating; the page will update when the new image lands." };
+}
+
 export async function rotateShareToken(adventureId: string): Promise<ActionResult> {
   const { supabase } = await requireOwnership(adventureId);
   const { error } = await supabase.rpc("rotate_share_token", {
@@ -457,72 +571,85 @@ export async function updateDefaultTimer(
   return {};
 }
 
-/** Edits land on the draft version; the published one is frozen by trigger. */
-export async function updateStage(
+/**
+ * Inline edits from the dossier. The draft's `spec_version.json` is the source
+ * of truth — the relational rows are mirrored afterwards — and the maps are
+ * recompiled so `compiled_spec` never drifts from the json the publish trigger
+ * checks (P4). Published versions refuse; the trigger would reject anyway.
+ */
+async function applyEdit(adventureId: string, specVersionId: string, edit: SpecEdit): Promise<ActionResult> {
+  await requireOwnership(adventureId);
+  const result = await applySpecEdit(createAdminClient(), { adventureId, specVersionId }, edit);
+  if (result.error) return { error: result.error };
+  revalidatePath(`/teacher/${adventureId}`);
+  return { notice: "Saved." };
+}
+
+/**
+ * Whether a finished attempt can be followed by a fresh one. The database is
+ * what enforces it — both the share link and the ending's own button create
+ * attempts through owner-checked RPCs — so this only records the decision.
+ */
+export async function updateRetries(
   adventureId: string,
-  stageId: string,
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireOwnership(adventureId);
+  const { supabase } = await requireOwnership(adventureId);
 
-  const title = String(formData.get("title") ?? "").trim();
-  if (!title) return { error: "A stage needs a title" };
+  const choice = String(formData.get("allow_retries") ?? "");
+  if (choice !== "on" && choice !== "off") return { error: "Choose whether retries are allowed" };
 
+  const { error } = await supabase
+    .from("adventure")
+    .update({ allow_retries: choice === "on" })
+    .eq("id", adventureId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/teacher/${adventureId}`);
+  return {};
+}
+
+const text = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
+
+export async function editStage(adventureId: string, specVersionId: string, stageId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const timer = parseTimer(formData.get("timer_seconds"));
-  if (timer === "invalid") {
-    return { error: "Leave the timer empty to inherit, or give seconds (0 disables)" };
-  }
-
-  const admin = createAdminClient();
-  if (!(await stageBelongsTo(admin, adventureId, stageId))) {
-    return { error: "That stage is not part of this adventure" };
-  }
-  const { error } = await admin
-    .from("stage")
-    .update({
-      title,
-      shared_context: String(formData.get("shared_context") ?? ""),
-      timer_seconds: timer,
-    })
-    .eq("id", stageId);
-  if (error) return { error: describeFrozen(error.message) };
-
-  revalidatePath(`/teacher/${adventureId}`);
-  return {};
+  if (timer === "invalid") return { error: "Leave the timer empty to inherit, or give seconds (0 disables)" };
+  return applyEdit(adventureId, specVersionId, { kind: "stage", stageId, title: text(formData, "title"), sharedContext: text(formData, "shared_context"), timerSeconds: timer });
 }
 
-export async function updateAgent(
-  adventureId: string,
-  agentId: string,
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  await requireOwnership(adventureId);
-
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { error: "A stakeholder needs a name" };
-
-  const admin = createAdminClient();
-  if (!(await agentBelongsTo(admin, adventureId, agentId))) {
-    return { error: "That stakeholder is not part of this adventure" };
-  }
-  const { error } = await admin
-    .from("agent")
-    .update({
-      name,
-      role: String(formData.get("role") ?? "") || null,
-      public_position: String(formData.get("public_position") ?? "") || null,
-    })
-    .eq("id", agentId);
-  if (error) return { error: describeFrozen(error.message) };
-
-  revalidatePath(`/teacher/${adventureId}`);
-  return {};
+export async function editStakeholder(adventureId: string, specVersionId: string, stakeholderId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "stakeholder", stakeholderId, name: text(formData, "name"), role: text(formData, "role"), summary: text(formData, "summary") });
 }
 
-function describeFrozen(message: string): string {
-  return message.includes("immutable")
-    ? "This version is published and frozen. Choose “Edit as a new version” first."
-    : message;
+export async function editAgentPosition(adventureId: string, specVersionId: string, stageId: string, agentId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "agentPosition", stageId, agentId, publicPosition: text(formData, "public_position") });
+}
+
+export async function editRoom(adventureId: string, specVersionId: string, stageId: string, roomId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "room", stageId, roomId, name: text(formData, "name"), purpose: text(formData, "purpose") });
+}
+
+export async function editEvidence(adventureId: string, specVersionId: string, stageId: string, evidenceId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "evidence", stageId, evidenceId, name: text(formData, "name"), text: text(formData, "text") });
+}
+
+export async function editObjective(adventureId: string, specVersionId: string, stageId: string, objectiveId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "objective", stageId, objectiveId, title: text(formData, "title") });
+}
+
+export async function editDecision(adventureId: string, specVersionId: string, stageId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const ids = formData.getAll("option_id").map(String);
+  const labels = formData.getAll("option_label").map((v) => String(v).trim());
+  const optionLabels = ids.map((id, i) => ({ id, label: labels[i] ?? "" }));
+  return applyEdit(adventureId, specVersionId, { kind: "decision", stageId, title: text(formData, "title"), prompt: text(formData, "prompt"), optionLabels });
+}
+
+export async function editEnding(adventureId: string, specVersionId: string, endingId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const reflectionQuestions = text(formData, "reflection_questions").split("\n").map((q) => q.trim()).filter(Boolean);
+  return applyEdit(adventureId, specVersionId, { kind: "ending", endingId, title: text(formData, "title"), summary: text(formData, "summary"), divergence: text(formData, "divergence"), reflectionQuestions });
+}
+
+export async function editAssumption(adventureId: string, specVersionId: string, assumptionId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return applyEdit(adventureId, specVersionId, { kind: "assumption", assumptionId, text: text(formData, "text"), reason: text(formData, "reason") });
 }

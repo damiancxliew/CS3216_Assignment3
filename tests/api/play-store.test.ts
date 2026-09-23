@@ -172,6 +172,46 @@ describe("SupabasePlayStore runtime validation", () => {
     expect((client.rpcCalls[0]!.args.p_messages as { runtime_id: string }[])[0]!.runtime_id).toBe("attempt:0:1");
   });
 
+  it("sends a minted decision by spec id while sending the current catalogue", async () => {
+    const minted = {
+      id: "minted-stage-landing-1234",
+      label: "Offer a temporary anchorage",
+      preconditions: [{ kind: "actor_in_room", actorId: "player", roomId: "landing-beach" }],
+      branchTarget: { kind: "stage" as const, stageId: "stage-sultan" },
+      stance: "cooperative" as const,
+      stageId: "stage-landing",
+    };
+    const mintedSnapshot = { ...snapshot, mintedOptions: [minted] };
+    const events: PlayEvents = {
+      utterances: [],
+      decisions: [{ stageIndex: 0, decision: { actorId: "player", actorKind: "player", optionId: minted.id } }],
+      resolution: null,
+      openedStageIndex: null,
+      endingId: null,
+      telemetry: null,
+    };
+
+    const store = new SupabasePlayStore(client as never);
+    await store.save(record, mintedSnapshot, events);
+
+    const args = client.rpcCalls[0]!.args;
+    expect(args.p_minted_options).toEqual([{
+      stage_id: "stage-db-0",
+      spec_id: minted.id,
+      label: minted.label,
+      preconditions: minted.preconditions,
+      branch_target: "stage-db-1",
+    }]);
+    expect(args.p_commitments).toEqual([expect.objectContaining({
+      option_id: null,
+      minted_spec_id: minted.id,
+    })]);
+
+    client.runtime = { stage_spec_id: "stage-landing", revision: 1, snapshot: mintedSnapshot };
+    const loaded = await store.load("attempt", "student");
+    expect(loaded?.snapshot?.mintedOptions).toEqual([minted]);
+  });
+
   it("rejects a stale second in-memory reader before saving", async () => {
     const store = new MemoryPlayStore([record]);
     const first = (await store.load("attempt", "student"))!;

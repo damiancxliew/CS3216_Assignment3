@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { DossierSections } from "./dossier";
 import { SharePanel } from "./share-panel";
 import {
   generateFromSources,
   publishAdventure,
   startEdit,
   updateDefaultTimer,
-  updateAgent,
-  updateStage,
+  updateRetries,
 } from "../actions";
 import { ActionButton, ActionForm } from "@/components/action-form";
 import {
@@ -18,12 +18,15 @@ import {
   Field,
   Page,
   Section,
+  SelectField,
   StatusBadge,
   READING_BAND_LABELS,
 } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import type { ReadingLevel } from "@/lib/brief/schema";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { buildDossier } from "@/lib/teacher/dossier";
 
 export const metadata: Metadata = {
   title: "Adventure",
@@ -43,6 +46,7 @@ type Adventure = {
   status: "draft" | "published" | "archived";
   published_version: number | null;
   default_timer_seconds: number;
+  allow_retries: boolean;
   share_token: string;
   stage_outline: { title: string; focus: string }[];
 };
@@ -68,15 +72,6 @@ function sourceText(pageMap: SourcePageMap): { text: string; total: number; trun
   return { text: full.slice(0, SOURCE_TEXT_RENDER_CAP), total: full.length, truncated: full.length > SOURCE_TEXT_RENDER_CAP };
 }
 
-type Stage = {
-  id: string;
-  index: number;
-  title: string;
-  shared_context: string;
-  timer_seconds: number | null;
-  agent: { id: string; name: string; role: string | null; public_position: string | null }[];
-};
-
 export default async function AdventurePage({
   params,
 }: {
@@ -94,7 +89,7 @@ export default async function AdventurePage({
   // authoring view matches the owner rather than relying on visibility alone.
   const { data: adventure } = await supabase
     .from("adventure")
-    .select("id, title, setting, status, published_version, default_timer_seconds, share_token, student_role, learning_objectives, reading_level, stage_outline")
+    .select("id, title, setting, status, published_version, default_timer_seconds, allow_retries, share_token, student_role, learning_objectives, reading_level, stage_outline")
     .eq("id", id)
     .eq("owner_id", user.id)
     .maybeSingle<Adventure>();
@@ -109,7 +104,13 @@ export default async function AdventurePage({
   const versions = versionRows ?? [];
   const draft = versions.find((v) => v.published_at === null) ?? null;
   const published = versions.find((v) => v.version === adventure.published_version) ?? null;
-  const editable = draft ?? null;
+  // The dossier shows the draft when one exists, else the published version.
+  const shown = draft ?? published;
+
+  // `spec_version.json` is revoked from `authenticated`, so the dossier is
+  // built with the service role now that ownership is confirmed.
+  const admin = createAdminClient();
+  const dossier = shown ? await buildDossier(admin, { adventureId: id, specVersionId: shown.id }) : null;
 
   const { data: sources } = await supabase
     .from("source")
@@ -125,18 +126,6 @@ export default async function AdventurePage({
       }[]
     >();
   const sourceRows = sources ?? [];
-
-  const { data: stageRows } = editable
-    ? await supabase
-        .from("stage")
-        .select(
-          "id, index, title, shared_context, timer_seconds, agent(id, name, role, public_position)",
-        )
-        .eq("spec_version_id", editable.id)
-        .order("index")
-        .returns<Stage[]>()
-    : { data: [] as Stage[] };
-  const stages = stageRows ?? [];
 
   const { data: attempts } = await supabase
     .from("attempt")
@@ -173,6 +162,7 @@ export default async function AdventurePage({
         </span>
       }
       lede={adventure.setting}
+      width="wide"
     >
       <Section title="Brief">
         {adventure.reading_level ? (
@@ -285,51 +275,14 @@ export default async function AdventurePage({
         ) : null}
       </Section>
 
-      {editable && stages.length > 0 ? (
-        <Section
-          title={`Editing draft version ${editable.version}`}
-          lede="Private motivations are written by the generator and never shown here: they live in a table no client role can read."
-        >
-          <ol className="flex flex-col gap-6">
-            {stages.map((stage) => (
-              <li key={stage.id} className="flex flex-col gap-6 rounded-surface border border-line bg-surface p-6">
-                <ActionForm
-                  action={updateStage.bind(null, adventure.id, stage.id)}
-                  submitLabel="Save stage"
-                  pendingLabel="Saving…"
-                >
-                  <Field name="title" label={`Stage ${stage.index + 1}`} defaultValue={stage.title} />
-                  <Field name="shared_context" label="Shared context" defaultValue={stage.shared_context} multiline />
-                  <Field
-                    name="timer_seconds"
-                    label="Timer for this stage, in seconds"
-                    hint={`Empty inherits the default of ${adventure.default_timer_seconds}. 0 disables the timer.`}
-                    defaultValue={stage.timer_seconds === null ? "" : String(stage.timer_seconds)}
-                    placeholder={String(adventure.default_timer_seconds)}
-                    optional
-                  />
-                </ActionForm>
-
-                {stage.agent.length ? (
-                  <div className="flex flex-col gap-6 border-t border-line pt-6">
-                    {stage.agent.map((agent) => (
-                      <ActionForm
-                        key={agent.id}
-                        action={updateAgent.bind(null, adventure.id, agent.id)}
-                        submitLabel="Save stakeholder"
-                        pendingLabel="Saving…"
-                      >
-                        <Field name="name" label="Stakeholder" defaultValue={agent.name} />
-                        <Field name="role" label="Role" defaultValue={agent.role ?? ""} optional />
-                        <Field name="public_position" label="Public position" defaultValue={agent.public_position ?? ""} multiline rows={3} />
-                      </ActionForm>
-                    ))}
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        </Section>
+      {dossier && shown ? (
+        <DossierSections
+          dossier={dossier}
+          adventureId={adventure.id}
+          specVersionId={shown.id}
+          version={shown.version}
+          isDraft={shown === draft}
+        />
       ) : null}
 
       <Section
@@ -346,6 +299,27 @@ export default async function AdventurePage({
             label="Default per stage, in seconds"
             hint="0 disables timers entirely. Each stage can override this above."
             defaultValue={String(adventure.default_timer_seconds)}
+          />
+        </ActionForm>
+      </Section>
+
+      <Section
+        title="Retries"
+        lede="An attempt that is still open always resumes, whatever this is set to. This decides what happens once a student has reached an ending."
+      >
+        <ActionForm
+          action={updateRetries.bind(null, adventure.id)}
+          submitLabel="Save"
+          pendingLabel="Saving…"
+        >
+          <SelectField
+            name="allow_retries"
+            label="When a student has finished"
+            options={[
+              { value: "on", label: "Let them play again from the start" },
+              { value: "off", label: "Keep them on the attempt they finished" },
+            ]}
+            defaultValue={adventure.allow_retries ? "on" : "off"}
           />
         </ActionForm>
       </Section>

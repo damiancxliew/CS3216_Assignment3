@@ -32,3 +32,37 @@ jobs:
       - run: npx supabase start
       - run: npx supabase db reset
       - run: npx vitest run tests/db
+
+  # Hosted Postgres only changed when someone remembered to run `supabase db
+  # push`, so a merged migration left production serving code against a schema
+  # that did not have its columns yet.
+  migrate:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [web, database]
+    runs-on: ubuntu-latest
+    concurrency: migrate-hosted
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check deploy credentials
+        run: |
+          missing=""
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || missing="$missing SUPABASE_ACCESS_TOKEN"
+          [ -n "$SUPABASE_DB_PASSWORD" ] || missing="$missing SUPABASE_DB_PASSWORD"
+          [ -n "$PROJECT_REF" ] || missing="$missing SUPABASE_PROJECT_REF(variable)"
+          if [ -n "$missing" ]; then
+            echo "::error::set these in repository settings:$missing"
+            exit 1
+          fi
+      - run: npx supabase link --project-ref "$PROJECT_REF"
+      - run: npx supabase db push --linked --include-all
+      - name: Fail if any migration is still unapplied
+        run: npx supabase migration list --linked --output-format json | node scripts/assert-migrations-applied.mjs

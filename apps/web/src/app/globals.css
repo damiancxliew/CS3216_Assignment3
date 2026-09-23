@@ -125,6 +125,53 @@ body {
   font-feature-settings: "onum";
 }
 
+/*
+ * Scrollbars are part of the page, not the operating system: a hairline thumb
+ * on the paper, no track, no arrows, and nothing at all until the pointer is
+ * over the region that scrolls.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+*:hover,
+*:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--line-strong) 55%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+:hover::-webkit-scrollbar-thumb,
+:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--line-strong) 55%, transparent);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--line-strong);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
 :focus-visible {
   outline: 2px solid var(--record);
   outline-offset: 2px;

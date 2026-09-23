@@ -1,5 +1,5 @@
 /**
- * D5/D6 -> P4: generate a published version's story-specific images after the
+ * D5/D6 -> P4: generate a version's story-specific images after the
  * publish has already succeeded. Publish never waits on this (FR-6a): the
  * manifest is written all-`pending` first, then each record is updated as its
  * image settles, so the play view shows placeholders and swaps them in.
@@ -19,6 +19,10 @@ export interface GenerateForVersionOptions {
   adventureId: string;
   version: number;
   quality?: "low" | "medium" | "high";
+  /** Restrict the run to these `assetEligibility` ids (a single-asset regenerate); other rows are left untouched. */
+  onlyAssetIds?: readonly string[];
+  /** Skip the prompt-hash cache read so the image is forced to re-draw. */
+  ignoreCache?: boolean;
 }
 
 export type GenerateForVersionResult =
@@ -35,7 +39,12 @@ export async function generateAssetsForVersion(options: GenerateForVersionOption
   if (!version) return { ok: false, reason: "no such published version" };
   const validated = validatePublishedSpec(version.json);
   if (!validated.ok) return { ok: false, reason: "stored spec does not validate" };
-  const spec = validated.spec;
+  // A filtered eligibility list yields a manifest holding only those records,
+  // so `saveManifest` below can never wipe the rows this run didn't touch. The
+  // stored spec object is never mutated.
+  const spec = options.onlyAssetIds
+    ? { ...validated.spec, assetEligibility: validated.spec.assetEligibility.filter((a) => options.onlyAssetIds!.includes(a.id)) }
+    : validated.spec;
   if (spec.assetEligibility.length === 0) return { ok: true, specVersionId: version.id, generated: 0, cached: 0, failed: 0, costUsd: 0 };
 
   const quality = options.quality ?? "low";
@@ -49,6 +58,7 @@ export async function generateAssetsForVersion(options: GenerateForVersionOption
       cache: new SupabaseAssetCache(options.admin),
       store: new SupabaseAssetStore(options.admin),
       quality,
+      ignoreCache: options.ignoreCache,
       onRecord: (record) => void saveAssetRecord(options.admin, version.id, record).catch((error) => console.error("asset record not saved", error)),
     },
     manifest,

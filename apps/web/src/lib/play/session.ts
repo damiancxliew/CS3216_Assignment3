@@ -15,12 +15,14 @@ import {
   deriveOptions,
   fakeResolver,
   filterActions,
+  mintOptions,
   publicResolution,
   ReplyInbox,
   ReplyRateLimiter,
   replyToPlayer,
   runStage,
   StageDecisions,
+  StructuredCallMetrics,
   buildAgentTurnInput,
   createWorld,
   DOORWAY_ID,
@@ -30,6 +32,8 @@ import {
   type ActorAction,
   type Decision,
   type LlmClient,
+  type MintedOption,
+  type OptionDefinition,
   type PublicEffect,
   type ReplyResult,
   type ResolutionRecord,
@@ -81,11 +85,16 @@ export interface PlaySnapshot {
   spokenAt: Record<string, string>;
   /** Per-stage counters for telemetry (P11); reset when a stage opens. */
   stageStats: { openedAt: string; tokens: number; messages: number; actions: number; evidence: number };
+  /** Options the Resolver minted in the current stage (FR-13). Stage-scoped. */
+  mintedOptions?: MintedOption[];
+  /** Transcript length at the last mint attempt, so minting is not retried on every line. */
+  mintedAtSeq?: number;
   status: "active" | "completed";
   endingId: string | null;
   tokensSpent: number;
   revision: number;
-  nextStepAt?: number;
+  /** Walking allowance: one token per `STEP_INTERVAL_MS`, capped at `STEP_BURST`. */
+  stepRate?: { tokens: number; lastMs: number };
   pendingReply?: PendingReply | null;
   replyRate?: { tokens: number; lastMs: number };
 }
@@ -113,6 +122,7 @@ export interface PlayState extends PublicAttemptState {
 
 export type PlayerWorldAction =
   | { type: "move_step"; stageId: string; from: Point; to: Point }
+  | { type: "move_steps"; stageId: string; from: Point; path: Point[] }
   | { type: "move_room"; toRoomId: string; position?: { x: number; y: number } }
   | { type: "open_door"; roomId: string }
   | { type: "close_door"; roomId: string }
@@ -183,8 +193,20 @@ function worldFor(spec: AdventureSpec, index: number, attemptId: string, compile
 
 /** Budget for autonomous agent activity per stage (FR-12b). Kept modest: this is money per attempt. */
 const STAGE_TOKEN_BUDGET = 60_000;
+const MINTED_OPTIONS_CAP = 2;
+const MINT_TRIGGER_TRANSCRIPT_LINES = 6;
+const MINT_TRANSCRIPT_WINDOW = 120;
 const AUTONOMOUS_TICKS_PER_MOVE = 1;
 const DECISION_TICKS = 2;
+
+/**
+ * Walking speed is a long-run average, not a deadline per request: a request that
+ * arrives late (network, a slow write) finds the tokens its steps earned waiting for
+ * it, so latency costs the player nothing and a held key never has to stall.
+ */
+const STEP_INTERVAL_MS = 160;
+/** Tokens a standing player banks, so one request may carry a batch of steps. */
+const STEP_BURST = 8;
 
 function messageId(attemptId: string, stageId: string, line: Utterance): string {
   return `${attemptId}:${stageId}:${line.seq}`;
@@ -273,11 +295,13 @@ export class PlaySession {
       playerPos: world.spatial?.state.actors[PLAYER_ID] ?? null,
       spokenAt: {},
       stageStats: { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
+      mintedOptions: [],
+      mintedAtSeq: 0,
       status: "active",
       endingId: null,
       tokensSpent: 0,
       revision: 0,
-      nextStepAt: 0,
+      stepRate: { tokens: 1, lastMs: clock.now().getTime() },
       pendingReply: null,
       replyRate: { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     };
@@ -298,7 +322,7 @@ export class PlaySession {
       ...cloned,
       spokenAt: cloned.spokenAt ?? {},
       stageStats: cloned.stageStats ?? { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
-      nextStepAt: cloned.nextStepAt ?? 0,
+      stepRate: cloned.stepRate ?? { tokens: 1, lastMs: clock.now().getTime() },
       pendingReply: cloned.pendingReply ?? null,
       replyRate: cloned.replyRate ?? { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     }, clock, assets, compiledStages);
@@ -328,7 +352,8 @@ export class PlaySession {
     const world = this.snap.world;
     const playerRoom = world.location[PLAYER_ID] ?? null;
     const now = this.clock.now();
-    const derived = deriveOptions(world, this.bundle.options, PLAYER_ID);
+    const catalogue = this.optionCatalogue();
+    const derived = deriveOptions(world, catalogue, PLAYER_ID);
     const available = new Set(derived.options.map((o) => o.id));
     const known = new Set(world.evidenceKnown[PLAYER_ID] ?? []);
     const compiled = this.map();
@@ -375,7 +400,7 @@ export class PlaySession {
       })),
       transcript: this.visibleTranscript(),
       journal: this.snap.journal,
-      options: this.bundle.options.map((option) => ({
+      options: catalogue.map((option) => ({
         id: option.id,
         label: option.label,
         available: available.has(option.id),
@@ -513,6 +538,10 @@ export class PlaySession {
     return [{ actorId: PLAYER_ID, actorKind: "player" }, ...this.stage.agents.map((a) => ({ actorId: a.id, actorKind: "agent" as const }))];
   }
 
+  private optionCatalogue(): OptionDefinition[] {
+    return [...this.bundle.options, ...(this.snap.mintedOptions ?? [])];
+  }
+
   private map() {
     if (this.snap.status !== "active") return null;
     if (!this.compiledMap) {
@@ -530,7 +559,7 @@ export class PlaySession {
   private stageConfig(): StageConfig {
     return {
       ...this.bundle.stage,
-      decision: { catalogue: this.bundle.options, ledger: this.ledger },
+      decision: { catalogue: this.optionCatalogue(), ledger: this.ledger },
       tokenBudget: STAGE_TOKEN_BUDGET,
       replies: { inbox: this.inbox, limiter: this.limiter, now: () => this.clock.now().getTime() },
     };
@@ -628,16 +657,32 @@ export class PlaySession {
 
   async message(client: LlmClient, input: { roomId: string; body: string; addresseeId?: string | null }): Promise<MessageOutcome> {
     const begun = this.beginMessage(input);
-    if (!begun.ok || !begun.ticket) return begun;
+    if (!begun.ok) return begun;
+    if (!begun.ticket) {
+      await this.maintainOptions(client);
+      return begun;
+    }
     let reply: ReplyResult | null = null;
     try { reply = await this.produceReply(client, begun.ticket); } catch { reply = null; }
     const completed = this.completeReply(begun.ticket, reply);
-    return completed.ok ? { ok: true, newMessages: [...begun.newMessages, ...completed.newMessages] } : completed;
+    if (!completed.ok) return completed;
+    await this.maintainOptions(client);
+    return { ok: true, newMessages: [...begun.newMessages, ...completed.newMessages] };
   }
 
   // ---------------------------------------------------------------------------
   // player world actions
   // ---------------------------------------------------------------------------
+
+  /** Steps the player may take right now. A batch is allowed on one token and may overdraw the rest. */
+  private walkAllowance(now: number): number {
+    const rate = this.snap.stepRate ?? { tokens: 1, lastMs: now };
+    return Math.min(STEP_BURST, rate.tokens + Math.max(0, now - rate.lastMs) / STEP_INTERVAL_MS);
+  }
+
+  private spendWalk(now: number, allowance: number, steps: number): void {
+    this.snap.stepRate = { tokens: allowance - steps, lastMs: now };
+  }
 
   async action(client: LlmClient, action: PlayerWorldAction): Promise<ActionOutcome> {
     const closed = this.closed();
@@ -649,13 +694,44 @@ export class PlaySession {
       const current = spatial.state.actors[PLAYER_ID]!;
       if (action.stageId !== this.stage.id || current.x !== action.from.x || current.y !== action.from.y) return { ok: false, error: { code: "stale_state", message: "The stage or position changed. Refresh and try again." } };
       const now = this.clock.now().getTime();
-      if (now < (this.snap.nextStepAt ?? 0)) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
+      const allowance = this.walkAllowance(now);
+      if (allowance < 1) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
       const moved = moveActorStep(this.snap.world, PLAYER_ID, action.to);
       if (!moved.ok) return { ok: true, refused: moved.reason };
       advanceSpatialMovement(this.snap.world);
-      this.snap.nextStepAt = now + 160;
+      this.spendWalk(now, allowance, 1);
       this.snap.stageStats.actions += 1;
       this.bump();
+      await this.maintainOptions(client);
+      return { ok: true, refused: null };
+    }
+    if (action.type === "move_steps") {
+      if (action.path.length === 0 || action.path.length > 8) return { ok: false, error: { code: "invalid_request", message: "A movement batch must contain between one and eight steps." } };
+      const spatial = this.snap.world.spatial!;
+      const current = spatial.state.actors[PLAYER_ID]!;
+      if (action.stageId !== this.stage.id || current.x !== action.from.x || current.y !== action.from.y) return { ok: false, error: { code: "stale_state", message: "The stage or position changed. Refresh and try again." } };
+      const now = this.clock.now().getTime();
+      const allowance = this.walkAllowance(now);
+      if (allowance < 1) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
+      let appliedCount = 0;
+      for (const to of action.path) {
+        const moved = moveActorStep(this.snap.world, PLAYER_ID, to);
+        if (!moved.ok) {
+          if (appliedCount > 0) {
+            this.spendWalk(now, allowance, appliedCount);
+            this.snap.stageStats.actions += appliedCount;
+            this.bump();
+            await this.maintainOptions(client);
+          }
+          return { ok: true, refused: moved.reason };
+        }
+        advanceSpatialMovement(this.snap.world);
+        appliedCount += 1;
+      }
+      this.spendWalk(now, allowance, appliedCount);
+      this.snap.stageStats.actions += appliedCount;
+      this.bump();
+      await this.maintainOptions(client);
       return { ok: true, refused: null };
     }
 
@@ -678,6 +754,7 @@ export class PlaySession {
           collectedAt: this.clock.now().toISOString(),
         });
         this.bump();
+        await this.maintainOptions(client);
       }
       return { ok: true, refused: null };
     }
@@ -705,7 +782,52 @@ export class PlaySession {
       if (inside.length > 0) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE, inside);
     }
 
+    if (result.ok) await this.maintainOptions(client);
     return { ok: true, refused: result.ok ? null : result.reason };
+  }
+
+  async maintainOptions(client: LlmClient): Promise<void> {
+    if (this.snap.status !== "active" || this.ledger.has(PLAYER_ID)) return;
+    if ((this.snap.mintedOptions ?? []).length >= MINTED_OPTIONS_CAP) return;
+    const transcriptLength = this.snap.world.transcript.length;
+    if (transcriptLength - (this.snap.mintedAtSeq ?? 0) < MINT_TRIGGER_TRANSCRIPT_LINES) return;
+    if (STAGE_TOKEN_BUDGET - this.snap.tokensSpent <= 0) return;
+
+    this.snap.mintedAtSeq = transcriptLength;
+    const metrics = new StructuredCallMetrics();
+    try {
+      const privateTexts = this.stage.agents.flatMap((agent) => [
+        agent.privateContext.persona,
+        agent.privateContext.motivations,
+        agent.privateContext.hiddenInterests,
+        agent.privateContext.knowledgeHorizon,
+      ]);
+      const result = await mintOptions(client, {
+        stageId: this.stage.id,
+        world: this.snap.world,
+        catalogue: this.optionCatalogue(),
+        transcript: this.snap.world.transcript.slice(-MINT_TRANSCRIPT_WINDOW).map((line) => ({
+          roomId: line.roomId,
+          speakerName: line.speakerName,
+          body: line.body,
+        })),
+        branchTargets: this.stage.decision.options.map((option) => ({
+          key: option.id,
+          target: option.branchTarget,
+          description: option.label,
+        })),
+        privateTexts,
+        maxMinted: MINTED_OPTIONS_CAP - (this.snap.mintedOptions ?? []).length,
+      }, { metrics });
+      if (result.options.length > 0) this.snap.mintedOptions = [...(this.snap.mintedOptions ?? []), ...result.options];
+    } catch {
+      return;
+    } finally {
+      const used = metrics.totalTokens;
+      this.snap.tokensSpent += used;
+      this.snap.stageStats.tokens += used;
+      this.bump();
+    }
   }
 
   /** Let the characters act autonomously for a bounded number of ticks (FR-12a/FR-12b); `only` narrows who. */
@@ -733,8 +855,9 @@ export class PlaySession {
     if (closed) return { ok: false, error: closed };
     if (this.snap.pendingReply && this.snap.pendingReply.expiresAt > this.clock.now().getTime()) return { ok: false, error: { code: "rate_limited", message: "Wait for the pending reply or keep exploring." } };
     const world = this.snap.world;
-    const version = optionsVersion ?? deriveOptions(world, this.bundle.options, PLAYER_ID).version;
-    const commit = this.ledger.commit(world, this.bundle.options, { actorId: PLAYER_ID, actorKind: "player", optionId, optionsVersion: version });
+    const catalogue = this.optionCatalogue();
+    const version = optionsVersion ?? deriveOptions(world, catalogue, PLAYER_ID).version;
+    const commit = this.ledger.commit(world, catalogue, { actorId: PLAYER_ID, actorKind: "player", optionId, optionsVersion: version });
     if (!commit.ok) {
       return { ok: false, error: { code: commit.reason === "unknown_option" ? "not_found" : "stale_option", message: commit.detail } };
     }
@@ -767,6 +890,7 @@ export class PlaySession {
         evidenceCollected,
         dispositions: this.snap.dispositions,
         decisions: this.ledger.all(),
+        mintedOptions: this.snap.mintedOptions,
       }),
     );
     for (const delta of record.outcome.agentDeltas) {
@@ -816,7 +940,9 @@ export class PlaySession {
     this.snap.playerPos = this.snap.world.spatial?.state.actors[PLAYER_ID] ?? null;
     this.snap.spokenAt = {};
     this.snap.stageStats = { openedAt: this.clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 };
-    this.snap.nextStepAt = 0;
+    this.snap.mintedOptions = [];
+    this.snap.mintedAtSeq = 0;
+    this.snap.stepRate = { tokens: 1, lastMs: this.clock.now().getTime() };
     this.snap.pendingReply = null;
     this.stage = this.spec.stages[index]!;
     this.bundle = bundle;

@@ -55,6 +55,8 @@ export interface ExtractInput {
   kind: SourceKind
   /** PDF bytes when `kind === 'pdf'`. */
   bytes?: Uint8Array
+  /** Per-page text when the client extracted the PDF itself. */
+  pages?: readonly string[]
   /** Pasted text when `kind === 'text'`. */
   text?: string
 }
@@ -150,10 +152,16 @@ export async function extractPdf(input: ExtractInput & { bytes: Uint8Array }): P
   } catch (error) {
     throw new ExtractionError('unreadable-pdf', `could not parse PDF: ${error instanceof Error ? error.message : String(error)}`)
   }
-  if (totalPages > LIMITS.maxPages) {
-    throw new ExtractionError('too-many-pages', `PDF has ${totalPages} pages; the limit is ${LIMITS.maxPages}`)
+  return extractPdfPages({ ...input, pages: text }, totalPages)
+}
+
+/** A PDF whose text layer was extracted by the client: every check `extractPdf` makes after parsing, minus the byte cap. */
+export function extractPdfPages(input: ExtractInput & { pages: readonly string[] }, totalPages = input.pages.length): ExtractedDocument {
+  if (input.pages.length === 0) throw new ExtractionError('empty', 'no pages supplied')
+  if (input.pages.length > LIMITS.maxPages) {
+    throw new ExtractionError('too-many-pages', `PDF has ${input.pages.length} pages; the limit is ${LIMITS.maxPages}`)
   }
-  const pages = text.map(normaliseText)
+  const pages = input.pages.map(normaliseText)
   const nonWhitespace = pages.join('').replace(/\s/g, '').length
   if (nonWhitespace < LIMITS.minPdfChars) {
     throw new ExtractionError('no-text-layer', 'PDF has no usable text layer (scanned image?). Paste the text instead.')
@@ -177,6 +185,7 @@ export function extractPlainText(input: ExtractInput & { text: string }): Extrac
 export async function extractDocument(input: ExtractInput): Promise<ExtractedDocument> {
   if (!ID_PATTERN.test(input.id)) throw new ExtractionError('bad-id', `source id "${input.id}" must be a lowercase slug`)
   if (input.kind === 'pdf') {
+    if (input.pages) return extractPdfPages({ ...input, pages: input.pages })
     if (!input.bytes) throw new ExtractionError('empty', 'no PDF bytes supplied')
     return extractPdf({ ...input, bytes: input.bytes })
   }

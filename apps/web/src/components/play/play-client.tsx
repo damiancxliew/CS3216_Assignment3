@@ -11,7 +11,7 @@
  * decision, which stays quiet until you can actually make it, then lights up.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
-import { ArrowRight, Check, CornerDownRight, Lock, Search, Timer, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight, Check, CornerDownRight, HelpCircle, Lock, Search, Timer, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ import type { Point } from "@adventure/game-core";
 import { playApi } from "./api";
 import type { MapIntent } from "./map-canvas";
 import { useSoundCues } from "./sound";
+import { restartAttempt } from "@/app/play/[attemptId]/actions";
 import { StageCountdown } from "@/components/stage-countdown";
 import { Pending, Spinner, Thinking } from "@/components/ui";
 import type { PlayState } from "@/lib/play/session";
@@ -37,6 +38,8 @@ const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas),
 });
 
 const POLL_MS = 8_000;
+/** The controls hint belongs to the first seconds of a stage, not to the whole game. */
+const HINT_MS = 7_000;
 /** A failing server is not polled at the same rate: back off, and give up rather than pile on. */
 const MAX_POLL_MS = 120_000;
 const GIVE_UP_AFTER = 6;
@@ -67,7 +70,15 @@ const subtle =
   "inline-flex min-h-9 items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:opacity-60";
 const label = "text-sm font-semibold text-muted";
 
-export function PlayClient({ attemptId, initialState }: { attemptId: string; initialState: PlayState }) {
+export function PlayClient({
+  attemptId,
+  initialState,
+  retriesAllowed,
+}: {
+  attemptId: string;
+  initialState: PlayState;
+  retriesAllowed: boolean;
+}) {
   const router = useRouter();
   const [state, setState] = useState<PlayState>(initialState);
   const stateRef = useRef(initialState);
@@ -86,6 +97,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   const [lastResolution, setLastResolution] = useState<string | null>(null);
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [hintVisible, setHintVisible] = useState(true);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
   const revision = useRef(initialState.revision);
@@ -102,6 +114,12 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
   useEffect(() => {
     if (state.pendingDialogue && pendingSpeech) setPendingSpeech(null);
   }, [pendingSpeech, state.pendingDialogue]);
+
+  useEffect(() => {
+    if (!hintVisible) return;
+    const timer = window.setTimeout(() => setHintVisible(false), HINT_MS);
+    return () => window.clearTimeout(timer);
+  }, [hintVisible]);
 
   const accept = useCallback((next: PlayState) => {
     // Out-of-order replies are discarded (I3: revision is monotonic per attempt).
@@ -226,21 +244,25 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     }
   }
 
-  const onStep = useCallback(
-    async (from: Point, to: Point) => {
+  const onSteps = useCallback(
+    async (from: Point, path: Point[]) => {
       const before = stateRef.current;
       if (before.status !== "active" || busy === "Deciding…" || busy === "Knocking…") return { position: before.playerPos, accepted: false, retry: false };
+      setHintVisible(false);
       try {
         let requestSentAt = 0;
         const result = await serialize(() => {
           requestSentAt = performance.now();
-          return playApi.action(attemptId, { type: "move_step", stageId: before.stage.id, from, to });
+          return playApi.action(attemptId, { type: "move_steps", stageId: before.stage.id, from, path });
         });
         const acknowledgedAt = performance.now();
         if (!result.ok) {
+          if (result.error.code === "rate_limited") {
+            return { position: stateRef.current.playerPos, accepted: false, retry: true, timings: result.timings, requestSentAt, acknowledgedAt };
+          }
           setNotice(result.error.message);
-          if (result.error.code !== "rate_limited") await refresh();
-          return { position: stateRef.current.playerPos, accepted: false, retry: result.error.code === "rate_limited", timings: result.timings, requestSentAt, acknowledgedAt };
+          await refresh();
+          return { position: stateRef.current.playerPos, accepted: false, retry: false, timings: result.timings, requestSentAt, acknowledgedAt };
         }
         accept(result.body.state);
         if (result.body.refused) setNotice(result.body.refused);
@@ -255,6 +277,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
 
   // From the map: pick who to talk to and put the cursor in the box, so "walk up and talk" works.
   const onTalk = useCallback((actorId: string) => {
+    setHintVisible(false);
     setAddressee(actorId);
     if (!stateRef.current.hearingActorIds.includes(actorId)) {
       const point = stateRef.current.actors.find((actor) => actor.id === actorId)?.position;
@@ -274,9 +297,39 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
         <h2 className="font-serif text-4xl text-ink">{state.ending?.title ?? "The adventure is over"}</h2>
         {lastResolution ? <p className="text-lg leading-relaxed text-ink">{lastResolution}</p> : null}
         {state.ending ? <p className="text-lg leading-relaxed text-muted">{state.ending.summary}</p> : null}
-        <Link href={`/play/${attemptId}/debrief`} className={`${primary} mt-2 w-fit min-h-12 px-6 text-lg`}>
-          Read the debrief
-        </Link>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <Link href={`/play/${attemptId}/debrief`} className={`${primary} min-h-12 px-6 text-lg`}>
+            Read the debrief
+          </Link>
+          {retriesAllowed ? (
+            <button
+              type="button"
+              className={`${chip} min-h-12 px-5`}
+              disabled={busy !== null}
+              onClick={async () => {
+                setBusy("Starting again…");
+                setNotice(null);
+                const result = await restartAttempt(attemptId);
+                if (!result.ok) {
+                  setNotice(result.error);
+                  setBusy(null);
+                  return;
+                }
+                router.push(`/play/${result.attemptId}`);
+              }}
+            >
+              {busy === "Starting again…" ? <Pending>Starting again…</Pending> : "Play it again"}
+            </button>
+          ) : null}
+          <Link href="/" className={`${subtle} min-h-12 px-5 text-base`}>
+            Leave for the home page
+          </Link>
+        </div>
+        {notice ? (
+          <p role="alert" className="rounded-control border border-danger/50 bg-danger-wash px-3.5 py-2.5 text-base text-ink">
+            {notice}
+          </p>
+        ) : null}
       </section>
     );
   }
@@ -294,16 +347,27 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
           audio={{ muted, cues }}
           intent={intent}
           onIntentDone={() => setIntent(null)}
-          onStep={onStep}
+          onSteps={onSteps}
           onWaitingAtDoor={setWaitingAtDoor}
           onTalk={onTalk}
         />
-        <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-ink/85 px-3 py-1.5 text-sm font-semibold text-paper lg:bottom-3 lg:right-36 lg:top-auto lg:px-3.5 lg:py-2 lg:text-base">
-          <span className="lg:hidden">Tap the map to walk. Tap a character to talk.</span>
-          <span className="hidden lg:inline">
-            Arrows or WASD to walk. Click a character to talk, or press Enter to talk to whoever is with you.
-          </span>
-        </p>
+        {hintVisible ? (
+          <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-ink/85 px-3 py-1.5 text-sm font-semibold text-paper lg:bottom-3 lg:right-48 lg:top-auto lg:px-3.5 lg:py-2 lg:text-base">
+            <span className="lg:hidden">Tap the map to walk. Tap a character to talk.</span>
+            <span className="hidden lg:inline">
+              Arrows or WASD to walk. Click a character to talk, or press Enter to talk to whoever is with you.
+            </span>
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setHintVisible((shown) => !shown)}
+          aria-pressed={hintVisible}
+          className="absolute bottom-3 right-36 inline-flex min-h-11 min-w-11 items-center justify-center rounded-control bg-ink/85 px-3 py-2 text-paper hover:bg-ink"
+        >
+          <HelpCircle className="h-5 w-5" aria-hidden />
+          <span className="sr-only">How to move and talk</span>
+        </button>
         <button
           type="button"
           onClick={toggleMuted}

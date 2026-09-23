@@ -12,7 +12,7 @@
  */
 import type { AgentPrivateContext, StageAgent, StageConfig } from '../../../orchestration/src/index'
 import type { NextStep, ResolverAgentView, ResolverDecisionView, ResolverInput } from '../../../orchestration/src/index'
-import type { Decision, OptionDefinition, OptionPrecondition } from '../../../orchestration/src/index'
+import type { Decision, MintedOption, OptionDefinition, OptionPrecondition } from '../../../orchestration/src/index'
 import type { ActorProfile, RoomState, WorldSeed } from '../../../orchestration/src/index'
 import type { AdventureSpec, Agent, DecisionOption, Stage } from '../spec/v2'
 
@@ -134,9 +134,18 @@ export function toStageRuntime(spec: AdventureSpec, stageIndex: number): StageRu
   }
 }
 
-export function toDecisionView(spec: AdventureSpec, stageIndex: number, optionId: string): ResolverDecisionView {
+export function toDecisionView(
+  spec: AdventureSpec,
+  stageIndex: number,
+  optionId: string,
+  mintedOptions: readonly MintedOption[] = [],
+): ResolverDecisionView {
   const option = spec.stages[stageIndex]?.decision.options.find((o) => o.id === optionId)
-  if (!option) throw new Error(`stage ${stageIndex} has no option ${optionId}`)
+  if (!option) {
+    const minted = mintedOptions.find((candidate) => candidate.id === optionId)
+    if (minted) return { optionId: minted.id, label: minted.label, stance: minted.stance, branchTarget: minted.branchTarget }
+    throw new Error(`stage ${stageIndex} has no option ${optionId}`)
+  }
   return { optionId: option.id, label: option.label, stance: option.stance, branchTarget: option.branchTarget }
 }
 
@@ -152,6 +161,8 @@ export interface ResolverInputParts {
   dispositions?: Record<string, number>
   /** The K6 ledger at resolution time (`StageDecisions.all()`). Agents' entries become their `commitment` (K7). */
   decisions?: readonly Decision[]
+  /** Resolver-minted options still in the current stage. */
+  mintedOptions?: readonly MintedOption[]
 }
 
 export function toResolverInput(spec: AdventureSpec, bundle: StageRuntimeBundle, parts: ResolverInputParts): ResolverInput {
@@ -163,7 +174,7 @@ export function toResolverInput(spec: AdventureSpec, bundle: StageRuntimeBundle,
     stageIndex: bundle.stageIndex,
     resolvedAt: parts.resolvedAt,
     trigger: parts.optionId === null ? 'timer_expiry' : 'decision',
-    decision: parts.optionId === null ? null : toDecisionView(spec, bundle.stageIndex, parts.optionId),
+    decision: parts.optionId === null ? null : toDecisionView(spec, bundle.stageIndex, parts.optionId, parts.mintedOptions),
     fallbackNext: bundle.fallbackNext,
     agents: bundle.resolverAgents.map((a) => {
       const commitment = commitments.get(a.id)
