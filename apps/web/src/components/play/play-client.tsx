@@ -11,7 +11,7 @@
  * decision, which stays quiet until you can actually make it, then lights up.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
-import { ArrowRight, Check, CornerDownRight, Lock, Search, Timer, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight, Check, CornerDownRight, HelpCircle, Lock, Search, Timer, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -38,6 +38,8 @@ const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas),
 });
 
 const POLL_MS = 8_000;
+/** The controls hint belongs to the first seconds of a stage, not to the whole game. */
+const HINT_MS = 7_000;
 /** A failing server is not polled at the same rate: back off, and give up rather than pile on. */
 const MAX_POLL_MS = 120_000;
 const GIVE_UP_AFTER = 6;
@@ -95,6 +97,7 @@ export function PlayClient({
   const [lastResolution, setLastResolution] = useState<string | null>(null);
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [hintVisible, setHintVisible] = useState(true);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
   const revision = useRef(initialState.revision);
@@ -111,6 +114,12 @@ export function PlayClient({
   useEffect(() => {
     if (state.pendingDialogue && pendingSpeech) setPendingSpeech(null);
   }, [pendingSpeech, state.pendingDialogue]);
+
+  useEffect(() => {
+    if (!hintVisible) return;
+    const timer = window.setTimeout(() => setHintVisible(false), HINT_MS);
+    return () => window.clearTimeout(timer);
+  }, [hintVisible]);
 
   const accept = useCallback((next: PlayState) => {
     // Out-of-order replies are discarded (I3: revision is monotonic per attempt).
@@ -239,6 +248,7 @@ export function PlayClient({
     async (from: Point, path: Point[]) => {
       const before = stateRef.current;
       if (before.status !== "active" || busy === "Deciding…" || busy === "Knocking…") return { position: before.playerPos, accepted: false, retry: false };
+      setHintVisible(false);
       try {
         let requestSentAt = 0;
         const result = await serialize(() => {
@@ -267,6 +277,7 @@ export function PlayClient({
 
   // From the map: pick who to talk to and put the cursor in the box, so "walk up and talk" works.
   const onTalk = useCallback((actorId: string) => {
+    setHintVisible(false);
     setAddressee(actorId);
     if (!stateRef.current.hearingActorIds.includes(actorId)) {
       const point = stateRef.current.actors.find((actor) => actor.id === actorId)?.position;
@@ -340,9 +351,20 @@ export function PlayClient({
           onWaitingAtDoor={setWaitingAtDoor}
           onTalk={onTalk}
         />
-        <p className="pointer-events-none absolute bottom-16 left-3 right-3 rounded-control bg-ink/85 px-3.5 py-2 text-base font-semibold text-paper lg:bottom-3 lg:right-36">
-          Arrows or WASD to walk. Click a character to talk, or press Enter to talk to whoever is with you.
-        </p>
+        {hintVisible ? (
+          <p className="pointer-events-none absolute bottom-16 left-3 right-3 rounded-control bg-ink/85 px-3.5 py-2 text-base font-semibold text-paper lg:bottom-3 lg:right-48">
+            Arrows or WASD to walk. Click a character to talk, or press Enter to talk to whoever is with you.
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setHintVisible((shown) => !shown)}
+          aria-pressed={hintVisible}
+          className="absolute bottom-3 right-36 inline-flex min-h-11 min-w-11 items-center justify-center rounded-control bg-ink/85 px-3 py-2 text-paper hover:bg-ink"
+        >
+          <HelpCircle className="h-5 w-5" aria-hidden />
+          <span className="sr-only">How to move and talk</span>
+        </button>
         <button
           type="button"
           onClick={toggleMuted}
