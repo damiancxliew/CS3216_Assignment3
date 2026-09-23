@@ -457,6 +457,31 @@ export async function updateDefaultTimer(
   return {};
 }
 
+/**
+ * Whether a finished attempt can be followed by a fresh one. The database is
+ * what enforces it — both the share link and the ending's own button create
+ * attempts through owner-checked RPCs — so this only records the decision.
+ */
+export async function updateRetries(
+  adventureId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { supabase } = await requireOwnership(adventureId);
+
+  const choice = String(formData.get("allow_retries") ?? "");
+  if (choice !== "on" && choice !== "off") return { error: "Choose whether retries are allowed" };
+
+  const { error } = await supabase
+    .from("adventure")
+    .update({ allow_retries: choice === "on" })
+    .eq("id", adventureId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/teacher/${adventureId}`);
+  return {};
+}
+
 /** Edits land on the draft version; the published one is frozen by trigger. */
 export async function updateStage(
   adventureId: string,
