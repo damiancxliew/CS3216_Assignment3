@@ -144,7 +144,7 @@ async function ask(draft: BriefDraft, ctx: Context): Promise<TurnResult> {
 function openingLine(slot: Slot, draft: BriefDraft): string {
   if (slot.name === "stage") return fallbackStageQuestion(slot.index);
   if (isTyped(slot) && draft.sources) {
-    const lead = { title: "From the sources, I’d call it this.", setting: "Here’s where and when I think it takes place.", studentRole: "And here’s who I’d have the student play." }[slot.name];
+    const lead = { title: "For the title of this adventure, I’d suggest this.", setting: "Here’s where and when I think it takes place.", studentRole: "And here’s who I’d have the student play." }[slot.name];
     return `${lead} Use it, or type your own.`;
   }
   return QUESTIONS[slot.name];
