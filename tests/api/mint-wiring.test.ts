@@ -43,11 +43,11 @@ function deps(attemptId: string, replies: readonly string[]): { d: PlayServiceDe
 
 async function addPublicLines(d: PlayServiceDeps, store: MemoryPlayStore, attemptId: string, count = 6): Promise<Awaited<ReturnType<typeof postMessage>>> {
   let now = store.clock().getTime();
-  now += 1000;
+  now += 5000;
   store.clock = () => new Date(now);
   let result: Awaited<ReturnType<typeof postMessage>> = await postMessage(d, attemptId, STUDENT, { roomId: "landing-beach", body: "The negotiation continues." });
   for (let index = 1; index < count; index += 1) {
-    now += 1000;
+    now += 5000;
     store.clock = () => new Date(now);
     result = await postMessage(d, attemptId, STUDENT, { roomId: "landing-beach", body: `The negotiation continues, line ${index}.` });
   }
@@ -93,18 +93,23 @@ describe("in-memory Resolver option minting", () => {
   });
 
   it("commits a minted option, follows its authored branch, caps minting, and clears it on the next stage", async () => {
-    const labels = ["Offer a temporary anchorage", "Open a second channel", "Invent a third route"];
-    const { d, store } = deps("mint-commit", [mintReply(labels), JSON.stringify({ say: "", actions: [{ type: "yield" }] })]);
+    const { d, store } = deps("mint-commit", [
+      mintReply(["Offer a temporary anchorage"]),
+      mintReply(["Open a second channel", "Invent a third route"]),
+    ]);
     const after = await addPublicLines(d, store, "mint-commit");
     expect(after.ok, JSON.stringify(after)).toBe(true);
     if (!after.ok) return;
-    const minted = after.state.options.filter((option) => option.id.startsWith("minted-"));
+    const secondRound = await addPublicLines(d, store, "mint-commit");
+    expect(secondRound.ok, JSON.stringify(secondRound)).toBe(true);
+    if (!secondRound.ok) return;
+    const minted = secondRound.state.options.filter((option) => option.id.startsWith("minted-"));
     expect(minted).toHaveLength(2);
     expect(minted.every((option) => option.available)).toBe(true);
 
     const committed = await postDecision(d, "mint-commit", STUDENT, {
       optionId: minted[0]!.id,
-      optionsVersion: after.state.optionsVersion,
+      optionsVersion: secondRound.state.optionsVersion,
     });
     expect(committed.ok).toBe(true);
     if (!committed.ok) return;

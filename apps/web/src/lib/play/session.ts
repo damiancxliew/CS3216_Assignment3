@@ -766,7 +766,7 @@ export class PlaySession {
           description: option.label,
         })),
         privateTexts,
-        maxMinted: MINTED_OPTIONS_CAP,
+        maxMinted: MINTED_OPTIONS_CAP - (this.snap.mintedOptions ?? []).length,
       }, { metrics });
       if (result.options.length > 0) this.snap.mintedOptions = [...(this.snap.mintedOptions ?? []), ...result.options];
     } catch {
