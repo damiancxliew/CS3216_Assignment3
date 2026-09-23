@@ -197,7 +197,7 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
     setSpeaking(true);
     setNotice(null);
     try {
-      const result = await serialize(() => playApi.message(attemptId, { roomId, body, addresseeId: effectiveAddressee }));
+      const result = await playApi.message(attemptId, { roomId, body, addresseeId: effectiveAddressee });
       if (!result.ok) {
         setDraft((value) => (value === "" ? body : value));
         setNotice(result.error.message);
