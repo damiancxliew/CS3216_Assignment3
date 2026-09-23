@@ -52,6 +52,10 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
     endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [state?.messages.length, pending]);
 
+  useEffect(() => {
+    autoGrow(composer.current, 240);
+  }, [text]);
+
   function run(work: () => Promise<{ ok: true; state: BriefState } | { ok: false; error: string }>) {
     setError(null);
     startTransition(async () => {
@@ -129,102 +133,125 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
   const thinking = slot.name === "sources" ? "Reading your sources" : "Working out the next question";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <Progress draft={state.draft} slot={slot} />
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <header className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="font-serif text-2xl text-ink">New adventure</h2>
+          <button type="button" onClick={discard} disabled={pending} className={button.subtle}>
+            Discard this brief
+          </button>
+        </div>
+        <Progress draft={state.draft} slot={slot} />
+      </header>
 
-      <ol className="flex max-h-[28rem] min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1 text-base lg:max-h-none lg:min-h-[5rem]" aria-live="polite">
-        {state.messages.map((message, index) => (
-          <li
-            key={index}
-            className={
-              message.role === "user"
-                ? "ml-10 self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper"
-                : "mr-10 self-start rounded-surface rounded-bl-sm bg-sunken px-4 py-3 text-ink"
-            }
-          >
-            <p className="whitespace-pre-wrap">{message.text}</p>
-            {message.role === "assistant" && message.proposedText ? (
-              <p className="mt-3 border-l-2 border-line-strong pl-3 font-semibold">{message.proposedText}</p>
-            ) : null}
-            {message.role === "assistant" && message.proposal ? (
-              <p className="mt-3 border-l-2 border-line-strong pl-3">
-                <span className="font-semibold">{message.proposal.title}.</span> {message.proposal.focus}
-              </p>
-            ) : null}
-            {message.role === "assistant" && message.proposedObjectives?.length ? (
-              <ol className="mt-3 list-decimal space-y-1 border-l-2 border-line-strong pl-7">
-                {message.proposedObjectives.map((objective) => (
-                  <li key={objective}>{objective}</li>
-                ))}
-              </ol>
-            ) : null}
-          </li>
-        ))}
-        {pending ? (
-          <li className="mr-10 self-start px-4 py-2">
-            <Thinking label={thinking} />
-          </li>
-        ) : null}
-        <div ref={endRef} />
-      </ol>
-
-      {slot.name === "confirm" ? (
-        <Summary state={state} pending={pending} onChange={(change) => send({ change })} onCreate={create} />
-      ) : slot.name === "sources" ? (
-        <SourceStep state={state} pending={pending} onUpload={upload} onDone={() => send({ text: SOURCES_DONE })} />
-      ) : (
-        <>
-          {replies.length > 0 || acceptLabel ? (
-            <div className="flex flex-wrap gap-2">
-              {acceptLabel ? (
-                <Chip onClick={() => send({ accept: true })} disabled={pending} primary>
-                  <Check className="h-4 w-4" aria-hidden /> {acceptLabel}
-                </Chip>
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <ol className="flex flex-col gap-3 text-base" aria-live="polite">
+          {state.messages.map((message, index) => (
+            <li
+              key={index}
+              className={
+                message.role === "user"
+                  ? "ml-10 self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper sm:ml-24"
+                  : "mr-10 self-start rounded-surface rounded-bl-sm bg-sunken px-4 py-3 text-ink sm:mr-24"
+              }
+            >
+              <p className="whitespace-pre-wrap">{message.text}</p>
+              {message.role === "assistant" && message.proposedText ? (
+                <p className="mt-3 border-l-2 border-line-strong pl-3 font-semibold">{message.proposedText}</p>
               ) : null}
-              {replies.map((reply) => (
-                <Chip key={reply} onClick={() => send({ text: reply })} disabled={pending}>
-                  {reply}
-                </Chip>
-              ))}
-            </div>
+              {message.role === "assistant" && message.proposal ? (
+                <p className="mt-3 border-l-2 border-line-strong pl-3">
+                  <span className="font-semibold">{message.proposal.title}.</span> {message.proposal.focus}
+                </p>
+              ) : null}
+              {message.role === "assistant" && message.proposedObjectives?.length ? (
+                <ol className="mt-3 list-decimal space-y-1 border-l-2 border-line-strong pl-7">
+                  {message.proposedObjectives.map((objective) => (
+                    <li key={objective}>{objective}</li>
+                  ))}
+                </ol>
+              ) : null}
+            </li>
+          ))}
+          {pending ? (
+            <li className="mr-10 self-start px-4 py-2 sm:mr-24">
+              <Thinking label={thinking} />
+            </li>
           ) : null}
-          <form
-            className="flex items-end gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (text.trim()) send({ text });
-            }}
-          >
-            <textarea
-              ref={composer}
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  if (text.trim() && !pending) send({ text });
-                }
+        </ol>
+        {slot.name === "sources" && state.sources.length > 0 ? <SourceList sources={state.sources} /> : null}
+        {slot.name === "confirm" ? <SummaryRows state={state} pending={pending} onChange={(change) => send({ change })} /> : null}
+        <div ref={endRef} />
+      </div>
+
+      <footer className="flex flex-col gap-3 border-t border-line pt-4">
+        {error ? <ErrorText>{error}</ErrorText> : null}
+        {slot.name === "confirm" ? (
+          <button type="button" onClick={create} disabled={pending} className={`${button.primary} w-fit`}>
+            {pending ? <Pending>Creating the adventure…</Pending> : "Create adventure"}
+          </button>
+        ) : slot.name === "sources" ? (
+          <SourceStep state={state} pending={pending} onUpload={upload} onDone={() => send({ text: SOURCES_DONE })} />
+        ) : (
+          <>
+            {replies.length > 0 || acceptLabel ? (
+              <div className="flex flex-wrap gap-2">
+                {acceptLabel ? (
+                  <Chip onClick={() => send({ accept: true })} disabled={pending} primary>
+                    <Check className="h-4 w-4" aria-hidden /> {acceptLabel}
+                  </Chip>
+                ) : null}
+                {replies.map((reply) => (
+                  <Chip key={reply} onClick={() => send({ text: reply })} disabled={pending}>
+                    {reply}
+                  </Chip>
+                ))}
+              </div>
+            ) : null}
+            <form
+              className="flex items-end gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (text.trim()) send({ text });
               }}
-              rows={2}
-              disabled={pending}
-              placeholder={acceptLabel ? "Or type your own. Enter sends, Shift+Enter for a new line." : "Type your answer. Enter sends, Shift+Enter for a new line."}
-              aria-label="Your answer"
-              className={`${control} flex-1 resize-none`}
-            />
-            <button type="submit" disabled={pending || !text.trim()} className={button.primary}>
-              {pending ? <Pending>Sending</Pending> : "Send"}
-            </button>
-          </form>
-        </>
-      )}
-
-      {error ? <ErrorText>{error}</ErrorText> : null}
-
-      <button type="button" onClick={discard} disabled={pending} className={`${button.subtle} w-fit`}>
-        Discard this brief
-      </button>
+            >
+              <textarea
+                ref={composer}
+                value={text}
+                onChange={(event) => {
+                  setText(event.target.value);
+                  autoGrow(event.currentTarget, 240);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    if (text.trim() && !pending) send({ text });
+                  }
+                }}
+                rows={2}
+                disabled={pending}
+                placeholder={acceptLabel ? "Or type your own. Enter sends, Shift+Enter for a new line." : "Type your answer. Enter sends, Shift+Enter for a new line."}
+                aria-label="Your answer"
+                className={`${control} flex-1 resize-none`}
+              />
+              <button type="submit" disabled={pending || !text.trim()} className={button.primary}>
+                {pending ? <Pending>Sending</Pending> : "Send"}
+              </button>
+            </form>
+          </>
+        )}
+      </footer>
     </div>
   );
+}
+
+/** The composer grows with what is typed, up to a share of the viewport, instead of scrolling. */
+function autoGrow(field: HTMLTextAreaElement | null, maxPx: number) {
+  if (!field) return;
+  field.style.height = "auto";
+  const chrome = field.offsetHeight - field.clientHeight; // borders, which scrollHeight omits
+  const cap = Math.min(maxPx, Math.round(window.innerHeight * 0.25));
+  field.style.height = `${Math.min(field.scrollHeight + chrome, cap)}px`;
 }
 
 const STEP_LABELS: Record<string, string> = {
@@ -291,6 +318,23 @@ function Start({
   );
 }
 
+/** What has been read in so far, listed above the dock. */
+function SourceList({ sources }: { sources: BriefState["sources"] }) {
+  return (
+    <ul className="mt-3 flex flex-col divide-y divide-line border-y border-line text-base">
+      {sources.map((source) => (
+        <li key={source.id} className="flex items-baseline justify-between gap-4 py-2">
+          <span className="inline-flex min-w-0 items-center gap-2 text-ink">
+            <FileText className="h-4 w-4 shrink-0 text-muted" aria-hidden />
+            <span className="truncate">{source.title}</span>
+          </span>
+          <span className="shrink-0 text-muted">{source.pages} page{source.pages === 1 ? "" : "s"}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * The first question is a drop zone, not a text box: upload a file or paste a
  * passage, as many times as needed, then say they are all in.
@@ -307,24 +351,11 @@ function SourceStep({
   onDone: () => void;
 }) {
   const [pasting, setPasting] = useState(false);
+  const pasteField = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="flex flex-col gap-4 border-t border-line pt-4 text-base">
-      {state.sources.length > 0 ? (
-        <ul className="flex flex-col divide-y divide-line border-y border-line">
-          {state.sources.map((source) => (
-            <li key={source.id} className="flex items-baseline justify-between gap-4 py-2">
-              <span className="inline-flex min-w-0 items-center gap-2 text-ink">
-                <FileText className="h-4 w-4 shrink-0 text-muted" aria-hidden />
-                <span className="truncate">{source.title}</span>
-              </span>
-              <span className="shrink-0 text-muted">{source.pages} page{source.pages === 1 ? "" : "s"}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
+    <div className="flex flex-col gap-2 text-base">
       <form
-        className="flex flex-col gap-3"
+        className="flex flex-wrap items-center gap-3"
         onSubmit={(event) => {
           event.preventDefault();
           onUpload(new FormData(event.currentTarget), event.currentTarget);
@@ -332,12 +363,14 @@ function SourceStep({
       >
         {pasting ? (
           <textarea
+            ref={pasteField}
             name="body"
-            rows={5}
+            rows={3}
             placeholder="Paste the passage students will play from…"
             aria-label="Source text"
             disabled={pending}
-            className={control}
+            onInput={(event) => autoGrow(event.currentTarget, 240)}
+            className={`${control} min-w-[16rem] flex-1 resize-none`}
           />
         ) : (
           <input
@@ -346,23 +379,20 @@ function SourceStep({
             accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
             aria-label="PDF, .txt or .md"
             disabled={pending}
-            className={`${control} file:mr-3 file:rounded-control file:border-0 file:bg-ink file:px-3 file:py-1 file:text-sm file:font-semibold file:text-paper`}
+            className={`${control} min-w-[16rem] flex-1 file:mr-3 file:rounded-control file:border-0 file:bg-ink file:px-3 file:py-1 file:text-sm file:font-semibold file:text-paper`}
           />
         )}
-        <div className="flex flex-wrap items-center gap-3">
-          <button type="submit" disabled={pending} className={button.quiet}>
-            {pending ? <Pending>Reading</Pending> : pasting ? "Add the passage" : "Upload"}
-          </button>
-          <button type="button" onClick={() => setPasting((p) => !p)} disabled={pending} className={button.quiet}>
-            {pasting ? "Upload a file instead" : "Paste text instead"}
-          </button>
-        </div>
-        {!pasting ? <p className="text-sm text-muted">A scanned PDF has no text layer; paste its text instead.</p> : null}
+        <button type="submit" disabled={pending} className={button.quiet}>
+          {pending ? <Pending>Reading</Pending> : pasting ? "Add the passage" : "Upload"}
+        </button>
+        <button type="button" onClick={() => setPasting((p) => !p)} disabled={pending} className={button.quiet}>
+          {pasting ? "Upload a file instead" : "Paste text instead"}
+        </button>
+        <Chip onClick={onDone} disabled={pending || state.sources.length === 0} primary className="sm:ml-auto">
+          <Check className="h-4 w-4" aria-hidden /> {SOURCES_DONE}
+        </Chip>
       </form>
-
-      <Chip onClick={onDone} disabled={pending || state.sources.length === 0} primary>
-        <Check className="h-4 w-4" aria-hidden /> {SOURCES_DONE}
-      </Chip>
+      {!pasting ? <p className="text-sm text-muted">A scanned PDF has no text layer; paste its text instead.</p> : null}
     </div>
   );
 }
@@ -421,16 +451,14 @@ function Progress({ draft, slot }: { draft: BriefState["draft"]; slot: Slot }) {
   );
 }
 
-function Summary({
+function SummaryRows({
   state,
   pending,
   onChange,
-  onCreate,
 }: {
   state: BriefState;
   pending: boolean;
   onChange: (slotKey: string) => void;
-  onCreate: () => void;
 }) {
   const { draft, sources } = state;
   const rows: { key: string; label: string; value: React.ReactNode }[] = [
@@ -474,7 +502,7 @@ function Summary({
   ];
 
   return (
-    <div className="flex flex-col gap-4 border-t border-line pt-4 text-base">
+    <div className="mt-3 flex flex-col gap-4 border-t border-line pt-4 text-base">
       <p className="text-muted">Everything below is settled. Change anything, then create the adventure.</p>
       <dl className="flex flex-col divide-y divide-line">
         {rows.map((row) => (
@@ -493,9 +521,6 @@ function Summary({
           </div>
         ))}
       </dl>
-      <button type="button" onClick={onCreate} disabled={pending} className={`${button.primary} w-fit`}>
-        {pending ? <Pending>Creating the adventure…</Pending> : "Create adventure"}
-      </button>
     </div>
   );
 }
@@ -505,11 +530,13 @@ function Chip({
   onClick,
   disabled,
   primary,
+  className,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   primary?: boolean;
+  className?: string;
 }) {
   return (
     <button
@@ -520,7 +547,7 @@ function Chip({
         primary
           ? "bg-ink text-paper hover:bg-record"
           : "border border-line-strong text-ink hover:border-ink hover:bg-surface"
-      }`}
+      } ${className ?? ""}`}
     >
       {children}
     </button>
