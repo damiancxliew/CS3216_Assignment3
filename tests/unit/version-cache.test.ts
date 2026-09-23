@@ -1,5 +1,5 @@
 import type { AssetManifest } from "@adventure/generation/assets";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   clearVersionCache,
@@ -41,12 +41,12 @@ describe("published version cache", () => {
     expect(getVersion("adventure", 1)).toEqual(version("version-1"));
   });
 
-  it("evicts the oldest insertion after sixteen entries", () => {
-    for (let index = 0; index < 16; index += 1) setVersion("adventure", index, version(`version-${index}`));
+  it("evicts the oldest insertion after sixty-four entries", () => {
+    for (let index = 0; index < 64; index += 1) setVersion("adventure", index, version(`version-${index}`));
     expect(getVersion("adventure", 0)).toBeDefined();
-    setVersion("adventure", 16, version("version-16"));
+    setVersion("adventure", 64, version("version-64"));
     expect(getVersion("adventure", 0)).toBeUndefined();
-    expect(getVersion("adventure", 16)).toBeDefined();
+    expect(getVersion("adventure", 64)).toBeDefined();
   });
 
   it("does not cache pending manifests", () => {
@@ -54,5 +54,17 @@ describe("published version cache", () => {
     expect(getAssets("spec-version")).toBeUndefined();
     setAssets("spec-version", manifest("ready"));
     expect(getAssets("spec-version")).toEqual(manifest("ready"));
+  });
+
+  it("expires settled manifests after sixty seconds", () => {
+    vi.useFakeTimers();
+    try {
+      setAssets("spec-version", manifest("ready"));
+      expect(getAssets("spec-version")).toEqual(manifest("ready"));
+      vi.advanceTimersByTime(60_001);
+      expect(getAssets("spec-version")).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

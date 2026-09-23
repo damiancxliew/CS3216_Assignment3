@@ -286,16 +286,15 @@ export class SupabasePlayStore implements PlayStore {
 
   async save(record: AttemptRecord, snapshot: PlaySnapshot, events: PlayEvents, timings?: PlayTimings): Promise<SaveResult> {
     const cachedVersion = getVersion(record.adventureId, record.publishedVersion);
-    const version = cachedVersion
-      ? { id: cachedVersion.specVersionId }
-      : (await timed(timings, "save.version", () => this.admin
+    const { data: version } = await timed(timings, "save.version", () => cachedVersion
+      ? { data: { id: cachedVersion.specVersionId } }
+      : this.admin
         .from("spec_version")
         .select("id")
         .eq("adventure_id", record.adventureId)
         .eq("version", record.publishedVersion)
-        .single<{ id: string }>())).data;
+        .single<{ id: string }>());
     if (!version) throw new Error("spec_version: no pinned version");
-    if (cachedVersion) await timed(timings, "save.version", () => version);
     const cachedStages = getStages(version.id);
     const { data: stageRows } = cachedStages
       ? await timed(timings, "save.stages", () => ({ data: cachedStages }))

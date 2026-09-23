@@ -25,9 +25,10 @@ type CacheEntry =
   | { kind: "version"; value: CachedVersion }
   | { kind: "stage"; value: CachedStage }
   | { kind: "stages"; value: CachedStageRow[] }
-  | { kind: "assets"; value: AssetManifest };
+  | { kind: "assets"; value: AssetManifest; insertedAt: number };
 
-const MAX_ENTRIES = 16;
+const MAX_ENTRIES = 64;
+const ASSET_TTL_MS = 60_000;
 const entries = new Map<string, CacheEntry>();
 
 function put(key: string, entry: CacheEntry): void {
@@ -64,13 +65,19 @@ export function setStages(specVersionId: string, value: CachedStageRow[]): void 
 }
 
 export function getAssets(specVersionId: string): AssetManifest | undefined {
-  const entry = entries.get(`${specVersionId}:assets`);
-  return entry?.kind === "assets" ? entry.value : undefined;
+  const key = `${specVersionId}:assets`;
+  const entry = entries.get(key);
+  if (entry?.kind !== "assets") return undefined;
+  if (Date.now() - entry.insertedAt >= ASSET_TTL_MS) {
+    entries.delete(key);
+    return undefined;
+  }
+  return entry.value;
 }
 
 export function setAssets(specVersionId: string, value: AssetManifest | null): void {
   if (!value || value.records.some((record) => record.status === "pending")) return;
-  put(`${specVersionId}:assets`, { kind: "assets", value });
+  put(`${specVersionId}:assets`, { kind: "assets", value, insertedAt: Date.now() });
 }
 
 export function clearVersionCache(): void {
