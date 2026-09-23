@@ -12,6 +12,7 @@ import {
   type BriefInput,
   type BriefState,
   currentSlot,
+  MAX_UPLOAD_BYTES,
   quickReplies,
   READING_BAND_LABELS,
   type Slot,
@@ -59,12 +60,16 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
   function run(work: () => Promise<{ ok: true; state: BriefState } | { ok: false; error: string }>) {
     setError(null);
     startTransition(async () => {
-      const result = await work();
-      if (result.ok) {
-        setState(result.state);
-        setText("");
-      } else {
-        setError(result.error);
+      try {
+        const result = await work();
+        if (result.ok) {
+          setState(result.state);
+          setText("");
+        } else {
+          setError(result.error);
+        }
+      } catch {
+        setError("That didn’t reach the server — the file may be too large. Try again, or paste the text instead.");
       }
     });
   }
@@ -75,6 +80,11 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
 
   function upload(formData: FormData, form: HTMLFormElement) {
     if (!state) return;
+    const file = formData.get("file");
+    if (file instanceof File && file.size > MAX_UPLOAD_BYTES) {
+      setError(`That file is ${(file.size / 1_048_576).toFixed(1)} MB; the limit is ${MAX_UPLOAD_BYTES / 1_048_576} MB`);
+      return;
+    }
     run(async () => {
       const result = await addBriefSource(state, formData);
       if (result.ok) {
@@ -392,7 +402,9 @@ function SourceStep({
           <Check className="h-4 w-4" aria-hidden /> {SOURCES_DONE}
         </Chip>
       </form>
-      {!pasting ? <p className="text-sm text-muted">A scanned PDF has no text layer; paste its text instead.</p> : null}
+      {!pasting ? (
+        <p className="text-sm text-muted">PDFs up to {MAX_UPLOAD_BYTES / 1_048_576} MB. A scanned PDF has no text layer; paste its text instead.</p>
+      ) : null}
     </div>
   );
 }
