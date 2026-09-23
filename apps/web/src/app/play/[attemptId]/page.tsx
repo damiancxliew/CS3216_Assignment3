@@ -70,10 +70,13 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
             </div>
           </details>
         ) : null}
+        <Link href="/" className={`${button.subtle} lg:ml-auto`}>
+          Leave
+        </Link>
       </header>
 
       {initial.ok ? (
-        <PlayClient attemptId={attemptId} initialState={initial.state} />
+        <PlayClient attemptId={attemptId} initialState={initial.state} retriesAllowed={resume.retriesAllowed} />
       ) : (
         <section className="m-6 flex max-w-xl flex-col gap-3 rounded-surface border border-line bg-surface p-6">
           <p className="text-ink">This attempt cannot be played right now: {initial.error.message}</p>

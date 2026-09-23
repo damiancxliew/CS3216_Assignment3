@@ -9,6 +9,7 @@ import {
   startEdit,
   updateDefaultTimer,
   updateAgent,
+  updateRetries,
   updateStage,
 } from "../actions";
 import { ActionButton, ActionForm } from "@/components/action-form";
@@ -18,6 +19,7 @@ import {
   Field,
   Page,
   Section,
+  SelectField,
   StatusBadge,
   READING_BAND_LABELS,
 } from "@/components/ui";
@@ -43,6 +45,7 @@ type Adventure = {
   status: "draft" | "published" | "archived";
   published_version: number | null;
   default_timer_seconds: number;
+  allow_retries: boolean;
   share_token: string;
   stage_outline: { title: string; focus: string }[];
 };
@@ -94,7 +97,7 @@ export default async function AdventurePage({
   // authoring view matches the owner rather than relying on visibility alone.
   const { data: adventure } = await supabase
     .from("adventure")
-    .select("id, title, setting, status, published_version, default_timer_seconds, share_token, student_role, learning_objectives, reading_level, stage_outline")
+    .select("id, title, setting, status, published_version, default_timer_seconds, allow_retries, share_token, student_role, learning_objectives, reading_level, stage_outline")
     .eq("id", id)
     .eq("owner_id", user.id)
     .maybeSingle<Adventure>();
@@ -346,6 +349,27 @@ export default async function AdventurePage({
             label="Default per stage, in seconds"
             hint="0 disables timers entirely. Each stage can override this above."
             defaultValue={String(adventure.default_timer_seconds)}
+          />
+        </ActionForm>
+      </Section>
+
+      <Section
+        title="Retries"
+        lede="An attempt that is still open always resumes, whatever this is set to. This decides what happens once a student has reached an ending."
+      >
+        <ActionForm
+          action={updateRetries.bind(null, adventure.id)}
+          submitLabel="Save"
+          pendingLabel="Saving…"
+        >
+          <SelectField
+            name="allow_retries"
+            label="When a student has finished"
+            options={[
+              { value: "on", label: "Let them play again from the start" },
+              { value: "off", label: "Keep them on the attempt they finished" },
+            ]}
+            defaultValue={adventure.allow_retries ? "on" : "off"}
           />
         </ActionForm>
       </Section>

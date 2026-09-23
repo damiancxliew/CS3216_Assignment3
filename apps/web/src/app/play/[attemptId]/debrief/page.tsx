@@ -39,11 +39,16 @@ export default async function DebriefPage({
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-14 px-6 py-8 sm:py-10">
       <DebriefViewed endingId={debrief.ending.id} />
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <Wordmark />
-        <Link href={`/play/${debrief.attemptId}`} className={button.quiet}>
-          Back to your attempt
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href={`/play/${debrief.attemptId}`} className={button.quiet}>
+            Back to your attempt
+          </Link>
+          <Link href="/" className={button.subtle}>
+            Leave for the home page
+          </Link>
+        </div>
       </div>
 
       <header className="flex flex-col gap-3">
@@ -145,9 +150,12 @@ export default async function DebriefPage({
         </ol>
       </Part>
 
-      <footer className="border-t border-line pt-8">
+      <footer className="flex flex-wrap items-center gap-3 border-t border-line pt-8">
         <Link href={`/play/${debrief.attemptId}`} className={button.quiet}>
           Back to your attempt
+        </Link>
+        <Link href="/" className={button.subtle}>
+          Leave for the home page
         </Link>
       </footer>
     </main>
