@@ -103,11 +103,11 @@ const mintProposalSchema = z.object({
   label: z.string().min(1).max(120),
   stance: mintOptionStanceSchema,
   branchTargetKey: z.string().min(1).max(120),
-  preconditions: z.array(mintedPreconditionSchema).max(3),
+  preconditions: z.array(mintedPreconditionSchema).min(1).max(3),
   why: z.string().min(1).max(300),
 }).strict()
 
-export const mintedOptionSchema = z.array(mintProposalSchema).max(4)
+export const mintProposalsSchema = z.array(mintProposalSchema).max(4)
 export type MintProposal = z.infer<typeof mintProposalSchema>
 
 const BLOCK_OPEN = '<<<'
@@ -200,7 +200,7 @@ export async function mintOptions(
   let result
   try {
     result = await callStructured(client, {
-      schema: mintedOptionSchema,
+      schema: mintProposalsSchema,
       schemaName: 'option_minting',
       modelTier: options.modelTier ?? TIER_BY_ROLE.resolver,
       system: prompt.system,
@@ -225,7 +225,7 @@ export async function mintOptions(
     const definition: OptionDefinition = {
       id: `minted-${context.stageId}-${hashSeed(proposal.label).toString(16)}`,
       label: proposal.label,
-      preconditions: proposal.preconditions as OptionPrecondition[],
+      preconditions: proposal.preconditions,
     }
     const labelKey = definition.label.trim().toLowerCase()
     const invalid =
@@ -234,6 +234,7 @@ export async function mintOptions(
       existingLabels.has(labelKey) ||
       optionsToReturn.some((option) => option.id === definition.id || option.label.trim().toLowerCase() === labelKey) ||
       findLeakedText(definition.label, context.privateTexts).length > 0 ||
+      definition.preconditions.length === 0 ||
       !preconditionsReferenceKnownWorld(definition.preconditions, context.world) ||
       !isAvailable(context.world, definition)
 

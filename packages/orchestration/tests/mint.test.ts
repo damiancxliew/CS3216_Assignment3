@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   createFixtureWorld,
@@ -8,7 +8,7 @@ import {
 import { FakeLlmClient } from '../src/llm/fake'
 import { hashSeed } from '../src/rng'
 import { deriveOptions, StageDecisions, type OptionDefinition, type OptionPrecondition } from '../src/stage/options'
-import { mintOptions, type MintContext } from '../src/stage/mint'
+import { mintOptions, mintProposalsSchema, type MintContext, type MintProposal } from '../src/stage/mint'
 
 const stageId = 'stage-harbour-negotiation'
 const branchTarget = { kind: 'stage' as const, stageId: 'stage-settlement' }
@@ -33,7 +33,7 @@ function proposal(overrides: Partial<Record<string, unknown>> = {}): Record<stri
     label: 'Offer a temporary anchorage',
     stance: 'cooperative',
     branchTargetKey: 'settlement',
-    preconditions: [],
+    preconditions: [{ kind: 'actors_together', actorId: 'player', otherActorId: 'agent-temenggong' }],
     why: 'The public negotiation opened this route.',
     ...overrides,
   }
@@ -52,7 +52,7 @@ describe('Resolver option minting (FR-13)', () => {
       branchTarget,
       stance: 'cooperative',
       stageId,
-      preconditions: [],
+      preconditions: [{ kind: 'actors_together', actorId: 'player', otherActorId: 'agent-temenggong' }],
     })
     expect(second.options).toEqual(first.options)
     expect(first.telemetry).toEqual({ proposed: 1, dropped: 0, repairRounds: 0, llmFallback: false })
@@ -137,6 +137,26 @@ describe('Resolver option minting (FR-13)', () => {
 
     expect(result.options).toEqual([])
     expect(result.telemetry.dropped).toBe(1)
+  })
+
+  it('rejects a proposal with no preconditions before minting', async () => {
+    const parsed = mintProposalsSchema.safeParse([proposal({ preconditions: [] })])
+
+    expect(parsed.success).toBe(false)
+
+    const emptyProposal = proposal({ preconditions: [] }) as unknown as MintProposal
+    const safeParse = vi.spyOn(mintProposalsSchema, 'safeParse').mockReturnValue({
+      success: true,
+      data: [emptyProposal],
+    })
+    const result = await mintOptions(
+      new FakeLlmClient({ replies: [response([proposal()])] }),
+      context(),
+    )
+
+    expect(result.options).toEqual([])
+    expect(result.telemetry.dropped).toBe(1)
+    safeParse.mockRestore()
   })
 
   it('keeps only the configured number of surviving additions', async () => {
