@@ -169,7 +169,8 @@ export function PlayClient({
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({ block: "end" });
-  }, [state.transcript.length, pendingSpeech?.id]);
+    // A room change appends a divider without appending a line, so it scrolls too.
+  }, [state.transcript.length, state.currentRoomId, pendingSpeech?.id]);
 
   // The moment a choice becomes possible, show it; a new stage closes it again.
   const canDecide = state.options.some((o) => o.available);
