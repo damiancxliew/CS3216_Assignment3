@@ -29,7 +29,7 @@ import {
  * state is mirrored onto the adventure row after every turn, so a brief left
  * half-done is offered again next visit.
  */
-export function BriefChat({ resume }: { resume?: BriefState }) {
+export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; onComposingChange?: (composing: boolean) => void }) {
   const [state, setState] = useState<BriefState | null>(null);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +39,10 @@ export function BriefChat({ resume }: { resume?: BriefState }) {
   const composer = useRef<HTMLTextAreaElement>(null);
 
   const slot = state ? currentSlot(state.draft) : null;
+
+  useEffect(() => {
+    onComposingChange?.(state !== null);
+  }, [state, onComposingChange]);
 
   useEffect(() => {
     if (slot && slot.name !== "sources" && slot.name !== "confirm") composer.current?.focus();
