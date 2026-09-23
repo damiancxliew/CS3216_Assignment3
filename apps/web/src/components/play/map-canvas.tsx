@@ -22,8 +22,10 @@ import type { SoundCueId } from "@adventure/game-client";
 import { useEffect, useRef } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
+import { MAX_PENDING_STEPS, optimisticAdvance, settleStep, type PendingStep } from "@/lib/play/optimistic-queue";
 import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PlayState } from "@/lib/play/session";
+import type { ServerTiming } from "./api";
 
 const STEP_MS = 160;
 
@@ -48,7 +50,7 @@ export interface MapCanvasProps {
   intent: MapIntent;
   onIntentDone: () => void;
   /** The player stepped into a room the server does not know they are in. Resolve to false to put them back. */
-  onStep: (from: Point, to: Point) => Promise<{ position: Point | null; accepted: boolean; retry: boolean }>;
+  onStep: (from: Point, to: Point) => Promise<{ position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number }>;
   /** The player stopped somewhere; remember it for resume. */
   /** The player is standing outside a closed door. */
   onWaitingAtDoor: (roomId: string | null) => void;
@@ -110,7 +112,18 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
     let facing: "down" | "up" | "left" | "right" = "down";
     let path: Point[] = [];
     let queuedTarget: Point | null = null;
-    let inFlight = false;
+    let sendInFlight = false;
+    let pending: PendingStep[] = [];
+    let nextSendAt = 0;
+    let sendTimer: number | undefined;
+    const perfEnabled = (() => {
+      try {
+        if (new URLSearchParams(window.location.search).get("perf") === "1") window.localStorage.setItem("play:perf", "1");
+        return window.localStorage.getItem("play:perf") === "1";
+      } catch {
+        return false;
+      }
+    })();
     const held = new Map<string, Point>();
     let repeat: number | undefined;
 
@@ -155,8 +168,70 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
     const render = () => view?.render(snapshot());
     renderRef.current = render;
 
-    const stepTo = async (to: Point) => {
-      if (inFlight || latest.current.state.map?.id !== mapId) return;
+    const logStep = (step: PendingStep, acknowledgement: { timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number }, queueDepth: number) => {
+      if (!perfEnabled || !step.requestSentAt) return;
+      console.info("[play-perf] step", {
+        keydownToLocalMoveMs: Number((step.movedAt - step.inputAt).toFixed(1)),
+        requestToAckMs: Number(((acknowledgement.acknowledgedAt ?? performance.now()) - step.requestSentAt).toFixed(1)),
+        serverTiming: acknowledgement.timings ?? {},
+        queueDepth,
+      });
+    };
+
+    const drain = async () => {
+      if (destroyed || sendInFlight || pending.length === 0 || latest.current.state.map?.id !== mapId) return;
+      const wait = nextSendAt - performance.now();
+      if (wait > 0) {
+        if (sendTimer === undefined) sendTimer = window.setTimeout(() => {
+          sendTimer = undefined;
+          void drain();
+        }, wait);
+        return;
+      }
+      const step = pending[0]!;
+      step.requestSentAt ??= performance.now();
+      sendInFlight = true;
+      let acknowledgement: { position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number };
+      try {
+        acknowledgement = await latest.current.onStep(step.from, step.to);
+      } catch {
+        acknowledgement = { position: latest.current.state.playerPos, accepted: false, retry: false };
+      }
+      sendInFlight = false;
+      if (destroyed || latest.current.state.map?.id !== mapId) return;
+      const acknowledgedAt = acknowledgement.acknowledgedAt ?? performance.now();
+      if (acknowledgement.retry) {
+        nextSendAt = acknowledgedAt + 80;
+        void drain();
+        return;
+      }
+
+      pending = settleStep(pending, acknowledgement.accepted ? "accepted" : "rollback");
+      if (!acknowledgement.accepted) {
+        pending = [];
+        path = [];
+        if (acknowledgement.position) playerPos.current = acknowledgement.position;
+      } else if (pending.length === 0 && acknowledgement.position && (!playerPos.current || acknowledgement.position.x !== playerPos.current.x || acknowledgement.position.y !== playerPos.current.y)) {
+        playerPos.current = acknowledgement.position;
+        path = [];
+      }
+      const door = map.doors.find((candidate) => candidate.outside.x === acknowledgement.position?.x && candidate.outside.y === acknowledgement.position?.y && doorsOf(latest.current.state)[candidate.id] === "closed");
+      latest.current.onWaitingAtDoor(door?.roomId ?? null);
+      render();
+      logStep(step, { ...acknowledgement, acknowledgedAt }, pending.length);
+      if (path.length === 0) latest.current.onIntentDone();
+      nextSendAt = acknowledgedAt + STEP_MS;
+      if (pending.length === 0 && queuedTarget) {
+        const target = queuedTarget;
+        queuedTarget = null;
+        goTo(target);
+      } else {
+        void drain();
+      }
+    };
+
+    const stepTo = (to: Point) => {
+      if (latest.current.state.map?.id !== mapId || pending.length >= MAX_PENDING_STEPS) return;
       const s = latest.current.state;
       const from = playerPos.current ?? s.playerPos;
       if (!from) return;
@@ -172,27 +247,14 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
       const ddx = to.x - from.x;
       const ddy = to.y - from.y;
       facing = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? "right" : "left") : ddy > 0 ? "down" : "up";
-      inFlight = true;
-      try {
-        const acknowledgement = await latest.current.onStep(from, to);
-        if (destroyed || latest.current.state.map?.id !== mapId) return;
-        if (acknowledgement.position) playerPos.current = acknowledgement.position;
-        if (acknowledgement.accepted && path[0]?.x === to.x && path[0]?.y === to.y) path.shift();
-        else if (!acknowledgement.retry) path = [];
-        if (acknowledgement.accepted && acknowledgement.position && (acknowledgement.position.x !== to.x || acknowledgement.position.y !== to.y)) path = [];
-        // Doorways belong to nobody; grass and path are the outdoors, which the server tracks as a room of its own.
-        const door = map.doors.find((candidate) => candidate.outside.x === acknowledgement.position?.x && candidate.outside.y === acknowledgement.position?.y && doors[candidate.id] === "closed");
-        latest.current.onWaitingAtDoor(door?.roomId ?? null);
-        render();
-        if (path.length === 0) latest.current.onIntentDone();
-      } finally {
-        inFlight = false;
-        if (!destroyed && latest.current.state.map?.id === mapId && queuedTarget) {
-          const target = queuedTarget;
-          queuedTarget = null;
-          goTo(target);
-        }
-      }
+      const inputAt = performance.now();
+      const advanced = optimisticAdvance(from, { to, inputAt, movedAt: performance.now() }, pending);
+      if (!advanced) return;
+      playerPos.current = advanced.position;
+      pending = advanced.queue;
+      if (path[0]?.x === to.x && path[0]?.y === to.y) path.shift();
+      render();
+      void drain();
     };
 
     const walk = window.setInterval(() => {
@@ -202,7 +264,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
     }, STEP_MS);
 
     const goTo = (target: Point) => {
-      if (inFlight) {
+      if (sendInFlight || pending.length > 0) {
         queuedTarget = target;
         return;
       }
@@ -240,7 +302,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
     reconcileRef.current = (next) => {
       if (next.revision < acknowledgedRevision.current) return;
       acknowledgedRevision.current = next.revision;
-      if (!inFlight && next.playerPos && (!playerPos.current || playerPos.current.x !== next.playerPos.x || playerPos.current.y !== next.playerPos.y)) {
+      if (pending.length === 0 && !sendInFlight && next.playerPos && (!playerPos.current || playerPos.current.x !== next.playerPos.x || playerPos.current.y !== next.playerPos.y)) {
         playerPos.current = next.playerPos;
         path = [];
       }
@@ -338,6 +400,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onStep, onWaitin
       reconcileRef.current = null;
       controller.abort();
       clearHeld();
+      if (sendTimer !== undefined) window.clearTimeout(sendTimer);
       window.clearInterval(walk);
       view?.destroy();
       renderRef.current = null;

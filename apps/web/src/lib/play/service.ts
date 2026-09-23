@@ -11,19 +11,21 @@ import { PlaySession, type PlayState, type PlayerWorldAction, type SessionError,
 import { SpatialCompatibilityError } from "./layout";
 import { RuntimeConflictError, type AttemptRecord, type PlayStore } from "./store";
 import type { PublicMessage } from "@/lib/turn-api/contract";
+import type { PlayTimings } from "./timing";
 
 export type ServiceResult<T> = { ok: true; value: T; state: PlayState } | { ok: false; error: SessionError };
 
 export interface PlayServiceDeps {
   store: PlayStore;
   llm: LlmClient;
+  timings?: PlayTimings;
 }
 
 function timerOf(record: AttemptRecord): SessionTimer {
   return { enabled: record.stageDeadlineAt !== null, deadlineAt: record.stageDeadlineAt };
 }
 
-async function run<T>(
+async function runInternal<T>(
   deps: PlayServiceDeps,
   attemptId: string,
   userId: string,
@@ -32,7 +34,7 @@ async function run<T>(
 ): Promise<ServiceResult<T>> {
   let record: AttemptRecord | null;
   try {
-    record = await deps.store.load(attemptId, userId);
+    record = await deps.store.load(attemptId, userId, deps.timings);
   } catch (error) {
     if (error instanceof SpatialCompatibilityError) return { ok: false, error: { code: "incompatible_version", message: error.message } };
     throw error;
@@ -41,13 +43,17 @@ async function run<T>(
   if (record.status !== "active" && record.snapshot === null) return { ok: false, error: { code: "stage_closed", message: "This adventure is no longer active." } };
   if (!readonly && record.status !== "active") return { ok: false, error: { code: "stage_closed", message: "This adventure is no longer active." } };
 
-  const now = await deps.store.now();
+  const now = deps.timings ? await deps.timings.time("now", () => deps.store.now()) : await deps.store.now();
   const clock = { now: () => now };
   let session: PlaySession;
   try {
-    session = record.snapshot
-      ? PlaySession.resume(record.spec, attemptId, record.publishedVersion, record.snapshot, clock, record.assets ?? null, record.compiledStages)
-      : PlaySession.start(record.spec, attemptId, record.publishedVersion, clock, record.assets ?? null, record.compiledStages);
+    session = deps.timings
+      ? await deps.timings.time("rehydrate", () => record.snapshot
+        ? PlaySession.resume(record.spec, attemptId, record.publishedVersion, record.snapshot, clock, record.assets ?? null, record.compiledStages)
+        : PlaySession.start(record.spec, attemptId, record.publishedVersion, clock, record.assets ?? null, record.compiledStages))
+      : record.snapshot
+        ? PlaySession.resume(record.spec, attemptId, record.publishedVersion, record.snapshot, clock, record.assets ?? null, record.compiledStages)
+        : PlaySession.start(record.spec, attemptId, record.publishedVersion, clock, record.assets ?? null, record.compiledStages);
   } catch (error) {
     if (error instanceof SpatialCompatibilityError) return { ok: false, error: { code: "incompatible_version", message: error.message } };
     throw error;
@@ -62,14 +68,14 @@ async function run<T>(
     timer = { enabled: false, deadlineAt: null };
   }
 
-  const outcome = await operation(session);
+  const outcome = deps.timings ? await deps.timings.time("op", () => operation(session)) : await operation(session);
 
   const after = session.snapshot();
   if (record.status === "active" && after.revision !== startRevision) {
     const events = session.drainEvents();
     // The store owns the deadline (P6): it restamps one when a stage opens, and tells us what it now holds.
     try {
-      const saved = await deps.store.save(record, after, events);
+      const saved = await deps.store.save(record, after, events, deps.timings);
       timer = { enabled: saved.stageDeadlineAt !== null, deadlineAt: saved.stageDeadlineAt };
     } catch (error) {
       // Someone else advanced this attempt while we worked. Say so, so the caller
@@ -83,6 +89,16 @@ async function run<T>(
   const state = session.state(timer);
   if (readonly && record.status !== "active") return { ok: true, value: outcome.value, state: { ...state, status: record.status, pendingDialogue: false, options: state.options.map((option) => ({ ...option, available: false, unavailableReason: "This attempt is no longer active." })) } };
   return { ok: true, value: outcome.value, state };
+}
+
+async function run<T>(
+  deps: PlayServiceDeps,
+  attemptId: string,
+  userId: string,
+  operation: (session: PlaySession) => Promise<{ ok: true; value: T } | { ok: false; error: SessionError }>,
+  readonly = false,
+): Promise<ServiceResult<T>> {
+  return deps.timings ? deps.timings.time("total", () => runInternal(deps, attemptId, userId, operation, readonly)) : runInternal(deps, attemptId, userId, operation, readonly);
 }
 
 export async function getState(deps: PlayServiceDeps, attemptId: string, userId: string) {

@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { PlayServiceDeps } from "./service";
 import type { SessionError } from "./session";
 import { SupabasePlayStore } from "./store";
+import type { PlayTimings } from "./timing";
 
 const STATUS: Record<SessionError["code"], number> = {
   not_found: 404,
@@ -57,6 +58,12 @@ export function publicJson(payload: unknown, init?: ResponseInit) {
     return NextResponse.json({ error: { code: "invalid_request", message: "Response withheld." } }, { status: 500 });
   }
   return NextResponse.json(payload, init);
+}
+
+export function withPlayPerf(response: Response, timings: PlayTimings, details: Record<string, unknown>) {
+  response.headers.set("Server-Timing", timings.header());
+  if (process.env.PLAY_PERF_LOG === "1") console.info("[play-perf]", JSON.stringify({ ...details, ...timings.json() }));
+  return response;
 }
 
 export async function readJson(request: Request): Promise<unknown> {
