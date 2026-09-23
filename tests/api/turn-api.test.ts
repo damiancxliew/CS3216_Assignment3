@@ -8,12 +8,17 @@
  * every payload is free of private keys (FR-21); and what happened is handed
  * to the store for the record.
  */
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { loadI1Spec } from "@adventure/generation/fixtures";
-import { FakeLlmClient } from "@adventure/orchestration";
+import { auditClientPayload, FakeLlmClient } from "@adventure/orchestration";
 import type { AdventureSpec } from "@adventure/generation/spec";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getState, postAction, postDecision, postMessage, type PlayServiceDeps } from "@/lib/play/service";
+import { publicJson } from "@/lib/play/http";
 import { MemoryPlayStore, type AttemptRecord } from "@/lib/play/store";
 import { findForbiddenKeys, publicAttemptStateSchema } from "@/lib/turn-api/contract";
 import { AdmissionRefusedError, enterRoom, inspectEvidence, stateOf, talkToAgent, walkTo, type PlayDriver } from "./play-driver";
@@ -31,6 +36,35 @@ const openOwnDoor = (request: { user: string }) => {
 };
 
 let spec: AdventureSpec;
+
+function privateSecrets(currentSpec: AdventureSpec, store: MemoryPlayStore): string[] {
+  const context = currentSpec.stages.flatMap((stage) =>
+    stage.agents.flatMap((agent) => [
+      agent.privateContext.persona,
+      agent.privateContext.motivations,
+      agent.privateContext.hiddenInterests,
+      agent.privateContext.knowledgeHorizon,
+    ]),
+  );
+  const rationales = store.saved.flatMap((entry) => {
+    const rationale = entry.events.resolution?.record.rationale;
+    return rationale === undefined ? [] : [rationale];
+  });
+  return [...new Set([...context, ...rationales])];
+}
+
+function expectAudited(label: string, payload: unknown, secrets: readonly string[]): void {
+  const report = auditClientPayload(payload, secrets);
+  expect(report.ok, `${label}: ${JSON.stringify(report)}`).toBe(true);
+}
+
+function routeFiles(root: string): string[] {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) return routeFiles(path);
+    return entry.name === "route.ts" ? [path] : [];
+  });
+}
 
 function record(overrides: Partial<AttemptRecord> = {}): AttemptRecord {
   return {
@@ -274,7 +308,8 @@ describe("server authority (FR-21)", () => {
     const msg = ok(await postMessage(d, ATTEMPT, STUDENT, { roomId: (await stateOf(driver)).currentRoomId!, body: "Who holds the island?", addresseeId: agent.id }));
     const spoken = { state: await stateOf(driver) };
     for (const payload of [first, msg, spoken]) expect(findForbiddenKeys(payload)).toEqual([]);
-    expect(JSON.stringify([first, msg, spoken])).not.toMatch(/Privately thinks|hiddenInterests|knowledgeHorizon/);
+    const secrets = privateSecrets(spec, store);
+    expectAudited("state/message/resumed-state", [first, msg, spoken], secrets);
 
     // A second load from what was saved reproduces the same public state (P7).
     const again = ok(await getState(d, ATTEMPT, STUDENT)).state;
@@ -282,5 +317,98 @@ describe("server authority (FR-21)", () => {
     expect(again.playerPos).toEqual(spoken.state.playerPos);
     expect(again.revision).toBe(spoken.state.revision);
     expect(store.saved.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("audits every reachable Turn API response shape", async () => {
+    const { d, store } = deps([openOwnDoor]);
+    const payloads: Array<[string, unknown]> = [];
+    const collect = (label: string, payload: unknown) => payloads.push([label, payload]);
+
+    const missing = await getState(d, ATTEMPT, OTHER);
+    expect(missing).toMatchObject({ ok: false, error: { code: "not_found" } });
+    collect("getState/not_found", missing);
+
+    const initial = await getState(d, ATTEMPT, STUDENT);
+    expect(initial.ok).toBe(true);
+    collect("getState/accepted", initial);
+    if (!initial.ok) return;
+
+    const roomId = initial.state.currentRoomId!;
+    const acceptedMessage = await postMessage(d, ATTEMPT, STUDENT, { roomId, body: "What is being decided here?" });
+    expect(acceptedMessage).toMatchObject({ ok: true });
+    collect("postMessage/accepted", acceptedMessage);
+
+    const driver = driverFor(d, store);
+    const item = spec.stages[0]!.evidence.find((e) => e.roomId === roomId)!;
+    const evidenceState = await stateOf(driver);
+    const shown = evidenceState.evidenceHere.find((e) => e.id === item.id)!;
+    if (shown.position && !shown.canInspect) await walkTo(driver, shown.position);
+    const acceptedAction = await postAction(d, ATTEMPT, STUDENT, { type: "inspect", evidenceId: item.id });
+    expect(acceptedAction).toMatchObject({ ok: true, value: { refused: null } });
+    collect("postAction/accepted", acceptedAction);
+
+    const elsewhere = spec.stages[0]!.evidence.find((e) => e.roomId !== roomId)!;
+    const refusedAction = await postAction(d, ATTEMPT, STUDENT, { type: "inspect", evidenceId: elsewhere.id });
+    expect(refusedAction).toMatchObject({ ok: true, value: { refused: expect.any(String) } });
+    collect("postAction/refused", refusedAction);
+
+    const invalidRequest = await postMessage(d, ATTEMPT, STUDENT, { roomId: "not-a-room", body: "hello" });
+    expect(invalidRequest).toMatchObject({ ok: false, error: { code: "not_found" } });
+    collect("postMessage/not_found", invalidRequest);
+
+    const malformedMessage = await postMessage(d, ATTEMPT, STUDENT, { roomId, body: "   " });
+    expect(malformedMessage).toMatchObject({ ok: false, error: { code: "invalid_request" } });
+    collect("postMessage/invalid_request", malformedMessage);
+
+    const staleOption = await postDecision(d, ATTEMPT, STUDENT, {
+      optionId: initial.state.options[0]!.id,
+      optionsVersion: initial.state.optionsVersion,
+    });
+    expect(staleOption).toMatchObject({ ok: false, error: { code: "stale_option" } });
+    collect("postDecision/stale_option", staleOption);
+
+    const rooms = (await stateOf(driver)).rooms;
+    for (const room of rooms) {
+      await enterRoom(driver, room.id);
+      const state = await stateOf(driver);
+      for (const evidence of state.evidenceHere) await inspectEvidence(driver, evidence.id);
+      for (const agent of state.agents.filter((candidate) => state.hearingActorIds.includes(candidate.id))) {
+        await talkToAgent(driver, agent.id);
+      }
+    }
+    const ready = await stateOf(driver);
+    const option = ready.options.find((candidate) => candidate.available)!;
+    const committed = await postDecision(d, ATTEMPT, STUDENT, {
+      optionId: option.id,
+      optionsVersion: ready.optionsVersion,
+    });
+    expect(committed).toMatchObject({ ok: true });
+    collect("postDecision/accepted", committed);
+
+    store.add(record({ status: "completed", snapshot: store.saved.at(-1)?.snapshot ?? null }));
+    const stageClosed = await postAction(d, ATTEMPT, STUDENT, { type: "position", position: { x: 0, y: 0 } });
+    expect(stageClosed).toMatchObject({ ok: false, error: { code: "stage_closed" } });
+    collect("postAction/stage_closed", stageClosed);
+
+    const secrets = privateSecrets(spec, store);
+    for (const [label, payload] of payloads) expectAudited(label, payload, secrets);
+  });
+
+  it("keeps every API route behind the response wrapper", () => {
+    const apiRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../apps/web/src/app/api");
+    for (const route of routeFiles(apiRoot)) {
+      expect(readFileSync(route, "utf8"), `${route} must use publicJson/errorResponse`).not.toMatch(/NextResponse\.json\s*\(/);
+    }
+  });
+
+  it("refuses a public payload carrying a forbidden key", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const response = publicJson({ rationale: "server-only" });
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({ error: { code: "invalid_request", message: "Response withheld." } });
+    } finally {
+      error.mockRestore();
+    }
   });
 });
