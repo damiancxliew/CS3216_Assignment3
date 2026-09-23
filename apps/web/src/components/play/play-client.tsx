@@ -231,15 +231,20 @@ export function PlayClient({ attemptId, initialState }: { attemptId: string; ini
       const before = stateRef.current;
       if (before.status !== "active" || busy === "Deciding…" || busy === "Knocking…") return { position: before.playerPos, accepted: false, retry: false };
       try {
-        const result = await serialize(() => playApi.action(attemptId, { type: "move_step", stageId: before.stage.id, from, to }));
+        let requestSentAt = 0;
+        const result = await serialize(() => {
+          requestSentAt = performance.now();
+          return playApi.action(attemptId, { type: "move_step", stageId: before.stage.id, from, to });
+        });
+        const acknowledgedAt = performance.now();
         if (!result.ok) {
           setNotice(result.error.message);
           if (result.error.code !== "rate_limited") await refresh();
-          return { position: stateRef.current.playerPos, accepted: false, retry: result.error.code === "rate_limited" };
+          return { position: stateRef.current.playerPos, accepted: false, retry: result.error.code === "rate_limited", timings: result.timings, requestSentAt, acknowledgedAt };
         }
         accept(result.body.state);
         if (result.body.refused) setNotice(result.body.refused);
-        return { position: stateRef.current.playerPos, accepted: !result.body.refused && stateRef.current.stage.id === before.stage.id, retry: false };
+        return { position: stateRef.current.playerPos, accepted: !result.body.refused && stateRef.current.stage.id === before.stage.id, retry: false, timings: result.timings, requestSentAt, acknowledgedAt };
       } catch {
         setNotice("Could not reach the server. Please try again.");
         return { position: stateRef.current.playerPos, accepted: false, retry: false };

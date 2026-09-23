@@ -21,6 +21,18 @@ import { loadManifest } from "@/lib/assets/supabase";
 import { readCompiledStages } from "./layout";
 import type { CompiledStage } from "@adventure/game-core";
 import type { PlaySnapshot, SessionEvents } from "./session";
+import type { PlayTimings } from "./timing";
+import {
+  getAssets,
+  getStage,
+  getStages,
+  getVersion,
+  setAssets,
+  setStage,
+  setStages,
+  setVersion,
+  type CachedStageRow,
+} from "./version-cache";
 
 export interface AttemptRecord {
   attemptId: string;
@@ -60,17 +72,21 @@ export class PlayConflictError extends RuntimeConflictError {
 }
 
 export interface PlayStore {
-  load(attemptId: string, userId: string): Promise<AttemptRecord | null>;
-  save(record: AttemptRecord, snapshot: PlaySnapshot, events: PlayEvents): Promise<SaveResult>;
-  now(): Promise<Date>;
+  load(attemptId: string, userId: string, timings?: PlayTimings): Promise<AttemptRecord | null>;
+  save(record: AttemptRecord, snapshot: PlaySnapshot, events: PlayEvents, timings?: PlayTimings): Promise<SaveResult>;
+  now(timings?: PlayTimings): Promise<Date>;
 }
 
 // ---------------------------------------------------------------------------
 // Supabase
 // ---------------------------------------------------------------------------
 
-type StageRow = { id: string; index: number; spec_id: string | null };
+type StageRow = CachedStageRow;
 type BinderRow = { id: string; spec_id: string | null; stage_id: string };
+
+function timed<T>(timings: PlayTimings | undefined, name: string, operation: () => T | Promise<T>): Promise<T> {
+  return timings ? timings.time(name, operation) : Promise.resolve(operation());
+}
 
 function stageIndexMap(spec: AdventureSpec, rows: StageRow[]): Map<number, StageRow> {
   const byIndex = new Map<number, StageRow>();
@@ -125,8 +141,8 @@ function binderMap(
 export class SupabasePlayStore implements PlayStore {
   constructor(private readonly admin: SupabaseClient) {}
 
-  async load(attemptId: string, userId: string): Promise<AttemptRecord | null> {
-    const { data: attempt, error: attemptError } = await this.admin
+  async load(attemptId: string, userId: string, timings?: PlayTimings): Promise<AttemptRecord | null> {
+    const { data: attempt, error: attemptError } = await timed(timings, "load.attempt", () => this.admin
       .from("attempt")
       .select("id, adventure_id, published_version, student_id, status, ending_id, current_stage_id, stage_deadline_at")
       .eq("id", attemptId)
@@ -139,22 +155,25 @@ export class SupabasePlayStore implements PlayStore {
         ending_id: string | null;
         current_stage_id: string | null;
         stage_deadline_at: string | null;
-      }>();
+      }>());
     if (attemptError) throw new Error(`attempt: ${attemptError.message}`);
     if (!attempt || attempt.student_id !== userId) return null;
 
+    const cachedVersion = getVersion(attempt.adventure_id, attempt.published_version);
     const [{ data: version, error: versionError }, { data: runtime, error: runtimeError }] = await Promise.all([
-      this.admin
-        .from("spec_version")
-        .select("id, json, compiled_stages")
-        .eq("adventure_id", attempt.adventure_id)
-        .eq("version", attempt.published_version)
-        .maybeSingle<{ id: string; json: unknown; compiled_stages: unknown }>(),
-      this.admin
+      cachedVersion
+        ? timed(timings, "load.version", () => ({ data: { id: cachedVersion.specVersionId }, error: null }))
+        : timed(timings, "load.version", () => this.admin
+          .from("spec_version")
+          .select("id, json, compiled_stages")
+          .eq("adventure_id", attempt.adventure_id)
+          .eq("version", attempt.published_version)
+          .maybeSingle<{ id: string; json: unknown; compiled_stages: unknown }>()),
+      timed(timings, "load.runtime", () => this.admin
         .from("attempt_runtime")
         .select("stage_spec_id, revision, snapshot")
         .eq("attempt_id", attemptId)
-        .maybeSingle<{ stage_spec_id: string; revision: number; snapshot: unknown }>(),
+        .maybeSingle<{ stage_spec_id: string; revision: number; snapshot: unknown }>()),
     ]);
     // A failed read is not an absent runtime: treating it as one would start a
     // fresh session over saved state and then collide with it on save.
@@ -163,23 +182,44 @@ export class SupabasePlayStore implements PlayStore {
     // is absent, and reporting it as one tells the student "no such attempt".
     if (versionError) throw new Error(`spec_version: ${versionError.message}`);
     if (!version) return null;
-    const validated = validatePublishedSpec(version.json);
-    if (!validated.ok) throw new Error(`published spec v${attempt.published_version} of ${attempt.adventure_id} is not a readable spec`);
-    const compiledStages = readCompiledStages(validated.spec, version.compiled_stages);
+    let spec: AdventureSpec;
+    let compiledStages: CompiledStage[];
+    if (cachedVersion) {
+      ({ spec, compiledStages } = await timed(timings, "load.validate", () => cachedVersion));
+    } else {
+      const uncachedVersion = version as { id: string; json: unknown; compiled_stages: unknown };
+      const validated = await timed(timings, "load.validate", () => {
+        const result = validatePublishedSpec(uncachedVersion.json);
+        return result.ok ? { ...result, compiledStages: readCompiledStages(result.spec, uncachedVersion.compiled_stages) } : result;
+      });
+      if (!validated.ok) throw new Error(`published spec v${attempt.published_version} of ${attempt.adventure_id} is not a readable spec`);
+      spec = validated.spec;
+      compiledStages = validated.compiledStages;
+      setVersion(attempt.adventure_id, attempt.published_version, {
+        specVersionId: uncachedVersion.id,
+        spec,
+        compiledStages,
+      });
+    }
+    const versionId = cachedVersion?.specVersionId ?? version.id;
 
     let currentStageIndex: number | null = null;
     if (attempt.status === "active") {
       if (attempt.current_stage_id === null) throw new Error("active attempt has no current stage");
-      const { data: currentStage } = await this.admin
-        .from("stage")
-        .select("id, index, spec_id, spec_version_id")
-        .eq("id", attempt.current_stage_id)
-        .maybeSingle<{ id: string; index: number; spec_id: string | null; spec_version_id: string }>();
+      const cachedStage = getStage(versionId, attempt.current_stage_id);
+      const { data: currentStage } = await timed(timings, "load.stage", () => cachedStage
+        ? { data: cachedStage }
+        : this.admin
+          .from("stage")
+          .select("id, index, spec_id, spec_version_id")
+          .eq("id", attempt.current_stage_id)
+          .maybeSingle<{ id: string; index: number; spec_id: string | null; spec_version_id: string }>());
+      if (!cachedStage && currentStage) setStage(versionId, attempt.current_stage_id, currentStage);
       if (
         !currentStage ||
-        currentStage.spec_version_id !== version.id ||
+        currentStage.spec_version_id !== versionId ||
         currentStage.spec_id === null ||
-        validated.spec.stages[currentStage.index]?.id !== currentStage.spec_id
+        spec.stages[currentStage.index]?.id !== currentStage.spec_id
       ) {
         throw new Error("active attempt stage does not match the authored spec");
       }
@@ -199,12 +239,12 @@ export class SupabasePlayStore implements PlayStore {
         typeof stageIndex !== "number" ||
         !Number.isInteger(stageIndex) ||
         stageIndex < 0 ||
-        stageIndex >= validated.spec.stages.length ||
+        stageIndex >= spec.stages.length ||
         candidate.world === undefined
       ) {
         throw new Error("stored play runtime snapshot is invalid");
       }
-      const authoredStageId = validated.spec.stages[stageIndex]?.id;
+      const authoredStageId = spec.stages[stageIndex]?.id;
       if (runtime.stage_spec_id !== authoredStageId) throw new Error("stored play runtime stage does not match the spec");
       if (attempt.status === "active" && currentStageIndex !== stageIndex) {
         throw new Error("stored play runtime stage does not match the current attempt stage");
@@ -221,7 +261,13 @@ export class SupabasePlayStore implements PlayStore {
     } else if (attempt.status === "completed" || currentStageIndex !== 0) {
       throw new Error("attempt without runtime must still be at the opening stage");
     }
-    const assets = await loadManifest(this.admin, version.id, attempt.adventure_id, attempt.published_version);
+    const cachedAssets = getAssets(versionId);
+    const assets = await timed(timings, "load.assets", async () => {
+      if (cachedAssets !== undefined) return cachedAssets;
+      const manifest = await loadManifest(this.admin, versionId, attempt.adventure_id, attempt.published_version);
+      setAssets(versionId, manifest);
+      return manifest;
+    });
 
     return {
       attemptId,
@@ -230,7 +276,7 @@ export class SupabasePlayStore implements PlayStore {
       publishedVersion: attempt.published_version,
       status: attempt.status,
       stageDeadlineAt: attempt.stage_deadline_at,
-      spec: validated.spec,
+      spec,
       snapshot,
       runtimeRevision,
       assets,
@@ -238,19 +284,26 @@ export class SupabasePlayStore implements PlayStore {
     };
   }
 
-  async save(record: AttemptRecord, snapshot: PlaySnapshot, events: PlayEvents): Promise<SaveResult> {
-    const { data: version } = await this.admin
-      .from("spec_version")
-      .select("id")
-      .eq("adventure_id", record.adventureId)
-      .eq("version", record.publishedVersion)
-      .single<{ id: string }>();
+  async save(record: AttemptRecord, snapshot: PlaySnapshot, events: PlayEvents, timings?: PlayTimings): Promise<SaveResult> {
+    const cachedVersion = getVersion(record.adventureId, record.publishedVersion);
+    const { data: version } = await timed(timings, "save.version", () => cachedVersion
+      ? { data: { id: cachedVersion.specVersionId } }
+      : this.admin
+        .from("spec_version")
+        .select("id")
+        .eq("adventure_id", record.adventureId)
+        .eq("version", record.publishedVersion)
+        .single<{ id: string }>());
     if (!version) throw new Error("spec_version: no pinned version");
-    const { data: stageRows } = await this.admin
-      .from("stage")
-      .select("id, index, spec_id")
-      .eq("spec_version_id", version.id)
-      .returns<StageRow[]>();
+    const cachedStages = getStages(version.id);
+    const { data: stageRows } = cachedStages
+      ? await timed(timings, "save.stages", () => ({ data: cachedStages }))
+      : await timed(timings, "save.stages", () => this.admin
+        .from("stage")
+        .select("id, index, spec_id")
+        .eq("spec_version_id", version.id)
+        .returns<StageRow[]>());
+    if (!cachedStages && stageRows) setStages(version.id, stageRows);
     const stages = stageIndexMap(record.spec, stageRows ?? []);
     const stageUuid = (index: number): string => {
       const row = stages.get(index);
@@ -266,7 +319,7 @@ export class SupabasePlayStore implements PlayStore {
     ]);
     const binders = new Map<number, Promise<Binder>>();
     for (const index of touched) binders.set(index, this.binder(record.spec, index, stageUuid(index)));
-    await Promise.all(binders.values());
+    await timed(timings, "save.binders", () => Promise.all(binders.values()));
     const bind = (index: number) => binders.get(index)!;
     const base = Date.now();
     const messageRows = await Promise.all(events.utterances.map(async ({ line, heardByPlayer, stageIndex }, i) => {
@@ -296,7 +349,7 @@ export class SupabasePlayStore implements PlayStore {
     })() : null;
     const telemetry = events.telemetry ? { stage_id: stageUuid(events.telemetry.stageIndex), stage_index: events.telemetry.stageIndex, ended_by: events.telemetry.endedBy, duration_seconds: events.telemetry.durationSeconds, tokens: events.telemetry.tokens, messages: events.telemetry.messages, actions: events.telemetry.actions, evidence_found: events.telemetry.evidenceFound, agent_lines: events.telemetry.agentLines } : null;
     const openedStageId = events.openedStageIndex !== null && events.openedStageIndex !== record.snapshot?.stageIndex ? stageUuid(events.openedStageIndex) : null;
-    const { data, error } = await this.admin.rpc("save_play_turn", {
+    const { data, error } = await timed(timings, "save.rpc", () => this.admin.rpc("save_play_turn", {
       p_attempt_id: record.attemptId,
       p_expected_revision: record.runtimeRevision,
       p_stage_spec_id: record.spec.stages[snapshot.stageIndex]!.id,
@@ -307,7 +360,7 @@ export class SupabasePlayStore implements PlayStore {
       p_telemetry: telemetry,
       p_opened_stage_id: openedStageId,
       p_ending_id: events.endingId,
-    });
+    }));
     if (error && (error.code === "40001" || /revision conflict/.test(error.message))) throw new PlayConflictError();
     if (error) throw new Error(`save_play_turn: ${error.message}`);
     const result = data as { runtimeRevision?: unknown; stageDeadlineAt?: unknown } | null;
@@ -316,8 +369,8 @@ export class SupabasePlayStore implements PlayStore {
     return { stageDeadlineAt: result.stageDeadlineAt };
   }
 
-  async now(): Promise<Date> {
-    const { data } = await this.admin.rpc("server_now");
+  async now(timings?: PlayTimings): Promise<Date> {
+    const { data } = await timed(timings, "now", () => this.admin.rpc("server_now"));
     return data ? new Date(data as string) : new Date();
   }
 
