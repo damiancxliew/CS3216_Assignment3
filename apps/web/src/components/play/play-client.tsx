@@ -11,7 +11,7 @@
  * decision, which stays quiet until you can actually make it, then lights up.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
-import { ArrowRight, Check, CornerDownRight, HelpCircle, Lock, Search, Timer, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight, Check, CornerDownRight, DoorOpen, HelpCircle, Lock, Search, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,6 +25,7 @@ import { restartAttempt } from "@/app/play/[attemptId]/actions";
 import { StageCountdown } from "@/components/stage-countdown";
 import { Pending, Spinner, Thinking } from "@/components/ui";
 import type { PlayState } from "@/lib/play/session";
+import { withSceneBreaks } from "@/lib/play/transcript";
 
 const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas), {
   ssr: false,
@@ -185,6 +186,11 @@ export function PlayClient({
   const talkingTo = peopleHere.find((a) => a.id === effectiveAddressee) ?? null;
   const waitingRoom = waitingAtDoor ? state.rooms.find((room) => room.id === waitingAtDoor) : null;
   const waitingDoor = waitingAtDoor ? state.map?.doors.find((door) => door.roomId === waitingAtDoor) : null;
+  const items = withSceneBreaks(state.transcript, {
+    currentRoomId: state.currentRoomId,
+    roomName: (roomId) => state.rooms.find((room) => room.id === roomId)?.name ?? "the open air",
+    actorName: (actorId) => state.agents.find((agent) => agent.id === actorId)?.name ?? "someone else",
+  });
   const knockReady = waitingRoom?.doorOpen === false && waitingDoor !== null && waitingDoor !== undefined && state.playerPos !== null && state.playerPos.x === waitingDoor.outside.x && state.playerPos.y === waitingDoor.outside.y;
 
   async function act(label: string, run: () => Promise<{ ok: true; body: { state: PlayState; refused?: string | null } } | { ok: false; error: { message: string } }>) {
@@ -492,7 +498,20 @@ export function PlayClient({
                 </p>
               </div>
             ) : null}
-            {state.transcript.map((m) => {
+            {items.map((item) => {
+              if (item.kind === "break") {
+                return (
+                  <div key={item.id} role="separator" className="flex items-center gap-2.5 pt-1">
+                    <span className="h-px flex-1 bg-line" aria-hidden />
+                    <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted">
+                      {item.icon === "room" ? <DoorOpen className="h-4 w-4" aria-hidden /> : <UserRound className="h-4 w-4" aria-hidden />}
+                      {item.label}
+                    </span>
+                    <span className="h-px flex-1 bg-line" aria-hidden />
+                  </div>
+                );
+              }
+              const m = item.message;
               const speaker = m.authorType === "agent" ? state.agents.find((a) => a.id === m.authorId) : null;
               const mine = m.authorType === "player";
               return (
