@@ -127,22 +127,25 @@ export default function Home() {
         </div>
 
         <figure className="flex flex-col gap-3">
-          <div className="relative rounded-surface border border-line bg-ink p-2 sm:p-3">
+          <div className="rounded-surface border border-line bg-ink p-2 sm:p-3">
             <Clip
               src="/media/dialogue.mp4"
               poster="/media/dialogue.jpg"
               label="Gameplay footage: a student questioning Sir Stamford Raffles at Singapore, 1819"
               className="w-full rounded-control"
             />
-            <span className="absolute left-5 top-5 hidden rounded-control border border-record/40 bg-record-wash px-3 py-1.5 text-sm font-semibold text-record shadow backdrop-blur-sm lg:flex">
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-control border border-record/40 bg-record-wash px-3 py-1.5 text-sm font-semibold text-record shadow backdrop-blur-sm">
               handout, p. 3 — cited in the game
             </span>
-            <span className="absolute bottom-5 right-5 hidden rounded-control border border-world/40 bg-world-wash px-3 py-1.5 text-sm font-semibold text-world shadow backdrop-blur-sm lg:flex">
+            <span className="rounded-control border border-world/40 bg-world-wash px-3 py-1.5 text-sm font-semibold text-world shadow backdrop-blur-sm">
               what the simulation assumed
             </span>
           </div>
-          <figcaption className="text-base text-muted">
-            Real footage. A student questioning Sir Stamford Raffles at Singapore, 1819.
+          <figcaption className="flex flex-col gap-1 text-base text-muted">
+            <span>Real footage. A student questioning Sir Stamford Raffles at Singapore, 1819.</span>
+            <span>Blue is what the documents say. Green is what the game did. They never share a paragraph.</span>
           </figcaption>
         </figure>
       </section>
