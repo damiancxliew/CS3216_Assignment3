@@ -6,10 +6,13 @@
  */
 import type { StageMap } from "@adventure/game-core";
 
+/** The SVG only draws rooms and doors; `tiles` and `seed` are never needed. */
+type Plan = Pick<StageMap, "width" | "height" | "rooms" | "doors">;
+
 /** A label needs a few tiles of room; below this the centred text would spill. */
 const MIN_LABEL_TILES = 6;
 
-export function StageMapPlan({ map, names = {} }: { map: StageMap; names?: Record<string, string> }) {
+export function StageMapPlan({ map, names = {} }: { map: Plan; names?: Record<string, string> }) {
   return (
     <svg
       viewBox={`0 0 ${map.width} ${map.height}`}

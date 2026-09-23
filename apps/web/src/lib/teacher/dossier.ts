@@ -7,12 +7,14 @@
  * (FR-21), safe to hand to any component. `null` when the stored JSON no
  * longer validates (older fixtures), so the page can fall back quietly.
  */
+import type { MapDoor, MapRoom } from "@adventure/game-core";
 import type { AssetManifest, AssetRecord } from "@adventure/generation/assets";
 import { resolveStageSettings, validatePublishedSpec, type AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { loadManifest } from "@/lib/assets/supabase";
 import { characterFor, facesetUrl } from "@/lib/play/appearance";
+import { readCompiledStages } from "@/lib/play/layout";
 
 export type ImageStatus = "generated" | "placeholder" | "pending" | "failed";
 
@@ -39,12 +41,17 @@ export type DossierRoom = {
   assetId: string | null;
 };
 
+/** The floor plan the teacher sees: geometry only — `tiles` and `seed` stay out of the payload. */
+export type DossierPlan = { width: number; height: number; rooms: MapRoom[]; doors: MapDoor[] };
+
 export type DossierStage = {
   id: string;
   index: number;
   title: string;
   sharedContext: string;
   ambientOverlay: { id: string; intensity: number } | null;
+  /** `null` when this version has no compiled map for the stage (e.g. an uncompiled draft). */
+  plan: DossierPlan | null;
   rooms: DossierRoom[];
   /** Public position only — private context never reaches this object (FR-21). */
   agents: { stakeholderId: string; publicPosition: string }[];
@@ -94,8 +101,17 @@ function recordFor(manifest: AssetManifest | null, entityId: string): AssetRecor
  * Pure projection — split from `buildDossier` so tests can exercise it without
  * a database. `manifest` may be `null` (artwork never ran).
  */
-export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | null): Dossier {
+export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | null, compiledStages?: unknown): Dossier {
   const sourceTitle = new Map(spec.sources.map((s) => [s.id, s.title]));
+
+  // Compiled maps are absent for uncompiled drafts and garbage for older
+  // rows — `readCompiledStages` throws on either, which just means "no plan".
+  let compiled: ReturnType<typeof readCompiledStages> | null = null;
+  try {
+    compiled = readCompiledStages(spec, compiledStages);
+  } catch {
+    compiled = null;
+  }
 
   const stakeholders: DossierStakeholder[] = spec.stakeholders.map((s) => {
     const record = recordFor(manifest, s.id);
@@ -117,6 +133,10 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
     title: stage.title,
     sharedContext: stage.sharedContext.text,
     ambientOverlay: resolveStageSettings(spec, stage).ambientOverlay,
+    plan: (() => {
+      const map = compiled?.[stage.index]?.map;
+      return map ? { width: map.width, height: map.height, rooms: map.rooms, doors: map.doors } : null;
+    })(),
     rooms: stage.rooms.map((room) => {
       const record = recordFor(manifest, room.id);
       const status = imageStatus(record);
@@ -190,15 +210,15 @@ export async function buildDossier(
 ): Promise<Dossier | null> {
   const { data: version } = await admin
     .from("spec_version")
-    .select("id, version, json")
+    .select("id, version, json, compiled_stages")
     .eq("id", specVersionId)
     .eq("adventure_id", adventureId)
-    .maybeSingle<{ id: string; version: number; json: unknown }>();
+    .maybeSingle<{ id: string; version: number; json: unknown; compiled_stages: unknown }>();
   if (!version) return null;
 
   const validated = validatePublishedSpec(version.json);
   if (!validated.ok) return null;
 
   const manifest = await loadManifest(admin, version.id, adventureId, version.version);
-  return dossierFromSpec(validated.spec, manifest);
+  return dossierFromSpec(validated.spec, manifest, version.compiled_stages);
 }

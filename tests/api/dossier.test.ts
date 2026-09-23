@@ -3,6 +3,7 @@ import { loadI1Spec } from "@adventure/generation/fixtures";
 import { describe, expect, it } from "vitest";
 
 import { facesetUrl, characterFor } from "@/lib/play/appearance";
+import { compileStageMap } from "@/lib/play/layout";
 import { dossierFromSpec } from "@/lib/teacher/dossier";
 import { findForbiddenKeys } from "@/lib/turn-api/contract";
 
@@ -69,6 +70,29 @@ describe("dossier view model", () => {
       const item = dossier.stages.flatMap((s) => s.evidence).find((e) => e.id === prop.entityId)!;
       expect(item.imageStatus).toBe("failed");
       expect(item.imageUrl).toBeNull();
+    }
+  });
+
+  it("projects compiled stages into plans without the tile grid", async () => {
+    const spec = await loadI1Spec();
+    const compiled = spec.stages.map((stage) => compileStageMap(stage, "dossier-test"));
+    const dossier = dossierFromSpec(spec, null, compiled);
+
+    for (const [index, stage] of dossier.stages.entries()) {
+      expect(stage.plan).not.toBeNull();
+      expect(stage.plan!.width).toBe(compiled[index]!.map.width);
+      expect(stage.plan!.rooms.length).toBeGreaterThan(0);
+      expect("tiles" in stage.plan!).toBe(false);
+      expect("seed" in stage.plan!).toBe(false);
+    }
+    expect(findForbiddenKeys(dossier)).toEqual([]);
+  });
+
+  it("yields plan null for every stage when compiled_stages is missing or garbage", async () => {
+    const spec = await loadI1Spec();
+    for (const value of [undefined, null, [], [{ map: {} }]]) {
+      const dossier = dossierFromSpec(spec, null, value);
+      expect(dossier.stages.every((s) => s.plan === null)).toBe(true);
     }
   });
 

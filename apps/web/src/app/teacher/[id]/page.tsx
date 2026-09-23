@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import type { StageMap } from "@adventure/game-core";
 
 import { DossierSections } from "./dossier";
 import { SharePanel } from "./share-panel";
@@ -121,21 +120,6 @@ export default async function AdventurePage({
   // built with the service role now that ownership is confirmed.
   const admin = createAdminClient();
   const dossier = shown ? await buildDossier(admin, { adventureId: id, specVersionId: shown.id }) : null;
-
-  // Compiled floor plans for the shown version's stages; drafts may not be
-  // compiled yet, in which case a stage simply has no plan to draw.
-  const { data: shownStageRows } = shown
-    ? await admin.from("stage").select("id, index").eq("spec_version_id", shown.id).returns<{ id: string; index: number }[]>()
-    : { data: [] as { id: string; index: number }[] };
-  const { data: mapRows } = (shownStageRows ?? []).length
-    ? await admin.from("map_artifact").select("stage_id, json").in("stage_id", (shownStageRows ?? []).map((s) => s.id)).returns<{ stage_id: string; json: unknown }[]>()
-    : { data: [] as { stage_id: string; json: unknown }[] };
-  const stageIndexById = new Map((shownStageRows ?? []).map((s) => [s.id, s.index]));
-  const maps: Record<number, StageMap> = {};
-  for (const row of mapRows ?? []) {
-    const index = stageIndexById.get(row.stage_id);
-    if (index !== undefined) maps[index] = row.json as StageMap;
-  }
 
   const { data: sources } = await supabase
     .from("source")
@@ -315,7 +299,6 @@ export default async function AdventurePage({
       {dossier && shown ? (
         <DossierSections
           dossier={dossier}
-          maps={maps}
           adventureId={adventure.id}
           specVersionId={shown.id}
           version={shown.version}
