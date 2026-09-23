@@ -27,7 +27,7 @@ export function TeacherWorkspace({ adventures, resume }: { adventures: React.Rea
       </section>
       <section
         className={`flex min-h-0 flex-col gap-5 rounded-surface border border-line bg-surface p-6 lg:max-h-full lg:overflow-y-auto ${
-          composing ? "mx-auto w-full max-w-4xl" : ""
+          composing ? "mx-auto w-full max-w-4xl flex-1" : ""
         }`}
       >
         <h2 className="font-serif text-2xl text-ink">New adventure</h2>
