@@ -21,6 +21,8 @@ const nextConfig: NextConfig = {
     resolveExtensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".json"],
   },
   experimental: {
+    // Runtime reads must observe writes even during a development hot refresh.
+    serverComponentsHmrCache: false,
     // Source uploads go through a server action, and the default cap is 1 MB —
     // below the 15 MB the extractor itself allows for a PDF.
     serverActions: { bodySizeLimit: "16mb" },

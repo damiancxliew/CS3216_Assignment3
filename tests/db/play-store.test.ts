@@ -27,7 +27,9 @@ const say = (line: string) => JSON.stringify({ say: line, actions: [] });
 
 let teacher: { client: SupabaseClient; userId: string };
 let student: { client: SupabaseClient; userId: string };
+let coldStudent: { client: SupabaseClient; userId: string };
 let attemptId: string;
+let coldAttemptId: string;
 let adventureId: string;
 let deps: PlayServiceDeps;
 
@@ -39,6 +41,7 @@ function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {
 beforeAll(async () => {
   teacher = await createUserClient(uniqueEmail("i3-teacher"));
   student = await createUserClient(uniqueEmail("i3-student"));
+  coldStudent = await createUserClient(uniqueEmail("i3-cold-student"));
 
   const { data: adventure } = await admin
     .from("adventure")
@@ -52,6 +55,9 @@ beforeAll(async () => {
   const { data: joined, error } = await student.client.rpc("join_adventure", { p_token: adventure!.share_token });
   if (error) throw error;
   attemptId = joined as string;
+  const { data: coldJoined, error: coldJoinError } = await coldStudent.client.rpc("join_adventure", { p_token: adventure!.share_token });
+  if (coldJoinError) throw coldJoinError;
+  coldAttemptId = coldJoined as string;
 
   deps = { store: new SupabasePlayStore(admin), llm: new FakeLlmClient({ replies: Array(80).fill(say("The anchorage is not the Company's to name a price for.")) }) };
 });
@@ -61,6 +67,36 @@ function driverForDb(): PlayDriver {
 }
 
 describe("SupabasePlayStore", () => {
+  it("initializes a cold attempt once when two state reads race", async () => {
+    let loads = 0;
+    let releaseLoads!: () => void;
+    const bothLoaded = new Promise<void>((resolve) => { releaseLoads = resolve; });
+    const store = new (class extends SupabasePlayStore {
+      override async load(...args: Parameters<SupabasePlayStore["load"]>) {
+        const record = await super.load(...args);
+        loads += 1;
+        if (loads === 2) releaseLoads();
+        await bothLoaded;
+        return record;
+      }
+    })(admin);
+    const [first, second] = await Promise.all([
+      getState({ ...deps, store }, coldAttemptId, coldStudent.userId),
+      getState({ ...deps, store }, coldAttemptId, coldStudent.userId),
+    ]);
+    expect(loads).toBe(3);
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(second.state.map).toEqual(first.state.map);
+      expect(second.state.playerPos).toEqual(first.state.playerPos);
+      expect(second.state.revision).toBe(first.state.revision);
+    }
+    const { data: runtime, error } = await admin.from("attempt_runtime").select("revision").eq("attempt_id", coldAttemptId).single();
+    expect(error).toBeNull();
+    expect(runtime!.revision).toBe(1);
+  });
+
   it("starts the attempt from the published spec and persists the snapshot", async () => {
     const result = ok(await getState(deps, attemptId, student.userId));
     const spec = await loadI1Spec();
