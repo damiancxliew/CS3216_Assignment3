@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import type { StageMap } from "@adventure/game-core";
 
+import { DossierSections } from "./dossier";
 import { SharePanel } from "./share-panel";
 import {
   generateFromSources,
@@ -23,7 +25,9 @@ import {
 } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import type { ReadingLevel } from "@/lib/brief/schema";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { buildDossier } from "@/lib/teacher/dossier";
 
 export const metadata: Metadata = {
   title: "Adventure",
@@ -110,6 +114,28 @@ export default async function AdventurePage({
   const draft = versions.find((v) => v.published_at === null) ?? null;
   const published = versions.find((v) => v.version === adventure.published_version) ?? null;
   const editable = draft ?? null;
+  // The dossier shows the draft when one exists, else the published version.
+  const shown = draft ?? published;
+
+  // `spec_version.json` is revoked from `authenticated`, so the dossier is
+  // built with the service role now that ownership is confirmed.
+  const admin = createAdminClient();
+  const dossier = shown ? await buildDossier(admin, { adventureId: id, specVersionId: shown.id }) : null;
+
+  // Compiled floor plans for the shown version's stages; drafts may not be
+  // compiled yet, in which case a stage simply has no plan to draw.
+  const { data: shownStageRows } = shown
+    ? await admin.from("stage").select("id, index").eq("spec_version_id", shown.id).returns<{ id: string; index: number }[]>()
+    : { data: [] as { id: string; index: number }[] };
+  const { data: mapRows } = (shownStageRows ?? []).length
+    ? await admin.from("map_artifact").select("stage_id, json").in("stage_id", (shownStageRows ?? []).map((s) => s.id)).returns<{ stage_id: string; json: unknown }[]>()
+    : { data: [] as { stage_id: string; json: unknown }[] };
+  const stageIndexById = new Map((shownStageRows ?? []).map((s) => [s.id, s.index]));
+  const maps: Record<number, StageMap> = {};
+  for (const row of mapRows ?? []) {
+    const index = stageIndexById.get(row.stage_id);
+    if (index !== undefined) maps[index] = row.json as StageMap;
+  }
 
   const { data: sources } = await supabase
     .from("source")
@@ -173,6 +199,7 @@ export default async function AdventurePage({
         </span>
       }
       lede={adventure.setting}
+      width="wide"
     >
       <Section title="Brief">
         {adventure.reading_level ? (
@@ -284,6 +311,17 @@ export default async function AdventurePage({
           />
         ) : null}
       </Section>
+
+      {dossier && shown ? (
+        <DossierSections
+          dossier={dossier}
+          maps={maps}
+          adventureId={adventure.id}
+          specVersionId={shown.id}
+          version={shown.version}
+          isDraft={shown === draft}
+        />
+      ) : null}
 
       {editable && stages.length > 0 ? (
         <Section
