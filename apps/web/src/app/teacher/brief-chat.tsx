@@ -302,10 +302,7 @@ function Start({
   );
 }
 
-/**
- * The first question is a drop zone, not a text box: upload a file or paste a
- * passage, as many times as needed, then say they are all in.
- */
+/** What has been read in so far, listed above the dock. */
 function SourceList({ sources }: { sources: BriefState["sources"] }) {
   return (
     <ul className="mt-3 flex flex-col divide-y divide-line border-y border-line text-base">
@@ -322,6 +319,10 @@ function SourceList({ sources }: { sources: BriefState["sources"] }) {
   );
 }
 
+/**
+ * The first question is a drop zone, not a text box: upload a file or paste a
+ * passage, as many times as needed, then say they are all in.
+ */
 function SourceStep({
   state,
   pending,
