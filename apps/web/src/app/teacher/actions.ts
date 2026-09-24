@@ -15,11 +15,8 @@ import {
 import { OpenAiImageService } from "@adventure/generation/assets";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
 
-import {
-  generateFromSources as runGeneration,
-  type SourceRow,
-  sourcesToDocuments,
-} from "@/lib/adventures/generate-from-sources";
+import { type SourceRow, sourcesToDocuments } from "@/lib/adventures/generate-from-sources";
+import { advanceGenerationJob, startGenerationJob } from "@/lib/adventures/resumable-generation";
 import { generateAssetsForVersion } from "@/lib/assets/generate";
 import { applySpecEdit, type SpecEdit } from "@/lib/teacher/edit-spec";
 import { persistSpecVersion, SpecPersistError } from "@/lib/adventures/persist-spec";
@@ -292,101 +289,44 @@ const storedBrief = z.object({
   stage_outline: z.array(stageOutlineSchema).max(3),
 });
 
-// Vercel stops this route after 300 seconds. Generation may make repair calls,
-// so all model work shares a smaller budget and leaves time to persist the
-// finished spec and return a normal ActionResult to the browser.
-const GENERATION_MODEL_BUDGET_MS = 250_000;
-const GENERATION_CALL_TIMEOUT_MS = 120_000;
-
-/**
- * D1–D4 → P5: run the planner over the adventure's stored sources and land the
- * result as the next draft version. The brief (setting, role, objectives,
- * reading level, stage plan) was agreed when the adventure was created and is
- * read from the row, so every generation of the same adventure starts from
- * the same brief.
- */
+/** Start a resumable adventure generation job without waiting for a model call. */
 export async function generateFromSources(adventureId: string): Promise<ActionResult> {
   const { user } = await requireOwnership(adventureId);
-
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("adventure generation unavailable: OPENAI_API_KEY is missing", adventureId);
-    return { error: "This feature is temporarily unavailable. Please try again later." };
-  }
-
+  if (!process.env.OPENAI_API_KEY) return { error: "This feature is temporarily unavailable. Please try again later." };
   const admin = createAdminClient();
-  let jobStarted = false;
-  const updateJob = async (state: "running" | "completed" | "failed", phase: "preparing" | "planning" | "checking" | "repairing" | "saving" | "completed" | "failed") => {
-    const { error } = await admin.from("generation_job").update({ state, phase, updated_at: new Date().toISOString() }).eq("adventure_id", adventureId);
-    if (error) console.error("could not update generation progress", adventureId, error);
-  };
-
   try {
-    const [adventureResult, sourcesResult] = await Promise.all([
-      admin
-        .from("adventure")
+    const [adventureResult, sourcesResult, activeResult, draftResult] = await Promise.all([
+      admin.from("adventure")
         .select("title, default_timer_seconds, setting, student_role, learning_objectives, reading_level, stage_outline")
         .eq("id", adventureId)
         .single<{ title: string; default_timer_seconds: number } & Record<string, unknown>>(),
-      admin
-        .from("source")
+      admin.from("source")
         .select("id, title, kind, page_map, content_hash")
         .eq("adventure_id", adventureId)
         .order("created_at")
-        .returns<
-          {
-            id: string;
-            title: string | null;
-            kind: string;
-            page_map: unknown;
-            content_hash: string | null;
-          }[]
-        >(),
+        .returns<SourceRow[]>(),
+      admin.from("generation_job_state").select("adventure_id").eq("adventure_id", adventureId).maybeSingle(),
+      admin.from("spec_version").select("id").eq("adventure_id", adventureId).is("published_at", null).limit(1),
     ]);
-    if (adventureResult.error) {
-      console.error("could not load adventure for generation", adventureId, adventureResult.error);
-      return { error: "Couldn’t load this adventure. Please try again." };
-    }
-    if (sourcesResult.error) {
-      console.error("could not load sources for generation", adventureId, sourcesResult.error);
-      return { error: "Couldn’t load the sources. Please try again." };
-    }
+    if (adventureResult.error || !adventureResult.data) return { error: "Couldn’t load this adventure. Please try again." };
+    if (sourcesResult.error) return { error: "Couldn’t load the sources. Please try again." };
+    if (activeResult.error || draftResult.error) return { error: "Couldn’t check generation status. Please try again." };
+    if ((draftResult.data ?? []).length > 0) return { error: "Publish or discard the current draft before generating another." };
+    if (activeResult.data) return { notice: "Story generation is already in progress." };
 
-    const adventure = adventureResult.data;
-    if (!adventure) return { error: "Adventure not found" };
-
-    const brief = storedBrief.safeParse(adventure);
-    if (!brief.success) {
-      return { error: "This adventure can’t be regenerated. Create a new adventure to use the guided setup." };
-    }
+    const brief = storedBrief.safeParse(adventureResult.data);
+    if (!brief.success) return { error: "This adventure can’t be regenerated. Create a new adventure to use the guided setup." };
+    const { documents, skipped } = sourcesToDocuments(sourcesResult.data ?? []);
+    if (documents.length === 0) return { error: "Add at least one readable source before generating." };
     const { setting, student_role, learning_objectives, reading_level, stage_outline } = brief.data;
-
-    const { data: existingJob } = await admin.from("generation_job")
-      .select("state, updated_at")
-      .eq("adventure_id", adventureId)
-      .maybeSingle<{ state: string; updated_at: string }>();
-    if (existingJob?.state === "running" && Date.now() - Date.parse(existingJob.updated_at) < 360_000) {
-      return { notice: "Story generation is already in progress." };
-    }
-    const now = new Date().toISOString();
-    const { error: jobError } = await admin.from("generation_job").upsert({
-      adventure_id: adventureId,
-      state: "running",
-      phase: "preparing",
-      started_at: now,
-      updated_at: now,
-    });
-    if (jobError) {
-      console.error("could not start generation progress", adventureId, jobError);
-      return { error: "Couldn’t start story generation. Please try again." };
-    }
-    jobStarted = true;
-
-    const result = await runGeneration({
-      admin,
+    await startGenerationJob(admin, {
       adventureId,
-      adventure,
-      sources: sourcesResult.data ?? [],
-      brief: {
+      createdBy: user.id,
+      documents,
+      warnings: skipped.map((source) => `Skipped source ${source}`),
+      teacher: {
+        title: adventureResult.data.title,
+        defaultTimerSeconds: adventureResult.data.default_timer_seconds,
         setting,
         studentRole: student_role,
         learningObjectives: learning_objectives,
@@ -394,63 +334,24 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
         stageOutline: stage_outline,
         stageCount: stage_outline.length === 0 ? 3 : (stage_outline.length as 1 | 2 | 3),
       },
-      // Recorded medium-reasoning runs reached 278–296 seconds before their
-      // database writes. Low reasoning keeps the same validation/repair loop
-      // while leaving enough of the route budget to save a successful draft.
-      plannerConfig: { reasoningEffort: "low" },
-      onProgress: (phase) => updateJob("running", phase),
-      llm: new OpenAiLlmClient({
-        timeoutMs: GENERATION_CALL_TIMEOUT_MS,
-        maxRetries: 0,
-        deadlineMs: GENERATION_MODEL_BUDGET_MS,
-      }),
-      createdBy: user.id,
     });
-    if (!result.ok) {
-      await updateJob("failed", "failed");
-      if (result.result?.status === "failed" && result.result.reason === "invalid-teacher-input") {
-        console.error("adventure setup could not be used for generation", adventureId, result);
-        return { error: "Review the adventure setup and try again." };
-      }
-      if (result.result?.status === "failed" && result.result.reason === "llm-error") {
-        console.error("adventure model request failed", adventureId, result.result);
-        return { error: "Adventure generation failed. Please try again." };
-      }
-      if (result.result?.status === "failed" && result.result.reason === "refusal") {
-        console.error("adventure generation was refused", adventureId, result.result);
-        return { error: "Couldn’t generate an adventure from these sources. Review them and try again." };
-      }
-      if (result.result?.status === "failed" && result.result.reason === "unparseable") {
-        console.error("adventure generation returned an unusable result", adventureId, result.result);
-        return { error: "Adventure generation didn’t finish. Please try again." };
-      }
-      if (result.result?.status === "failed" && result.result.reason === "invalid-after-repair") {
-        console.error("generated adventure failed validation", adventureId, result.result);
-        return { error: "The generated adventure needs more work. Please try again." };
-      }
-      if (result.result) {
-        console.error("could not save generated adventure", adventureId, result);
-        return { error: "Couldn’t save the generated adventure. Please try again." };
-      }
-      console.error("adventure generation could not start", adventureId, result);
-      return { error: "Couldn’t generate the adventure. Check the sources and try again." };
-    }
-
-    await updateJob("completed", "completed");
-    revalidatePath(`/teacher/${adventureId}`);
-    const notes = [
-      ...result.missingInformation.map((m) => `Missing from the sources: ${m}`),
-      ...result.warnings,
-    ];
-    return notes.length > 0
-      ? { notice: `Draft v${result.version.version} generated. ${notes.join(" · ")}` }
-      : { notice: `Draft v${result.version.version} generated.` };
+    return { notice: "Story generation started. You can leave this page and return to continue it." };
   } catch (error) {
-    if (jobStarted) await updateJob("failed", "failed");
-    console.error("adventure generation failed unexpectedly", adventureId, error);
-    return {
-      error: "Generation didn’t finish. Refresh the page to check for a draft, then try again if needed.",
-    };
+    console.error("could not start adventure generation", adventureId, error);
+    return { error: "Couldn’t start story generation. Please try again." };
+  }
+}
+
+/** Advance one model attempt or save step. Each call fits within its own function window. */
+export async function advanceGeneration(adventureId: string): Promise<ActionResult> {
+  await requireOwnership(adventureId);
+  try {
+    const result = await advanceGenerationJob(createAdminClient(), adventureId);
+    if (result.state === "completed") revalidatePath(`/teacher/${adventureId}`);
+    return result.state === "failed" ? { error: result.message } : {};
+  } catch (error) {
+    console.error("could not advance adventure generation", adventureId, error);
+    return { error: "Couldn’t continue story generation. Refresh the page and try again." };
   }
 }
 

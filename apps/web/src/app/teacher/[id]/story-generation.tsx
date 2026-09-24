@@ -14,6 +14,7 @@ export type GenerationJob = {
   phase: "preparing" | "planning" | "checking" | "repairing" | "saving" | "completed" | "failed";
   started_at: string;
   updated_at: string;
+  message: string | null;
 };
 
 const PHASE_LABEL: Record<GenerationJob["phase"], string> = {
@@ -30,26 +31,27 @@ const PHASE_LABEL: Record<GenerationJob["phase"], string> = {
 export function StoryGeneration({
   adventureId,
   action,
+  advance,
   label,
   initialJob,
 }: {
   adventureId: string;
   action: () => Promise<ActionResult>;
+  advance: () => Promise<ActionResult>;
   label: string;
   initialJob: GenerationJob | null;
 }) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
   const [requested, setRequested] = useState(false);
+  const [continuationError, setContinuationError] = useState<string | null>(null);
   const refreshedRun = useRef<string | null>(null);
+  const advancing = useRef(false);
   const previousRun = useRef<string | null>(initialJob?.started_at ?? null);
   const [result, formAction, pending] = useActionState(async () => {
-    const response = await action();
-    if (!response.error && !response.notice?.includes("already in progress")) track(ANALYTICS_EVENTS.generationCompleted);
-    return response;
+    return action();
   }, {} as ActionResult);
-  const running = job?.state === "running" && Date.now() - Date.parse(job.updated_at) < 360_000;
-  const stale = job?.state === "running" && !running;
+  const running = job?.state === "running";
 
   useEffect(() => {
     if (!pending && !requested && !running) return;
@@ -57,27 +59,35 @@ export function StoryGeneration({
     let active = true;
     const poll = async () => {
       const { data } = await client.from("generation_job")
-        .select("state, phase, started_at, updated_at")
+        .select("state, phase, started_at, updated_at, message")
         .eq("adventure_id", adventureId)
         .maybeSingle<GenerationJob>();
       if (!active || !data) return;
       setJob(data);
+      if (data.state === "running" && !advancing.current) {
+        advancing.current = true;
+        void advance()
+          .then((step) => setContinuationError(step.error ?? null))
+          .catch(() => setContinuationError("Couldn’t continue story generation. Retrying…"))
+          .finally(() => { advancing.current = false; });
+      }
       if (data.state !== "running" && (!requested || data.started_at !== previousRun.current)) {
         setRequested(false);
         if (data.state === "completed" && refreshedRun.current !== data.started_at) {
           refreshedRun.current = data.started_at;
+          track(ANALYTICS_EVENTS.generationCompleted);
           router.refresh();
         }
       }
     };
     void poll();
-    const timer = setInterval(() => void poll(), 2500);
+    const timer = setInterval(() => void poll(), 5000);
     return () => { active = false; clearInterval(timer); };
-  }, [adventureId, pending, requested, router, running]);
+  }, [adventureId, advance, pending, requested, router, running]);
 
   useEffect(() => {
-    if (!pending && (result.error || result.notice)) setRequested(false);
-  }, [pending, result.error, result.notice]);
+    if (!pending && result.error) setRequested(false);
+  }, [pending, result.error]);
 
   const busy = pending || requested || running;
   const status = busy ? PHASE_LABEL[job?.state === "running" ? job.phase : "preparing"] : null;
@@ -92,13 +102,14 @@ export function StoryGeneration({
       </form>
       {busy ? (
         <div role="status" aria-live="polite" className="flex max-w-xl flex-col gap-2 text-sm text-muted">
-          <p>{status}. This can take a few minutes.</p>
+          <p>{status}. You can leave this page and return to continue later.</p>
+          {continuationError ? <ErrorText>{continuationError}</ErrorText> : null}
           <progress aria-label="Story generation in progress" className="h-2 w-full accent-world" />
         </div>
       ) : result.error ? <ErrorText>{result.error}</ErrorText>
-        : result.notice ? <p className="text-base text-muted">{result.notice}</p>
-          : stale ? <p className="text-sm text-muted">The last status update is old. Check for a new draft, then try again if needed.</p>
-            : job?.state === "failed" ? <p className="text-sm text-muted">The last generation attempt did not finish. Try again.</p>
+        : job?.state === "failed" ? <ErrorText>{job.message ?? "The last generation attempt did not finish. Try again."}</ErrorText>
+          : job?.state === "completed" ? <p className="text-base text-muted">{job.message ?? "Draft ready."}</p>
+            : result.notice ? <p className="text-base text-muted">{result.notice}</p>
             : null}
     </div>
   );
