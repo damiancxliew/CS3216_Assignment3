@@ -296,7 +296,10 @@ const storedBrief = z.object({
 // so all model work shares a smaller budget and leaves time to persist the
 // finished spec and return a normal ActionResult to the browser.
 const GENERATION_MODEL_BUDGET_MS = 250_000;
-const GENERATION_CALL_TIMEOUT_MS = 120_000;
+
+function isGenerationTimeout(message: string): boolean {
+  return /timed?\s*out|time limit|deadline|ETIMEDOUT/i.test(message);
+}
 
 /**
  * D1–D4 → P5: run the planner over the adventure's stored sources and land the
@@ -315,7 +318,9 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
 
   const admin = createAdminClient();
   let jobStarted = false;
+  let lastPhase: "preparing" | "planning" | "checking" | "repairing" | "saving" = "preparing";
   const updateJob = async (state: "running" | "completed" | "failed", phase: "preparing" | "planning" | "checking" | "repairing" | "saving" | "completed" | "failed") => {
+    if (state === "running" && phase !== "completed" && phase !== "failed") lastPhase = phase;
     const { error } = await admin.from("generation_job").update({ state, phase, updated_at: new Date().toISOString() }).eq("adventure_id", adventureId);
     if (error) console.error("could not update generation progress", adventureId, error);
   };
@@ -400,20 +405,25 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
       plannerConfig: { reasoningEffort: "low" },
       onProgress: (phase) => updateJob("running", phase),
       llm: new OpenAiLlmClient({
-        timeoutMs: GENERATION_CALL_TIMEOUT_MS,
+        // The shared deadline still leaves 50 seconds for database writes.
+        // A separate 120-second per-call cap rejected otherwise valid plans.
+        timeoutMs: GENERATION_MODEL_BUDGET_MS,
         maxRetries: 0,
         deadlineMs: GENERATION_MODEL_BUDGET_MS,
       }),
       createdBy: user.id,
     });
     if (!result.ok) {
-      await updateJob("failed", "failed");
+      await updateJob("failed", lastPhase);
       if (result.result?.status === "failed" && result.result.reason === "invalid-teacher-input") {
         console.error("adventure setup could not be used for generation", adventureId, result);
         return { error: "Review the adventure setup and try again." };
       }
       if (result.result?.status === "failed" && result.result.reason === "llm-error") {
         console.error("adventure model request failed", adventureId, result.result);
+        if (result.result.issues.some((issue) => isGenerationTimeout(issue.message))) {
+          return { error: "Adventure generation timed out. Your setup is saved; please try again." };
+        }
         return { error: "Adventure generation failed. Please try again." };
       }
       if (result.result?.status === "failed" && result.result.reason === "refusal") {
@@ -446,10 +456,12 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
       ? { notice: `Draft v${result.version.version} generated. ${notes.join(" · ")}` }
       : { notice: `Draft v${result.version.version} generated.` };
   } catch (error) {
-    if (jobStarted) await updateJob("failed", "failed");
+    if (jobStarted) await updateJob("failed", lastPhase);
     console.error("adventure generation failed unexpectedly", adventureId, error);
     return {
-      error: "Generation didn’t finish. Refresh the page to check for a draft, then try again if needed.",
+      error: error instanceof Error && isGenerationTimeout(error.message)
+        ? "Adventure generation timed out. Refresh the page to check for a draft, then try again if needed."
+        : "Generation didn’t finish. Refresh the page to check for a draft, then try again if needed.",
     };
   }
 }

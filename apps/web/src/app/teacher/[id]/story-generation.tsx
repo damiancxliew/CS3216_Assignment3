@@ -98,7 +98,7 @@ export function StoryGeneration({
       ) : result.error ? <ErrorText>{result.error}</ErrorText>
         : result.notice ? <p className="text-base text-muted">{result.notice}</p>
           : stale ? <p className="text-sm text-muted">The last status update is old. Check for a new draft, then try again if needed.</p>
-            : job?.state === "failed" ? <p className="text-sm text-muted">The last generation attempt did not finish. Try again.</p>
+            : job?.state === "failed" ? <p className="text-sm text-muted">The last generation attempt {job.phase === "failed" ? "did not finish" : `stopped while ${PHASE_LABEL[job.phase].toLowerCase()}`}. Try again.</p>
             : null}
     </div>
   );
