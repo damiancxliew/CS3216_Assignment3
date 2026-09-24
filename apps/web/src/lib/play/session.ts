@@ -119,10 +119,8 @@ export interface PlayState extends PublicAttemptState {
   map: PublicMap | null;
   /** What to actually do for each goal, in plain words ("Talk to X in Y"), keyed by objective id. */
   objectiveHints: Record<string, string>;
-  /** Generated landmark image per room, when the asset service produced one (D4). */
-  roomImages: Record<string, string>;
   /** Room fixtures that can be inspected on the map, even before generated art is ready. */
-  landmarks: { id: string; roomId: string; name: string; description: string; kind: LandmarkKind; position: Point; width: 2; height: 2 }[];
+  landmarks: { id: string; roomId: string; name: string; description: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string }[];
   /** Generated prop image per evidence item, when one exists (D4). Keys are evidence ids. */
   evidenceImages: Record<string, string>;
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
@@ -474,7 +472,6 @@ export class PlaySession {
         return position ? [{ id: item.id, name: item.name, roomId: item.roomId, position, found: known.has(item.id) }] : [];
       }),
       objectiveHints: this.objectiveHints(),
-      roomImages,
       landmarks: this.stage.rooms.flatMap((room) => {
         const mapRoom = compiled?.map.rooms.find((candidate) => candidate.id === room.id);
         if (!room.landmark || !mapRoom) return [];
@@ -488,6 +485,7 @@ export class PlaySession {
           position: { x: feature?.x ?? mapRoom.x + mapRoom.width - 4, y: feature?.y ?? mapRoom.y + 2 },
           width: 2 as const,
           height: 2 as const,
+          ...(roomImages[room.id] ? { imageUrl: roomImages[room.id] } : {}),
         }];
       }),
       evidenceImages: this.generatedImages("prop", this.stage.evidence.map((e) => e.id)),

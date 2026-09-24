@@ -1,7 +1,8 @@
 /**
  * Tileset renderer: the same `MapView` contract as `view.ts`, drawn from a curated
  * 16px pack instead of primitives. Terrain, walls, doors, characters and effects
- * are hand-drawn assets (PRD D4); this file only decides which tile goes where.
+ * are hand-drawn assets (PRD D4). Generated landmarks are reduced and palette
+ * matched to the same grid before becoming four physical map tiles.
  *
  * Expects, under `assetBase`:
  *   tiles/floor.png     ground autotiles (22 columns)     tiles/wall.png      room walls (10 columns)
@@ -14,6 +15,7 @@ import Phaser from 'phaser'
 import { LANDMARK_KINDS, spaceAt, type Point, type StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
 import { selectHitTargetId, selectPropHintId } from './prop-hint.js'
+import { matchMapPalette } from './pixel-art.js'
 import type { MapThemeId, PlaygroundSnapshot, SoundCueId } from './model.js'
 import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
 import type { MapView } from './view.js'
@@ -117,6 +119,9 @@ class TiledScene extends Phaser.Scene {
   private floors?: Phaser.Tilemaps.TilemapLayer
   private walls?: Phaser.Tilemaps.TilemapLayer
   private landmarkLayer?: Phaser.Tilemaps.TilemapLayer
+  private generatedLandmarkLayers = new Map<string, Phaser.Tilemaps.TilemapLayer>()
+  private landmarkTileSignature = ''
+  private previousLandmarkPositions: Point[] = []
   private doors = new Map<string, Phaser.GameObjects.Image>()
   private labels: Phaser.GameObjects.Text[] = []
   private markers = new Map<
@@ -300,6 +305,7 @@ class TiledScene extends Phaser.Scene {
   private assetUrls(snapshot: PlaygroundSnapshot): string[] {
     return [...new Set([
       ...(snapshot.props ?? []).flatMap((prop) => prop.imageUrl ? [prop.imageUrl] : []),
+      ...(snapshot.landmarks ?? []).flatMap((landmark) => landmark.imageUrl ? [landmark.imageUrl] : []),
     ])]
   }
 
@@ -330,8 +336,12 @@ class TiledScene extends Phaser.Scene {
   }
 
   private buildMap(): void {
+    this.generatedLandmarkLayers.forEach((layer) => layer.destroy())
+    this.generatedLandmarkLayers.clear()
     this.map?.destroy()
     this.plateBlocked = new Set(this.current.map.doors.map((door) => `${door.position.x},${door.position.y - 1}`))
+    this.landmarkTileSignature = ''
+    this.previousLandmarkPositions = []
     this.doors.forEach((d) => d.destroy())
     this.doors.clear()
     this.labels.forEach((l) => l.destroy())
@@ -435,7 +445,77 @@ class TiledScene extends Phaser.Scene {
       if (terrain) image.setTint(terrain.doorTint)
       this.doors.set(door.id, image)
     }
-    for (const landmark of this.current.landmarks ?? []) {
+    this.renderLandmarkTiles(this.current)
+  }
+
+  /** Stamp each landmark as four real map tiles. Curated tiles remain the fallback while art loads. */
+  private renderLandmarkTiles(snapshot: PlaygroundSnapshot): void {
+    if (!this.map || !this.landmarkLayer) return
+    const landmarks = snapshot.landmarks ?? []
+    const signature = JSON.stringify(landmarks.map((landmark) => [
+      landmark.id, landmark.kind, landmark.position.x, landmark.position.y,
+      landmark.imageUrl, landmark.imageUrl ? this.textures.exists(portraitTextureKey(landmark.imageUrl)) : false,
+    ]))
+    if (signature === this.landmarkTileSignature) return
+    this.landmarkTileSignature = signature
+    for (const position of this.previousLandmarkPositions) {
+      for (const layer of [this.landmarkLayer, ...this.generatedLandmarkLayers.values()]) {
+        layer.removeTileAt(position.x, position.y)
+        layer.removeTileAt(position.x + 1, position.y)
+        layer.removeTileAt(position.x, position.y + 1)
+        layer.removeTileAt(position.x + 1, position.y + 1)
+      }
+    }
+    this.previousLandmarkPositions = landmarks.map((landmark) => landmark.position)
+
+    for (const landmark of landmarks) {
+      const url = landmark.imageUrl
+      const sourceKey = url ? portraitTextureKey(url) : null
+      const hasGenerated = sourceKey !== null && this.textures.exists(sourceKey)
+      if (hasGenerated && sourceKey) {
+        // Older generated images may be 1024px. Sampling them onto a 32px canvas
+        // makes the footprint exactly two map tiles wide without scaling an overlay.
+        const theme = snapshot.mapTheme ?? 'classic'
+        const tileKey = `${sourceKey}-${theme}-tiles`
+        if (!this.textures.exists(tileKey)) {
+          const texture = this.textures.createCanvas(tileKey, 32, 32)
+          if (texture) {
+            try {
+              const context = texture.getContext()
+              // Average the model's large source into the native 32px footprint,
+              // then snap every pixel to an opaque map color below.
+              context.imageSmoothingEnabled = true
+              context.imageSmoothingQuality = 'high'
+              context.clearRect(0, 0, 32, 32)
+              context.drawImage(this.textures.get(sourceKey).getSourceImage() as CanvasImageSource, 0, 0, 32, 32)
+              const pixels = context.getImageData(0, 0, 32, 32)
+              matchMapPalette(pixels.data, theme)
+              context.putImageData(pixels, 0, 0)
+              texture.refresh()
+            } catch {
+              // Cross-origin art without pixel access still leaves the curated fixture playable.
+              this.textures.remove(tileKey)
+            }
+          }
+        }
+        if (this.textures.exists(tileKey)) {
+          let layer = this.generatedLandmarkLayers.get(tileKey)
+          if (!layer) {
+            const tileset = this.map.addTilesetImage(tileKey, tileKey, T, T, 0, 0)
+            if (tileset) {
+              layer = this.map.createBlankLayer(`landmark-${tileKey}`, tileset)?.setDepth(4)
+              if (layer) this.generatedLandmarkLayers.set(tileKey, layer)
+            }
+          }
+          if (layer) {
+            layer.putTileAt(0, landmark.position.x, landmark.position.y)
+            layer.putTileAt(1, landmark.position.x + 1, landmark.position.y)
+            layer.putTileAt(2, landmark.position.x, landmark.position.y + 1)
+            layer.putTileAt(3, landmark.position.x + 1, landmark.position.y + 1)
+            continue
+          }
+        }
+      }
       const index = LANDMARK_KINDS.indexOf(landmark.kind)
       if (index < 0) continue
       const column = index * 2
@@ -449,6 +529,7 @@ class TiledScene extends Phaser.Scene {
   }
 
   private renderSnapshot(snapshot: PlaygroundSnapshot, snap = false): void {
+    this.renderLandmarkTiles(snapshot)
     for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
 
     const player = snapshot.actors.find((a) => a.id === 'player')

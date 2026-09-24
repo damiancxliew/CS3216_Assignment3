@@ -8,7 +8,7 @@
  * Requires a local Supabase (`npm run db:start` / `npm run db:reset`).
  */
 import { loadFixtureJson, I1_FIXTURE, loadI1Spec } from "@adventure/generation/fixtures";
-import { ImageServiceError, type ImageRequest, type ImageResult, type ImageService } from "@adventure/generation/assets";
+import { ImageServiceError, playableAssetEligibility, type ImageRequest, type ImageResult, type ImageService } from "@adventure/generation/assets";
 import { FakeLlmClient } from "@adventure/orchestration";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -67,7 +67,9 @@ describe("asset generation after publish", () => {
 
     expect(images.requests.map((r) => r.kind).every((k) => ["portrait", "landmark", "prop"].includes(k))).toBe(true);
     const manifest = await loadManifest(admin, result.specVersionId, adventureId, 1);
-    expect(manifest!.records).toHaveLength(spec.assetEligibility.length);
+    const playableAssets = playableAssetEligibility(spec);
+    expect(manifest!.records).toHaveLength(playableAssets.length);
+    expect(manifest!.records.filter((record) => record.kind === "landmark")).toHaveLength(spec.stages.flatMap((stage) => stage.rooms.filter((room) => room.landmark)).length);
     const portraits = manifest!.records.filter((r) => r.kind === "portrait");
     expect(portraits.length).toBeGreaterThan(0);
     for (const p of portraits) {
@@ -79,7 +81,7 @@ describe("asset generation after publish", () => {
     const prop = manifest!.records.find((r) => r.kind === "prop")!;
     expect(prop.status).toBe("filtered");
     expect(prop.url).toBe(prop.placeholderUrl); // D6: a filtered image falls back, never blocks
-    expect(result.costUsd).toBeCloseTo(0.01 * (spec.assetEligibility.length - 1), 5);
+    expect(result.costUsd).toBeCloseTo(0.01 * (playableAssets.length - 1), 5);
   });
 
   it("is a cache hit the second time round: same prompts, no new images, no cost", async () => {
@@ -112,5 +114,6 @@ describe("asset generation after publish", () => {
     const pendingOrFiltered = result.state.agents.filter((a) => a.portraitUrl === null);
     expect(generated.length + pendingOrFiltered.length).toBe(result.state.agents.length);
     expect(generated.length).toBeGreaterThan(0);
+    expect(result.state.landmarks.some((landmark) => landmark.imageUrl?.includes("/storage/v1/object/public/assets/"))).toBe(true);
   });
 });

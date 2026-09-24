@@ -336,7 +336,7 @@ export function DossierSections({
                     <div className="flex flex-col gap-3">
                       <h3 className="text-base font-semibold text-ink">Places</h3>
                       <ul className="grid gap-3 sm:grid-cols-2">
-                        {stage.rooms.map((room) => (
+                        {stage.rooms.filter((room) => room.landmark).map((room) => (
                           <li key={room.id} className="flex gap-3 rounded-surface border border-line bg-surface p-3">
                             <Artwork kind="landmark" alt={room.landmark ? `Artwork of ${room.landmark.name}` : `Room: ${room.name}`} imageUrl={room.imageUrl} imageStatus={room.imageStatus} className="h-24 w-24 shrink-0" />
                             <div className="flex min-w-0 flex-col gap-2">
