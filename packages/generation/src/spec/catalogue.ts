@@ -9,6 +9,10 @@
 export const AMBIENT_OVERLAYS = ['clear', 'clouds', 'rain', 'fog', 'night', 'dust', 'snow'] as const
 export type AmbientOverlayId = (typeof AMBIENT_OVERLAYS)[number]
 
+/** Curated 16px terrain sets. The original pack remains the default for older adventures. */
+export const MAP_THEMES = ['classic', 'desert', 'winter', 'forest', 'coast'] as const
+export type MapThemeId = (typeof MAP_THEMES)[number]
+
 /** One-shot scene effects (PRD D19 / FR-15b). Emitted by the Resolver, never by the planner. */
 export const SCENE_EFFECTS = [
   'explosion',

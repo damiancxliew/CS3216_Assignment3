@@ -45,7 +45,8 @@ export function SharePanel({
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(url);
-            } catch {
+            } catch (error) {
+              console.error("could not copy adventure share link", error);
               setCopyFailed(true);
               setCopied(false);
               return;
@@ -63,7 +64,7 @@ export function SharePanel({
       </div>
       <div aria-live="polite">
         {copyFailed ? (
-          <p className="text-sm text-danger">The link could not be copied. Select it above and copy it manually.</p>
+          <p className="text-sm text-danger">Couldn’t copy the link. Select and copy it above.</p>
         ) : published ? null : (
           <p className="text-sm text-muted">Students can’t use this link until the adventure is published.</p>
         )}

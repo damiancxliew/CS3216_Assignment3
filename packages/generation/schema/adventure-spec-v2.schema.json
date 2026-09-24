@@ -498,6 +498,17 @@
               }
             ]
           },
+          "mapTheme": {
+            "default": "classic",
+            "type": "string",
+            "enum": [
+              "classic",
+              "desert",
+              "winter",
+              "forest",
+              "coast"
+            ]
+          },
           "spawnRoomId": {
             "type": "string",
             "minLength": 1,
@@ -1084,6 +1095,7 @@
           "sharedContext",
           "timerSeconds",
           "ambientOverlay",
+          "mapTheme",
           "spawnRoomId",
           "rooms",
           "agents",

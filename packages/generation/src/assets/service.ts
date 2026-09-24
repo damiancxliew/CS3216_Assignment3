@@ -21,15 +21,23 @@ import type { AdventureSpec, AssetEligibility } from '../spec/v2'
 import { type AssetCache, type AssetManifest, type AssetRecord, type AssetStore, type ImageRequest, type ImageService, ImageServiceError } from './types'
 
 /** Version the style suffix: changing it changes every prompt hash, which is what you want. */
-export const ASSET_STYLE_VERSION = 'style-v1'
+export const ASSET_STYLE_VERSION = 'style-v2-map-sprites'
 
 const STYLE: Record<GeneratableAssetKind, string> = {
   portrait: 'Head-and-shoulders portrait, painted illustration style, muted period-appropriate palette, plain dark background, no text, no frame.',
-  landmark: 'Top-down 2D game illustration of a single landmark, clean readable silhouette, muted palette, no text, no characters, no UI.',
-  prop: 'Small flat icon-style illustration of a single object on a plain background, muted palette, no text.',
+  landmark: 'Single physical landmark for a top-down 16px pixel-art game map. Three-quarter top-down view, crisp square pixels, simple readable silhouette, limited muted palette, transparent background. Show only the object, with no scene, ground plane, frame, placard, UI, text, characters, gradients or painterly texture.',
+  prop: 'Single small physical object for a top-down 16px pixel-art game map. Three-quarter top-down view, crisp square pixels, simple readable silhouette, limited muted palette, transparent background. No scene, ground plane, frame, UI, text, characters, gradients or painterly texture.',
 }
 
-const SIZES: Record<GeneratableAssetKind, ImageRequest['size']> = { portrait: '1024x1024', landmark: '1536x1024', prop: '1024x1024' }
+const SIZES: Record<GeneratableAssetKind, ImageRequest['size']> = { portrait: '1024x1024', landmark: '1024x1024', prop: '1024x1024' }
+
+const THEME_PALETTES = {
+  classic: 'warm grass green, dark brown wood, cream stone',
+  desert: 'sandy ochre, clay brown, sun-faded cream',
+  winter: 'snow white, pale blue-gray, dark timber',
+  forest: 'moss green, deep leaf green, earthy brown',
+  coast: 'sea green, weathered tan, muted blue-gray',
+} as const
 
 /** Placeholder url for an entity kind (generic for anything unknown). The curated set is owned by the client bundle. */
 export function placeholderUrl(kind: string): string {
@@ -50,13 +58,18 @@ export function assertGeneratable(request: { kind: string }): asserts request is
 export function buildImagePrompt(entry: AssetEligibility, spec: AdventureSpec): string {
   const subject = entry.subject.replace(/\s+/g, ' ').trim()
   const brief = entry.prompt.replace(/\s+/g, ' ').trim()
+  const stage = spec.stages.find((candidate) => entry.kind === 'landmark'
+    ? candidate.rooms.some((room) => room.id === entry.entityId)
+    : entry.kind === 'prop' && candidate.evidence.some((item) => item.id === entry.entityId))
+  const mapStyle = entry.kind === 'portrait' ? null : `Match the ${stage?.mapTheme ?? 'classic'} map tiles: ${THEME_PALETTES[stage?.mapTheme ?? 'classic']}. Keep the object's scale and pixel density consistent with 16x16 terrain tiles.`
   return [
     `Subject: ${subject}.`,
     `Description (from the adventure author): """${brief}"""`,
     `Setting: ${spec.setting}.`,
     STYLE[entry.kind],
+    mapStyle,
     `Suitable for students aged ${spec.readingLevel.ageMin}-${spec.readingLevel.ageMax}: no gore, no nudity, no modern text or logos.`,
-  ].join(' ')
+  ].filter(Boolean).join(' ')
 }
 
 /**

@@ -50,6 +50,7 @@ export type DossierStage = {
   title: string;
   sharedContext: string;
   ambientOverlay: { id: string; intensity: number } | null;
+  mapTheme: 'classic' | 'desert' | 'winter' | 'forest' | 'coast';
   /** `null` when this version has no compiled map for the stage (e.g. an uncompiled draft). */
   plan: DossierPlan | null;
   /** `null` inherits the adventure default; `0` disables the timer (D12/FR-16). */
@@ -135,6 +136,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
     title: stage.title,
     sharedContext: stage.sharedContext.text,
     ambientOverlay: resolveStageSettings(spec, stage).ambientOverlay,
+    mapTheme: stage.mapTheme ?? 'classic',
     timerSeconds: stage.timerSeconds,
     plan: (() => {
       const map = compiled?.[stage.index]?.map;

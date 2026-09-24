@@ -18,6 +18,7 @@ import { actorNames, playgroundFixture } from './fixture.js'
 export type PlayerGoal = { kind: 'point'; point: Point } | { kind: 'room'; roomId: string } | null
 export type TravelStatus = 'idle' | 'moving' | 'arrived' | 'waiting_for_door' | 'unreachable'
 export type AmbientOverlayId = 'clear' | 'clouds' | 'rain' | 'fog' | 'night' | 'dust' | 'snow'
+export type MapThemeId = 'classic' | 'desert' | 'winter' | 'forest' | 'coast'
 export type SceneEffectId = 'explosion' | 'fire' | 'smoke' | 'confetti' | 'flash' | 'rubble' | 'crowd_cheer' | 'crowd_flee'
 
 export interface PlaygroundSnapshot {
@@ -39,7 +40,7 @@ export interface PlaygroundSnapshot {
     facing?: 'down' | 'up' | 'left' | 'right'
   }>
   /** Documents and objects lying on the map, drawn where the compiler placed them. */
-  props?: Array<{ id: string; name: string; position: Point; found: boolean }>
+  props?: Array<{ id: string; name: string; position: Point; found: boolean; imageUrl?: string }>
   /** Optional public, non-actor markers supplied by a host application. */
   evidence?: Array<{ id: string; name: string; roomId: string; examined: boolean; position: Point }>
   playerGoal: PlayerGoal
@@ -49,6 +50,11 @@ export interface PlaygroundSnapshot {
   revision: number
   /** Display names for rooms, when the caller has them; the demo fixture's names are the fallback. */
   roomNames?: Readonly<Record<string, string>>
+  mapTheme?: MapThemeId
+  /** Generated artwork for named, inspectable map landmarks. */
+  roomImages?: Readonly<Record<string, string>>
+  /** Physical, inspectable fixtures placed within named rooms. */
+  landmarks?: Array<{ id: string; roomId: string; name: string; position: Point; imageUrl?: string }>
   /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */
   ambient?: { id: AmbientOverlayId; intensity: 1 | 2 | 3 }
   effects?: Array<{ key: string; id: SceneEffectId; roomId?: string | null }>

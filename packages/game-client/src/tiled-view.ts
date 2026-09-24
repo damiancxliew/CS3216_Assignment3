@@ -8,12 +8,13 @@
  *   tiles/interior.png  plank floors (22 columns)         tiles/house.png     door frames (33 columns)
  *   characters/<Sprite>/walk.png   4 columns = down/up/left/right, 4 rows = frames
  *   fx/rain.png fx/snow.png (8px frames), fx/fog.png, fx/clouds.png, fx/smoke.png (32px frames)
+ * Optional theme terrain sheets live under `themeBase/<theme>/terrain.png`.
  */
 import Phaser from 'phaser'
 import { spaceAt, type Point, type StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
 import { selectPropHintId, selectPropHitId } from './prop-hint.js'
-import type { PlaygroundSnapshot, SoundCueId } from './model.js'
+import type { MapThemeId, PlaygroundSnapshot, SoundCueId } from './model.js'
 import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
 import type { MapView } from './view.js'
 
@@ -52,6 +53,14 @@ const PLANKS = [I(12, 1), I(12, 1), I(13, 1), I(12, 2), I(13, 2)]
 const H = at(33)
 const DOOR = { closed: H(2, 3), open: H(9, 3) }
 
+type TerrainTheme = { ground: readonly number[]; path: readonly number[]; classicPath?: boolean; pathTint?: number; floorTint: number; wallTint: number; doorTint: number; background: string }
+const TERRAIN: Partial<Record<MapThemeId, TerrainTheme>> = {
+  desert: { ground: [7], path: [], classicPath: true, pathTint: 0xe3c17f, floorTint: 0xd8b679, wallTint: 0xc49b63, doorTint: 0xcaa36e, background: '#dbca7c' },
+  winter: { ground: [145, 145, 144], path: [], classicPath: true, pathTint: 0xc9d8e4, floorTint: 0xcad9e4, wallTint: 0xaabed5, doorTint: 0xb9cee0, background: '#d7ecf4' },
+  forest: { ground: [0, 1, 2, 27, 28], path: [32, 32, 31], floorTint: 0xb99972, wallTint: 0x9b7961, doorTint: 0xa6886b, background: '#5c9f56' },
+  coast: { ground: [7, 7, 7], path: [25, 25, 25], floorTint: 0xd3b484, wallTint: 0xb7a288, doorTint: 0xc9aa7e, background: '#81b075' },
+}
+
 const AMBIENT_LOOP: Partial<Record<string, string>> = { rain: 'rain', dust: 'wind', clouds: 'wind', snow: 'wind' }
 const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert', 'refused', 'door', 'step']
 const MUSIC_VOLUME = 0.35
@@ -78,12 +87,16 @@ function portraitTextureKey(url: string): string {
 
 export interface TiledViewOptions {
   assetBase: string
+  /** Directory containing <theme>/terrain.png for curated map themes. */
+  themeBase?: string
   /** Sprite key to use for an actor that does not name one. */
   defaultSprite?: string
   /** Called when the player clicks a character instead of a tile. */
   onActor?: (actorId: string) => void
   /** Called when the player clicks a document or object lying on the map. */
   onProp?: (propId: string) => void
+  /** Called when the player clicks an in-world landmark. */
+  onLandmark?: (landmarkId: string) => void
 }
 
 class TiledScene extends Phaser.Scene {
@@ -91,13 +104,16 @@ class TiledScene extends Phaser.Scene {
   private readonly onDestination: (point: Point, inputAt?: number) => void
   private readonly onReady: () => void
   private readonly base: string
+  private readonly themeBase: string
   private readonly defaultSprite: string
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
+  private readonly onLandmark: ((landmarkId: string) => void) | undefined
   private reducedMotion: boolean
   private ready = false
   private map?: Phaser.Tilemaps.Tilemap
   private ground?: Phaser.Tilemaps.TilemapLayer
+  private pathLayer: Phaser.Tilemaps.TilemapLayer | undefined
   private floors?: Phaser.Tilemaps.TilemapLayer
   private walls?: Phaser.Tilemaps.TilemapLayer
   private doors = new Map<string, Phaser.GameObjects.Image>()
@@ -119,11 +135,12 @@ class TiledScene extends Phaser.Scene {
       idle: Phaser.Time.TimerEvent | null
     }
   >()
-  private props = new Map<string, { container: Phaser.GameObjects.Container; hint: Phaser.GameObjects.Text; tween: Phaser.Tweens.Tween | null; found: boolean }>()
+  private props = new Map<string, { container: Phaser.GameObjects.Container; hint: Phaser.GameObjects.Text; tween: Phaser.Tweens.Tween | null; found: boolean; imageUrl: string | null }>()
   /** Tiles whose nameplate would land on a door, i.e. the tile above each door. */
   private plateBlocked = new Set<string>()
   private loadedSprites = new Set<string>()
-  private queuedPortraits = new Set<string>()
+  private queuedAssets = new Set<string>()
+  private landmarks = new Map<string, { imageUrl: string | null; container: Phaser.GameObjects.Container; hint: Phaser.GameObjects.Text }>()
   private ambientId: string | null = null
   private ambientObjects: Phaser.GameObjects.GameObject[] = []
   private playedEffects = new Set<string>()
@@ -141,15 +158,19 @@ class TiledScene extends Phaser.Scene {
     this.reducedMotion = reducedMotion
     this.onReady = onReady
     this.base = options.assetBase.replace(/\/$/, '')
+    this.themeBase = (options.themeBase ?? `${this.base}/themes`).replace(/\/$/, '')
     this.defaultSprite = options.defaultSprite ?? 'Villager'
     this.onActor = options.onActor
     this.onProp = options.onProp
+    this.onLandmark = options.onLandmark
   }
 
   preload(): void {
     this.load.image('tiles-floor', `${this.base}/tiles/floor.png`)
     this.load.image('tiles-wall', `${this.base}/tiles/wall.png`)
     this.load.image('tiles-interior', `${this.base}/tiles/interior.png`)
+    const theme = this.current.mapTheme ?? 'classic'
+    if (TERRAIN[theme]) this.load.image('theme-terrain', `${this.themeBase}/${theme}/terrain.png`)
     this.load.spritesheet('house', `${this.base}/tiles/house.png`, { frameWidth: T, frameHeight: T })
     this.load.spritesheet('fx-rain', `${this.base}/fx/rain.png`, { frameWidth: 8, frameHeight: 8 })
     this.load.spritesheet('fx-snow', `${this.base}/fx/snow.png`, { frameWidth: 8, frameHeight: 8 })
@@ -157,7 +178,7 @@ class TiledScene extends Phaser.Scene {
     this.load.image('fx-fog', `${this.base}/fx/fog.png`)
     this.load.image('fx-clouds', `${this.base}/fx/clouds.png`)
     for (const key of this.spriteKeys(this.current)) this.queueSprite(key)
-    for (const url of this.portraitUrls(this.current)) this.queuePortrait(url)
+    for (const url of this.assetUrls(this.current)) this.queueAsset(url)
     for (const track of MUSIC_TRACKS) this.load.audio(`music-${track}`, `${this.base}/audio/music/${track}.ogg`)
     for (const loop of new Set(Object.values(AMBIENT_LOOP))) if (loop) this.load.audio(`loop-${loop}`, `${this.base}/audio/sfx/${loop}.ogg`)
     for (const cue of SFX) this.load.audio(`sfx-${cue}`, `${this.base}/audio/sfx/${cue}.ogg`)
@@ -178,6 +199,16 @@ class TiledScene extends Phaser.Scene {
         this.game.canvas.focus()
         return
       }
+      const landmarkHit = selectPropHitId([...this.landmarks].map(([id, entry]) => ({
+        id,
+        position: { x: entry.container.x, y: entry.container.y },
+        bounds: entry.container.getBounds(),
+      })), { x: pointer.worldX, y: pointer.worldY })
+      if (landmarkHit && this.onLandmark) {
+        this.onLandmark(landmarkHit)
+        this.game.canvas.focus()
+        return
+      }
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
       // A character under the pointer means "talk to them", not "walk here".
@@ -190,6 +221,12 @@ class TiledScene extends Phaser.Scene {
       const prop = (this.current.props ?? []).find((p) => p.position.x === point.x && p.position.y === point.y)
       if (prop && this.onProp) {
         this.onProp(prop.id)
+        return
+      }
+      const landmark = (this.current.landmarks ?? []).find((item) => item.position.x === point.x && item.position.y === point.y)
+      if (landmark && this.onLandmark) {
+        this.onLandmark(landmark.id)
+        this.game.canvas.focus()
         return
       }
       this.onDestination(point, pointer.time || performance.now())
@@ -225,10 +262,10 @@ class TiledScene extends Phaser.Scene {
       this.playedEffects.clear()
     }
     const missingSprites = this.spriteKeys(snapshot).filter((key) => !this.loadedSprites.has(key))
-    const missingPortraits = this.portraitUrls(snapshot).filter((url) => !this.queuedPortraits.has(url))
-    if (missingSprites.length > 0 || missingPortraits.length > 0) {
+    const missingAssets = this.assetUrls(snapshot).filter((url) => !this.queuedAssets.has(url))
+    if (missingSprites.length > 0 || missingAssets.length > 0) {
       for (const key of missingSprites) this.queueSprite(key)
-      for (const url of missingPortraits) this.queuePortrait(url)
+      for (const url of missingAssets) this.queueAsset(url)
       this.load.once('complete', () => {
         for (const key of missingSprites) this.registerAnimations(key)
         this.renderSnapshot(this.current, mapChanged)
@@ -245,8 +282,12 @@ class TiledScene extends Phaser.Scene {
     return [...new Set(snapshot.actors.map((a) => a.sprite ?? this.defaultSprite))]
   }
 
-  private portraitUrls(snapshot: PlaygroundSnapshot): string[] {
-    return [...new Set(snapshot.actors.flatMap((actor) => actor.portraitUrl ? [actor.portraitUrl] : []))]
+  private assetUrls(snapshot: PlaygroundSnapshot): string[] {
+    return [...new Set([
+      ...snapshot.actors.flatMap((actor) => actor.portraitUrl ? [actor.portraitUrl] : []),
+      ...Object.values(snapshot.roomImages ?? {}),
+      ...(snapshot.props ?? []).flatMap((prop) => prop.imageUrl ? [prop.imageUrl] : []),
+    ])]
   }
 
   private queueSprite(key: string): void {
@@ -255,9 +296,9 @@ class TiledScene extends Phaser.Scene {
     this.load.spritesheet(`char-${key}`, `${this.base}/characters/${key}/walk.png`, { frameWidth: T, frameHeight: T })
   }
 
-  private queuePortrait(url: string): void {
-    if (this.queuedPortraits.has(url)) return
-    this.queuedPortraits.add(url)
+  private queueAsset(url: string): void {
+    if (this.queuedAssets.has(url)) return
+    this.queuedAssets.add(url)
     this.load.image(portraitTextureKey(url), url)
   }
 
@@ -286,16 +327,26 @@ class TiledScene extends Phaser.Scene {
     this.markers.clear()
     this.props.forEach((p) => p.container.destroy())
     this.props.clear()
+    this.landmarks.forEach((entry) => entry.container.destroy())
+    this.landmarks.clear()
     this.clearAmbient()
 
     const source = this.current.map
     const map = this.make.tilemap({ tileWidth: T, tileHeight: T, width: source.width, height: source.height })
-    const floorSet = map.addTilesetImage('tiles-floor', 'tiles-floor', T, T, 0, 0)!
+    const terrain = TERRAIN[this.current.mapTheme ?? 'classic']
+    const floorSet = map.addTilesetImage(terrain ? 'theme-terrain' : 'tiles-floor', terrain ? 'theme-terrain' : 'tiles-floor', T, T, 0, 0)!
+    const pathSet = terrain?.classicPath ? map.addTilesetImage('tiles-floor', 'tiles-floor', T, T, 0, 0)! : null
     const wallSet = map.addTilesetImage('tiles-wall', 'tiles-wall', T, T, 0, 0)!
     const interiorSet = map.addTilesetImage('tiles-interior', 'tiles-interior', T, T, 0, 0)!
     this.ground = map.createBlankLayer('ground', floorSet)!.setDepth(0)
+    this.pathLayer = pathSet ? map.createBlankLayer('paths', pathSet)!.setDepth(0.5).setTint(terrain?.pathTint ?? 0xffffff) : undefined
     this.floors = map.createBlankLayer('floors', interiorSet)!.setDepth(1)
     this.walls = map.createBlankLayer('walls', wallSet)!.setDepth(2)
+    if (terrain) {
+      this.cameras.main.setBackgroundColor(terrain.background)
+      this.floors.setTint(terrain.floorTint)
+      this.walls.setTint(terrain.wallTint)
+    }
     this.map = map
 
     const isPath = (x: number, y: number) => source.tiles[y]?.[x] === 'path'
@@ -303,10 +354,13 @@ class TiledScene extends Phaser.Scene {
       for (let x = 0; x < source.width; x += 1) {
         const tile = source.tiles[y]![x]!
         // Everything sits on grass; the outer border is drawn as a wall ring by the room pass below.
-        this.ground.putTileAt(GRASS[Math.floor(jitter(x, y, 1) * GRASS.length)]!, x, y)
+        const groundTiles = terrain?.ground ?? GRASS
+        this.ground.putTileAt(groundTiles[Math.floor(jitter(x, y, 1) * groundTiles.length)]!, x, y)
         if (tile === 'path') {
           const mask = (isPath(x, y - 1) ? 1 : 0) | (isPath(x + 1, y) ? 2 : 0) | (isPath(x, y + 1) ? 4 : 0) | (isPath(x - 1, y) ? 8 : 0)
-          this.ground.putTileAt(PATH[mask] ?? PATH[15]!, x, y)
+          const pathTiles = terrain?.path
+          if (this.pathLayer) this.pathLayer.putTileAt(PATH[mask] ?? PATH[15]!, x, y)
+          else this.ground.putTileAt(pathTiles ? pathTiles[Math.floor(jitter(x, y, 3) * pathTiles.length)]! : PATH[mask] ?? PATH[15]!, x, y)
         }
       }
     }
@@ -363,6 +417,7 @@ class TiledScene extends Phaser.Scene {
     for (const door of source.doors) {
       this.walls.removeTileAt(door.position.x, door.position.y)
       const image = this.add.image(door.position.x * T + T / 2, door.position.y * T + T / 2, 'house', DOOR.closed).setDepth(3)
+      if (terrain) image.setTint(terrain.doorTint)
       this.doors.set(door.id, image)
     }
   }
@@ -373,6 +428,7 @@ class TiledScene extends Phaser.Scene {
     const player = snapshot.actors.find((a) => a.id === 'player')
     const playerSpace = player?.space
     const playerRoomId = playerSpace?.kind === 'room' ? playerSpace.roomId : null
+    this.renderLandmarks(snapshot, playerRoomId)
     this.renderProps(snapshot, player?.position ?? null, playerRoomId)
     const occupied = new Map<string, number>()
     for (const actor of snapshot.actors) {
@@ -439,6 +495,45 @@ class TiledScene extends Phaser.Scene {
     this.followPlayer()
   }
 
+  private renderLandmarks(snapshot: PlaygroundSnapshot, playerRoomId: string | null): void {
+    const landmarks = snapshot.landmarks ?? []
+    for (const landmark of landmarks) {
+      const imageUrl = landmark.imageUrl && this.textures.exists(portraitTextureKey(landmark.imageUrl)) ? landmark.imageUrl : null
+      let entry = this.landmarks.get(landmark.id)
+      if (entry && entry.imageUrl !== imageUrl) {
+        entry.container.destroy()
+        this.landmarks.delete(landmark.id)
+        entry = undefined
+      }
+      if (!entry) {
+        const container = this.add.container(0, 0)
+        const shadow = this.add.ellipse(0, 7, 18, 5, 0x000000, 0.3)
+        const object = imageUrl
+          ? this.add.image(0, -4, portraitTextureKey(imageUrl)).setDisplaySize(24, 24)
+          : this.add.graphics().fillStyle(0x877861).fillRect(-9, -12, 18, 20).fillStyle(0xb8a58a).fillRect(-7, -11, 14, 17).fillStyle(0x655946).fillRect(-7, 3, 14, 3)
+        const label = this.add.text(0, 12, landmark.name, {
+          color: '#fff8e7', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '6px', fontStyle: 'bold',
+          backgroundColor: '#3a2a24', padding: { x: 3, y: 1 }, resolution: 8,
+        }).setOrigin(0.5, 0)
+        const hint = this.add.text(0, -18, 'click to inspect', {
+          color: '#2e2620', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '6px', fontStyle: 'bold',
+          backgroundColor: '#ffe9a8', padding: { x: 3, y: 1 }, resolution: 8,
+        }).setOrigin(0.5, 1)
+        container.add([shadow, object, label, hint])
+        entry = { imageUrl, container, hint }
+        this.landmarks.set(landmark.id, entry)
+      }
+      entry.container.setPosition(landmark.position.x * T + T / 2, landmark.position.y * T + T / 2)
+      entry.container.setDepth(8 + landmark.position.y / 1000)
+      entry.hint.setVisible(playerRoomId === landmark.roomId)
+    }
+    for (const [id, entry] of this.landmarks) {
+      if (landmarks.some((landmark) => landmark.id === id)) continue
+      entry.container.destroy()
+      this.landmarks.delete(id)
+    }
+  }
+
   /**
    * Documents lying on the map: a parchment tile the player can walk to and click.
    * One that has been read keeps its place but stops asking to be read.
@@ -455,8 +550,14 @@ class TiledScene extends Phaser.Scene {
     const hintedPropId = selectPropHintId(visibleProps, playerPosition)
     for (const prop of props) {
       let entry = this.props.get(prop.id)
+      const imageUrl = prop.imageUrl && this.textures.exists(portraitTextureKey(prop.imageUrl)) ? prop.imageUrl : null
+      if (entry && entry.imageUrl !== imageUrl) {
+        entry.container.destroy()
+        this.props.delete(prop.id)
+        entry = undefined
+      }
       if (!entry) {
-        entry = this.createProp(prop.name)
+        entry = this.createProp(prop.name, imageUrl)
         this.props.set(prop.id, entry)
       }
       entry.container.setPosition(prop.position.x * T + T / 2, prop.position.y * T + T / 2)
@@ -479,11 +580,13 @@ class TiledScene extends Phaser.Scene {
     }
   }
 
-  private createProp(name: string) {
+  private createProp(name: string, imageUrl: string | null) {
     const container = this.add.container(0, 0)
     const shadow = this.add.ellipse(0, 5, 10, 4, 0x000000, 0.25)
-    const sheet = this.add.rectangle(0, 0, 10, 12, 0xf6e7c1).setStrokeStyle(1, 0x6b563a)
-    const lines = [-3, 0, 3].map((offset) => this.add.rectangle(0, offset, 6, 1, 0x8a7550))
+    const sheet = imageUrl
+      ? this.add.image(0, 0, portraitTextureKey(imageUrl)).setDisplaySize(14, 14)
+      : this.add.rectangle(0, 0, 10, 12, 0xf6e7c1).setStrokeStyle(1, 0x6b563a)
+    const lines = imageUrl ? [] : [-3, 0, 3].map((offset) => this.add.rectangle(0, offset, 6, 1, 0x8a7550))
     const label = this.add
       .text(0, 8, name, {
         color: '#2e2620',
@@ -497,7 +600,7 @@ class TiledScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setAlpha(0.95)
     const hint = this.add
-      .text(0, -10, 'click to read', {
+      .text(0, -10, 'Select to read', {
         color: '#2e2620',
         fontFamily: 'system-ui, "Segoe UI", sans-serif',
         fontSize: '6px',
@@ -510,7 +613,7 @@ class TiledScene extends Phaser.Scene {
       .setVisible(false)
     container.add([shadow, sheet, ...lines, label, hint])
     const tween = this.reducedMotion ? null : this.tweens.add({ targets: hint, y: -12, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
-    return { container, hint, tween, found: false }
+    return { container, hint, tween, found: false, imageUrl }
   }
 
   /** Nameplate under the feet by default, flipped over the head where it would cover a door. */
@@ -551,7 +654,7 @@ class TiledScene extends Phaser.Scene {
     let hintTween: Phaser.Tweens.Tween | null = null
     if (!player) {
       hint = this.add
-        .text(0, portrait ? -28 : -13, 'click to talk', {
+        .text(0, portrait ? -28 : -13, 'Select to talk', {
           color: '#2e2620',
           fontFamily: 'system-ui, "Segoe UI", sans-serif',
           fontSize: '6px',

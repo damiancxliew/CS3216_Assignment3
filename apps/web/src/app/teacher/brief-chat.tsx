@@ -70,8 +70,9 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
         } else {
           setError(result.error);
         }
-      } catch {
-        setError("That didn’t reach the server — the file may be too large. Try again, or paste the text instead.");
+      } catch (error) {
+        console.error("teacher brief request failed", error);
+        setError("Couldn’t complete that request. Please try again.");
       }
     });
   }
@@ -217,9 +218,11 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
       <footer className="flex flex-col gap-3 border-t border-line pt-4">
         {error ? <ErrorText>{error}</ErrorText> : null}
         {slot.name === "confirm" ? (
-          <button type="button" onClick={create} disabled={pending} className={`${button.primary} w-fit`}>
-            {pending ? <Pending>Creating the adventure…</Pending> : "Create adventure"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={create} disabled={pending} className={button.primary}>
+              {pending ? <Pending>Creating the adventure…</Pending> : "Create adventure"}
+            </button>
+          </div>
         ) : slot.name === "sources" ? (
           <SourceStep state={state} pending={pending} onUpload={upload} onDone={() => send({ text: SOURCES_DONE })} />
         ) : (
@@ -260,7 +263,7 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
                 }}
                 rows={2}
                 disabled={pending}
-                placeholder={acceptLabel ? "Or type your own. Enter sends, Shift+Enter for a new line." : "Type your answer. Enter sends, Shift+Enter for a new line."}
+                placeholder={acceptLabel ? "Or type your own…" : "Your answer…"}
                 aria-label="Your answer"
                 className={`${control} flex-1 resize-none`}
               />
@@ -317,11 +320,7 @@ function Start({
     return (
       <div className="flex flex-col gap-4">
         <p className="text-base text-ink">
-          <span className="font-semibold">You have a brief half-done</span>
-          <span className="text-muted">
-            {" "}
-            — {sources} source{sources === 1 ? "" : "s"} uploaded, {answered} question{answered === 1 ? "" : "s"} answered.
-          </span>
+          Your setup is unfinished ({sources} source{sources === 1 ? "" : "s"}, {answered} answer{answered === 1 ? "" : "s"}).
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onResume} disabled={pending} className={button.primary}>
@@ -337,8 +336,8 @@ function Start({
   }
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-base text-muted">Bring the reading your students will play from. The rest is a few short questions.</p>
+      <p className="text-base text-muted">Bring the reading your students will play from. The rest is a few short questions.</p>
+      <div className="flex flex-wrap gap-2">
         <button type="button" onClick={onStart} disabled={pending} className={button.primary}>
           {pending ? <Pending>Starting</Pending> : "Start the brief"}
         </button>
@@ -383,9 +382,17 @@ function SourceStep({
   const [pasting, setPasting] = useState(false);
   const pasteField = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="flex flex-col gap-2 text-base">
+    <div className="flex flex-col gap-3 text-base">
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setPasting((p) => !p)} disabled={pending} className={button.quiet}>
+          {pasting ? "Upload a file instead" : "Paste text instead"}
+        </button>
+        <Chip onClick={onDone} disabled={pending || state.sources.length === 0} primary>
+          <Check className="h-4 w-4" aria-hidden /> {SOURCES_DONE}
+        </Chip>
+      </div>
       <form
-        className="flex flex-wrap items-center gap-3"
+        className="flex items-end gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           const formData = new FormData(event.currentTarget);
@@ -403,7 +410,7 @@ function SourceStep({
             aria-label="Source text"
             disabled={pending}
             onInput={(event) => autoGrow(event.currentTarget, 240)}
-            className={`${control} min-w-[16rem] flex-1 resize-none`}
+            className={`${control} flex-1 resize-none`}
           />
         ) : (
           <input
@@ -413,11 +420,11 @@ function SourceStep({
             aria-label="PDF, .txt or .md"
             disabled={pending}
             onChange={(event) => event.currentTarget.form?.requestSubmit()}
-            className={`${control} min-w-[16rem] flex-1 file:mr-3 file:rounded-control file:border-0 file:bg-ink file:px-3 file:py-1 file:text-sm file:font-semibold file:text-paper`}
+            className={`${control} flex-1 file:mr-3 file:rounded-control file:border-0 file:bg-ink file:px-3 file:py-1 file:text-sm file:font-semibold file:text-paper`}
           />
         )}
         {pasting ? (
-          <button type="submit" disabled={pending} className={button.quiet}>
+          <button type="submit" disabled={pending} className={button.primary}>
             {pending ? <Pending>Reading</Pending> : "Add the passage"}
           </button>
         ) : pending ? (
@@ -425,15 +432,9 @@ function SourceStep({
             <Pending>Reading</Pending>
           </span>
         ) : null}
-        <button type="button" onClick={() => setPasting((p) => !p)} disabled={pending} className={button.quiet}>
-          {pasting ? "Upload a file instead" : "Paste text instead"}
-        </button>
-        <Chip onClick={onDone} disabled={pending || state.sources.length === 0} primary className="sm:ml-auto">
-          <Check className="h-4 w-4" aria-hidden /> {SOURCES_DONE}
-        </Chip>
       </form>
       {!pasting ? (
-        <p className="text-sm text-muted">Any size PDF — the text is read here in your browser. A scanned PDF has no text layer; paste its text instead.</p>
+        <p className="text-sm text-muted">Scanned PDFs aren’t supported. Paste the text instead.</p>
       ) : null}
     </div>
   );
@@ -545,7 +546,7 @@ function SummaryRows({
 
   return (
     <div className="mt-3 flex flex-col gap-4 border-t border-line pt-4 text-base">
-      <p className="text-muted">Everything below is settled. Change anything, then create the adventure.</p>
+      <p className="text-muted">Review your choices, then create the adventure.</p>
       <dl className="flex flex-col divide-y divide-line">
         {rows.map((row) => (
           <div key={row.key} className="flex items-start gap-3 py-2.5">

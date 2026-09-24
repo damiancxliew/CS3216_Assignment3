@@ -56,7 +56,7 @@ describe('D5 — cache and cap', () => {
     // the planner's brief is embedded as delimited data with our style + audience suffix
     expect(d.images.requests[0]!.prompt).toContain('"""')
     expect(d.images.requests[0]!.prompt).toContain('aged 13-14')
-    expect(d.images.requests.find((r) => r.kind === 'landmark')!.size).toBe('1536x1024')
+    expect(d.images.requests.find((r) => r.kind === 'landmark')!.size).toBe('1024x1024')
   })
 
   it('a repeated subject is a cache hit: no second model call, no cost', async () => {
@@ -153,5 +153,16 @@ describe('D5 — failure handling (FR-6a)', () => {
       expect(prompt).toContain(spec.setting)
       expect(prompt).not.toMatch(/hiddenInterests|knowledgeHorizon|motivations/)
     }
+  })
+
+  it('generates map objects in the same pixel style and palette as their stage', async () => {
+    const spec = await loadI1Spec()
+    spec.stages[0]!.mapTheme = 'winter'
+    const room = spec.stages[0]!.rooms[0]!
+    const prompt = buildImagePrompt({ id: 'winter-object', kind: 'landmark', entityId: room.id, subject: 'Old monument', prompt: 'A weathered monument' }, spec)
+    expect(prompt).toMatch(/16px pixel-art game map/)
+    expect(prompt).toMatch(/transparent background/)
+    expect(prompt).toMatch(/snow white, pale blue-gray, dark timber/)
+    expect(prompt).toMatch(/no scene, ground plane, frame/)
   })
 })

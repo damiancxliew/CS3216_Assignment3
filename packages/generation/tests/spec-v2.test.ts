@@ -23,6 +23,17 @@ describe('I1 fixture', () => {
   it('is a valid Adventure Spec v2', async () => {
     const result = validateAdventureSpec(await loadFixtureJson('singapore-1819.spec.json'))
     expect(result.ok, result.ok ? '' : JSON.stringify(result.issues, null, 2)).toBe(true)
+    if (result.ok) expect(result.spec.stages.every((stage) => stage.mapTheme === 'classic')).toBe(true)
+  })
+
+  it('accepts a stage theme chosen by the planner and rejects unknown themes', async () => {
+    const spec = await fixture()
+    spec.stages[0].mapTheme = 'coast'
+    const valid = validateAdventureSpec(spec)
+    expect(valid.ok).toBe(true)
+    if (valid.ok) expect(valid.spec.stages[0]!.mapTheme).toBe('coast')
+    spec.stages[0].mapTheme = 'volcano'
+    expectInvalid(spec, 'stages.0.mapTheme')
   })
 
   it('keeps legacy missing enclosure values as explicit null', async () => {

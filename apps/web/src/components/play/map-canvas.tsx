@@ -58,6 +58,7 @@ export interface MapCanvasProps {
   onTalk: (actorId: string) => void;
   /** The player clicked a document lying on the map: read it, or walk over to it first. */
   onProp: (propId: string) => void;
+  onLandmark: (landmarkId: string) => void;
 }
 
 function doorsOf(state: PlayState): Record<string, DoorState> {
@@ -92,10 +93,10 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onLandmark }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
-  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp });
-  latest.current = { state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp };
+  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onLandmark });
+  latest.current = { state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onLandmark };
   const playerPos = useRef<Point | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
   const intentHandlerRef = useRef<((next: MapIntent) => void) | null>(null);
@@ -158,7 +159,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
           }).filter((actor): actor is NonNullable<typeof actor> => actor !== null),
       ];
       const goal = path.length ? { kind: "point" as const, point: path[path.length - 1]! } : null;
-      const props = s.props.map((prop) => ({ id: prop.id, name: prop.name, position: prop.position, found: prop.found }));
+      const props = s.props.map((prop) => ({ id: prop.id, name: prop.name, position: prop.position, found: prop.found, ...(s.evidenceImages[prop.id] ? { imageUrl: s.evidenceImages[prop.id] } : {}) }));
       return {
         // Keep music selection stable for this stage while allowing other stages and adventures to vary.
         seed: `${s.adventureId}:${s.stage.id}`,
@@ -166,12 +167,15 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         doors,
         actors,
         props,
+        landmarks: s.landmarks.map((landmark) => ({ id: landmark.id, roomId: landmark.roomId, name: landmark.name, position: landmark.position, ...(s.roomImages[landmark.id] ? { imageUrl: s.roomImages[landmark.id] } : {}) })),
         playerGoal: goal,
         playerStatus: path.length ? ("moving" as const) : ("idle" as const),
         running: true,
         npcRoutes: false,
         revision: s.revision,
         roomNames: Object.fromEntries(s.rooms.map((r) => [r.id, r.name])),
+        roomImages: s.roomImages,
+        mapTheme: s.stage.mapTheme,
         ambient: { id: s.stage.ambientOverlay, intensity: Math.min(3, Math.max(1, s.stage.overlayIntensity)) as 1 | 2 | 3 },
         // One-shot effects are keyed by announcement so each plays once, in the room the player is in.
         effects: s.announcements.length
@@ -412,9 +416,11 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
         view = await createTiledMapView(parent, snapshot(), (point, inputAt) => goTo(point, inputAt), reduced.matches, {
           assetBase: ASSET_BASE,
+          themeBase: "/game/themes",
           defaultSprite: "Villager",
           onActor: (actorId) => latest.current.onTalk(actorId),
           onProp: (propId) => latest.current.onProp(propId),
+          onLandmark: (landmarkId) => latest.current.onLandmark(landmarkId),
         });
         if (destroyed) {
           view.destroy();
@@ -424,7 +430,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         intentHandlerRef.current?.(latest.current.intent);
         const canvas = parent.querySelector("canvas");
         canvas?.setAttribute("tabindex", "0");
-        canvas?.setAttribute("aria-label", "Settlement map. Arrow keys or WASD to walk, Enter to talk to whoever is with you, click a tile to walk there.");
+        canvas?.setAttribute("aria-label", "Map. Use arrow keys or WASD to walk. Press Enter to talk, or click a tile to move.");
         // Walking works from anywhere on the page unless a field has focus, so the map never needs to be clicked first.
         document.addEventListener("keydown", onKey, { signal: controller.signal });
         document.addEventListener("keyup", onKeyUp, { signal: controller.signal });
@@ -433,9 +439,10 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         document.addEventListener("visibilitychange", clearHeld, { signal: controller.signal });
         reduced.addEventListener("change", (e) => view?.setReducedMotion(e.matches), { signal: controller.signal });
       } catch (error) {
+        console.error("Map failed to start", error);
         const note = document.createElement("p");
         note.className = "p-4 text-sm text-muted";
-        note.textContent = `The map could not start (${error instanceof Error ? error.message : "unknown error"}). The controls on the right still work.`;
+        note.textContent = "The map could not start. You can still use the controls on the right.";
         parent.replaceChildren(note);
       }
     })();

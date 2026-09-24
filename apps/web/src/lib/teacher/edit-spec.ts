@@ -9,10 +9,11 @@
 import { compileAdventure } from "@adventure/game-integration";
 import { randomUUID } from "node:crypto";
 import { validateAdventureSpec, type AdventureSpec } from "@adventure/generation/spec";
+import type { MapThemeId } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type SpecEdit =
-  | { kind: "stage"; stageId: string; title: string; sharedContext: string; timerSeconds: number | null }
+  | { kind: "stage"; stageId: string; title: string; sharedContext: string; timerSeconds: number | null; mapTheme?: MapThemeId }
   | { kind: "stakeholder"; stakeholderId: string; name: string; role: string; summary: string }
   | { kind: "agentPosition"; stageId: string; agentId: string; publicPosition: string }
   | { kind: "room"; stageId: string; roomId: string; name: string; purpose: string }
@@ -49,6 +50,7 @@ export function applyEditToSpec(spec: AdventureSpec, edit: SpecEdit): EditResult
       stage.title = edit.title;
       stage.sharedContext.text = edit.sharedContext;
       stage.timerSeconds = edit.timerSeconds;
+      if (edit.mapTheme) stage.mapTheme = edit.mapTheme;
       break;
     }
     case "stakeholder": {
@@ -251,13 +253,22 @@ export async function applySpecEdit(
     .update({ json: next })
     .eq("id", version.id)
     .is("published_at", null);
-  if (updateError) return { error: updateError.message };
+  if (updateError) {
+    console.error("could not save edited adventure content", adventureId, specVersionId, updateError);
+    return { error: "Couldn’t save this change. Please try again." };
+  }
 
   // After the json write, so `compiled_spec` stamps against the new json.
   const { error: mapsError } = await admin.rpc("set_version_maps", { p_spec_version_id: version.id, p_maps: compilation.stages });
-  if (mapsError) return { error: mapsError.message };
+  if (mapsError) {
+    console.error("could not rebuild edited adventure map", adventureId, specVersionId, mapsError);
+    return { error: "Couldn’t save this change. Please try again." };
+  }
 
   const failure = await mirrorEdit(admin, version.id, next, edit);
-  if (failure) return { error: failure };
+  if (failure) {
+    console.error("could not update adventure content index", adventureId, specVersionId, failure);
+    return { error: "Couldn’t save this change. Please try again." };
+  }
   return {};
 }
