@@ -11,7 +11,7 @@
  * decision, which stays quiet until you can actually make it, then lights up.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
-import { ArrowRight, Check, CornerDownRight, DoorOpen, HelpCircle, Lock, Search, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight, Check, CornerDownRight, DoorOpen, FileText, HelpCircle, Lock, Search, Timer, UserRound, Volume2, VolumeX, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -94,6 +94,7 @@ export function PlayClient({
   const [pendingSpeech, setPendingSpeech] = useState<{ id: string; roomId: string; body: string } | null>(null);
   const [addressee, setAddressee] = useState<string | null>(null);
   const [intent, setIntent] = useState<MapIntent>(null);
+  const [pendingTalk, setPendingTalk] = useState<string | null>(null);
   const [waitingAtDoor, setWaitingAtDoor] = useState<string | null>(null);
   const [lastResolution, setLastResolution] = useState<string | null>(null);
   const [decisionOpen, setDecisionOpen] = useState(false);
@@ -107,6 +108,7 @@ export function PlayClient({
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
   const readRef = useRef<(evidenceId: string) => void>(() => {});
+  const autoReadAt = useRef<string | null>(null);
   const revision = useRef(initialState.revision);
   const serverViewKey = useRef(`${initialState.stage.id}:${initialState.status}`);
   const { muted, toggleMuted, cues } = useSoundCues(state, notice);
@@ -291,6 +293,8 @@ export function PlayClient({
     async (from: Point, path: Point[]) => {
       const before = stateRef.current;
       if (before.status !== "active" || busy === "Deciding…" || busy === "Knocking…") return { position: before.playerPos, accepted: false, retry: false };
+      // Reading is an inline HUD state. Walking naturally puts the file away.
+      if (path.length > 0) setReading(null);
       setHintVisible(false);
       try {
         let requestSentAt = 0;
@@ -325,15 +329,28 @@ export function PlayClient({
   // From the map: pick who to talk to and put the cursor in the box, so "walk up and talk" works.
   const onTalk = useCallback((actorId: string) => {
     setHintVisible(false);
+    setReading(null);
     setAddressee(actorId);
     if (!stateRef.current.hearingActorIds.includes(actorId)) {
+      setPendingTalk(actorId);
       const point = stateRef.current.actors.find((actor) => actor.id === actorId)?.position;
       if (point) setIntent({ kind: "point", point });
       return;
     }
+    setPendingTalk(null);
     composer.current?.focus();
     composer.current?.scrollIntoView({ block: "nearest" });
   }, []);
+
+  // Stop as soon as the selected person is within speaking range; occupying their tile is neither
+  // necessary nor possible because actors collide.
+  useEffect(() => {
+    if (!pendingTalk || !state.hearingActorIds.includes(pendingTalk)) return;
+    setPendingTalk(null);
+    setIntent(null);
+    composer.current?.focus();
+    composer.current?.scrollIntoView({ block: "nearest" });
+  }, [pendingTalk, state.hearingActorIds]);
 
   /** Examine a document, then put it in front of the player to read. */
   async function read(evidenceId: string) {
@@ -342,8 +359,11 @@ export function PlayClient({
       setReading(evidenceId);
       return;
     }
+    // Open the sheet immediately. The content replaces its loading state as soon as the
+    // authoritative pickup returns, instead of making the click appear to do nothing.
+    setReading(evidenceId);
     const ok = await act("Reading…", () => playApi.action(attemptId, { type: "inspect", evidenceId }));
-    if (ok) setReading(evidenceId);
+    if (!ok) setReading((current) => current === evidenceId ? null : current);
   }
   readRef.current = (evidenceId) => { void read(evidenceId); };
 
@@ -404,6 +424,22 @@ export function PlayClient({
       setPendingRead(null);
     }
   }, [pendingRead, state.revision, busy]);
+
+  // Walking directly over a document picks it up even when movement did not begin from its label.
+  useEffect(() => {
+    if (busy !== null || !state.playerPos) return;
+    const atFeet = state.props.find((item) => !item.found && item.position.x === state.playerPos?.x && item.position.y === state.playerPos?.y);
+    if (!atFeet) {
+      autoReadAt.current = null;
+      return;
+    }
+    const pickupKey = `${state.stage.id}:${atFeet.id}:${state.playerPos.x},${state.playerPos.y}`;
+    if (autoReadAt.current === pickupKey) return;
+    autoReadAt.current = pickupKey;
+    setPendingRead(null);
+    setIntent(null);
+    readRef.current(atFeet.id);
+  }, [busy, state.playerPos, state.props, state.stage.id]);
 
   const openDocument = reading ? state.journal.find((entry) => entry.id === reading) ?? null : null;
   const openDocumentName = reading ? state.props.find((item) => item.id === reading)?.name ?? "Document" : "";
@@ -588,7 +624,16 @@ export function PlayClient({
             {state.rooms
               .filter((r) => r.id !== state.currentRoomId)
               .map((r) => (
-                <button key={r.id} type="button" className={chip} disabled={busy !== null} onClick={() => setIntent({ kind: "room", roomId: r.id })}>
+                <button
+                  key={r.id}
+                  type="button"
+                  className={chip}
+                  disabled={busy !== null}
+                  onClick={() => {
+                    setReading(null);
+                    setIntent({ kind: "room", roomId: r.id });
+                  }}
+                >
                   <ArrowRight className="h-4 w-4" aria-hidden /> {r.name}
                   {!r.doorOpen ? <Lock className="h-4 w-4 text-muted" aria-label="door closed" /> : null}
                 </button>
@@ -625,8 +670,20 @@ export function PlayClient({
           ) : null}
         </section>
 
-        {/* ── Middle: the conversation. This is the game; it gets the height. ── */}
-        <section className="flex min-h-[18rem] shrink-0 flex-1 flex-col lg:min-h-[24rem]" aria-labelledby="talk">
+        {/* A found document takes over the HUD's focal area without hiding the
+            map, location, goals, or navigation behind a conventional modal. */}
+        {reading ? (
+          <DocumentReader
+            entry={openDocument}
+            name={openDocumentName}
+            imageUrl={openDocument ? state.evidenceImages[openDocument.id] ?? null : null}
+            position={openDocument ? state.journal.findIndex((entry) => entry.id === openDocument.id) + 1 : null}
+            total={state.journal.length}
+            onClose={() => setReading(null)}
+          />
+        ) : (
+        /* ── Middle: the conversation. This is the game; it gets the height. ── */
+        <section className="flex min-h-0 flex-1 flex-col lg:min-h-80" aria-labelledby="talk">
           {peopleHere.length ? (
             <div className="flex gap-2 overflow-x-auto px-5 pt-4" role="radiogroup" aria-label="Who you are talking to" id="talk">
               {peopleHere.map((a) => {
@@ -725,6 +782,7 @@ export function PlayClient({
             </button>
           </form>
         </section>
+        )}
 
         {/* ── Bottom, always visible: goals + the decision ─────────────────── */}
         <section className="flex shrink-0 flex-col gap-3 border-t border-line bg-sunken/60 px-5 py-4" aria-labelledby="decide">
@@ -863,29 +921,6 @@ export function PlayClient({
         </section>
       </aside>
 
-      {openDocument ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="document-title">
-          <div className="flex max-h-[80dvh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-surface border-l-[3px] border-record bg-paper p-5 shadow-xl sm:p-6">
-            <div className="flex items-start gap-3">
-              {state.evidenceImages[openDocument.id] ? (
-                // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
-                <img src={state.evidenceImages[openDocument.id]} alt="" className="h-16 w-16 flex-none rounded-control object-cover" />
-              ) : null}
-              <div className="min-w-0">
-                <p className={label}>You read</p>
-                <h2 id="document-title" className="font-serif text-2xl leading-tight text-ink">
-                  {openDocumentName}
-                </h2>
-              </div>
-            </div>
-            <p className="whitespace-pre-line text-lg leading-relaxed text-ink">{openDocument.text}</p>
-            {openDocument.sourceSpan ? <p className="border-l-[3px] border-record pl-3 font-serif text-base italic text-record">{openDocument.sourceSpan}</p> : null}
-            <button type="button" className={`${primary} w-fit`} onClick={() => setReading(null)} autoFocus>
-              Put it down
-            </button>
-          </div>
-        </div>
-      ) : null}
       {openLandmark ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="landmark-title">
           <div className="flex max-h-[80dvh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-surface border-l-[3px] border-world bg-paper p-5 shadow-xl sm:p-6">
@@ -899,5 +934,98 @@ export function PlayClient({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Evidence reads like an object the player has unfolded inside the HUD, not a
+ * generic app dialog. The map and the rest of the stage remain visible while
+ * the authoritative pickup is loading and after the file has been collected.
+ */
+function DocumentReader({
+  entry,
+  name,
+  imageUrl,
+  position,
+  total,
+  onClose,
+}: {
+  entry: PlayState["journal"][number] | null;
+  name: string;
+  imageUrl: string | null;
+  position: number | null;
+  total: number;
+  onClose: () => void;
+}) {
+  return (
+    <section className="flex min-h-0 flex-1 flex-col bg-record-wash/45 lg:min-h-80" aria-labelledby="document-title">
+      <div className="flex items-center justify-between gap-3 border-b border-record/25 bg-paper px-5 py-3">
+        <div className="flex min-w-0 items-center gap-2 text-record">
+          <FileText className="h-5 w-5 shrink-0" aria-hidden />
+          <p className="truncate text-sm font-semibold uppercase tracking-[0.12em]">
+            {position === null ? "Opening case file" : `Case file ${position} of ${total}`}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-control border border-line-strong bg-surface text-muted transition-colors hover:border-ink hover:text-ink"
+          onClick={onClose}
+          autoFocus
+          aria-label={`Put down ${name}`}
+        >
+          <X className="h-5 w-5" aria-hidden />
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+        <article className="relative mx-auto flex max-w-2xl flex-col gap-5 overflow-hidden rounded-surface border border-record/35 bg-surface px-5 py-6 shadow-sm sm:px-7">
+          <span className="absolute right-0 top-0 h-10 w-10 border-b border-l border-record/25 bg-record-wash" aria-hidden />
+          <header className="flex items-start gap-4 border-b border-line pb-4 pr-8">
+            {imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
+              <img src={imageUrl} alt="" className="h-20 w-20 flex-none rounded-control border border-line object-cover" />
+            ) : (
+              <span className="inline-flex h-12 w-12 flex-none items-center justify-center rounded-control bg-record-wash text-record" aria-hidden>
+                <FileText className="h-6 w-6" />
+              </span>
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-record">
+                {entry ? "Evidence collected · saved to your notes" : "Examining evidence…"}
+              </p>
+              <h2 id="document-title" className="mt-1 font-serif text-2xl leading-tight text-ink sm:text-3xl">
+                {name}
+              </h2>
+            </div>
+          </header>
+
+          {entry ? (
+            <>
+              <p className="whitespace-pre-line font-serif text-lg leading-[1.75] text-ink">{entry.text}</p>
+              {entry.sourceSpan ? (
+                <footer className="border-l-[3px] border-record bg-record-wash/50 px-4 py-3">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">From the historical record</p>
+                  <p className="font-serif text-base italic text-record">{entry.sourceSpan}</p>
+                </footer>
+              ) : null}
+            </>
+          ) : (
+            <div className="flex min-h-32 items-center justify-center gap-3 text-base text-muted" role="status" aria-live="polite">
+              <Spinner /> Reading the document…
+            </div>
+          )}
+        </article>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-record/25 bg-paper px-5 py-3">
+        <p className="inline-flex items-center gap-2 text-sm font-semibold text-world">
+          {entry ? <Check className="h-4 w-4" aria-hidden /> : <Spinner className="h-4 w-4" />}
+          {entry ? "Added to notes" : "Collecting"}
+        </p>
+        <button type="button" className={subtle} onClick={onClose}>
+          Return to the conversation
+        </button>
+      </div>
+    </section>
   );
 }

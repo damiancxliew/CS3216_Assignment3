@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { selectPropHintId, selectPropHitId } from '../src/prop-hint.js'
+import { selectHitTargetId, selectPropHintId } from '../src/prop-hint.js'
 
 describe('document interaction hint', () => {
   it('shows one hint on the nearest unread document', () => {
@@ -24,7 +24,7 @@ describe('document interaction hint', () => {
 
 describe('document click target', () => {
   it('accepts a click on the prompt above the document tile', () => {
-    expect(selectPropHitId([{
+    expect(selectHitTargetId([{
       id: 'brief',
       position: { x: 40, y: 72 },
       bounds: { x: 20, y: 40, width: 40, height: 48 },
@@ -32,7 +32,7 @@ describe('document click target', () => {
   })
 
   it('ignores clicks outside the visible document UI', () => {
-    expect(selectPropHitId([{
+    expect(selectHitTargetId([{
       id: 'brief',
       position: { x: 40, y: 72 },
       bounds: { x: 20, y: 40, width: 40, height: 48 },

@@ -5,7 +5,7 @@ export interface PropHintCandidate {
   position: Point
 }
 
-export interface PropHitCandidate extends PropHintCandidate {
+export interface HitCandidate extends PropHintCandidate {
   bounds: { x: number; y: number; width: number; height: number }
 }
 
@@ -28,8 +28,8 @@ export function selectPropHintId(props: readonly PropHintCandidate[], player: Po
 }
 
 /** Resolve clicks against the whole visible prop (prompt, name and paper), not only its map tile. */
-export function selectPropHitId(props: readonly PropHitCandidate[], pointer: Point): string | null {
-  const hits = props.filter(({ bounds }) => (
+export function selectHitTargetId(targets: readonly HitCandidate[], pointer: Point): string | null {
+  const hits = targets.filter(({ bounds }) => (
     pointer.x >= bounds.x
     && pointer.x <= bounds.x + bounds.width
     && pointer.y >= bounds.y

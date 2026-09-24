@@ -229,6 +229,9 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
         await tabTo(page, (text, tag) => tag === "BUTTON" && text.trim().includes(item.name), 50);
         await page.keyboard.press("Enter");
         await expect.poll(async () => (await publicState(page, attemptId)).body.journal.some((entry: any) => entry.id === item.id), { timeout: 30_000 }).toBe(true);
+        await expect.poll(async () => page.locator('section[aria-labelledby="document-title"]').isVisible()).toBe(true);
+        expect(await page.getByRole("dialog", { name: item.name }).count()).toBe(0);
+        expect(await page.getByRole("button", { name: "Return to the conversation" }).isVisible()).toBe(true);
         roomState = (await publicState(page, attemptId)).body;
       }
     }

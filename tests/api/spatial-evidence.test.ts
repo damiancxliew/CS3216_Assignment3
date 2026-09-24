@@ -44,6 +44,39 @@ describe("authoritative evidence interactions", () => {
     expect(session.snapshot().journal).toHaveLength(1);
   });
 
+  it("does not block evidence pickup on an unrelated option-minting model call", async () => {
+    const session = PlaySession.start(spec, "evidence-fast-path", 1);
+    const evidence = spec.stages[0]!.evidence.find((item) => item.roomId === session.world.location.player) ?? spec.stages[0]!.evidence[0]!;
+    const placement = compileStageMap(spec.stages[0]!, "evidence-fast-path").placements.find((item) => item.id === evidence.id)!;
+    for (const doorId of Object.keys(session.world.spatial!.state.doors)) session.world.spatial!.state.doors[doorId] = "open";
+    for (const room of Object.values(session.world.rooms)) room.doorOpen = true;
+    walk(session, "player", placement.position);
+
+    const roomId = session.world.location.player!;
+    for (let index = 1; index <= 6; index += 1) {
+      session.world.transcript.push({
+        tick: 0,
+        seq: index,
+        roomId,
+        speakerId: "player",
+        speakerName: "You",
+        addresseeId: null,
+        body: `line ${index}`,
+      });
+    }
+    let modelCalls = 0;
+    const llm = {
+      complete: async () => {
+        modelCalls += 1;
+        return { content: "[]", usage: { promptTokens: 1, completionTokens: 1 } };
+      },
+    };
+
+    const accepted = await session.action(llm, { type: "inspect", evidenceId: evidence.id });
+    expect(accepted).toEqual({ ok: true, refused: null });
+    expect(modelCalls).toBe(0);
+  });
+
   it("shares known evidence to nearby outdoor listeners only", () => {
     const session = PlaySession.start(spec, "evidence-share", 1);
     const world = session.world;

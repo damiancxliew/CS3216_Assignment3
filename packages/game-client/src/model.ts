@@ -36,6 +36,8 @@ export interface PlaygroundSnapshot {
     sprite?: string
     /** Realistic generated portrait shown as the actor's in-world avatar when available. */
     portraitUrl?: string | null
+    /** Whether the host considers this actor close enough to interact with now. */
+    interactive?: boolean
     /** Which way the actor last moved, for a walk cycle. */
     facing?: 'down' | 'up' | 'left' | 'right'
   }>

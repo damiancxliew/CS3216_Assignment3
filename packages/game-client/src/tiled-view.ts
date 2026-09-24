@@ -13,7 +13,7 @@
 import Phaser from 'phaser'
 import { spaceAt, type Point, type StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
-import { selectPropHintId, selectPropHitId } from './prop-hint.js'
+import { selectHitTargetId, selectPropHintId } from './prop-hint.js'
 import type { MapThemeId, PlaygroundSnapshot, SoundCueId } from './model.js'
 import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
 import type { MapView } from './view.js'
@@ -189,17 +189,30 @@ class TiledScene extends Phaser.Scene {
     for (const key of this.spriteKeys(this.current)) this.registerAnimations(key)
     this.buildMap()
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const propHit = selectPropHitId([...this.props].map(([id, entry]) => ({
+      const click = { x: pointer.worldX, y: pointer.worldY }
+      const actorHit = selectHitTargetId([...this.markers]
+        .filter(([id]) => id !== 'player')
+        .map(([id, entry]) => ({
+          id,
+          position: { x: entry.container.x, y: entry.container.y },
+          bounds: entry.container.getBounds(),
+        })), click)
+      if (actorHit && this.onActor) {
+        this.onActor(actorHit)
+        this.game.canvas.focus()
+        return
+      }
+      const propHit = selectHitTargetId([...this.props].map(([id, entry]) => ({
         id,
         position: { x: entry.container.x, y: entry.container.y },
         bounds: entry.container.getBounds(),
-      })), { x: pointer.worldX, y: pointer.worldY })
+      })), click)
       if (propHit && this.onProp) {
         this.onProp(propHit)
         this.game.canvas.focus()
         return
       }
-      const landmarkHit = selectPropHitId([...this.landmarks].map(([id, entry]) => ({
+      const landmarkHit = selectHitTargetId([...this.landmarks].map(([id, entry]) => ({
         id,
         position: { x: entry.container.x, y: entry.container.y },
         bounds: entry.container.getBounds(),
@@ -474,7 +487,7 @@ class TiledScene extends Phaser.Scene {
       // A nameplate below the feet would sit on the door the character is standing at.
       this.placeLabel(marker, this.plateBlocked.has(`${actor.position.x},${actor.position.y}`))
       // Someone you can talk to right now gets a prompt above their head.
-      marker.hint?.setVisible(playerRoomId !== null && actor.space?.kind === 'room' && actor.space.roomId === playerRoomId)
+      marker.hint?.setVisible(actor.interactive ?? (playerRoomId !== null && actor.space?.kind === 'room' && actor.space.roomId === playerRoomId))
       if (snap || this.reducedMotion) {
         this.tweens.killTweensOf(marker.container)
         marker.container.setPosition(x, y)

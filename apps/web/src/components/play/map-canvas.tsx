@@ -153,6 +153,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
               space: spaceAt(map as StageMap, position),
               targetRoomId: null,
               status: "idle" as const,
+              interactive: s.hearingActorIds.includes(a.id),
               ...(a.sprite ? { sprite: a.sprite } : {}),
               ...(a.portraitUrl ? { portraitUrl: a.portraitUrl } : {}),
             };
@@ -339,7 +340,13 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       goTo(isWalkable(map as StageMap, doors, door.position) ? door.inside : door.outside);
     };
     intentHandlerRef.current = (next) => {
-      if (!next) return;
+      if (!next) {
+        path = [];
+        pathInputAt = undefined;
+        queuedTarget = null;
+        render();
+        return;
+      }
       if (next.kind === "room") goToRoom(next.roomId);
       else goTo(next.point);
     };
