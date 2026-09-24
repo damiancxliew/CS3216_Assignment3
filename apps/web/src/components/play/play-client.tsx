@@ -390,7 +390,7 @@ export function PlayClient({
               <p className="text-base font-semibold uppercase tracking-wide">Your character</p>
             </div>
             <div className="flex flex-col gap-2">
-              <p className="text-lg text-muted">You are {state.player.name}</p>
+              <p className="text-lg capitalize text-muted">You are {state.player.name}</p>
               <h2 id="role-brief-title" className="font-serif text-3xl leading-tight text-ink sm:text-4xl">
                 {state.player.role}
               </h2>
@@ -402,7 +402,7 @@ export function PlayClient({
               <p className="text-sm font-semibold text-muted">Your first move</p>
               <p className="text-base text-ink">Follow the goals shown in the game panel. You can reopen this role brief at any time.</p>
             </div>
-            <button type="button" className={`${primary} min-h-12 w-full text-lg sm:w-fit sm:self-end`} autoFocus onClick={() => setRoleBriefOpen(false)}>
+            <button type="button" className={`${primary} min-h-12 w-full text-lg capitalize sm:w-fit sm:self-end`} autoFocus onClick={() => setRoleBriefOpen(false)}>
               Begin as {state.player.name}
             </button>
           </section>
