@@ -60,7 +60,7 @@ export async function persistSpecVersion(
   admin: SupabaseClient,
   adventureId: string,
   candidate: unknown,
-  options: { generatorVersion: string; createdBy?: string | null } = {
+  options: { generatorVersion: string; createdBy?: string | null; layoutSeed?: string } = {
     generatorVersion: "spec-v2",
   },
 ): Promise<PersistedVersion> {
@@ -72,7 +72,7 @@ export async function persistSpecVersion(
     );
   }
   const spec: AdventureSpec = validation.spec;
-  const compilation = compileAdventure(spec, randomUUID());
+  const compilation = compileAdventure(spec, options.layoutSeed ?? randomUUID());
   if (!compilation.ok) throw new SpecPersistError("spec cannot be compiled and was not persisted", compilation.issues);
   for (let index = 0; index < compilation.stages.length; index += 1) createSpatialStageWorld(spec, index, compilation.stages[index]!);
 

@@ -15,6 +15,8 @@ import {
   type ExtractedDocument,
   type ExtractedPage,
 } from "@adventure/generation/ingest";
+import { compileAdventure, createSpatialStageWorld } from "@adventure/game-integration";
+import { randomUUID } from "node:crypto";
 import type { LlmClient } from "@adventure/generation/llm";
 import {
   generateAdventure,
@@ -162,6 +164,9 @@ export async function generateFromSources(options: {
     };
   }
 
+  // Check each candidate with the same seed used when the accepted spec is saved.
+  // Compilation failures then become repair feedback instead of a saving error.
+  const layoutSeed = randomUUID();
   const result = await generateAdventure({
     teacher: {
       ...options.brief,
@@ -172,6 +177,18 @@ export async function generateFromSources(options: {
     llm: options.llm,
     config: options.plannerConfig,
     onProgress: options.onProgress,
+    validatePlayable: (spec) => {
+      const compiled = compileAdventure(spec, layoutSeed);
+      if (!compiled.ok) return compiled.issues;
+      for (let index = 0; index < compiled.stages.length; index += 1) {
+        try {
+          createSpatialStageWorld(spec, index, compiled.stages[index]!);
+        } catch (error) {
+          return [{ path: `$.stages.${index}`, message: error instanceof Error ? error.message : String(error) }];
+        }
+      }
+      return [];
+    },
   });
   if (result.status === "failed") return { ok: false, error: describeFailure(result), result };
 
@@ -180,6 +197,7 @@ export async function generateFromSources(options: {
     const version = await persistSpecVersion(options.admin, options.adventureId, result.spec, {
       generatorVersion: `planner:${result.metrics.model}@${result.metrics.promptVersion}`,
       createdBy: options.createdBy ?? null,
+      layoutSeed,
     });
     return {
       ok: true,

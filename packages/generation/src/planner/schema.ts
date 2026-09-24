@@ -6,7 +6,15 @@
  */
 import { z } from 'zod'
 
-import { adventureSpecObjectSchema, readingLevelSchema } from '../spec/v2'
+import {
+  adventureSpecObjectSchema,
+  MAX_ROOMS_PER_STAGE,
+  MAX_STAGES,
+  MIN_ROOMS_PER_STAGE,
+  readingLevelSchema,
+  roomSchema,
+  stageSchema,
+} from '../spec/v2'
 
 export const teacherInputSchema = z.object({
   /** Optional title hint; the planner may improve it. */
@@ -24,7 +32,13 @@ export const teacherInputSchema = z.object({
 export type TeacherInput = z.infer<typeof teacherInputSchema>
 export type TeacherInputRaw = z.input<typeof teacherInputSchema>
 
-export const plannerAdventureSchema = adventureSpecObjectSchema.omit({ version: true, id: true, sources: true, readingLevel: true })
+// Published adventures need a spatial map. Keep the shared spec parser tolerant
+// of legacy records, while making new planner output explicit in its JSON schema.
+const plannerRoomSchema = roomSchema.extend({ enclosure: z.enum(['enclosed', 'open']) })
+const plannerStageSchema = stageSchema.extend({ rooms: z.array(plannerRoomSchema).min(MIN_ROOMS_PER_STAGE).max(MAX_ROOMS_PER_STAGE) })
+export const plannerAdventureSchema = adventureSpecObjectSchema
+  .omit({ version: true, id: true, sources: true, readingLevel: true })
+  .extend({ stages: z.array(plannerStageSchema).min(1).max(MAX_STAGES) })
 
 export const plannerOutputSchema = z.object({
   adventure: plannerAdventureSchema,
