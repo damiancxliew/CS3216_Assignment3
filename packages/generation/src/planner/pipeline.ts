@@ -1,7 +1,7 @@
 /**
  * D3/D4 — documents -> Adventure Spec v2, or a report.
  *
- *   plan -> merge server-owned fields -> schema validate -> grounding check
+ *   plan -> merge server-owned fields -> schema validate -> playability check -> grounding check
  *        -> (invalid? repair, at most MAX_REPAIRS times) -> spec | failure report
  *
  * Invalid output is never returned as a spec (FR-4). Every run yields the D8
@@ -91,6 +91,8 @@ export interface GenerateOptions {
   config?: Partial<PlannerConfig>
   /** Reports actual planner phases; callers may persist them for a progress UI. */
   onProgress?: (phase: 'planning' | 'checking' | 'repairing') => void | Promise<void>
+  /** Application-owned checks, such as map compilation, whose issues should enter the repair loop. */
+  validatePlayable?: (spec: AdventureSpec) => SpecIssue[]
 }
 
 interface Candidate {
@@ -115,8 +117,8 @@ export function mergeServerFields(adventure: Record<string, unknown>, teacher: T
   }
 }
 
-/** Validate one planner output all the way through: shape, cross-refs, grounding. */
-export async function evaluateCandidate(json: unknown, teacher: TeacherInput, documents: readonly ExtractedDocument[], retriever?: Retriever): Promise<Candidate> {
+/** Validate one planner output all the way through: shape, cross-refs, playability, grounding. */
+export async function evaluateCandidate(json: unknown, teacher: TeacherInput, documents: readonly ExtractedDocument[], retriever?: Retriever, validatePlayable?: (spec: AdventureSpec) => SpecIssue[]): Promise<Candidate> {
   const parsed = plannerOutputSchema.safeParse(json)
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => ({ path: formatIssuePath(i.path), message: i.message }))
@@ -128,6 +130,8 @@ export async function evaluateCandidate(json: unknown, teacher: TeacherInput, do
     const issues = validation.issues.map((i) => ({ path: i.path.replace(/^\$/, '$.adventure'), message: i.message }))
     return { spec: null, issues, schemaIssues: issues.length, groundingIssues: 0, missingInformation: parsed.data.missingInformation }
   }
+  const playabilityIssues = validatePlayable?.(validation.spec).map((issue) => ({ ...issue, path: issue.path.replace(/^\$/, '$.adventure') })) ?? []
+  if (playabilityIssues.length > 0) return { spec: null, issues: playabilityIssues, schemaIssues: playabilityIssues.length, groundingIssues: 0, missingInformation: parsed.data.missingInformation }
   const grounding = verifyGrounding(validation.spec, new Map(documents.map((d) => [d.id, d])))
   const issues: SpecIssue[] = []
   for (const f of grounding.failures) {
@@ -253,7 +257,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
       continue
     }
 
-    const candidate = await evaluateCandidate(response.json, teacher, options.documents, retriever)
+    const candidate = await evaluateCandidate(response.json, teacher, options.documents, retriever, options.validatePlayable)
     lastCandidate = candidate
     call.issueCount = candidate.issues.length
     call.schemaIssues = candidate.schemaIssues
