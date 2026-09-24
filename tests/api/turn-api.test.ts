@@ -112,6 +112,7 @@ describe("GET state", () => {
     const { d } = deps();
     const result = ok(await getState(d, ATTEMPT, STUDENT));
     expect(publicAttemptStateSchema.parse(result.state)).toBeTruthy();
+    expect(result.state.player).toEqual(spec.player);
     expect(result.state.stage.index).toBe(0);
     expect(result.state.currentRoomId).toBe(spec.stages[0]!.spawnRoomId);
     expect(result.state.map?.rooms.map((r) => r.id).sort()).toEqual(spec.stages[0]!.rooms.map((r) => r.id).sort());

@@ -99,6 +99,7 @@ export function PlayClient({
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
+  const [roleBriefOpen, setRoleBriefOpen] = useState(initialState.status === "active" && initialState.revision === 0);
   const [hintVisible, setHintVisible] = useState(true);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
@@ -375,6 +376,39 @@ export function PlayClient({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      {roleBriefOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-5" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="role-brief-title"
+            aria-describedby="role-brief-description"
+            className="flex w-full max-w-xl flex-col gap-5 rounded-surface border border-line bg-paper p-6 shadow-2xl sm:p-8"
+          >
+            <div className="flex items-center gap-2 text-world">
+              <UserRound className="h-6 w-6" aria-hidden />
+              <p className="text-base font-semibold uppercase tracking-wide">Your character</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-lg text-muted">You are {state.player.name}</p>
+              <h2 id="role-brief-title" className="font-serif text-3xl leading-tight text-ink sm:text-4xl">
+                {state.player.role}
+              </h2>
+            </div>
+            <p id="role-brief-description" className="text-lg leading-relaxed text-ink">
+              {state.player.brief}
+            </p>
+            <div className="rounded-control border-l-[3px] border-world bg-surface px-4 py-3">
+              <p className="text-sm font-semibold text-muted">Your first move</p>
+              <p className="text-base text-ink">Follow the goals shown in the game panel. You can reopen this role brief at any time.</p>
+            </div>
+            <button type="button" className={`${primary} min-h-12 w-full text-lg sm:w-fit sm:self-end`} autoFocus onClick={() => setRoleBriefOpen(false)}>
+              Begin as {state.player.name}
+            </button>
+          </section>
+        </div>
+      ) : null}
+
       <section className="relative h-[32dvh] min-h-[11rem] shrink-0 bg-sunken lg:h-auto lg:min-h-0 lg:flex-1" aria-label="Map">
         <MapCanvas
           state={state}
@@ -429,6 +463,19 @@ export function PlayClient({
       <aside className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto border-t border-line bg-paper text-base lg:w-[34rem] lg:flex-none lg:border-l lg:border-t-0 xl:w-[40rem]">
         {/* ── Top: where you are, where you can go ─────────────────────────── */}
         <section className="flex shrink-0 flex-col gap-3 border-b border-line px-5 py-4" aria-labelledby="where">
+          <button
+            type="button"
+            onClick={() => setRoleBriefOpen(true)}
+            className="flex min-h-11 w-full items-center gap-3 rounded-control border border-world/40 bg-world-wash px-3.5 py-2 text-left text-ink transition-colors hover:border-world"
+            aria-label={`Open your role brief: ${state.player.role}`}
+          >
+            <UserRound className="h-5 w-5 shrink-0 text-world" aria-hidden />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-muted">You are playing</span>
+              <span className="block truncate text-base font-semibold">{state.player.role}</span>
+            </span>
+            <span className="ml-auto shrink-0 text-sm font-semibold text-world underline underline-offset-4">Role brief</span>
+          </button>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className={label}>You are in</p>

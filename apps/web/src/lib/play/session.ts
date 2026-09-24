@@ -370,6 +370,11 @@ export class PlaySession {
       adventureId: this.spec.id,
       publishedVersion: this.publishedVersion,
       status: this.snap.status,
+      player: {
+        name: this.spec.player.name,
+        role: this.spec.player.role,
+        brief: this.spec.player.brief,
+      },
       stage: {
         id: this.stage.id,
         index: this.stage.index,
