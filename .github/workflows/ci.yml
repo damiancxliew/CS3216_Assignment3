@@ -33,12 +33,26 @@ jobs:
       - run: npx supabase db reset
       - run: npx vitest run tests/db
 
-  # Hosted Postgres only changed when someone remembered to run `supabase db
-  # push`, so a merged migration left production serving code against a schema
-  # that did not have its columns yet.
+  # Validate the migration chain independently. A failure in a runtime DB test
+  # must stay visible, but it must not prevent a valid schema from reaching the
+  # hosted database after the web app has deployed.
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx supabase start
+      - run: npx supabase db reset
+
+  # A merged migration must reach hosted Postgres even if an unrelated runtime
+  # database test fails. The schema rebuild and web checks remain required.
   migrate:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [web, database]
+    needs: [web, schema]
     runs-on: ubuntu-latest
     concurrency: migrate-hosted
     env:
