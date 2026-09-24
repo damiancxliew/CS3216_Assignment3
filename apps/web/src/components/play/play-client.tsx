@@ -695,19 +695,7 @@ export function PlayClient({
           ) : null}
         </section>
 
-        {/* A found document takes over the HUD's focal area without hiding the
-            map, location, goals, or navigation behind a conventional modal. */}
-        {reading ? (
-          <DocumentReader
-            entry={openDocument}
-            name={openDocumentName}
-            imageUrl={openDocument ? state.evidenceImages[openDocument.id] ?? null : null}
-            position={openDocument ? state.journal.findIndex((entry) => entry.id === openDocument.id) + 1 : null}
-            total={state.journal.length}
-            onClose={() => setReading(null)}
-          />
-        ) : (
-        /* ── Middle: the conversation. This is the game; it gets the height. ── */
+        {/* ── Middle: the conversation. This is the game; it gets the height. ── */}
         <section className="flex min-h-0 flex-1 flex-col lg:min-h-80" aria-labelledby="talk">
           {peopleHere.length ? (
             <div className="flex gap-2 overflow-x-auto px-5 pt-4" role="radiogroup" aria-label="Who you are talking to" id="talk">
@@ -807,7 +795,6 @@ export function PlayClient({
             </button>
           </form>
         </section>
-        )}
 
         {/* ── Bottom, always visible: goals + the decision ─────────────────── */}
         <section className="flex flex-col gap-3 border-t border-line bg-sunken/60 px-5 py-4 lg:min-h-0 lg:max-h-[34%] lg:overflow-y-auto" aria-labelledby="decide">
@@ -946,6 +933,17 @@ export function PlayClient({
         </section>
       </aside>
 
+      {reading ? (
+        <DocumentReader
+          entry={openDocument}
+          name={openDocumentName}
+          imageUrl={openDocument ? state.evidenceImages[openDocument.id] ?? null : null}
+          position={openDocument ? state.journal.findIndex((entry) => entry.id === openDocument.id) + 1 : null}
+          total={state.journal.length}
+          onClose={() => setReading(null)}
+        />
+      ) : null}
+
       {openLandmark ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="landmark-title">
           <div className="flex max-h-[80dvh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-surface border-l-[3px] border-world bg-paper p-5 shadow-xl sm:p-6">
@@ -963,9 +961,9 @@ export function PlayClient({
 }
 
 /**
- * Evidence reads like an object the player has unfolded inside the HUD, not a
- * generic app dialog. The map and the rest of the stage remain visible while
- * the authoritative pickup is loading and after the file has been collected.
+ * Evidence opens above the game like a case file laid across the desk. The
+ * frame stays fixed while the paper itself scrolls, so long records remain
+ * readable without displacing the conversation HUD.
  */
 function DocumentReader({
   entry,
@@ -982,9 +980,34 @@ function DocumentReader({
   total: number;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onClose]);
+
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-record-wash/45 lg:min-h-80" aria-labelledby="document-title">
-      <div className="flex items-center justify-between gap-3 border-b border-record/25 bg-paper px-5 py-3">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-3 backdrop-blur-[1px] sm:p-6"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        className="flex max-h-[calc(100dvh-1.5rem)] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-surface border border-record/40 bg-paper shadow-2xl sm:max-h-[min(88dvh,56rem)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="document-title"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-record/25 bg-paper px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2 text-record">
           <FileText className="h-5 w-5 shrink-0" aria-hidden />
           <p className="truncate text-sm font-semibold uppercase tracking-[0.12em]">
@@ -1000,10 +1023,10 @@ function DocumentReader({
         >
           <X className="h-5 w-5" aria-hidden />
         </button>
-      </div>
+        </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-        <article className="relative mx-auto flex max-w-2xl flex-col gap-5 overflow-hidden rounded-surface border border-record/35 bg-surface px-5 py-6 shadow-sm sm:px-7">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-record-wash/45 p-3 overscroll-contain sm:p-6">
+          <article className="relative mx-auto flex max-w-2xl flex-col gap-5 overflow-hidden rounded-surface border border-record/35 bg-surface px-5 py-6 shadow-sm sm:px-8 sm:py-8">
           <span className="absolute right-0 top-0 h-10 w-10 border-b border-l border-record/25 bg-record-wash" aria-hidden />
           <header className="flex items-start gap-4 border-b border-line pb-4 pr-8">
             {imageUrl ? (
@@ -1039,18 +1062,19 @@ function DocumentReader({
               <Spinner /> Reading the document…
             </div>
           )}
-        </article>
-      </div>
+          </article>
+        </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-record/25 bg-paper px-5 py-3">
-        <p className="inline-flex items-center gap-2 text-sm font-semibold text-world">
-          {entry ? <Check className="h-4 w-4" aria-hidden /> : <Spinner className="h-4 w-4" />}
-          {entry ? "Added to notes" : "Collecting"}
-        </p>
-        <button type="button" className={subtle} onClick={onClose}>
-          Return to the conversation
-        </button>
-      </div>
-    </section>
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-record/25 bg-paper px-4 py-3 sm:px-6">
+          <p className="inline-flex items-center gap-2 text-sm font-semibold text-world">
+            {entry ? <Check className="h-4 w-4" aria-hidden /> : <Spinner className="h-4 w-4" />}
+            {entry ? "Added to notes" : "Collecting"}
+          </p>
+          <button type="button" className={subtle} onClick={onClose}>
+            Close file
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
