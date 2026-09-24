@@ -111,7 +111,7 @@ describe("service dialogue lifecycle", () => {
     void originalSave;
   });
 
-  it("rejects a second addressed request, permits broadcast, expires the ticket, and ignores late completion", async () => {
+  it("rejects a second addressed request, permits broadcast, and accepts late completion", async () => {
     let release!: (response: LlmResponse) => void;
     let started!: () => void;
     const startedPromise = new Promise<void>((resolve) => { started = resolve; });
@@ -132,6 +132,6 @@ describe("service dialogue lifecycle", () => {
     await first;
     const final = (await store.load(attemptId, studentId))!.snapshot!;
     expect(final.pendingReply).toBeNull();
-    expect(final.world.transcript.some((line) => line.body === "Too late.")).toBe(false);
+    expect(final.world.transcript.some((line) => line.body === "Too late.")).toBe(true);
   });
 });

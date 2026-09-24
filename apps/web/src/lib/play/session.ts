@@ -91,6 +91,7 @@ export interface PlaySnapshot {
   mintedAtSeq?: number;
   status: "active" | "completed";
   endingId: string | null;
+  /** Total tokens spent across the attempt; stage budgets use stageStats.tokens instead. */
   tokensSpent: number;
   revision: number;
   /** Walking allowance: one token per `STEP_INTERVAL_MS`, capped at `STEP_BURST`. */
@@ -623,11 +624,17 @@ export class PlaySession {
     if (!source) throw new Error("reply source missing");
     const detached = structuredClone(this.snap.world);
     const turnInput = { ...buildAgentTurnInput(detached, ticket.agentId, this.stageConfig(), 1), playerMessage: source.body, replyToSeqs: [ticket.utteranceSeq] };
-    return replyToPlayer(client, detached, turnInput, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), speakerId: PLAYER_ID, nowMs: this.clock.now().getTime(), tokenBudget: STAGE_TOKEN_BUDGET, tokensSpent: this.snap.tokensSpent });
+    return replyToPlayer(client, detached, turnInput, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), speakerId: PLAYER_ID, nowMs: this.clock.now().getTime(), tokenBudget: STAGE_TOKEN_BUDGET, tokensSpent: this.snap.stageStats.tokens });
   }
 
   completeReply(ticket: PendingReply, result: ReplyResult | null): MessageOutcome {
-    if (this.snap.status !== "active" || this.snap.pendingReply?.id !== ticket.id || this.snap.pendingReply.stageId !== this.stage.id || ticket.expiresAt <= this.clock.now().getTime()) return { ok: true, newMessages: [] };
+    if (this.snap.status !== "active" || this.snap.pendingReply?.id !== ticket.id || this.snap.pendingReply.stageId !== this.stage.id) {
+      if (this.snap.pendingReply === null && this.snap.status === "active" && ticket.stageId === this.stage.id) {
+        this.snap.announcements.push({ id: newId(), body: "The reply was interrupted. Please try again.", createdAt: this.clock.now().toISOString() });
+        this.bump();
+      }
+      return { ok: true, newMessages: [] };
+    }
     const beforeSeq = this.snap.world.seq;
     this.snap.pendingReply = null;
     if (result === null) {
@@ -646,13 +653,6 @@ export class PlaySession {
     }
     this.bump();
     return { ok: true, newMessages: this.playerHeard().filter((line) => line.seq > beforeSeq).map((line) => this.toMessage(line)) };
-  }
-
-  expirePendingReply(): void {
-    if (this.snap.pendingReply && this.snap.pendingReply.expiresAt <= this.clock.now().getTime()) {
-      this.snap.pendingReply = null;
-      this.bump();
-    }
   }
 
   async message(client: LlmClient, input: { roomId: string; body: string; addresseeId?: string | null }): Promise<MessageOutcome> {
@@ -791,7 +791,7 @@ export class PlaySession {
     if ((this.snap.mintedOptions ?? []).length >= MINTED_OPTIONS_CAP) return;
     const transcriptLength = this.snap.world.transcript.length;
     if (transcriptLength - (this.snap.mintedAtSeq ?? 0) < MINT_TRIGGER_TRANSCRIPT_LINES) return;
-    if (STAGE_TOKEN_BUDGET - this.snap.tokensSpent <= 0) return;
+    if (STAGE_TOKEN_BUDGET - this.snap.stageStats.tokens <= 0) return;
 
     this.snap.mintedAtSeq = transcriptLength;
     const metrics = new StructuredCallMetrics();
@@ -839,7 +839,7 @@ export class PlaySession {
       ...config,
       agents,
       maxTicks,
-      tokenBudget: Math.max(0, STAGE_TOKEN_BUDGET - this.snap.tokensSpent),
+      tokenBudget: Math.max(0, STAGE_TOKEN_BUDGET - this.snap.stageStats.tokens),
     });
     this.snap.tokensSpent += run.telemetry.totalTokens;
     this.snap.stageStats.tokens += run.telemetry.totalTokens;
