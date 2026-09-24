@@ -8,7 +8,7 @@
  * longer validates (older fixtures), so the page can fall back quietly.
  */
 import type { MapDoor, MapRoom } from "@adventure/game-core";
-import type { AssetManifest, AssetRecord } from "@adventure/generation/assets";
+import { placeholderUrl, type AssetManifest, type AssetRecord } from "@adventure/generation/assets";
 import { resolveStageSettings, validatePublishedSpec, type AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -36,7 +36,7 @@ export type DossierRoom = {
   kind: string;
   size: string;
   landmark: { name: string; description: string } | null;
-  imageUrl: string | null;
+  imageUrl: string;
   imageStatus: ImageStatus;
   assetId: string | null;
 };
@@ -63,7 +63,7 @@ export type DossierStage = {
     name: string;
     text: string;
     spans: { sourceTitle: string; page: number; quote: string }[];
-    imageUrl: string | null;
+    imageUrl: string;
     imageStatus: ImageStatus;
     assetId: string | null;
   }[];
@@ -152,7 +152,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
         kind: room.kind,
         size: room.size,
         landmark: room.landmark,
-        imageUrl: status === "generated" ? record!.url : null,
+        imageUrl: status === "generated" ? record!.url : record?.placeholderUrl ?? placeholderUrl("landmark"),
         imageStatus: status,
         assetId: record?.assetId ?? null,
       };
@@ -174,7 +174,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
           page: span.page,
           quote: span.quote,
         })),
-        imageUrl: status === "generated" ? record!.url : null,
+        imageUrl: status === "generated" ? record!.url : record?.placeholderUrl ?? placeholderUrl("prop"),
         imageStatus: status,
         assetId: record?.assetId ?? null,
       };

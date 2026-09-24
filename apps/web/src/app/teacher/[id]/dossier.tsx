@@ -27,25 +27,9 @@ import type { Dossier, ImageStatus } from "@/lib/teacher/dossier";
 
 const INTENSITY_LABELS = ["", "light", "moderate", "heavy"] as const;
 
-/** One inline glyph per asset kind, drawn in the muted register. */
-function KindGlyph({ kind, className = "h-6 w-6" }: { kind: "portrait" | "landmark" | "prop"; className?: string }) {
-  const paths = {
-    portrait: "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 9a7 7 0 0 1 14 0",
-    landmark: "M4 20h16M6 20V9l6-5 6 5v11M10 20v-5h4v5",
-    prop: "M12 3l7 4v10l-7 4-7-4V7z",
-  } as const;
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d={paths[kind]} />
-    </svg>
-  );
-}
-
 /**
  * An asset tile with a fixed aspect ratio, so the four states (generated,
- * curated placeholder, still drawing, failed) never shift the layout. The
- * curated `/assets/curated/*` urls are never rendered — they don't exist in
- * the bundle; a faceset or this styled block stands in instead.
+ * curated placeholder, still drawing, failed) never shift the layout.
  */
 function Artwork({
   kind,
@@ -61,17 +45,28 @@ function Artwork({
   /** Owns sizing entirely — the branches add no width of their own. */
   className?: string;
 }) {
-  if (imageStatus === "generated" && imageUrl) {
-    return <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className={`rounded-surface object-cover ${className}`} />;
+  if (imageStatus === "pending") {
+    return (
+      <div data-artwork-kind={kind} role="img" aria-label={`${alt}, artwork in progress`} className={`flex items-center justify-center overflow-hidden rounded-control border border-line bg-sunken ${className}`}>
+        <Skeleton className="h-full w-full rounded-none" />
+      </div>
+    );
   }
-  if (kind === "portrait" && imageStatus === "placeholder" && imageUrl) {
-    // Portraits have a curated faceset as their placeholder (D6).
-    return <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className={`rounded-surface object-cover ${className}`} />;
+  if (imageUrl) {
+    return (
+      <div data-artwork-kind={kind} className={`relative overflow-hidden rounded-control border border-line bg-sunken ${className}`}>
+        <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className="h-full w-full object-cover" />
+        {imageStatus === "failed" ? (
+          <span className="absolute inset-x-1 bottom-1 rounded bg-ink/80 px-1.5 py-0.5 text-center text-xs font-semibold text-paper">
+            Needs retry
+          </span>
+        ) : null}
+      </div>
+    );
   }
   return (
-    <div role="img" aria-label={alt} className={`flex flex-col items-center justify-center gap-2 rounded-surface bg-sunken text-muted ${className}`}>
-      {imageStatus === "pending" ? <Skeleton className="h-2/3 w-2/3" /> : <KindGlyph kind={kind} />}
-      {imageStatus === "failed" ? <span className="text-sm">Couldn’t generate artwork</span> : null}
+    <div data-artwork-kind={kind} role="img" aria-label={`${alt}, artwork unavailable`} className={`flex items-center justify-center rounded-control border border-line bg-sunken px-2 text-center text-xs font-semibold text-muted ${className}`}>
+      Artwork unavailable
     </div>
   );
 }
@@ -79,12 +74,14 @@ function Artwork({
 function RegenerateButton({ adventureId, specVersionId, assetId }: { adventureId: string; specVersionId: string; assetId: string | null }) {
   if (!assetId) return null;
   return (
-    <ActionButton
-      action={regenerateAsset.bind(null, adventureId, specVersionId, assetId)}
-      label="Regenerate"
-      pendingLabel="Regenerating…"
-      variant="quiet"
-    />
+    <div className="mt-auto pt-1">
+      <ActionButton
+        action={regenerateAsset.bind(null, adventureId, specVersionId, assetId)}
+        label="Regenerate"
+        pendingLabel="Regenerating…"
+        variant="quiet"
+      />
+    </div>
   );
 }
 
@@ -138,7 +135,7 @@ export function DossierSections({
             return (
               <li key={stage.id} className="flex flex-col gap-6 overflow-hidden rounded-surface border border-line bg-surface">
                 <div className="relative">
-                  {banner?.imageStatus === "generated" && banner.imageUrl ? (
+                  {banner?.imageUrl ? (
                     <img
                       src={banner.imageUrl}
                       alt={banner.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`}
@@ -148,8 +145,7 @@ export function DossierSections({
                       className="w-full aspect-[3/1] object-cover"
                     />
                   ) : (
-                    // No generated banner: a modest band, not a tile — the
-                    // stage title below already says everything a glyph would.
+                    // Defensive fallback for malformed legacy specs.
                     <div role="img" aria-label={`Stage ${stage.index + 1}`} className="h-36 w-full bg-sunken" />
                   )}
                   <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-baseline justify-between gap-2 bg-ink/60 px-5 py-3">
@@ -190,7 +186,7 @@ export function DossierSections({
                     <h3 className="text-base font-semibold text-ink">Rooms</h3>
                     <ul className="grid gap-3 sm:grid-cols-2">
                       {stage.rooms.map((room) => (
-                        <li key={room.id} className="flex gap-3 rounded-surface border border-line bg-surface p-3">
+                        <li key={room.id} className="flex h-full gap-3 rounded-surface border border-line bg-surface p-4">
                           <Artwork
                             kind="landmark"
                             alt={room.landmark ? `Artwork of ${room.landmark.name}` : `Room: ${room.name}`}
@@ -198,7 +194,7 @@ export function DossierSections({
                             imageStatus={room.imageStatus}
                             className="h-20 w-20 shrink-0"
                           />
-                          <div className="flex min-w-0 flex-col gap-0.5">
+                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                             <InlineEdit
                               action={editRoom.bind(null, adventureId, specVersionId, stage.id, room.id)}
                               label={`Edit ${room.name}`}
@@ -226,14 +222,14 @@ export function DossierSections({
                     <h3 className="text-base font-semibold text-ink">Evidence</h3>
                     <ul className="grid gap-3 sm:grid-cols-2">
                       {stage.evidence.map((item) => (
-                        <li key={item.id} className="flex flex-col gap-3 rounded-surface border border-line bg-surface p-4">
+                        <li key={item.id} className="flex h-full flex-col gap-3 rounded-surface border border-line bg-surface p-4">
                           <div className="flex items-start gap-3">
                             <Artwork
                               kind="prop"
                               alt={`Artwork of ${item.name}`}
                               imageUrl={item.imageUrl}
                               imageStatus={item.imageStatus}
-                              className="h-16 w-16 shrink-0"
+                              className="h-20 w-20 shrink-0"
                             />
                             <div className="min-w-0">
                               <InlineEdit
@@ -251,7 +247,7 @@ export function DossierSections({
                             </div>
                           </div>
                           {item.spans.map((span, i) => (
-                            <RecordEntry key={i} quote={span.quote} source={`${span.sourceTitle}, p. ${span.page}`} />
+                            <RecordEntry key={i} quote={span.quote} source={`${span.sourceTitle}, p. ${span.page}`} compact />
                           ))}
                           <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={item.assetId} />
                         </li>

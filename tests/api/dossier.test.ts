@@ -64,12 +64,26 @@ describe("dossier view model", () => {
     if (landmark) {
       const room = dossier.stages.flatMap((s) => s.rooms).find((r) => r.id === landmark.entityId)!;
       expect(room.imageStatus).toBe("pending");
-      expect(room.imageUrl).toBeNull();
+      expect(room.imageUrl).toBe("/assets/curated/placeholder-landmark.png");
     }
     if (prop) {
       const item = dossier.stages.flatMap((s) => s.evidence).find((e) => e.id === prop.entityId)!;
       expect(item.imageStatus).toBe("failed");
-      expect(item.imageUrl).toBeNull();
+      expect(item.imageUrl).toBe("/assets/curated/placeholder-prop.png");
+    }
+  });
+
+  it("gives every room and evidence card bundled fallback artwork without a manifest", async () => {
+    const spec = await loadI1Spec();
+    const dossier = dossierFromSpec(spec, null);
+
+    for (const room of dossier.stages.flatMap((stage) => stage.rooms)) {
+      expect(room.imageStatus).toBe("placeholder");
+      expect(room.imageUrl).toBe("/assets/curated/placeholder-landmark.png");
+    }
+    for (const item of dossier.stages.flatMap((stage) => stage.evidence)) {
+      expect(item.imageStatus).toBe("placeholder");
+      expect(item.imageUrl).toBe("/assets/curated/placeholder-prop.png");
     }
   });
 

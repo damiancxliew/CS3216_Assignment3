@@ -300,16 +300,18 @@ export function RecordEntry({
   quote,
   source,
   children,
+  compact = false,
 }: {
   quote?: string;
   source: React.ReactNode;
   children?: React.ReactNode;
+  compact?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-2 border-l-[3px] border-record pl-4">
-      {quote ? <p className="font-serif text-xl italic leading-[1.6] text-ink">“{quote}”</p> : null}
-      {children ? <div className="font-serif text-xl leading-[1.6] text-ink">{children}</div> : null}
-      <p className="text-base font-semibold text-record">{source}</p>
+    <div className={`flex flex-col border-l-[3px] border-record ${compact ? "gap-1.5 pl-3" : "gap-2 pl-4"}`}>
+      {quote ? <p className={`font-serif italic text-ink ${compact ? "text-lg leading-[1.5]" : "text-xl leading-[1.6]"}`}>“{quote}”</p> : null}
+      {children ? <div className={`font-serif text-ink ${compact ? "text-lg leading-[1.5]" : "text-xl leading-[1.6]"}`}>{children}</div> : null}
+      <p className={`${compact ? "text-sm" : "text-base"} font-semibold text-record`}>{source}</p>
     </div>
   );
 }
