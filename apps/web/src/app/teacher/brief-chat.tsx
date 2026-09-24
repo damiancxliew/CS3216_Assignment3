@@ -383,9 +383,17 @@ function SourceStep({
   const [pasting, setPasting] = useState(false);
   const pasteField = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="flex flex-col gap-2 text-base">
+    <div className="flex flex-col gap-3 text-base">
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setPasting((p) => !p)} disabled={pending} className={button.quiet}>
+          {pasting ? "Upload a file instead" : "Paste text instead"}
+        </button>
+        <Chip onClick={onDone} disabled={pending || state.sources.length === 0} primary>
+          <Check className="h-4 w-4" aria-hidden /> {SOURCES_DONE}
+        </Chip>
+      </div>
       <form
-        className="flex flex-col gap-3"
+        className="flex items-end gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           const formData = new FormData(event.currentTarget);
@@ -403,7 +411,7 @@ function SourceStep({
             aria-label="Source text"
             disabled={pending}
             onInput={(event) => autoGrow(event.currentTarget, 240)}
-            className={`${control} w-full resize-none`}
+            className={`${control} flex-1 resize-none`}
           />
         ) : (
           <input
@@ -413,26 +421,18 @@ function SourceStep({
             aria-label="PDF, .txt or .md"
             disabled={pending}
             onChange={(event) => event.currentTarget.form?.requestSubmit()}
-            className={`${control} w-full file:mr-3 file:rounded-control file:border-0 file:bg-ink file:px-3 file:py-1 file:text-sm file:font-semibold file:text-paper`}
+            className={`${control} flex-1 file:mr-3 file:rounded-control file:border-0 file:bg-ink file:px-3 file:py-1 file:text-sm file:font-semibold file:text-paper`}
           />
         )}
-        <div className="flex flex-wrap items-center gap-3">
-          {pasting ? (
-            <button type="submit" disabled={pending} className={button.quiet}>
-              {pending ? <Pending>Reading</Pending> : "Add the passage"}
-            </button>
-          ) : pending ? (
-            <span className={button.quiet}>
-              <Pending>Reading</Pending>
-            </span>
-          ) : null}
-          <button type="button" onClick={() => setPasting((p) => !p)} disabled={pending} className={button.quiet}>
-            {pasting ? "Upload a file instead" : "Paste text instead"}
+        {pasting ? (
+          <button type="submit" disabled={pending} className={button.primary}>
+            {pending ? <Pending>Reading</Pending> : "Add the passage"}
           </button>
-          <Chip onClick={onDone} disabled={pending || state.sources.length === 0} primary className="sm:ml-auto">
-            <Check className="h-4 w-4" aria-hidden /> {SOURCES_DONE}
-          </Chip>
-        </div>
+        ) : pending ? (
+          <span className={button.quiet}>
+            <Pending>Reading</Pending>
+          </span>
+        ) : null}
       </form>
       {!pasting ? (
         <p className="text-sm text-muted">Any size PDF — the text is read here in your browser. A scanned PDF has no text layer; paste its text instead.</p>
