@@ -723,7 +723,9 @@ const text = (formData: FormData, name: string) => String(formData.get(name) ?? 
 export async function editStage(adventureId: string, specVersionId: string, stageId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const timer = parseTimer(formData.get("timer_seconds"));
   if (timer === "invalid") return { error: "Leave the timer empty to inherit, or give seconds (0 disables)" };
-  return applyEdit(adventureId, specVersionId, { kind: "stage", stageId, title: text(formData, "title"), sharedContext: text(formData, "shared_context"), timerSeconds: timer });
+  const mapTheme = text(formData, "map_theme");
+  if (mapTheme !== "classic" && mapTheme !== "desert" && mapTheme !== "winter" && mapTheme !== "forest" && mapTheme !== "coast") return { error: "Choose a listed map theme" };
+  return applyEdit(adventureId, specVersionId, { kind: "stage", stageId, title: text(formData, "title"), sharedContext: text(formData, "shared_context"), timerSeconds: timer, mapTheme });
 }
 
 export async function editStakeholder(adventureId: string, specVersionId: string, stakeholderId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {

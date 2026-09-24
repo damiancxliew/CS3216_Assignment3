@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { loadI1Spec } from "@adventure/generation/fixtures";
+import type { AssetManifest, AssetRecord } from "@adventure/generation/assets";
 import { FakeLlmClient } from "@adventure/orchestration";
 import { describe, expect, it } from "vitest";
 
@@ -25,6 +26,7 @@ describe("curated characters", () => {
     }
     expect(existsSync(join(PUBLIC, "game", "ninja", "LICENSE.txt"))).toBe(true);
     for (const tile of ["floor", "wall", "interior", "house"]) expect(existsSync(join(PUBLIC, "game", "ninja", "tiles", `${tile}.png`)), tile).toBe(true);
+    for (const theme of ["desert", "winter", "forest", "coast"]) expect(existsSync(join(PUBLIC, "game", "themes", theme, "terrain.png")), theme).toBe(true);
   });
 
   it("picks the same character for the same stakeholder, and a fitting one for a known role", () => {
@@ -49,5 +51,30 @@ describe("curated characters", () => {
     expect(state.actors.find((a) => a.id === "player")?.sprite).toBe(PLAYER_CHARACTER);
     for (const actor of state.actors) expect(CHARACTERS).toContain(actor.sprite);
     for (const agent of state.agents) expect(agent.portraitUrl).toMatch(/^\/game\/ninja\/characters\/[A-Za-z0-9]+\/face\.png$/);
+  });
+
+  it("passes the chosen stage theme and ready story images to the play map", async () => {
+    const spec = await loadI1Spec();
+    spec.stages[0]!.mapTheme = "coast";
+    const room = spec.stages[0]!.rooms[0]!;
+    const evidence = spec.stages[0]!.evidence[0]!;
+    const makeRecord = (kind: "landmark" | "prop", entityId: string): AssetRecord => ({
+      assetId: `asset-${kind}`, entityId, kind, status: "ready", url: `https://example.test/${kind}.png`,
+      placeholderUrl: "", promptHash: "test", model: "test", costUsd: 0, error: null,
+    });
+    const assets: AssetManifest = {
+      adventureId: spec.id, specVersion: spec.version,
+      records: [makeRecord("landmark", room.id), makeRecord("prop", evidence.id)],
+      generatedCount: 2, cacheHits: 0, totalCostUsd: 0, startedAt: "", finishedAt: "",
+    };
+    const deps: PlayServiceDeps = {
+      store: new MemoryPlayStore([{ attemptId: "theme-a", studentId: "s", adventureId: spec.id, publishedVersion: 1, status: "active", stageDeadlineAt: null, spec, snapshot: null, assets }]),
+      llm: new FakeLlmClient({ replies: [JSON.stringify({ say: "", actions: [] })] }),
+    };
+    const result = await getState(deps, "theme-a", "s");
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.state.stage.mapTheme).toBe("coast");
+    expect(result.state.roomImages[room.id]).toBe("https://example.test/landmark.png");
+    expect(result.state.evidenceImages[evidence.id]).toBe("https://example.test/prop.png");
   });
 });

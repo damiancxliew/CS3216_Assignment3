@@ -158,7 +158,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
           }).filter((actor): actor is NonNullable<typeof actor> => actor !== null),
       ];
       const goal = path.length ? { kind: "point" as const, point: path[path.length - 1]! } : null;
-      const props = s.props.map((prop) => ({ id: prop.id, name: prop.name, position: prop.position, found: prop.found }));
+      const props = s.props.map((prop) => ({ id: prop.id, name: prop.name, position: prop.position, found: prop.found, ...(s.evidenceImages[prop.id] ? { imageUrl: s.evidenceImages[prop.id] } : {}) }));
       return {
         // Keep music selection stable for this stage while allowing other stages and adventures to vary.
         seed: `${s.adventureId}:${s.stage.id}`,
@@ -172,6 +172,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         npcRoutes: false,
         revision: s.revision,
         roomNames: Object.fromEntries(s.rooms.map((r) => [r.id, r.name])),
+        roomImages: s.roomImages,
+        mapTheme: s.stage.mapTheme,
         ambient: { id: s.stage.ambientOverlay, intensity: Math.min(3, Math.max(1, s.stage.overlayIntensity)) as 1 | 2 | 3 },
         // One-shot effects are keyed by announcement so each plays once, in the room the player is in.
         effects: s.announcements.length
@@ -398,6 +400,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
         view = await createTiledMapView(parent, snapshot(), (point, inputAt) => goTo(point, inputAt), reduced.matches, {
           assetBase: ASSET_BASE,
+          themeBase: "/game/themes",
           defaultSprite: "Villager",
           onActor: (actorId) => latest.current.onTalk(actorId),
           onProp: (propId) => latest.current.onProp(propId),

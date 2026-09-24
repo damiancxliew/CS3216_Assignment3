@@ -6,7 +6,7 @@
  * content to be studied, not commands to follow (FR-20).
  */
 import type { ExtractedDocument } from '../ingest/types'
-import { AMBIENT_OVERLAYS, GENERATABLE_ASSET_KINDS, MAX_GENERATED_ASSETS, ROOM_KINDS } from '../spec/catalogue'
+import { AMBIENT_OVERLAYS, GENERATABLE_ASSET_KINDS, MAP_THEMES, MAX_GENERATED_ASSETS, ROOM_KINDS } from '../spec/catalogue'
 import type { SpecIssue } from '../spec/v2'
 import type { TeacherInput } from './schema'
 
@@ -74,6 +74,7 @@ export function buildSystemPrompt(input: TeacherInput, version: PromptVersion = 
     '- Endings: 1-4. `historicalOutcome` states what actually happened, with spans. `divergence` says how this ending differs from the record (or that it matches it). 2-4 reflection questions.',
     `- assetEligibility: at most ${MAX_GENERATED_ASSETS} entries, kind in {${GENERATABLE_ASSET_KINDS.join(', ')}}: portrait -> a stakeholder id, landmark -> a room id, prop -> an evidence id, one per entity. Only scene-specific things; never terrain, tiles, UI or backgrounds.`,
     `- Room kinds: ${ROOM_KINDS.join(', ')}. Ambient overlays: ${AMBIENT_OVERLAYS.join(', ')} with intensity 1-3; set a stage overlay only when the setting calls for it, else null.`,
+    `- Pick each stage's mapTheme from {${MAP_THEMES.join(', ')}}. Use the documented location and season of that stage's historical event: winter for a documented snowy/cold season, desert for arid settings, forest for wooded settings, coast for coastal or island settings. Choose classic when the sources do not support a more specific terrain. The teacher can override this visual choice later. Do not infer snow from a date alone without location or climate context.`,
     '- `timerSeconds` per stage: null (inherit), or 0 to disable, or 120-1800. `modelTier`: "frontier" for the stakeholder whose decisions matter most, "mid" for others, "cheap" for minor figures.',
     '',
     '## Audience',

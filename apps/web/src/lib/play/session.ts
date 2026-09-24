@@ -381,6 +381,7 @@ export class PlaySession {
         title: this.stage.title,
         sharedContext: this.stage.sharedContext.text,
         ambientOverlay: ambientOverlay.id,
+        mapTheme: this.stage.mapTheme ?? 'classic',
         overlayIntensity: ambientOverlay.intensity,
         objectives: this.stage.objectives.map((o) => ({ id: o.id, title: o.title, met: this.objectiveMet(o.id) })),
       },

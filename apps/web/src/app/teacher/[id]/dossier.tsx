@@ -161,6 +161,7 @@ export function DossierSections({
                         {stage.ambientOverlay.id}, {INTENSITY_LABELS[stage.ambientOverlay.intensity] ?? stage.ambientOverlay.intensity}
                       </span>
                     ) : null}
+                    <span className="rounded-control border border-paper/40 px-2.5 py-1 text-sm font-semibold capitalize text-paper">{stage.mapTheme} map</span>
                   </div>
                 </div>
 
@@ -173,6 +174,7 @@ export function DossierSections({
                       { name: "title", label: "Title", defaultValue: stage.title },
                       { name: "shared_context", label: "Shared context", defaultValue: stage.sharedContext, multiline: true, rows: 6 },
                       { name: "timer_seconds", label: "Timer for this stage, in seconds", defaultValue: stage.timerSeconds === null ? "" : String(stage.timerSeconds), optional: true, hint: "Empty inherits the adventure default; 0 disables the timer." },
+                      { name: "map_theme", label: "Map theme", defaultValue: stage.mapTheme, options: [{ value: "classic", label: "Classic village" }, { value: "desert", label: "Desert" }, { value: "winter", label: "Winter" }, { value: "forest", label: "Forest" }, { value: "coast", label: "Coast" }] },
                     ]}
                   >
                     <p className="max-w-[64ch] text-base text-muted">{stage.sharedContext}</p>

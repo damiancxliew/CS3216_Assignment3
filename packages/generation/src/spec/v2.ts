@@ -6,7 +6,8 @@
  * stakeholders with private context, evidence with source spans, objectives,
  * decision options with branch targets, asset eligibility and ambient overlays —
  * and deliberately says nothing about geometry: coordinates, tiles, collision
- * and asset selection belong to the deterministic compiler (PRD D3).
+ * and tile placement belong to the deterministic compiler (PRD D3). The
+ * planner may select a curated visual theme for each stage.
  *
  * Style rules that keep this schema usable as an OpenAI strict structured-output
  * schema without a second copy:
@@ -23,6 +24,7 @@ import {
   DECISION_STANCES,
   GENERATABLE_ASSET_KINDS,
   MAX_GENERATED_ASSETS,
+  MAP_THEMES,
   MODEL_TIERS,
   READING_BANDS,
   ROOM_KINDS,
@@ -268,6 +270,8 @@ export const stageSchema = z.object({
   timerSeconds: z.number().int().min(0).max(3600).nullable(),
   /** `null` inherits the adventure-level overlay (FR-15a). */
   ambientOverlay: ambientOverlaySchema.nullable(),
+  /** Planner chooses by historical setting and season; older specs parse as classic. */
+  mapTheme: z.enum(MAP_THEMES).default('classic'),
   spawnRoomId: idSchema,
   rooms: z.array(roomSchema).min(MIN_ROOMS_PER_STAGE).max(MAX_ROOMS_PER_STAGE),
   agents: z.array(agentSchema).min(1).max(MAX_AGENTS_PER_STAGE),
