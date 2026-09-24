@@ -122,11 +122,19 @@ export const publicStageSchema = z.object({
   ),
 });
 
+/** The identity authored for the student to play; unlike agent context, all of this is public. */
+export const publicPlayerSchema = z.object({
+  name: z.string(),
+  role: z.string(),
+  brief: z.string(),
+});
+
 export const publicAttemptStateSchema = z.object({
   attemptId: z.string(),
   adventureId: z.string(),
   publishedVersion: z.number(),
   status: z.enum(["active", "spectating", "completed", "abandoned"]),
+  player: publicPlayerSchema,
   stage: publicStageSchema,
   timer: publicTimerSchema,
   mapArtifactId: z.string().nullable(),
