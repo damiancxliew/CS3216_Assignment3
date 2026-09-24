@@ -438,17 +438,37 @@ export function DossierSections({
 
       {view === "artwork" ? <Section title="Artwork" lede="Portraits, places and objects for this version.">
         <div className="flex flex-col gap-4">
+          <p className="max-w-[65ch] text-base text-muted">
+            {isDraft
+              ? `These images belong to draft version ${version}. Publish this version to make them available to students. Artwork generated after publishing appears in the game automatically; no extra edit or publish step is needed.`
+              : `These images belong to published version ${version}. New or regenerated images are applied automatically. Students may need to refresh an open game; updates can take up to a minute to appear.`}
+          </p>
           <p className="text-base text-ink">
-            {dossier.assets.generated} of {dossier.assets.eligible} images ready
+            {dossier.assets.generated} of {dossier.assets.eligible} planned images ready
             {dossier.assets.pending > 0 ? ` · ${dossier.assets.pending} in progress` : ""}
             {dossier.assets.failed > 0 ? ` · ${dossier.assets.failed} failed` : ""}
           </p>
+          <p className="text-sm text-muted">This version plans {dossier.artwork.filter((item) => item.kind === "portrait").length} portraits, {dossier.artwork.filter((item) => item.kind === "landmark").length} places and {dossier.artwork.filter((item) => item.kind === "prop").length} objects, based on its story and physical landmarks.</p>
           <ArtworkProgress
-            action={generateArtwork.bind(null, adventureId)}
+            action={generateArtwork.bind(null, adventureId, specVersionId)}
             label={`Generate artwork for ${isDraft ? "draft " : ""}v${version}`}
             assets={dossier.assets}
             watchForArtwork={watchForArtwork}
           />
+          {dossier.artwork.length > 0 ? (
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {dossier.artwork.map((item) => (
+                <li key={item.id} className="flex gap-3 rounded-surface border border-line bg-surface p-3">
+                  <Artwork kind={item.kind} alt={`Artwork of ${item.name}`} imageUrl={item.imageUrl} imageStatus={item.imageStatus} className="h-24 w-24 shrink-0" />
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="font-semibold text-ink">{item.name}</p>
+                    <p className="text-sm capitalize text-muted">{item.kind === "prop" ? "Object" : item.kind === "landmark" ? "Place" : "Portrait"} · {item.imageStatus === "generated" ? "Ready" : item.imageStatus === "pending" ? "Generating" : item.imageStatus === "failed" ? "Failed" : "Placeholder"}</p>
+                    <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={item.assetId} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="text-base text-muted">No story images are eligible for generation in this version.</p>}
         </div>
       </Section> : null}
     </>

@@ -48,28 +48,31 @@ type AssetRow = {
 
 /** Write (or update) one record of a version's manifest. Called as each image settles, so progress is visible. */
 export async function saveAssetRecord(admin: SupabaseClient, specVersionId: string, record: AssetRecord): Promise<void> {
-  const { error } = await admin.from("asset").upsert(
-    {
-      spec_version_id: specVersionId,
-      asset_id: record.assetId,
-      entity_id: record.entityId,
-      kind: record.kind,
-      status: record.status,
-      url: record.url,
-      placeholder_url: record.placeholderUrl,
-      prompt_hash: record.promptHash,
-      model: record.model,
-      cost_usd: record.costUsd,
-      error: record.error,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "spec_version_id,asset_id" },
-  );
+  const { error } = await admin.from("asset").upsert(assetRow(specVersionId, record), { onConflict: "spec_version_id,asset_id" });
   if (error) throw new Error(`asset: ${error.message}`);
 }
 
+function assetRow(specVersionId: string, record: AssetRecord) {
+  return {
+    spec_version_id: specVersionId,
+    asset_id: record.assetId,
+    entity_id: record.entityId,
+    kind: record.kind,
+    status: record.status,
+    url: record.url,
+    placeholder_url: record.placeholderUrl,
+    prompt_hash: record.promptHash,
+    model: record.model,
+    cost_usd: record.costUsd,
+    error: record.error,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 export async function saveManifest(admin: SupabaseClient, specVersionId: string, manifest: AssetManifest): Promise<void> {
-  for (const record of manifest.records) await saveAssetRecord(admin, specVersionId, record);
+  if (manifest.records.length === 0) return;
+  const { error } = await admin.from("asset").upsert(manifest.records.map((record) => assetRow(specVersionId, record)), { onConflict: "spec_version_id,asset_id" });
+  if (error) throw new Error(`asset: ${error.message}`);
 }
 
 /** The manifest as stored; `null` when generation never ran for this version. */
