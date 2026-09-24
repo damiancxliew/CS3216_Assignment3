@@ -38,6 +38,7 @@ const V2_RULES = [
   '',
   '## Objectives',
   '- In every stage at least one objective must `require` another (read the note before confronting the person; hear one side before the other). Flat objective lists make the stage a checklist.',
+  '- Write objective titles as specific questions or outcomes the player must work out. Do not put the target agent or evidence name, exact room, or a direct instruction such as "talk to" or "inspect" in the title. Keep the answer discoverable from the stage context, public character roles, and sources; do not require guessing a secret or exact phrase.',
   '',
   '## Atmosphere',
   '- Set an `ambientOverlay` on every stage whose setting suggests one (rain, fog, night, dust, clouds, snow). Use null only when nothing fits.',

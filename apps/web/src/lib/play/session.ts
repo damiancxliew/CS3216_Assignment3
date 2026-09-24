@@ -119,6 +119,8 @@ export interface PlayState extends PublicAttemptState {
   map: PublicMap | null;
   /** What to actually do for each goal, in plain words ("Talk to X in Y"), keyed by objective id. */
   objectiveHints: Record<string, string>;
+  /** An optional first clue that preserves the discovery step. */
+  objectiveClues?: Record<string, string>;
   /** Generated landmark image per room, when the asset service produced one (D4). */
   roomImages: Record<string, string>;
   /** Room fixtures that can be inspected on the map, even before generated art is ready. */
@@ -473,10 +475,11 @@ export class PlaySession {
         return position ? [{ id: item.id, name: item.name, roomId: item.roomId, position, found: known.has(item.id) }] : [];
       }),
       objectiveHints: this.objectiveHints(),
+      objectiveClues: this.objectiveClues(),
       roomImages,
       landmarks: this.stage.rooms.flatMap((room) => {
         const mapRoom = compiled?.map.rooms.find((candidate) => candidate.id === room.id);
-        if ((!room.landmark && !roomImages[room.id]) || !mapRoom) return [];
+        if (!mapRoom) return [];
         return [{
           id: room.id,
           roomId: room.id,
@@ -544,6 +547,28 @@ export class PlaySession {
       if (item) {
         const where = roomName(item.roomId);
         out[objective.id] = `Look at ${item.name}${where ? ` in ${where}` : ""}`;
+      }
+    }
+    return out;
+  }
+
+  private objectiveClues(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const objective of this.stage.objectives) {
+      const agent = this.stage.agents.find((candidate) => candidate.id === objective.targetId);
+      if (agent) {
+        const role = this.spec.stakeholders.find((stakeholder) => stakeholder.id === agent.stakeholderId)?.role;
+        out[objective.id] = role
+          ? `Someone whose role is ${role} may have a view on this. Ask a question that gets beyond an introduction.`
+          : "Someone involved may have a view on this. Ask a question that gets beyond an introduction.";
+        continue;
+      }
+      const item = this.stage.evidence.find((candidate) => candidate.id === objective.targetId);
+      if (item) {
+        const room = this.stage.rooms.find((candidate) => candidate.id === item.roomId);
+        out[objective.id] = room
+          ? `Search ${room.name} for a source that could bear on this question.`
+          : "Search the locations for a source that could bear on this question.";
       }
     }
     return out;
