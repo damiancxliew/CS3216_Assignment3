@@ -85,9 +85,14 @@ export async function enterRoom(driver: PlayDriver, roomId: string): Promise<Pla
 
 export async function inspectEvidence(driver: PlayDriver, evidenceId: string): Promise<PlayState> {
   const state = await stateOf(driver);
+  // Walking to another goal can now pick up this evidence along the way.
+  if (state.journal.some((entry) => entry.id === evidenceId)) return state;
   const item = state.evidenceHere.find((candidate) => candidate.id === evidenceId);
   if (!item) throw new Error(`evidence ${evidenceId} is not shown`);
-  if (item.position && !item.canInspect) await walkTo(driver, item.position);
+  if (item.position && !item.canInspect) {
+    const arrived = await walkTo(driver, item.position);
+    if (arrived.journal.some((entry) => entry.id === evidenceId)) return arrived;
+  }
   const result = await postAction(driver.deps, driver.attemptId, driver.userId, { type: "inspect", evidenceId });
   driver.capture?.("inspect", result);
   expect(result).toMatchObject({ ok: true, value: { refused: null } });

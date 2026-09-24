@@ -39,7 +39,7 @@ export default function OpengraphImage() {
           Historical Adventures
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 30 }}>
-          <div style={{ display: "flex", width: "fit-content", padding: "10px 20px", border: "3px solid #172033", borderRadius: 999, background: "#ffe66d", fontSize: 22, fontWeight: 800 }}>
+          <div style={{ display: "flex", alignSelf: "flex-start", padding: "10px 20px", border: "3px solid #172033", borderRadius: 999, background: "#ffe66d", fontSize: 22, fontWeight: 800 }}>
             HISTORY YOU CAN PLAY
           </div>
           <div style={{ display: "flex", flexDirection: "column", fontSize: 84, fontWeight: 900, lineHeight: 0.95, letterSpacing: -4 }}>

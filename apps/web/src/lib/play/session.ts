@@ -785,6 +785,7 @@ export class PlaySession {
       const moved = moveActorStep(this.snap.world, PLAYER_ID, action.to);
       if (!moved.ok) return { ok: true, refused: moved.reason };
       advanceSpatialMovement(this.snap.world);
+      this.collectEvidenceAtFeet();
       this.spendWalk(now, allowance, 1);
       this.snap.stageStats.actions += 1;
       this.bump();
@@ -818,6 +819,7 @@ export class PlaySession {
           return { ok: true, refused: moved.reason };
         }
         advanceSpatialMovement(this.snap.world);
+        this.collectEvidenceAtFeet();
         appliedCount += 1;
       }
       this.spendWalk(now, allowance, appliedCount);
@@ -832,20 +834,7 @@ export class PlaySession {
       const placement = this.map()?.placements.find((p) => p.id === item.id);
       const playerPoint = world.spatial?.state.actors[PLAYER_ID] ?? null;
       if (!placement || !playerPoint || !world.spatial || !isInPhysicalInteractionRange(world.spatial.map, world.spatial.state.doors, playerPoint, placement.position)) return { ok: true, refused: "Walk closer to examine that." };
-      const known = (world.evidenceKnown[PLAYER_ID] ??= []);
-      if (!known.includes(item.id)) {
-        known.push(item.id);
-        this.snap.stageStats.evidence += 1;
-        this.snap.stageStats.actions += 1;
-        const span = item.content.spans[0];
-        this.snap.journal.push({
-          id: item.id,
-          text: `${item.name}: ${item.content.text}`,
-          sourceSpan: span ? `${span.sourceId}, p. ${span.page}: “${span.quote}”` : null,
-          collectedAt: this.clock.now().toISOString(),
-        });
-        this.bump();
-      }
+      if (this.collectEvidence(item.id)) this.bump();
       return { ok: true, refused: null };
     }
 
@@ -889,6 +878,32 @@ export class PlaySession {
     }
 
     return { ok: true, refused: result.ok ? null : result.reason };
+  }
+
+  /** Include pickups in the movement response instead of requiring a second round trip. */
+  private collectEvidenceAtFeet(): void {
+    const point = this.snap.world.spatial?.state.actors[PLAYER_ID];
+    if (!point) return;
+    for (const placement of this.map()?.placements ?? []) {
+      if (placement.position.x === point.x && placement.position.y === point.y) this.collectEvidence(placement.id);
+    }
+  }
+
+  private collectEvidence(evidenceId: string): boolean {
+    const item = this.stage.evidence.find((evidence) => evidence.id === evidenceId);
+    const known = (this.snap.world.evidenceKnown[PLAYER_ID] ??= []);
+    if (!item || known.includes(item.id)) return false;
+    known.push(item.id);
+    this.snap.stageStats.evidence += 1;
+    this.snap.stageStats.actions += 1;
+    const span = item.content.spans[0];
+    this.snap.journal.push({
+      id: item.id,
+      text: `${item.name}: ${item.content.text}`,
+      sourceSpan: span ? `${span.sourceId}, p. ${span.page}: “${span.quote}”` : null,
+      collectedAt: this.clock.now().toISOString(),
+    });
+    return true;
   }
 
   mintReady(): boolean {

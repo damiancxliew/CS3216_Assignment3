@@ -1,5 +1,5 @@
 import { loadI1Spec } from "@adventure/generation/fixtures";
-import { findPath, isInPhysicalInteractionRange, spaceAt, type Point } from "@adventure/game-core";
+import { canStep, findPath, isInPhysicalInteractionRange, spaceAt, type Point } from "@adventure/game-core";
 import { applyAction, FakeLlmClient, moveActorStep } from "@adventure/orchestration";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -26,6 +26,29 @@ function walk(session: PlaySession, actorId: string, target: Point) {
 }
 
 describe("authoritative evidence interactions", () => {
+  it.each(["move_step", "move_steps"] as const)("collects a document in the %s response without a separate inspect request", async (type) => {
+    let now = Date.now();
+    const session = PlaySession.start(spec, `pickup-${type}`, 1, { now: () => new Date(now) });
+    const evidence = spec.stages[0]!.evidence[0]!;
+    const spatial = session.world.spatial!;
+    const to = compileStageMap(spec.stages[0]!, `pickup-${type}`).placements.find((item) => item.id === evidence.id)!.position;
+    const from = [{ x: to.x - 1, y: to.y }, { x: to.x + 1, y: to.y }, { x: to.x, y: to.y - 1 }, { x: to.x, y: to.y + 1 }].find((point) => canStep(spatial.map, spatial.state.doors, point, to))!;
+    spatial.state.actors.player = from;
+    session.world.location.player = evidence.roomId;
+    const llm = new FakeLlmClient({ replies: ['{"say":"unused","actions":[]}'] });
+    const move = (start: Point, end: Point) => session.action(llm, type === "move_step"
+      ? { type, stageId: spec.stages[0]!.id, from: start, to: end }
+      : { type, stageId: spec.stages[0]!.id, from: start, path: [end] });
+    expect(await move(from, to)).toEqual({ ok: true, refused: null });
+    expect(session.snapshot().journal.find((entry) => entry.id === evidence.id)?.text).toContain(evidence.content.text);
+    now += 1_000;
+    await move(to, from);
+    now += 1_000;
+    await move(from, to);
+    expect(session.snapshot().journal.filter((entry) => entry.id === evidence.id)).toHaveLength(1);
+    expect(llm.requests).toHaveLength(0);
+  });
+
   it("refuses far inspection and succeeds after walking within physical range", async () => {
     const session = PlaySession.start(spec, "evidence-range", 1);
     const evidence = spec.stages[0]!.evidence.find((item) => item.roomId === session.world.location.player) ?? spec.stages[0]!.evidence[0]!;
