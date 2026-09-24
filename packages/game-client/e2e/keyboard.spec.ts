@@ -19,7 +19,7 @@ async function pausedPage(page: Page): Promise<void> {
   await page.goto('/')
   await expect(page.locator('canvas[aria-label="Settlement map"]')).toBeVisible()
   await page.getByRole('button', { name: 'Pause simulation' }).press('Enter')
-  const routes = page.getByRole('checkbox', { name: 'Scripted NPC routes' })
+  const routes = page.getByRole('checkbox', { name: 'Move other characters' })
   await routes.focus()
   await routes.press('Space')
 }

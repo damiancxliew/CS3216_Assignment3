@@ -11,6 +11,7 @@ test.beforeEach(({ page }, testInfo) => {
   page.on('console', (message) => {
     if (message.type() !== 'error') return
     if (testInfo.title.includes('renderer import failure') && message.text() === 'Failed to load resource: net::ERR_FAILED' && message.location().url.includes('/src/view')) return
+    if (testInfo.title.includes('renderer import failure') && message.text().startsWith('Map renderer failed to load:')) return
     errors.push(message.text())
   })
 })
@@ -26,7 +27,7 @@ async function pauseAndDisableRoutes(page: Page): Promise<void> {
   const pause = page.getByRole('button', { name: 'Pause simulation' })
   await pause.focus()
   await pause.press('Enter')
-  const routes = page.getByRole('checkbox', { name: 'Scripted NPC routes' })
+  const routes = page.getByRole('checkbox', { name: 'Move other characters' })
   await routes.focus()
   await routes.press('Space')
 }
@@ -54,7 +55,7 @@ test('keyboard-only map playground flow and global traveler projection', async (
   await expect(page.getByRole('button', { name: 'Step simulation' })).toBeDisabled()
   await pauseAndDisableRoutes(page)
   await expect(page.getByRole('button', { name: 'Step simulation' })).toBeEnabled()
-  await expect(page.getByRole('status')).toHaveText('Player: idle · Council Hall')
+  await expect(page.getByRole('status')).toHaveText('Council Hall')
   const mutationResult = await page.evaluate(async () => {
     const status = document.querySelector('[role="status"]')!
     let mutations = 0
@@ -66,7 +67,7 @@ test('keyboard-only map playground flow and global traveler projection', async (
     observer.disconnect()
     return { mutations, text: status.textContent }
   })
-  expect(mutationResult).toEqual({ mutations: 0, text: 'Player: idle · Council Hall' })
+  expect(mutationResult).toEqual({ mutations: 0, text: 'Council Hall' })
 
   const openArchive = page.getByRole('button', { name: 'Open Archive door' })
   await openArchive.focus()
@@ -178,7 +179,7 @@ test('scheduler pause, reset, and UI state synchronization stay stable', async (
   await expect(seed).toHaveValue('harbor-demo')
   await expect(seed).toHaveAttribute('aria-invalid', 'false')
   await expect(page.getByRole('alert')).toBeHidden()
-  await expect(page.getByRole('checkbox', { name: 'Scripted NPC routes' })).toBeChecked()
+  await expect(page.getByRole('checkbox', { name: 'Move other characters' })).toBeChecked()
   await expect(page.getByRole('button', { name: 'Pause simulation' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Step simulation' })).toBeDisabled()
   expect(reset.playerGoal).toBeNull()
@@ -230,9 +231,9 @@ test('semantic canvas click-to-walk uses responsive map bounds', async ({ page }
 test('renderer import failure keeps DOM controls usable', async ({ page }) => {
   await page.route('**/src/view*', (route) => route.abort())
   await page.goto('/')
-  await expect(page.getByText(/Renderer unavailable/)).toBeVisible()
+  await expect(page.getByText('The map could not load. Refresh to try again.')).toBeVisible()
   await page.getByRole('button', { name: 'Walk to Market' }).press('Enter')
-  await expect(page.getByRole('status')).toContainText('destination Market')
+  await expect(page.getByRole('status')).toContainText('walking to Market')
 })
 
 test('production bundle omits development hook and private-content markers', async () => {
