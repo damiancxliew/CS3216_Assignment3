@@ -217,9 +217,11 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
       <footer className="flex flex-col gap-3 border-t border-line pt-4">
         {error ? <ErrorText>{error}</ErrorText> : null}
         {slot.name === "confirm" ? (
-          <button type="button" onClick={create} disabled={pending} className={`${button.primary} w-fit`}>
-            {pending ? <Pending>Creating the adventure…</Pending> : "Create adventure"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={create} disabled={pending} className={button.primary}>
+              {pending ? <Pending>Creating the adventure…</Pending> : "Create adventure"}
+            </button>
+          </div>
         ) : slot.name === "sources" ? (
           <SourceStep state={state} pending={pending} onUpload={upload} onDone={() => send({ text: SOURCES_DONE })} />
         ) : (
@@ -337,8 +339,8 @@ function Start({
   }
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-base text-muted">Bring the reading your students will play from. The rest is a few short questions.</p>
+      <p className="text-base text-muted">Bring the reading your students will play from. The rest is a few short questions.</p>
+      <div className="flex flex-wrap gap-2">
         <button type="button" onClick={onStart} disabled={pending} className={button.primary}>
           {pending ? <Pending>Starting</Pending> : "Start the brief"}
         </button>
