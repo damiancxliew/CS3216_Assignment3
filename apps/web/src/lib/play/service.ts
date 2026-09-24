@@ -58,7 +58,6 @@ async function runInternal<T>(
     if (error instanceof SpatialCompatibilityError) return { ok: false, error: { code: "incompatible_version", message: error.message } };
     throw error;
   }
-  if (record.status === "active") session.expirePendingReply();
   const startRevision = record.snapshot?.revision ?? -1;
 
   // The deadline is server-held (D12/FR-16): if it has passed, the stage resolves before anything else.

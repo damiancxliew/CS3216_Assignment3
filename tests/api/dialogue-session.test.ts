@@ -46,7 +46,7 @@ describe("session dialogue phases", () => {
     expect(causal?.replyToSeqs).toEqual([begun.ticket.utteranceSeq]);
   });
 
-  it("keeps movement while deferred reply production is pending and makes late expiry inert", async () => {
+  it("keeps movement while deferred reply production is pending and accepts a late reply", async () => {
     let now = Date.now();
     const session = PlaySession.start(spec, "dialogue-deferred", 1, { now: () => new Date(now) });
     const { agentId, roomId } = colocateWithAgent(session);
@@ -74,7 +74,6 @@ describe("session dialogue phases", () => {
     expect(completed.ok && completed.newMessages.some((message) => message.body === "A delayed answer.")).toBe(false);
     expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.some((objective) => objective.met)).toBe(false);
     now = begun.ticket.expiresAt + 1;
-    session.expirePendingReply();
     expect(session.completeReply(begun.ticket, reply)).toEqual({ ok: true, newMessages: [] });
   });
 });
