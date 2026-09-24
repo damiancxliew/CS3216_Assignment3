@@ -9,7 +9,7 @@ import {
 import { FakeLlmClient } from '../src/llm/fake'
 import { deriveOptions, evaluatePrecondition, isHiddenFrom, parseOptionsVersion, StageDecisions } from '../src/stage/options'
 import { runStage } from '../src/world/stage-runtime'
-import { applyAction, type WorldState } from '../src/world/state'
+import { applyAction, hasConversationExchange, type WorldState } from '../src/world/state'
 import type { LlmClient } from '../src/llm/types'
 
 const ledger = () => new StageDecisions(fixtureStageParticipants)
@@ -31,6 +31,27 @@ describe('option maintenance (K6)', () => {
     applyAction(world, { actorKind: 'player', actorId: 'player', action: { type: 'speak', roomId: 'room-audience-hall', body: 'I need an answer.', addresseeId: 'agent-temenggong' } })
     const requestSeq = world.transcript.at(-1)!.seq
     applyAction(world, { actorKind: 'agent', actorId: 'agent-temenggong', action: { type: 'speak', roomId: 'room-audience-hall', body: 'I answer.', addresseeId: 'player' } }, { replyToSeqs: [requestSeq] })
+    expect(deriveOptions(world, [option], 'player').options).toEqual([{ id: option.id, label: option.label }])
+  })
+
+  it('keeps generic exchanges while requiring the matching objective claim for authored gates', () => {
+    const world = createFixtureWorld()
+    const objectiveId = 'obj-river-position'
+    const option = {
+      id: 'option-hear-position',
+      label: 'Hear the position',
+      preconditions: [{ kind: 'spoke_with' as const, actorId: 'player', otherActorId: 'agent-temenggong', objectiveId }],
+    }
+    applyAction(world, { actorKind: 'player', actorId: 'player', action: { type: 'speak', roomId: 'room-audience-hall', body: 'What do you advise?', addresseeId: 'agent-temenggong' } })
+    const requestSeq = world.transcript.at(-1)!.seq
+    applyAction(world, { actorKind: 'agent', actorId: 'agent-temenggong', action: { type: 'speak', roomId: 'room-audience-hall', body: 'The harbor should remain open to trade.', addresseeId: 'player' } }, { replyToSeqs: [requestSeq] })
+
+    expect(hasConversationExchange(world, 'player', 'agent-temenggong')).toBe(true)
+    expect(hasConversationExchange(world, 'player', 'agent-temenggong', objectiveId)).toBe(false)
+    expect(deriveOptions(world, [option], 'player').options).toEqual([])
+
+    world.transcript.at(-1)!.goalIds = [objectiveId]
+    expect(hasConversationExchange(world, 'player', 'agent-temenggong', objectiveId)).toBe(true)
     expect(deriveOptions(world, [option], 'player').options).toEqual([{ id: option.id, label: option.label }])
   })
 

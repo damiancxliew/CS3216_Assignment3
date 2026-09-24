@@ -30,7 +30,7 @@ export type OptionPrecondition =
    * was not in does not count, and neither does a message the actor sent without a reply.
    */
   | { kind: 'heard_from'; actorId: string; speakerId: string }
-  | { kind: 'spoke_with'; actorId: string; otherActorId: string }
+  | { kind: 'spoke_with'; actorId: string; otherActorId: string; objectiveId?: string }
   | { kind: 'not'; precondition: OptionPrecondition }
 
 export interface OptionDefinition {
@@ -75,7 +75,7 @@ export function evaluatePrecondition(world: WorldState, precondition: OptionPrec
           wasPresent(world, precondition.actorId, line.roomId, line.seq),
       )
     case 'spoke_with':
-      return hasConversationExchange(world, precondition.actorId, precondition.otherActorId)
+      return hasConversationExchange(world, precondition.actorId, precondition.otherActorId, precondition.objectiveId)
     case 'not':
       return !evaluatePrecondition(world, precondition.precondition)
   }

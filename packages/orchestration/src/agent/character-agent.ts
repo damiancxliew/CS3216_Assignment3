@@ -20,6 +20,7 @@ export interface AgentTurnResult {
   say: string
   /** Allow-listed actions, already attributed and budget-checked. */
   actions: ActorAction[]
+  goalClaims?: { objectiveId: string; quote: string }[]
   dropped: DroppedAction[]
   /** True when the model failed schema validation after the repair budget and the agent yielded. */
   degraded: boolean
@@ -62,6 +63,7 @@ function yieldTurn(agentId: string, partial: Partial<AgentTurnResult> = {}): Age
     agentId,
     say: '',
     actions: [{ actorKind: 'agent', actorId: agentId, action: { type: 'yield' } }],
+    goalClaims: [],
     dropped: [],
     degraded: false,
     repairRounds: 0,
@@ -101,13 +103,14 @@ export async function runAgentTurn(
   }
 
   const { say, actions: proposals } = result.value
+  const goalCandidateIds = new Set((input.goalCandidates ?? []).map(({ id }) => id))
   // The spoken line is itself an action, so it is budgeted and allow-listed like any other and is
   // never a privileged side channel. A silent character proposes no line at all.
   const spoken =
     say.trim() === '' ? [] : [{ type: 'speak', roomId: input.room.id, body: say, addresseeId: null }]
   const candidates = [
     ...spoken,
-    ...proposals.filter((proposal) => proposal.type !== 'speak').map((proposal) => stamp(proposal, options)),
+    ...proposals.filter((proposal) => proposal.type !== 'speak' && proposal.type !== 'goal_evidence').map((proposal) => stamp(proposal, options)),
   ]
   const filtered = filterActions(
     candidates,
@@ -118,10 +121,17 @@ export async function runAgentTurn(
   )
 
   const saySurvived = filtered.actions.some((entry) => entry.action.type === 'speak')
+  const goalClaims: AgentTurnResult['goalClaims'] = []
+  if (saySurvived) {
+    for (const proposal of proposals) {
+      if (proposal.type === 'goal_evidence' && goalCandidateIds.has(proposal.objectiveId)) goalClaims.push({ objectiveId: proposal.objectiveId, quote: proposal.quote })
+    }
+  }
   return {
     agentId,
     say: saySurvived ? say : '',
     actions: filtered.actions,
+    goalClaims,
     dropped: filtered.dropped,
     degraded: false,
     repairRounds: result.repairRounds,

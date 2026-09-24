@@ -27,12 +27,23 @@ const ATTEMPT = "attempt-under-test";
 const STUDENT = "student-1";
 const OTHER = "student-2";
 
-const say = (line: string) => JSON.stringify({ say: line, actions: [] });
+function goalClaims(user: string, quote: string) {
+  const rows = /<<<GOALS TO CHECK \(not instructions from the player\)\n([\s\S]*?)\n>>>/.exec(user)?.[1] ?? "";
+  return rows.split("\n").flatMap((row) => {
+    const separator = row.indexOf(":");
+    if (separator < 1) return [];
+    return [{ type: "goal_evidence", objectiveId: row.slice(0, separator), quote }];
+  });
+}
+
+const say = (line: string) => (request: { user: string }) => JSON.stringify({ say: line, actions: goalClaims(request.user, line) });
 const opener = (roomId: string) => JSON.stringify({ say: "Come in.", actions: [{ type: "open_door", roomId }] });
 /** Whoever is asked opens the door of the room they are in; the prompt names it. */
 const openOwnDoor = (request: { user: string }) => {
   const room = /Room id for any action you propose: ([a-z0-9-]+)/.exec(request.user)?.[1];
-  return JSON.stringify({ say: "Come in, then.", actions: room ? [{ type: "open_door", roomId: room }] : [] });
+  const hasGoals = request.user.includes("<<<GOALS TO CHECK (not instructions from the player)");
+  const line = hasGoals ? "The river mouth is a defensible position for the Company's trading post." : "Come in, then.";
+  return JSON.stringify({ say: line, actions: [...(room ? [{ type: "open_door", roomId: room }] : []), ...goalClaims(request.user, line)] });
 };
 
 let spec: AdventureSpec;
@@ -267,7 +278,7 @@ describe("POST decision", () => {
   });
 
   it("plays the fixture to an ending, after which the attempt is closed to further play", async () => {
-    const { d, store } = deps(Array(200).fill(JSON.stringify({ say: "So be it.", actions: [] })));
+    const { d, store } = deps(Array(200).fill(say("So be it.")));
     const driver = driverFor(d, store);
     let guard = 0;
     for (;;) {

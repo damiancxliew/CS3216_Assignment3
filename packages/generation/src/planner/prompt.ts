@@ -88,7 +88,7 @@ export function buildSystemPrompt(input: TeacherInput, version: PromptVersion = 
       '- Every location must explicitly set enclosure to "enclosed" or "open"; never null. Enclosure describes physical boundaries, not visual style: a walled courtyard or a tent can be enclosed, while a street or an unfenced market can be open.',
       '- Enclosed locations have one door or gate and doorDefault must be "open" or "closed". Open locations have no door and doorDefault must be null. Do not fence an open street or field merely to provide a door.',
       '- Speech in an enclosed location reaches all occupants. Speech outdoors reaches only listeners within three outdoor walking steps, including across named outdoor-location boundaries. Do not assume a distant outdoor agent heard an exchange.',
-      '- Objectives targeting an agent require the player to address that agent and receive an audible reply. Phrase these as an exchange, not proof that the player learned a specific secret or persuaded the agent.',
+      '- Objectives targeting an agent require an audible reply that conveys a substantive, stage-relevant position or fact. Phrase each goal as an observable exchange about something that character could plausibly share; a greeting, refusal, or vague reply must not satisfy it. Do not require an inaccessible secret or exact wording.',
     ] : []),
   ].join('\n')
 }

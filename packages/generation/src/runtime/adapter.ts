@@ -61,9 +61,8 @@ export function toActorProfile(agent: Agent, spec: AdventureSpec): ActorProfile 
 
 /**
  * Spec preconditions are objective ids; runtime preconditions are world-state
- * predicates. An objective that targets evidence maps to `knows_evidence`. An
- * objective that targets an agent ("speak with X") has no predicate in the K6
- * catalogue yet, so it is dropped with a warning.
+ * predicates. An objective that targets evidence maps to `knows_evidence`; an
+ * objective that targets an agent maps to an objective-specific `spoke_with`.
  */
 export function toOptionPreconditions(option: DecisionOption, stage: Stage, warnings: string[]): OptionPrecondition[] {
   const out: OptionPrecondition[] = []
@@ -82,7 +81,7 @@ export function toOptionPreconditions(option: DecisionOption, stage: Stage, warn
     if (!objective) throw new Error(`${stage.id}/${option.id}: unknown objective "${objectiveId}"`)
     objective.requires.forEach(visit)
     if (evidenceIds.has(objective.targetId)) add({ kind: 'knows_evidence', actorId: PLAYER_ID, evidenceId: objective.targetId })
-    else if (agentIds.has(objective.targetId)) add({ kind: 'spoke_with', actorId: PLAYER_ID, otherActorId: objective.targetId })
+    else if (agentIds.has(objective.targetId)) add({ kind: 'spoke_with', actorId: PLAYER_ID, otherActorId: objective.targetId, objectiveId: objective.id })
     else throw new Error(`${stage.id}/${option.id}: unsupported objective target "${objective.targetId}"`)
   }
   option.preconditions.forEach(visit)

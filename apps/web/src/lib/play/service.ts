@@ -7,7 +7,7 @@
  */
 import type { LlmClient, ReplyResult } from "@adventure/orchestration";
 
-import { PlaySession, type PlayState, type PlayerWorldAction, type SessionError, type SessionTimer } from "./session";
+import { PlaySession, type MessageBeginOutcome, type MintProduction, type PendingMint, type PlayState, type PlayerWorldAction, type SessionError, type SessionTimer } from "./session";
 import { SpatialCompatibilityError } from "./layout";
 import { RuntimeConflictError, type AttemptRecord, type PlayStore } from "./store";
 import type { PublicMessage } from "@/lib/turn-api/contract";
@@ -107,29 +107,70 @@ export async function getState(deps: PlayServiceDeps, attemptId: string, userId:
   return result;
 }
 
-export async function postMessage(deps: PlayServiceDeps, attemptId: string, userId: string, input: { roomId: string; body: string; addresseeId?: string | null }): Promise<ServiceResult<PublicMessage[]>> {
-  const work: { produce?: () => Promise<ReplyResult> } = {};
+export async function postMintOptions(deps: PlayServiceDeps, attemptId: string, userId: string): Promise<ServiceResult<null>> {
+  const work: { ticket?: PendingMint; produce?: () => Promise<MintProduction> } = {};
   const initial = await run(deps, attemptId, userId, async (session) => {
-    const begun = session.beginMessage(input);
-    if (!begun.ok) return begun;
-    if (begun.ticket) {
-      const ticket = begun.ticket;
-      work.produce = () => session.produceReply(deps.llm, ticket);
-    } else {
-      await session.maintainOptions(deps.llm);
+    const ticket = session.beginMint();
+    if (ticket) {
+      work.ticket = ticket;
+      work.produce = () => session.produceMint(deps.llm, ticket);
     }
-    return { ok: true, value: begun };
+    return { ok: true, value: null };
   });
+  if (!initial.ok || !work.ticket || !work.produce) return initial;
+
+  let output: MintProduction | null = null;
+  try { output = await work.produce(); } catch { output = null; }
+  for (let retry = 0; retry < 3; retry += 1) {
+    const final = await run(deps, attemptId, userId, async (session) => {
+      session.completeMint(work.ticket!, output);
+      return { ok: true, value: null };
+    });
+    if (!final.ok) {
+      if (final.error.code === "stale_state" && retry < 2) continue;
+      if (final.error.code === "stage_closed") {
+        const latest = await getState(deps, attemptId, userId);
+        return latest.ok ? { ok: true, value: null, state: latest.state } : latest;
+      }
+      return final;
+    }
+    return final;
+  }
+  return { ok: false, error: { code: "stale_state", message: "The attempt changed. Refresh and try again." } };
+}
+
+export async function postMessage(deps: PlayServiceDeps, attemptId: string, userId: string, input: { roomId: string; body: string; addresseeId?: string | null }): Promise<ServiceResult<PublicMessage[]>> {
+  let initial: ServiceResult<Extract<MessageBeginOutcome, { ok: true }>> | null = null;
+  let produce: (() => Promise<ReplyResult>) | undefined;
+  for (let retry = 0; retry < 3; retry += 1) {
+    const work: { produce?: () => Promise<ReplyResult> } = {};
+    const begun = await run(deps, attemptId, userId, async (session) => {
+      const result = session.beginMessage(input);
+      if (!result.ok) return result;
+      if (result.ticket) {
+        const ticket = result.ticket;
+        work.produce = () => session.produceReply(deps.llm, ticket);
+      }
+      return { ok: true, value: result };
+    });
+    if (!begun.ok) {
+      if (begun.error.code === "stale_state" && retry < 2) continue;
+      return begun;
+    }
+    initial = begun;
+    produce = work.produce;
+    break;
+  }
+  if (initial === null) return { ok: false, error: { code: "stale_state", message: "The attempt changed. Refresh and try again." } };
   if (!initial.ok) return initial;
   const ticket = initial.value.ticket;
   if (!ticket) return { ok: true, value: initial.value.newMessages, state: initial.state };
   let reply: ReplyResult | null = null;
-  try { reply = await work.produce!(); } catch { reply = null; }
+  try { reply = await produce!(); } catch { reply = null; }
   for (let retry = 0; retry < 3; retry += 1) {
     const final = await run(deps, attemptId, userId, async (session) => {
       const completed = session.completeReply(ticket, reply);
       if (!completed.ok) return completed;
-      await session.maintainOptions(deps.llm);
       return { ok: true, value: completed.newMessages };
     });
     if (!final.ok) {
@@ -143,11 +184,15 @@ export async function postMessage(deps: PlayServiceDeps, attemptId: string, user
   return { ok: false, error: { code: "stale_state", message: "The attempt changed. Refresh and try again." } };
 }
 
-export function postAction(deps: PlayServiceDeps, attemptId: string, userId: string, action: PlayerWorldAction) {
-  return run(deps, attemptId, userId, async (session) => {
+export async function postAction(deps: PlayServiceDeps, attemptId: string, userId: string, action: PlayerWorldAction) {
+  const runAction = () => run(deps, attemptId, userId, async (session) => {
     const result = await session.action(deps.llm, action);
     return result.ok ? { ok: true, value: { refused: result.refused } } : result;
   });
+  const retryable = action.type === "move_step" || action.type === "move_steps" || action.type === "move_room" || action.type === "inspect" || action.type === "position" || action.type === "open_door" || action.type === "close_door" || action.type === "share_evidence";
+  let result = await runAction();
+  for (let retry = 0; retry < 2 && retryable && !result.ok && result.error.code === "stale_state"; retry += 1) result = await runAction();
+  return result;
 }
 
 export function postDecision(deps: PlayServiceDeps, attemptId: string, userId: string, input: { optionId: string; optionsVersion?: string }) {

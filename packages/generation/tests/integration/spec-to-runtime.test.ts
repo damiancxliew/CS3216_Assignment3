@@ -35,7 +35,7 @@ function collectEvidence(world: WorldState, spec: AdventureSpec, stageIndex: num
   return stage.evidence.length
 }
 
-/** The player visits every character and hears them say something — what "talk to X" objectives need (K6 heard_from). */
+/** The player visits every character and hears ambient speech without an addressed reply. */
 function hearEveryone(world: WorldState, spec: AdventureSpec, stageIndex: number): void {
   const stage = spec.stages[stageIndex]!
   for (const agent of stage.agents) {
@@ -60,7 +60,9 @@ function completeAgentObjectives(world: WorldState, spec: AdventureSpec, stageIn
     expect(request.ok).toBe(true)
     const requestSeq = world.transcript.at(-1)!.seq
     expect(applyAction(world, { actorKind: 'agent', actorId: agent.id, action: { type: 'speak', roomId: room.id, body: 'I hear you.', addresseeId: PLAYER_ID } }, { replyToSeqs: [requestSeq] }).ok).toBe(true)
+    world.transcript.at(-1)!.goalIds = [objective.id]
     expect(hasConversationExchange(world, PLAYER_ID, agent.id)).toBe(true)
+    expect(hasConversationExchange(world, PLAYER_ID, agent.id, objective.id)).toBe(true)
   }
 }
 
@@ -100,7 +102,8 @@ describe('spec -> runtime adapter', () => {
     const signOption = bundle.options.find((o) => o.id === 'opt-sign-preliminary')!
     // the decision.requires gate (read instructions) and "meet the Temenggong" are both expressible (K6)
     expect(signOption.preconditions).toContainEqual({ kind: 'knows_evidence', actorId: PLAYER_ID, evidenceId: 'ev-instructions' })
-    expect(signOption.preconditions).toContainEqual({ kind: 'spoke_with', actorId: PLAYER_ID, otherActorId: 'agent-temenggong-s0' })
+    expect(signOption.preconditions).toContainEqual({ kind: 'spoke_with', actorId: PLAYER_ID, otherActorId: 'agent-farquhar-s0', objectiveId: 'obj-hear-farquhar' })
+    expect(signOption.preconditions).toContainEqual({ kind: 'spoke_with', actorId: PLAYER_ID, otherActorId: 'agent-temenggong-s0', objectiveId: 'obj-meet-temenggong' })
     expect(bundle.warnings.some((w) => w.includes('dropped'))).toBe(false)
     expect(bundle.fallbackNext).toEqual({ kind: 'stage', stageId: 'stage-sultan' }) // the evasive option
   })
@@ -116,7 +119,7 @@ describe('spec -> runtime adapter', () => {
     const option = bundle.options.find(({ id }) => id === 'opt-sign-preliminary')!
     expect(option.preconditions).toEqual(expect.arrayContaining([
       { kind: 'knows_evidence', actorId: PLAYER_ID, evidenceId: 'ev-instructions' },
-      { kind: 'spoke_with', actorId: PLAYER_ID, otherActorId: 'agent-temenggong-s0' },
+      { kind: 'spoke_with', actorId: PLAYER_ID, otherActorId: 'agent-temenggong-s0', objectiveId: 'obj-meet-temenggong' },
     ]))
     const world = createWorld(bundle.world)
     world.evidenceKnown[PLAYER_ID] = ['ev-instructions']

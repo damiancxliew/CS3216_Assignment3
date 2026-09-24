@@ -64,7 +64,7 @@ describe("per-stage budgets and late replies", () => {
       replies: [() => {
         now += 180_000;
         store.clock = () => new Date(now);
-        return JSON.stringify({ say: "A delayed answer.", actions: [] });
+        return JSON.stringify({ say: "The sheltered river mouth could support a British trading post.", actions: [{ type: "goal_evidence", objectiveId: stageObjective().id, quote: "The sheltered river mouth could support a British trading post." }] });
       }],
     });
     const deps: PlayServiceDeps = { store, llm };
@@ -78,10 +78,10 @@ describe("per-stage budgets and late replies", () => {
     expect(result.ok).toBe(true);
     const snapshot = (await store.load("late-reply", STUDENT_ID))!.snapshot!;
     const playerLine = snapshot.world.transcript.find((line) => line.speakerId === "player" && line.body === "Please answer me.");
-    const reply = snapshot.world.transcript.find((line) => line.speakerId === initial.agentId && line.body === "A delayed answer.");
+    const reply = snapshot.world.transcript.find((line) => line.speakerId === initial.agentId && line.body === "The sheltered river mouth could support a British trading post.");
     expect(reply).toBeDefined();
     expect(reply?.replyToSeqs).toEqual([playerLine?.seq]);
-    expect(snapshot.world.transcript).toContainEqual(expect.objectContaining({ body: "A delayed answer." }));
+    expect(snapshot.world.transcript).toContainEqual(expect.objectContaining({ body: "The sheltered river mouth could support a British trading post." }));
     expect(result.ok && result.state.stage.objectives.find((objective) => objective.id === stageObjective().id)?.met).toBe(true);
   });
 

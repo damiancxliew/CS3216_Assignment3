@@ -90,7 +90,9 @@ describe('planner prompt versions', () => {
     expect(v3).toContain('- Every location must explicitly set enclosure to "enclosed" or "open"; never null.')
     expect(v3).toContain('- Enclosed locations have one door or gate and doorDefault must be "open" or "closed". Open locations have no door and doorDefault must be null.')
     expect(v3).toContain('- Speech in an enclosed location reaches all occupants. Speech outdoors reaches only listeners within three outdoor walking steps')
-    expect(v3).toContain('- Objectives targeting an agent require the player to address that agent and receive an audible reply.')
+    expect(v3).toContain('- Objectives targeting an agent require an audible reply that conveys a substantive, stage-relevant position or fact. Phrase each goal as an observable exchange about something that character could plausibly share; a greeting, refusal, or vague reply must not satisfy it. Do not require an inaccessible secret or exact wording.')
+    expect(v1).not.toContain('substantive, stage-relevant position or fact')
+    expect(v2).not.toContain('substantive, stage-relevant position or fact')
   })
 })
 

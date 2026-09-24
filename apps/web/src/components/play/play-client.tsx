@@ -135,6 +135,7 @@ export function PlayClient({
   }, []);
 
   const [offline, setOffline] = useState(false);
+  const [mintAttempt, setMintAttempt] = useState(0);
 
   // One writer at a time: the map can settle a position while a room entry is still
   // in flight, and the server rejects the second write as a conflict it caused itself.
@@ -146,6 +147,8 @@ export function PlayClient({
   }, []);
 
   const failures = useRef(0);
+  const mintInFlight = useRef(false);
+  const mintFailureKey = useRef<string | null>(null);
   const refresh = useCallback(async () => {
     const result = await playApi.state(attemptId);
     if (result.ok) {
@@ -170,6 +173,33 @@ export function PlayClient({
     timer = window.setTimeout(tick, POLL_MS);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [refresh]);
+
+  useEffect(() => {
+    if (!state.mintReady || state.status !== "active" || mintInFlight.current) return;
+    const failureKey = `${attemptId}:${state.stage.id}:${state.revision}`;
+    if (mintFailureKey.current === failureKey) return;
+    mintInFlight.current = true;
+    void playApi.mint(attemptId)
+      .then((result) => {
+        if (!result.ok) {
+          mintFailureKey.current = failureKey;
+          void refresh();
+          return;
+        }
+        mintFailureKey.current = null;
+        accept(result.body.state);
+      })
+      .catch(() => {
+        mintFailureKey.current = failureKey;
+        void refresh();
+      })
+      .finally(() => {
+        mintInFlight.current = false;
+        const current = stateRef.current;
+        const currentKey = `${attemptId}:${current.stage.id}:${current.revision}`;
+        if (current.mintReady && current.status === "active" && mintFailureKey.current !== currentKey) setMintAttempt((value) => value + 1);
+      });
+  }, [accept, attemptId, mintAttempt, refresh, state.mintReady, state.revision, state.stage.id, state.status]);
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({ block: "end" });
@@ -269,6 +299,10 @@ export function PlayClient({
         const acknowledgedAt = performance.now();
         if (!result.ok) {
           if (result.error.code === "rate_limited") {
+            return { position: stateRef.current.playerPos, accepted: false, retry: true, timings: result.timings, requestSentAt, acknowledgedAt };
+          }
+          if (result.error.code === "stale_state") {
+            await refresh();
             return { position: stateRef.current.playerPos, accepted: false, retry: true, timings: result.timings, requestSentAt, acknowledgedAt };
           }
           setNotice(result.error.message);

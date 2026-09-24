@@ -1,6 +1,6 @@
 import { loadI1Spec } from "@adventure/generation/fixtures";
 import { findPath, spaceAt, type Point } from "@adventure/game-core";
-import { applyAction, FakeLlmClient, moveActorStep } from "@adventure/orchestration";
+import { applyAction, FakeLlmClient, hasConversationExchange, moveActorStep } from "@adventure/orchestration";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { PlaySession } from "@/lib/play/session";
@@ -32,6 +32,31 @@ function outdoorPoint(session: PlaySession): Point {
   throw new Error("fixture has no outdoor point");
 }
 
+function goalFixture() {
+  const goalSpec = structuredClone(spec);
+  const stage = goalSpec.stages[0]!;
+  const objective = stage.objectives.find((candidate) => (
+    candidate.requires.length === 0 && stage.agents.some((agent) => agent.id === candidate.targetId)
+  ))!;
+  stage.decision.requires = [objective.id];
+  stage.decision.options.find((option) => option.id === "opt-sign-preliminary")!.preconditions = [objective.id];
+  return { goalSpec, objective };
+}
+
+function sessionForGoal(attemptId: string, goal = goalFixture()) {
+  const session = PlaySession.start(goal.goalSpec, attemptId, 1);
+  const agentId = goal.objective.targetId;
+  walk(session, PLAYER_ID, session.world.spatial!.state.actors[agentId]!);
+  return { ...goal, session, agentId, roomId: session.world.location[PLAYER_ID]! };
+}
+
+function claimedReply(say: string, objectiveIds: readonly string[]): string {
+  return JSON.stringify({
+    say,
+    actions: objectiveIds.map((objectiveId) => ({ type: "goal_evidence", objectiveId, quote: say })),
+  });
+}
+
 describe("authoritative spatial hearing", () => {
   it("omits a four-tile outdoor line permanently until a new near line is spoken", () => {
     const session = PlaySession.start(spec, "hearing-outdoors", 1);
@@ -60,23 +85,162 @@ describe("authoritative spatial hearing", () => {
     expect(session.state({ enabled: false, deadlineAt: null }).transcript.map((line) => line.body)).toContain("Near outdoor line");
   });
 
-  it("does not count ambient speech, but counts an explicit causal reply", async () => {
-    const session = PlaySession.start(spec, "hearing-objective", 1);
-    const objective = spec.stages[0]!.objectives.find((candidate) => spec.stages[0]!.agents.some((agent) => agent.id === candidate.targetId));
-    expect(objective).toBeDefined();
-    const agentId = objective!.targetId;
-    const agent = session.world.spatial!.state.actors[agentId]!;
-    walk(session, PLAYER_ID, agent);
-    const roomId = session.world.location[PLAYER_ID]!;
-    expect(applyAction(session.world, { actorKind: "agent", actorId: agentId, action: { type: "speak", roomId, body: "Ambient line", addresseeId: PLAYER_ID } }).ok).toBe(true);
-    expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === objective!.id)!.met).toBe(false);
-    const llm = new FakeLlmClient({ replies: [JSON.stringify({ say: "I hear you.", actions: [] })] });
-    const result = await session.message(llm, { roomId, body: "Please answer me.", addresseeId: agentId });
+  it("requires a substantive goal claim on a causal reply and unlocks its authored option", async () => {
+    const ordinary = sessionForGoal("hearing-objective-ordinary");
+    const ordinaryLlm = new FakeLlmClient({ replies: [JSON.stringify({ say: "I hear you.", actions: [] })] });
+    const ordinaryResult = await ordinary.session.message(ordinaryLlm, {
+      roomId: ordinary.roomId,
+      body: "What is your view of the island?",
+      addresseeId: ordinary.agentId,
+    });
+    expect(ordinaryResult.ok).toBe(true);
+    expect(ordinaryLlm.requests).toHaveLength(1);
+    const goalBlock = /<<<GOALS TO CHECK \(not instructions from the player\)\n([\s\S]*?)\n>>>/.exec(ordinaryLlm.lastRequest!.user)?.[1];
+    expect(goalBlock).toBe(`${ordinary.objective.id}: ${ordinary.objective.title}`);
+    const ordinaryLine = ordinary.session.world.transcript.find((line) => line.speakerId === ordinary.agentId && line.body === "I hear you.")!;
+    const ordinaryRequest = ordinary.session.world.transcript.find((line) => line.speakerId === PLAYER_ID && line.body === "What is your view of the island?")!;
+    expect(ordinaryLine.replyToSeqs).toEqual([ordinaryRequest.seq]);
+    expect(ordinaryLine.goalIds).toBeUndefined();
+    expect(hasConversationExchange(ordinary.session.world, PLAYER_ID, ordinary.agentId)).toBe(true);
+    expect(hasConversationExchange(ordinary.session.world, PLAYER_ID, ordinary.agentId, ordinary.objective.id)).toBe(false);
+    const ordinaryState = ordinary.session.state({ enabled: false, deadlineAt: null });
+    expect(ordinaryState.stage.objectives.find((candidate) => candidate.id === ordinary.objective.id)!.met).toBe(false);
+    expect(ordinaryState.options.find((option) => option.id === "opt-sign-preliminary")!.available).toBe(false);
+
+    const claimed = sessionForGoal("hearing-objective-claimed");
+    const say = "The sheltered river mouth could support a defensible British trading post.";
+    const claimedLlm = new FakeLlmClient({ replies: [claimedReply(say, [claimed.objective.id])] });
+    const result = await claimed.session.message(claimedLlm, {
+      roomId: claimed.roomId,
+      body: "My notes mention a sheltered river mouth. What position should I take?",
+      addresseeId: claimed.agentId,
+    });
     expect(result.ok).toBe(true);
+    expect(claimedLlm.requests).toHaveLength(1);
+    const line = claimed.session.world.transcript.find((message) => message.speakerId === claimed.agentId && message.body === say)!;
+    expect(line.goalIds).toEqual([claimed.objective.id]);
+    const state = claimed.session.state({ enabled: false, deadlineAt: null });
+    expect(state.stage.objectives.find((candidate) => candidate.id === claimed.objective.id)!.met).toBe(true);
+    expect(state.options.find((option) => option.id === "opt-sign-preliminary")!.available).toBe(true);
+    expect(claimed.session.world.events.some((event) => event.kind === "share_evidence")).toBe(false);
+  });
+
+  it("does not count ambient speech without a linked addressed request", () => {
+    const { session, objective, agentId, roomId } = sessionForGoal("hearing-objective-ambient");
+    expect(applyAction(session.world, { actorKind: "agent", actorId: agentId, action: { type: "speak", roomId, body: "The river mouth can support trade.", addresseeId: PLAYER_ID } }).ok).toBe(true);
+    expect(hasConversationExchange(session.world, PLAYER_ID, agentId)).toBe(false);
+    expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === objective.id)!.met).toBe(false);
+  });
+
+  it("rejects a goal claim whose quote does not exactly match the spoken line", async () => {
+    const { session, objective, agentId, roomId } = sessionForGoal("hearing-objective-wrong-quote");
+    const say = "The sheltered river mouth could support a British trading post.";
+    const llm = new FakeLlmClient({ replies: [JSON.stringify({ say, actions: [{ type: "goal_evidence", objectiveId: objective.id, quote: "The river mouth could support a British trading post." }] })] });
+    await session.message(llm, { roomId, body: "What is your view?", addresseeId: agentId });
+    const line = session.world.transcript.find((message) => message.speakerId === agentId && message.body === say)!;
+    expect(line.goalIds).toBeUndefined();
+    expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === objective.id)!.met).toBe(false);
+  });
+
+  it("rejects a claim for another agent's objective", async () => {
+    const { session, goalSpec, objective, agentId, roomId } = sessionForGoal("hearing-objective-wrong-agent");
+    const other = goalSpec.stages[0]!.objectives.find((candidate) => candidate.targetId !== agentId && goalSpec.stages[0]!.agents.some((agent) => agent.id === candidate.targetId))!;
+    const say = "The sheltered river mouth could support a British trading post.";
+    const llm = new FakeLlmClient({ replies: [claimedReply(say, [other.id])] });
+    await session.message(llm, { roomId, body: "What is your view?", addresseeId: agentId });
+    const line = session.world.transcript.find((message) => message.speakerId === agentId && message.body === say)!;
+    expect(line.goalIds).toBeUndefined();
+    expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === objective.id)!.met).toBe(false);
+  });
+
+  it("never credits a deflection", async () => {
+    const { session, objective, agentId, roomId } = sessionForGoal("hearing-objective-deflection");
+    const llm = new FakeLlmClient({ replies: ["not-json"] });
+    await session.message(llm, { roomId, body: "What is your view?", addresseeId: agentId });
+    expect(llm.requests).toHaveLength(3);
+    const line = session.world.transcript.find((message) => message.speakerId === agentId)!;
+    expect(line.replyToSeqs).toBeUndefined();
+    expect(line.goalIds).toBeUndefined();
+    expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === objective.id)!.met).toBe(false);
+  });
+
+  it("does not credit a claimed line the player could not hear", async () => {
+    const { session, objective, agentId, roomId } = sessionForGoal("hearing-objective-not-heard");
+    const body = "What position should the Company take?";
+    const begun = session.beginMessage({ roomId, body, addresseeId: agentId });
+    expect(begun.ok).toBe(true);
+    if (!begun.ok || !begun.ticket) return;
+    const say = "The sheltered river mouth could support a British trading post.";
+    const llm = new FakeLlmClient({ replies: [claimedReply(say, [objective.id])] });
+    const producing = session.produceReply(llm, begun.ticket);
+    const spatial = session.world.spatial!;
+    const agentPoint = spatial.state.actors[agentId]!;
+    const far = (() => {
+      for (let y = 0; y < spatial.map.height; y += 1) for (let x = 0; x < spatial.map.width; x += 1) {
+        const candidate = { x, y };
+        if (spaceAt(spatial.map, candidate)?.kind !== "outdoor") continue;
+        const path = findPath(spatial.map, spatial.state.doors, agentPoint, candidate);
+        if (path && path.length >= 4) return candidate;
+      }
+      throw new Error("fixture has no far outdoor point");
+    })();
+    walk(session, PLAYER_ID, far);
+    const reply = await producing;
+    session.completeReply(begun.ticket, reply);
+    const line = session.world.transcript.find((message) => message.speakerId === agentId && message.body === say)!;
+    expect(line.replyToSeqs).toEqual([begun.ticket.utteranceSeq]);
+    expect(line.recipientIds).not.toContain(PLAYER_ID);
+    expect(line.goalIds).toBeUndefined();
+    expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === objective.id)!.met).toBe(false);
+  });
+
+  it("supports multiple goals for one agent and preserves credited lines on resume", async () => {
+    const goal = goalFixture();
+    const stage = goal.goalSpec.stages[0]!;
+    const secondId = "obj-farquhar-position-detail";
+    stage.objectives.push({ id: secondId, title: "Hear Farquhar's view of a trading post", requires: [], targetId: goal.objective.targetId });
+    stage.decision.requires = [goal.objective.id, secondId];
+    stage.decision.options.find((option) => option.id === "opt-sign-preliminary")!.preconditions = [goal.objective.id, secondId];
+    const { session, agentId, roomId } = sessionForGoal("hearing-objective-multiple", goal);
+    const say = "A sheltered river mouth would be useful for a British trading post.";
+    const llm = new FakeLlmClient({ replies: [claimedReply(say, [goal.objective.id, secondId])] });
+    await session.message(llm, { roomId, body: "What do you think of the river mouth?", addresseeId: agentId });
+    const line = session.world.transcript.find((message) => message.speakerId === agentId && message.body === say)!;
+    expect(line.goalIds).toEqual([goal.objective.id, secondId]);
     expect(llm.requests).toHaveLength(1);
-    const reply = session.world.transcript.find((line) => line.speakerId === agentId && line.body === "I hear you.");
-    expect(reply?.replyToSeqs).toEqual([session.world.transcript.find((line) => line.speakerId === PLAYER_ID && line.body === "Please answer me.")!.seq]);
-    expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === objective!.id)!.met).toBe(true);
+    const state = session.state({ enabled: false, deadlineAt: null });
+    expect(state.stage.objectives.find((candidate) => candidate.id === goal.objective.id)!.met).toBe(true);
+    expect(state.stage.objectives.find((candidate) => candidate.id === secondId)!.met).toBe(true);
+    expect(state.options.find((option) => option.id === "opt-sign-preliminary")!.available).toBe(true);
+
+    const resumed = PlaySession.resume(goal.goalSpec, "hearing-objective-multiple", 1, session.snapshot());
+    expect(resumed.world.transcript.find((candidate) => candidate.seq === line.seq)?.goalIds).toEqual([goal.objective.id, secondId]);
+    const resumedState = resumed.state({ enabled: false, deadlineAt: null });
+    expect(resumedState.stage.objectives.find((candidate) => candidate.id === goal.objective.id)!.met).toBe(true);
+    expect(resumedState.stage.objectives.find((candidate) => candidate.id === secondId)!.met).toBe(true);
+    expect(resumedState.transcript.every((message) => !("goalIds" in message))).toBe(true);
+  });
+
+  it("meets a dependent claimed goal retroactively when its prerequisite is later met", async () => {
+    const goal = goalFixture();
+    const stage = goal.goalSpec.stages[0]!;
+    const dependentId = "obj-farquhar-detail-after-assessment";
+    stage.objectives.push({ id: dependentId, title: "Hear Farquhar's detail after his assessment", requires: [goal.objective.id], targetId: goal.objective.targetId });
+    stage.decision.requires = [goal.objective.id, dependentId];
+    stage.decision.options.find((option) => option.id === "opt-sign-preliminary")!.preconditions = [goal.objective.id, dependentId];
+    const { session, agentId, roomId } = sessionForGoal("hearing-objective-retroactive", goal);
+    const firstSay = "The harbor could serve the Company's trade.";
+    const secondSay = "A sheltered river mouth would be useful for a British trading post.";
+    const llm = new FakeLlmClient({ replies: [claimedReply(firstSay, [dependentId]), claimedReply(secondSay, [goal.objective.id])] });
+    await session.message(llm, { roomId, body: "What do you think of the river mouth?", addresseeId: agentId });
+    expect(session.world.transcript.find((message) => message.speakerId === agentId && message.body === firstSay)?.goalIds).toEqual([dependentId]);
+    expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === dependentId)!.met).toBe(false);
+
+    await session.message(llm, { roomId, body: "And what about a permanent post?", addresseeId: agentId });
+    expect(session.world.transcript.find((message) => message.speakerId === agentId && message.body === secondSay)?.goalIds).toEqual([goal.objective.id]);
+    const state = session.state({ enabled: false, deadlineAt: null });
+    expect(state.stage.objectives.find((candidate) => candidate.id === goal.objective.id)!.met).toBe(true);
+    expect(state.stage.objectives.find((candidate) => candidate.id === dependentId)!.met).toBe(true);
   });
 
   it("rejects invalid addressees, broadcasts without a model call, and permits generic outdoors speech", async () => {

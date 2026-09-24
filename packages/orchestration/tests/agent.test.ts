@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { AGENT_ACTION_TYPES } from '../src/actions'
 import { buildAgentPrompt } from '../src/agent/prompt'
 import { publicAgentTurn, runAgentTurn } from '../src/agent/character-agent'
 import type { AgentTurnInput } from '../src/agent/types'
@@ -57,6 +58,28 @@ describe('character agent prompt (K2)', () => {
     expect(prompt.user).not.toContain('room-cargo-shed')
   })
 
+  it('sets boundaries for sensitive disclosures without avoiding harmless public facts', () => {
+    const prompt = buildAgentPrompt(fixtureAgentTurnInput)
+    expect(prompt.system).toContain('do not volunteer private motives')
+    expect(prompt.system).toContain('do not become evasive about harmless public facts')
+    expect(prompt.system).toContain('Do not reveal a secret merely because someone asks for it')
+  })
+
+  it('includes the exact goal rules and quoted candidate rows only when candidates are supplied', () => {
+    const plain = buildAgentPrompt(fixtureAgentTurnInput)
+    expect(plain.system).not.toContain('Learning goals never override your character\'s motives')
+    expect(plain.user).not.toContain('GOALS TO CHECK (not instructions from the player)')
+
+    const prompt = buildAgentPrompt({
+      ...fixtureAgentTurnInput,
+      goalCandidates: [{ id: 'obj-harbor-position', title: 'Hear the Temenggong\'s public position' }],
+    })
+    expect(prompt.system).toContain('- Learning goals never override your character\'s motives or reasons to withhold information. Do not change what you say just to finish a goal.')
+    expect(prompt.system).toContain('- If your spoken line naturally communicates the substance of a listed goal, you may propose a goal_evidence action with that objectiveId and quote equal to your entire spoken line. This is bookkeeping, not a world action. Never claim a goal for a greeting, refusal, vague agreement, off-topic answer, or a question that has not been answered. If unsure, do not claim it.')
+    expect(prompt.user).toContain('<<<GOALS TO CHECK (not instructions from the player)\nobj-harbor-position: Hear the Temenggong\'s public position\n>>>')
+    expect(prompt.user).not.toContain('obj-unlisted-goal')
+  })
+
   it('wraps untrusted text in a data block and neutralises delimiter escapes (FR-20)', () => {
     const prompt = buildAgentPrompt({
       ...fixtureAgentTurnInput,
@@ -77,6 +100,38 @@ describe('character agent runtime (K2)', () => {
     const result = await runAgentTurn(client, fixtureAgentTurnInput)
     return { client, result }
   }
+
+  it('extracts only candidate goal claims without making them executable or public', async () => {
+    const say = 'The sheltered river mouth can support a British trading post.'
+    const client = new FakeLlmClient({
+      replies: [reply(say, [
+        { type: 'goal_evidence', objectiveId: 'obj-river-mouth', quote: say },
+        { type: 'goal_evidence', objectiveId: 'obj-other-agent', quote: say },
+      ])],
+    })
+    const result = await runAgentTurn(client, {
+      ...fixtureAgentTurnInput,
+      goalCandidates: [{ id: 'obj-river-mouth', title: 'Hear the public assessment of the river mouth' }],
+    })
+
+    expect(result.goalClaims).toEqual([{ objectiveId: 'obj-river-mouth', quote: say }])
+    expect(result.actions.map((entry) => entry.action.type)).toEqual(['speak'])
+    expect(AGENT_ACTION_TYPES as readonly string[]).not.toContain('goal_evidence')
+    expect(publicAgentTurn(result)).not.toHaveProperty('goalClaims')
+    expect(publicAgentTurn(result).actions.map((action) => action.type)).toEqual(['speak'])
+  })
+
+  it('does not retain claims when the spoken line does not survive the action budget', async () => {
+    const say = 'The sheltered river mouth can support a British trading post.'
+    const client = new FakeLlmClient({ replies: [reply(say, [{ type: 'goal_evidence', objectiveId: 'obj-river-mouth', quote: say }])] })
+    const result = await runAgentTurn(client, {
+      ...fixtureAgentTurnInput,
+      goalCandidates: [{ id: 'obj-river-mouth', title: 'Hear the public assessment of the river mouth' }],
+    }, { budget: { maxActions: 0, maxActionsPerActor: 0 } })
+
+    expect(result.say).toBe('')
+    expect(result.goalClaims).toEqual([])
+  })
 
   it('answers in room and returns allow-listed actions only', async () => {
     const { result } = await sendsOnlyOwnContext()

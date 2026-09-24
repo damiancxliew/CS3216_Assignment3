@@ -216,7 +216,7 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
     expect(messageBody.state.playerPos).toEqual(step);
     expect(messageBody.state.pendingDialogue).toBe(false);
     expect(messageBody.state.transcript.some((message: any) => message.body === "I will hear your proposal.")).toBe(true);
-    expect(messageBody.state.stage.objectives.some((objective: any) => objective.id === "obj-hear-farquhar" && objective.met)).toBe(true);
+    expect(messageBody.state.stage.objectives.some((objective: any) => objective.id === "obj-hear-farquhar" && objective.met)).toBe(false);
     for (const room of (await publicState(page, attemptId)).body.rooms) {
       let roomState = await navigateRoom(room.id);
       for (const item of roomState.evidenceHere) {
@@ -232,6 +232,19 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
         roomState = (await publicState(page, attemptId)).body;
       }
     }
+    let farquharState = await navigateRoom("landing-beach");
+    const farquharAgentAtBeach = farquharState.actors.find((actor: any) => actor.id === "agent-farquhar-s0");
+    expect(farquharAgentAtBeach?.position).toBeDefined();
+    await keyboardWalk(page, attemptId, farquharState, farquharAgentAtBeach.position!);
+    await tabTo(page, (text, tag, role) => tag === "BUTTON" && role === "radio" && text.includes("Farquhar"), 50);
+    await page.keyboard.press("Space");
+    await tabTo(page, (_text, tag) => tag === "INPUT", 30);
+    await page.keyboard.type("My notes mention the sheltered river mouth. What makes it a suitable place for the Company?");
+    const farquharResponse = page.waitForResponse((response) => response.url().includes(`/api/attempt/${attemptId}/message`) && response.request().method() === "POST");
+    await page.keyboard.press("Enter");
+    const farquharBody = await (await farquharResponse).json();
+    expect(farquharBody.accepted).toBe(true);
+    expect(farquharBody.state.stage.objectives.some((objective: any) => objective.id === "obj-hear-farquhar" && objective.met)).toBe(true);
     let temenggongState = await navigateRoom("temenggong-hall");
     const temenggong = temenggongState.actors.find((actor: any) => actor.id === "agent-temenggong-s0");
     const temenggongAgent = temenggongState.agents.find((agent: any) => agent.id === "agent-temenggong-s0");

@@ -41,11 +41,17 @@ describe("K11 full-path client-payload audit", () => {
   it("leaks no private context, roll, rationale, seed or hidden state across three stages, errors included", async () => {
     const captures: Capture[] = [];
     const privateText = privateTextOf(spec);
-    // Characters answer in character, and open their doors when asked; a line that quotes their own
-    // private brief would be caught by the audit below.
+    const goalClaims = (user: string, quote: string) => {
+      const rows = /<<<GOALS TO CHECK \(not instructions from the player\)\n([\s\S]*?)\n>>>/.exec(user)?.[1] ?? "";
+      return rows.split("\n").flatMap((row) => {
+        const separator = row.indexOf(":");
+        return separator < 1 ? [] : [{ type: "goal_evidence", objectiveId: row.slice(0, separator), quote }];
+      });
+    };
     const opener = (request: { user: string }) => {
       const room = /Room id for any action you propose: ([a-z0-9-]+)/.exec(request.user)?.[1];
-      return JSON.stringify({ say: "Come in, then.", actions: room ? [{ type: "open_door", roomId: room }] : [] });
+      const line = "The sheltered river mouth offers a useful anchorage for Company trade.";
+      return JSON.stringify({ say: line, actions: [...(room ? [{ type: "open_door", roomId: room }] : []), ...goalClaims(request.user, line)] });
     };
     const store = new MemoryPlayStore([
       { attemptId: ATTEMPT, studentId: STUDENT, adventureId: "adv-k11", publishedVersion: 1, status: "active", stageDeadlineAt: null, spec, snapshot: null, runtimeRevision: 0 },

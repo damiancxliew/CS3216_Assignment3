@@ -222,6 +222,20 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       if (destroyed || latest.current.state.map?.id !== mapId) return;
       const acknowledgedAt = acknowledgement.acknowledgedAt ?? performance.now();
       if (acknowledgement.retry) {
+        const position = acknowledgement.position;
+        if (position && (position.x !== step.from.x || position.y !== step.from.y)) {
+          const destination = queuedTarget?.point ?? path.at(-1) ?? pending.at(-1)?.to;
+          playerPos.current = position;
+          pending = [];
+          path = [];
+          pathInputAt = undefined;
+          queuedTarget = null;
+          render();
+          if (destination) window.setTimeout(() => {
+            if (!destroyed && latest.current.state.map?.id === mapId) goTo(destination);
+          }, 0);
+          else latest.current.onIntentDone();
+        }
         nextSendAt = acknowledgedAt + 80;
         void drain();
         return;

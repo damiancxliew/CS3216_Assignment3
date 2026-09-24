@@ -85,6 +85,7 @@ export interface AgentTurnInput {
    */
   addressedBy?: readonly AddressedLine[] | undefined
   replyToSeqs?: readonly number[] | undefined
+  goalCandidates?: readonly { id: string; title: string }[] | undefined
   moveTargets?: readonly { id: string; name: string }[] | undefined
   /** Actions the agent has left this stage (FR-12b). Zero means it should yield. */
   actionsRemaining: number
@@ -111,6 +112,7 @@ export const agentActionProposalSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('record_private_note'), note: z.string().min(1).max(600) }),
   // No `optionsVersion`: the runtime stamps the version of the list it actually showed this agent.
   z.object({ type: z.literal('commit_decision'), optionId: id }),
+  z.object({ type: z.literal('goal_evidence'), objectiveId: id, quote: z.string().min(1).max(600) }),
   z.object({ type: z.literal('pass') }),
   z.object({ type: z.literal('yield') }),
 ])

@@ -258,6 +258,7 @@ function deflect(
           action: { type: 'speak', roomId: input.room.id, body: say, addresseeId },
         },
       ],
+      goalClaims: [],
       dropped: [],
       degraded: false,
       repairRounds: 0,

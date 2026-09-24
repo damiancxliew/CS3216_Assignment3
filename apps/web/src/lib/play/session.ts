@@ -15,6 +15,7 @@ import {
   deriveOptions,
   fakeResolver,
   filterActions,
+  isAvailable,
   mintOptions,
   publicResolution,
   ReplyInbox,
@@ -68,6 +69,18 @@ export interface PendingReply {
   expiresAt: number;
 }
 
+export interface PendingMint {
+  id: string;
+  stageId: string;
+  transcriptLength: number;
+  expiresAt: number;
+}
+
+export interface MintProduction {
+  options: MintedOption[];
+  tokens: number;
+}
+
 /** Everything the loop needs to continue an attempt. Stored as jsonb in `attempt_state.world_state`. */
 export interface PlaySnapshot {
   version: 1;
@@ -97,6 +110,7 @@ export interface PlaySnapshot {
   /** Walking allowance: one token per `STEP_INTERVAL_MS`, capped at `STEP_BURST`. */
   stepRate?: { tokens: number; lastMs: number };
   pendingReply?: PendingReply | null;
+  pendingMint?: PendingMint | null;
   replyRate?: { tokens: number; lastMs: number };
 }
 
@@ -113,6 +127,7 @@ export interface PlayState extends PublicAttemptState {
   actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; position: Point | null; sprite: Character; portraitUrl: string | null }[];
   hearingActorIds: string[];
   pendingDialogue: boolean;
+  mintReady: boolean;
   /** Evidence in the player's room that they have not examined yet. Names only — content is what examining reveals. */
   evidenceHere: { id: string; name: string; position: { x: number; y: number } | null; canInspect: boolean }[];
   /** Every placed document on this stage's map, so the renderer can draw it. Names only, like the room labels. */
@@ -306,6 +321,7 @@ export class PlaySession {
       revision: 0,
       stepRate: { tokens: 1, lastMs: clock.now().getTime() },
       pendingReply: null,
+      pendingMint: null,
       replyRate: { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     };
     return new PlaySession(spec, attemptId, publishedVersion, snap, clock, assets, compiledStages);
@@ -327,6 +343,7 @@ export class PlaySession {
       stageStats: cloned.stageStats ?? { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
       stepRate: cloned.stepRate ?? { tokens: 1, lastMs: clock.now().getTime() },
       pendingReply: cloned.pendingReply ?? null,
+      pendingMint: cloned.pendingMint ?? null,
       replyRate: cloned.replyRate ?? { tokens: DEFAULT_REPLY_RATE_LIMIT.burst, lastMs: 0 },
     }, clock, assets, compiledStages);
   }
@@ -426,6 +443,7 @@ export class PlaySession {
       map: compiled ? publicMap(compiled) : null,
       hearingActorIds: hearingActorIds(world, PLAYER_ID),
       pendingDialogue: this.snap.pendingReply?.expiresAt !== undefined && this.snap.pendingReply.expiresAt > now.getTime(),
+      mintReady: this.mintReady(),
       actors: [
         { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, position: world.spatial?.state.actors[PLAYER_ID] ?? null, sprite: PLAYER_CHARACTER, portraitUrl: null },
         ...this.stage.agents.map((agent) => ({
@@ -488,14 +506,14 @@ export class PlaySession {
     if (!objective.requires.every((required) => this.objectiveMet(required, new Set(visiting).add(objectiveId)))) return false;
     const world = this.snap.world;
     if ((world.evidenceKnown[PLAYER_ID] ?? []).includes(objective.targetId)) return true;
-    // Agent objective: the player has heard that character speak while in the same room.
-    return hasConversationExchange(world, PLAYER_ID, objective.targetId);
+    // Agent objective: an audible causal reply must carry this objective's accepted claim.
+    return hasConversationExchange(world, PLAYER_ID, objective.targetId, objective.id);
   }
 
   /**
    * Goals are authored as outcomes ("Hear Farquhar's assessment"); students need the verb. An
-   * agent goal is met by hearing that person speak while you are with them (K6 heard_from), an
-   * evidence goal by examining the item — so say that, and where.
+   * agent goal is met by hearing a substantive reply causally linked to the player's question and
+   * carrying its accepted goal claim, an evidence goal by examining the item — so say that, and where.
    */
   private objectiveHints(): Record<string, string> {
     const roomName = (roomId: string | null | undefined) => this.stage.rooms.find((r) => r.id === roomId)?.name ?? null;
@@ -504,7 +522,7 @@ export class PlaySession {
       const agent = this.stage.agents.find((a) => a.id === objective.targetId);
       if (agent) {
         const where = roomName(this.roomOf(agent.id));
-        out[objective.id] = `Talk to ${this.agentName(agent.id)}${where ? ` in ${where}` : ""} and hear what they say`;
+        out[objective.id] = `Talk to ${this.agentName(agent.id)}${where ? ` in ${where}` : ""}; a greeting or refusal will not complete this goal`;
         continue;
       }
       const item = this.stage.evidence.find((e) => e.id === objective.targetId);
@@ -552,7 +570,8 @@ export class PlaySession {
   }
 
   private optionCatalogue(): OptionDefinition[] {
-    return [...this.bundle.options, ...(this.snap.mintedOptions ?? [])];
+    const minted = this.stage.decision.requires.every((id) => this.objectiveMet(id)) ? (this.snap.mintedOptions ?? []) : [];
+    return [...this.bundle.options, ...minted];
   }
 
   private map() {
@@ -635,7 +654,15 @@ export class PlaySession {
     const source = this.snap.world.transcript.find((line) => line.seq === ticket.utteranceSeq);
     if (!source) throw new Error("reply source missing");
     const detached = structuredClone(this.snap.world);
-    const turnInput = { ...buildAgentTurnInput(detached, ticket.agentId, this.stageConfig(), 1), playerMessage: source.body, replyToSeqs: [ticket.utteranceSeq] };
+    const goalCandidates = this.stage.objectives
+      .filter((objective) => objective.targetId === ticket.agentId && !this.objectiveMet(objective.id))
+      .map(({ id, title }) => ({ id, title }));
+    const turnInput = {
+      ...buildAgentTurnInput(detached, ticket.agentId, this.stageConfig(), 1),
+      playerMessage: source.body,
+      replyToSeqs: [ticket.utteranceSeq],
+      goalCandidates,
+    };
     return replyToPlayer(client, detached, turnInput, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), speakerId: PLAYER_ID, nowMs: this.clock.now().getTime(), tokenBudget: STAGE_TOKEN_BUDGET, tokensSpent: this.snap.stageStats.tokens });
   }
 
@@ -663,6 +690,15 @@ export class PlaySession {
       const context = result.source === "model" && !result.turn.degraded ? { replyToSeqs: [ticket.utteranceSeq] } : {};
       for (const entry of result.turn.actions) if (entry.actorKind === "agent" && entry.actorId === ticket.agentId) applyAction(this.snap.world, entry, entry.action.type === "speak" ? context : {});
     }
+    if (result.source === "model" && !result.turn.degraded) {
+      const objectiveIds = new Set(this.stage.objectives.filter((objective) => objective.targetId === ticket.agentId).map((objective) => objective.id));
+      const claims = (result.turn.goalClaims ?? []).filter((claim) => objectiveIds.has(claim.objectiveId));
+      for (const line of this.snap.world.transcript) {
+        if (line.seq <= beforeSeq || line.speakerId !== ticket.agentId || line.replyToSeqs?.includes(ticket.utteranceSeq) !== true || line.recipientIds?.includes(PLAYER_ID) !== true) continue;
+        const goalIds = [...new Set(claims.filter((claim) => claim.quote === line.body.trim()).map((claim) => claim.objectiveId))];
+        if (goalIds.length > 0) line.goalIds = goalIds;
+      }
+    }
     this.bump();
     return { ok: true, newMessages: this.playerHeard().filter((line) => line.seq > beforeSeq).map((line) => this.toMessage(line)) };
   }
@@ -670,15 +706,11 @@ export class PlaySession {
   async message(client: LlmClient, input: { roomId: string; body: string; addresseeId?: string | null }): Promise<MessageOutcome> {
     const begun = this.beginMessage(input);
     if (!begun.ok) return begun;
-    if (!begun.ticket) {
-      await this.maintainOptions(client);
-      return begun;
-    }
+    if (!begun.ticket) return begun;
     let reply: ReplyResult | null = null;
     try { reply = await this.produceReply(client, begun.ticket); } catch { reply = null; }
     const completed = this.completeReply(begun.ticket, reply);
     if (!completed.ok) return completed;
-    await this.maintainOptions(client);
     return { ok: true, newMessages: [...begun.newMessages, ...completed.newMessages] };
   }
 
@@ -714,7 +746,6 @@ export class PlaySession {
       this.spendWalk(now, allowance, 1);
       this.snap.stageStats.actions += 1;
       this.bump();
-      await this.maintainOptions(client);
       return { ok: true, refused: null };
     }
     if (action.type === "move_steps") {
@@ -733,7 +764,6 @@ export class PlaySession {
             this.spendWalk(now, allowance, appliedCount);
             this.snap.stageStats.actions += appliedCount;
             this.bump();
-            await this.maintainOptions(client);
           }
           return { ok: true, refused: moved.reason };
         }
@@ -743,7 +773,6 @@ export class PlaySession {
       this.spendWalk(now, allowance, appliedCount);
       this.snap.stageStats.actions += appliedCount;
       this.bump();
-      await this.maintainOptions(client);
       return { ok: true, refused: null };
     }
 
@@ -766,7 +795,6 @@ export class PlaySession {
           collectedAt: this.clock.now().toISOString(),
         });
         this.bump();
-        await this.maintainOptions(client);
       }
       return { ok: true, refused: null };
     }
@@ -794,52 +822,99 @@ export class PlaySession {
       if (inside.length > 0) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE, inside);
     }
 
-    if (result.ok) await this.maintainOptions(client);
     return { ok: true, refused: result.ok ? null : result.reason };
   }
 
-  async maintainOptions(client: LlmClient): Promise<void> {
-    if (this.snap.status !== "active" || this.ledger.has(PLAYER_ID)) return;
-    if ((this.snap.mintedOptions ?? []).length >= MINTED_OPTIONS_CAP) return;
-    const transcriptLength = this.snap.world.transcript.length;
-    if (transcriptLength - (this.snap.mintedAtSeq ?? 0) < MINT_TRIGGER_TRANSCRIPT_LINES) return;
-    if (STAGE_TOKEN_BUDGET - this.snap.stageStats.tokens <= 0) return;
+  mintReady(): boolean {
+    const now = this.clock.now().getTime();
+    const pending = this.snap.pendingMint;
+    return this.snap.status === "active" &&
+      !this.ledger.has(PLAYER_ID) &&
+      (this.snap.pendingReply === null || this.snap.pendingReply === undefined || this.snap.pendingReply.expiresAt <= now) &&
+      (pending === null || pending === undefined || pending.stageId !== this.stage.id || pending.expiresAt <= now) &&
+      (this.snap.mintedOptions ?? []).length < MINTED_OPTIONS_CAP &&
+      this.snap.world.transcript.length - (this.snap.mintedAtSeq ?? 0) >= MINT_TRIGGER_TRANSCRIPT_LINES &&
+      STAGE_TOKEN_BUDGET - this.snap.stageStats.tokens > 0;
+  }
 
-    this.snap.mintedAtSeq = transcriptLength;
+  beginMint(): PendingMint | null {
+    if (!this.mintReady()) return null;
+    const now = this.clock.now().getTime();
+    const ticket: PendingMint = {
+      id: newId(),
+      stageId: this.stage.id,
+      transcriptLength: this.snap.world.transcript.length,
+      expiresAt: now + 180_000,
+    };
+    this.snap.pendingMint = ticket;
+    this.bump();
+    return ticket;
+  }
+
+  async produceMint(client: LlmClient, ticket: PendingMint): Promise<MintProduction> {
+    const world = structuredClone(this.snap.world);
+    const catalogue = [...this.bundle.options, ...(this.snap.mintedOptions ?? [])];
     const metrics = new StructuredCallMetrics();
-    try {
-      const privateTexts = this.stage.agents.flatMap((agent) => [
-        agent.privateContext.persona,
-        agent.privateContext.motivations,
-        agent.privateContext.hiddenInterests,
-        agent.privateContext.knowledgeHorizon,
-      ]);
-      const result = await mintOptions(client, {
-        stageId: this.stage.id,
-        world: this.snap.world,
-        catalogue: this.optionCatalogue(),
-        transcript: this.snap.world.transcript.slice(-MINT_TRANSCRIPT_WINDOW).map((line) => ({
-          roomId: line.roomId,
-          speakerName: line.speakerName,
-          body: line.body,
-        })),
-        branchTargets: this.stage.decision.options.map((option) => ({
-          key: option.id,
-          target: option.branchTarget,
-          description: option.label,
-        })),
-        privateTexts,
-        maxMinted: MINTED_OPTIONS_CAP - (this.snap.mintedOptions ?? []).length,
-      }, { metrics });
-      if (result.options.length > 0) this.snap.mintedOptions = [...(this.snap.mintedOptions ?? []), ...result.options];
-    } catch {
-      return;
-    } finally {
-      const used = metrics.totalTokens;
-      this.snap.tokensSpent += used;
-      this.snap.stageStats.tokens += used;
-      this.bump();
+    const privateTexts = this.stage.agents.flatMap((agent) => [
+      agent.privateContext.persona,
+      agent.privateContext.motivations,
+      agent.privateContext.hiddenInterests,
+      agent.privateContext.knowledgeHorizon,
+    ]);
+    const result = await mintOptions(client, {
+      stageId: ticket.stageId,
+      world,
+      catalogue,
+      transcript: world.transcript.slice(-MINT_TRANSCRIPT_WINDOW).map((line) => ({
+        roomId: line.roomId,
+        speakerName: line.speakerName,
+        body: line.body,
+      })),
+      branchTargets: this.stage.decision.options.map((option) => ({
+        key: option.id,
+        target: option.branchTarget,
+        description: option.label,
+      })),
+      privateTexts,
+      maxMinted: MINTED_OPTIONS_CAP - (this.snap.mintedOptions ?? []).length,
+    }, { metrics });
+    return { options: result.options, tokens: metrics.totalTokens };
+  }
+
+  completeMint(ticket: PendingMint, output: MintProduction | null): boolean {
+    const pending = this.snap.pendingMint;
+    const now = this.clock.now().getTime();
+    if (
+      this.snap.status !== "active" ||
+      ticket.stageId !== this.stage.id ||
+      pending?.id !== ticket.id ||
+      pending.stageId !== ticket.stageId ||
+      pending.transcriptLength !== ticket.transcriptLength ||
+      pending.expiresAt !== ticket.expiresAt ||
+      pending.expiresAt <= now
+    ) return false;
+
+    this.snap.pendingMint = null;
+    this.snap.mintedAtSeq = ticket.transcriptLength;
+    const used = output?.tokens ?? 0;
+    this.snap.tokensSpent += used;
+    this.snap.stageStats.tokens += used;
+    const existing = this.snap.mintedOptions ?? [];
+    const catalogue = [...this.bundle.options, ...existing];
+    const ids = new Set(catalogue.map((option) => option.id));
+    const labels = new Set(catalogue.map((option) => option.label.trim().toLowerCase()));
+    const additions: MintedOption[] = [];
+    for (const option of output?.options ?? []) {
+      if (existing.length + additions.length >= MINTED_OPTIONS_CAP) break;
+      const label = option.label.trim().toLowerCase();
+      if (option.stageId !== this.stage.id || ids.has(option.id) || labels.has(label) || !isAvailable(this.snap.world, option)) continue;
+      additions.push(option);
+      ids.add(option.id);
+      labels.add(label);
     }
+    if (additions.length > 0) this.snap.mintedOptions = [...existing, ...additions];
+    this.bump();
+    return true;
   }
 
   /** Let the characters act autonomously for a bounded number of ticks (FR-12a/FR-12b); `only` narrows who. */
@@ -935,6 +1010,7 @@ export class PlaySession {
       this.snap.status = "completed";
       this.snap.endingId = next.endingId;
       this.snap.pendingReply = null;
+      this.snap.pendingMint = null;
     } else if (next.kind === "stage") {
       const index = this.spec.stages.findIndex((s) => s.id === next.stageId);
       if (index < 0) throw new Error(`resolver pointed at unknown stage "${next.stageId}"`);
@@ -956,6 +1032,7 @@ export class PlaySession {
     this.snap.mintedAtSeq = 0;
     this.snap.stepRate = { tokens: 1, lastMs: this.clock.now().getTime() };
     this.snap.pendingReply = null;
+    this.snap.pendingMint = null;
     this.stage = this.spec.stages[index]!;
     this.bundle = bundle;
     this.ledger = new StageDecisions(this.participants());
