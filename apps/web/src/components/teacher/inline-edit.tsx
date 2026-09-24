@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { ActionResult } from "@/app/teacher/actions";
 import { ActionForm } from "@/components/action-form";
+import { Select } from "@/components/select";
 import { button, Field } from "@/components/ui";
 
 export type EditField = {
@@ -53,9 +54,7 @@ export function InlineEdit({
           {fields.map((field) => field.options ? (
             <label key={field.name} className="flex flex-col gap-1 text-sm font-semibold text-ink">
               {field.label}
-              <select name={field.name} defaultValue={field.defaultValue} className="min-h-11 rounded-control border border-line bg-surface px-3 text-base text-ink">
-                {field.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
+              <Select name={field.name} label={field.label} defaultValue={field.defaultValue} options={field.options} />
               {field.hint ? <span className="text-sm font-normal text-muted">{field.hint}</span> : null}
             </label>
           ) : (

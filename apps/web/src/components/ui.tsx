@@ -6,6 +6,7 @@
  */
 import Link from "next/link";
 import { ThemeSelect } from "@/components/theme-provider";
+import { Select } from "@/components/select";
 
 /** Teacher-facing names for the Spec v2 reading bands. */
 export { READING_BAND_LABELS } from "@/lib/brief/schema";
@@ -191,13 +192,7 @@ export function SelectField({
   return (
     <label className="flex flex-col gap-1.5">
       <FieldLabel>{label}</FieldLabel>
-      <select name={name} defaultValue={defaultValue} className={control}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <Select name={name} label={label} defaultValue={defaultValue} options={options} />
     </label>
   );
 }

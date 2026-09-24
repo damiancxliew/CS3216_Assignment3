@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
+import { Select } from "@/components/select";
 
 import { parseTheme, THEME_STORAGE_KEY, type ThemePreference } from "@/lib/theme";
 
@@ -61,18 +62,17 @@ export function ThemeSelect() {
   const Icon = theme.preference === "dark" ? Moon : theme.preference === "light" ? Sun : Monitor;
 
   return (
-    <label className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line-strong bg-surface px-3 text-sm font-bold text-ink">
-      <Icon className="h-4 w-4 shrink-0" aria-hidden />
-      <span className="sr-only">Color theme</span>
-      <select
-        value={theme.preference}
-        onChange={(event) => theme.setPreference(parseTheme(event.target.value))}
-        className="min-h-11 cursor-pointer rounded-control bg-surface pr-1 text-ink"
-      >
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-    </label>
+    <Select
+      label="Color theme"
+      value={theme.preference}
+      onValueChange={(value) => theme.setPreference(parseTheme(value))}
+      options={[
+        { value: "system", label: "System" },
+        { value: "light", label: "Light" },
+        { value: "dark", label: "Dark" },
+      ]}
+      icon={<Icon className="h-4 w-4 shrink-0" aria-hidden />}
+      className="shrink-0 rounded-full border border-line-strong px-3 text-sm font-bold"
+    />
   );
 }
