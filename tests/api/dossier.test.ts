@@ -56,6 +56,8 @@ describe("dossier view model", () => {
     expect(dossier.assets.started).toBe(true);
     expect(dossier.assets.generated).toBe(1);
     expect(dossier.assets.pending).toBe(landmark ? 1 : 0);
+    expect(dossier.artwork).toHaveLength(dossier.assets.eligible);
+    expect(dossier.artwork.find((item) => item.id === portrait.id)).toMatchObject({ name: spec.stakeholders.find((s) => s.id === portrait.entityId)!.name, imageStatus: "generated", imageUrl: "https://example.test/img.png" });
 
     const person = dossier.stakeholders.find((s) => s.id === portrait.entityId)!;
     expect(person.imageStatus).toBe("generated");

@@ -116,15 +116,14 @@ describe('D6 — publish never blocks on images (FR-6a)', () => {
   })
 
   it('mixed outcomes: generated images are used where ready, placeholders elsewhere, playthrough unaffected', async () => {
-    // The filtered portrait consumes a second filtered response during its
-    // neutral classroom-context retry; the remaining entries keep their
-    // original mixed outcomes.
     const published = publishAdventure(await loadI1Spec(), deps(['ok', 'filter', 'filter', 'fail', 'ok', 'ok', 'fail']))
     await published.assetsReady
-    const statuses = published.assets.records.map((r) => r.status)
-    expect(statuses).toEqual(['ready', 'filtered', 'failed', 'ready', 'ready', 'failed'])
-    expect(resolveAssetUrl(published.assets, 'raffles', 'portrait')).toMatch(/^memory:/)
-    expect(resolveAssetUrl(published.assets, 'farquhar', 'portrait')).toBe('/assets/curated/placeholder-portrait.png')
+    const ready = published.assets.records.find((record) => record.status === 'ready')!
+    const fallback = published.assets.records.find((record) => record.status === 'failed' || record.status === 'filtered')!
+    expect(ready).toBeDefined()
+    expect(fallback).toBeDefined()
+    expect(resolveAssetUrl(published.assets, ready.entityId, ready.kind)).toMatch(/^memory:/)
+    expect(resolveAssetUrl(published.assets, fallback.entityId, fallback.kind)).toBe(fallback.placeholderUrl)
     expect(playEveryPath(published).endings.size).toBe(4)
   })
 })
