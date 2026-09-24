@@ -4,11 +4,11 @@
  * manifest is written all-`pending` first, then each record is updated as its
  * image settles, so the play view shows placeholders and swaps them in.
  *
- * Only the kinds the spec marks eligible are requested (portrait, landmark,
- * prop); the service refuses anything else. The spec may list every useful
- * story-specific image without a fixed adventure-wide count limit.
+ * Portraits and props follow the spec's eligibility list. Every physical
+ * landmark is eligible, including fixtures omitted by older specs; rooms with
+ * no landmark are skipped. No fixed adventure-wide count limit applies.
  */
-import { generateAssets, pendingManifest, type ImageService } from "@adventure/generation/assets";
+import { generateAssets, pendingManifest, playableAssetEligibility, type ImageService } from "@adventure/generation/assets";
 import { validatePublishedSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -43,9 +43,9 @@ export async function generateAssetsForVersion(options: GenerateForVersionOption
   // A filtered eligibility list yields a manifest holding only those records,
   // so `saveManifest` below can never wipe the rows this run didn't touch. The
   // stored spec object is never mutated.
-  const spec = options.onlyAssetIds
-    ? { ...validated.spec, assetEligibility: validated.spec.assetEligibility.filter((a) => options.onlyAssetIds!.includes(a.id)) }
-    : validated.spec;
+  const spec = { ...validated.spec, assetEligibility: playableAssetEligibility(validated.spec).filter((asset) =>
+    !options.onlyAssetIds || options.onlyAssetIds.includes(asset.id),
+  ) };
   if (spec.assetEligibility.length === 0) return { ok: true, specVersionId: version.id, generated: 0, cached: 0, failed: 0, costUsd: 0 };
 
   const quality = options.quality ?? "low";

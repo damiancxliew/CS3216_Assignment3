@@ -98,15 +98,15 @@ Hard rules:
   are affected. Publish freezes an immutable version.
 - FR-6 Asset pipeline (D4): terrain, structural and UI art always come from the curated set — the
   compiler cannot request generation for them. Generation is available only for scene/story-specific
-  entities (character portraits, named landmarks, story props) and only when no curated asset
-  matches, capped at 8 images per adventure and cached by prompt hash (a subject reused across
-  stages costs nothing).
+  entities (character portraits, physical landmarks, story props), with no fixed count limit and
+  cached by prompt hash (a subject reused across stages costs nothing). Generated landmarks become
+  four palette-matched 16px tiles on the map; the curated fixture remains the fallback.
 - FR-6a Image generation never blocks publish. Pending or failed images fall back to the curated
   placeholder for that entity, the adventure stays playable, and the teacher can review, regenerate
   or accept the placeholder afterwards. A rejected or filtered image (FR-23) falls back the same way.
-- FR-6b The spec marks which entities are eligible for generation; anything not on that list resolves
-  to a curated asset or fails validation. This keeps "generate a whole tileset" out of reach of both
-  the planner and a prompt-injected source document.
+- FR-6b The spec marks portraits and props eligible for generation. Every room with a physical
+  landmark is also eligible, including older specs that omitted its image entry. Room-only art is
+  skipped. Terrain, structural tiles and UI cannot be requested by the planner or a source document.
 
 ### 5.2 Map compilation
 

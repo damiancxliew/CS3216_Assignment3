@@ -54,10 +54,8 @@ export interface PlaygroundSnapshot {
   /** Display names for rooms, when the caller has them; the demo fixture's names are the fallback. */
   roomNames?: Readonly<Record<string, string>>
   mapTheme?: MapThemeId
-  /** Legacy generated room art; the tiled renderer uses physical fixtures instead. */
-  roomImages?: Readonly<Record<string, string>>
-  /** Physical, inspectable fixtures placed within named rooms. */
-  landmarks?: Array<{ id: string; roomId: string; name: string; kind: LandmarkKind; position: Point; width: 2; height: 2 }>
+  /** Physical, inspectable fixtures placed within named rooms. Ready art is a 32px tile sheet. */
+  landmarks?: Array<{ id: string; roomId: string; name: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string }>
   /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */
   ambient?: { id: AmbientOverlayId; intensity: 1 | 2 | 3 }
   effects?: Array<{ key: string; id: SceneEffectId; roomId?: string | null }>

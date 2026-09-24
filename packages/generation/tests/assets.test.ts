@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FakeImageService, InMemoryAssetCache, InMemoryAssetStore } from '../src/assets/memory'
-import { assertGeneratable, buildImagePrompt, buildPortraitSafetyRetryPrompt, generateAssets, placeholderUrl, promptHash, resolveAssetUrl } from '../src/assets/service'
+import { assertGeneratable, buildImagePrompt, buildPortraitSafetyRetryPrompt, generateAssets, placeholderUrl, playableAssetEligibility, promptHash, resolveAssetUrl } from '../src/assets/service'
 import { ImageServiceError } from '../src/assets/types'
 import { loadI1Spec } from '../src/fixtures'
 import type { AdventureSpec } from '../src/spec/v2'
@@ -19,6 +19,17 @@ async function specWithAssets(n: number): Promise<AdventureSpec> {
 }
 
 describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
+  it('generates art for every playable fixture and skips room-only images', async () => {
+    const spec = await loadI1Spec()
+    const physicalRooms = spec.stages.flatMap((stage) => stage.rooms.filter((room) => room.landmark).map((room) => room.id))
+    const emptyRoom = spec.stages.flatMap((stage) => stage.rooms).find((room) => !room.landmark)!
+    spec.assetEligibility.push({ id: 'old-room-only-image', kind: 'landmark', entityId: emptyRoom.id, subject: emptyRoom.name, prompt: emptyRoom.purpose })
+    const assets = playableAssetEligibility(spec)
+    expect(assets.filter((asset) => asset.kind === 'landmark').map((asset) => asset.entityId).sort()).toEqual(physicalRooms.sort())
+    expect(assets.some((asset) => asset.id === 'old-room-only-image')).toBe(false)
+    expect(assets.filter((asset) => asset.kind === 'landmark').every((asset) => asset.id.length <= 48)).toBe(true)
+  })
+
   it('rejects terrain, structural and UI requests', () => {
     for (const kind of ['terrain', 'tileset', 'wall', 'floor', 'ui', 'icon', 'background']) {
       expect(() => assertGeneratable({ kind })).toThrow(ImageServiceError)
@@ -157,7 +168,8 @@ describe('D5 — failure handling (FR-6a)', () => {
     spec.stages[0]!.mapTheme = 'winter'
     const room = spec.stages[0]!.rooms[0]!
     const prompt = buildImagePrompt({ id: 'winter-object', kind: 'landmark', entityId: room.id, subject: 'Old monument', prompt: 'A weathered monument' }, spec)
-    expect(prompt).toMatch(/16px pixel-art game map/)
+    expect(prompt).toMatch(/32x32 pixel-art tile sheet/)
+    expect(prompt).toMatch(/four 16x16 terrain tiles/)
     expect(prompt).toMatch(/transparent background/)
     expect(prompt).toMatch(/snow white, pale blue-gray, dark timber/)
     expect(prompt).toMatch(/no scene, ground plane, frame/)

@@ -21,7 +21,7 @@ import type { AdventureSpec, AssetEligibility } from '../spec/v2'
 import { type AssetCache, type AssetManifest, type AssetRecord, type AssetStore, type ImageRequest, type ImageService, ImageServiceError } from './types'
 
 /** Version the style suffix: changing it changes every prompt hash, which is what you want. */
-export const ASSET_STYLE_VERSION = 'style-v3-grounded-portraits-map-sprites'
+export const ASSET_STYLE_VERSION = 'style-v4-playable-32px-landmark-tiles'
 
 const STYLE: Record<GeneratableAssetKind, string> = {
   portrait: [
@@ -31,7 +31,7 @@ const STYLE: Record<GeneratableAssetKind, string> = {
     'Centered frontal or slight three-quarter pose, reserved neutral expression, plain charcoal background, no text and no frame.',
     'Not cute, chibi, toy-like, anime, caricatured, smiling or heroic.',
   ].join(' '),
-  landmark: 'Single physical landmark for a top-down 16px pixel-art game map. Three-quarter top-down view, crisp square pixels, simple readable silhouette, limited muted palette, transparent background. Show only the object, with no scene, ground plane, frame, placard, UI, text, characters, gradients or painterly texture.',
+  landmark: 'A game-ready 32x32 pixel-art tile sheet of one solid physical landmark, occupying exactly two 16x16 map tiles in each direction. Draw one complete object centered in the square on a transparent background with a transparent margin of at most two pixels. Three-quarter top-down view matching hand-authored 16-bit game tiles: deliberate hard square pixel edges, strong readable silhouette, no antialiasing, no soft lighting, no gradients, and a limited muted palette of at most 16 colors. Show only the object, with no scene, ground plane, frame, placard, UI, text, characters, shadow outside the footprint, or painterly texture. The image will be reduced to 32x32 pixels and cut into four 16x16 terrain tiles.',
   prop: 'Single small physical object for a top-down 16px pixel-art game map. Three-quarter top-down view, crisp square pixels, simple readable silhouette, limited muted palette, transparent background. No scene, ground plane, frame, UI, text, characters, gradients or painterly texture.',
 }
 
@@ -107,6 +107,26 @@ export interface GenerateAssetsOptions {
   ignoreCache?: boolean
   /** Called after every record settles, so a UI can show progress. */
   onRecord?: (record: AssetRecord) => void
+}
+
+/** Keep only gameplay-visible image requests and cover every physical fixture,
+ * including those omitted by an older planner. Derived ids stay stable across runs. */
+export function playableAssetEligibility(spec: AdventureSpec): AssetEligibility[] {
+  const rooms = spec.stages.flatMap((stage) => stage.rooms.filter((room) => room.landmark))
+  const landmarkRooms = new Set(rooms.map((room) => room.id))
+  const eligible = spec.assetEligibility.filter((asset) => asset.kind !== 'landmark' || landmarkRooms.has(asset.entityId))
+  const covered = new Set(eligible.filter((asset) => asset.kind === 'landmark').map((asset) => asset.entityId))
+  for (const room of rooms) {
+    if (covered.has(room.id) || !room.landmark) continue
+    eligible.push({
+      id: `asset-map-${createHash('sha256').update(room.id).digest('hex').slice(0, 16)}`,
+      kind: 'landmark',
+      entityId: room.id,
+      subject: room.landmark.name,
+      prompt: room.landmark.description,
+    })
+  }
+  return eligible
 }
 
 function initialRecord(entry: AssetEligibility, hash: string): AssetRecord {

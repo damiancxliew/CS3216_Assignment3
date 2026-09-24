@@ -175,7 +175,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         doors,
         actors,
         props,
-        landmarks: s.landmarks.map((landmark) => ({ id: landmark.id, roomId: landmark.roomId, name: landmark.name, kind: landmark.kind, position: landmark.position, width: landmark.width, height: landmark.height })),
+        landmarks: s.landmarks.map((landmark) => ({ id: landmark.id, roomId: landmark.roomId, name: landmark.name, kind: landmark.kind, position: landmark.position, width: landmark.width, height: landmark.height, ...(landmark.imageUrl ? { imageUrl: landmark.imageUrl } : {}) })),
         playerGoal: goal,
         playerStatus: path.length ? ("moving" as const) : ("idle" as const),
         running: true,

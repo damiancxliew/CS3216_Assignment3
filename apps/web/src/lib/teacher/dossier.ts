@@ -8,7 +8,7 @@
  * longer validates (older fixtures), so the page can fall back quietly.
  */
 import type { MapDoor, MapRoom } from "@adventure/game-core";
-import { placeholderUrl, type AssetManifest, type AssetRecord } from "@adventure/generation/assets";
+import { placeholderUrl, playableAssetEligibility, type AssetManifest, type AssetRecord } from "@adventure/generation/assets";
 import { resolveStageSettings, validatePublishedSpec, type AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -143,7 +143,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
       return map ? { width: map.width, height: map.height, rooms: map.rooms, doors: map.doors } : null;
     })(),
     rooms: stage.rooms.map((room) => {
-      const record = recordFor(manifest, room.id);
+      const record = room.landmark ? recordFor(manifest, room.id) : undefined;
       const status = imageStatus(record);
       return {
         id: room.id,
@@ -187,7 +187,8 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
     },
   }));
 
-  const records = manifest?.records ?? [];
+  const playableIds = new Set(playableAssetEligibility(spec).map((asset) => asset.id));
+  const records = (manifest?.records ?? []).filter((record) => playableIds.has(record.assetId));
   return {
     stakeholders,
     stages,
@@ -201,7 +202,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
     })),
     assumptions: spec.assumptions.map((a) => ({ id: a.id, text: a.text, reason: a.rationale })),
     assets: {
-      eligible: spec.assetEligibility.length,
+      eligible: playableAssetEligibility(spec).length,
       generated: records.filter((r) => r.status === "ready" || r.status === "cached").length,
       pending: records.filter((r) => r.status === "pending").length,
       failed: records.filter((r) => r.status === "failed" || r.status === "filtered" || r.status === "skipped-cap").length,
