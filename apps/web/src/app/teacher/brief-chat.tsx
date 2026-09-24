@@ -161,7 +161,7 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
   const lastAssistant = [...state.messages].reverse().find((m) => m.role === "assistant" && m.slot === key);
   const acceptLabel = lastAssistant?.proposal || lastAssistant?.proposedText ? "Use this" : lastAssistant?.proposedObjectives?.length ? "Use these" : null;
   const replies = quickReplies(state.draft, slot);
-  const thinking = slot.name === "sources" ? "Reading your sources" : "Working out the next question";
+  const thinking = slot.name === "sources" ? "Reading your sources" : "Updating your brief";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">

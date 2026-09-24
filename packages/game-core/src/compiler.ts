@@ -1,4 +1,5 @@
 import { identityForMap, randomGenerator } from './identity.js'
+import { landmarkCovers } from './landmarks.js'
 import { validateCompiledStage, validateStageLayout, isValidSeed } from './validation.js'
 import {
   GENERATOR_VERSION,
@@ -6,6 +7,7 @@ import {
   type CompiledStage,
   type DoorState,
   type MapDoor,
+  type MapLandmark,
   type MapRoom,
   type Point,
   type RoomSize,
@@ -47,11 +49,16 @@ function stageInput(value: unknown): StageLayoutInput {
     kind: placement.kind as 'actor' | 'evidence' | 'decision',
     roomId: placement.roomId as string,
   }))
+  const landmarks = ((raw.landmarks ?? []) as readonly Record<string, unknown>[]).map((landmark) => ({
+    roomId: landmark.roomId as string,
+    kind: landmark.kind as MapLandmark['kind'],
+  }))
   return {
     stageId: raw.stageId as string,
     spawnRoomId: raw.spawnRoomId as string,
     rooms,
     placements,
+    ...(landmarks.length ? { landmarks } : {}),
   }
 }
 
@@ -120,6 +127,11 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
   rooms.sort(compareIds)
   doors.sort(compareIds)
 
+  const landmarks: MapLandmark[] = (input.landmarks ?? []).map(({ roomId, kind }) => {
+    const room = rooms.find((candidate) => candidate.id === roomId)!
+    return { roomId, kind, x: room.x + room.width - 4, y: room.y + 2, width: 2 as const, height: 2 as const }
+  }).sort((left, right) => left.roomId.localeCompare(right.roomId))
+
   const doorByRoom = new Map(doors.map((door) => [door.roomId, door]))
   const roomInputById = new Map(input.rooms.map((room) => [room.id, room]))
   const initialDoors: Record<string, DoorState> = {}
@@ -140,7 +152,7 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
     for (let y = room.y + 1; y < room.y + room.height - 1; y += 1) {
       for (let x = room.x + 1; x < room.x + room.width - 1; x += 1) {
         const point = { x, y }
-        if (!door || pointKey(point) !== pointKey(door.inside)) available.push(point)
+        if ((!door || pointKey(point) !== pointKey(door.inside)) && !landmarks.some((landmark) => landmarkCovers(landmark, point))) available.push(point)
       }
     }
     shuffle(available, randomGenerator(JSON.stringify([LAYOUT_RANDOM_VERSION, input.stageId, seed, 'placements', room.id])))
@@ -165,6 +177,7 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
     tiles,
     rooms,
     doors,
+    ...(landmarks.length ? { landmarks } : {}),
   }
   const map: StageMap = { ...mapWithoutId, id: identityForMap(mapWithoutId) }
   const compiled = { map, playerSpawn, initialDoors, placements }

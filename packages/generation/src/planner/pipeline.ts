@@ -89,6 +89,8 @@ export interface GenerateOptions {
   documents: readonly ExtractedDocument[]
   llm: LlmClient
   config?: Partial<PlannerConfig>
+  /** Reports actual planner phases; callers may persist them for a progress UI. */
+  onProgress?: (phase: 'planning' | 'checking' | 'repairing') => void | Promise<void>
 }
 
 interface Candidate {
@@ -206,6 +208,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
 
   for (let attempt = 0; attempt <= config.maxRepairs; attempt++) {
     const purpose = attempt === 0 ? 'plan' : 'repair'
+    await options.onProgress?.(attempt === 0 ? 'planning' : 'repairing')
     let response: LlmJsonResponse
     try {
       response = await options.llm.completeJson({
@@ -234,6 +237,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
     metrics.costUsd = metrics.costUsd === null || callCost === null ? null : metrics.costUsd + callCost
     const call: CallMetrics = { purpose, model: response.model, latencyMs: response.latencyMs, usage: response.usage, costUsd: callCost, issueCount: 0, schemaIssues: 0, groundingIssues: 0, issues: [] }
     metrics.calls.push(call)
+    await options.onProgress?.('checking')
 
     if (response.refusal !== null) {
       call.issueCount = 1

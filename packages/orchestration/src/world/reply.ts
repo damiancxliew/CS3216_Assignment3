@@ -442,8 +442,8 @@ async function answerNow(
       : {
           source: 'model',
           mode,
-          turn: await runAgentTurn(client, { ...input, actionsRemaining: 1 }, {
-            budget: { maxActions: 2, maxActionsPerActor: 2 },
+          turn: await runAgentTurn(client, { ...input, actionsRemaining: 2 }, {
+            budget: { maxActions: 3, maxActionsPerActor: 3 },
             ...(options.metrics === undefined ? {} : { metrics: options.metrics }),
             ...(mode === 'cheap' ? { modelTier: 'cheap' as const } : {}),
             ...(mode === 'brief' || mode === 'cheap' ? { brief: true } : {}),

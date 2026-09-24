@@ -104,7 +104,8 @@ describe('spatial integration adapter', () => {
     expect(second.stages.map(({ map }) => map)).toEqual(first.stages.map(({ map }) => map))
     for (let index = 0; index < spec.stages.length; index += 1) {
       const layout = toStageLayout(spec, index)
-      expect(Object.keys(layout).sort()).toEqual(['placements', 'rooms', 'spawnRoomId', 'stageId'])
+      expect(Object.keys(layout).sort()).toEqual(['landmarks', 'placements', 'rooms', 'spawnRoomId', 'stageId'])
+      expect(layout.landmarks?.every((landmark) => Object.keys(landmark).sort().join(',') === 'kind,roomId')).toBe(true)
       expect(layout.rooms.every((room) => Object.keys(room).sort().join(',') === 'doorDefault,enclosure,id,size')).toBe(true)
       expect(layout.placements.every((placement) => Object.keys(placement).sort().join(',') === 'id,kind,roomId')).toBe(true)
       const projected = projectMap(first.stages[index]!)

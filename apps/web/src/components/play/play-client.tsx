@@ -17,7 +17,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Point } from "@adventure/game-core";
+import { findPath, isWalkable, type DoorState, type Point, type StageMap } from "@adventure/game-core";
 import { playApi } from "./api";
 import type { MapIntent } from "./map-canvas";
 import { useSoundCues } from "./sound";
@@ -44,6 +44,35 @@ const HINT_MS = 7_000;
 /** A failing server is not polled at the same rate: back off, and give up rather than pile on. */
 const MAX_POLL_MS = 120_000;
 const GIVE_UP_AFTER = 6;
+
+type Landmark = PlayState["landmarks"][number];
+
+function landmarkDistance(point: Point, landmark: Landmark): number {
+  const dx = Math.max(landmark.position.x - point.x, 0, point.x - landmark.position.x - landmark.width + 1);
+  const dy = Math.max(landmark.position.y - point.y, 0, point.y - landmark.position.y - landmark.height + 1);
+  return dx + dy;
+}
+
+function landmarkApproach(state: PlayState, landmark: Landmark): Point | null {
+  if (!state.map || !state.playerPos) return null;
+  const map = state.map as StageMap;
+  const room = map.rooms.find((candidate) => candidate.id === landmark.roomId);
+  if (!room) return null;
+  const doors: Record<string, DoorState> = Object.fromEntries(map.doors.map((door) => [door.id, state.rooms.find((room) => room.id === door.roomId)?.doorOpen ? "open" : "closed"]));
+  const candidates: { point: Point; distance: number }[] = [];
+  for (let y = landmark.position.y - 1; y <= landmark.position.y + landmark.height; y += 1) {
+    for (let x = landmark.position.x - 1; x <= landmark.position.x + landmark.width; x += 1) {
+      const point = { x, y };
+      if (landmarkDistance(point, landmark) !== 1 || !isWalkable(map, doors, point)
+        || point.x <= room.x || point.x >= room.x + room.width - 1
+        || point.y <= room.y || point.y >= room.y + room.height - 1) continue;
+      const route = findPath(map, doors, state.playerPos, point);
+      if (route) candidates.push({ point, distance: route.length });
+    }
+  }
+  candidates.sort((left, right) => left.distance - right.distance);
+  return candidates[0]?.point ?? null;
+}
 
 /** Generated identity art, with a sober monogram while generation is pending or filtered. */
 function Portrait({ src, name, size = 40 }: { src: string | null; name: string; size?: number }) {
@@ -413,13 +442,8 @@ export function PlayClient({
     const current = stateRef.current;
     const landmark = current.landmarks.find((item) => item.id === landmarkId);
     if (!landmark) return;
-    if (current.currentRoomId === landmark.roomId) {
-      setPendingLandmark(null);
-      setInspectingLandmark(landmarkId);
-    } else {
-      setPendingLandmark(landmarkId);
-      setIntent({ kind: "room", roomId: landmark.roomId });
-    }
+    setPendingLandmark(landmarkId);
+    setIntent(current.currentRoomId !== landmark.roomId ? { kind: "room", roomId: landmark.roomId } : null);
   }
 
   useEffect(() => {
@@ -428,11 +452,16 @@ export function PlayClient({
     if (!landmark) {
       setPendingLandmark(null);
     } else if (state.currentRoomId === landmark.roomId) {
-      setPendingLandmark(null);
-      setIntent(null);
-      setInspectingLandmark(landmark.id);
+      if (state.playerPos && landmarkDistance(state.playerPos, landmark) === 1) {
+        setPendingLandmark(null);
+        setIntent(null);
+        setInspectingLandmark(landmark.id);
+      } else {
+        const point = landmarkApproach(state, landmark);
+        if (point) setIntent((current) => current?.kind === "point" ? current : { kind: "point", point });
+      }
     }
-  }, [pendingLandmark, state.currentRoomId, state.landmarks]);
+  }, [pendingLandmark, state]);
 
   // A map click is one action: after the walk reaches inspection range, finish it by opening
   // the document instead of requiring a second click on the same prop.

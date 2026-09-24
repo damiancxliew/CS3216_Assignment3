@@ -5,7 +5,8 @@
  * image settles, so the play view shows placeholders and swaps them in.
  *
  * Only the kinds the spec marks eligible are requested (portrait, landmark,
- * prop); the service refuses anything else and caps at 8 per adventure (D5).
+ * prop); the service refuses anything else. The spec may list every useful
+ * story-specific image without a fixed adventure-wide count limit.
  */
 import { generateAssets, pendingManifest, type ImageService } from "@adventure/generation/assets";
 import { validatePublishedSpec } from "@adventure/generation/spec";

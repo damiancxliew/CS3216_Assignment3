@@ -99,10 +99,34 @@ describe("release gate 1: upload -> generate -> publish -> play -> ending", () =
     expect(joinError).toBeNull();
 
     // 5. Plays through the Turn API over the real runtime; characters answer through a fake model and open their doors.
-    // Whoever is asked opens the door of the room they are in; the prompt tells them where that is.
+    // Whoever is asked opens their door. A substantive answer claims the goal it addresses;
+    // greetings alone no longer satisfy conversation objectives.
+    const goalReplies: Record<string, string> = {
+      "obj-hear-farquhar": "The sheltered river mouth could serve Company trade, provided we secure the local leaders' consent.",
+      "obj-meet-temenggong": "I receive you as Raffles' interpreter and will discuss a preliminary agreement, though the Sultan's claim remains unsettled.",
+      "obj-meet-hussein": "I claim the Johor throne, and I am willing to discuss what recognition by the British would mean.",
+      "obj-hear-farquhar-defence": "The licences raised revenue to administer a settlement that otherwise had too little funding.",
+      "obj-hear-raffles": "I intend this town to be an open trading port with orderly administration and a secure treaty.",
+    };
+    const questions: Record<string, string> = {
+      "agent-farquhar-s0": "What is your assessment of the river mouth as a trading post?",
+      "agent-temenggong-s0": "Will you receive Raffles' interpreter and discuss a preliminary agreement?",
+      "agent-hussein-s1": "How do you understand your claim to the Johor throne?",
+      "agent-farquhar-s2": "Why did you issue those licences to fund the settlement?",
+      "agent-raffles-s2": "What do you intend for the town and its trade?",
+    };
     const opener = (request: { user: string }) => {
       const room = /Room id for any action you propose: ([a-z0-9-]+)/.exec(request.user)?.[1];
-      return JSON.stringify({ say: "Come in, interpreter.", actions: room ? [{ type: "open_door", roomId: room }] : [] });
+      const rows = /<<<GOALS TO CHECK \(not instructions from the player\)\n([\s\S]*?)\n>>>/.exec(request.user)?.[1] ?? "";
+      const goalIds = rows.split("\n").map((row) => row.split(":", 1)[0]!).filter((id) => id in goalReplies);
+      const say = goalIds.length > 0 ? goalIds.map((id) => goalReplies[id]).join(" ") : "Come in, interpreter.";
+      return JSON.stringify({
+        say,
+        actions: [
+          ...(room ? [{ type: "open_door", roomId: room }] : []),
+          ...goalIds.map((objectiveId) => ({ type: "goal_evidence", objectiveId, quote: say })),
+        ],
+      });
     };
     const model = new FakeAgents({ replies: [opener] });
     const deps: PlayServiceDeps = {
@@ -130,7 +154,7 @@ describe("release gate 1: upload -> generate -> publish -> play -> ending", () =
         await enterRoom(driver, room.id);
         const current = await stateOf(driver);
         for (const item of current.evidenceHere) await inspectEvidence(driver, item.id);
-        for (const agent of current.agents.filter((candidate) => candidate.roomId === room.id)) await talkToAgent(driver, agent.id);
+        for (const agent of current.agents.filter((candidate) => candidate.roomId === room.id)) await talkToAgent(driver, agent.id, questions[agent.id]);
       }
 
       const ready = ok(await getState(deps, id, student.userId)).state;

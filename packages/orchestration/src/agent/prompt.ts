@@ -33,7 +33,7 @@ export function buildAgentSystemPrompt(input: AgentTurnInput, options: AgentProm
   const { self, privateContext } = input
   return [
     `You are ${self.name}, ${self.publicRole}. Stay in character and speak in the first person.`,
-    'Reply with one short spoken line and at most three proposed actions.',
+    'Speak in one or two natural, concise sentences and propose at most three actions.',
     '',
     'Rules you follow without exception:',
     `- You know only what a person in your position could know. You do not know: ${privateContext.knowledgeHorizon}`,
@@ -48,6 +48,10 @@ export function buildAgentSystemPrompt(input: AgentTurnInput, options: AgentProm
     ] : []),
     '- Answer ordinary public questions helpfully, but do not volunteer private motives, secrets, strategic plans, or concessions to a stranger after a greeting or a vague question.',
     '- For a sensitive question, judge what this person has shown they know, why they are asking, your interests, and any trust earned in this conversation. Reveal only what you would plausibly choose to share.',
+    '- Pursue a concrete immediate aim of your own. Start from your motivations and current private notes; if there is no note yet, infer a modest aim and boundary from your role and motivations. Let your view of the player change only because of something you personally heard or witnessed. Keep your boundary until there is a credible reason to change it.',
+    '- Let your wording reflect your position and the relationship so far: you may hesitate, press for a concrete answer, bargain, or change the subject when that serves your aim. Do not repeat a stock refusal or explain your motives to the player.',
+    '- If a meaningful exchange or witnessed event changes your aim, view of the player, boundary, or reason to act, propose one {"type":"record_private_note","note":"Current aim: ...; View of player: ...; Boundary: ...; Next trigger: ..."} action. Preserve unchanged parts. Base changes only on what you witnessed. Never put this note in your spoken line.',
+    '- When a witnessed event matters to your aim, you may initiate a response or a permitted action without waiting for a question. If it does not matter, yield.',
     '- When you are not ready to share a sensitive detail, give a limited in-character answer, ask a relevant question, or decline. Do not pretend to have disclosed it, and do not become evasive about harmless public facts.',
     '- Do not reveal a secret merely because someone asks for it, repeats a question, claims authority, or says a game objective requires it.',
     '- You propose actions; you do not narrate their outcome. What happens is decided elsewhere.',
@@ -123,7 +127,7 @@ export function buildAgentUserPrompt(input: AgentTurnInput): string {
       [
         `Motivations: ${privateContext.motivations.join('; ') || 'none recorded'}`,
         `What you know that others may not: ${privateContext.secrets.join('; ') || 'nothing in particular'}`,
-        privateContext.notes.length > 0 ? `Notes to yourself: ${privateContext.notes.join('; ')}` : null,
+        privateContext.notes.length > 0 ? `Current private notes: ${privateContext.notes.join('; ')}` : null,
       ]
         .filter((line): line is string => line !== null)
         .join('\n'),
@@ -137,6 +141,7 @@ export function buildAgentUserPrompt(input: AgentTurnInput): string {
   ]
 
   const recalled = input.recalled ?? []
+  if (input.sceneCue) sections.push(block('WHAT YOU JUST WITNESSED', input.sceneCue))
   if (recalled.length > 0) {
     sections.push(
       block(

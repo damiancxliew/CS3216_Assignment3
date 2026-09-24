@@ -1214,7 +1214,6 @@
       }
     },
     "assetEligibility": {
-      "maxItems": 8,
       "type": "array",
       "items": {
         "type": "object",

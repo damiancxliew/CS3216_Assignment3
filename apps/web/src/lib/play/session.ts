@@ -45,7 +45,7 @@ import {
 } from "@adventure/orchestration";
 import { createSpatialStageWorld } from "@adventure/game-integration";
 import { isInPhysicalInteractionRange } from "@adventure/game-core";
-import type { CompiledStage, Point } from "@adventure/game-core";
+import { landmarkCovers, landmarkKindFor, type CompiledStage, type LandmarkKind, type MapLandmark, type Point } from "@adventure/game-core";
 import { isDeepStrictEqual } from "node:util";
 import { PLAYER_ID, toResolverInput, toStageRuntime, type StageRuntimeBundle } from "@adventure/generation/runtime";
 import { resolveStageSettings, type AdventureSpec, type Stage } from "@adventure/generation/spec";
@@ -122,7 +122,7 @@ export interface PlayState extends PublicAttemptState {
   /** Generated landmark image per room, when the asset service produced one (D4). */
   roomImages: Record<string, string>;
   /** Room fixtures that can be inspected on the map, even before generated art is ready. */
-  landmarks: { id: string; roomId: string; name: string; description: string; position: Point }[];
+  landmarks: { id: string; roomId: string; name: string; description: string; kind: LandmarkKind; position: Point; width: 2; height: 2 }[];
   /** Generated prop image per evidence item, when one exists (D4). Keys are evidence ids. */
   evidenceImages: Record<string, string>;
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
@@ -384,6 +384,7 @@ export class PlaySession {
       timer.enabled && timer.deadlineAt ? Math.max(0, Math.floor((new Date(timer.deadlineAt).getTime() - now.getTime()) / 1000)) : null;
     const { ambientOverlay } = resolveStageSettings(this.spec, this.stage);
     const roomImages = this.generatedImages("landmark", this.stage.rooms.map((room) => room.id));
+    const mapLandmarks = this.mapLandmarks(compiled);
 
     return {
       attemptId: this.attemptId,
@@ -444,7 +445,7 @@ export class PlaySession {
       announcements: this.snap.announcements,
       pendingEffects: this.snap.pendingEffects,
       revision: this.snap.revision,
-      map: compiled ? publicMap(compiled) : null,
+      map: compiled ? { ...publicMap(compiled), landmarks: mapLandmarks } : null,
       hearingActorIds: hearingActorIds(world, PLAYER_ID),
       pendingDialogue: this.snap.pendingReply?.expiresAt !== undefined && this.snap.pendingReply.expiresAt > now.getTime(),
       mintReady: this.mintReady(),
@@ -476,13 +477,17 @@ export class PlaySession {
       roomImages,
       landmarks: this.stage.rooms.flatMap((room) => {
         const mapRoom = compiled?.map.rooms.find((candidate) => candidate.id === room.id);
-        if ((!room.landmark && !roomImages[room.id]) || !mapRoom) return [];
+        if (!room.landmark || !mapRoom) return [];
+        const feature = mapLandmarks.find((candidate) => candidate.roomId === room.id);
         return [{
           id: room.id,
           roomId: room.id,
-          name: room.landmark?.name ?? room.name,
-          description: room.landmark?.description ?? room.purpose,
-          position: { x: mapRoom.x + Math.max(1, mapRoom.width - 2), y: mapRoom.y + Math.floor(mapRoom.height / 2) },
+          name: room.landmark.name,
+          description: room.landmark.description,
+          kind: feature?.kind ?? landmarkKindFor(room.landmark.name, room.landmark.description, room.kind),
+          position: { x: feature?.x ?? mapRoom.x + mapRoom.width - 4, y: feature?.y ?? mapRoom.y + 2 },
+          width: 2 as const,
+          height: 2 as const,
         }];
       }),
       evidenceImages: this.generatedImages("prop", this.stage.evidence.map((e) => e.id)),
@@ -490,6 +495,29 @@ export class PlaySession {
       stageCount: this.spec.stages.length,
       ending: ending ? { id: ending.id, title: ending.title, summary: ending.summary } : null,
     };
+  }
+
+  /** Older published maps have no fixture field; derive the same solid footprint at runtime. */
+  private mapLandmarks(compiled: CompiledStage | null): MapLandmark[] {
+    if (!compiled) return [];
+    return this.stage.rooms.flatMap((room) => {
+      if (!room.landmark) return [];
+      const mapRoom = compiled.map.rooms.find((candidate) => candidate.id === room.id);
+      if (!mapRoom) return [];
+      const existing = compiled.map.landmarks?.find((candidate) => candidate.roomId === room.id);
+      return [existing ?? {
+        roomId: room.id,
+        kind: landmarkKindFor(room.landmark.name, room.landmark.description, room.kind),
+        x: mapRoom.x + mapRoom.width - 4,
+        y: mapRoom.y + 2,
+        width: 2 as const,
+        height: 2 as const,
+      }];
+    });
+  }
+
+  private landmarkBlocks(point: Point): boolean {
+    return this.mapLandmarks(this.map()).some((landmark) => landmarkCovers(landmark, point));
   }
 
   /** Lines the player could have heard, oldest first (FR-11: presence decides). */
@@ -755,6 +783,7 @@ export class PlaySession {
       const now = this.clock.now().getTime();
       const allowance = this.walkAllowance(now);
       if (allowance < 1) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
+      if (this.landmarkBlocks(action.to)) return { ok: true, refused: "A landmark blocks the way." };
       const moved = moveActorStep(this.snap.world, PLAYER_ID, action.to);
       if (!moved.ok) return { ok: true, refused: moved.reason };
       advanceSpatialMovement(this.snap.world);
@@ -773,6 +802,14 @@ export class PlaySession {
       if (allowance < 1) return { ok: false, error: { code: "rate_limited", message: "Move again shortly." } };
       let appliedCount = 0;
       for (const to of action.path) {
+        if (this.landmarkBlocks(to)) {
+          if (appliedCount > 0) {
+            this.spendWalk(now, allowance, appliedCount);
+            this.snap.stageStats.actions += appliedCount;
+            this.bump();
+          }
+          return { ok: true, refused: "A landmark blocks the way." };
+        }
         const moved = moveActorStep(this.snap.world, PLAYER_ID, to);
         if (!moved.ok) {
           if (appliedCount > 0) {
@@ -821,20 +858,27 @@ export class PlaySession {
     const entry: ActorAction | undefined = filtered.actions[0];
     if (!entry) return { ok: false, error: { code: "invalid_request", message: filtered.dropped[0]?.reason ?? "That is not something you can do." } };
 
+    const witnesses = action.type === "share_evidence"
+      ? hearingActorIds(world, PLAYER_ID).filter((id) => world.actors[id]?.kind === "agent" && !(world.evidenceKnown[id] ?? []).includes(action.evidenceId))
+      : [];
     const result = applyAction(world, entry);
     if (result.ok) {
       this.snap.stageStats.actions += 1;
       this.bump();
     }
 
-    // Knocking gives whoever is behind that door a beat to answer it (K4, #8) — only them, so the
-    // wait is one model call. Walking costs nothing: characters answer when spoken to, and a stage
-    // resolving is the moment everyone acts.
+    // Knocking gives whoever is behind that door a beat to answer it (K4, #8).
+    // Walking stays free of model calls; sharing new evidence can prompt a witness to react.
     if (action.type === "knock" && result.ok) {
       const inside = Object.entries(world.location)
         .filter(([actorId, roomId]) => roomId === action.roomId && actorId !== PLAYER_ID)
         .map(([actorId]) => actorId);
       if (inside.length > 0) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE, inside);
+    }
+    if (action.type === "share_evidence" && result.ok && witnesses.length > 0) {
+      const item = this.stage.evidence.find((candidate) => candidate.id === action.evidenceId);
+      const cue = item ? `The player has just shared ${item.name}: ${item.content.text}` : "The player has just shared evidence with you.";
+      await this.tick(client, 1, witnesses, cue);
     }
 
     return { ok: true, refused: result.ok ? null : result.reason };
@@ -933,13 +977,14 @@ export class PlaySession {
   }
 
   /** Let the characters act autonomously for a bounded number of ticks (FR-12a/FR-12b); `only` narrows who. */
-  async tick(client: LlmClient, maxTicks: number, only?: readonly string[]): Promise<void> {
+  async tick(client: LlmClient, maxTicks: number, only?: readonly string[], sceneCue?: string): Promise<void> {
     if (this.snap.status !== "active") return;
     const config = this.stageConfig();
     const agents = only ? Object.fromEntries(Object.entries(config.agents).filter(([id]) => only.includes(id))) : config.agents;
     const run = await runStage(client, this.snap.world, {
       ...config,
       agents,
+      ...(sceneCue === undefined ? {} : { sceneCue }),
       maxTicks,
       tokenBudget: Math.max(0, STAGE_TOKEN_BUDGET - this.snap.stageStats.tokens),
     });
@@ -1037,8 +1082,16 @@ export class PlaySession {
 
   private openStage(index: number): void {
     const bundle = toStageRuntime(this.spec, index);
+    const priorNotes = new Map(this.stage.agents.flatMap((agent) => {
+      const note = this.snap.world.privateNotes[agent.id]?.at(-1);
+      return note ? [[agent.stakeholderId, note] as const] : [];
+    }));
     this.snap.stageIndex = index;
     this.snap.world = worldFor(this.spec, index, this.attemptId, this.compiledStages);
+    for (const agent of this.spec.stages[index]!.agents) {
+      const note = priorNotes.get(agent.stakeholderId);
+      if (note) this.snap.world.privateNotes[agent.id] = [note];
+    }
     this.snap.decisions = [];
     this.snap.playerPos = this.snap.world.spatial?.state.actors[PLAYER_ID] ?? null;
     this.snap.spokenAt = {};

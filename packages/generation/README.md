@@ -55,7 +55,7 @@ AdventureSpec
 │  └─ decision { id, title, prompt, roomId, requires[],
 │                options[2..4] { id, label, stance, preconditions[], branchTarget } }
 ├─ endings[1..4] { id, title, summary, historicalOutcome: Grounded, divergence, reflectionQuestions[] }
-└─ assetEligibility[0..8] { id, kind: portrait|landmark|prop, entityId, subject, prompt }   FR-6b
+└─ assetEligibility[] { id, kind: portrait|landmark|prop, entityId, subject, prompt }   FR-6b
 
 Grounded    = { text, spans: SourceSpan[], assumptionIds: string[] }   ≥1 of the two
 SourceSpan  = { sourceId, page, quote }                                page-accurate, verifiable
@@ -70,7 +70,7 @@ BranchTarget= { kind: 'stage', stageId } | { kind: 'ending', endingId }
 - Objective graph is acyclic and every objective is transitively required by the stage decision.
 - Every stakeholder appears as an agent in at least one stage; no stakeholder twice in one stage.
 - Every span cites a known source and a page within its `pageCount`. Evidence needs ≥1 span.
-- `assetEligibility`: ≤ 8, kind must match entity (portrait→stakeholder, landmark→room,
+- `assetEligibility`: kind must match entity (portrait→stakeholder, landmark→room,
   prop→evidence), one asset per entity. Terrain/structural/UI kinds are not representable.
 
 ### What the spec deliberately does not contain
@@ -132,15 +132,14 @@ await published.assetsReady                               // optional — nobody
 - Only `spec.assetEligibility[]` reaches the image model, and `assertGeneratable()` re-checks the kind at
   the service boundary: terrain/structural/UI kinds throw `not-generatable` even if a caller bypasses the
   spec (FR-6b).
-- Hard cap of 8 generated images per adventure; prompt-hash cache (`sha256(style version, model, kind,
-  size, quality, prompt)`) so a repeated subject — across stages or adventures — costs nothing and does not
-  count towards the cap.
-- Every failure (`failed`, `filtered`, `skipped-cap`) resolves to the placeholder for its kind; the manifest is
+- No fixed image count limit; the spec still allows at most one asset per entity. A prompt-hash cache
+  (`sha256(style version, model, kind, size, quality, prompt)`) avoids repeat charges across stages or adventures.
+- Every failure (`failed`, `filtered`) resolves to the placeholder for its kind; the manifest is
   always complete and `generateAssets` never throws for a single image (FR-6a).
 - The D6 proof is `tests/publish.test.ts`: image service stubbed to fail (and to hang forever) → publish
   returns, every branch plays to its ending via the spec-level walkthrough, every entity resolves an image.
-- Real run: `gpt-image-1-mini`, medium, 1024² portrait = 15s, $0.011 → 8 images ≈ $0.09/adventure.
-  `npm run assets -- fixtures/singapore-1819.spec.json --max 1` to try it.
+- Real run: `gpt-image-1-mini`, medium, 1024² portrait was about $0.011 per image when measured.
+  `npm run assets -- fixtures/singapore-1819.spec.json` to generate all eligible images.
 - `src/play/walkthrough.ts` is the runtime stand-in behind I2/I3: walks objectives in dependency order,
   picks an available option, follows branches to an ending; `enumeratePaths()` lists every route.
 

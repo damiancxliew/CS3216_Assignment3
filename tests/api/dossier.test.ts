@@ -39,6 +39,7 @@ describe("dossier view model", () => {
   it("contains no forbidden keys (FR-21)", async () => {
     const spec = await loadI1Spec();
     const dossier = dossierFromSpec(spec, null);
+    expect(dossier.assets.started).toBe(false);
     expect(findForbiddenKeys(dossier)).toEqual([]);
   });
 
@@ -52,6 +53,9 @@ describe("dossier view model", () => {
     if (landmark) records.push(record(landmark, "pending"));
     if (prop) records.push(record(prop, "failed"));
     const dossier = dossierFromSpec(spec, manifestFor(spec, records));
+    expect(dossier.assets.started).toBe(true);
+    expect(dossier.assets.generated).toBe(1);
+    expect(dossier.assets.pending).toBe(landmark ? 1 : 0);
 
     const person = dossier.stakeholders.find((s) => s.id === portrait.entityId)!;
     expect(person.imageStatus).toBe("generated");
