@@ -106,7 +106,7 @@ export interface GenerateAssetsOptions {
   /** Skip the prompt-hash read (regeneration); results are still written to the cache. */
   ignoreCache?: boolean
   /** Called after every record settles, so a UI can show progress. */
-  onRecord?: (record: AssetRecord) => void
+  onRecord?: (record: AssetRecord) => void | Promise<void>
 }
 
 /** Keep only gameplay-visible image requests and cover every physical fixture,
@@ -162,23 +162,25 @@ export function pendingManifest(spec: AdventureSpec, images: ImageService, quali
  * Generate every eligible asset, filling `manifest` in place when one is given
  * (publish hands over its pending manifest). Never throws for a single image: each record
  * ends as ready | cached | failed | filtered, and `url` is always
- * usable. Sequential on purpose — image endpoints rate-limit per minute.
+ * usable. A small pool limits simultaneous image requests.
  */
 export async function generateAssets(spec: AdventureSpec, options: GenerateAssetsOptions, manifest?: AssetManifest): Promise<AssetManifest> {
   const quality = options.quality ?? 'medium'
-  manifest ??= pendingManifest(spec, options.images, quality)
+  const currentManifest = manifest ?? pendingManifest(spec, options.images, quality)
 
-  for (const [index, entry] of spec.assetEligibility.entries()) {
-    const record = manifest.records[index]!
+  let nextIndex = 0
+  const generateOne = async (index: number) => {
+    const entry = spec.assetEligibility[index]!
+    const record = currentManifest.records[index]!
     try {
       assertGeneratable(entry)
       const request: ImageRequest = { kind: entry.kind, prompt: buildImagePrompt(entry, spec), size: SIZES[entry.kind], quality }
       const cached = options.ignoreCache ? null : await options.cache.get(record.promptHash)
       if (cached) {
         Object.assign(record, { status: 'cached', url: cached.url, model: cached.model })
-        manifest.cacheHits += 1
+        currentManifest.cacheHits += 1
       } else {
-        manifest.generatedCount += 1
+        currentManifest.generatedCount += 1
         let result
         try {
           result = await options.images.generate(request)
@@ -192,7 +194,7 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
         const url = await options.store.put(`adventures/${spec.id}/${entry.id}-${record.promptHash.slice(0, 12)}.${result.mimeType.split('/')[1]}`, result.bytes, result.mimeType)
         await options.cache.put(record.promptHash, { url, model: result.model })
         Object.assign(record, { status: 'ready', url, model: result.model, costUsd: result.costUsd })
-        manifest.totalCostUsd += result.costUsd
+        currentManifest.totalCostUsd += result.costUsd
       }
     } catch (error) {
       const code = error instanceof ImageServiceError ? error.code : 'failed'
@@ -202,10 +204,17 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
         error: error instanceof Error ? error.message : String(error),
       })
     }
-    options.onRecord?.(record)
+    await options.onRecord?.(record)
   }
-  manifest.finishedAt = new Date().toISOString()
-  return manifest
+  const workers = Array.from({ length: Math.min(4, spec.assetEligibility.length) }, async () => {
+    while (nextIndex < spec.assetEligibility.length) {
+      const index = nextIndex++
+      await generateOne(index)
+    }
+  })
+  await Promise.all(workers)
+  currentManifest.finishedAt = new Date().toISOString()
+  return currentManifest
 }
 
 /** What the client shows for an entity right now: generated if ready/cached, else the placeholder. */

@@ -552,7 +552,7 @@ export async function startEdit(adventureId: string): Promise<ActionResult> {
  * visual dossier when students arrive. Runs inside `after(...)` like publish:
  * the manifest rows land `pending` first and settle one by one.
  */
-export async function generateArtwork(adventureId: string): Promise<ActionResult> {
+export async function generateArtwork(adventureId: string, specVersionId: string): Promise<ActionResult> {
   await requireOwnership(adventureId);
 
   if (!process.env.OPENAI_API_KEY) {
@@ -561,32 +561,26 @@ export async function generateArtwork(adventureId: string): Promise<ActionResult
   }
 
   const admin = createAdminClient();
-  const { data: adventure } = await admin
-    .from("adventure")
-    .select("published_version")
-    .eq("id", adventureId)
-    .single<{ published_version: number | null }>();
-  const { data: versions } = await admin
+  const { data: versionRow } = await admin
     .from("spec_version")
     .select("id, version, published_at")
+    .eq("id", specVersionId)
     .eq("adventure_id", adventureId)
-    .order("version", { ascending: false })
-    .returns<{ id: string; version: number; published_at: string | null }[]>();
-  const shown = (versions ?? []).find((v) => v.published_at === null) ?? (versions ?? []).find((v) => v.version === adventure?.published_version);
-  if (!shown) return { error: "Generate an adventure version first to create artwork." };
+    .maybeSingle<{ id: string; version: number; published_at: string | null }>();
+  if (!versionRow) return { error: "That version is not part of this adventure." };
 
   const { data: pending } = await admin
     .from("asset")
     .select("asset_id")
-    .eq("spec_version_id", shown.id)
+    .eq("spec_version_id", versionRow.id)
     .eq("status", "pending")
     .limit(1)
     .returns<{ asset_id: string }[]>();
   if (pending && pending.length > 0) {
-    return { notice: `Artwork is already being generated for version ${shown.version}` };
+    return { notice: `Artwork is already being generated for version ${versionRow.version}.` };
   }
 
-  const version = shown.version;
+  const version = versionRow.version;
   after(async () => {
     try {
       const result = await generateAssetsForVersion({ admin: createAdminClient(), images: new OpenAiImageService(), adventureId, version });

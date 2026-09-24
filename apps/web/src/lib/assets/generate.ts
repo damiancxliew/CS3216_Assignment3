@@ -60,11 +60,11 @@ export async function generateAssetsForVersion(options: GenerateForVersionOption
       store: new SupabaseAssetStore(options.admin),
       quality,
       ignoreCache: options.ignoreCache,
-      onRecord: (record) => void saveAssetRecord(options.admin, version.id, record).catch((error) => console.error("asset record not saved", error)),
+      onRecord: (record) => saveAssetRecord(options.admin, version.id, record).catch((error) => console.error("asset record not saved", error)),
     },
     manifest,
   );
-  // The `onRecord` writes are fire-and-forget; one final pass makes the stored manifest authoritative.
+  // One final pass makes the stored manifest authoritative.
   await saveManifest(options.admin, version.id, settled);
 
   return {

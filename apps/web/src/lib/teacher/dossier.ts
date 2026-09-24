@@ -73,6 +73,7 @@ export type DossierStage = {
 };
 
 export type Dossier = {
+  artwork: { id: string; kind: "portrait" | "landmark" | "prop"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null }[];
   stakeholders: DossierStakeholder[];
   stages: DossierStage[];
   endings: {
@@ -187,9 +188,26 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
     },
   }));
 
-  const playableIds = new Set(playableAssetEligibility(spec).map((asset) => asset.id));
+  const playable = playableAssetEligibility(spec);
+  const playableIds = new Set(playable.map((asset) => asset.id));
   const records = (manifest?.records ?? []).filter((record) => playableIds.has(record.assetId));
+  const artwork = playable.map((entry) => {
+    const entity = entry.kind === "portrait"
+      ? stakeholders.find((person) => person.id === entry.entityId)
+      : entry.kind === "landmark"
+        ? stages.flatMap((stage) => stage.rooms).find((room) => room.id === entry.entityId)
+        : stages.flatMap((stage) => stage.evidence).find((item) => item.id === entry.entityId);
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      name: entity?.name ?? entry.subject,
+      imageUrl: entity?.imageUrl ?? placeholderUrl(entry.kind),
+      imageStatus: entity?.imageStatus ?? ("placeholder" as ImageStatus),
+      assetId: entity?.assetId ?? null,
+    };
+  });
   return {
+    artwork,
     stakeholders,
     stages,
     endings: spec.endings.map((e) => ({
@@ -202,7 +220,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
     })),
     assumptions: spec.assumptions.map((a) => ({ id: a.id, text: a.text, reason: a.rationale })),
     assets: {
-      eligible: playableAssetEligibility(spec).length,
+      eligible: playable.length,
       generated: records.filter((r) => r.status === "ready" || r.status === "cached").length,
       pending: records.filter((r) => r.status === "pending").length,
       failed: records.filter((r) => r.status === "failed" || r.status === "filtered" || r.status === "skipped-cap").length,
