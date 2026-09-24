@@ -192,6 +192,24 @@ describe("POST action", () => {
     expect(moved.playerPos).toEqual(door.inside);
   });
 
+  it("has the sole NPC open a required conversation room after a knock even if its reply refuses", async () => {
+    const stage = spec.stages[0]!;
+    const closed = stage.rooms.find((room) => room.doorDefault === "closed")!;
+    const soleAgent = stage.agents.find((agent) => agent.startRoomId === closed.id)!;
+    const requiredSpec = structuredClone(spec);
+    requiredSpec.stages[0]!.objectives[0]!.targetId = soleAgent.id;
+    const { d, store } = deps(Array(8).fill(say("I cannot let you in.")), { spec: requiredSpec });
+    const driver = driverFor(d, store);
+    const door = (await stateOf(driver)).map!.doors.find((candidate) => candidate.roomId === closed.id)!;
+    await walkTo(driver, door.outside);
+    const outside = await stateOf(driver);
+    expect(ok(await postAction(d, ATTEMPT, STUDENT, { type: "open_door", roomId: closed.id })).value.refused).toMatch(/only an actor inside/);
+    const knocked = ok(await postAction(d, ATTEMPT, STUDENT, { type: "knock", roomId: closed.id }));
+    expect(knocked.state.rooms.find((room) => room.id === closed.id)?.doorOpen).toBe(true);
+    expect(knocked.state.playerPos).toEqual(outside.playerPos);
+    expect((await enterRoom(driver, closed.id)).currentRoomId).toBe(closed.id);
+  });
+
   it("makes an option available once its evidence is examined (FR-14), and records the find in the journal", async () => {
     const { d, store } = deps();
     const driver = driverFor(d, store);

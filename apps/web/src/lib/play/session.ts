@@ -731,7 +731,7 @@ export class PlaySession {
       if (result.turn.say.trim()) applyAction(this.snap.world, { actorKind: "agent", actorId: ticket.agentId, action: { type: "speak", roomId: this.snap.world.location[ticket.agentId]!, body: result.turn.say, addresseeId: null } });
     } else {
       const context = result.source === "model" && !result.turn.degraded ? { replyToSeqs: [ticket.utteranceSeq] } : {};
-      for (const entry of result.turn.actions) if (entry.actorKind === "agent" && entry.actorId === ticket.agentId) applyAction(this.snap.world, entry, entry.action.type === "speak" ? context : {});
+      for (const entry of result.turn.actions) if (entry.actorKind === "agent" && entry.actorId === ticket.agentId && entry.action.type !== "move_room") applyAction(this.snap.world, entry, entry.action.type === "speak" ? context : {});
     }
     if (result.source === "model" && !result.turn.degraded) {
       const objectiveIds = new Set(this.stage.objectives.filter((objective) => objective.targetId === ticket.agentId).map((objective) => objective.id));
@@ -874,6 +874,15 @@ export class PlaySession {
         .filter(([actorId, roomId]) => roomId === action.roomId && actorId !== PLAYER_ID)
         .map(([actorId]) => actorId);
       if (inside.length > 0) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE, inside);
+      // A solitary character cannot strand the player behind a required goal's door
+      // when its model reply yields or omits open_door.
+      if (inside.length === 1 && world.actors[inside[0]!]?.kind === "agent" &&
+          this.stage.objectives.some((objective) => !this.objectiveMet(objective.id) &&
+            (objective.targetId === inside[0] || this.stage.evidence.some((item) => item.id === objective.targetId && item.roomId === action.roomId))) &&
+          world.location[inside[0]!] === action.roomId && world.rooms[action.roomId]?.doorOpen === false) {
+        applyAction(world, { actorKind: "agent", actorId: inside[0]!, action: { type: "open_door", roomId: action.roomId } });
+        this.bump();
+      }
     }
     if (action.type === "share_evidence" && result.ok && witnesses.length > 0) {
       const item = this.stage.evidence.find((candidate) => candidate.id === action.evidenceId);

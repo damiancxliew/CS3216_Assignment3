@@ -6,8 +6,7 @@
  * the player is in. Crossing into a room posts `move_room`; if the server refuses
  * (a closed door, a stale stage), the player is put back.
  *
- * Agents' authoritative location is still room-level. Their tile-to-tile
- * wandering is cosmetic and stays inside that room.
+ * Agents' tile-to-tile wandering is cosmetic and stays inside their location.
  */
 import {
   canStep,
@@ -330,7 +329,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
 
       let moved = false;
       for (const actor of agents) {
-        if (!actor.roomId || Math.random() > WANDER_CHANCE) continue;
+        if (!actor.roomId || s.hearingActorIds.includes(actor.id) || Math.random() > WANDER_CHANCE) continue;
         const from = npcPositions.get(actor.id);
         if (!from) continue;
         blocked.delete(pointKey(from));
