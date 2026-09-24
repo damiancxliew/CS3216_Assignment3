@@ -84,6 +84,13 @@ export function buildSystemPrompt(input: TeacherInput, version: PromptVersion = 
     '',
     '## Style',
     'Write the shared context as a briefing the player can act on. Make private motivations concrete and in tension with each other. Decision prompts should be a real dilemma, not a quiz. Never preview consequences in option labels.',
+    '',
+    '## Evidence scrolls — material for making a decision',
+    '- `evidence.content.text` is the entire scroll the student reads. Write the actual evidence, not a description of a document: never stop at "The brief explains why..." or "This letter shows...". State what changed, who was affected, and the relevant terms, powers, restrictions, demands or figures that the sources actually provide.',
+    '- Plan each scroll against its stage decision and the final dilemma. Use three short paragraphs separated by blank lines: (1) concrete source-supported facts; (2) why those facts matter to a specific tension the student must weigh, identifying affected stakeholders and any documented limits or competing concerns; (3) one focused question that helps the student use this evidence to compare possible stances. Name the actual issue, not a generic "What will you choose?".',
+    '- A student should be able to cite a specific detail from each scroll when justifying a decision. Across the scrolls, supply distinct evidence for competing considerations; avoid repeating the same background summary. Explain period terms at the chosen reading level. Keep the whole scroll within the audience word limit and 1500 characters; prefer a few useful details over filler.',
+    '- Every historical detail must be supported by `content.spans`; include enough excerpts to support the whole scroll, not just its opening claim. Distinguish interpretation from documented fact, and identify any simulation inference through `assumptionIds`. If the sources omit a detail needed to weigh the dilemma, state that limit and add it to `missingInformation`; never invent evidence to fill the gap.',
+    '- Keep evidence within what could be known at the stage\'s date. Do not reveal later events, ending outcomes, hidden character information, branch targets or a preferred answer. The closing question should invite judgement, not instruct the student which option to pick.',
     ...(version !== 'planner-v1' ? V2_RULES : []),
     ...(version === 'planner-v3' ? [
       '',

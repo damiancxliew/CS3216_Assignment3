@@ -7,7 +7,11 @@ import { PlaySession } from "@/lib/play/session";
 import { compileStageMap } from "@/lib/play/layout";
 
 let spec: Awaited<ReturnType<typeof loadI1Spec>>;
-beforeAll(async () => { spec = await loadI1Spec(); });
+beforeAll(async () => {
+  spec = await loadI1Spec();
+  // Exercise multi-source scrolls on both collection paths, using another real fixture excerpt.
+  spec.stages[0]!.evidence[0]!.content.spans.push(spec.sharedContext.spans[0]!);
+});
 
 function outdoorPoint(session: PlaySession): Point {
   const map = session.world.spatial!.map;
@@ -41,6 +45,9 @@ describe("authoritative evidence interactions", () => {
       : { type, stageId: spec.stages[0]!.id, from: start, path: [end] });
     expect(await move(from, to)).toEqual({ ok: true, refused: null });
     expect(session.snapshot().journal.find((entry) => entry.id === evidence.id)?.text).toContain(evidence.content.text);
+    for (const span of evidence.content.spans) {
+      expect(session.snapshot().journal.find((entry) => entry.id === evidence.id)?.sourceSpan).toContain(span.quote);
+    }
     now += 1_000;
     await move(to, from);
     now += 1_000;
@@ -139,6 +146,9 @@ describe("authoritative evidence interactions", () => {
     const result = await session.action(new FakeLlmClient({ replies: [JSON.stringify({ say: "unused", actions: [] })] }), { type: "move_step", stageId: spec.stages[0]!.id, from: player, to: target });
     expect(result.ok).toBe(true);
     expect(session.snapshot().journal.filter((entry) => entry.id === evidenceId)).toHaveLength(1);
+    for (const span of spec.stages[0]!.evidence[0]!.content.spans) {
+      expect(session.snapshot().journal.find((entry) => entry.id === evidenceId)?.sourceSpan).toContain(span.quote);
+    }
     const unknown = await session.action(new FakeLlmClient({ replies: [JSON.stringify({ say: "unused", actions: [] })] }), { type: "share_evidence", evidenceId: "unknown-evidence" });
     expect(unknown).toMatchObject({ ok: true, refused: expect.any(String) });
   });

@@ -27,6 +27,7 @@ beforeAll(async () => {
 function specJson(endingSummary: string) {
   return {
     title: "The Treaty",
+    stages: [{ index: 0, title: "The table", evidence: [{ id: "treaty-note", name: "Treaty terms" }, { id: "unread-note", name: "Unread terms" }] }],
     sources: [
       {
         id: "dispatch",
@@ -83,9 +84,9 @@ async function seedCompletedAttempt() {
     .select("id")
     .single();
 
-  await admin
+  const { data: stage } = await admin
     .from("stage")
-    .insert({ spec_version_id: version!.id, index: 0, title: "The table" });
+    .insert({ spec_version_id: version!.id, index: 0, title: "The table" }).select("id").single();
 
   await prepareVersionMaps(admin, version!.id);
   await teacher.client.rpc("publish_adventure", { p_adventure_id: adventure!.id });
@@ -98,10 +99,32 @@ async function seedCompletedAttempt() {
     p_ending_id: "treaty-signed",
   });
 
-  return { adventureId: adventure!.id as string, attemptId: attemptId as string };
+  return { adventureId: adventure!.id as string, attemptId: attemptId as string, stageId: stage!.id as string };
 }
 
 describe("debrief", () => {
+  it("shows a conversation-generated choice and collected evidence without treating the choice as a timeout", async () => {
+    const { attemptId, stageId } = await seedCompletedAttempt();
+    const { data: minted, error: mintError } = await admin.from("minted_option").insert({ attempt_id: attemptId, stage_id: stageId, spec_id: "negotiated-choice", label: "Ask for a revised agreement" }).select("id").single();
+    expect(mintError).toBeNull();
+    const { error: commitmentError } = await admin.from("stage_commitment").insert({ attempt_id: attemptId, stage_id: stageId, actor_kind: "player", player_id: student.userId, minted_option_id: minted!.id });
+    expect(commitmentError).toBeNull();
+    const { error: resolutionError } = await admin.from("resolution").insert({ attempt_id: attemptId, stage_id: stageId, outcome: { announcement: "Negotiations continued.", worldDeltas: [] } });
+    expect(resolutionError).toBeNull();
+    const { error: journalError } = await admin.from("attempt_state").update({ journal: [
+      { id: "treaty-note", text: "Treaty terms: The annual payment was disputed.\n\nWhose interests would a revision protect?", sourceSpan: "Dispatch, p. 4: signed this sixth day" },
+      { id: "archived-note", text: "Earlier evidence: A previous discovery.", sourceSpan: null },
+    ] }).eq("attempt_id", attemptId);
+    expect(journalError).toBeNull();
+
+    const debrief = await loadDebrief(student.client, attemptId, admin);
+    expect(debrief!.path[0]).toMatchObject({ chose: "Ask for a revised agreement", evidenceFound: 1 });
+    expect(debrief!.collectedEvidence).toEqual([
+      { id: "treaty-note", name: "Treaty terms", text: "The annual payment was disputed.\n\nWhose interests would a revision protect?", sourceSpan: "Dispatch, p. 4: signed this sixth day", stageTitle: "The table" },
+      { id: "archived-note", name: "Earlier evidence", text: "A previous discovery.", sourceSpan: null, stageTitle: null },
+    ]);
+  });
+
   it("keeps documented history, its citations and the simulation's own inventions apart", async () => {
     const { attemptId } = await seedCompletedAttempt();
 

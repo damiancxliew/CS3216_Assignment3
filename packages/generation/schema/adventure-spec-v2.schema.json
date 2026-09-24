@@ -842,7 +842,8 @@
                     "text": {
                       "type": "string",
                       "minLength": 1,
-                      "maxLength": 1500
+                      "maxLength": 1500,
+                      "description": "The full student-readable scroll: concrete source-supported facts, their relevance to the stage decision and final dilemma, and a focused question for weighing the evidence. Use three short paragraphs separated by blank lines, within the reading-level word limit. Never just describe what the document explains, prescribe an answer, or reveal future outcomes."
                     },
                     "spans": {
                       "minItems": 1,

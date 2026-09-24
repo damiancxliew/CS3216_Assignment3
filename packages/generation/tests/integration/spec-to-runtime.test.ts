@@ -67,6 +67,21 @@ function completeAgentObjectives(world: WorldState, spec: AdventureSpec, stageIn
 }
 
 describe('spec -> runtime adapter', () => {
+  it('gives each character its authored public position and the dilemma without other characters\' private context', async () => {
+    const spec = await loadI1Spec()
+    const stage = spec.stages[0]!
+    const bundle = toStageRuntime(spec, 0)
+    const world = createWorld(bundle.world)
+    for (const agent of stage.agents) {
+      const input = buildAgentTurnInput(world, agent.id, bundle.stage, 1)
+      expect(input.stageBrief).toContain(stage.decision.prompt)
+      expect(input.privateContext.motivations).toContain(`Public position: ${agent.publicPosition.text}`)
+      for (const other of stage.agents.filter((candidate) => candidate.id !== agent.id)) {
+        expect(JSON.stringify(input)).not.toContain(other.privateContext.hiddenInterests)
+      }
+    }
+  })
+
   it('never authors more agents per stage than the resolver can report deltas for (I4 cap)', () => {
     expect(MAX_AGENTS_PER_STAGE).toBeLessThanOrEqual(MAX_AGENT_DELTAS)
   })

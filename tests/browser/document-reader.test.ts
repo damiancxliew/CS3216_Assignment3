@@ -37,7 +37,7 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
   };
   const vite = await createServer({
     configFile: false, root, publicDir: resolve(root, "public"),
-    server: { host: "127.0.0.1", port: 0, fs: { allow: [resolve(".")] } },
+    server: { host: "127.0.0.1", port: 0, watch: null, fs: { allow: [resolve(".")] } },
     esbuild: { jsx: "automatic" },
     optimizeDeps: { include: ["react", "react-dom/client", "lucide-react", "phaser", "openai"] },
     css: { postcss: { plugins: [tailwind()] } },
@@ -93,6 +93,7 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     });
     await page.goto(vite.resolvedUrls!.local[0]!);
     await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
+    expect(await page.getByText(spec.stages[0]!.decision.prompt, { exact: true }).isVisible()).toBe(true);
     await mkdir(resolve("output/reader-check"), { recursive: true });
     await page.screenshot({ path: resolve("output/reader-check/notes-toolbar-desktop.png") });
     await page.getByRole("group", { name: "Adventure tools" }).getByRole("button", { name: "Notes (0)" }).click();
@@ -159,6 +160,25 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     await page.screenshot({ path: resolve("output/reader-check/notes-dark-desktop.png") });
     await page.keyboard.press("Escape");
     expect(await page.getByRole("button", { name: "Notes (2)" }).evaluate((element) => element === document.activeElement)).toBe(true);
+
+    // A timer transition must dismiss an old open scroll and explain the new dilemma.
+    await page.getByRole("button", { name: "Notes (2)" }).click();
+    await session.expire();
+    const nextStage = session.state({ enabled: false, deadlineAt: null }).stage;
+    expect(nextStage.index).toBe(1);
+    const briefing = page.getByRole("dialog", { name: spec.player.role });
+    try {
+      await briefing.waitFor({ timeout: 35_000 });
+    } catch (error) {
+      await page.screenshot({ path: resolve("output/reader-check/transition-failure.png") });
+      throw error;
+    }
+    expect(await page.getByLabel("Scroll contents").count()).toBe(0);
+    expect(await briefing.getByText(spec.stages[1]!.decision.prompt, { exact: true }).isVisible()).toBe(true);
+    await briefing.getByRole("button", { name: `Begin as ${spec.player.name}` }).click();
+    await page.getByRole("button", { name: "Notes (2)" }).click();
+    await page.getByLabel("Choose a collected scroll").selectOption(evidence.id);
+    expect(await page.getByText(evidence.content.text, { exact: true }).isVisible()).toBe(true);
     expect(errors).toEqual([]);
   } finally {
     releaseMove();
