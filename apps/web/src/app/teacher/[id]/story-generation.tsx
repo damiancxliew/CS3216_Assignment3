@@ -84,8 +84,9 @@ export function StoryGeneration({
 
   return (
     <div className="flex flex-col gap-3">
-      <form action={formAction}>
-        <button type="submit" disabled={busy} onClick={() => { previousRun.current = job?.started_at ?? null; setRequested(true); }} className={button.primary}>
+      <form action={formAction} onSubmit={() => { previousRun.current = job?.started_at ?? null; setRequested(true); }}>
+        {/* Disabling in onClick cancels the button's native form submission. */}
+        <button type="submit" disabled={busy} className={button.primary}>
           {busy ? <Pending>Generating…</Pending> : label}
         </button>
       </form>
