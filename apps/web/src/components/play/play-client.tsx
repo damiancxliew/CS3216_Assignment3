@@ -598,6 +598,7 @@ export function PlayClient({
   }));
   const activeDocumentId = reading ?? (notesOpen ? collectedDocuments.at(-1)?.id ?? null : null);
   const openDocument = state.journal.find((entry) => entry.id === activeDocumentId) ?? null;
+  const preparedDocument = state.evidenceHere.find((item) => item.id === activeDocumentId && item.canInspect)?.content ?? null;
   const openDocumentName = collectedDocuments.find((item) => item.id === activeDocumentId)?.name
     ?? state.props.find((item) => item.id === activeDocumentId)?.name ?? "Document";
 
@@ -1082,7 +1083,8 @@ export function PlayClient({
 
       {reading || notesOpen ? (
         <DocumentReader
-          entry={openDocument}
+          entry={openDocument ?? preparedDocument}
+          saved={openDocument !== null}
           name={openDocumentName}
           imageUrl={openDocument ? state.evidenceImages[openDocument.id] ?? null : null}
           documents={collectedDocuments}

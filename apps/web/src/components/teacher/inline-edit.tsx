@@ -29,6 +29,7 @@ export function InlineEdit({
   action,
   fields,
   label,
+  buttonText,
   editable = true,
   hiddenInputs,
   children,
@@ -37,6 +38,7 @@ export function InlineEdit({
   fields: EditField[];
   /** Accessible name for the pencil, e.g. "Edit stage 1". */
   label: string;
+  buttonText?: string;
   editable?: boolean;
   /** Static form values the action needs but the teacher doesn't edit (e.g. option ids). */
   hiddenInputs?: Record<string, string[]>;
@@ -86,11 +88,12 @@ export function InlineEdit({
         title={editable ? label : `Published and frozen — choose “Edit as a new version”`}
         disabled={!editable}
         onClick={() => setEditing(true)}
-        className="shrink-0 rounded-control border border-line bg-surface p-1.5 text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-control border border-line bg-surface p-1.5 text-sm text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
           <path d="M17 3a2.8 2.8 0 1 1 4 4L8 20l-5 1 1-5Z" />
         </svg>
+        {buttonText}
       </button>
     </div>
   );

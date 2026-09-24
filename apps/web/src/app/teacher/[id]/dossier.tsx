@@ -235,23 +235,25 @@ export function DossierSections({
                   </div>
 
                   <div className="flex flex-col gap-3">
-                    <h3 className="text-base font-semibold text-ink">Evidence</h3>
-                    <ul className="grid gap-3 sm:grid-cols-2">
+                    <h3 className="text-base font-semibold text-ink">Evidence scrolls</h3>
+                    <p className="text-sm text-muted">Prepared with the adventure. Review and edit the exact text students will read before publishing.</p>
+                    <ul className="grid gap-3">
                       {stage.evidence.map((item) => (
                         <li key={item.id} className="flex h-full flex-col gap-3 rounded-surface border border-line bg-surface p-4">
                           <div className="flex items-start gap-3">
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <InlineEdit
                                 action={editEvidence.bind(null, adventureId, specVersionId, stage.id, item.id)}
-                                label={`Edit ${item.name}`}
+                                label={`Edit scroll: ${item.name}`}
+                                buttonText="Edit scroll"
                                 editable={isDraft}
                                 fields={[
                                   { name: "name", label: "Name", defaultValue: item.name },
-                                  { name: "text", label: "Text", defaultValue: item.text, multiline: true, rows: 5 },
+                                  { name: "text", label: "Scroll text", defaultValue: item.text, multiline: true, rows: 10, hint: "Up to 1,500 characters. Keep the text supported by the source excerpts below." },
                                 ]}
                               >
                                 <p className="font-semibold text-ink">{item.name}</p>
-                                <p className="line-clamp-3 text-sm text-muted">{item.text}</p>
+                                <p className="whitespace-pre-wrap text-base text-muted">{item.text}</p>
                               </InlineEdit>
                             </div>
                           </div>
