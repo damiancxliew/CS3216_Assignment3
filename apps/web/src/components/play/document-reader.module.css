@@ -52,6 +52,14 @@
 .close { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border: 1px solid #9b794a75; border-radius: 50%; color: #684624; background: #fff5d630; cursor: pointer; }
 .close:hover, .button:hover { background: #bd945636; }
 .close:focus-visible, .button:focus-visible, .content:focus-visible { outline: 3px solid #855926; outline-offset: 3px; }
+.navigation { display: flex; flex-shrink: 0; align-items: center; gap: 8px; margin: 12px 30px 4px; }
+.pageButton, .select { min-height: 44px; border: 1px solid #987143; border-radius: 4px; background: #e2c78e50; color: #58391f; }
+.pageButton { display: grid; place-items: center; width: 44px; flex-shrink: 0; cursor: pointer; }
+.pageButton:disabled { opacity: .35; cursor: default; }
+.pageButton:hover:not(:disabled) { background: #bd945636; }
+.select { width: 100%; min-width: 0; padding: 8px; font-size: 14px; text-overflow: ellipsis; }
+.select option { background: #f7e9c5; color: #392515; }
+.pageButton:focus-visible, .select:focus-visible { outline: 3px solid #855926; outline-offset: 3px; }
 .content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #a67c43 #e8d3a3; padding: 16px 48px 32px; overflow-wrap: anywhere; }
 .kicker { text-align: center; text-transform: uppercase; letter-spacing: .18em; color: #856539; font-size: 11px; font-weight: 600; }
 .title { margin: 12px 0 20px; text-align: center; font: 600 clamp(1.65rem, 3.5vw, 2.4rem)/1.2 var(--font-record, Georgia), serif; text-wrap: balance; color: #3c2816; }
@@ -91,16 +99,23 @@
 :global([data-theme="dark"]) .divider::before,
 :global([data-theme="dark"]) .divider::after { background: #80684b; }
 :global([data-theme="dark"]) .close,
+:global([data-theme="dark"]) .pageButton,
+:global([data-theme="dark"]) .select,
+:global([data-theme="dark"]) .select option,
 :global([data-theme="dark"]) .button { color: var(--ink); background: #493d30; border-color: #80684b; }
+:global([data-theme="dark"]) .pageButton:hover:not(:disabled),
 :global([data-theme="dark"]) .close:hover,
 :global([data-theme="dark"]) .button:hover { background: #60503d; }
 :global([data-theme="dark"]) .close:focus-visible,
 :global([data-theme="dark"]) .button:focus-visible,
+:global([data-theme="dark"]) .pageButton:focus-visible,
+:global([data-theme="dark"]) .select:focus-visible,
 :global([data-theme="dark"]) .content:focus-visible { outline-color: var(--record); }
 :global([data-theme="dark"]) .content { scrollbar-color: #80684b transparent; }
 
 @media (max-width: 540px) {
   .header { padding: 16px 16px 4px; }
+  .navigation { margin-inline: 16px; }
   .eyebrow { font-size: 10px; letter-spacing: .08em; }
   .content { padding: 16px 22px 24px; }
   .text { font-size: 1.05rem; line-height: 1.75; }

@@ -11,7 +11,7 @@
  * decision, which stays quiet until you can actually make it, then lights up.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
-import { ArrowRight, Check, CornerDownRight, DoorOpen, FileText, HelpCircle, Lock, Search, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight, Check, CornerDownRight, DoorOpen, HelpCircle, Lock, ScrollText, Search, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -576,10 +576,16 @@ export function PlayClient({
     readRef.current(atFeet.id);
   }, [busy, state.playerPos, state.props, state.stage.id]);
 
-  const openDocument = reading ? state.journal.find((entry) => entry.id === reading) ?? null : null;
-  const openDocumentName = reading ? state.props.find((item) => item.id === reading)?.name ?? "Document" : "";
   const openLandmark = inspectingLandmark ? state.landmarks.find((item) => item.id === inspectingLandmark) ?? null : null;
   const pendingDocuments = loadingDocuments.filter((id) => !state.journal.some((entry) => entry.id === id) && state.props.some((prop) => prop.id === id));
+  const collectedDocuments = [...state.journal.map((entry) => entry.id), ...pendingDocuments].map((id) => ({
+    id,
+    name: state.props.find((prop) => prop.id === id)?.name ?? state.journal.find((entry) => entry.id === id)?.text.split(": ")[0] ?? "Document",
+  }));
+  const activeDocumentId = reading ?? (notesOpen ? collectedDocuments.at(-1)?.id ?? null : null);
+  const openDocument = state.journal.find((entry) => entry.id === activeDocumentId) ?? null;
+  const openDocumentName = collectedDocuments.find((item) => item.id === activeDocumentId)?.name
+    ?? state.props.find((item) => item.id === activeDocumentId)?.name ?? "Document";
 
   if (state.status === "completed") {
     return (
@@ -633,7 +639,7 @@ export function PlayClient({
   const lowTime = state.timer.enabled && state.timer.secondsRemaining !== null && state.timer.secondsRemaining <= 120;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
       {roleBriefOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-inverse/70 p-5" role="presentation">
           <section
@@ -682,31 +688,44 @@ export function PlayClient({
           onLandmark={onLandmark}
         />
         {hintVisible ? (
-          <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-inverse/85 px-3 py-1.5 text-sm font-semibold text-on-inverse lg:bottom-3 lg:right-48 lg:top-auto lg:px-3.5 lg:py-2 lg:text-base">
+          <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-inverse/85 px-3 py-1.5 text-sm font-semibold text-on-inverse lg:px-3.5 lg:py-2 lg:text-base">
             <span className="lg:hidden">Tap to walk; tap a person, document, or landmark to interact.</span>
             <span className="hidden lg:inline">
               Use arrows or WASD to walk. Click a person, document, or landmark to interact; press Enter to talk.
             </span>
           </p>
         ) : null}
-        <button
-          type="button"
-          onClick={() => setHintVisible((shown) => !shown)}
-          aria-pressed={hintVisible}
-          className="absolute bottom-3 right-36 inline-flex min-h-11 min-w-11 items-center justify-center rounded-control bg-inverse/85 px-3 py-2 text-on-inverse hover:bg-inverse"
-        >
-          <HelpCircle className="h-5 w-5" aria-hidden />
-          <span className="sr-only">How to move and talk</span>
-        </button>
-        <button
-          type="button"
-          onClick={toggleMuted}
-          aria-pressed={muted}
-          className="absolute bottom-3 right-3 inline-flex min-h-11 items-center gap-2 rounded-control bg-inverse/85 px-3 py-2 text-base font-semibold text-on-inverse hover:bg-inverse lg:px-3.5"
-        >
-          {muted ? <VolumeX className="h-5 w-5" aria-hidden /> : <Volume2 className="h-5 w-5" aria-hidden />}
-          <span className="sr-only sm:not-sr-only">{muted ? "Sound off" : "Sound on"}</span>
-        </button>
+        <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2" role="group" aria-label="Adventure tools">
+          <button
+            type="button"
+            onClick={() => setNotesOpen(true)}
+            aria-haspopup="dialog"
+            className="inline-flex min-h-11 items-center gap-2 rounded-control border border-on-inverse/25 bg-inverse/95 px-3 py-2 text-base font-semibold text-on-inverse shadow-lg hover:bg-inverse"
+          >
+            <ScrollText className="h-5 w-5" aria-hidden />
+            Notes ({collectedDocuments.length})
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setHintVisible((shown) => !shown)}
+              aria-pressed={hintVisible}
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control bg-inverse/85 px-3 py-2 text-on-inverse hover:bg-inverse"
+            >
+              <HelpCircle className="h-5 w-5" aria-hidden />
+              <span className="sr-only">How to move and talk</span>
+            </button>
+            <button
+              type="button"
+              onClick={toggleMuted}
+              aria-pressed={muted}
+              className="inline-flex min-h-11 items-center gap-2 rounded-control bg-inverse/85 px-3 py-2 text-base font-semibold text-on-inverse hover:bg-inverse lg:px-3.5"
+            >
+              {muted ? <VolumeX className="h-5 w-5" aria-hidden /> : <Volume2 className="h-5 w-5" aria-hidden />}
+              <span className="sr-only sm:not-sr-only">{muted ? "Sound off" : "Sound on"}</span>
+            </button>
+          </div>
+        </div>
         {lastResolution ? (
           <div
             role="status"
@@ -721,7 +740,7 @@ export function PlayClient({
         ) : null}
       </section>
 
-      <aside className="flex min-h-0 w-full min-w-0 flex-col border-t border-line bg-paper text-base lg:w-[min(42rem,48vw)] lg:shrink-0 lg:border-l lg:border-t-0">
+      <aside className="flex min-h-0 w-full min-w-0 shrink-0 flex-col border-t border-line bg-paper text-base lg:w-[min(42rem,48vw)] lg:border-l lg:border-t-0">
         {/* ── Top: where you are, where you can go ─────────────────────────── */}
         <section className="flex flex-col gap-3 border-b border-line px-5 py-4 lg:min-h-0 lg:max-h-[32%] lg:overflow-y-auto" aria-labelledby="where">
           <button
@@ -809,7 +828,7 @@ export function PlayClient({
         </section>
 
         {/* ── Middle: the conversation. This is the game; it gets the height. ── */}
-        <section className="flex min-h-0 flex-1 flex-col lg:min-h-80" aria-labelledby="talk">
+        <section className="flex min-h-80 flex-1 flex-col" aria-labelledby="talk">
           {peopleHere.length ? (
             <div className="flex gap-2 overflow-x-auto px-5 pt-4" role="radiogroup" aria-label="Who you are talking to" id="talk">
               {peopleHere.map((a) => {
@@ -916,41 +935,7 @@ export function PlayClient({
               <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>
               <span className="ml-3 text-muted">Stage {state.stage.index + 1} of {state.stageCount}</span>
             </p>
-              <button type="button" className={subtle} onClick={() => setNotesOpen((v) => !v)} aria-expanded={notesOpen} aria-controls="collected-notes">
-                Notes ({state.journal.length + pendingDocuments.length})
-              </button>
           </div>
-          {notesOpen ? (
-            <ul id="collected-notes" aria-label="Collected notes" className="flex max-h-48 shrink-0 flex-col gap-2 overflow-y-auto border-l-[3px] border-world pl-3">
-              {!state.journal.length && !pendingDocuments.length ? <li className="p-3 text-muted">No scrolls collected yet. Walk to a document to read it.</li> : null}
-              {pendingDocuments.map((id) => (
-                <li key={id}>
-                  <button type="button" onClick={() => setReading(id)} className="flex min-h-11 w-full items-center gap-3 rounded-control bg-surface p-3 text-left text-ink">
-                    {documentErrors[id] ? <FileText className="h-5 w-5 shrink-0" /> : <Spinner />}
-                    <span>{state.props.find((prop) => prop.id === id)?.name ?? "Document"}<span className="block text-sm text-muted">{documentErrors[id] ? "Couldn’t load · open to retry" : "Loading scroll… Open to read"}</span></span>
-                  </button>
-                </li>
-              ))}
-              {state.journal.map((j) => (
-                <li key={j.id}>
-                  <button
-                    type="button"
-                    onClick={() => setReading(j.id)}
-                    className="flex w-full gap-3 rounded-control bg-surface p-3 text-left text-base leading-relaxed text-ink hover:bg-sunken"
-                  >
-                    {state.evidenceImages[j.id] ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
-                      <img src={state.evidenceImages[j.id]} alt="" className="h-14 w-14 flex-none rounded-control object-cover" />
-                    ) : null}
-                    <span className="min-w-0">
-                      <span className="line-clamp-2 block">{j.text}</span>
-                      {j.sourceSpan ? <span className="mt-1 block font-serif text-base italic text-record">{j.sourceSpan}</span> : null}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
           <ul className="flex flex-col gap-1.5">
             {state.stage.objectives.map((o) => {
               const hintKey = `${state.stage.id}:${o.id}`;
@@ -1071,16 +1056,17 @@ export function PlayClient({
         </section>
       </aside>
 
-      {reading ? (
+      {reading || notesOpen ? (
         <DocumentReader
           entry={openDocument}
           name={openDocumentName}
           imageUrl={openDocument ? state.evidenceImages[openDocument.id] ?? null : null}
-          position={openDocument ? state.journal.findIndex((entry) => entry.id === openDocument.id) + 1 : null}
-          total={state.journal.length}
-          error={reading ? documentErrors[reading] ?? null : null}
-          onRetry={() => void read(reading)}
-          onClose={() => setReading(null)}
+          documents={collectedDocuments}
+          selectedId={activeDocumentId}
+          onSelect={setReading}
+          error={activeDocumentId ? documentErrors[activeDocumentId] ?? null : null}
+          onRetry={() => { if (activeDocumentId) void read(activeDocumentId); }}
+          onClose={() => { setReading(null); setNotesOpen(false); }}
         />
       ) : null}
 
