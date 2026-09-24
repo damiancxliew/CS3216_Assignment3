@@ -15,8 +15,7 @@ const wire = compiled.map.rooms.find((room) => room.id === 'wire')!
 const playerPosition = { x: city.x + 3, y: city.y + 5 }
 const person = (id: string, name: string, x: number, y: number) => ({
   id, name, position: { x, y }, space: spaceAt(compiled.map, { x, y }), targetRoomId: null, status: 'idle' as const,
-  sprite: id === 'player' ? 'Boy' : 'Princess', portraitUrl: null as string | null,
-  portraitFallbackUrl: id === 'hitler' ? '/game/portraits/adolf-hitler.jpg' : null,
+  sprite: id === 'player' ? 'Boy' : 'Princess', spriteSheetUrl: null as string | null,
 })
 export const snapshot: PlaygroundSnapshot = {
   seed: 'newsroom-labels', map: compiled.map, doors: compiled.initialDoors,
