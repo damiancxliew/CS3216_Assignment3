@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { LandingCta } from "@/components/landing-cta";
+import { LandingQuestPreview } from "@/components/landing-quest-preview";
 import { button, Wordmark } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
@@ -16,10 +17,10 @@ const teacherSteps = [
 ] as const;
 
 const beats = [
-  { index: "01", icon: Map, clip: { src: "/media/world.mp4", poster: "/media/world.jpg" }, title: "Walk the world", body: "Explore the map, enter rooms and hunt for the people who know more.", tone: "bg-world-wash" },
-  { index: "02", icon: MessageCircle, clip: { src: "/media/dialogue.mp4", poster: "/media/dialogue.jpg" }, title: "Question everyone", body: "Characters have competing interests. Students decide who to trust.", tone: "bg-record-wash" },
-  { index: "03", icon: Clock3, clip: { src: "/media/decision.mp4", poster: "/media/decision.jpg" }, title: "Choose under pressure", body: "The clock keeps moving, and the evidence students find changes their options.", tone: "bg-signal-wash" },
-  { index: "04", icon: ShieldCheck, clip: { src: "/media/debrief.mp4", poster: "/media/debrief.jpg" }, title: "Know fact from fiction", body: "Every ending separates documented history from the simulation’s assumptions.", tone: "bg-[#efe4ff]" },
+  { index: "01", icon: Map, title: "Walk the world", body: "Explore the map, enter rooms and hunt for the people who know more.", tone: "bg-world-wash" },
+  { index: "02", icon: MessageCircle, title: "Question everyone", body: "Characters have competing interests. Students decide who to trust.", tone: "bg-record-wash" },
+  { index: "03", icon: Clock3, title: "Choose under pressure", body: "The clock keeps moving, and the evidence students find changes their options.", tone: "bg-signal-wash" },
+  { index: "04", icon: ShieldCheck, title: "Know fact from fiction", body: "Every ending separates documented history from the simulation’s assumptions.", tone: "bg-[#efe4ff]" },
 ] as const;
 
 function Clip({ src, poster, label, className }: { src: string; poster: string; label: string; className?: string }) {
@@ -117,11 +118,8 @@ export default function Home() {
           {beats.map((beat) => {
             const Icon = beat.icon;
             return (
-              <article key={beat.index} className={`overflow-hidden rounded-surface ${beat.tone} text-ink`}>
-                <figure className="m-2 overflow-hidden rounded-[1rem] border-2 border-ink bg-ink">
-                  <Clip src={beat.clip.src} poster={beat.clip.poster} label={`Gameplay footage: ${beat.title}`} className="aspect-video w-full object-cover" />
-                </figure>
-                <div className="flex gap-4 px-5 pb-6 pt-3 sm:px-6">
+              <article key={beat.index} className={`flex flex-col overflow-hidden rounded-surface ${beat.tone} text-ink`}>
+                <div className="flex gap-3 px-5 pb-5 pt-6 sm:gap-4 sm:px-6">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-surface shadow-[0_3px_0_var(--ink)]"><Icon className="h-5 w-5" aria-hidden /></span>
                   <div>
                     <p className="mb-1 text-xs font-black uppercase tracking-widest text-muted">Quest {beat.index}</p>
@@ -129,10 +127,14 @@ export default function Home() {
                     <p className="mt-1 text-base leading-relaxed text-muted">{beat.body}</p>
                   </div>
                 </div>
+                <div className="mx-3 mb-3 flex-1 sm:mx-4 sm:mb-4">
+                  <LandingQuestPreview quest={beat.index} />
+                </div>
               </article>
             );
           })}
         </div>
+        <p className="-mt-5 text-sm text-paper/70">Illustrative examples of play. Characters, evidence and choices come from each adventure.</p>
       </section>
 
       <section className="flex flex-col gap-10">
