@@ -79,7 +79,7 @@ describe("save_play_turn", () => {
     const args = (body: string, snap: Record<string, unknown>) => ({ p_attempt_id: seeded.attemptId, p_expected_revision: 0, p_stage_spec_id: "stage-landing", p_snapshot: snap, p_messages: [message(seeded.attemptId, seeded.roomId, body)], p_commitments: [], p_resolution: null, p_telemetry: null, p_opened_stage_id: null, p_ending_id: null });
     const results = await Promise.all([admin.rpc("save_play_turn", args("writer-a", firstSnapshot)), admin.rpc("save_play_turn", args("writer-b", secondSnapshot))]);
     expect(results.filter((result) => result.error === null)).toHaveLength(1);
-    expect(results.filter((result) => errorCode(result) === "40001")).toHaveLength(1);
+    expect(results.filter((result) => errorCode(result) === "PT409")).toHaveLength(1);
     const winner = results[0]!.error === null ? firstSnapshot : secondSnapshot;
     const runtime = (await admin.from("attempt_runtime").select("revision, snapshot").eq("attempt_id", seeded.attemptId).single()).data!;
     expect(runtime.revision).toBe(1);
@@ -247,7 +247,7 @@ describe("save_play_turn", () => {
     const counts = async () => ({ messages: (await admin.from("message").select("id").eq("attempt_id", seeded.attemptId)).data!.length, runtime: (await admin.from("attempt_runtime").select("attempt_id").eq("attempt_id", seeded.attemptId)).data!.length });
     const before = await counts();
     const repeated = await admin.rpc("save_play_turn", initialArgs);
-    expect(errorCode(repeated)).toBe("40001");
+    expect(errorCode(repeated)).toBe("PT409");
     expect(await counts()).toEqual(before);
     const denied = await student.client.rpc("save_play_turn", initialArgs);
     expect(denied.error).not.toBeNull();
