@@ -61,6 +61,17 @@ const specSchema = z.object({
   sources: z.array(sourceSchema).default([]),
   assumptions: z.array(assumptionSchema).default([]),
   endings: z.array(endingSchema).default([]),
+  stages: z.array(z.object({
+    index: z.number(),
+    title: z.string(),
+    evidence: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
+  })).default([]),
+});
+
+const journalEntrySchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  sourceSpan: z.string().nullable().default(null),
 });
 
 export type Citation = {
@@ -97,6 +108,7 @@ export type Debrief = {
   assumptions: { id: string; text: string; rationale: string }[];
   divergence: string;
   reflectionQuestions: string[];
+  collectedEvidence: { id: string; name: string; text: string; sourceSpan: string | null; stageTitle: string | null }[];
 };
 
 export async function loadDebrief(
@@ -110,7 +122,7 @@ export async function loadDebrief(
     .eq("id", attemptId)
     .maybeSingle();
 
-  if (!attempt?.ending_id) return null;
+  if (attempt?.status !== "completed" || !attempt.ending_id) return null;
 
   const { data: specVersion } = await specReader
     .from("spec_version")
@@ -142,22 +154,29 @@ export async function loadDebrief(
       .returns<{ stage_id: string; outcome: { announcement?: string; worldDeltas?: { summary?: string }[] }; stage: { index: number; title: string } | null }[]>(),
     specReader
       .from("stage_commitment")
-      .select("stage_id, option_id, decision_option(label)")
+      .select("stage_id, option_id, minted_option_id, decision_option(label), minted_option(label)")
       .eq("attempt_id", attemptId)
       .eq("actor_kind", "player")
-      .returns<{ stage_id: string; option_id: string | null; decision_option: { label: string } | null }[]>(),
-    specReader.from("attempt_state").select("journal").eq("attempt_id", attemptId).maybeSingle<{ journal: { id: string }[] }>(),
+      .returns<{ stage_id: string; option_id: string | null; minted_option_id: string | null; decision_option: { label: string } | null; minted_option: { label: string } | null }[]>(),
+    specReader.from("attempt_state").select("journal").eq("attempt_id", attemptId).maybeSingle<{ journal: unknown }>(),
   ]);
-  const choiceByStage = new Map((commitments ?? []).map((c) => [c.stage_id, c.option_id ? c.decision_option?.label ?? "an option" : null]));
+  const choiceByStage = new Map((commitments ?? []).map((c) => [c.stage_id,
+    c.option_id ? c.decision_option?.label ?? "an option"
+      : c.minted_option_id ? c.minted_option?.label ?? "a choice developed in conversation" : null,
+  ]));
+  const journal = (Array.isArray(state?.journal) ? state.journal : []).flatMap((entry) => {
+    const parsed = journalEntrySchema.safeParse(entry);
+    return parsed.success ? [parsed.data] : [];
+  });
+  const collectedIds = new Set(journal.map((entry) => entry.id));
   const path: StageOutcome[] = (resolutions ?? []).map((r) => ({
     stageIndex: r.stage?.index ?? 0,
     stageTitle: r.stage?.title ?? `Stage ${(r.stage?.index ?? 0) + 1}`,
     chose: choiceByStage.get(r.stage_id) ?? null,
     announcement: r.outcome?.announcement ?? "",
     changes: (r.outcome?.worldDeltas ?? []).map((d) => d.summary ?? "").filter(Boolean),
-    evidenceFound: 0,
+    evidenceFound: spec.stages.find((stage) => stage.index === r.stage?.index)?.evidence.filter((item) => collectedIds.has(item.id)).length ?? 0,
   }));
-  if (path.length > 0 && state?.journal) path[path.length - 1]!.evidenceFound = state.journal.length;
 
   return {
     attemptId: attempt.id as string,
@@ -184,5 +203,16 @@ export async function loadDebrief(
     }),
     divergence: ending.divergence,
     reflectionQuestions: ending.reflectionQuestions,
+    collectedEvidence: journal.map((entry) => {
+      const stage = spec.stages.find((candidate) => candidate.evidence.some((item) => item.id === entry.id));
+      const name = stage?.evidence.find((item) => item.id === entry.id)?.name ?? entry.text.split(": ")[0]!;
+      return {
+        id: entry.id,
+        name,
+        text: entry.text.startsWith(`${name}: `) ? entry.text.slice(name.length + 2) : entry.text,
+        sourceSpan: entry.sourceSpan,
+        stageTitle: stage?.title ?? null,
+      };
+    }),
   };
 }

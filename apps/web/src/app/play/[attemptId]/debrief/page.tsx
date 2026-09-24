@@ -140,6 +140,7 @@ export default async function DebriefPage({
       </Part>
 
       <Part title="To think about">
+        <p className="max-w-[60ch] text-base text-muted">Use a detail from your collected evidence to explain your decision. Compare it with what happened in history, and consider whose perspective might change your judgement.</p>
         <ol className="flex flex-col gap-4">
           {debrief.reflectionQuestions.map((question, index) => (
             <li key={question} className="grid grid-cols-[2rem_1fr] gap-x-3">
@@ -150,6 +151,26 @@ export default async function DebriefPage({
             </li>
           ))}
         </ol>
+      </Part>
+
+      <Part title="Your collected evidence">
+        {debrief.collectedEvidence.length ? (
+          <div className="flex flex-col gap-3">
+            {debrief.collectedEvidence.map((entry) => (
+              <details key={entry.id} className="rounded-surface border border-line bg-surface p-4">
+                <summary className="cursor-pointer text-lg font-semibold text-ink">{entry.name}</summary>
+                {entry.stageTitle ? <p className="mt-3 text-sm text-muted">Collected in {entry.stageTitle}</p> : null}
+                <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-ink">{entry.text}</p>
+                {entry.sourceSpan ? (
+                  <div className="mt-4 border-t border-line pt-3">
+                    <p className="text-sm font-semibold text-record">Supporting source excerpts</p>
+                    <p className="mt-2 whitespace-pre-line font-serif text-base leading-relaxed text-record">{entry.sourceSpan}</p>
+                  </div>
+                ) : null}
+              </details>
+            ))}
+          </div>
+        ) : <p className="text-base text-muted">You did not collect any scrolls. Use the cited historical record above to reflect on what information you were missing.</p>}
       </Part>
 
       <footer className="flex flex-wrap items-center gap-3 border-t border-line pt-8">

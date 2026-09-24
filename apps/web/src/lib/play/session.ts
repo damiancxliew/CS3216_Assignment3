@@ -117,6 +117,8 @@ export interface PlaySnapshot {
 
 /** Additive to the frozen I3 projection: what the renderer needs on top of it. */
 export interface PlayState extends PublicAttemptState {
+  /** The authored dilemma, available before choices unlock so exploration has a purpose. */
+  decisionPrompt: string;
   map: PublicMap | null;
   /** What to actually do for each goal, in plain words ("Talk to X in Y"), keyed by objective id. */
   objectiveHints: Record<string, string>;
@@ -391,6 +393,7 @@ export class PlaySession {
       attemptId: this.attemptId,
       adventureId: this.spec.id,
       publishedVersion: this.publishedVersion,
+      decisionPrompt: this.stage.decision.prompt,
       status: this.snap.status,
       player: {
         name: this.spec.player.name,
@@ -682,8 +685,8 @@ export class PlaySession {
     const stored = new Set(this.snap.journal.map((entry) => entry.id));
     for (const item of this.stage.evidence) {
       if (!known.has(item.id) || stored.has(item.id)) continue;
-      const span = item.content.spans[0];
-      this.snap.journal.push({ id: item.id, text: `${item.name}: ${item.content.text}`, sourceSpan: span ? `${span.sourceId}, p. ${span.page}: “${span.quote}”` : null, collectedAt: this.clock.now().toISOString() });
+      const sourceSpan = item.content.spans.map((span) => `${span.sourceId}, p. ${span.page}: “${span.quote}”`).join("\n\n") || null;
+      this.snap.journal.push({ id: item.id, text: `${item.name}: ${item.content.text}`, sourceSpan, collectedAt: this.clock.now().toISOString() });
     }
   }
 
@@ -928,11 +931,11 @@ export class PlaySession {
     known.push(item.id);
     this.snap.stageStats.evidence += 1;
     this.snap.stageStats.actions += 1;
-    const span = item.content.spans[0];
+    const sourceSpan = item.content.spans.map((span) => `${span.sourceId}, p. ${span.page}: “${span.quote}”`).join("\n\n") || null;
     this.snap.journal.push({
       id: item.id,
       text: `${item.name}: ${item.content.text}`,
-      sourceSpan: span ? `${span.sourceId}, p. ${span.page}: “${span.quote}”` : null,
+      sourceSpan,
       collectedAt: this.clock.now().toISOString(),
     });
     return true;

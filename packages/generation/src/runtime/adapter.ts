@@ -42,7 +42,7 @@ export function toPrivateContext(agent: Agent, spec: AdventureSpec): AgentPrivat
   return {
     agentId: agent.id,
     // The runtime has no persona field; it is carried as the first motivation so the model still hears the voice.
-    motivations: [`Persona: ${agent.privateContext.persona}`, agent.privateContext.motivations],
+    motivations: [`Persona: ${agent.privateContext.persona}`, `Public position: ${agent.publicPosition.text}`, agent.privateContext.motivations],
     secrets: [agent.privateContext.hiddenInterests],
     knowledgeHorizon: `${agent.privateContext.knowledgeHorizon}${stakeholder ? ` You are ${stakeholder.name}, ${stakeholder.role}.` : ''}`,
     notes: [],
@@ -124,7 +124,7 @@ export function toStageRuntime(spec: AdventureSpec, stageIndex: number): StageRu
     stageId: stage.id,
     stageIndex,
     world: { rooms, actors, placement },
-    stage: { sharedContext: spec.sharedContext.text, stageBrief: `${stage.title}. ${stage.sharedContext.text}`, agents },
+    stage: { sharedContext: spec.sharedContext.text, stageBrief: `${stage.title}. ${stage.sharedContext.text}\nDecision under discussion: ${stage.decision.prompt}`, agents },
     options,
     fallbackNext: fallback.branchTarget,
     resolverAgents: stage.agents.map((a) => ({ id: a.id, name: spec.stakeholders.find((s) => s.id === a.stakeholderId)?.name ?? a.id, disposition: 0 })),

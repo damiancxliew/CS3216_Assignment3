@@ -215,7 +215,11 @@ export const evidenceSchema = z.object({
   roomId: idSchema,
   /** Must carry ≥1 source span: evidence is documented history by definition. */
   content: z
-    .object({ text: text(1500), spans: z.array(sourceSpanSchema).min(1).max(8), assumptionIds: z.array(idSchema).max(8) })
+    .object({
+      text: text(1500).describe('The full student-readable scroll: concrete source-supported facts, their relevance to the stage decision and final dilemma, and a focused question for weighing the evidence. Use three short paragraphs separated by blank lines, within the reading-level word limit. Never just describe what the document explains, prescribe an answer, or reveal future outcomes.'),
+      spans: z.array(sourceSpanSchema).min(1).max(8),
+      assumptionIds: z.array(idSchema).max(8),
+    })
     .superRefine(requireGrounding),
 })
 export type Evidence = z.infer<typeof evidenceSchema>

@@ -177,6 +177,7 @@ export function PlayClient({
   const autoReadAt = useRef<string | null>(null);
   const revision = useRef(initialState.revision);
   const serverViewKey = useRef(`${initialState.stage.id}:${initialState.status}`);
+  const previousStageId = useRef(initialState.stage.id);
   const { muted, toggleMuted, cues } = useSoundCues(state, notice);
 
   useEffect(() => {
@@ -297,11 +298,24 @@ export function PlayClient({
   // The moment a choice becomes possible, show it; a new stage closes it again.
   const canDecide = state.options.some((o) => o.available);
   useEffect(() => {
-    if (canDecide) setDecisionOpen(true);
-  }, [canDecide]);
-  useEffect(() => {
-    setDecisionOpen(false);
-  }, [state.stage.id]);
+    setDecisionOpen(canDecide);
+    if (previousStageId.current === state.stage.id) return;
+    previousStageId.current = state.stage.id;
+    setIntent(null);
+    setPendingTalk(null);
+    setPendingRead(null);
+    setPendingLandmark(null);
+    setInspectingLandmark(null);
+    setWaitingAtDoor(null);
+    setReading(null);
+    setNotesOpen(false);
+    setLoadingDocuments([]);
+    setDocumentErrors({});
+    setDraft("");
+    setAddressee(null);
+    setNotice(null);
+    setRoleBriefOpen(true);
+  }, [canDecide, state.stage.id]);
 
   const here = state.rooms.find((r) => r.id === state.currentRoomId) ?? null;
   const peopleHere = state.agents.filter((agent) => {
@@ -647,7 +661,7 @@ export function PlayClient({
             aria-modal="true"
             aria-labelledby="role-brief-title"
             aria-describedby="role-brief-description"
-            className="flex w-full max-w-xl flex-col gap-5 rounded-surface border border-line bg-paper p-6 shadow-2xl sm:p-8"
+            className="flex max-h-[90dvh] w-full max-w-xl flex-col gap-5 overflow-y-auto rounded-surface border border-line bg-paper p-6 shadow-2xl sm:p-8"
           >
             <div className="flex items-center gap-2 text-world">
               <UserRound className="h-6 w-6" aria-hidden />
@@ -663,8 +677,11 @@ export function PlayClient({
               {state.player.brief}
             </p>
             <div className="rounded-control border-l-[3px] border-world bg-surface px-4 py-3">
-              <p className="text-sm font-semibold text-muted">Your first move</p>
-              <p className="text-base text-ink">Work toward the goals shown.</p>
+              <p className="text-sm font-semibold text-muted">Stage {state.stage.index + 1}: {state.stage.title}</p>
+              <p className="mt-2 text-base leading-relaxed text-ink">{state.stage.sharedContext}</p>
+              <p className="mt-3 text-sm font-semibold text-muted">The decision ahead</p>
+              <p className="text-base text-ink">{state.decisionPrompt}</p>
+              <p className="mt-2 text-base text-muted">Gather evidence and hear different perspectives. Use your notes to weigh the choices.</p>
             </div>
             <button type="button" className={`${primary} min-h-12 w-full text-lg capitalize sm:w-fit sm:self-end`} autoFocus onClick={() => setRoleBriefOpen(false)}>
               Begin as {state.player.name}
@@ -930,6 +947,10 @@ export function PlayClient({
 
         {/* ── Bottom, always visible: goals + the decision ─────────────────── */}
         <section className="flex flex-col gap-3 border-t border-line bg-sunken/60 px-5 py-4 lg:min-h-0 lg:max-h-[34%] lg:overflow-y-auto" aria-labelledby="decide">
+          <div>
+            <p className="text-sm font-semibold text-muted">The decision ahead</p>
+            <p className="text-base leading-snug text-ink">{state.decisionPrompt}</p>
+          </div>
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-base text-ink">
               <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>
@@ -989,6 +1010,9 @@ export function PlayClient({
               {decisionOpen ? (
                 <>
                   <p className="text-base leading-snug text-ink">This ends the stage. There is no going back.</p>
+                  <button type="button" className={`${subtle} self-start`} onClick={() => setNotesOpen(true)}>
+                    <ScrollText className="h-4 w-4" aria-hidden /> Review your evidence ({collectedDocuments.length})
+                  </button>
                   <ul className="flex flex-col gap-2">
                     {state.options.map((o) => (
                       <li key={o.id}>
