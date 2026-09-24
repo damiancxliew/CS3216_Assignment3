@@ -181,4 +181,22 @@ describe('OpenAI Responses API adapter', () => {
     await client.complete({ ...request, modelTier: 'frontier' })
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ model: MODEL_BY_TIER.frontier }))
   })
+
+  it('routes character tiers to gpt-6-luna and honors an explicit request model', async () => {
+    const create = vi.fn().mockResolvedValue({ output_text: '{}', usage: { input_tokens: 1, output_tokens: 1 } })
+    const client = createOpenAiClient({
+      apiKey: 'test-key',
+      client: { responses: { create } } as unknown as NonNullable<OpenAiClientOptions['client']>,
+    })
+
+    await client.complete({ ...request, modelTier: 'mid' })
+    await client.complete({ ...request, modelTier: 'cheap' })
+    await client.complete({ ...request, modelTier: 'frontier', model: 'gpt-6-sol' })
+
+    expect(MODEL_BY_TIER.mid).toBe('gpt-6-luna')
+    expect(MODEL_BY_TIER.cheap).toBe('gpt-6-luna')
+    expect(create).toHaveBeenNthCalledWith(1, expect.objectContaining({ model: 'gpt-6-luna' }))
+    expect(create).toHaveBeenNthCalledWith(2, expect.objectContaining({ model: 'gpt-6-luna' }))
+    expect(create).toHaveBeenNthCalledWith(3, expect.objectContaining({ model: 'gpt-6-sol' }))
+  })
 })

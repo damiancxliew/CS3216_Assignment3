@@ -203,6 +203,7 @@ export async function mintOptions(
       schema: mintProposalsSchema,
       schemaName: 'option_minting',
       modelTier: options.modelTier ?? TIER_BY_ROLE.resolver,
+      ...(options.modelTier === undefined ? { model: 'gpt-6-sol' } : {}),
       system: prompt.system,
       user: prompt.user,
       ...MINT_OPTIONS_LLM_PROFILE,

@@ -31,6 +31,7 @@ export interface TokenUsage {
 
 export interface LlmRequest {
   modelTier: ModelTier
+  model?: string
   /** Instructions. The only text in the call that is allowed to be an instruction (FR-20). */
   system: string
   /** Data. Everything derived from sources, players or agents arrives here, delimited. */
