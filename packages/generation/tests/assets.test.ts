@@ -165,4 +165,14 @@ describe('D5 — failure handling (FR-6a)', () => {
     expect(prompt).toMatch(/snow white, pale blue-gray, dark timber/)
     expect(prompt).toMatch(/no scene, ground plane, frame/)
   })
+
+  it('asks for sober, stakeholder-specific pixel portraits that stay legible on the map', async () => {
+    const spec = await loadI1Spec()
+    const entry = spec.assetEligibility.find((asset) => asset.kind === 'portrait')!
+    const prompt = buildImagePrompt(entry, spec)
+
+    expect(prompt).toMatch(/16-bit pixel art/)
+    expect(prompt).toMatch(/subject-specific age, hair, facial hair, clothing and cultural details/)
+    expect(prompt).toMatch(/Not cute, chibi, toy-like/)
+  })
 })

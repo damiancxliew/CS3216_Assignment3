@@ -6,8 +6,8 @@
  * the player is in. Crossing into a room posts `move_room`; if the server refuses
  * (a closed door, a stale stage), the player is put back.
  *
- * Agents have no tiles server-side, only rooms, so each is drawn at a stable
- * interior tile of its current room.
+ * Agents' authoritative location is still room-level. Their tile-to-tile
+ * wandering is cosmetic and stays inside that room.
  */
 import {
   canStep,
@@ -22,12 +22,15 @@ import type { SoundCueId } from "@adventure/game-client";
 import { useEffect, useRef } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
+import { chooseRoomWanderStep, isInsideLocation, pointKey } from "@/lib/play/npc-wander";
 import { MAX_PENDING_STEPS, MAX_STEPS_PER_REQUEST, optimisticAdvance, settleBatch, type PendingStep } from "@/lib/play/optimistic-queue";
 import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PlayState } from "@/lib/play/session";
 import type { ServerTiming } from "./api";
 
 const STEP_MS = 160;
+const WANDER_TICK_MS = 700;
+const WANDER_CHANCE = 0.45;
 
 const KEYS: Record<string, Point> = {
   ArrowUp: { x: 0, y: -1 },
@@ -120,6 +123,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
     let pending: PendingStep[] = [];
     let nextSendAt = 0;
     let sendTimer: number | undefined;
+    const npcPositions = new Map<string, Point>();
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const perfEnabled = (() => {
       try {
         if (new URLSearchParams(window.location.search).get("perf") === "1") window.localStorage.setItem("play:perf", "1");
@@ -144,8 +149,12 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
             const key = a.roomId ?? OUTDOORS_ROOM_ID;
             const n = occupantsByRoom.get(key) ?? 0;
             occupantsByRoom.set(key, n + 1);
-            const position = a.position ?? (a.roomId ? seatIn(map as StageMap, a.roomId, n + 1) : outdoorSeat(map as StageMap, n));
+            const remembered = npcPositions.get(a.id);
+            const position = remembered && a.roomId && isInsideLocation(map as StageMap, a.roomId, remembered)
+              ? remembered
+              : a.position ?? (a.roomId ? seatIn(map as StageMap, a.roomId, n + 1) : outdoorSeat(map as StageMap, n));
             if (!position) return null;
+            npcPositions.set(a.id, position);
             return {
               id: a.id,
               name: a.name,
@@ -155,7 +164,6 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
               status: "idle" as const,
               interactive: s.hearingActorIds.includes(a.id),
               ...(a.sprite ? { sprite: a.sprite } : {}),
-              ...(a.portraitUrl ? { portraitUrl: a.portraitUrl } : {}),
             };
           }).filter((actor): actor is NonNullable<typeof actor> => actor !== null),
       ];
@@ -307,6 +315,34 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       void stepTo(next, inputAt);
     }, STEP_MS);
 
+    const wander = window.setInterval(() => {
+      if (document.visibilityState !== "visible" || reduced.matches) return;
+      const s = latest.current.state;
+      const agents = s.actors.filter((actor) => actor.kind === "agent");
+      const activeIds = new Set(agents.map((actor) => actor.id));
+      for (const id of npcPositions.keys()) if (!activeIds.has(id)) npcPositions.delete(id);
+
+      // Snapshot once to seed any newly-added actor before choosing steps.
+      snapshot();
+      const blocked = new Set(s.props.filter((prop) => !prop.found).map((prop) => pointKey(prop.position)));
+      const player = playerPos.current ?? s.playerPos;
+      if (player) blocked.add(pointKey(player));
+      for (const position of npcPositions.values()) blocked.add(pointKey(position));
+
+      let moved = false;
+      for (const actor of agents) {
+        if (!actor.roomId || Math.random() > WANDER_CHANCE) continue;
+        const from = npcPositions.get(actor.id);
+        if (!from) continue;
+        blocked.delete(pointKey(from));
+        const next = chooseRoomWanderStep(map as StageMap, doorsOf(s), actor.roomId, from, blocked);
+        npcPositions.set(actor.id, next);
+        blocked.add(pointKey(next));
+        moved ||= next.x !== from.x || next.y !== from.y;
+      }
+      if (moved) render();
+    }, WANDER_TICK_MS);
+
     const goTo = (target: Point, inputAt = performance.now()) => {
       if (sendInFlight || pending.length > 0) {
         queuedTarget = { point: target, inputAt };
@@ -420,7 +456,6 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         if (destroyed) return;
         playerPos.current = latest.current.state.playerPos;
         acknowledgedRevision.current = latest.current.state.revision;
-        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
         view = await createTiledMapView(parent, snapshot(), (point, inputAt) => goTo(point, inputAt), reduced.matches, {
           assetBase: ASSET_BASE,
           themeBase: "/game/themes",
@@ -462,6 +497,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       clearHeld();
       if (sendTimer !== undefined) window.clearTimeout(sendTimer);
       window.clearInterval(walk);
+      window.clearInterval(wander);
       view?.destroy();
       renderRef.current = null;
       parent.replaceChildren();

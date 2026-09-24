@@ -45,10 +45,22 @@ const HINT_MS = 7_000;
 const MAX_POLL_MS = 120_000;
 const GIVE_UP_AFTER = 6;
 
-/** A character's face: the generated portrait when the asset service has one, the pack's faceset otherwise (D4/D6). */
+/** Generated identity art, with a sober monogram while generation is pending or filtered. */
 function Portrait({ src, name, size = 40 }: { src: string | null; name: string; size?: number }) {
   const box = { width: size, height: size, minWidth: size, minHeight: size };
-  if (!src) return <span className="inline-block shrink-0 self-start rounded-control bg-sunken" style={box} aria-hidden />;
+  if (!src) {
+    const monogram = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+    return (
+      <span
+        className="inline-flex shrink-0 items-center justify-center self-start rounded-control border border-line bg-[#3a2a24] font-serif text-paper"
+        style={box}
+        role="img"
+        aria-label={`${name}'s identity marker`}
+      >
+        {monogram}
+      </span>
+    );
+  }
   const pixel = src.startsWith("/game/");
   return (
     // eslint-disable-next-line @next/next/no-img-element -- storage urls are dynamic and the facesets are tiny
@@ -105,6 +117,7 @@ export function PlayClient({
   const [pendingRead, setPendingRead] = useState<string | null>(null);
   const [roleBriefOpen, setRoleBriefOpen] = useState(initialState.status === "active" && initialState.revision === 0);
   const [hintVisible, setHintVisible] = useState(true);
+  const transcriptLog = useRef<HTMLDivElement>(null);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
   const readRef = useRef<(evidenceId: string) => void>(() => {});
@@ -206,9 +219,21 @@ export function PlayClient({
   }, [accept, attemptId, mintAttempt, refresh, state.mintReady, state.revision, state.stage.id, state.status]);
 
   useEffect(() => {
-    transcriptEnd.current?.scrollIntoView({ block: "end" });
+    const log = transcriptLog.current;
+    const latest = transcriptEnd.current?.previousElementSibling;
+    if (!log) return;
+
+    // Keep the beginning of an unusually tall new reply visible. Aligning the
+    // end marker unconditionally can hide its first lines in a short viewport.
+    if (latest instanceof HTMLElement && latest.offsetHeight > log.clientHeight) {
+      const logTop = log.getBoundingClientRect().top;
+      const latestTop = latest.getBoundingClientRect().top;
+      log.scrollTop += latestTop - logTop;
+      return;
+    }
+    log.scrollTop = log.scrollHeight;
     // A room change appends a divider without appending a line, so it scrolls too.
-  }, [state.transcript.length, state.currentRoomId, pendingSpeech?.id]);
+  }, [state.transcript.length, state.currentRoomId, pendingSpeech?.id, busy]);
 
   // The moment a choice becomes possible, show it; a new stage closes it again.
   const canDecide = state.options.some((o) => o.available);
@@ -583,9 +608,9 @@ export function PlayClient({
         ) : null}
       </section>
 
-      <aside className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto border-t border-line bg-paper text-base lg:w-[34rem] lg:flex-none lg:border-l lg:border-t-0 xl:w-[40rem]">
+      <aside className="flex min-h-0 w-full min-w-0 flex-col border-t border-line bg-paper text-base lg:w-[min(42rem,48vw)] lg:shrink-0 lg:border-l lg:border-t-0">
         {/* ── Top: where you are, where you can go ─────────────────────────── */}
-        <section className="flex shrink-0 flex-col gap-3 border-b border-line px-5 py-4" aria-labelledby="where">
+        <section className="flex flex-col gap-3 border-b border-line px-5 py-4 lg:min-h-0 lg:max-h-[32%] lg:overflow-y-auto" aria-labelledby="where">
           <button
             type="button"
             onClick={() => setRoleBriefOpen(true)}
@@ -714,7 +739,7 @@ export function PlayClient({
             </p>
           )}
 
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-3 sm:py-4" role="log" aria-live="polite" aria-label="Conversation">
+          <div ref={transcriptLog} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-3 sm:py-4" role="log" aria-live="polite" aria-label="Conversation">
             {state.transcript.length === 0 && pendingSpeech === null ? (
               <div className="mx-auto flex max-w-sm flex-col items-center gap-2 text-center lg:m-auto">
                 <p className="font-serif text-lg text-ink sm:text-xl">Nothing has been said yet</p>
@@ -785,7 +810,7 @@ export function PlayClient({
         )}
 
         {/* ── Bottom, always visible: goals + the decision ─────────────────── */}
-        <section className="flex shrink-0 flex-col gap-3 border-t border-line bg-sunken/60 px-5 py-4" aria-labelledby="decide">
+        <section className="flex flex-col gap-3 border-t border-line bg-sunken/60 px-5 py-4 lg:min-h-0 lg:max-h-[34%] lg:overflow-y-auto" aria-labelledby="decide">
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-base text-ink">
               <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>

@@ -34,7 +34,7 @@ export interface PlaygroundSnapshot {
     status: TravelStatus
     /** Character sheet key for a tiled renderer; ignored by the primitive one. */
     sprite?: string
-    /** Realistic generated portrait shown as the actor's in-world avatar when available. */
+    /** Generated identity art shown as the actor itself; curated faces remain UI fallbacks. */
     portraitUrl?: string | null
     /** Whether the host considers this actor close enough to interact with now. */
     interactive?: boolean

@@ -21,10 +21,16 @@ import type { AdventureSpec, AssetEligibility } from '../spec/v2'
 import { type AssetCache, type AssetManifest, type AssetRecord, type AssetStore, type ImageRequest, type ImageService, ImageServiceError } from './types'
 
 /** Version the style suffix: changing it changes every prompt hash, which is what you want. */
-export const ASSET_STYLE_VERSION = 'style-v2-map-sprites'
+export const ASSET_STYLE_VERSION = 'style-v3-grounded-portraits-map-sprites'
 
 const STYLE: Record<GeneratableAssetKind, string> = {
-  portrait: 'Head-and-shoulders portrait, painted illustration style, muted period-appropriate palette, plain dark background, no text, no frame.',
+  portrait: [
+    'Serious, historically grounded head-and-shoulders character portrait for an educational game.',
+    'Crisp hand-authored 16-bit pixel art with a limited muted period palette and a strong silhouette.',
+    'Preserve the subject-specific age, hair, facial hair, clothing and cultural details supplied in the description.',
+    'Centered frontal or slight three-quarter pose, reserved neutral expression, plain charcoal background, no text and no frame.',
+    'Not cute, chibi, toy-like, anime, caricatured, smiling or heroic.',
+  ].join(' '),
   landmark: 'Single physical landmark for a top-down 16px pixel-art game map. Three-quarter top-down view, crisp square pixels, simple readable silhouette, limited muted palette, transparent background. Show only the object, with no scene, ground plane, frame, placard, UI, text, characters, gradients or painterly texture.',
   prop: 'Single small physical object for a top-down 16px pixel-art game map. Three-quarter top-down view, crisp square pixels, simple readable silhouette, limited muted palette, transparent background. No scene, ground plane, frame, UI, text, characters, gradients or painterly texture.',
 }

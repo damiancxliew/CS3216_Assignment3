@@ -102,15 +102,15 @@ describe("asset generation after publish", () => {
     expect(error).not.toBeNull();
   });
 
-  it("shows the generated portrait in the play state, with the curated faceset for anyone without one", async () => {
+  it("shows generated portraits in the play state and leaves filtered identities to the monogram fallback", async () => {
     const { data: attempt } = await admin.from("attempt").select("id").eq("adventure_id", adventureId).eq("student_id", student.userId).single();
     const deps = { store: new SupabasePlayStore(admin), llm: new FakeLlmClient({ replies: [JSON.stringify({ say: "", actions: [] })] }) };
     const result = await getState(deps, attempt!.id as string, student.userId);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const generated = result.state.agents.filter((a) => a.portraitUrl?.includes("/storage/v1/object/public/assets/"));
-    const curated = result.state.agents.filter((a) => a.portraitUrl?.startsWith("/game/ninja/characters/"));
-    expect(generated.length + curated.length).toBe(result.state.agents.length);
+    const pendingOrFiltered = result.state.agents.filter((a) => a.portraitUrl === null);
+    expect(generated.length + pendingOrFiltered.length).toBe(result.state.agents.length);
     expect(generated.length).toBeGreaterThan(0);
   });
 });

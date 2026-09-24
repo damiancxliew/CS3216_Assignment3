@@ -1,13 +1,12 @@
 /**
- * Which hand-drawn character from the curated pack stands in for each
- * stakeholder. Deterministic per stakeholder id, nudged by their name/role so a
- * sultan looks like one; the same person therefore looks the same in every
- * stage and every attempt. The pack (Ninja Adventure, CC0) lives under
+ * Which hand-drawn character from the curated pack backs each stakeholder.
+ * The map uses generated identity art (or a sober monogram while it is
+ * unavailable); these deterministic sheets remain useful for compatibility
+ * and teacher-facing fallbacks. The pack (Ninja Adventure, CC0) lives under
  * `public/game/ninja`; see the LICENSE there.
  *
- * Portraits are the one place AI-generated art is allowed (PRD D4): when the
- * asset service has produced one for a stakeholder it wins, and the pack's
- * faceset is the placeholder until then (D6).
+ * Portraits are the generated identity layer allowed by PRD D4. Terrain,
+ * structures and UI remain curated so the generated art cannot break geometry.
  */
 export const ASSET_BASE = "/game/ninja";
 

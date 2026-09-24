@@ -2,7 +2,7 @@
  * Every character in the pack that the mapping can pick actually exists in
  * `public/game/ninja`, the pick is deterministic per stakeholder, and the role
  * hints do what they say. The play state carries a faceset for every agent
- * and a sprite for every actor, so the renderer never has to guess.
+ * and a sprite for every actor, while generated identity art remains nullable.
  */
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -39,7 +39,7 @@ describe("curated characters", () => {
     expect(CHARACTERS).toContain(characterFor({ id: "x" }));
   });
 
-  it("appear in the play state as sprites and faceset portraits", async () => {
+  it("appear in the play state as sprites with nullable generated portraits", async () => {
     const spec = await loadI1Spec();
     const deps: PlayServiceDeps = {
       store: new MemoryPlayStore([{ attemptId: "a", studentId: "s", adventureId: "adv", publishedVersion: 1, status: "active", stageDeadlineAt: null, spec, snapshot: null }]),
@@ -50,7 +50,7 @@ describe("curated characters", () => {
     const { state } = result;
     expect(state.actors.find((a) => a.id === "player")?.sprite).toBe(PLAYER_CHARACTER);
     for (const actor of state.actors) expect(CHARACTERS).toContain(actor.sprite);
-    for (const agent of state.agents) expect(agent.portraitUrl).toMatch(/^\/game\/ninja\/characters\/[A-Za-z0-9]+\/face\.png$/);
+    for (const agent of state.agents) expect(agent.portraitUrl).toBeNull();
   });
 
   it("passes the chosen stage theme and ready story images to the play map", async () => {
