@@ -313,8 +313,14 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
     return { error: "This feature is temporarily unavailable. Please try again later." };
   }
 
+  const admin = createAdminClient();
+  let jobStarted = false;
+  const updateJob = async (state: "running" | "completed" | "failed", phase: "preparing" | "planning" | "checking" | "repairing" | "saving" | "completed" | "failed") => {
+    const { error } = await admin.from("generation_job").update({ state, phase, updated_at: new Date().toISOString() }).eq("adventure_id", adventureId);
+    if (error) console.error("could not update generation progress", adventureId, error);
+  };
+
   try {
-    const admin = createAdminClient();
     const [adventureResult, sourcesResult] = await Promise.all([
       admin
         .from("adventure")
@@ -354,6 +360,27 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
     }
     const { setting, student_role, learning_objectives, reading_level, stage_outline } = brief.data;
 
+    const { data: existingJob } = await admin.from("generation_job")
+      .select("state, updated_at")
+      .eq("adventure_id", adventureId)
+      .maybeSingle<{ state: string; updated_at: string }>();
+    if (existingJob?.state === "running" && Date.now() - Date.parse(existingJob.updated_at) < 360_000) {
+      return { notice: "Story generation is already in progress." };
+    }
+    const now = new Date().toISOString();
+    const { error: jobError } = await admin.from("generation_job").upsert({
+      adventure_id: adventureId,
+      state: "running",
+      phase: "preparing",
+      started_at: now,
+      updated_at: now,
+    });
+    if (jobError) {
+      console.error("could not start generation progress", adventureId, jobError);
+      return { error: "Couldn’t start story generation. Please try again." };
+    }
+    jobStarted = true;
+
     const result = await runGeneration({
       admin,
       adventureId,
@@ -371,6 +398,7 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
       // database writes. Low reasoning keeps the same validation/repair loop
       // while leaving enough of the route budget to save a successful draft.
       plannerConfig: { reasoningEffort: "low" },
+      onProgress: (phase) => updateJob("running", phase),
       llm: new OpenAiLlmClient({
         timeoutMs: GENERATION_CALL_TIMEOUT_MS,
         maxRetries: 0,
@@ -379,6 +407,7 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
       createdBy: user.id,
     });
     if (!result.ok) {
+      await updateJob("failed", "failed");
       if (result.result?.status === "failed" && result.result.reason === "invalid-teacher-input") {
         console.error("adventure setup could not be used for generation", adventureId, result);
         return { error: "Review the adventure setup and try again." };
@@ -407,6 +436,7 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
       return { error: "Couldn’t generate the adventure. Check the sources and try again." };
     }
 
+    await updateJob("completed", "completed");
     revalidatePath(`/teacher/${adventureId}`);
     const notes = [
       ...result.missingInformation.map((m) => `Missing from the sources: ${m}`),
@@ -416,6 +446,7 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
       ? { notice: `Draft v${result.version.version} generated. ${notes.join(" · ")}` }
       : { notice: `Draft v${result.version.version} generated.` };
   } catch (error) {
+    if (jobStarted) await updateJob("failed", "failed");
     console.error("adventure generation failed unexpectedly", adventureId, error);
     return {
       error: "Generation didn’t finish. Refresh the page to check for a draft, then try again if needed.",

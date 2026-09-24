@@ -148,6 +148,7 @@ export async function generateFromSources(options: {
   brief: GenerationBrief;
   llm: LlmClient;
   plannerConfig?: Partial<PlannerConfig>;
+  onProgress?: (phase: "planning" | "checking" | "repairing" | "saving") => void | Promise<void>;
   createdBy?: string | null;
 }): Promise<GenerateFromSourcesResult> {
   const { documents, skipped } = sourcesToDocuments(options.sources);
@@ -170,10 +171,12 @@ export async function generateFromSources(options: {
     documents,
     llm: options.llm,
     config: options.plannerConfig,
+    onProgress: options.onProgress,
   });
   if (result.status === "failed") return { ok: false, error: describeFailure(result), result };
 
   try {
+    await options.onProgress?.("saving");
     const version = await persistSpecVersion(options.admin, options.adventureId, result.spec, {
       generatorVersion: `planner:${result.metrics.model}@${result.metrics.promptVersion}`,
       createdBy: options.createdBy ?? null,

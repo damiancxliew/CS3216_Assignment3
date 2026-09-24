@@ -102,8 +102,10 @@ describe('planner pipeline (D3/D4)', () => {
   it('accepts a valid plan first time and reports D8 metrics', async () => {
     const documents = [...(await loadI1Documents()).values()]
     const llm = new FakeLlmClient([await plannerReply()], { inputTokens: 12_000, cachedInputTokens: 0, outputTokens: 9_000, reasoningTokens: 2_000 })
-    const result = await generateAdventure({ teacher: TEACHER, documents, llm, config: { model: 'gpt-5.4' } })
+    const phases: string[] = []
+    const result = await generateAdventure({ teacher: TEACHER, documents, llm, config: { model: 'gpt-5.4' }, onProgress: (phase) => { phases.push(phase) } })
     expect(result.status).toBe('ok')
+    expect(phases).toEqual(['planning', 'checking'])
     if (result.status !== 'ok') return
     expect(result.spec.version).toBe(2)
     expect(result.spec.id).toBe('a-post-at-the-river-mouth-singapore-1819')
@@ -142,9 +144,11 @@ describe('planner pipeline (D3/D4)', () => {
       a.stages[1].evidence[0].content.spans[0].quote = 'Two sons were left behind when the Sultan of Johor died in 1812.'
     })
     const llm = new FakeLlmClient([broken, stillUngrounded, await plannerReply()])
-    const result = await generateAdventure({ teacher: TEACHER, documents, llm })
+    const phases: string[] = []
+    const result = await generateAdventure({ teacher: TEACHER, documents, llm, onProgress: (phase) => { phases.push(phase) } })
 
     expect(llm.requests).toHaveLength(3)
+    expect(phases).toEqual(['planning', 'checking', 'repairing', 'checking', 'repairing', 'checking'])
     const firstRepair = llm.requests[1]!.user
     expect(firstRepair).toContain('# Repair 1 of 2')
     expect(firstRepair).toContain('$.adventure.stages.0.agents.0.startRoomId: unknown room "no-such-room"')

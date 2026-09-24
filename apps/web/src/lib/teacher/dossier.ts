@@ -85,7 +85,7 @@ export type Dossier = {
   }[];
   /** Named `reason`, not `rationale`: the Turn API contract forbids that key in client payloads (FR-21). */
   assumptions: { id: string; text: string; reason: string }[];
-  assets: { eligible: number; generated: number; pending: number; failed: number; costUsd: number };
+  assets: { eligible: number; generated: number; pending: number; failed: number; started: boolean; costUsd: number };
 };
 
 function imageStatus(record: AssetRecord | undefined): ImageStatus {
@@ -205,6 +205,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
       generated: records.filter((r) => r.status === "ready" || r.status === "cached").length,
       pending: records.filter((r) => r.status === "pending").length,
       failed: records.filter((r) => r.status === "failed" || r.status === "filtered" || r.status === "skipped-cap").length,
+      started: records.length > 0,
       costUsd: records.reduce((sum, r) => sum + r.costUsd, 0),
     },
   };

@@ -18,10 +18,10 @@ import {
   generateArtwork,
   regenerateAsset,
 } from "../actions";
-import { ActionButton } from "@/components/action-form";
+import { AssetRegeneration } from "@/components/teacher/asset-regeneration";
 import { InlineEdit } from "@/components/teacher/inline-edit";
 import { StageMapPlan } from "@/components/teacher/stage-map";
-import { ArtworkPoller } from "@/components/teacher/artwork-poller";
+import { ArtworkProgress } from "@/components/teacher/artwork-poller";
 import { RecordEntry, Section, Skeleton, WorldEntry } from "@/components/ui";
 import type { Dossier, ImageStatus } from "@/lib/teacher/dossier";
 
@@ -75,11 +75,10 @@ function RegenerateButton({ adventureId, specVersionId, assetId }: { adventureId
   if (!assetId) return null;
   return (
     <div className="mt-auto pt-1">
-      <ActionButton
+      <AssetRegeneration
         action={regenerateAsset.bind(null, adventureId, specVersionId, assetId)}
-        label="Regenerate"
-        pendingLabel="Regenerating…"
-        variant="quiet"
+        specVersionId={specVersionId}
+        assetId={assetId}
       />
     </div>
   );
@@ -91,15 +90,22 @@ export function DossierSections({
   specVersionId,
   version,
   isDraft,
+  view,
+  stageId,
+  watchForArtwork = false,
 }: {
   dossier: Dossier;
   adventureId: string;
   specVersionId: string;
   version: number;
   isDraft: boolean;
+  view: "story" | "stage-content" | "stage-style" | "artwork";
+  stageId?: string;
+  watchForArtwork?: boolean;
 }) {
   return (
     <>
+      {view === "story" ? (
       <Section title="Cast">
         <ul className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
           {dossier.stakeholders.map((person) => (
@@ -126,15 +132,17 @@ export function DossierSections({
           ))}
         </ul>
       </Section>
+      ) : null}
 
+      {view === "stage-content" || view === "stage-style" ? (
       <Section title="Stages">
         <ol className="flex flex-col gap-8">
-          {dossier.stages.map((stage) => {
+          {dossier.stages.filter((stage) => stage.id === stageId).map((stage) => {
             const banner = stage.rooms.find((r) => r.landmark) ?? stage.rooms[0];
             const roomNames = Object.fromEntries(stage.rooms.map((r) => [r.id, r.name]));
             return (
               <li key={stage.id} className="flex flex-col gap-6 overflow-hidden rounded-surface border border-line bg-surface">
-                <div className="relative">
+                {view === "stage-style" ? <div className="relative">
                   {banner?.imageUrl ? (
                     <img
                       src={banner.imageUrl}
@@ -159,41 +167,50 @@ export function DossierSections({
                     ) : null}
                     <span className="rounded-control border border-paper/40 px-2.5 py-1 text-sm font-semibold capitalize text-paper">{stage.mapTheme} map</span>
                   </div>
-                </div>
+                </div> : null}
 
-                <div className="flex flex-col gap-6 px-6 pb-6">
+                <div className="flex flex-col gap-6 p-6">
+                  {view === "stage-content" ? <>
                   <InlineEdit
                     action={editStage.bind(null, adventureId, specVersionId, stage.id)}
                     label={`Edit stage ${stage.index + 1}`}
                     editable={isDraft}
+                    hiddenInputs={{ map_theme: [stage.mapTheme] }}
                     fields={[
                       { name: "title", label: "Title", defaultValue: stage.title },
                       { name: "shared_context", label: "Shared context", defaultValue: stage.sharedContext, multiline: true, rows: 6 },
                       { name: "timer_seconds", label: "Timer for this stage, in seconds", defaultValue: stage.timerSeconds === null ? "" : String(stage.timerSeconds), optional: true, hint: "Empty inherits the adventure default; 0 disables the timer." },
-                      { name: "map_theme", label: "Map theme", defaultValue: stage.mapTheme, options: [{ value: "classic", label: "Classic village" }, { value: "desert", label: "Desert" }, { value: "winter", label: "Winter" }, { value: "forest", label: "Forest" }, { value: "coast", label: "Coast" }] },
                     ]}
                   >
+                    <p className="font-serif text-xl text-ink">{stage.title}</p>
                     <p className="max-w-[64ch] text-base text-muted">{stage.sharedContext}</p>
                   </InlineEdit>
+                  </> : null}
 
-                  {stage.plan ? (
+                  {view === "stage-style" && stage.plan ? (
                     <div className="mx-auto w-full" style={{ maxWidth: `${(stage.plan.width / stage.plan.height) * 460}px` }}>
                       <StageMapPlan map={stage.plan} names={roomNames} />
                     </div>
                   ) : null}
 
+                  {view === "stage-style" ? (
+                    <InlineEdit
+                      action={editStage.bind(null, adventureId, specVersionId, stage.id)}
+                      label={`Edit map theme for stage ${stage.index + 1}`}
+                      editable={isDraft}
+                      hiddenInputs={{ title: [stage.title], shared_context: [stage.sharedContext], timer_seconds: [stage.timerSeconds === null ? "" : String(stage.timerSeconds)] }}
+                      fields={[{ name: "map_theme", label: "Map theme", defaultValue: stage.mapTheme, options: [{ value: "classic", label: "Classic village" }, { value: "desert", label: "Desert" }, { value: "winter", label: "Winter" }, { value: "forest", label: "Forest" }, { value: "coast", label: "Coast" }] }]}
+                    >
+                      <p className="text-base text-muted">Map theme: <span className="capitalize text-ink">{stage.mapTheme}</span></p>
+                    </InlineEdit>
+                  ) : null}
+
+                  {view === "stage-content" ? <>
                   <div className="flex flex-col gap-3">
                     <h3 className="text-base font-semibold text-ink">Rooms</h3>
                     <ul className="grid gap-3 sm:grid-cols-2">
                       {stage.rooms.map((room) => (
                         <li key={room.id} className="flex h-full gap-3 rounded-surface border border-line bg-surface p-4">
-                          <Artwork
-                            kind="landmark"
-                            alt={room.landmark ? `Artwork of ${room.landmark.name}` : `Room: ${room.name}`}
-                            imageUrl={room.imageUrl}
-                            imageStatus={room.imageStatus}
-                            className="h-20 w-20 shrink-0"
-                          />
                           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                             <InlineEdit
                               action={editRoom.bind(null, adventureId, specVersionId, stage.id, room.id)}
@@ -211,7 +228,6 @@ export function DossierSections({
                               {room.landmark ? <p className="text-sm font-semibold text-world">{room.landmark.name}</p> : null}
                               <p className="line-clamp-2 text-sm text-muted">{room.landmark?.description ?? room.purpose}</p>
                             </InlineEdit>
-                            <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={room.assetId} />
                           </div>
                         </li>
                       ))}
@@ -224,13 +240,6 @@ export function DossierSections({
                       {stage.evidence.map((item) => (
                         <li key={item.id} className="flex h-full flex-col gap-3 rounded-surface border border-line bg-surface p-4">
                           <div className="flex items-start gap-3">
-                            <Artwork
-                              kind="prop"
-                              alt={`Artwork of ${item.name}`}
-                              imageUrl={item.imageUrl}
-                              imageStatus={item.imageStatus}
-                              className="h-20 w-20 shrink-0"
-                            />
                             <div className="min-w-0">
                               <InlineEdit
                                 action={editEvidence.bind(null, adventureId, specVersionId, stage.id, item.id)}
@@ -249,7 +258,6 @@ export function DossierSections({
                           {item.spans.map((span, i) => (
                             <RecordEntry key={i} quote={span.quote} source={`${span.sourceTitle}, p. ${span.page}`} compact />
                           ))}
-                          <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={item.assetId} />
                         </li>
                       ))}
                     </ul>
@@ -321,14 +329,48 @@ export function DossierSections({
                       </ul>
                     </div>
                   ) : null}
+                  </> : null}
+
+                  {view === "stage-style" ? <>
+                    <p className="text-base text-muted">The map and ambient effect are previews for this stage.</p>
+                    <div className="flex flex-col gap-3">
+                      <h3 className="text-base font-semibold text-ink">Places</h3>
+                      <ul className="grid gap-3 sm:grid-cols-2">
+                        {stage.rooms.map((room) => (
+                          <li key={room.id} className="flex gap-3 rounded-surface border border-line bg-surface p-3">
+                            <Artwork kind="landmark" alt={room.landmark ? `Artwork of ${room.landmark.name}` : `Room: ${room.name}`} imageUrl={room.imageUrl} imageStatus={room.imageStatus} className="h-24 w-24 shrink-0" />
+                            <div className="flex min-w-0 flex-col gap-2">
+                              <p className="font-semibold text-ink">{room.name}</p>
+                              <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={room.assetId} />
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <h3 className="text-base font-semibold text-ink">Objects</h3>
+                      <ul className="grid gap-3 sm:grid-cols-2">
+                        {stage.evidence.map((item) => (
+                          <li key={item.id} className="flex gap-3 rounded-surface border border-line bg-surface p-3">
+                            <Artwork kind="prop" alt={`Artwork of ${item.name}`} imageUrl={item.imageUrl} imageStatus={item.imageStatus} className="h-24 w-24 shrink-0" />
+                            <div className="flex min-w-0 flex-col gap-2">
+                              <p className="font-semibold text-ink">{item.name}</p>
+                              <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={item.assetId} />
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </> : null}
                 </div>
               </li>
             );
           })}
         </ol>
       </Section>
+      ) : null}
 
-      {dossier.assumptions.length > 0 ? (
+      {view === "story" && dossier.assumptions.length > 0 ? (
         <Section title="Assumptions to review" lede="Details added to fill gaps in the sources. Check them before publishing.">
           <ul className="flex flex-col gap-5">
             {dossier.assumptions.map((assumption) => (
@@ -350,7 +392,7 @@ export function DossierSections({
         </Section>
       ) : null}
 
-      <Section title="Endings">
+      {view === "story" ? <Section title="Endings">
         <ul className="flex flex-col gap-5">
           {dossier.endings.map((ending) => (
             <li key={ending.id} className="flex flex-col gap-4 rounded-surface border border-line bg-surface p-6">
@@ -392,23 +434,23 @@ export function DossierSections({
             </li>
           ))}
         </ul>
-      </Section>
+      </Section> : null}
 
-      <Section title="Artwork" lede="Portraits, places and objects for this version.">
+      {view === "artwork" ? <Section title="Artwork" lede="Portraits, places and objects for this version.">
         <div className="flex flex-col gap-4">
           <p className="text-base text-ink">
             {dossier.assets.generated} of {dossier.assets.eligible} images ready
             {dossier.assets.pending > 0 ? ` · ${dossier.assets.pending} in progress` : ""}
             {dossier.assets.failed > 0 ? ` · ${dossier.assets.failed} failed` : ""}
           </p>
-          <ActionButton
+          <ArtworkProgress
             action={generateArtwork.bind(null, adventureId)}
             label={`Generate artwork for ${isDraft ? "draft " : ""}v${version}`}
-            pendingLabel="Starting…"
+            assets={dossier.assets}
+            watchForArtwork={watchForArtwork}
           />
-          <ArtworkPoller pending={dossier.assets.pending} />
         </div>
-      </Section>
+      </Section> : null}
     </>
   );
 }

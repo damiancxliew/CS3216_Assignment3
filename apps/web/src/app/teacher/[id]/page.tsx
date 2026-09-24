@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { DossierSections } from "./dossier";
 import { SharePanel } from "./share-panel";
+import { StoryGeneration, type GenerationJob } from "./story-generation";
 import {
   generateFromSources,
   publishAdventure,
@@ -36,6 +37,15 @@ export const metadata: Metadata = {
 
 // Generation is one long model call; the actions invoked from this page inherit this budget.
 export const maxDuration = 300;
+
+type EditorTab = "overview" | "stages" | "story" | "publish" | "attempts";
+const EDITOR_TABS: { id: EditorTab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "stages", label: "Stages" },
+  { id: "story", label: "Story" },
+  { id: "publish", label: "Publish & share" },
+  { id: "attempts", label: "Attempts" },
+];
 
 type Adventure = {
   id: string;
@@ -75,10 +85,15 @@ function sourceText(pageMap: SourcePageMap): { text: string; total: number; trun
 
 export default async function AdventurePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; stage?: string; view?: string }>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
+  const tab = EDITOR_TABS.find((item) => item.id === query.tab)?.id ?? "overview";
+  const stageView = query.view === "style" ? "style" : "content";
   const supabase = await createClient();
 
   const {
@@ -110,10 +125,14 @@ export default async function AdventurePage({
 
   // `spec_version.json` is revoked from `authenticated`, so the dossier is
   // built with the service role now that ownership is confirmed.
-  const admin = createAdminClient();
-  const dossier = shown ? await buildDossier(admin, { adventureId: id, specVersionId: shown.id }) : null;
+  const dossier = shown && (tab === "stages" || tab === "story" || tab === "publish")
+    ? await buildDossier(createAdminClient(), { adventureId: id, specVersionId: shown.id })
+    : null;
+  const selectedStage = dossier?.stages.find((stage) => stage.id === query.stage) ?? dossier?.stages[0] ?? null;
+  const stageUrl = (stageId: string, view: "content" | "style") =>
+    `/teacher/${id}?tab=stages&stage=${encodeURIComponent(stageId)}&view=${view}`;
 
-  const { data: sources } = await supabase
+  const { data: sources } = tab === "overview" ? await supabase
     .from("source")
     .select("id, title, kind, page_map")
     .eq("adventure_id", id)
@@ -125,10 +144,15 @@ export default async function AdventurePage({
         kind: string;
         page_map: SourcePageMap | null;
       }[]
-    >();
+    >() : { data: null };
   const sourceRows = sources ?? [];
+  const { data: generationJob } = tab === "overview" ? await supabase
+    .from("generation_job")
+    .select("state, phase, started_at, updated_at")
+    .eq("adventure_id", id)
+    .maybeSingle<GenerationJob>() : { data: null };
 
-  const { data: attempts } = await supabase
+  const { data: attempts } = tab === "attempts" ? await supabase
     .from("attempt")
     .select("id, status, published_version, updated_at, attempt_telemetry(stage_index, ended_by, duration_seconds, tokens, messages, evidence_found)")
     .eq("adventure_id", id)
@@ -141,7 +165,7 @@ export default async function AdventurePage({
         updated_at: string;
         attempt_telemetry: { stage_index: number; ended_by: string; duration_seconds: number; tokens: number; messages: number; evidence_found: number }[];
       }[]
-    >();
+    >() : { data: null };
   // P11: what an attempt costs and how long it takes, summed from the per-stage rows.
   const totals = (attempts ?? []).map((a) => a.attempt_telemetry ?? []).flat();
   const finished = (attempts ?? []).filter((a) => a.status === "completed");
@@ -166,6 +190,20 @@ export default async function AdventurePage({
       lede={adventure.setting}
       width="wide"
     >
+      <nav aria-label="Adventure sections" className="flex gap-2 overflow-x-auto border-b border-line pb-2">
+        {EDITOR_TABS.map((item) => (
+          <Link
+            key={item.id}
+            href={`/teacher/${id}?tab=${item.id}`}
+            aria-current={tab === item.id ? "page" : undefined}
+            className={`inline-flex min-h-11 shrink-0 items-center rounded-control px-4 text-base font-semibold transition-colors ${tab === item.id ? "bg-ink text-paper" : "text-muted hover:bg-surface hover:text-ink"}`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
+      {tab === "overview" ? <>
       <Section title="Brief">
         {adventure.reading_level ? (
           <dl className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface px-4 text-base sm:px-5">
@@ -244,47 +282,68 @@ export default async function AdventurePage({
         )}
 
         {draft ? (
-          <ActionButton
-            action={publishAdventure.bind(null, adventure.id)}
-            label={`Publish version ${draft.version}`}
-            pendingLabel="Publishing…"
-            event={ANALYTICS_EVENTS.adventurePublished}
-          />
-        ) : published ? (
-          <ActionButton
-            action={startEdit.bind(null, adventure.id)}
-            label="Edit as a new version"
-            pendingLabel="Copying…"
-            variant="quiet"
-          />
-        ) : null}
-        {published && !draft ? (
-          <p className="max-w-[60ch] text-base text-muted">
-            Editing creates a new draft. Students already playing can finish their current version.
-          </p>
-        ) : null}
-
-        {draft ? (
           <p className="text-base text-muted">Publish or discard this draft before generating another.</p>
         ) : adventure.reading_level && sourceRows.length > 0 ? (
-          <ActionButton
-            action={generateFromSources.bind(null, adventure.id)}
+          <StoryGeneration
+            adventureId={id}
+            action={generateFromSources.bind(null, id)}
             label={versions.length === 0 ? "Generate the adventure" : "Generate a new version"}
-            pendingLabel="Generating… this takes a minute or two"
-            event={ANALYTICS_EVENTS.generationCompleted}
+            initialJob={generationJob}
           />
         ) : null}
       </Section>
+      </> : null}
 
-      {dossier && shown ? (
-        <DossierSections
-          dossier={dossier}
-          adventureId={adventure.id}
-          specVersionId={shown.id}
-          version={shown.version}
-          isDraft={shown === draft}
-        />
+      {tab === "stages" ? (
+        dossier && shown && selectedStage ? (
+          <>
+            <nav aria-label="Choose stage" className="flex flex-wrap gap-2">
+              {dossier.stages.map((stage) => (
+                <Link
+                  key={stage.id}
+                  href={stageUrl(stage.id, stageView)}
+                  aria-current={selectedStage.id === stage.id ? "step" : undefined}
+                  className={`${selectedStage.id === stage.id ? button.primary : button.quiet} max-w-full`}
+                >
+                  {stage.index + 1}. {stage.title}
+                </Link>
+              ))}
+            </nav>
+            <nav aria-label="Stage editor views" className="flex gap-2 border-b border-line pb-2">
+              {(["content", "style"] as const).map((view) => (
+                <Link
+                  key={view}
+                  href={stageUrl(selectedStage.id, view)}
+                  aria-current={stageView === view ? "page" : undefined}
+                  className={`inline-flex min-h-11 items-center rounded-control px-4 text-base font-semibold ${stageView === view ? "bg-ink text-paper" : "text-muted hover:bg-surface hover:text-ink"}`}
+                >
+                  {view === "content" ? "Content" : "Style"}
+                </Link>
+              ))}
+            </nav>
+            <DossierSections dossier={dossier} adventureId={id} specVersionId={shown.id} version={shown.version} isDraft={shown === draft} view={stageView === "content" ? "stage-content" : "stage-style"} stageId={selectedStage.id} />
+          </>
+        ) : <EmptyState title="No stages yet">Generate the adventure from Overview to create its stages.</EmptyState>
       ) : null}
+
+      {tab === "story" ? (
+        dossier && shown ? <DossierSections dossier={dossier} adventureId={id} specVersionId={shown.id} version={shown.version} isDraft={shown === draft} view="story" />
+        : <EmptyState title="No story yet">Generate the adventure from Overview to review its cast and endings.</EmptyState>
+      ) : null}
+
+      {tab === "publish" ? <>
+      <Section title="Version">
+        {draft ? (
+          <ActionButton action={publishAdventure.bind(null, id)} label={`Publish version ${draft.version}`} pendingLabel="Publishing…" event={ANALYTICS_EVENTS.adventurePublished} />
+        ) : published ? (
+          <ActionButton action={startEdit.bind(null, id)} label="Edit as a new version" pendingLabel="Copying…" variant="quiet" />
+        ) : (
+          <p className="text-base text-muted">Generate the adventure from Overview before publishing.</p>
+        )}
+        {published && !draft ? <p className="max-w-[60ch] text-base text-muted">Editing creates a new draft. Students already playing can finish their current version.</p> : null}
+      </Section>
+
+      {dossier && shown ? <DossierSections dossier={dossier} adventureId={id} specVersionId={shown.id} version={shown.version} isDraft={shown === draft} view="artwork" watchForArtwork={shown === published && Boolean(process.env.OPENAI_API_KEY) && published.published_at !== null && Date.now() - Date.parse(published.published_at) < 360_000} /> : null}
 
       <Section
         title="Stage timer"
@@ -341,7 +400,9 @@ export default async function AdventurePage({
           </Link>
         ) : null}
       </Section>
+      </> : null}
 
+      {tab === "attempts" ? (
       <Section title="Attempts">
         {attempts && attempts.length > 0 ? (
           <div className="flex flex-col gap-6">
@@ -401,6 +462,7 @@ export default async function AdventurePage({
           </EmptyState>
         )}
       </Section>
+      ) : null}
     </Page>
   );
 }
