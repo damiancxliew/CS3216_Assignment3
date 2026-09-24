@@ -1,4 +1,5 @@
 import type { DoorStates, Point, Space, StageMap } from './types.js'
+import { landmarkAt } from './landmarks.js'
 
 function isIntegerPoint(point: Point): boolean {
   return Number.isInteger(point.x) && Number.isInteger(point.y)
@@ -61,6 +62,7 @@ export function areInSameRoom(map: StageMap, left: Point, right: Point): boolean
 
 export function isWalkable(map: StageMap, doors: DoorStates, point: Point): boolean {
   if (!inBounds(map, point)) return false
+  if (landmarkAt(map, point)) return false
   const tile = map.tiles[point.y]?.[point.x]
   if (tile === 'grass' || tile === 'path' || tile === 'floor') return true
   if (tile !== 'door') return false
@@ -74,11 +76,11 @@ function manhattan(left: Point, right: Point): number {
 }
 
 export function canStep(map: StageMap, doors: DoorStates, from: Point, to: Point): boolean {
-  return manhattan(from, to) === 1 && isWalkable(map, doors, from) && isWalkable(map, doors, to)
+  return manhattan(from, to) === 1 && (isWalkable(map, doors, from) || canLeaveLandmark(map, from)) && isWalkable(map, doors, to)
 }
 
 export function findPath(map: StageMap, doors: DoorStates, from: Point, to: Point): Point[] | null {
-  if (!isWalkable(map, doors, from) || !isWalkable(map, doors, to)) return null
+  if ((!isWalkable(map, doors, from) && !canLeaveLandmark(map, from)) || !isWalkable(map, doors, to)) return null
   if (from.x === to.x && from.y === to.y) return []
   const key = pointKey
   const visited = new Set<string>([key(from)])
@@ -114,6 +116,11 @@ export function findPath(map: StageMap, doors: DoorStates, from: Point, to: Poin
     }
   }
   return null
+}
+
+/** A player already standing on a newly added fixture in an old save can step off it. */
+function canLeaveLandmark(map: StageMap, point: Point): boolean {
+  return !!landmarkAt(map, point) && ['grass', 'path', 'floor'].includes(map.tiles[point.y]?.[point.x] ?? '')
 }
 
 function isOutdoorWalkable(map: StageMap, point: Point): boolean {

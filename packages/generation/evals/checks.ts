@@ -8,7 +8,7 @@
  */
 import { verifyGrounding } from '../src/ingest/spans'
 import type { ExtractedDocument } from '../src/ingest/types'
-import { GENERATABLE_ASSET_KINDS, MAX_GENERATED_ASSETS } from '../src/spec/catalogue'
+import { GENERATABLE_ASSET_KINDS } from '../src/spec/catalogue'
 import { type AdventureSpec, type ReadingLevel, publicProjection } from '../src/spec/v2'
 
 export const WORD_BUDGET: Record<ReadingLevel['band'], number> = {
@@ -98,7 +98,7 @@ export async function checkSpec(spec: AdventureSpec, documents: ReadonlyMap<stri
   const assets = {
     count: spec.assetEligibility.length,
     kinds,
-    ok: spec.assetEligibility.length <= MAX_GENERATED_ASSETS && Object.keys(kinds).every((k) => (GENERATABLE_ASSET_KINDS as readonly string[]).includes(k)),
+    ok: Object.keys(kinds).every((k) => (GENERATABLE_ASSET_KINDS as readonly string[]).includes(k)),
   }
 
   const publicJson = JSON.stringify(publicProjection(spec))

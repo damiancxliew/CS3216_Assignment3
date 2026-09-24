@@ -4,6 +4,7 @@ export type Enclosure = 'enclosed' | 'open'
 
 export type Point = { x: number; y: number }
 export type Tile = 'grass' | 'path' | 'wall' | 'floor' | 'door'
+export type LandmarkKind = 'table' | 'monument' | 'tree' | 'well' | 'stall' | 'dock' | 'hearth' | 'shelf'
 export type RoomSize = 'small' | 'medium' | 'large'
 export type DoorState = 'open' | 'closed'
 export type DoorStates = Readonly<Record<string, DoorState>>
@@ -29,6 +30,17 @@ export interface StageLayoutInput {
   spawnRoomId: string
   rooms: readonly { id: string; size: RoomSize; enclosure?: Enclosure; doorDefault: DoorState | null }[]
   placements: readonly { id: string; kind: 'actor' | 'evidence' | 'decision'; roomId: string }[]
+  /** Optional physical fixtures; omitted by older layout callers. */
+  landmarks?: readonly { roomId: string; kind: LandmarkKind }[]
+}
+
+export interface MapLandmark {
+  roomId: string
+  kind: LandmarkKind
+  x: number
+  y: number
+  width: 2
+  height: 2
 }
 
 export interface MapRoom {
@@ -59,6 +71,8 @@ export interface StageMap {
   tiles: Tile[][]
   rooms: MapRoom[]
   doors: MapDoor[]
+  /** Tile-built fixtures that occupy and block their footprint. Older maps omit this. */
+  landmarks?: MapLandmark[]
 }
 
 export interface CompiledStage {

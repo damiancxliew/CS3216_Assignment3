@@ -1,4 +1,4 @@
-import { compileStage, validateCompiledStage } from '@adventure/game-core'
+import { compileStage, landmarkKindFor, validateCompiledStage } from '@adventure/game-core'
 import type { CompiledStage, Point, SpatialState, StageLayoutInput } from '@adventure/game-core'
 import { toStageRuntime } from '@adventure/generation/runtime'
 import { validateAdventureSpec } from '@adventure/generation/spec'
@@ -36,6 +36,7 @@ export function toStageLayout(spec: AdventureSpec, stageIndex: number): StageLay
     stageId: stage.id,
     spawnRoomId: stage.spawnRoomId,
     rooms,
+    landmarks: stage.rooms.flatMap((room) => room.landmark ? [{ roomId: room.id, kind: landmarkKindFor(room.landmark.name, room.landmark.description, room.kind) }] : []),
     placements: [
       ...stage.agents.map((agent) => ({ id: agent.id, kind: 'actor' as const, roomId: agent.startRoomId })),
       ...stage.evidence.map((item) => ({ id: item.id, kind: 'evidence' as const, roomId: item.roomId })),

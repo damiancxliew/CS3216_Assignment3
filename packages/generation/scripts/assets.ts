@@ -1,7 +1,7 @@
 /**
  * Generate the eligible assets of a spec for real and write them to disk.
  *
- *   OPENAI_API_KEY=... npx vite-node scripts/assets.ts fixtures/singapore-1819.spec.json [--max 8] [--quality medium] [--out dir]
+ *   OPENAI_API_KEY=... npx vite-node scripts/assets.ts fixtures/singapore-1819.spec.json [--quality medium] [--out dir]
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -18,7 +18,7 @@ const flag = (name: string) => {
   return i >= 0 ? args[i + 1] : undefined
 }
 const file = args.find((a) => !a.startsWith('--') && !args[args.indexOf(a) - 1]?.startsWith('--'))
-if (!file) throw new Error('usage: assets.ts <spec.json> [--max n] [--quality low|medium|high] [--out dir]')
+if (!file) throw new Error('usage: assets.ts <spec.json> [--quality low|medium|high] [--out dir]')
 const outDir = flag('out') ?? 'evals/results/manual/assets'
 await mkdir(outDir, { recursive: true })
 
@@ -38,7 +38,6 @@ const manifest = await generateAssets(validation.spec, {
   images,
   cache: new InMemoryAssetCache(),
   store,
-  maxImages: Number(flag('max') ?? 8),
   quality: (flag('quality') ?? 'medium') as 'low' | 'medium' | 'high',
   onRecord: (r) => console.log(`${r.status.padEnd(11)} ${r.kind.padEnd(8)} ${r.entityId.padEnd(20)} ${r.url}${r.error ? `  (${r.error})` : ''}`),
 })

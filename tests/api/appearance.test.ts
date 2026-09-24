@@ -56,7 +56,7 @@ describe("curated characters", () => {
   it("passes the chosen stage theme and ready story images to the play map", async () => {
     const spec = await loadI1Spec();
     spec.stages[0]!.mapTheme = "coast";
-    const room = spec.stages[0]!.rooms[0]!;
+    const room = spec.stages[0]!.rooms.find((candidate) => candidate.landmark)!;
     const evidence = spec.stages[0]!.evidence[0]!;
     const makeRecord = (kind: "landmark" | "prop", entityId: string): AssetRecord => ({
       assetId: `asset-${kind}`, entityId, kind, status: "ready", url: `https://example.test/${kind}.png`,
@@ -78,9 +78,12 @@ describe("curated characters", () => {
     expect(result.state.landmarks).toContainEqual(expect.objectContaining({
       id: room.id,
       roomId: room.id,
-      name: room.landmark?.name ?? room.name,
+      name: room.landmark!.name,
+      width: 2,
+      height: 2,
       position: expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }),
     }));
+    expect(result.state.map?.landmarks).toContainEqual(expect.objectContaining({ roomId: room.id, width: 2, height: 2 }));
     expect(result.state.evidenceImages[evidence.id]).toBe("https://example.test/prop.png");
   });
 });

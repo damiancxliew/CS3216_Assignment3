@@ -1,5 +1,6 @@
 export { closeSpatialDoor, moveActor, projectActorPositions, walkActorTowardRoom } from './actors.js'
 export { compileStage } from './compiler.js'
+export { LANDMARK_KINDS, landmarkAt, landmarkCovers, landmarkKindFor } from './landmarks.js'
 export { validateCompiledStage, validateStageLayout, validateStageMap } from './validation.js'
 export { areInSameRoom, canHearSpeech, canStep, findPath, isInPhysicalInteractionRange, isWalkable, spaceAt } from './spatial.js'
 export { MAP_SCHEMA_VERSION, GENERATOR_VERSION } from './types.js'
@@ -10,6 +11,8 @@ export type {
   DoorStates,
   Enclosure,
   MapDoor,
+  MapLandmark,
+  LandmarkKind,
   MapRoom,
   Point,
   PublicActorPosition,
@@ -51,5 +54,6 @@ export function projectMap(value: CompiledStage): StageMap {
       inside: { x: door.inside.x, y: door.inside.y },
       outside: { x: door.outside.x, y: door.outside.y },
     })),
+    ...(map.landmarks ? { landmarks: map.landmarks.map((landmark) => ({ ...landmark })) } : {}),
   }
 }

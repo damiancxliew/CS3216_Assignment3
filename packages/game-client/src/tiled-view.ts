@@ -11,7 +11,7 @@
  * Optional theme terrain sheets live under `themeBase/<theme>/terrain.png`.
  */
 import Phaser from 'phaser'
-import { spaceAt, type Point, type StageMap } from '@adventure/game-core'
+import { LANDMARK_KINDS, spaceAt, type Point, type StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
 import { selectHitTargetId, selectPropHintId } from './prop-hint.js'
 import type { MapThemeId, PlaygroundSnapshot, SoundCueId } from './model.js'
@@ -116,6 +116,7 @@ class TiledScene extends Phaser.Scene {
   private pathLayer: Phaser.Tilemaps.TilemapLayer | undefined
   private floors?: Phaser.Tilemaps.TilemapLayer
   private walls?: Phaser.Tilemaps.TilemapLayer
+  private landmarkLayer?: Phaser.Tilemaps.TilemapLayer
   private doors = new Map<string, Phaser.GameObjects.Image>()
   private labels: Phaser.GameObjects.Text[] = []
   private markers = new Map<
@@ -139,7 +140,7 @@ class TiledScene extends Phaser.Scene {
   private plateBlocked = new Set<string>()
   private loadedSprites = new Set<string>()
   private queuedAssets = new Set<string>()
-  private landmarks = new Map<string, { imageUrl: string | null; container: Phaser.GameObjects.Container; hint: Phaser.GameObjects.Text }>()
+  private landmarks = new Map<string, { container: Phaser.GameObjects.Container; hint: Phaser.GameObjects.Text }>()
   private ambientId: string | null = null
   private ambientObjects: Phaser.GameObjects.GameObject[] = []
   private playedEffects = new Set<string>()
@@ -168,6 +169,7 @@ class TiledScene extends Phaser.Scene {
     this.load.image('tiles-floor', `${this.base}/tiles/floor.png`)
     this.load.image('tiles-wall', `${this.base}/tiles/wall.png`)
     this.load.image('tiles-interior', `${this.base}/tiles/interior.png`)
+    this.load.image('landmark-tiles', `${this.base}/tiles/landmarks.svg`)
     const theme = this.current.mapTheme ?? 'classic'
     if (TERRAIN[theme]) this.load.image('theme-terrain', `${this.themeBase}/${theme}/terrain.png`)
     this.load.spritesheet('house', `${this.base}/tiles/house.png`, { frameWidth: T, frameHeight: T })
@@ -235,7 +237,8 @@ class TiledScene extends Phaser.Scene {
         this.onProp(prop.id)
         return
       }
-      const landmark = (this.current.landmarks ?? []).find((item) => item.position.x === point.x && item.position.y === point.y)
+      const landmark = (this.current.landmarks ?? []).find((item) =>
+        point.x >= item.position.x && point.x < item.position.x + item.width && point.y >= item.position.y && point.y < item.position.y + item.height)
       if (landmark && this.onLandmark) {
         this.onLandmark(landmark.id)
         this.game.canvas.focus()
@@ -296,7 +299,6 @@ class TiledScene extends Phaser.Scene {
 
   private assetUrls(snapshot: PlaygroundSnapshot): string[] {
     return [...new Set([
-      ...Object.values(snapshot.roomImages ?? {}),
       ...(snapshot.props ?? []).flatMap((prop) => prop.imageUrl ? [prop.imageUrl] : []),
     ])]
   }
@@ -349,10 +351,12 @@ class TiledScene extends Phaser.Scene {
     const pathSet = terrain?.classicPath ? map.addTilesetImage('tiles-floor', 'tiles-floor', T, T, 0, 0)! : null
     const wallSet = map.addTilesetImage('tiles-wall', 'tiles-wall', T, T, 0, 0)!
     const interiorSet = map.addTilesetImage('tiles-interior', 'tiles-interior', T, T, 0, 0)!
+    const landmarkSet = map.addTilesetImage('landmark-tiles', 'landmark-tiles', T, T, 0, 0)!
     this.ground = map.createBlankLayer('ground', floorSet)!.setDepth(0)
     this.pathLayer = pathSet ? map.createBlankLayer('paths', pathSet)!.setDepth(0.5).setTint(terrain?.pathTint ?? 0xffffff) : undefined
     this.floors = map.createBlankLayer('floors', interiorSet)!.setDepth(1)
     this.walls = map.createBlankLayer('walls', wallSet)!.setDepth(2)
+    this.landmarkLayer = map.createBlankLayer('landmark-fixtures', landmarkSet)!.setDepth(4)
     if (terrain) {
       this.cameras.main.setBackgroundColor(terrain.background)
       this.floors.setTint(terrain.floorTint)
@@ -431,6 +435,17 @@ class TiledScene extends Phaser.Scene {
       if (terrain) image.setTint(terrain.doorTint)
       this.doors.set(door.id, image)
     }
+    for (const landmark of this.current.landmarks ?? []) {
+      const index = LANDMARK_KINDS.indexOf(landmark.kind)
+      if (index < 0) continue
+      const column = index * 2
+      const x = landmark.position.x
+      const y = landmark.position.y
+      this.landmarkLayer.putTileAt(column, x, y)
+      this.landmarkLayer.putTileAt(column + 1, x + 1, y)
+      this.landmarkLayer.putTileAt(16 + column, x, y + 1)
+      this.landmarkLayer.putTileAt(17 + column, x + 1, y + 1)
+    }
   }
 
   private renderSnapshot(snapshot: PlaygroundSnapshot, snap = false): void {
@@ -508,33 +523,23 @@ class TiledScene extends Phaser.Scene {
   private renderLandmarks(snapshot: PlaygroundSnapshot, playerRoomId: string | null): void {
     const landmarks = snapshot.landmarks ?? []
     for (const landmark of landmarks) {
-      const imageUrl = landmark.imageUrl && this.textures.exists(portraitTextureKey(landmark.imageUrl)) ? landmark.imageUrl : null
       let entry = this.landmarks.get(landmark.id)
-      if (entry && entry.imageUrl !== imageUrl) {
-        entry.container.destroy()
-        this.landmarks.delete(landmark.id)
-        entry = undefined
-      }
       if (!entry) {
         const container = this.add.container(0, 0)
-        const shadow = this.add.ellipse(0, 7, 18, 5, 0x000000, 0.3)
-        const object = imageUrl
-          ? this.add.image(0, -4, portraitTextureKey(imageUrl)).setDisplaySize(24, 24)
-          : this.add.graphics().fillStyle(0x877861).fillRect(-9, -12, 18, 20).fillStyle(0xb8a58a).fillRect(-7, -11, 14, 17).fillStyle(0x655946).fillRect(-7, 3, 14, 3)
-        const label = this.add.text(0, 12, landmark.name, {
+        const label = this.add.text(0, 2, landmark.name, {
           color: '#fff8e7', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '6px', fontStyle: 'bold',
           backgroundColor: '#3a2a24', padding: { x: 3, y: 1 }, resolution: 8,
         }).setOrigin(0.5, 0)
-        const hint = this.add.text(0, -18, 'click to inspect', {
+        const hint = this.add.text(0, -34, 'click to inspect', {
           color: '#2e2620', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '6px', fontStyle: 'bold',
           backgroundColor: '#ffe9a8', padding: { x: 3, y: 1 }, resolution: 8,
         }).setOrigin(0.5, 1)
-        container.add([shadow, object, label, hint])
-        entry = { imageUrl, container, hint }
+        container.add([label, hint])
+        entry = { container, hint }
         this.landmarks.set(landmark.id, entry)
       }
-      entry.container.setPosition(landmark.position.x * T + T / 2, landmark.position.y * T + T / 2)
-      entry.container.setDepth(8 + landmark.position.y / 1000)
+      entry.container.setPosition((landmark.position.x + 1) * T, (landmark.position.y + 2) * T)
+      entry.container.setDepth(9 + landmark.position.y / 1000)
       entry.hint.setVisible(playerRoomId === landmark.roomId)
     }
     for (const [id, entry] of this.landmarks) {

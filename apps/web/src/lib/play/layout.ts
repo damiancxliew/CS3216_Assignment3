@@ -10,6 +10,7 @@
  */
 import {
   compileStage,
+  landmarkKindFor,
   projectMap,
   validateCompiledStage,
   type CompiledStage,
@@ -52,6 +53,7 @@ export function toStageLayout(stage: Stage): StageLayoutInput {
       if (room.enclosure === null) throw new Error(`Location "${room.id}" requires explicit enclosure; publish a new compatible adventure version.`);
       return { id: room.id, size: room.size, enclosure: room.enclosure, doorDefault: room.doorDefault };
     }),
+    landmarks: stage.rooms.flatMap((room) => room.landmark ? [{ roomId: room.id, kind: landmarkKindFor(room.landmark.name, room.landmark.description, room.kind) }] : []),
     placements: [
       ...stage.agents.map((agent) => ({ id: agent.id, kind: "actor" as const, roomId: agent.startRoomId })),
       ...stage.evidence.map((item) => ({ id: item.id, kind: "evidence" as const, roomId: item.roomId })),

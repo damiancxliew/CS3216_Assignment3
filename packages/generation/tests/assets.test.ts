@@ -4,7 +4,6 @@ import { FakeImageService, InMemoryAssetCache, InMemoryAssetStore } from '../src
 import { assertGeneratable, buildImagePrompt, buildPortraitSafetyRetryPrompt, generateAssets, placeholderUrl, promptHash, resolveAssetUrl } from '../src/assets/service'
 import { ImageServiceError } from '../src/assets/types'
 import { loadI1Spec } from '../src/fixtures'
-import { MAX_GENERATED_ASSETS } from '../src/spec/catalogue'
 import type { AdventureSpec } from '../src/spec/v2'
 
 function deps(mode: ConstructorParameters<typeof FakeImageService>[0] = 'ok') {
@@ -43,7 +42,7 @@ describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
   })
 })
 
-describe('D5 — cache and cap', () => {
+describe('D5 — cache and generation', () => {
   it('generates each eligible asset once, stores it, and records cost', async () => {
     const spec = await loadI1Spec()
     const d = deps()
@@ -90,19 +89,17 @@ describe('D5 — cache and cap', () => {
     expect(promptHash(base, 'm')).toBe(promptHash(base, 'm'))
   })
 
-  it('caps generated images at 8 per adventure, even when asked for more', async () => {
+  it('generates every eligible image beyond the former eight-image limit', async () => {
     const spec = await specWithAssets(9)
     expect(spec.assetEligibility).toHaveLength(9)
     const d = deps()
-    // maxImages above the cap is clamped to it
-    const manifest = await generateAssets(spec, { ...d, maxImages: 50 })
-    expect(d.images.requests).toHaveLength(MAX_GENERATED_ASSETS)
-    expect(manifest.generatedCount).toBe(MAX_GENERATED_ASSETS)
-    expect(manifest.records.filter((r) => r.status === 'ready')).toHaveLength(8)
-    expect(manifest.records[8]).toMatchObject({ status: 'skipped-cap', url: placeholderUrl('landmark') })
+    const manifest = await generateAssets(spec, d)
+    expect(d.images.requests).toHaveLength(9)
+    expect(manifest.generatedCount).toBe(9)
+    expect(manifest.records.every((record) => record.status === 'ready')).toBe(true)
   })
 
-  it('cache hits do not count towards the cap', async () => {
+  it('reuses cached images while generating every remaining entry', async () => {
     const spec = await specWithAssets(9)
     const d = deps()
     await generateAssets(await specWithAssets(3), d) // warms 3 entries

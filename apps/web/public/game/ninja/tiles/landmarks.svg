@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="32" viewBox="0 0 256 32" shape-rendering="crispEdges">
+  <!-- Eight 2x2 tile fixtures, in the order in game-core LANDMARK_KINDS. Transparent tiles let the room floor show through. -->
+  <g transform="translate(0 0)"><!-- table -->
+    <path fill="#34291f" d="M3 8h26v17H3zM6 25h5v5H6zm15 0h5v5h-5z"/>
+    <path fill="#8c5337" d="M5 10h22v12H5zM7 23h4v5H7zm14 0h4v5h-4z"/>
+    <path fill="#c98554" d="M6 10h20v3H6zm0 4h2v7H6zm18 0h2v7h-2z"/>
+    <path fill="#e8d3a3" d="M12 13h11v7H12z"/><path fill="#aa8258" d="M13 15h8v1h-8zm0 2h6v1h-6z"/>
+    <path fill="#5a3930" d="M10 12h2v8h-2zm14 1h2v7h-2z"/>
+  </g>
+  <g transform="translate(32 0)"><!-- monument -->
+    <path fill="#302d2b" d="M5 25h22v5H5zM9 8h14v18H9z"/>
+    <path fill="#77736d" d="M7 25h18v3H7zm4-15h10v15H11zM9 7h14v4H9z"/>
+    <path fill="#c3b9a4" d="M9 25h14v1H9zm3-14h2v12h-2zm0-3h8v2h-8z"/>
+    <path fill="#5b5753" d="M19 11h2v12h-2zm-5 6h5v1h-5zm0 3h4v1h-4z"/>
+    <path fill="#d7bc78" d="M15 13h3v3h-3z"/>
+  </g>
+  <g transform="translate(64 0)"><!-- tree -->
+    <path fill="#34291f" d="M12 19h8v9h-8zM7 25h5v3H7zm13 0h5v3h-5z"/>
+    <path fill="#8b5639" d="M14 17h4v10h-4zM9 25h4v2H9zm10 0h4v2h-4z"/>
+    <path fill="#284733" d="M9 4h15v4h4v11h-4v4H8v-4H4V9h5z"/>
+    <path fill="#4a7441" d="M10 3h13v4h4v10h-4v4H9v-3H5V10h5z"/>
+    <path fill="#78a05a" d="M11 5h10v2H11zM7 11h5v4H7zm15-2h3v5h-3zm-9 7h6v3h-6z"/>
+    <path fill="#a4b56c" d="M12 7h4v2h-4zm8 5h3v2h-3z"/>
+  </g>
+  <g transform="translate(96 0)"><!-- well -->
+    <path fill="#352b25" d="M5 11h22v16H5zM3 25h26v4H3z"/>
+    <path fill="#8d887d" d="M6 12h20v14H6zM4 26h24v2H4z"/>
+    <path fill="#c7baa1" d="M7 12h4v12H7zm14 0h4v12h-4zM6 13h20v3H6z"/>
+    <path fill="#304d54" d="M10 17h12v7H10z"/><path fill="#6da4a2" d="M11 18h10v2H11zm2 3h6v1h-6z"/>
+    <path fill="#5d5147" d="M9 3h3v9H9zm11 0h3v9h-3zM8 3h16v3H8z"/>
+    <path fill="#b39364" d="M10 4h12v1H10z"/>
+  </g>
+  <g transform="translate(128 0)"><!-- stall -->
+    <path fill="#322820" d="M3 6h26v8H3zM5 13h3v15H5zm19 0h3v15h-3zM7 18h19v10H7z"/>
+    <path fill="#a66343" d="M5 8h22v4H5zm2 6h2v13H7zm17 0h2v13h-2zM8 20h17v6H8z"/>
+    <path fill="#eed3a0" d="M5 8h5v5H5zm10 0h5v5h-5zm10 0h2v5h-2z"/>
+    <path fill="#b24e3a" d="M10 8h5v5h-5zm10 0h5v5h-5z"/>
+    <path fill="#e4a466" d="M9 19h15v3H9z"/><path fill="#72905c" d="M11 16h3v3h-3zm6 0h4v3h-4z"/>
+  </g>
+  <g transform="translate(160 0)"><!-- dock -->
+    <path fill="#34291f" d="M2 12h28v16H2zM5 27h4v4H5zm18 0h4v4h-4z"/>
+    <path fill="#925a3b" d="M3 13h26v13H3zM6 27h3v3H6zm17 0h3v3h-3z"/>
+    <path fill="#c98554" d="M4 14h24v2H4zm0 4h24v2H4zm0 4h24v2H4z"/>
+    <path fill="#6c4332" d="M10 13h1v13h-1zm10 0h1v13h-1z"/>
+    <path fill="#d8b57b" d="M6 9h3v5H6zm18 0h3v5h-3z"/>
+    <path fill="#e6d1a0" d="M8 10h16v1H8z"/>
+  </g>
+  <g transform="translate(192 0)"><!-- hearth -->
+    <path fill="#342b28" d="M4 15h24v14H4z"/>
+    <path fill="#8c8172" d="M5 16h22v12H5z"/><path fill="#c3b49a" d="M6 16h7v2H6zm13 0h7v2h-7zM6 25h20v2H6z"/>
+    <path fill="#463c35" d="M9 19h14v6H9z"/><path fill="#8b5236" d="M10 23h12v3H10z"/>
+    <path fill="#e28b41" d="M12 15h3v7h-3zm5-7h3v14h-3z"/>
+    <path fill="#f7c36c" d="M15 12h3v11h-3zm-2 7h2v4h-2z"/>
+    <path fill="#fff0ae" d="M16 17h2v5h-2z"/>
+  </g>
+  <g transform="translate(224 0)"><!-- shelf -->
+    <path fill="#322820" d="M4 3h24v27H4z"/><path fill="#9b5b39" d="M6 5h20v23H6z"/>
+    <path fill="#51382b" d="M8 7h16v5H8zm0 8h16v5H8zm0 8h16v4H8z"/>
+    <path fill="#dfb77d" d="M9 7h2v5H9zm6 0h2v5h-2zm6 0h2v5h-2zM10 15h3v5h-3zm7 0h2v5h-2zm4 8h3v4h-3z"/>
+    <path fill="#ab6c50" d="M12 7h2v5h-2zm7 0h1v5h-1zM14 15h2v5h-2zm6 0h3v5h-3zM9 23h4v4H9zm5 0h4v4h-4z"/>
+    <path fill="#c98958" d="M5 12h22v2H5zm0 20h22v2H5zm0-12h22v2H5z"/>
+  </g>
+</svg>

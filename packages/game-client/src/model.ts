@@ -8,6 +8,7 @@ import {
   spaceAt,
   walkActorTowardRoom,
   type DoorState,
+  type LandmarkKind,
   type Point,
   type Space,
   type SpatialState,
@@ -53,10 +54,10 @@ export interface PlaygroundSnapshot {
   /** Display names for rooms, when the caller has them; the demo fixture's names are the fallback. */
   roomNames?: Readonly<Record<string, string>>
   mapTheme?: MapThemeId
-  /** Generated artwork for named, inspectable map landmarks. */
+  /** Legacy generated room art; the tiled renderer uses physical fixtures instead. */
   roomImages?: Readonly<Record<string, string>>
   /** Physical, inspectable fixtures placed within named rooms. */
-  landmarks?: Array<{ id: string; roomId: string; name: string; position: Point; imageUrl?: string }>
+  landmarks?: Array<{ id: string; roomId: string; name: string; kind: LandmarkKind; position: Point; width: 2; height: 2 }>
   /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */
   ambient?: { id: AmbientOverlayId; intensity: 1 | 2 | 3 }
   effects?: Array<{ key: string; id: SceneEffectId; roomId?: string | null }>
