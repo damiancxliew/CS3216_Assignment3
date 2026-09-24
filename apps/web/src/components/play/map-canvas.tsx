@@ -22,6 +22,7 @@ import type { SoundCueId } from "@adventure/game-client";
 import { useEffect, useRef } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
+import { historicalPortraitFor } from "@/lib/play/historical-portraits";
 import { MAX_PENDING_STEPS, MAX_STEPS_PER_REQUEST, optimisticAdvance, settleBatch, type PendingStep } from "@/lib/play/optimistic-queue";
 import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PlayState } from "@/lib/play/session";
@@ -157,6 +158,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
               targetRoomId: null,
               status: "idle" as const,
               interactive: canHearSpeech(map as StageMap, player, position),
+              portraitUrl: a.portraitUrl,
+              portraitFallbackUrl: historicalPortraitFor(a.name),
               ...(a.sprite ? { sprite: a.sprite } : {}),
             };
           }).filter((actor): actor is NonNullable<typeof actor> => actor !== null),
@@ -170,13 +173,14 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
         doors,
         actors,
         props,
-        landmarks: s.landmarks.map((landmark) => ({ id: landmark.id, roomId: landmark.roomId, name: landmark.name, kind: landmark.kind, position: landmark.position, width: landmark.width, height: landmark.height, ...(landmark.imageUrl ? { imageUrl: landmark.imageUrl } : {}) })),
+        landmarks: s.landmarks.map((landmark) => ({ id: landmark.id, roomId: landmark.roomId, name: landmark.name, description: landmark.description, kind: landmark.kind, position: landmark.position, width: landmark.width, height: landmark.height, ...(landmark.imageUrl ? { imageUrl: landmark.imageUrl } : {}) })),
         playerGoal: goal,
         playerStatus: path.length ? ("moving" as const) : ("idle" as const),
         running: true,
         npcRoutes: false,
         revision: s.revision,
         roomNames: Object.fromEntries(s.rooms.map((r) => [r.id, r.name])),
+        roomDescriptions: Object.fromEntries(s.rooms.map((r) => [r.id, r.purpose ?? ""])),
         mapTheme: s.stage.mapTheme,
         ambient: { id: s.stage.ambientOverlay, intensity: Math.min(3, Math.max(1, s.stage.overlayIntensity)) as 1 | 2 | 3 },
         // One-shot effects are keyed by announcement so each plays once, in the room the player is in.

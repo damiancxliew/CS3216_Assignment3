@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="16" viewBox="0 0 96 16" shape-rendering="crispEdges">
+  <!-- Native 16px material tiles: paving, walkway, linoleum, timber, stone, workshop. -->
+  <path fill="#5e6260" d="M0 0h16v16H0z"/><path fill="#787b73" d="M1 1h14v6H1zm0 8h7v6H1zm9 0h5v6h-5z"/><path fill="#87887e" d="M2 1h12v1H2zm0 8h5v1H2z"/>
+  <path fill="#88887d" d="M16 0h16v16H16z"/><path fill="#b1ac97" d="M17 1h14v14H17z"/><path fill="#c5bda4" d="M18 1h12v1H18z"/><path fill="#9f9d8b" d="M30 3h1v11h-1z"/>
+  <path fill="#a7a58e" d="M32 0h16v16H32z"/><path fill="#c4bda4" d="M33 1h7v7h-7zm8 8h7v7h-7z"/><path fill="#8e9487" d="M41 1h7v7h-7zm-8 8h7v7h-7z"/>
+  <path fill="#695743" d="M48 0h16v16H48z"/><path fill="#9a7e57" d="M48 1h16v3H48zm0 4h16v3H48zm0 4h16v3H48zm0 4h16v3H48z"/><path fill="#b3986b" d="M49 1h7v1h-7zm5 8h9v1h-9z"/><path fill="#756047" d="M58 1h1v3h-1zm-7 4h1v3h-1zm9 8h1v3h-1z"/>
+  <path fill="#777b76" d="M64 0h16v16H64z"/><path fill="#b7b6a4" d="M65 1h14v14H65z"/><path fill="#c8c6b0" d="M66 1h12v1H66z"/><path fill="#a6a895" d="M66 14h12v1H66z"/>
+  <path fill="#595e59" d="M80 0h16v16H80z"/><path fill="#7e8173" d="M81 1h14v14H81z"/><path fill="#989c89" d="M82 2h1v1h-1zm11 0h1v1h-1zM82 13h1v1h-1zm11 0h1v1h-1z"/>
+</svg>

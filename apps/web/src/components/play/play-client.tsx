@@ -25,6 +25,7 @@ import { restartAttempt } from "@/app/play/[attemptId]/actions";
 import { StageCountdown } from "@/components/stage-countdown";
 import { Pending, Spinner, Thinking } from "@/components/ui";
 import type { PlayState } from "@/lib/play/session";
+import { historicalPortraitFor } from "@/lib/play/historical-portraits";
 import { withSceneBreaks } from "@/lib/play/transcript";
 import { DocumentReader } from "./document-reader";
 
@@ -91,8 +92,10 @@ function localCanInspect(state: PlayState, position: Point | null, propId: strin
 
 /** Generated identity art, with a sober monogram while generation is pending or filtered. */
 function Portrait({ src, name, size = 40 }: { src: string | null; name: string; size?: number }) {
+  const [failedUrls, setFailedUrls] = useState<string[]>([]);
+  const imageSrc = [src, historicalPortraitFor(name)].find((url) => url && !failedUrls.includes(url));
   const box = { width: size, height: size, minWidth: size, minHeight: size };
-  if (!src) {
+  if (!imageSrc) {
     const monogram = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
     return (
       <span
@@ -105,11 +108,12 @@ function Portrait({ src, name, size = 40 }: { src: string | null; name: string; 
       </span>
     );
   }
-  const pixel = src.startsWith("/game/");
+  const pixel = imageSrc.startsWith("/game/ninja/");
   return (
     // eslint-disable-next-line @next/next/no-img-element -- storage urls are dynamic and the facesets are tiny
     <img
-      src={src}
+      src={imageSrc}
+      onError={() => setFailedUrls((urls) => [...urls, imageSrc])}
       alt={`${name}'s portrait`}
       width={size}
       height={size}

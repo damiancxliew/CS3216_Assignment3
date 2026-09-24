@@ -37,6 +37,8 @@ export interface PlaygroundSnapshot {
     sprite?: string
     /** Generated identity art shown as the actor itself; curated faces remain UI fallbacks. */
     portraitUrl?: string | null
+    /** A sourced likeness to use when the primary portrait is absent or fails to load. */
+    portraitFallbackUrl?: string | null
     /** Whether the host considers this actor close enough to interact with now. */
     interactive?: boolean
     /** Which way the actor last moved, for a walk cycle. */
@@ -53,9 +55,11 @@ export interface PlaygroundSnapshot {
   revision: number
   /** Display names for rooms, when the caller has them; the demo fixture's names are the fallback. */
   roomNames?: Readonly<Record<string, string>>
+  /** Public room purposes used to choose materials and period-appropriate fixtures. */
+  roomDescriptions?: Readonly<Record<string, string>>
   mapTheme?: MapThemeId
   /** Physical, inspectable fixtures placed within named rooms. Ready art is a 32px tile sheet. */
-  landmarks?: Array<{ id: string; roomId: string; name: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string }>
+  landmarks?: Array<{ id: string; roomId: string; name: string; description?: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string }>
   /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */
   ambient?: { id: AmbientOverlayId; intensity: 1 | 2 | 3 }
   effects?: Array<{ key: string; id: SceneEffectId; roomId?: string | null }>

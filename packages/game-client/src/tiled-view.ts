@@ -14,7 +14,9 @@
 import Phaser from 'phaser'
 import { LANDMARK_KINDS, spaceAt, type Point, type StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
-import { selectHitTargetId, selectPropHintId } from './prop-hint.js'
+import { selectHitTargetId } from './prop-hint.js'
+import { layoutMapLabels, overlaps, type LabelRect } from './map-labels.js'
+import { fixtureScenery, roomScenery, usesUrbanGround } from './scenery.js'
 import { matchMapPalette } from './pixel-art.js'
 import type { MapThemeId, PlaygroundSnapshot, SoundCueId } from './model.js'
 import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
@@ -124,15 +126,15 @@ class TiledScene extends Phaser.Scene {
   private previousLandmarkPositions: Point[] = []
   private doors = new Map<string, Phaser.GameObjects.Image>()
   private labels: Phaser.GameObjects.Text[] = []
+  private captions = new Map<string, Phaser.GameObjects.Text>()
+  private captionLines?: Phaser.GameObjects.Graphics
+  private hoveredTarget: string | null = null
   private markers = new Map<
     string,
     {
       container: Phaser.GameObjects.Container
-      sprite: Phaser.GameObjects.Sprite
-      label: Phaser.GameObjects.Text
-      hint: Phaser.GameObjects.Text | null
-      hintTween: Phaser.Tweens.Tween | null
-      labelAbove: boolean
+      sprite: Phaser.GameObjects.Sprite | null
+      portraitUrl: string | null
       key: string
       facing: Facing
       last: Point
@@ -140,12 +142,9 @@ class TiledScene extends Phaser.Scene {
       idle: Phaser.Time.TimerEvent | null
     }
   >()
-  private props = new Map<string, { container: Phaser.GameObjects.Container; hint: Phaser.GameObjects.Text; tween: Phaser.Tweens.Tween | null; found: boolean; imageUrl: string | null }>()
-  /** Tiles whose nameplate would land on a door, i.e. the tile above each door. */
-  private plateBlocked = new Set<string>()
+  private props = new Map<string, { container: Phaser.GameObjects.Container; found: boolean; imageUrl: string | null }>()
   private loadedSprites = new Set<string>()
   private queuedAssets = new Set<string>()
-  private landmarks = new Map<string, { container: Phaser.GameObjects.Container; hint: Phaser.GameObjects.Text }>()
   private ambientId: string | null = null
   private ambientObjects: Phaser.GameObjects.GameObject[] = []
   private playedEffects = new Set<string>()
@@ -175,6 +174,8 @@ class TiledScene extends Phaser.Scene {
     this.load.image('tiles-wall', `${this.base}/tiles/wall.png`)
     this.load.image('tiles-interior', `${this.base}/tiles/interior.png`)
     this.load.image('landmark-tiles', `${this.base}/tiles/landmarks.svg`)
+    this.load.image('period-interiors', `${this.base}/tiles/period-interiors.svg`)
+    this.load.image('period-fixtures', `${this.base}/tiles/period-fixtures.svg`)
     const theme = this.current.mapTheme ?? 'classic'
     if (TERRAIN[theme]) this.load.image('theme-terrain', `${this.themeBase}/${theme}/terrain.png`)
     this.load.spritesheet('house', `${this.base}/tiles/house.png`, { frameWidth: T, frameHeight: T })
@@ -194,37 +195,14 @@ class TiledScene extends Phaser.Scene {
     this.ready = true
     for (const key of this.spriteKeys(this.current)) this.registerAnimations(key)
     this.buildMap()
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      this.hoveredTarget = this.hitTarget({ x: pointer.worldX, y: pointer.worldY })
+      this.game.canvas.style.cursor = this.hoveredTarget ? 'pointer' : 'default'
+    })
+    this.input.on('gameout', () => { this.hoveredTarget = null })
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const click = { x: pointer.worldX, y: pointer.worldY }
-      const actorHit = selectHitTargetId([...this.markers]
-        .filter(([id]) => id !== 'player')
-        .map(([id, entry]) => ({
-          id,
-          position: { x: entry.container.x, y: entry.container.y },
-          bounds: entry.container.getBounds(),
-        })), click)
-      if (actorHit && this.onActor) {
-        this.onActor(actorHit)
-        this.game.canvas.focus()
-        return
-      }
-      const propHit = selectHitTargetId([...this.props].map(([id, entry]) => ({
-        id,
-        position: { x: entry.container.x, y: entry.container.y },
-        bounds: entry.container.getBounds(),
-      })), click)
-      if (propHit && this.onProp) {
-        this.onProp(propHit)
-        this.game.canvas.focus()
-        return
-      }
-      const landmarkHit = selectHitTargetId([...this.landmarks].map(([id, entry]) => ({
-        id,
-        position: { x: entry.container.x, y: entry.container.y },
-        bounds: entry.container.getBounds(),
-      })), { x: pointer.worldX, y: pointer.worldY })
-      if (landmarkHit && this.onLandmark) {
-        this.onLandmark(landmarkHit)
+      const target = this.hitTarget({ x: pointer.worldX, y: pointer.worldY })
+      if (target && this.activateTarget(target)) {
         this.game.canvas.focus()
         return
       }
@@ -299,11 +277,13 @@ class TiledScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   private spriteKeys(snapshot: PlaygroundSnapshot): string[] {
-    return [...new Set(snapshot.actors.map((a) => a.sprite ?? this.defaultSprite))]
+    return [...new Set(snapshot.actors.filter((a) => a.id === 'player').map((a) => a.sprite ?? this.defaultSprite))]
   }
 
   private assetUrls(snapshot: PlaygroundSnapshot): string[] {
     return [...new Set([
+      ...snapshot.actors.flatMap((actor) => actor.id !== 'player' && actor.portraitUrl ? [actor.portraitUrl] : []),
+      ...snapshot.actors.flatMap((actor) => actor.id !== 'player' && actor.portraitFallbackUrl ? [actor.portraitFallbackUrl] : []),
       ...(snapshot.props ?? []).flatMap((prop) => prop.imageUrl ? [prop.imageUrl] : []),
       ...(snapshot.landmarks ?? []).flatMap((landmark) => landmark.imageUrl ? [landmark.imageUrl] : []),
     ])]
@@ -339,22 +319,25 @@ class TiledScene extends Phaser.Scene {
     this.generatedLandmarkLayers.forEach((layer) => layer.destroy())
     this.generatedLandmarkLayers.clear()
     this.map?.destroy()
-    this.plateBlocked = new Set(this.current.map.doors.map((door) => `${door.position.x},${door.position.y - 1}`))
+    this.captions.forEach((caption) => caption.destroy())
+    this.captions.clear()
+    this.captionLines?.destroy()
+    this.captionLines = this.add.graphics().setDepth(59)
+    this.hoveredTarget = null
     this.landmarkTileSignature = ''
     this.previousLandmarkPositions = []
     this.doors.forEach((d) => d.destroy())
     this.doors.clear()
     this.labels.forEach((l) => l.destroy())
     this.labels = []
-    this.markers.forEach((m) => m.container.destroy())
+    this.markers.forEach((m) => { m.idle?.remove(); m.container.destroy() })
     this.markers.clear()
     this.props.forEach((p) => p.container.destroy())
     this.props.clear()
-    this.landmarks.forEach((entry) => entry.container.destroy())
-    this.landmarks.clear()
     this.clearAmbient()
 
     const source = this.current.map
+    const urban = usesUrbanGround(source.rooms.map((room) => this.roomDescription(room.id)))
     const map = this.make.tilemap({ tileWidth: T, tileHeight: T, width: source.width, height: source.height })
     const terrain = TERRAIN[this.current.mapTheme ?? 'classic']
     const floorSet = map.addTilesetImage(terrain ? 'theme-terrain' : 'tiles-floor', terrain ? 'theme-terrain' : 'tiles-floor', T, T, 0, 0)!
@@ -362,15 +345,22 @@ class TiledScene extends Phaser.Scene {
     const wallSet = map.addTilesetImage('tiles-wall', 'tiles-wall', T, T, 0, 0)!
     const interiorSet = map.addTilesetImage('tiles-interior', 'tiles-interior', T, T, 0, 0)!
     const landmarkSet = map.addTilesetImage('landmark-tiles', 'landmark-tiles', T, T, 0, 0)!
-    this.ground = map.createBlankLayer('ground', floorSet)!.setDepth(0)
+    const periodSet = map.addTilesetImage('period-interiors', 'period-interiors', T, T, 0, 0, 1000)!
+    const fixtureSet = map.addTilesetImage('period-fixtures', 'period-fixtures', T, T, 0, 0, 2000)!
+    this.ground = map.createBlankLayer('ground', [floorSet, periodSet])!.setDepth(0)
     this.pathLayer = pathSet ? map.createBlankLayer('paths', pathSet)!.setDepth(0.5).setTint(terrain?.pathTint ?? 0xffffff) : undefined
-    this.floors = map.createBlankLayer('floors', interiorSet)!.setDepth(1)
+    this.floors = map.createBlankLayer('floors', [interiorSet, periodSet])!.setDepth(1)
     this.walls = map.createBlankLayer('walls', wallSet)!.setDepth(2)
-    this.landmarkLayer = map.createBlankLayer('landmark-fixtures', landmarkSet)!.setDepth(4)
+    this.landmarkLayer = map.createBlankLayer('landmark-fixtures', [landmarkSet, fixtureSet])!.setDepth(4)
     if (terrain) {
       this.cameras.main.setBackgroundColor(terrain.background)
       this.floors.setTint(terrain.floorTint)
       this.walls.setTint(terrain.wallTint)
+    }
+    if (urban) {
+      this.walls.setTint(0xb5bcb1)
+      this.floors.setTint(0xffffff)
+      this.cameras.main.setBackgroundColor('#414945')
     }
     this.map = map
 
@@ -378,18 +368,21 @@ class TiledScene extends Phaser.Scene {
     for (let y = 0; y < source.height; y += 1) {
       for (let x = 0; x < source.width; x += 1) {
         const tile = source.tiles[y]![x]!
-        // Everything sits on grass; the outer border is drawn as a wall ring by the room pass below.
+        // Public place descriptions select paving for a newsroom; outdoor settings keep their terrain.
         const groundTiles = terrain?.ground ?? GRASS
-        this.ground.putTileAt(groundTiles[Math.floor(jitter(x, y, 1) * groundTiles.length)]!, x, y)
+        this.ground.putTileAt(urban ? 1000 : groundTiles[Math.floor(jitter(x, y, 1) * groundTiles.length)]!, x, y)
         if (tile === 'path') {
           const mask = (isPath(x, y - 1) ? 1 : 0) | (isPath(x + 1, y) ? 2 : 0) | (isPath(x, y + 1) ? 4 : 0) | (isPath(x - 1, y) ? 8 : 0)
           const pathTiles = terrain?.path
-          if (this.pathLayer) this.pathLayer.putTileAt(PATH[mask] ?? PATH[15]!, x, y)
+          if (urban) this.ground.putTileAt(1001, x, y)
+          else if (this.pathLayer) this.pathLayer.putTileAt(PATH[mask] ?? PATH[15]!, x, y)
           else this.ground.putTileAt(pathTiles ? pathTiles[Math.floor(jitter(x, y, 3) * pathTiles.length)]! : PATH[mask] ?? PATH[15]!, x, y)
         }
       }
     }
     for (const room of source.rooms) {
+      const style = roomScenery(this.roomDescription(room.id))
+      const periodFloor = { newsroom: 1002, archive: 1003, council: 1004, workshop: 1005, plain: urban ? 1003 : null }[style]
       if (room.enclosure === 'enclosed') {
         const x1 = room.x + room.width - 1
         const y1 = room.y + room.height - 1
@@ -398,10 +391,10 @@ class TiledScene extends Phaser.Scene {
             const edgeX = x === room.x ? 'l' : x === x1 ? 'r' : null
             const edgeY = y === room.y ? 't' : y === y1 ? 'b' : null
             if (!edgeX && !edgeY) {
-              this.floors.putTileAt(PLANKS[Math.floor(jitter(x, y, 2) * PLANKS.length)]!, x, y)
+              this.floors.putTileAt(periodFloor ?? PLANKS[Math.floor(jitter(x, y, 2) * PLANKS.length)]!, x, y)
               continue
             }
-            this.floors.putTileAt(PLANKS[0]!, x, y) // under the door tile
+            this.floors.putTileAt(periodFloor ?? PLANKS[0]!, x, y) // under the door tile
             const index = edgeX && edgeY ? WALL[`${edgeY}${edgeX}` as 'tl' | 'tr' | 'bl' | 'br'] : edgeX ? WALL[edgeX] : WALL[edgeY as 't' | 'b']
             this.walls.putTileAt(index, x, y)
           }
@@ -414,14 +407,16 @@ class TiledScene extends Phaser.Scene {
           .text((room.x + room.width / 2) * T, doorOnTopWall ? room.y * T - 1 : room.y * T + 1, this.roomName(room.id), {
             color: '#fff8e7',
             fontFamily: 'system-ui, "Segoe UI", sans-serif',
-            fontSize: '9px',
+            fontSize: '8px',
+            wordWrap: { width: room.width * T - 12, useAdvancedWrap: true },
+            align: 'center',
             fontStyle: 'bold',
             backgroundColor: '#2e2620',
             padding: { x: 4, y: 2 },
             resolution: 8,
           })
           .setOrigin(0.5, doorOnTopWall ? 1 : 0)
-          .setDepth(30)
+          .setDepth(60)
           .setAlpha(0.95),
       )
     }
@@ -453,7 +448,7 @@ class TiledScene extends Phaser.Scene {
     if (!this.map || !this.landmarkLayer) return
     const landmarks = snapshot.landmarks ?? []
     const signature = JSON.stringify(landmarks.map((landmark) => [
-      landmark.id, landmark.kind, landmark.position.x, landmark.position.y,
+      landmark.id, landmark.kind, landmark.name, landmark.description, landmark.position.x, landmark.position.y,
       landmark.imageUrl, landmark.imageUrl ? this.textures.exists(portraitTextureKey(landmark.imageUrl)) : false,
     ]))
     if (signature === this.landmarkTileSignature) return
@@ -516,15 +511,17 @@ class TiledScene extends Phaser.Scene {
           }
         }
       }
+      const period = fixtureScenery(`${landmark.name} ${landmark.description ?? ''}`)
       const index = LANDMARK_KINDS.indexOf(landmark.kind)
       if (index < 0) continue
-      const column = index * 2
+      const column = period ? 2000 + ['radio', 'filing', 'press', 'desk'].indexOf(period) * 2 : index * 2
+      const stride = period ? 8 : 16
       const x = landmark.position.x
       const y = landmark.position.y
       this.landmarkLayer.putTileAt(column, x, y)
       this.landmarkLayer.putTileAt(column + 1, x + 1, y)
-      this.landmarkLayer.putTileAt(16 + column, x, y + 1)
-      this.landmarkLayer.putTileAt(17 + column, x + 1, y + 1)
+      this.landmarkLayer.putTileAt(column + stride, x, y + 1)
+      this.landmarkLayer.putTileAt(column + stride + 1, x + 1, y + 1)
     }
   }
 
@@ -532,14 +529,11 @@ class TiledScene extends Phaser.Scene {
     this.renderLandmarkTiles(snapshot)
     for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
 
-    const player = snapshot.actors.find((a) => a.id === 'player')
-    const playerSpace = player?.space
-    const playerRoomId = playerSpace?.kind === 'room' ? playerSpace.roomId : null
-    this.renderLandmarks(snapshot, playerRoomId)
-    this.renderProps(snapshot, player?.position ?? null, playerRoomId)
+    this.renderProps(snapshot)
     const occupied = new Map<string, number>()
     for (const actor of snapshot.actors) {
       const key = actor.sprite ?? this.defaultSprite
+      const portraitUrl = [actor.portraitUrl, actor.portraitFallbackUrl].find((url) => url && this.textures.exists(portraitTextureKey(url))) ?? null
       const positionKey = `${actor.position.x},${actor.position.y}`
       const offset = occupied.get(positionKey) ?? 0
       occupied.set(positionKey, offset + 1)
@@ -547,12 +541,13 @@ class TiledScene extends Phaser.Scene {
       const y = actor.position.y * T + T / 2 + (offset === 0 ? 0 : Math.round(Math.sin(offset * (Math.PI / 3)) * 5))
 
       let marker = this.markers.get(actor.id)
-      if (marker && marker.key !== key) {
+      if (marker && (marker.key !== key || marker.portraitUrl !== portraitUrl)) {
+        marker.idle?.remove()
         marker.container.destroy()
         marker = undefined
       }
       if (!marker) {
-        marker = this.createMarker(actor.id === 'player', actor.name, key, actor.position)
+        marker = this.createMarker(actor.id === 'player', actor.name, key, actor.position, portraitUrl)
         this.markers.set(actor.id, marker)
         marker.container.setPosition(x, y)
       }
@@ -563,24 +558,20 @@ class TiledScene extends Phaser.Scene {
       marker.facing = facing
       marker.last = { x: actor.position.x, y: actor.position.y }
       const animKey = `char-${key}-${facing}`
-      if (moved && !this.reducedMotion && this.anims.exists(animKey)) {
+      if (marker.sprite && moved && !this.reducedMotion && this.anims.exists(animKey)) {
         const walker = marker
         marker.sprite.play(animKey, true)
         marker.idle?.remove()
         marker.idle = this.time.delayedCall(STEP_MS + 100, () => {
           walker.idle = null
-          if (!walker.sprite.active) return
+          if (!walker.sprite?.active) return
           if (walker.sprite.anims.currentAnim?.key === animKey && walker.sprite.anims.isPlaying) walker.sprite.stop()
           if (this.textures.exists(`char-${key}`)) walker.sprite.setFrame(DIRECTIONS.indexOf(facing))
         })
-      } else if (marker.idle === null && this.textures.exists(`char-${key}`)) {
+      } else if (marker.sprite && marker.idle === null && this.textures.exists(`char-${key}`)) {
         marker.sprite.setFrame(DIRECTIONS.indexOf(facing))
       }
       marker.container.setDepth(10 + actor.position.y / 1000 + (actor.id === 'player' ? 0.5 : 0))
-      // A nameplate below the feet would sit on the door the character is standing at.
-      this.placeLabel(marker, this.plateBlocked.has(`${actor.position.x},${actor.position.y}`))
-      // Someone you can talk to right now gets a prompt above their head.
-      marker.hint?.setVisible(actor.interactive ?? (playerRoomId !== null && actor.space?.kind === 'room' && actor.space.roomId === playerRoomId))
       if (snap || this.reducedMotion) {
         this.tweens.killTweensOf(marker.container)
         marker.container.setPosition(x, y)
@@ -591,6 +582,7 @@ class TiledScene extends Phaser.Scene {
     }
     for (const [id, marker] of this.markers) {
       if (!snapshot.actors.some((a) => a.id === id)) {
+        marker.idle?.remove()
         marker.container.destroy()
         this.markers.delete(id)
       }
@@ -599,51 +591,11 @@ class TiledScene extends Phaser.Scene {
     this.playEffects(snapshot)
     this.applyAudio(snapshot)
     this.followPlayer()
+    this.layoutCaptions()
   }
 
-  private renderLandmarks(snapshot: PlaygroundSnapshot, playerRoomId: string | null): void {
-    const landmarks = snapshot.landmarks ?? []
-    for (const landmark of landmarks) {
-      let entry = this.landmarks.get(landmark.id)
-      if (!entry) {
-        const container = this.add.container(0, 0)
-        const label = this.add.text(0, 2, landmark.name, {
-          color: '#fff8e7', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '6px', fontStyle: 'bold',
-          backgroundColor: '#3a2a24', padding: { x: 3, y: 1 }, resolution: 8,
-        }).setOrigin(0.5, 0)
-        const hint = this.add.text(0, -34, 'click to inspect', {
-          color: '#2e2620', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '6px', fontStyle: 'bold',
-          backgroundColor: '#ffe9a8', padding: { x: 3, y: 1 }, resolution: 8,
-        }).setOrigin(0.5, 1)
-        container.add([label, hint])
-        entry = { container, hint }
-        this.landmarks.set(landmark.id, entry)
-      }
-      entry.container.setPosition((landmark.position.x + 1) * T, (landmark.position.y + 2) * T)
-      entry.container.setDepth(9 + landmark.position.y / 1000)
-      entry.hint.setVisible(playerRoomId === landmark.roomId)
-    }
-    for (const [id, entry] of this.landmarks) {
-      if (landmarks.some((landmark) => landmark.id === id)) continue
-      entry.container.destroy()
-      this.landmarks.delete(id)
-    }
-  }
-
-  /**
-   * Documents lying on the map: a parchment tile the player can walk to and click.
-   * One that has been read keeps its place but stops asking to be read.
-   */
-  private renderProps(snapshot: PlaygroundSnapshot, playerPosition: Point | null, playerRoomId: string | null): void {
+  private renderProps(snapshot: PlaygroundSnapshot): void {
     const props = snapshot.props ?? []
-    const visibleProps = props.filter((prop) => {
-      if (prop.found || playerRoomId === null) return false
-      const space = spaceAt(snapshot.map, prop.position)
-      return space?.kind === 'room' && space.roomId === playerRoomId
-    })
-    // The labels identify every document. A single hint on the nearest unread one is enough to
-    // teach the interaction without stacking identical prompts throughout a crowded room.
-    const hintedPropId = selectPropHintId(visibleProps, playerPosition)
     for (const prop of props) {
       let entry = this.props.get(prop.id)
       const imageUrl = prop.imageUrl && this.textures.exists(portraitTextureKey(prop.imageUrl)) ? prop.imageUrl : null
@@ -653,7 +605,7 @@ class TiledScene extends Phaser.Scene {
         entry = undefined
       }
       if (!entry) {
-        entry = this.createProp(prop.name, imageUrl)
+        entry = this.createProp(imageUrl)
         this.props.set(prop.id, entry)
       }
       entry.container.setPosition(prop.position.x * T + T / 2, prop.position.y * T + T / 2)
@@ -661,12 +613,7 @@ class TiledScene extends Phaser.Scene {
       if (entry.found !== prop.found) {
         entry.found = prop.found
         entry.container.setAlpha(prop.found ? 0.55 : 1)
-        if (prop.found) {
-          entry.tween?.remove()
-          entry.tween = null
-        }
       }
-      entry.hint.setVisible(prop.id === hintedPropId)
     }
     for (const [id, entry] of this.props) {
       if (!props.some((p) => p.id === id)) {
@@ -676,95 +623,155 @@ class TiledScene extends Phaser.Scene {
     }
   }
 
-  private createProp(name: string, imageUrl: string | null) {
+  private createProp(imageUrl: string | null) {
     const container = this.add.container(0, 0)
     const shadow = this.add.ellipse(0, 5, 10, 4, 0x000000, 0.25)
     const sheet = imageUrl
       ? this.add.image(0, 0, portraitTextureKey(imageUrl)).setDisplaySize(14, 14)
       : this.add.rectangle(0, 0, 10, 12, 0xf6e7c1).setStrokeStyle(1, 0x6b563a)
     const lines = imageUrl ? [] : [-3, 0, 3].map((offset) => this.add.rectangle(0, offset, 6, 1, 0x8a7550))
-    const label = this.add
-      .text(0, 8, name, {
-        color: '#2e2620',
-        fontFamily: 'system-ui, "Segoe UI", sans-serif',
-        fontSize: '6px',
-        fontStyle: 'bold',
-        backgroundColor: '#f2dfae',
-        padding: { x: 3, y: 1 },
-        resolution: 8,
-      })
-      .setOrigin(0.5, 0)
-      .setAlpha(0.95)
-    const hint = this.add
-      .text(0, -10, 'Select to read', {
-        color: '#2e2620',
-        fontFamily: 'system-ui, "Segoe UI", sans-serif',
-        fontSize: '6px',
-        fontStyle: 'bold',
-        backgroundColor: '#ffe9a8',
-        padding: { x: 3, y: 1 },
-        resolution: 8,
-      })
-      .setOrigin(0.5, 1)
-      .setVisible(false)
-    container.add([shadow, sheet, ...lines, label, hint])
-    const tween = this.reducedMotion ? null : this.tweens.add({ targets: hint, y: -12, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
-    return { container, hint, tween, found: false, imageUrl }
+    container.add([shadow, sheet, ...lines])
+    return { container, found: false, imageUrl }
   }
 
-  /** Nameplate under the feet by default, flipped over the head where it would cover a door. */
-  private placeLabel(marker: { label: Phaser.GameObjects.Text; hint: Phaser.GameObjects.Text | null; hintTween: Phaser.Tweens.Tween | null; labelAbove: boolean }, above: boolean): void {
-    if (marker.labelAbove === above) return
-    marker.labelAbove = above
-    const labelY = above ? -9 : 9
-    marker.label.setOrigin(0.5, above ? 1 : 0).setY(labelY)
-    if (!marker.hint) return
-    const hintY = above ? labelY - marker.label.height : -13
-    marker.hintTween?.remove()
-    marker.hintTween = null
-    marker.hint.setY(hintY)
-    if (!this.reducedMotion) marker.hintTween = this.tweens.add({ targets: marker.hint, y: hintY - 2, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
-  }
-
-  private createMarker(player: boolean, name: string, key: string, position: Point) {
+  private createMarker(player: boolean, name: string, key: string, position: Point, portraitUrl: string | null) {
     const container = this.add.container(0, 0)
-    const shadow = this.add.ellipse(0, 6, 10, 4, 0x000000, 0.25)
-    const textureKey = this.textures.exists(`char-${key}`) ? `char-${key}` : this.textures.exists(`char-${this.defaultSprite}`) ? `char-${this.defaultSprite}` : '__DEFAULT'
-    const sprite = this.add.sprite(0, 0, textureKey, 0).setOrigin(0.5, 0.5)
-    const label = this.add
-      .text(0, 9, name, {
-        color: '#fff8e7',
-        fontFamily: 'system-ui, "Segoe UI", sans-serif',
-        fontSize: '7px',
-        fontStyle: 'bold',
-        backgroundColor: player ? '#2f6f73' : '#3a2a24',
-        padding: { x: 3, y: 1 },
-        resolution: 8,
-      })
-      .setOrigin(0.5, 0)
-      .setAlpha(0.95)
-    let hint: Phaser.GameObjects.Text | null = null
-    let hintTween: Phaser.Tweens.Tween | null = null
-    if (!player) {
-      hint = this.add
-        .text(0, -13, 'Select to talk', {
-          color: '#2e2620',
-          fontFamily: 'system-ui, "Segoe UI", sans-serif',
-          fontSize: '6px',
-          fontStyle: 'bold',
-          backgroundColor: '#ffe9a8',
-          padding: { x: 3, y: 1 },
-          resolution: 8,
-        })
-        .setOrigin(0.5, 1)
-        .setVisible(false)
-      if (!this.reducedMotion) hintTween = this.tweens.add({ targets: hint, y: hint.y - 2, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+    const shadow = this.add.ellipse(0, 8, 16, 5, 0x000000, 0.3)
+    container.add(shadow)
+    let sprite: Phaser.GameObjects.Sprite | null = null
+    if (player) {
+      const textureKey = this.textures.exists(`char-${key}`) ? `char-${key}` : '__DEFAULT'
+      sprite = this.add.sprite(0, 0, textureKey, 0)
+      container.add(sprite)
+    } else {
+      // A portrait token IS the character, not a badge on an unrelated fantasy sprite.
+      container.add(this.add.rectangle(0, -2, 20, 23, 0x272e2c).setStrokeStyle(1, 0xcab48b))
+      if (portraitUrl) {
+        container.add(this.add.image(0, -3, portraitTextureKey(portraitUrl)).setDisplaySize(18, 20))
+      } else {
+        const initials = name.trim().split(/\s+/u).map((part) => Array.from(part)[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+        container.add(this.add.text(0, -3, initials || '?', {
+          fontFamily: 'Georgia, serif', fontSize: '8px', color: '#e5d5b4', resolution: 8,
+        }).setOrigin(0.5))
+      }
+      container.add(this.add.triangle(0, 12, 0, 0, 6, 0, 3, 3, 0xcab48b))
     }
-    const contents: Phaser.GameObjects.GameObject[] = [shadow, sprite]
-    contents.push(label)
-    if (hint) contents.push(hint)
-    container.add(contents)
-    return { container, sprite, label, hint, hintTween, labelAbove: false, key, facing: 'down' as Facing, last: { x: position.x, y: position.y }, idle: null }
+    return { container, sprite, portraitUrl, key, facing: 'down' as Facing, last: { x: position.x, y: position.y }, idle: null as Phaser.Time.TimerEvent | null }
+  }
+
+  /** Keep captions separated throughout walking tweens, including between snapshots. */
+  override update(): void {
+    if (this.ready) this.layoutCaptions()
+  }
+
+  private roomDescription(id: string): string {
+    const landmark = this.current.landmarks?.find((entry) => entry.roomId === id)
+    return `${this.roomName(id)} ${this.current.roomDescriptions?.[id] ?? ''} ${landmark?.name ?? ''} ${landmark?.description ?? ''}`
+  }
+
+  private targets(): Array<{ id: string; name: string; action: string; priority: number; near: boolean; bounds: LabelRect }> {
+    const player = this.current.actors.find((actor) => actor.id === 'player')
+    const playerRoom = player?.space?.kind === 'room' ? player.space.roomId : null
+    return [
+      ...this.current.actors.flatMap((actor) => {
+        const marker = this.markers.get(actor.id)
+        if (!marker) return []
+        const isPlayer = actor.id === 'player'
+        return [{ id: `actor:${actor.id}`, name: actor.name, action: isPlayer ? '' : 'Talk', priority: isPlayer ? 40 : 30,
+          near: !isPlayer && (actor.interactive ?? (playerRoom !== null && actor.space?.kind === 'room' && actor.space.roomId === playerRoom)),
+          bounds: { x: marker.container.x - (isPlayer ? 8 : 10), y: marker.container.y - (isPlayer ? 8 : 14), width: isPlayer ? 16 : 20, height: isPlayer ? 16 : 28 } }]
+      }),
+      ...(this.current.props ?? []).map((prop) => {
+        const room = spaceAt(this.current.map, prop.position)
+        return { id: `prop:${prop.id}`, name: prop.name, action: prop.found ? 'Read again' : 'Read', priority: prop.found ? 10 : 25,
+          near: !prop.found && playerRoom !== null && room?.kind === 'room' && room.roomId === playerRoom,
+          bounds: { x: prop.position.x * T + 1, y: prop.position.y * T + 1, width: 14, height: 14 } }
+      }),
+      ...(this.current.landmarks ?? []).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
+        near: playerRoom !== null && landmark.roomId === playerRoom,
+        bounds: { x: landmark.position.x * T, y: landmark.position.y * T, width: 32, height: 32 } })),
+    ]
+  }
+
+  private hitTarget(point: Point): string | null {
+    // Visible captions have their own hit rectangles. Hidden captions never steal a click.
+    const caption = selectHitTargetId([...this.captions].filter(([id, text]) => id !== 'actor:player' && text.visible).map(([id, text]) => ({
+      id, bounds: text.getBounds(), position: { x: text.x + text.width / 2, y: text.y + text.height / 2 },
+    })), point)
+    if (caption) return caption
+    return selectHitTargetId(this.targets().filter((target) => target.id !== 'actor:player').map((target) => ({
+      ...target, position: { x: target.bounds.x + target.bounds.width / 2, y: target.bounds.y + target.bounds.height / 2 },
+    })), point)
+  }
+
+  private activateTarget(target: string): boolean {
+    const separator = target.indexOf(':')
+    const kind = target.slice(0, separator)
+    const id = target.slice(separator + 1)
+    const callback = kind === 'actor' ? this.onActor : kind === 'prop' ? this.onProp : this.onLandmark
+    if (!callback) return false
+    callback(id)
+    return true
+  }
+
+  private layoutCaptions(): void {
+    const targets = this.targets()
+    const camera = this.cameras.main
+    const left = Math.max(T, camera.scrollX + (camera.width - camera.width / camera.zoom) / 2 + 3)
+    const top = Math.max(T, camera.scrollY + (camera.height - camera.height / camera.zoom) / 2 + 3)
+    const right = Math.min((this.current.map.width - 1) * T, camera.scrollX + (camera.width + camera.width / camera.zoom) / 2 - 3)
+    const bottom = Math.min((this.current.map.height - 1) * T, camera.scrollY + (camera.height + camera.height / camera.zoom) / 2 - 3)
+    const viewport = { x: left, y: top, width: right - left, height: bottom - top }
+    const player = this.markers.get('player')?.container
+    const distance = (target: typeof targets[number]) => player
+      ? Math.hypot(target.bounds.x + target.bounds.width / 2 - player.x, target.bounds.y + target.bounds.height / 2 - player.y) : Infinity
+    const focused = this.hoveredTarget ?? targets.filter((target) => target.near)
+      .sort((a, b) => distance(a) - distance(b) || a.id.localeCompare(b.id))[0]?.id
+    const candidates = targets.map((target) => {
+      let text = this.captions.get(target.id)
+      if (!text) {
+        text = this.add.text(0, 0, '', {
+          color: '#fff6df', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '7px', fontStyle: 'bold',
+          backgroundColor: '#29322f', padding: { x: 3, y: 2 }, resolution: 8,
+          wordWrap: { width: 76, useAdvancedWrap: true }, align: 'center',
+        }).setDepth(60)
+        this.captions.set(target.id, text)
+      }
+      const active = target.id === focused
+      const content = active && target.action ? `${target.name}\n${target.action}` : target.name
+      if (text.text !== content) text.setText(content)
+      const color = active ? '#241f18' : '#fff6df'
+      const background = active ? '#f2d49b' : target.id === 'actor:player' ? '#315f62' : '#29322f'
+      if (text.style.color !== color) text.setColor(color)
+      if (text.style.backgroundColor !== background) text.setBackgroundColor(background)
+      return { id: target.id, anchor: target.bounds, width: text.width, height: text.height, priority: active ? 100 : target.priority }
+    })
+    const roomBounds = this.labels.map((label) => label.getBounds())
+    const doorBounds = this.current.map.doors.map((door) => ({ x: door.position.x * T, y: door.position.y * T, width: T, height: T }))
+    const placed = layoutMapLabels(candidates.filter((candidate) => overlaps(candidate.anchor, viewport, 0)), viewport,
+      [...roomBounds, ...doorBounds, ...targets.map((target) => target.bounds)])
+    this.captionLines?.clear().lineStyle(0.5, 0xe1d1af, 0.7)
+    for (const target of targets) {
+      const text = this.captions.get(target.id)!
+      const rect = placed.get(target.id)
+      text.setVisible(Boolean(rect))
+      if (!rect) continue
+      text.setPosition(rect.x, rect.y)
+      const x = target.bounds.x + target.bounds.width / 2
+      const y = target.bounds.y + target.bounds.height / 2
+      const endX = Math.max(rect.x, Math.min(x, rect.x + rect.width))
+      const endY = Math.max(rect.y, Math.min(y, rect.y + rect.height))
+      // Draw only the outside part of the connector so it never cuts through a face or object.
+      const dx = endX - x
+      const dy = endY - y
+      const ratio = Math.min(dx ? target.bounds.width / 2 / Math.abs(dx) : Infinity, dy ? target.bounds.height / 2 / Math.abs(dy) : Infinity, 1)
+      this.captionLines?.lineBetween(x + dx * ratio, y + dy * ratio, endX, endY)
+    }
+    for (const [id, text] of this.captions) {
+      if (targets.some((target) => target.id === id)) continue
+      text.destroy()
+      this.captions.delete(id)
+    }
   }
 
   // ---------------------------------------------------------------------------

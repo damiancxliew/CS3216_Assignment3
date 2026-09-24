@@ -53,6 +53,7 @@ import { resolveStageSettings, type AdventureSpec, type Stage } from "@adventure
 import type { AssetManifest } from "@adventure/generation/assets";
 
 import { characterFor, PLAYER_CHARACTER, type Character } from "./appearance";
+import { historicalPortraitFor } from "./historical-portraits";
 import { compileStageMap, publicMap, SpatialCompatibilityError, type PublicMap } from "./layout";
 import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PublicAttemptState, PublicMessage } from "@/lib/turn-api/contract";
@@ -620,11 +621,11 @@ export class PlaySession {
     return out;
   }
 
-  /** Generated identity art once ready; the client draws a sober monogram while it is pending/filtered. */
+  /** Prefer ready artwork; a bundled historical likeness also works for older or failed manifests. */
   private portraitFor(stakeholderId: string): string | null {
     const record = this.assets?.records.find((r) => r.entityId === stakeholderId && r.kind === "portrait");
     if (record && (record.status === "ready" || record.status === "cached")) return record.url;
-    return null;
+    return historicalPortraitFor(this.spec.stakeholders.find((stakeholder) => stakeholder.id === stakeholderId)?.name ?? "");
   }
 
   private agentName(agentId: string): string {

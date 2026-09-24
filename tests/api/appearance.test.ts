@@ -13,12 +13,30 @@ import { FakeLlmClient } from "@adventure/orchestration";
 import { describe, expect, it } from "vitest";
 
 import { CHARACTERS, characterFor, facesetUrl, PLAYER_CHARACTER, walkSheetUrl } from "@/lib/play/appearance";
+import { historicalPortraitFor } from "@/lib/play/historical-portraits";
 import { getState, type PlayServiceDeps } from "@/lib/play/service";
 import { MemoryPlayStore } from "@/lib/play/store";
 
 const PUBLIC = join(process.cwd(), "apps", "web", "public");
 
 describe("curated characters", () => {
+  it("uses a sourced likeness for a known historical person when no generated portrait exists", async () => {
+    expect(historicalPortraitFor("  Adolf   Hitler ")).toBe("/game/portraits/adolf-hitler.jpg");
+    expect(historicalPortraitFor("Someone Hitler")).toBeNull();
+    expect(existsSync(join(PUBLIC, historicalPortraitFor("Adolf Hitler")!))).toBe(true);
+    const spec = await loadI1Spec();
+    const person = spec.stakeholders[0]!;
+    person.name = "Adolf Hitler";
+    const deps: PlayServiceDeps = {
+      store: new MemoryPlayStore([{ attemptId: "portrait-fallback", studentId: "s", adventureId: "adv", publishedVersion: 1, status: "active", stageDeadlineAt: null, spec, snapshot: null }]),
+      llm: new FakeLlmClient({ replies: [JSON.stringify({ say: "", actions: [] })] }),
+    };
+    const result = await getState(deps, "portrait-fallback", "s");
+    if (!result.ok) throw new Error(result.error.message);
+    for (const collection of [result.state.actors, result.state.agents]) {
+      expect(collection.find((actor) => actor.name === person.name)?.portraitUrl).toBe("/game/portraits/adolf-hitler.jpg");
+    }
+  });
   it("ship every sheet and faceset the mapping can choose, with the pack licence", () => {
     for (const character of CHARACTERS) {
       expect(existsSync(join(PUBLIC, walkSheetUrl(character))), character).toBe(true);
@@ -58,14 +76,14 @@ describe("curated characters", () => {
     spec.stages[0]!.mapTheme = "coast";
     const room = spec.stages[0]!.rooms.find((candidate) => candidate.landmark)!;
     const evidence = spec.stages[0]!.evidence[0]!;
-    const makeRecord = (kind: "landmark" | "prop", entityId: string): AssetRecord => ({
+    const makeRecord = (kind: "portrait" | "landmark" | "prop", entityId: string): AssetRecord => ({
       assetId: `asset-${kind}`, entityId, kind, status: "ready", url: `https://example.test/${kind}.png`,
       placeholderUrl: "", promptHash: "test", model: "test", costUsd: 0, error: null,
     });
     const assets: AssetManifest = {
       adventureId: spec.id, specVersion: spec.version,
-      records: [makeRecord("landmark", room.id), makeRecord("prop", evidence.id)],
-      generatedCount: 2, cacheHits: 0, totalCostUsd: 0, startedAt: "", finishedAt: "",
+      records: [makeRecord("portrait", spec.stakeholders[0]!.id), makeRecord("landmark", room.id), makeRecord("prop", evidence.id)],
+      generatedCount: 3, cacheHits: 0, totalCostUsd: 0, startedAt: "", finishedAt: "",
     };
     const deps: PlayServiceDeps = {
       store: new MemoryPlayStore([{ attemptId: "theme-a", studentId: "s", adventureId: spec.id, publishedVersion: 1, status: "active", stageDeadlineAt: null, spec, snapshot: null, assets }]),
@@ -74,6 +92,10 @@ describe("curated characters", () => {
     const result = await getState(deps, "theme-a", "s");
     if (!result.ok) throw new Error(result.error.message);
     expect(result.state.stage.mapTheme).toBe("coast");
+    expect(result.state.actors).toContainEqual(expect.objectContaining({
+      name: spec.stakeholders[0]!.name,
+      portraitUrl: "https://example.test/portrait.png",
+    }));
     expect(result.state.landmarks).toContainEqual(expect.objectContaining({
       id: room.id,
       roomId: room.id,
