@@ -116,11 +116,9 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
     let facing: "down" | "up" | "left" | "right" = "down";
     let path: Point[] = [];
     let pathInputAt: number | undefined;
-    let queuedTarget: { point: Point; inputAt: number } | null = null;
     let sendInFlight = false;
     let pending: PendingStep[] = [];
     let nextSendAt = 0;
-    let batchUntil = 0;
     let sendTimer: number | undefined;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const perfEnabled = (() => {
@@ -207,15 +205,9 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
 
     const drain = async () => {
       if (destroyed || sendInFlight || pending.length === 0 || latest.current.state.map?.id !== mapId) return;
-      // Let a continuing walk accumulate a few steps before its first write.
-      // A one-tile click or a stopped walk still flushes immediately.
-      if (pending.length < 3 && (path.length > 0 || held.size > 0) && performance.now() < batchUntil) {
-        if (sendTimer === undefined) sendTimer = window.setTimeout(() => {
-          sendTimer = undefined;
-          void drain();
-        }, batchUntil - performance.now());
-        return;
-      }
+      // Commit a continuing walk in full batches, then flush a partial batch
+      // as soon as the player stops so interaction can begin.
+      if (pending.length < MAX_STEPS_PER_REQUEST && (path.length > 0 || held.size > 0)) return;
       if (sendTimer !== undefined) {
         window.clearTimeout(sendTimer);
         sendTimer = undefined;
@@ -235,9 +227,10 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       sendInFlight = true;
       let acknowledgement: { position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number };
       try {
-        // One request per step-worth of walking: the server grants exactly that, so
-        // pacing to it keeps the queue level however long a round trip takes.
-        nextSendAt = performance.now() + STEP_MS * count;
+        // A new token accrues after one step interval. The walk animation has
+        // already spent time on this batch, so waiting for every token to refill
+        // again would unnecessarily stall the next interaction.
+        nextSendAt = performance.now() + STEP_MS;
         acknowledgement = await latest.current.onSteps(step.from, batch.map((queued) => queued.to));
       } catch {
         acknowledgement = { position: latest.current.state.playerPos, accepted: false, retry: false };
@@ -248,12 +241,11 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       if (acknowledgement.retry) {
         const position = acknowledgement.position;
         if (position && (position.x !== step.from.x || position.y !== step.from.y)) {
-          const destination = queuedTarget?.point ?? path.at(-1) ?? pending.at(-1)?.to;
+          const destination = path.at(-1) ?? pending.at(-1)?.to;
           showPosition(position);
           pending = [];
           path = [];
           pathInputAt = undefined;
-          queuedTarget = null;
           render();
           if (destination) window.setTimeout(() => {
             if (!destroyed && latest.current.state.map?.id === mapId) goTo(destination);
@@ -281,13 +273,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       render();
       logBatch(step, { ...acknowledgement, acknowledgedAt }, count, pending.length);
       if (path.length === 0) latest.current.onIntentDone();
-      if (pending.length === 0 && queuedTarget) {
-        const target = queuedTarget;
-        queuedTarget = null;
-        goTo(target.point, target.inputAt);
-      } else {
-        void drain();
-      }
+      void drain();
     };
 
     const stepTo = (to: Point, inputAt = performance.now()) => {
@@ -310,7 +296,6 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       facing = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? "right" : "left") : ddy > 0 ? "down" : "up";
       const advanced = optimisticAdvance(from, { to, inputAt, movedAt: 0 }, pending);
       if (!advanced) return;
-      if (pending.length === 0) batchUntil = performance.now() + STEP_MS * 2;
       showPosition(advanced.position);
       pending = advanced.queue;
       if (path[0]?.x === to.x && path[0]?.y === to.y) path.shift();
@@ -328,10 +313,6 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
     }, STEP_MS);
 
     const goTo = (target: Point, inputAt = performance.now()) => {
-      if (sendInFlight || pending.length > 0) {
-        queuedTarget = { point: target, inputAt };
-        return;
-      }
       const from = playerPos.current ?? latest.current.state.playerPos;
       if (!from) return;
       const doors = doorsOf(latest.current.state);
@@ -374,8 +355,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       if (!next) {
         path = [];
         pathInputAt = undefined;
-        queuedTarget = null;
         render();
+        void drain();
         return;
       }
       if (next.kind === "room") goToRoom(next.roomId);
@@ -402,6 +383,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       held.clear();
       if (repeat !== undefined) window.clearInterval(repeat);
       repeat = undefined;
+      void drain();
     };
     const typing = (target: EventTarget | null) => {
       const el = target as HTMLElement | null;
