@@ -152,6 +152,7 @@ export function PlayClient({
   const [addressee, setAddressee] = useState<string | null>(null);
   const [intent, setIntent] = useState<MapIntent>(null);
   const [pendingTalk, setPendingTalk] = useState<string | null>(null);
+  const [goalHintLevels, setGoalHintLevels] = useState<Record<string, number>>({});
   const [waitingAtDoor, setWaitingAtDoor] = useState<string | null>(null);
   const [lastResolution, setLastResolution] = useState<string | null>(null);
   const [decisionOpen, setDecisionOpen] = useState(false);
@@ -947,7 +948,10 @@ export function PlayClient({
             </ul>
           ) : null}
           <ul className="flex flex-col gap-1.5">
-            {state.stage.objectives.map((o) => (
+            {state.stage.objectives.map((o) => {
+              const hintKey = `${state.stage.id}:${o.id}`;
+              const hintLevel = goalHintLevels[hintKey] ?? 0;
+              return (
               <li key={o.id} className={`flex items-start gap-2.5 text-base leading-snug ${o.met ? "text-muted" : "font-semibold text-ink"}`}>
                 <span
                   aria-hidden
@@ -958,14 +962,29 @@ export function PlayClient({
                 <span className="min-w-0">
                   <span className={o.met ? "line-through" : ""}>{o.title}</span>
                   {!o.met && state.objectiveHints[o.id] ? (
-                    <span className="flex items-start gap-1 text-sm font-normal text-muted">
-                      <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> {state.objectiveHints[o.id]}
+                    <span className="flex flex-col items-start gap-1 text-sm font-normal text-muted">
+                      {hintLevel > 0 ? (
+                        <span className="flex items-start gap-1">
+                          <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                          {hintLevel === 1 ? (state.objectiveClues[o.id] ?? state.objectiveHints[o.id]) : state.objectiveHints[o.id]}
+                        </span>
+                      ) : null}
+                      {hintLevel < (state.objectiveClues[o.id] ? 2 : 1) ? (
+                        <button
+                          type="button"
+                          className="inline-flex min-h-9 items-center gap-1 underline underline-offset-2 hover:text-ink"
+                          onClick={() => setGoalHintLevels((levels) => ({ ...levels, [hintKey]: Math.min(2, (levels[hintKey] ?? 0) + 1) }))}
+                        >
+                          <HelpCircle className="h-3.5 w-3.5" aria-hidden /> {hintLevel ? "Clearer hint" : "Show hint"}
+                        </button>
+                      ) : null}
                     </span>
                   ) : null}
                 </span>
                 <span className="sr-only">{o.met ? "done" : "not yet"}</span>
               </li>
-            ))}
+              );
+            })}
           </ul>
 
           {canDecide ? (
