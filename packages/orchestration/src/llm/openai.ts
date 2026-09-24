@@ -11,8 +11,8 @@ import type { LlmClient, LlmRequest, ModelTier } from './types'
 
 export const MODEL_BY_TIER: Record<ModelTier, string> = {
   frontier: 'gpt-5',
-  mid: 'gpt-5.6-luna',
-  cheap: 'gpt-5.6-luna',
+  mid: 'gpt-6-luna',
+  cheap: 'gpt-6-luna',
 }
 
 export interface OpenAiClientOptions {
@@ -58,7 +58,7 @@ export function createOpenAiClient(options: OpenAiClientOptions = {}): LlmClient
       if (client === undefined) throw new MissingApiKeyError()
 
       const params: ResponseCreateParamsNonStreaming = {
-        model: models[request.modelTier],
+        model: request.model ?? models[request.modelTier],
         instructions: request.system,
         input: request.user,
         store: false,

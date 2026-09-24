@@ -1,12 +1,12 @@
 import type { Point } from "@adventure/game-core";
 
 /**
- * How far the walk may run ahead of the server. It only has to cover the steps a
- * player takes while a request is in flight, but it covers several seconds of them:
- * the server credits a late request with the tokens its steps earned, so a slow
- * round trip lengthens the queue instead of stopping the walk.
+ * How far the walk may run ahead of the server. Stage maps are validated at no
+ * more than 128 tiles on either axis, so this lets a held direction reach the
+ * opposite edge even when one unusually slow request is still in flight. The
+ * cap remains finite so a lost response cannot grow the queue forever.
  */
-export const MAX_PENDING_STEPS = 16;
+export const MAX_PENDING_STEPS = 128;
 
 /** The server takes at most eight steps per request. */
 export const MAX_STEPS_PER_REQUEST = 8;

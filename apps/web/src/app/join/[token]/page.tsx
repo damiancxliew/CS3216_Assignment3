@@ -42,13 +42,7 @@ export default async function JoinPage({
   // A draft, archived or nonexistent adventure is indistinguishable from here:
   // the link is simply not a way in until the teacher publishes (P3).
   if (!adventure) {
-    return (
-      <Shell intro="This link isn’t open" title="Ask your teacher for the current one">
-        <p className="max-w-[50ch] text-lg text-muted">
-          Either this adventure hasn’t been published yet, or the link has been replaced.
-        </p>
-      </Shell>
-    );
+    return <Shell intro="This link isn’t open" title="Ask your teacher for the current one" />;
   }
 
   const supabase = await createClient();
@@ -75,7 +69,7 @@ export default async function JoinPage({
           </form>
         ) : (
           <div className="flex flex-col gap-3">
-            <p className="max-w-[50ch] text-base text-muted">Sign in so your progress is saved and you can pick the attempt back up later.</p>
+            <p className="max-w-[50ch] text-base text-muted">Sign in to save your progress and continue later.</p>
             <SignInButton next={`/join/${token}`} label="Sign in with Google" />
           </div>
         )}
@@ -93,7 +87,7 @@ function Shell({
 }: {
   intro: string;
   title: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-6 py-8">

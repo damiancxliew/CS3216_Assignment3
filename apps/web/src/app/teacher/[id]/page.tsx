@@ -218,12 +218,12 @@ export default async function AdventurePage({
           </dl>
         ) : (
           <p className="text-base text-muted">
-            This adventure predates the brief conversation and cannot be generated. Create a new one from the console.
+            This adventure can’t be regenerated. Create a new adventure to use the guided setup.
           </p>
         )}
       </Section>
 
-      <Section title="Playable version" lede="The planner turns the brief and the sources into stages, stakeholders and evidence. Every stage is editable before you publish.">
+      <Section title="Playable version" lede="We use your brief and sources to create stages, characters and evidence. You can edit each stage before publishing.">
         {versions.length === 0 ? (
           <EmptyState title="Not generated yet">
             Generating takes a minute or two. Nothing here is visible to students until you publish.
@@ -260,13 +260,12 @@ export default async function AdventurePage({
         ) : null}
         {published && !draft ? (
           <p className="max-w-[60ch] text-base text-muted">
-            Version {published.version} is published and frozen. Editing copies it into a new
-            draft; students already playing stay on the version they started.
+            Editing creates a new draft. Students already playing can finish their current version.
           </p>
         ) : null}
 
         {draft ? (
-          <p className="text-base text-muted">Publish or discard draft version {draft.version} before generating again.</p>
+          <p className="text-base text-muted">Publish or discard this draft before generating another.</p>
         ) : adventure.reading_level && sourceRows.length > 0 ? (
           <ActionButton
             action={generateFromSources.bind(null, adventure.id)}
@@ -289,7 +288,7 @@ export default async function AdventurePage({
 
       <Section
         title="Stage timer"
-        lede="The deadline is set and checked in the database when a stage opens, so refreshing, reopening the tab or changing the device clock buys no extra time."
+        lede="The timer starts when a student enters a stage. Refreshing or reopening the page won’t reset it."
       >
         <ActionForm
           action={updateDefaultTimer.bind(null, adventure.id)}

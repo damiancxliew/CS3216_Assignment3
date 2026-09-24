@@ -223,6 +223,21 @@ describe('Resolver option minting (FR-13)', () => {
     expect(committed.ok).toBe(true)
   })
 
+  it('routes default mint calls to gpt-6-sol on the legacy resolver tier', async () => {
+    const client = new FakeLlmClient({ replies: [response([])] })
+    await mintOptions(client, context())
+
+    expect(client.requests[0]).toMatchObject({ model: 'gpt-6-sol', modelTier: 'frontier' })
+  })
+
+  it('does not pin gpt-6-sol when a model tier is explicitly supplied', async () => {
+    const client = new FakeLlmClient({ replies: [response([])] })
+    await mintOptions(client, context(), { modelTier: 'cheap' })
+
+    expect(client.requests[0]).toMatchObject({ modelTier: 'cheap' })
+    expect(client.requests[0]!.model).toBeUndefined()
+  })
+
   it('returns an empty additive result when structured output cannot be repaired', async () => {
     const result = await mintOptions(new FakeLlmClient({ replies: ['not json'] }), context())
 

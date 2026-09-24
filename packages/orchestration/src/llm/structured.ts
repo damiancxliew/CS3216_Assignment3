@@ -25,6 +25,7 @@ export interface StructuredCall<T> {
   schema: z.ZodType<T>
   schemaName: string
   modelTier: ModelTier
+  model?: string
   system: string
   user: string
   reasoningEffort?: ReasoningEffort
@@ -120,6 +121,7 @@ export async function callStructured<T>(
   for (let round = 0; round <= MAX_REPAIR_ROUNDS; round += 1) {
     const request: LlmRequest = {
       modelTier: call.modelTier,
+      ...(call.model === undefined ? {} : { model: call.model }),
       system: call.system,
       user,
       schemaName: call.schemaName,

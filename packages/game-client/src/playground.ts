@@ -73,7 +73,7 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
   const routes = element('input')
   routes.type = 'checkbox'
   routes.checked = true
-  routeLabel.append(routes, document.createTextNode(' Scripted NPC routes'))
+  routeLabel.append(routes, document.createTextNode(' Move other characters'))
   toolbar.append(seedForm, reset, pause, step, routeLabel)
   wrapper.append(toolbar)
 
@@ -84,9 +84,8 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
   const mapHost = element('div', 'map-host')
   const instructions = element('p', 'instructions')
   instructions.id = `map-instructions-${mountId}`
-  instructions.textContent = 'Focus the map and hold arrow keys or WASD to walk. Release to stop; choose a destination to auto-walk. Pause stops routes; manual movement remains available.'
+  instructions.textContent = 'Focus the map and use arrow keys or WASD to walk. Release to stop, or choose a destination to walk there.'
   mapHost.setAttribute('aria-describedby', instructions.id)
-  const metadata = element('p', 'map-meta')
   const legend = element('div', 'legend')
   const legendEntries: Array<[string, string]> = [['You', 'player'], ['NPC', 'npc'], ['Open door', 'open'], ['Closed door', 'closed'], ['Path', 'path']]
   legendEntries.forEach(([label, kind]) => {
@@ -94,7 +93,7 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
     item.textContent = label
     legend.append(item)
   })
-  mapColumn.append(mapHeading, mapHost, instructions, metadata, legend)
+  mapColumn.append(mapHeading, mapHost, instructions, legend)
 
   const sidebar = element('aside', 'sidebar')
   const statusHeading = element('h2')
@@ -123,13 +122,13 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
   travelersPanel.append(travelersHeading, travelers)
   const doorsPanel = element('section', 'utility-panel')
   const doorsHeading = element('h2')
-  doorsHeading.textContent = 'Sandbox door controls'
+  doorsHeading.textContent = 'Door controls (demo)'
   const doorNote = element('p', 'small-note')
-  doorNote.textContent = 'Demo-only controls bypass proximity and admission. No backend authorization.'
+  doorNote.textContent = 'Demo controls can open doors from anywhere.'
   const doorControls = element('div', 'door-list')
   doorsPanel.append(doorsHeading, doorNote, doorControls)
   const disclaimer = element('p', 'disclaimer')
-  disclaimer.textContent = 'Local spatial sandbox · synthetic public fixture · no AI, chat, saving or backend'
+  disclaimer.textContent = 'Map movement demo'
   sidebar.append(statusHeading, status, destinationsHeading, destinations, directionHeading, directionPad, stop, disclaimer)
   utilities.append(travelersPanel, doorsPanel)
   content.append(mapColumn, sidebar)
@@ -145,7 +144,6 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
   const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
   const roomName = (roomId: string) => roomNames[roomId] ?? roomId
   const spaceLabel = (space: PlaygroundSnapshot['actors'][number]['space']) => space?.kind === 'room' ? roomName(space.roomId) : space?.kind === 'door' ? 'Doorway' : space?.kind === 'outdoor' ? 'Outdoors' : 'Unknown'
-  const statusLabel = (value: string) => value === 'waiting_for_door' ? 'waiting for door' : value
   const travelerRows = new Map<string, { item: HTMLDivElement; detail: HTMLSpanElement }>()
   for (const entry of model.snapshot().actors) {
     const item = element('div', 'traveler')
@@ -160,7 +158,7 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
   const publish = () => {
     const snapshot = model.snapshot()
     const player = snapshot.actors.find(({ id }) => id === 'player')!
-    const announcement = `Player: ${statusLabel(snapshot.playerStatus)} · ${spaceLabel(player.space)}${snapshot.playerGoal?.kind === 'room' ? ` · destination ${roomName(snapshot.playerGoal.roomId)}` : ''}`
+    const announcement = `${spaceLabel(player.space)}${snapshot.playerGoal?.kind === 'room' ? ` · walking to ${roomName(snapshot.playerGoal.roomId)}` : ''}`
     if (announcement !== lastAnnouncement) {
       status.textContent = announcement
       lastAnnouncement = announcement
@@ -169,11 +167,10 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
     pause.setAttribute('aria-label', snapshot.running ? 'Pause simulation' : 'Resume simulation')
     step.disabled = snapshot.running
     routes.checked = snapshot.npcRoutes
-    metadata.textContent = `Map ${snapshot.map.id} · seed ${snapshot.seed}`
     snapshot.actors.forEach((entry) => {
       const row = travelerRows.get(entry.id)
       if (!row) return
-      row.detail.textContent = `${spaceLabel(entry.space)} · ${statusLabel(entry.status)} · (${entry.position.x}, ${entry.position.y})${entry.targetRoomId ? ` · target ${roomName(entry.targetRoomId)}` : ''}`
+      row.detail.textContent = spaceLabel(entry.space)
     })
     snapshot.map.doors.forEach((entry, index) => {
       const control = doorControls.children[index]
@@ -274,8 +271,9 @@ export async function mountPlayground(root: HTMLElement, options: PlaygroundOpti
     canvas?.addEventListener('blur', clearHeldKeys, { signal: controller.signal })
     reducedMotionQuery.addEventListener('change', (event) => { view?.setReducedMotion(event.matches) }, { signal: controller.signal })
   } catch (error) {
+    console.error('Map renderer failed to load:', error)
     const message = element('p', 'renderer-error')
-    message.textContent = `Renderer unavailable: ${error instanceof Error ? error.message : 'unknown error'}`
+    message.textContent = 'The map could not load. Refresh to try again.'
     mapHost.append(message)
   }
 
