@@ -26,6 +26,17 @@ function colocateWithAgent(session: PlaySession) {
 }
 
 describe("session dialogue phases", () => {
+  it("does not let a direct reply send the addressed NPC walking away", async () => {
+    const session = PlaySession.start(spec, "dialogue-stay-put", 1);
+    const { agentId, roomId } = colocateWithAgent(session);
+    const destination = spec.stages[0]!.rooms.find((room) => room.id !== roomId)!.id;
+    const position = { ...session.world.spatial!.state.actors[agentId]! };
+    const llm = { complete: async (): Promise<LlmResponse> => ({ content: JSON.stringify({ say: "I hear you.", actions: [{ type: "move_room", toRoomId: destination }] }), usage: { promptTokens: 1, completionTokens: 1 } }) } satisfies LlmClient;
+    expect((await session.message(llm, { roomId, body: "Please stay and talk.", addresseeId: agentId })).ok).toBe(true);
+    expect(session.world.spatial!.targets[agentId]).toBeUndefined();
+    expect(session.world.spatial!.state.actors[agentId]).toEqual(position);
+  });
+
   it("begins, produces, and completes a causal reply while blocking a second addressed request", async () => {
     const session = PlaySession.start(spec, "dialogue-session", 1);
     const { agentId, roomId } = colocateWithAgent(session);

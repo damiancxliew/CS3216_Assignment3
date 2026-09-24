@@ -125,6 +125,22 @@ describe('spatial orchestration integration', () => {
     expect(remote.transcript.at(-1)!.recipientIds).toEqual(['agent', 'player'])
   })
 
+  it('keeps an agent in place while the player is present to talk', () => {
+    const world = createSpatialWorld()
+    expect(applyAction(world, { actorKind: 'agent', actorId: 'agent', action: { type: 'open_door', roomId: 'hall' } })).toEqual({ ok: true })
+    const agentPoint = world.spatial!.state.actors.agent!
+    const path = findPath(world.spatial!.map, world.spatial!.state.doors, world.spatial!.state.actors.player!, agentPoint)!
+    for (const step of path) expect(moveActorStep(world, 'player', step)).toEqual({ ok: true })
+    expect(applyAction(world, { actorKind: 'agent', actorId: 'agent', action: { type: 'move_room', toRoomId: 'yard' } })).toEqual({ ok: true })
+    advanceSpatialMovement(world)
+    expect(world.spatial!.state.actors.agent).toEqual(agentPoint)
+    expect(world.spatial!.targets.agent).toBe('yard')
+    const away = findPath(world.spatial!.map, world.spatial!.state.doors, world.spatial!.state.actors.player!, world.spatial!.map.doors[0]!.outside)!
+    for (const step of away) expect(moveActorStep(world, 'player', step)).toEqual({ ok: true })
+    advanceSpatialMovement(world)
+    expect(world.spatial!.state.actors.agent).not.toEqual(agentPoint)
+  })
+
   it('displaces doorway actors and excludes them from immediate speech/evidence recipients', () => {
     const world = createSpatialWorld()
     expect(applyAction(world, { actorKind: 'agent', actorId: 'agent', action: { type: 'open_door', roomId: 'hall' } })).toEqual({ ok: true })

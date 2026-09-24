@@ -286,6 +286,9 @@ export function advanceSpatialMovement(world: WorldState): void {
       delete spatial.targets[actorId]
       continue
     }
+    // Keep an agent available while the player is close enough to talk.
+    const playerPoint = spatial.state.actors.player
+    if (world.actors[actorId]?.kind === 'agent' && playerPoint !== undefined && canHearSpeech(spatial.map, from, playerPoint)) continue
     const result = walkActorTowardRoom(spatial.map, spatial.state, actorId, targetId)
     const moved = result.state !== spatial.state && result.state.actors[actorId] !== undefined && !samePoint(from, result.state.actors[actorId]!)
     if (moved) updateSpatialPosition(world, actorId, result.state, from)
