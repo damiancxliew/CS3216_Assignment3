@@ -148,7 +148,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       ];
       const goal = path.length ? { kind: "point" as const, point: path[path.length - 1]! } : null;
       return {
-        seed: "",
+        // Keep music selection stable for this stage while allowing other stages and adventures to vary.
+        seed: `${s.adventureId}:${s.stage.id}`,
         map: map as StageMap,
         doors,
         actors,

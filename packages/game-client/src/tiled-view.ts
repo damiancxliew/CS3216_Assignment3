@@ -13,6 +13,7 @@ import Phaser from 'phaser'
 import type { Point, StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
 import type { PlaygroundSnapshot, SoundCueId } from './model.js'
+import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
 import type { MapView } from './view.js'
 
 const T = 16
@@ -50,16 +51,6 @@ const PLANKS = [I(12, 1), I(12, 1), I(13, 1), I(12, 2), I(13, 2)]
 const H = at(33)
 const DOOR = { closed: H(2, 3), open: H(9, 3) }
 
-/** One track per atmosphere (FR-15a), from the pack's CC0 soundtrack; the ending has its own. */
-const MUSIC_FOR: Record<string, string> = {
-  clear: 'calm-village',
-  clouds: 'road',
-  rain: 'quiet',
-  fog: 'mystical',
-  night: 'quiet',
-  dust: 'tension',
-  snow: 'peaceful',
-}
 const AMBIENT_LOOP: Partial<Record<string, string>> = { rain: 'rain', dust: 'wind', clouds: 'wind', snow: 'wind' }
 const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert', 'refused', 'door', 'step']
 const MUSIC_VOLUME = 0.35
@@ -149,7 +140,7 @@ class TiledScene extends Phaser.Scene {
     this.load.image('fx-fog', `${this.base}/fx/fog.png`)
     this.load.image('fx-clouds', `${this.base}/fx/clouds.png`)
     for (const key of this.spriteKeys(this.current)) this.queueSprite(key)
-    for (const track of new Set(Object.values(MUSIC_FOR))) this.load.audio(`music-${track}`, `${this.base}/audio/music/${track}.ogg`)
+    for (const track of MUSIC_TRACKS) this.load.audio(`music-${track}`, `${this.base}/audio/music/${track}.ogg`)
     for (const loop of new Set(Object.values(AMBIENT_LOOP))) if (loop) this.load.audio(`loop-${loop}`, `${this.base}/audio/sfx/${loop}.ogg`)
     for (const cue of SFX) this.load.audio(`sfx-${cue}`, `${this.base}/audio/sfx/${cue}.ogg`)
   }
@@ -630,7 +621,7 @@ class TiledScene extends Phaser.Scene {
     if (this.sound.locked) return
 
     const ambientId = snapshot.ambient?.id ?? 'clear'
-    const wantMusic = MUSIC_FOR[ambientId] ?? 'calm-village'
+    const wantMusic = selectMusicTrack(ambientId, snapshot.seed || snapshot.map.id)
     if (wantMusic !== this.musicKey && this.cache.audio.exists(`music-${wantMusic}`)) {
       const previous = this.music
       if (previous) {
