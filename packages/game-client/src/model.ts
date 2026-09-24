@@ -52,6 +52,8 @@ export interface PlaygroundSnapshot {
   playerStatus: TravelStatus
   running: boolean
   npcRoutes: boolean
+  /** Ambient walks within rooms; authoritative positions and room membership stay with the host. */
+  roomWandering?: boolean
   revision: number
   /** Display names for rooms, when the caller has them; the demo fixture's names are the fallback. */
   roomNames?: Readonly<Record<string, string>>

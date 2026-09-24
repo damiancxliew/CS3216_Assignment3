@@ -6,7 +6,8 @@
  * the player is in. Crossing into a room posts `move_room`; if the server refuses
  * (a closed door, a stale stage), the player is put back.
  *
- * Agent markers use the same server position as speech and interaction checks.
+ * Indoor agent markers can wander within their server-assigned room; speech is room-wide.
+ * Outdoor markers retain the server position used by distance-based hearing checks.
  */
 import {
   canHearSpeech,
@@ -178,6 +179,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
         playerStatus: path.length ? ("moving" as const) : ("idle" as const),
         running: true,
         npcRoutes: false,
+        roomWandering: s.status === "active",
         revision: s.revision,
         roomNames: Object.fromEntries(s.rooms.map((r) => [r.id, r.name])),
         roomDescriptions: Object.fromEntries(s.rooms.map((r) => [r.id, r.purpose ?? ""])),
