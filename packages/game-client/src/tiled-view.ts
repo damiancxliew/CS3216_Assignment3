@@ -127,6 +127,7 @@ class TiledScene extends Phaser.Scene {
   private doors = new Map<string, Phaser.GameObjects.Image>()
   private labels: Phaser.GameObjects.Text[] = []
   private captions = new Map<string, Phaser.GameObjects.Text>()
+  private captionSizes = new Map<string, { content: string; width: number; height: number }>()
   private captionLines?: Phaser.GameObjects.Graphics
   private hoveredTarget: string | null = null
   private markers = new Map<
@@ -199,7 +200,10 @@ class TiledScene extends Phaser.Scene {
       this.hoveredTarget = this.hitTarget({ x: pointer.worldX, y: pointer.worldY })
       this.game.canvas.style.cursor = this.hoveredTarget ? 'pointer' : 'default'
     })
-    this.input.on('gameout', () => { this.hoveredTarget = null })
+    this.input.on('gameout', () => {
+      this.hoveredTarget = null
+      this.game.canvas.style.cursor = 'default'
+    })
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       const target = this.hitTarget({ x: pointer.worldX, y: pointer.worldY })
       if (target && this.activateTarget(target)) {
@@ -321,6 +325,7 @@ class TiledScene extends Phaser.Scene {
     this.map?.destroy()
     this.captions.forEach((caption) => caption.destroy())
     this.captions.clear()
+    this.captionSizes.clear()
     this.captionLines?.destroy()
     this.captionLines = this.add.graphics().setDepth(59)
     this.hoveredTarget = null
@@ -738,18 +743,27 @@ class TiledScene extends Phaser.Scene {
         this.captions.set(target.id, text)
       }
       const active = target.id === focused
-      const content = active && target.action ? `${target.name}\n${target.action}` : target.name
+      const expanded = target.action ? `${target.name}\n${target.action}` : target.name
+      let size = this.captionSizes.get(target.id)
+      if (!size || size.content !== expanded) {
+        text.setText(expanded)
+        size = { content: expanded, width: text.width, height: text.height }
+        this.captionSizes.set(target.id, size)
+      }
+      const content = active ? expanded : target.name
       if (text.text !== content) text.setText(content)
       const color = active ? '#241f18' : '#fff6df'
       const background = active ? '#f2d49b' : target.id === 'actor:player' ? '#315f62' : '#29322f'
       if (text.style.color !== color) text.setColor(color)
       if (text.style.backgroundColor !== background) text.setBackgroundColor(background)
-      return { id: target.id, anchor: target.bounds, width: text.width, height: text.height, priority: active ? 100 : target.priority }
+      // Reserve the action line even when inactive so hover cannot move captions
+      // and cause the next pointer event to select a different nearby object.
+      return { id: target.id, anchor: target.bounds, width: size.width, height: size.height, priority: target.priority }
     })
     const roomBounds = this.labels.map((label) => label.getBounds())
     const doorBounds = this.current.map.doors.map((door) => ({ x: door.position.x * T, y: door.position.y * T, width: T, height: T }))
     const placed = layoutMapLabels(candidates.filter((candidate) => overlaps(candidate.anchor, viewport, 0)), viewport,
-      [...roomBounds, ...doorBounds, ...targets.map((target) => target.bounds)])
+      [...roomBounds, ...doorBounds, ...targets.map((target) => target.bounds)], focused)
     this.captionLines?.clear().lineStyle(0.5, 0xe1d1af, 0.7)
     for (const target of targets) {
       const text = this.captions.get(target.id)!
@@ -771,6 +785,7 @@ class TiledScene extends Phaser.Scene {
       if (targets.some((target) => target.id === id)) continue
       text.destroy()
       this.captions.delete(id)
+      this.captionSizes.delete(id)
     }
   }
 

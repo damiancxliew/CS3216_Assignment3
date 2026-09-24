@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { layoutMapLabels, overlaps, type MapLabelCandidate } from '../src/map-labels.js'
+import { selectHitTargetId } from '../src/prop-hint.js'
 
 describe('shared map caption layout', () => {
   const bounds = { x: 16, y: 16, width: 400, height: 300 }
@@ -29,15 +30,37 @@ describe('shared map caption layout', () => {
     }
   })
 
+  it('keeps crowded visible captions and their hover targets stable when focus changes', () => {
+    // Dimensions include the action line, whether or not it is currently shown.
+    const candidates = [candidate('actor', 105, 100, 30), candidate('prop', 100, 136, 25), candidate('landmark', 96, 64, 15)]
+    const obstacles = candidates.map((entry) => entry.anchor)
+    const initial = layoutMapLabels(candidates, bounds, obstacles)
+    expect(initial.size).toBe(candidates.length)
+    for (const [id, rect] of initial) {
+      const pointer = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
+      let focused: string | undefined = id
+      for (let move = 0; move < 10; move += 1) {
+        const placed = layoutMapLabels(candidates, bounds, obstacles, focused)
+        expect(placed).toEqual(initial)
+        focused = selectHitTargetId([...placed].map(([targetId, targetBounds]) => ({
+          id: targetId, bounds: targetBounds,
+          position: { x: targetBounds.x + targetBounds.width / 2, y: targetBounds.y + targetBounds.height / 2 },
+        })), pointer) ?? undefined
+        expect(focused).toBe(id)
+      }
+    }
+  })
+
   it('hides excess captions, then gives the focused object first choice', () => {
     const crowded = Array.from({ length: 12 }, (_, i) => candidate(`${i}`, 70, 70))
     const small = { x: 0, y: 0, width: 160, height: 160 }
     const initial = layoutMapLabels(crowded, small, crowded.map((entry) => entry.anchor))
     expect(initial.size).toBeLessThan(crowded.length)
     const hidden = crowded.find((entry) => !initial.has(entry.id))!
-    const promoted = crowded.map((entry) => ({ ...entry, priority: entry.id === hidden.id ? 100 : 20 }))
-    expect(layoutMapLabels(promoted, small, promoted.map((entry) => entry.anchor)).has(hidden.id)).toBe(true)
-    expect(layoutMapLabels([...promoted].reverse(), small, promoted.map((entry) => entry.anchor)))
-      .toEqual(layoutMapLabels(promoted, small, promoted.map((entry) => entry.anchor)))
+    const obstacles = crowded.map((entry) => entry.anchor)
+    const promoted = layoutMapLabels(crowded, small, obstacles, hidden.id)
+    expect(promoted.has(hidden.id)).toBe(true)
+    expect(layoutMapLabels([...crowded].reverse(), small, obstacles, hidden.id)).toEqual(promoted)
+    expect(layoutMapLabels(crowded, small, obstacles)).toEqual(initial)
   })
 })
