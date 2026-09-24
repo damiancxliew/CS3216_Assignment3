@@ -14,6 +14,7 @@ export type EditField = {
   rows?: number;
   optional?: boolean;
   hint?: string;
+  options?: readonly { value: string; label: string }[];
 };
 
 /**
@@ -49,7 +50,15 @@ export function InlineEdit({
           {Object.entries(hiddenInputs ?? {}).flatMap(([name, values]) =>
             values.map((value, i) => <input key={`${name}-${i}`} type="hidden" name={name} value={value} />),
           )}
-          {fields.map((field) => (
+          {fields.map((field) => field.options ? (
+            <label key={field.name} className="flex flex-col gap-1 text-sm font-semibold text-ink">
+              {field.label}
+              <select name={field.name} defaultValue={field.defaultValue} className="min-h-11 rounded-control border border-line bg-surface px-3 text-base text-ink">
+                {field.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              {field.hint ? <span className="text-sm font-normal text-muted">{field.hint}</span> : null}
+            </label>
+          ) : (
             <Field
               key={field.name}
               name={field.name}
