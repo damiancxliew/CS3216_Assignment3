@@ -133,8 +133,8 @@ export interface PlayState extends PublicAttemptState {
   hearingActorIds: string[];
   pendingDialogue: boolean;
   mintReady: boolean;
-  /** Evidence in the player's room that they have not examined yet. Names only — content is what examining reveals. */
-  evidenceHere: { id: string; name: string; position: { x: number; y: number } | null; canInspect: boolean }[];
+  /** Uncollected evidence. Prepared text is included only within server-validated reading range. */
+  evidenceHere: { id: string; name: string; position: { x: number; y: number } | null; canInspect: boolean; content?: Pick<JournalEntry, "text" | "sourceSpan"> }[];
   /** Every placed document on this stage's map, so the renderer can draw it. Names only, like the room labels. */
   props: { id: string; name: string; roomId: string; position: { x: number; y: number }; found: boolean }[];
   /** Version of the option set shown; commits carry it back so a stale set is rejected (FR-14). */
@@ -471,7 +471,7 @@ export class PlaySession {
           const position = compiled?.placements.find((p) => p.id === item.id)?.position ?? null;
           const playerPoint = world.spatial?.state.actors[PLAYER_ID] ?? null;
           const canInspect = playerPoint !== null && position !== null && compiled !== null && isInPhysicalInteractionRange(world.spatial!.map, world.spatial!.state.doors, playerPoint, position);
-          return { id: item.id, name: item.name, position, canInspect };
+          return { id: item.id, name: item.name, position, canInspect, ...(canInspect ? { content: this.evidenceContent(item) } : {}) };
         }),
       props: this.stage.evidence.flatMap((item) => {
         const position = compiled?.placements.find((p) => p.id === item.id)?.position;
@@ -925,14 +925,19 @@ export class PlaySession {
     known.push(item.id);
     this.snap.stageStats.evidence += 1;
     this.snap.stageStats.actions += 1;
-    const sourceSpan = item.content.spans.map((span) => `${span.sourceId}, p. ${span.page}: “${span.quote}”`).join("\n\n") || null;
     this.snap.journal.push({
       id: item.id,
-      text: `${item.name}: ${item.content.text}`,
-      sourceSpan,
+      ...this.evidenceContent(item),
       collectedAt: this.clock.now().toISOString(),
     });
     return true;
+  }
+
+  private evidenceContent(item: Stage["evidence"][number]): Pick<JournalEntry, "text" | "sourceSpan"> {
+    return {
+      text: `${item.name}: ${item.content.text}`,
+      sourceSpan: item.content.spans.map((span) => `${span.sourceId}, p. ${span.page}: “${span.quote}”`).join("\n\n") || null,
+    };
   }
 
   mintReady(): boolean {

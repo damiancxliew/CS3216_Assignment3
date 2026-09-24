@@ -7,8 +7,9 @@ import type { PlayState } from "@/lib/play/session";
 import styles from "./document-reader.module.css";
 
 /** A parchment scroll in the browser's modal layer, with focus contained inside. */
-export function DocumentReader({ entry, name, imageUrl, documents, selectedId, onSelect, error, onRetry, onClose }: {
-  entry: PlayState["journal"][number] | null;
+export function DocumentReader({ entry, saved = true, name, imageUrl, documents, selectedId, onSelect, error, onRetry, onClose }: {
+  entry: Pick<PlayState["journal"][number], "text" | "sourceSpan"> | null;
+  saved?: boolean;
   name: string;
   imageUrl: string | null;
   documents: { id: string; name: string }[];
@@ -42,7 +43,7 @@ export function DocumentReader({ entry, name, imageUrl, documents, selectedId, o
         <div className={styles.roller} aria-hidden="true" />
         <div className={styles.paper}>
           <header className={styles.header}>
-            <p className={styles.eyebrow}><ScrollText size={19} aria-hidden="true" /> {empty ? "Your notes" : index < 0 ? "Unfolding a scroll" : `Collected scroll ${index + 1} of ${documents.length}`}</p>
+            <p className={styles.eyebrow}><ScrollText size={19} aria-hidden="true" /> {empty ? "Your notes" : !saved || index < 0 ? "Evidence scroll" : `Collected scroll ${index + 1} of ${documents.length}`}</p>
             <button type="button" className={styles.close} onClick={onClose} autoFocus aria-label={empty ? "Close notes" : `Put down ${name}`}><X size={22} aria-hidden="true" /></button>
           </header>
           {documents.length > 1 ? (
@@ -69,6 +70,7 @@ export function DocumentReader({ entry, name, imageUrl, documents, selectedId, o
               <>
                 <p className={styles.text}>{entry.text.startsWith(`${name}: `) ? entry.text.slice(name.length + 2) : entry.text}</p>
                 {entry.sourceSpan ? <blockquote className={styles.source}><p className={styles.eyebrow}>From the historical record</p><p>{entry.sourceSpan}</p></blockquote> : null}
+                {error && !saved ? <div role="alert"><p>{error}</p><button type="button" className={styles.button} onClick={onRetry}>Try again</button></div> : null}
               </>
             ) : error ? (
               <div className={styles.loading} role="alert"><p>{error}</p><button type="button" className={styles.button} onClick={onRetry}>Try again</button></div>
@@ -77,7 +79,7 @@ export function DocumentReader({ entry, name, imageUrl, documents, selectedId, o
             )}
           </div>
           <footer className={styles.footer}>
-            <p>{entry ? <Check size={17} aria-hidden="true" /> : <ScrollText size={17} aria-hidden="true" />}{empty ? "A record of your discoveries" : entry ? "Saved in your notes" : "Available in Notes"}</p>
+            <p>{entry && saved ? <Check size={17} aria-hidden="true" /> : <ScrollText size={17} aria-hidden="true" />}{empty ? "A record of your discoveries" : entry && saved ? "Saved in your notes" : error ? "Not saved yet" : "Saving to your notes…"}</p>
             <button type="button" className={styles.button} onClick={onClose}>{empty ? "Continue exploring" : "Roll up scroll"}</button>
           </footer>
         </div>
