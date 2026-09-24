@@ -274,6 +274,12 @@ const storedBrief = z.object({
   stage_outline: z.array(stageOutlineSchema).max(3),
 });
 
+// Vercel stops this route after 300 seconds. Generation may make repair calls,
+// so all model work shares a smaller budget and leaves time to persist the
+// finished spec and return a normal ActionResult to the browser.
+const GENERATION_MODEL_BUDGET_MS = 250_000;
+const GENERATION_CALL_TIMEOUT_MS = 120_000;
+
 /**
  * D1–D4 → P5: run the planner over the adventure's stored sources and land the
  * result as the next draft version. The brief (setting, role, objectives,
@@ -288,62 +294,81 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
     return { error: "Generation is not configured on this server (OPENAI_API_KEY is missing)" };
   }
 
-  const admin = createAdminClient();
-  const [{ data: adventure }, { data: sources }] = await Promise.all([
-    admin
-      .from("adventure")
-      .select("title, default_timer_seconds, setting, student_role, learning_objectives, reading_level, stage_outline")
-      .eq("id", adventureId)
-      .single<{ title: string; default_timer_seconds: number } & Record<string, unknown>>(),
-    admin
-      .from("source")
-      .select("id, title, kind, page_map, content_hash")
-      .eq("adventure_id", adventureId)
-      .order("created_at")
-      .returns<
-        {
-          id: string;
-          title: string | null;
-          kind: string;
-          page_map: unknown;
-          content_hash: string | null;
-        }[]
-      >(),
-  ]);
-  if (!adventure) return { error: "Adventure not found" };
+  try {
+    const admin = createAdminClient();
+    const [adventureResult, sourcesResult] = await Promise.all([
+      admin
+        .from("adventure")
+        .select("title, default_timer_seconds, setting, student_role, learning_objectives, reading_level, stage_outline")
+        .eq("id", adventureId)
+        .single<{ title: string; default_timer_seconds: number } & Record<string, unknown>>(),
+      admin
+        .from("source")
+        .select("id, title, kind, page_map, content_hash")
+        .eq("adventure_id", adventureId)
+        .order("created_at")
+        .returns<
+          {
+            id: string;
+            title: string | null;
+            kind: string;
+            page_map: unknown;
+            content_hash: string | null;
+          }[]
+        >(),
+    ]);
+    if (adventureResult.error) return { error: `Could not load the adventure: ${adventureResult.error.message}` };
+    if (sourcesResult.error) return { error: `Could not load the sources: ${sourcesResult.error.message}` };
 
-  const brief = storedBrief.safeParse(adventure);
-  if (!brief.success) {
-    return { error: "This adventure has no brief. It predates the assistant — create a new adventure to set one up." };
+    const adventure = adventureResult.data;
+    if (!adventure) return { error: "Adventure not found" };
+
+    const brief = storedBrief.safeParse(adventure);
+    if (!brief.success) {
+      return { error: "This adventure has no brief. It predates the assistant — create a new adventure to set one up." };
+    }
+    const { setting, student_role, learning_objectives, reading_level, stage_outline } = brief.data;
+
+    const result = await runGeneration({
+      admin,
+      adventureId,
+      adventure,
+      sources: sourcesResult.data ?? [],
+      brief: {
+        setting,
+        studentRole: student_role,
+        learningObjectives: learning_objectives,
+        readingLevel: reading_level,
+        stageOutline: stage_outline,
+        stageCount: stage_outline.length === 0 ? 3 : (stage_outline.length as 1 | 2 | 3),
+      },
+      // Recorded medium-reasoning runs reached 278–296 seconds before their
+      // database writes. Low reasoning keeps the same validation/repair loop
+      // while leaving enough of the route budget to save a successful draft.
+      plannerConfig: { reasoningEffort: "low" },
+      llm: new OpenAiLlmClient({
+        timeoutMs: GENERATION_CALL_TIMEOUT_MS,
+        maxRetries: 0,
+        deadlineMs: GENERATION_MODEL_BUDGET_MS,
+      }),
+      createdBy: user.id,
+    });
+    if (!result.ok) return { error: result.error };
+
+    revalidatePath(`/teacher/${adventureId}`);
+    const notes = [
+      ...result.missingInformation.map((m) => `Missing from the sources: ${m}`),
+      ...result.warnings,
+    ];
+    return notes.length > 0
+      ? { notice: `Draft v${result.version.version} generated. ${notes.join(" · ")}` }
+      : { notice: `Draft v${result.version.version} generated.` };
+  } catch (error) {
+    console.error("adventure generation failed unexpectedly", adventureId, error);
+    return {
+      error: "Generation stopped before it could finish. Please try again; if a draft now appears, reload the page instead.",
+    };
   }
-  const { setting, student_role, learning_objectives, reading_level, stage_outline } = brief.data;
-
-  const result = await runGeneration({
-    admin,
-    adventureId,
-    adventure,
-    sources: sources ?? [],
-    brief: {
-      setting,
-      studentRole: student_role,
-      learningObjectives: learning_objectives,
-      readingLevel: reading_level,
-      stageOutline: stage_outline,
-      stageCount: stage_outline.length === 0 ? 3 : (stage_outline.length as 1 | 2 | 3),
-    },
-    llm: new OpenAiLlmClient(),
-    createdBy: user.id,
-  });
-  if (!result.ok) return { error: result.error };
-
-  revalidatePath(`/teacher/${adventureId}`);
-  const notes = [
-    ...result.missingInformation.map((m) => `Missing from the sources: ${m}`),
-    ...result.warnings,
-  ];
-  return notes.length > 0
-    ? { notice: `Draft v${result.version.version} generated. ${notes.join(" · ")}` }
-    : { notice: `Draft v${result.version.version} generated.` };
 }
 
 /**

@@ -110,7 +110,7 @@ export interface PlayState extends PublicAttemptState {
   /** Generated prop image per evidence item, when one exists (D4). Keys are evidence ids. */
   evidenceImages: Record<string, string>;
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
-  actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; position: Point | null; sprite: Character }[];
+  actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; position: Point | null; sprite: Character; portraitUrl: string | null }[];
   hearingActorIds: string[];
   pendingDialogue: boolean;
   /** Evidence in the player's room that they have not examined yet. Names only — content is what examining reveals. */
@@ -427,7 +427,7 @@ export class PlaySession {
       hearingActorIds: hearingActorIds(world, PLAYER_ID),
       pendingDialogue: this.snap.pendingReply?.expiresAt !== undefined && this.snap.pendingReply.expiresAt > now.getTime(),
       actors: [
-        { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, position: world.spatial?.state.actors[PLAYER_ID] ?? null, sprite: PLAYER_CHARACTER },
+        { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, position: world.spatial?.state.actors[PLAYER_ID] ?? null, sprite: PLAYER_CHARACTER, portraitUrl: null },
         ...this.stage.agents.map((agent) => ({
           id: agent.id,
           name: this.agentName(agent.id),
@@ -435,6 +435,7 @@ export class PlaySession {
           roomId: this.roomOf(agent.id),
           position: world.spatial?.state.actors[agent.id] ?? null,
           sprite: this.characterOf(agent.stakeholderId),
+          portraitUrl: this.portraitFor(agent.stakeholderId),
         })),
       ],
       evidenceHere: this.stage.evidence

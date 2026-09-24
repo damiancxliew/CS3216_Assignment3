@@ -19,6 +19,7 @@ import type { LlmClient } from "@adventure/generation/llm";
 import {
   generateAdventure,
   type GenerationResult,
+  type PlannerConfig,
   type TeacherInputRaw,
 } from "@adventure/generation/planner";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -146,6 +147,7 @@ export async function generateFromSources(options: {
   sources: readonly SourceRow[];
   brief: GenerationBrief;
   llm: LlmClient;
+  plannerConfig?: Partial<PlannerConfig>;
   createdBy?: string | null;
 }): Promise<GenerateFromSourcesResult> {
   const { documents, skipped } = sourcesToDocuments(options.sources);
@@ -167,6 +169,7 @@ export async function generateFromSources(options: {
     },
     documents,
     llm: options.llm,
+    config: options.plannerConfig,
   });
   if (result.status === "failed") return { ok: false, error: describeFailure(result), result };
 

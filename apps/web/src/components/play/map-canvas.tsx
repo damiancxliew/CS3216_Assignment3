@@ -145,7 +145,16 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
             occupantsByRoom.set(key, n + 1);
             const position = a.position ?? (a.roomId ? seatIn(map as StageMap, a.roomId, n + 1) : outdoorSeat(map as StageMap, n));
             if (!position) return null;
-            return { id: a.id, name: a.name, position, space: spaceAt(map as StageMap, position), targetRoomId: null, status: "idle" as const, ...(a.sprite ? { sprite: a.sprite } : {}) };
+            return {
+              id: a.id,
+              name: a.name,
+              position,
+              space: spaceAt(map as StageMap, position),
+              targetRoomId: null,
+              status: "idle" as const,
+              ...(a.sprite ? { sprite: a.sprite } : {}),
+              ...(a.portraitUrl ? { portraitUrl: a.portraitUrl } : {}),
+            };
           }).filter((actor): actor is NonNullable<typeof actor> => actor !== null),
       ];
       const goal = path.length ? { kind: "point" as const, point: path[path.length - 1]! } : null;

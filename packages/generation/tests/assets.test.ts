@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FakeImageService, InMemoryAssetCache, InMemoryAssetStore } from '../src/assets/memory'
-import { assertGeneratable, buildImagePrompt, generateAssets, placeholderUrl, promptHash, resolveAssetUrl } from '../src/assets/service'
+import { assertGeneratable, buildImagePrompt, buildPortraitSafetyRetryPrompt, generateAssets, placeholderUrl, promptHash, resolveAssetUrl } from '../src/assets/service'
 import { ImageServiceError } from '../src/assets/types'
 import { loadI1Spec } from '../src/fixtures'
 import { MAX_GENERATED_ASSETS } from '../src/spec/catalogue'
@@ -124,13 +124,26 @@ describe('D5 — failure handling (FR-6a)', () => {
 
   it('a content-filtered image is marked filtered and falls back the same way (FR-23)', async () => {
     const spec = await loadI1Spec()
-    const manifest = await generateAssets(spec, deps(['ok', 'filter', 'ok', 'fail', 'ok', 'ok']))
+    const manifest = await generateAssets(spec, deps(['ok', 'filter', 'filter', 'ok', 'fail', 'ok', 'ok']))
     expect(manifest.records.map((r) => r.status)).toEqual(['ready', 'filtered', 'ready', 'failed', 'ready', 'ready'])
     expect(manifest.records[1]!.url).toBe(placeholderUrl('portrait'))
     expect(resolveAssetUrl(manifest, manifest.records[1]!.entityId, 'portrait')).toBe(placeholderUrl('portrait'))
     expect(resolveAssetUrl(manifest, manifest.records[0]!.entityId, 'portrait')).toMatch(/^memory:/)
     expect(resolveAssetUrl(manifest, 'entity-without-asset', 'prop')).toBe(placeholderUrl('prop'))
     expect(resolveAssetUrl(null, 'anything', 'landmark')).toBe(placeholderUrl('landmark'))
+  })
+
+  it('retries a filtered portrait once in explicit neutral classroom context', async () => {
+    const spec = await loadI1Spec()
+    spec.assetEligibility = spec.assetEligibility.filter((entry) => entry.kind === 'portrait').slice(0, 1)
+    const d = deps(['filter', 'ok'])
+    const manifest = await generateAssets(spec, d)
+
+    expect(manifest.records[0]).toMatchObject({ status: 'ready' })
+    expect(d.images.requests).toHaveLength(2)
+    expect(d.images.requests[1]!.prompt).toBe(buildPortraitSafetyRetryPrompt(d.images.requests[0]!.prompt))
+    expect(d.images.requests[1]!.prompt).toMatch(/Neutral classroom history illustration/)
+    expect(d.images.requests[1]!.prompt).toMatch(/Omit uniforms, insignia, flags/)
   })
 
   it('image prompts carry the setting and never the private context', async () => {
