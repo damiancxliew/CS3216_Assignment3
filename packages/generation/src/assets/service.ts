@@ -59,6 +59,22 @@ export function buildImagePrompt(entry: AssetEligibility, spec: AdventureSpec): 
   ].join(' ')
 }
 
+/**
+ * A narrowly-scoped second prompt for portraits that the image safety system
+ * could not classify from the authored description alone. Historical figures
+ * can carry charged offices, uniforms or affiliations; spelling out the
+ * neutral classroom context and removing those visual trappings gives the
+ * service one safe recovery attempt without changing the requested person or
+ * the established portrait style.
+ */
+export function buildPortraitSafetyRetryPrompt(prompt: string): string {
+  return [
+    'Neutral classroom history illustration; documentary context only, with no endorsement, glorification, propaganda, or political messaging.',
+    prompt,
+    'Show only the adult subject in ordinary period-appropriate clothing. Omit uniforms, insignia, flags, symbols, salutes, gestures, weapons, crowds, and text.',
+  ].join(' ')
+}
+
 export function promptHash(request: Pick<ImageRequest, 'kind' | 'prompt' | 'size' | 'quality'>, model: string): string {
   return createHash('sha256').update([ASSET_STYLE_VERSION, model, request.kind, request.size, request.quality, request.prompt].join('\n')).digest('hex')
 }
@@ -128,7 +144,16 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
         Object.assign(record, { status: 'skipped-cap', error: `cap of ${maxImages} generated images reached` })
       } else {
         manifest.generatedCount += 1
-        const result = await options.images.generate(request)
+        let result
+        try {
+          result = await options.images.generate(request)
+        } catch (error) {
+          // A filtered portrait is often recoverable when its neutral,
+          // educational use is explicit. Retry once; a second rejection still
+          // settles normally as `filtered` and keeps the curated fallback.
+          if (!(error instanceof ImageServiceError) || error.code !== 'content-filtered' || entry.kind !== 'portrait') throw error
+          result = await options.images.generate({ ...request, prompt: buildPortraitSafetyRetryPrompt(request.prompt) })
+        }
         const url = await options.store.put(`adventures/${spec.id}/${entry.id}-${record.promptHash.slice(0, 12)}.${result.mimeType.split('/')[1]}`, result.bytes, result.mimeType)
         await options.cache.put(record.promptHash, { url, model: result.model })
         Object.assign(record, { status: 'ready', url, model: result.model, costUsd: result.costUsd })

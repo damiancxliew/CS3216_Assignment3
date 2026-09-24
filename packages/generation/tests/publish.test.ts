@@ -116,7 +116,10 @@ describe('D6 — publish never blocks on images (FR-6a)', () => {
   })
 
   it('mixed outcomes: generated images are used where ready, placeholders elsewhere, playthrough unaffected', async () => {
-    const published = publishAdventure(await loadI1Spec(), deps(['ok', 'filter', 'fail', 'ok', 'ok', 'fail']))
+    // The filtered portrait consumes a second filtered response during its
+    // neutral classroom-context retry; the remaining entries keep their
+    // original mixed outcomes.
+    const published = publishAdventure(await loadI1Spec(), deps(['ok', 'filter', 'filter', 'fail', 'ok', 'ok', 'fail']))
     await published.assetsReady
     const statuses = published.assets.records.map((r) => r.status)
     expect(statuses).toEqual(['ready', 'filtered', 'failed', 'ready', 'ready', 'failed'])

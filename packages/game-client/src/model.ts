@@ -33,9 +33,15 @@ export interface PlaygroundSnapshot {
     status: TravelStatus
     /** Character sheet key for a tiled renderer; ignored by the primitive one. */
     sprite?: string
+    /** Realistic generated portrait shown as the actor's in-world avatar when available. */
+    portraitUrl?: string | null
     /** Which way the actor last moved, for a walk cycle. */
     facing?: 'down' | 'up' | 'left' | 'right'
   }>
+  /** Documents and objects lying on the map, drawn where the compiler placed them. */
+  props?: Array<{ id: string; name: string; position: Point; found: boolean }>
+  /** Optional public, non-actor markers supplied by a host application. */
+  evidence?: Array<{ id: string; name: string; roomId: string; examined: boolean; position: Point }>
   playerGoal: PlayerGoal
   playerStatus: TravelStatus
   running: boolean

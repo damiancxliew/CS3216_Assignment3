@@ -1,8 +1,9 @@
 /**
- * The brief conversation asks its questions in a fixed order, parses the
- * simple answers itself, and only consults the model for objectives and
- * stages — where it still decides when a slot counts as filled. No database,
- * no network: a scripted `FakeLlmClient` stands in for the model.
+ * The brief conversation asks its questions in a fixed order and parses every
+ * value itself, but never carries the teacher past a question they were not
+ * answering: a rejection or a question goes back to the model with the slot
+ * still open, and the model can hand the conversation back to an earlier slot.
+ * No database, no network: a scripted `FakeLlmClient` stands in for the model.
  */
 import { FakeLlmClient } from "@adventure/generation/llm";
 import { describe, expect, it } from "vitest";
@@ -13,7 +14,13 @@ import { runBriefTurn } from "@/lib/brief/turn";
 const ADVENTURE_ID = "00000000-0000-4000-8000-000000000001";
 const DIGEST = { summary: "A local test source.", title: "A Post at the River Mouth", setting: "Singapore and Johor, February 1819", studentRole: "Junior interpreter to the expedition" };
 const none = () => new FakeLlmClient([]);
-const defaultLlm = () => new FakeLlmClient([{ json: { reply: "What should students learn?", objectives: [], complete: false } }]);
+
+/** The model reading a message as the answer, as a proposal to consider, or as a request to go back. */
+const takes = (answer: string) => ({ json: { reply: "Noted.", answer, complete: true, revisit: null } });
+const offers = (answer: string, reply = "How about this instead?") => ({ json: { reply, answer, complete: false, revisit: null } });
+const goesBack = (revisit: string) => ({ json: { reply: "Back to that, then.", answer: null, complete: false, revisit } });
+/** Opening the objectives or a stage: a question, nothing filled. */
+const opener = { json: { reply: "What should students learn?", answer: null, objectives: [], stage: null, complete: false, revisit: null } };
 
 function afterSources(): BriefState {
   return {
@@ -23,7 +30,12 @@ function afterSources(): BriefState {
   };
 }
 
-async function say(state: BriefState, text: string, llm = defaultLlm()): Promise<BriefState> {
+/** Takes the teacher at their word, then opens whatever slot comes next. */
+function obliging(text: string): FakeLlmClient {
+  return new FakeLlmClient([takes(text), opener]);
+}
+
+async function say(state: BriefState, text: string, llm = obliging(text)): Promise<BriefState> {
   const result = await runBriefTurn(state, { text }, llm, []);
   if (!result.ok) throw new Error(result.error);
   return result.state;
@@ -81,7 +93,22 @@ describe("scripted slots", () => {
     expect(lastText(state)).toMatch(/120 characters/);
   });
 
-  it("parses reading band labels, age ranges and stage counts", async () => {
+  it("takes a fixed choice as read, with no model call", async () => {
+    let state: BriefState = {
+      adventureId: ADVENTURE_ID,
+      draft: { sources: DIGEST, title: "t", setting: "s", studentRole: "r", learningObjectives: ["Explain x"] },
+      messages: [],
+      sources: [],
+    };
+    const llm = none();
+    state = await say(state, "Lower secondary", llm);
+    expect(state.draft.band).toBe("lower-secondary");
+    state = await say(state, "ages 13–14", llm);
+    expect(state.draft.ages).toEqual({ ageMin: 13, ageMax: 14 });
+    expect(llm.requests).toHaveLength(0);
+  });
+
+  it("answers a question about a fixed choice instead of correcting the teacher", async () => {
     let state: BriefState = {
       adventureId: ADVENTURE_ID,
       draft: { sources: DIGEST, title: "t", setting: "s", studentRole: "r", learningObjectives: ["Explain x"] },
@@ -91,21 +118,76 @@ describe("scripted slots", () => {
     expect(currentSlot(state.draft)).toEqual({ name: "band" });
     expect(quickReplies(state.draft, { name: "band" })).toContain("Lower secondary");
 
-    state = await say(state, "somewhere in the middle");
+    state = await say(state, "which one would you pick?", new FakeLlmClient([offers("Lower secondary", "For 13-year-olds reading these, lower secondary. Use it?")]));
+    expect(state.draft.band).toBeUndefined();
     expect(currentSlot(state.draft)).toEqual({ name: "band" });
-    expect(lastText(state)).toMatch(/Choose one of/);
+    expect(state.messages.at(-1)).toMatchObject({ role: "assistant", proposedText: "Lower secondary" });
 
-    state = await say(state, "Lower secondary");
-    expect(state.draft.band).toBe("lower-secondary");
-    expect(quickReplies(state.draft, { name: "ages" })).toEqual(["13 to 14"]);
+    const accepted = await runBriefTurn(state, { accept: true }, none(), []);
+    expect(accepted.ok && accepted.state.draft.band).toBe("lower-secondary");
+  });
 
-    state = await say(state, "14 to 13");
-    expect(lastText(state)).toMatch(/upside down/);
-    state = await say(state, "ages 13–14");
-    expect(state.draft.ages).toEqual({ ageMin: 13, ageMax: 14 });
+  it("falls back to the plain correction when the model is unavailable", async () => {
+    const state: BriefState = {
+      adventureId: ADVENTURE_ID,
+      draft: { sources: DIGEST, title: "t", setting: "s", studentRole: "r", learningObjectives: ["Explain x"], band: "lower-secondary" },
+      messages: [],
+      sources: [],
+    };
+    const after = await say(state, "14 to 13", new FakeLlmClient([{ error: "boom" }]));
+    expect(after.draft.ages).toBeUndefined();
+    expect(lastText(after)).toMatch(/upside down/);
 
-    state = await say(state, "five");
-    expect(lastText(state)).toMatch(/1, 2 or 3/);
+    const stages = await say({ ...after, draft: { ...after.draft, ages: { ageMin: 13, ageMax: 14 } } }, "five", new FakeLlmClient([{ error: "boom" }]));
+    expect(lastText(stages)).toMatch(/1, 2 or 3/);
+  });
+});
+
+describe("answers that are not answers", () => {
+  it("does not store a rejection as the value, and proposes something else", async () => {
+    let state = afterSources();
+    state = await say(state, "A Post at the River Mouth");
+    state = await say(state, "Singapore and Johor, February 1819");
+    expect(currentSlot(state.draft)).toEqual({ name: "studentRole" });
+
+    const llm = new FakeLlmClient([offers("Clerk to the Temenggong's household", "Fair enough — here's a different one. Use it?")]);
+    state = await say(state, "i think this sucks, think of something better", llm);
+    expect(state.draft.studentRole).toBeUndefined();
+    expect(currentSlot(state.draft)).toEqual({ name: "studentRole" });
+    expect(state.messages.at(-1)).toMatchObject({ role: "assistant", proposedText: "Clerk to the Temenggong's household" });
+    expect(llm.requests[0]!.user).toContain("Teacher: i think this sucks");
+
+    const accepted = await runBriefTurn(state, { accept: true }, new FakeLlmClient([opener]), []);
+    expect(accepted.ok && accepted.state.draft.studentRole).toBe("Clerk to the Temenggong's household");
+  });
+
+  it("ignores a value the model invents that the slot would not take", async () => {
+    const state = afterSources();
+    const after = await say(state, "something shorter", new FakeLlmClient([{ json: { reply: "Here you go.", answer: "x".repeat(200), complete: true, revisit: null } }]));
+    expect(after.draft.title).toBeUndefined();
+    expect(after.messages.at(-1)!.proposedText).toBeUndefined();
+  });
+
+  it("goes back to a slot the teacher asks to change, keeping the rest", async () => {
+    const state: BriefState = {
+      adventureId: ADVENTURE_ID,
+      draft: { sources: DIGEST, title: "t", setting: "s", studentRole: "r", learningObjectives: ["Explain x"], band: "lower-secondary", ages: { ageMin: 13, ageMax: 14 } },
+      messages: [],
+      sources: [],
+    };
+    expect(currentSlot(state.draft)).toEqual({ name: "stageCount" });
+
+    const after = await say(state, "wait, the title should mention the treaty", new FakeLlmClient([goesBack("title")]));
+    expect(currentSlot(after.draft)).toEqual({ name: "title" });
+    expect(after.draft.title).toBeUndefined();
+    expect(after.draft.band).toBe("lower-secondary");
+    expect(after.messages.map((m) => m.text)).toContain("Back to that, then.");
+  });
+
+  it("ignores a slot the teacher has not answered yet", async () => {
+    const state = afterSources();
+    const after = await say(state, "what about the stages?", new FakeLlmClient([goesBack("stageCount")]));
+    expect(currentSlot(after.draft)).toEqual({ name: "title" });
   });
 });
 

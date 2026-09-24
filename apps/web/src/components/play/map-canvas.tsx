@@ -56,6 +56,8 @@ export interface MapCanvasProps {
   onWaitingAtDoor: (roomId: string | null) => void;
   /** The player clicked a character, or pressed Enter/E with someone in the room: start talking to them. */
   onTalk: (actorId: string) => void;
+  /** The player clicked a document lying on the map: read it, or walk over to it first. */
+  onProp: (propId: string) => void;
 }
 
 function doorsOf(state: PlayState): Record<string, DoorState> {
@@ -90,10 +92,10 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
-  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk });
-  latest.current = { state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk };
+  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp });
+  latest.current = { state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp };
   const playerPos = useRef<Point | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
   const intentHandlerRef = useRef<((next: MapIntent) => void) | null>(null);
@@ -143,15 +145,27 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
             occupantsByRoom.set(key, n + 1);
             const position = a.position ?? (a.roomId ? seatIn(map as StageMap, a.roomId, n + 1) : outdoorSeat(map as StageMap, n));
             if (!position) return null;
-            return { id: a.id, name: a.name, position, space: spaceAt(map as StageMap, position), targetRoomId: null, status: "idle" as const, ...(a.sprite ? { sprite: a.sprite } : {}) };
+            return {
+              id: a.id,
+              name: a.name,
+              position,
+              space: spaceAt(map as StageMap, position),
+              targetRoomId: null,
+              status: "idle" as const,
+              ...(a.sprite ? { sprite: a.sprite } : {}),
+              ...(a.portraitUrl ? { portraitUrl: a.portraitUrl } : {}),
+            };
           }).filter((actor): actor is NonNullable<typeof actor> => actor !== null),
       ];
       const goal = path.length ? { kind: "point" as const, point: path[path.length - 1]! } : null;
+      const props = s.props.map((prop) => ({ id: prop.id, name: prop.name, position: prop.position, found: prop.found }));
       return {
-        seed: "",
+        // Keep music selection stable for this stage while allowing other stages and adventures to vary.
+        seed: `${s.adventureId}:${s.stage.id}`,
         map: map as StageMap,
         doors,
         actors,
+        props,
         playerGoal: goal,
         playerStatus: path.length ? ("moving" as const) : ("idle" as const),
         running: true,
@@ -386,6 +400,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
           assetBase: ASSET_BASE,
           defaultSprite: "Villager",
           onActor: (actorId) => latest.current.onTalk(actorId),
+          onProp: (propId) => latest.current.onProp(propId),
         });
         if (destroyed) {
           view.destroy();

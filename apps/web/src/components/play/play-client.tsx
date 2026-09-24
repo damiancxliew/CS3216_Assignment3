@@ -98,9 +98,13 @@ export function PlayClient({
   const [lastResolution, setLastResolution] = useState<string | null>(null);
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [reading, setReading] = useState<string | null>(null);
+  const [pendingRead, setPendingRead] = useState<string | null>(null);
+  const [roleBriefOpen, setRoleBriefOpen] = useState(initialState.status === "active" && initialState.revision === 0);
   const [hintVisible, setHintVisible] = useState(true);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
+  const readRef = useRef<(evidenceId: string) => void>(() => {});
   const revision = useRef(initialState.revision);
   const serverViewKey = useRef(`${initialState.stage.id}:${initialState.status}`);
   const { muted, toggleMuted, cues } = useSoundCues(state, notice);
@@ -295,6 +299,53 @@ export function PlayClient({
     composer.current?.scrollIntoView({ block: "nearest" });
   }, []);
 
+  /** Examine a document, then put it in front of the player to read. */
+  async function read(evidenceId: string) {
+    const known = stateRef.current.journal.some((entry) => entry.id === evidenceId);
+    if (known) {
+      setReading(evidenceId);
+      return;
+    }
+    const ok = await act("Reading…", () => playApi.action(attemptId, { type: "inspect", evidenceId }));
+    if (ok) setReading(evidenceId);
+  }
+  readRef.current = (evidenceId) => { void read(evidenceId); };
+
+  /** From the map: read the document if you are next to it, otherwise walk over first. */
+  function onProp(propId: string) {
+    setHintVisible(false);
+    const current = stateRef.current;
+    if (current.journal.some((entry) => entry.id === propId) || current.evidenceHere.some((item) => item.id === propId && item.canInspect)) {
+      setPendingRead(null);
+      void read(propId);
+      return;
+    }
+    const prop = current.props.find((item) => item.id === propId);
+    if (prop) {
+      setPendingRead(propId);
+      setIntent({ kind: "point", point: prop.position });
+    }
+  }
+
+  // A map click is one action: after the walk reaches inspection range, finish it by opening
+  // the document instead of requiring a second click on the same prop.
+  useEffect(() => {
+    if (!pendingRead || busy !== null) return;
+    const current = stateRef.current;
+    const readable = current.journal.some((entry) => entry.id === pendingRead)
+      || current.evidenceHere.some((item) => item.id === pendingRead && item.canInspect);
+    if (readable) {
+      setPendingRead(null);
+      setIntent(null);
+      readRef.current(pendingRead);
+    } else if (!current.props.some((item) => item.id === pendingRead)) {
+      setPendingRead(null);
+    }
+  }, [pendingRead, state.revision, busy]);
+
+  const openDocument = reading ? state.journal.find((entry) => entry.id === reading) ?? null : null;
+  const openDocumentName = reading ? state.props.find((item) => item.id === reading)?.name ?? "Document" : "";
+
   if (state.status === "completed") {
     return (
       <section className="mx-auto my-10 flex w-full max-w-2xl flex-col gap-5 px-6">
@@ -348,6 +399,39 @@ export function PlayClient({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      {roleBriefOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-5" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="role-brief-title"
+            aria-describedby="role-brief-description"
+            className="flex w-full max-w-xl flex-col gap-5 rounded-surface border border-line bg-paper p-6 shadow-2xl sm:p-8"
+          >
+            <div className="flex items-center gap-2 text-world">
+              <UserRound className="h-6 w-6" aria-hidden />
+              <p className="text-base font-semibold uppercase tracking-wide">Your character</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-lg capitalize text-muted">You are {state.player.name}</p>
+              <h2 id="role-brief-title" className="font-serif text-3xl leading-tight text-ink sm:text-4xl">
+                {state.player.role}
+              </h2>
+            </div>
+            <p id="role-brief-description" className="text-lg leading-relaxed text-ink">
+              {state.player.brief}
+            </p>
+            <div className="rounded-control border-l-[3px] border-world bg-surface px-4 py-3">
+              <p className="text-sm font-semibold text-muted">Your first move</p>
+              <p className="text-base text-ink">Follow the goals shown in the game panel. You can reopen this role brief at any time.</p>
+            </div>
+            <button type="button" className={`${primary} min-h-12 w-full text-lg capitalize sm:w-fit sm:self-end`} autoFocus onClick={() => setRoleBriefOpen(false)}>
+              Begin as {state.player.name}
+            </button>
+          </section>
+        </div>
+      ) : null}
+
       <section className="relative h-[32dvh] min-h-[11rem] shrink-0 bg-sunken lg:h-auto lg:min-h-0 lg:flex-1" aria-label="Map">
         <MapCanvas
           state={state}
@@ -357,12 +441,13 @@ export function PlayClient({
           onSteps={onSteps}
           onWaitingAtDoor={setWaitingAtDoor}
           onTalk={onTalk}
+          onProp={onProp}
         />
         {hintVisible ? (
           <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-ink/85 px-3 py-1.5 text-sm font-semibold text-paper lg:bottom-3 lg:right-48 lg:top-auto lg:px-3.5 lg:py-2 lg:text-base">
-            <span className="lg:hidden">Tap the map to walk. Tap a character to talk.</span>
+            <span className="lg:hidden">Tap the map to walk. Tap a character to talk, or a document to read it.</span>
             <span className="hidden lg:inline">
-              Arrows or WASD to walk. Click a character to talk, or press Enter to talk to whoever is with you.
+              Arrows or WASD to walk. Click a character to talk, a document to read it, or press Enter to talk to whoever is with you.
             </span>
           </p>
         ) : null}
@@ -398,9 +483,22 @@ export function PlayClient({
         ) : null}
       </section>
 
-      <aside className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto border-t border-line bg-paper text-base lg:w-[30rem] lg:flex-none lg:border-l lg:border-t-0">
+      <aside className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto border-t border-line bg-paper text-base lg:w-[34rem] lg:flex-none lg:border-l lg:border-t-0 xl:w-[40rem]">
         {/* ── Top: where you are, where you can go ─────────────────────────── */}
         <section className="flex shrink-0 flex-col gap-3 border-b border-line px-5 py-4" aria-labelledby="where">
+          <button
+            type="button"
+            onClick={() => setRoleBriefOpen(true)}
+            className="flex min-h-11 w-full items-center gap-3 rounded-control border border-world/40 bg-world-wash px-3.5 py-2 text-left text-ink transition-colors hover:border-world"
+            aria-label={`Open your role brief: ${state.player.role}`}
+          >
+            <UserRound className="h-5 w-5 shrink-0 text-world" aria-hidden />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-muted">You are playing</span>
+              <span className="block truncate text-base font-semibold">{state.player.role}</span>
+            </span>
+            <span className="ml-auto shrink-0 text-sm font-semibold text-world underline underline-offset-4">Role brief</span>
+          </button>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className={label}>You are in</p>
@@ -448,10 +546,10 @@ export function PlayClient({
           </div>
           {state.evidenceHere.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 border-l-[3px] border-world py-1 pl-3">
-              <span className="text-base font-semibold text-world">Look at</span>
+              <span className="text-base font-semibold text-world">Documents here</span>
               {state.evidenceHere.map((item) => item.canInspect ? (
-                <button key={item.id} type="button" className={chip} disabled={busy !== null} onClick={() => act("Examining…", () => playApi.action(attemptId, { type: "inspect", evidenceId: item.id }))}>
-                  <Search className="h-4 w-4" aria-hidden /> {item.name}
+                <button key={item.id} type="button" className={chip} disabled={busy !== null} onClick={() => void read(item.id)}>
+                  <Search className="h-4 w-4" aria-hidden /> Read {item.name}
                 </button>
               ) : (
                 <button key={item.id} type="button" className={chip} disabled={busy !== null || item.position === null} onClick={() => item.position && setIntent({ kind: "point", point: item.position })}>
@@ -463,7 +561,7 @@ export function PlayClient({
         </section>
 
         {/* ── Middle: the conversation. This is the game; it gets the height. ── */}
-        <section className="flex min-h-[14rem] shrink-0 flex-1 flex-col" aria-labelledby="talk">
+        <section className="flex min-h-[18rem] shrink-0 flex-1 flex-col lg:min-h-[24rem]" aria-labelledby="talk">
           {peopleHere.length ? (
             <div className="flex gap-2 overflow-x-auto px-5 pt-4" role="radiogroup" aria-label="Who you are talking to" id="talk">
               {peopleHere.map((a) => {
@@ -524,7 +622,7 @@ export function PlayClient({
               return (
                 <div key={m.id} className={`flex items-start gap-2.5 ${mine ? "flex-row-reverse" : ""}`}>
                   {speaker ? <Portrait src={speaker.portraitUrl} name={speaker.name} size={36} /> : null}
-                  <div className={`min-w-0 max-w-[85%] rounded-surface px-4 py-2.5 leading-relaxed ${mine ? "rounded-tr-sm bg-ink text-paper" : "rounded-tl-sm bg-surface text-ink"}`}>
+                  <div className={`min-w-0 max-w-[92%] rounded-surface px-4 py-2.5 leading-relaxed ${mine ? "rounded-tr-sm bg-ink text-paper" : "rounded-tl-sm bg-surface text-ink"}`}>
                     {!mine ? <p className="text-sm font-semibold text-muted">{m.authorName ?? "Someone"}</p> : null}
                     <p>{m.body}</p>
                   </div>
@@ -602,15 +700,21 @@ export function PlayClient({
           {notesOpen && state.journal.length ? (
             <ul className="flex max-h-48 flex-col gap-2 overflow-y-auto border-l-[3px] border-world pl-3">
               {state.journal.map((j) => (
-                <li key={j.id} className="flex gap-3 rounded-control bg-surface p-3 text-base leading-relaxed text-ink">
-                  {state.evidenceImages[j.id] ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
-                    <img src={state.evidenceImages[j.id]} alt="" className="h-14 w-14 flex-none rounded-control object-cover" />
-                  ) : null}
-                  <div className="min-w-0">
-                    <p>{j.text}</p>
-                    {j.sourceSpan ? <p className="mt-1 font-serif text-base italic text-record">{j.sourceSpan}</p> : null}
-                  </div>
+                <li key={j.id}>
+                  <button
+                    type="button"
+                    onClick={() => setReading(j.id)}
+                    className="flex w-full gap-3 rounded-control bg-surface p-3 text-left text-base leading-relaxed text-ink hover:bg-sunken"
+                  >
+                    {state.evidenceImages[j.id] ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
+                      <img src={state.evidenceImages[j.id]} alt="" className="h-14 w-14 flex-none rounded-control object-cover" />
+                    ) : null}
+                    <span className="min-w-0">
+                      <span className="line-clamp-2 block">{j.text}</span>
+                      {j.sourceSpan ? <span className="mt-1 block font-serif text-base italic text-record">{j.sourceSpan}</span> : null}
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -696,6 +800,30 @@ export function PlayClient({
           ) : null}
         </section>
       </aside>
+
+      {openDocument ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="document-title">
+          <div className="flex max-h-[80dvh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-surface border-l-[3px] border-record bg-paper p-5 shadow-xl sm:p-6">
+            <div className="flex items-start gap-3">
+              {state.evidenceImages[openDocument.id] ? (
+                // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
+                <img src={state.evidenceImages[openDocument.id]} alt="" className="h-16 w-16 flex-none rounded-control object-cover" />
+              ) : null}
+              <div className="min-w-0">
+                <p className={label}>You read</p>
+                <h2 id="document-title" className="font-serif text-2xl leading-tight text-ink">
+                  {openDocumentName}
+                </h2>
+              </div>
+            </div>
+            <p className="whitespace-pre-line text-lg leading-relaxed text-ink">{openDocument.text}</p>
+            {openDocument.sourceSpan ? <p className="border-l-[3px] border-record pl-3 font-serif text-base italic text-record">{openDocument.sourceSpan}</p> : null}
+            <button type="button" className={`${primary} w-fit`} onClick={() => setReading(null)} autoFocus>
+              Put it down
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

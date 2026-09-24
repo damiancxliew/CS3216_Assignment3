@@ -368,16 +368,28 @@ export function DossierSections({
                 ]}
               >
                 <p className="font-serif text-xl text-ink">{ending.title}</p>
-                <p className="text-base text-muted">{ending.summary}</p>
-                <RecordEntry source="What the record shows">{ending.historicalOutcome}</RecordEntry>
-                <WorldEntry label="Where play can diverge">{ending.divergence}</WorldEntry>
-                <ul className="flex flex-col gap-1.5">
-                  {ending.reflectionQuestions.map((question, i) => (
-                    <li key={i} className="text-base text-ink">
-                      {question}
-                    </li>
-                  ))}
-                </ul>
+                <p className="max-w-[70ch] text-base text-muted">{ending.summary}</p>
+                {/* Two columns, each headed by its register, so "record" and "simulation" read as a contrast rather than a wall. */}
+                <div className="mt-1 grid gap-4 sm:grid-cols-2">
+                  <div className="border-l-[3px] border-record pl-4">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-record">What the record shows</p>
+                    <p className="mt-1.5 text-base leading-relaxed text-ink">{ending.historicalOutcome}</p>
+                  </div>
+                  <div className="border-l-[3px] border-world pl-4">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-world">Where play can diverge</p>
+                    <p className="mt-1.5 text-base leading-relaxed text-ink">{ending.divergence}</p>
+                  </div>
+                </div>
+                {ending.reflectionQuestions.length > 0 ? (
+                  <div className="mt-1">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-muted">Ask students</p>
+                    <ul className="mt-1.5 list-disc pl-5 text-base leading-relaxed text-ink marker:text-muted">
+                      {ending.reflectionQuestions.map((question, i) => (
+                        <li key={i}>{question}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </InlineEdit>
             </li>
           ))}

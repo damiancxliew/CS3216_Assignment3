@@ -10,9 +10,11 @@
  *   fx/rain.png fx/snow.png (8px frames), fx/fog.png, fx/clouds.png, fx/smoke.png (32px frames)
  */
 import Phaser from 'phaser'
-import type { Point, StageMap } from '@adventure/game-core'
+import { spaceAt, type Point, type StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
+import { selectPropHintId, selectPropHitId } from './prop-hint.js'
 import type { PlaygroundSnapshot, SoundCueId } from './model.js'
+import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
 import type { MapView } from './view.js'
 
 const T = 16
@@ -50,16 +52,6 @@ const PLANKS = [I(12, 1), I(12, 1), I(13, 1), I(12, 2), I(13, 2)]
 const H = at(33)
 const DOOR = { closed: H(2, 3), open: H(9, 3) }
 
-/** One track per atmosphere (FR-15a), from the pack's CC0 soundtrack; the ending has its own. */
-const MUSIC_FOR: Record<string, string> = {
-  clear: 'calm-village',
-  clouds: 'road',
-  rain: 'quiet',
-  fog: 'mystical',
-  night: 'quiet',
-  dust: 'tension',
-  snow: 'peaceful',
-}
 const AMBIENT_LOOP: Partial<Record<string, string>> = { rain: 'rain', dust: 'wind', clouds: 'wind', snow: 'wind' }
 const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert', 'refused', 'door', 'step']
 const MUSIC_VOLUME = 0.35
@@ -75,12 +67,23 @@ function jitter(x: number, y: number, salt: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296
 }
 
+function portraitTextureKey(url: string): string {
+  let hash = 2166136261
+  for (let index = 0; index < url.length; index += 1) {
+    hash ^= url.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `portrait-${(hash >>> 0).toString(16)}`
+}
+
 export interface TiledViewOptions {
   assetBase: string
   /** Sprite key to use for an actor that does not name one. */
   defaultSprite?: string
   /** Called when the player clicks a character instead of a tile. */
   onActor?: (actorId: string) => void
+  /** Called when the player clicks a document or object lying on the map. */
+  onProp?: (propId: string) => void
 }
 
 class TiledScene extends Phaser.Scene {
@@ -90,6 +93,7 @@ class TiledScene extends Phaser.Scene {
   private readonly base: string
   private readonly defaultSprite: string
   private readonly onActor: ((actorId: string) => void) | undefined
+  private readonly onProp: ((propId: string) => void) | undefined
   private reducedMotion: boolean
   private ready = false
   private map?: Phaser.Tilemaps.Tilemap
@@ -108,15 +112,18 @@ class TiledScene extends Phaser.Scene {
       hintTween: Phaser.Tweens.Tween | null
       labelAbove: boolean
       key: string
+      portraitUrl: string | null
       facing: Facing
       last: Point
       /** Pending "stop walking": re-armed by each step, so a continuous walk keeps its animation. */
       idle: Phaser.Time.TimerEvent | null
     }
   >()
+  private props = new Map<string, { container: Phaser.GameObjects.Container; hint: Phaser.GameObjects.Text; tween: Phaser.Tweens.Tween | null; found: boolean }>()
   /** Tiles whose nameplate would land on a door, i.e. the tile above each door. */
   private plateBlocked = new Set<string>()
   private loadedSprites = new Set<string>()
+  private queuedPortraits = new Set<string>()
   private ambientId: string | null = null
   private ambientObjects: Phaser.GameObjects.GameObject[] = []
   private playedEffects = new Set<string>()
@@ -136,6 +143,7 @@ class TiledScene extends Phaser.Scene {
     this.base = options.assetBase.replace(/\/$/, '')
     this.defaultSprite = options.defaultSprite ?? 'Villager'
     this.onActor = options.onActor
+    this.onProp = options.onProp
   }
 
   preload(): void {
@@ -149,7 +157,8 @@ class TiledScene extends Phaser.Scene {
     this.load.image('fx-fog', `${this.base}/fx/fog.png`)
     this.load.image('fx-clouds', `${this.base}/fx/clouds.png`)
     for (const key of this.spriteKeys(this.current)) this.queueSprite(key)
-    for (const track of new Set(Object.values(MUSIC_FOR))) this.load.audio(`music-${track}`, `${this.base}/audio/music/${track}.ogg`)
+    for (const url of this.portraitUrls(this.current)) this.queuePortrait(url)
+    for (const track of MUSIC_TRACKS) this.load.audio(`music-${track}`, `${this.base}/audio/music/${track}.ogg`)
     for (const loop of new Set(Object.values(AMBIENT_LOOP))) if (loop) this.load.audio(`loop-${loop}`, `${this.base}/audio/sfx/${loop}.ogg`)
     for (const cue of SFX) this.load.audio(`sfx-${cue}`, `${this.base}/audio/sfx/${cue}.ogg`)
   }
@@ -159,12 +168,28 @@ class TiledScene extends Phaser.Scene {
     for (const key of this.spriteKeys(this.current)) this.registerAnimations(key)
     this.buildMap()
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const propHit = selectPropHitId([...this.props].map(([id, entry]) => ({
+        id,
+        position: { x: entry.container.x, y: entry.container.y },
+        bounds: entry.container.getBounds(),
+      })), { x: pointer.worldX, y: pointer.worldY })
+      if (propHit && this.onProp) {
+        this.onProp(propHit)
+        this.game.canvas.focus()
+        return
+      }
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
       // A character under the pointer means "talk to them", not "walk here".
       const actor = this.current.actors.find((a) => a.id !== 'player' && a.position.x === point.x && a.position.y === point.y)
       if (actor && this.onActor) {
         this.onActor(actor.id)
+        return
+      }
+      // A document under the pointer means "go read it", not "walk here".
+      const prop = (this.current.props ?? []).find((p) => p.position.x === point.x && p.position.y === point.y)
+      if (prop && this.onProp) {
+        this.onProp(prop.id)
         return
       }
       this.onDestination(point, pointer.time || performance.now())
@@ -199,11 +224,13 @@ class TiledScene extends Phaser.Scene {
       this.buildMap()
       this.playedEffects.clear()
     }
-    const missing = this.spriteKeys(snapshot).filter((key) => !this.loadedSprites.has(key))
-    if (missing.length > 0) {
-      for (const key of missing) this.queueSprite(key)
+    const missingSprites = this.spriteKeys(snapshot).filter((key) => !this.loadedSprites.has(key))
+    const missingPortraits = this.portraitUrls(snapshot).filter((url) => !this.queuedPortraits.has(url))
+    if (missingSprites.length > 0 || missingPortraits.length > 0) {
+      for (const key of missingSprites) this.queueSprite(key)
+      for (const url of missingPortraits) this.queuePortrait(url)
       this.load.once('complete', () => {
-        for (const key of missing) this.registerAnimations(key)
+        for (const key of missingSprites) this.registerAnimations(key)
         this.renderSnapshot(this.current, mapChanged)
       })
       this.load.start()
@@ -218,10 +245,20 @@ class TiledScene extends Phaser.Scene {
     return [...new Set(snapshot.actors.map((a) => a.sprite ?? this.defaultSprite))]
   }
 
+  private portraitUrls(snapshot: PlaygroundSnapshot): string[] {
+    return [...new Set(snapshot.actors.flatMap((actor) => actor.portraitUrl ? [actor.portraitUrl] : []))]
+  }
+
   private queueSprite(key: string): void {
     if (this.loadedSprites.has(key)) return
     this.loadedSprites.add(key)
     this.load.spritesheet(`char-${key}`, `${this.base}/characters/${key}/walk.png`, { frameWidth: T, frameHeight: T })
+  }
+
+  private queuePortrait(url: string): void {
+    if (this.queuedPortraits.has(url)) return
+    this.queuedPortraits.add(url)
+    this.load.image(portraitTextureKey(url), url)
   }
 
   private registerAnimations(key: string): void {
@@ -247,6 +284,8 @@ class TiledScene extends Phaser.Scene {
     this.labels = []
     this.markers.forEach((m) => m.container.destroy())
     this.markers.clear()
+    this.props.forEach((p) => p.container.destroy())
+    this.props.clear()
     this.clearAmbient()
 
     const source = this.current.map
@@ -331,11 +370,14 @@ class TiledScene extends Phaser.Scene {
   private renderSnapshot(snapshot: PlaygroundSnapshot, snap = false): void {
     for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
 
-    const playerSpace = snapshot.actors.find((a) => a.id === 'player')?.space
+    const player = snapshot.actors.find((a) => a.id === 'player')
+    const playerSpace = player?.space
     const playerRoomId = playerSpace?.kind === 'room' ? playerSpace.roomId : null
+    this.renderProps(snapshot, player?.position ?? null, playerRoomId)
     const occupied = new Map<string, number>()
     for (const actor of snapshot.actors) {
       const key = actor.sprite ?? this.defaultSprite
+      const portraitUrl = actor.portraitUrl && this.textures.exists(portraitTextureKey(actor.portraitUrl)) ? actor.portraitUrl : null
       const positionKey = `${actor.position.x},${actor.position.y}`
       const offset = occupied.get(positionKey) ?? 0
       occupied.set(positionKey, offset + 1)
@@ -343,12 +385,12 @@ class TiledScene extends Phaser.Scene {
       const y = actor.position.y * T + T / 2 + (offset === 0 ? 0 : Math.round(Math.sin(offset * (Math.PI / 3)) * 5))
 
       let marker = this.markers.get(actor.id)
-      if (marker && marker.key !== key) {
+      if (marker && (marker.key !== key || marker.portraitUrl !== portraitUrl)) {
         marker.container.destroy()
         marker = undefined
       }
       if (!marker) {
-        marker = this.createMarker(actor.id === 'player', actor.name, key, actor.position)
+        marker = this.createMarker(actor.id === 'player', actor.name, key, actor.position, portraitUrl)
         this.markers.set(actor.id, marker)
         marker.container.setPosition(x, y)
       }
@@ -397,24 +439,102 @@ class TiledScene extends Phaser.Scene {
     this.followPlayer()
   }
 
+  /**
+   * Documents lying on the map: a parchment tile the player can walk to and click.
+   * One that has been read keeps its place but stops asking to be read.
+   */
+  private renderProps(snapshot: PlaygroundSnapshot, playerPosition: Point | null, playerRoomId: string | null): void {
+    const props = snapshot.props ?? []
+    const visibleProps = props.filter((prop) => {
+      if (prop.found || playerRoomId === null) return false
+      const space = spaceAt(snapshot.map, prop.position)
+      return space?.kind === 'room' && space.roomId === playerRoomId
+    })
+    // The labels identify every document. A single hint on the nearest unread one is enough to
+    // teach the interaction without stacking identical prompts throughout a crowded room.
+    const hintedPropId = selectPropHintId(visibleProps, playerPosition)
+    for (const prop of props) {
+      let entry = this.props.get(prop.id)
+      if (!entry) {
+        entry = this.createProp(prop.name)
+        this.props.set(prop.id, entry)
+      }
+      entry.container.setPosition(prop.position.x * T + T / 2, prop.position.y * T + T / 2)
+      entry.container.setDepth(9 + prop.position.y / 1000)
+      if (entry.found !== prop.found) {
+        entry.found = prop.found
+        entry.container.setAlpha(prop.found ? 0.55 : 1)
+        if (prop.found) {
+          entry.tween?.remove()
+          entry.tween = null
+        }
+      }
+      entry.hint.setVisible(prop.id === hintedPropId)
+    }
+    for (const [id, entry] of this.props) {
+      if (!props.some((p) => p.id === id)) {
+        entry.container.destroy()
+        this.props.delete(id)
+      }
+    }
+  }
+
+  private createProp(name: string) {
+    const container = this.add.container(0, 0)
+    const shadow = this.add.ellipse(0, 5, 10, 4, 0x000000, 0.25)
+    const sheet = this.add.rectangle(0, 0, 10, 12, 0xf6e7c1).setStrokeStyle(1, 0x6b563a)
+    const lines = [-3, 0, 3].map((offset) => this.add.rectangle(0, offset, 6, 1, 0x8a7550))
+    const label = this.add
+      .text(0, 8, name, {
+        color: '#2e2620',
+        fontFamily: 'system-ui, "Segoe UI", sans-serif',
+        fontSize: '6px',
+        fontStyle: 'bold',
+        backgroundColor: '#f2dfae',
+        padding: { x: 3, y: 1 },
+        resolution: 8,
+      })
+      .setOrigin(0.5, 0)
+      .setAlpha(0.95)
+    const hint = this.add
+      .text(0, -10, 'click to read', {
+        color: '#2e2620',
+        fontFamily: 'system-ui, "Segoe UI", sans-serif',
+        fontSize: '6px',
+        fontStyle: 'bold',
+        backgroundColor: '#ffe9a8',
+        padding: { x: 3, y: 1 },
+        resolution: 8,
+      })
+      .setOrigin(0.5, 1)
+      .setVisible(false)
+    container.add([shadow, sheet, ...lines, label, hint])
+    const tween = this.reducedMotion ? null : this.tweens.add({ targets: hint, y: -12, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+    return { container, hint, tween, found: false }
+  }
+
   /** Nameplate under the feet by default, flipped over the head where it would cover a door. */
-  private placeLabel(marker: { label: Phaser.GameObjects.Text; hint: Phaser.GameObjects.Text | null; hintTween: Phaser.Tweens.Tween | null; labelAbove: boolean }, above: boolean): void {
+  private placeLabel(marker: { label: Phaser.GameObjects.Text; hint: Phaser.GameObjects.Text | null; hintTween: Phaser.Tweens.Tween | null; labelAbove: boolean; portraitUrl: string | null }, above: boolean): void {
     if (marker.labelAbove === above) return
     marker.labelAbove = above
-    marker.label.setOrigin(0.5, above ? 1 : 0).setY(above ? -9 : 9)
+    const labelY = above ? (marker.portraitUrl ? -27 : -9) : 9
+    marker.label.setOrigin(0.5, above ? 1 : 0).setY(labelY)
     if (!marker.hint) return
-    const hintY = above ? -9 - marker.label.height : -13
+    const hintY = above ? labelY - marker.label.height : marker.portraitUrl ? -28 : -13
     marker.hintTween?.remove()
     marker.hintTween = null
     marker.hint.setY(hintY)
     if (!this.reducedMotion) marker.hintTween = this.tweens.add({ targets: marker.hint, y: hintY - 2, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
   }
 
-  private createMarker(player: boolean, name: string, key: string, position: Point) {
+  private createMarker(player: boolean, name: string, key: string, position: Point, portraitUrl: string | null) {
     const container = this.add.container(0, 0)
     const shadow = this.add.ellipse(0, 6, 10, 4, 0x000000, 0.25)
     const textureKey = this.textures.exists(`char-${key}`) ? `char-${key}` : this.textures.exists(`char-${this.defaultSprite}`) ? `char-${this.defaultSprite}` : '__DEFAULT'
     const sprite = this.add.sprite(0, 0, textureKey, 0).setOrigin(0.5, 0.5)
+    const portraitKey = portraitUrl ? portraitTextureKey(portraitUrl) : null
+    const portraitFrame = !player && portraitKey ? this.add.graphics().fillStyle(0x2e2620, 0.96).fillRoundedRect(-10, -25, 20, 20, 3) : null
+    const portrait = !player && portraitKey ? this.add.image(0, -15, portraitKey).setDisplaySize(16, 16) : null
     const label = this.add
       .text(0, 9, name, {
         color: '#fff8e7',
@@ -431,7 +551,7 @@ class TiledScene extends Phaser.Scene {
     let hintTween: Phaser.Tweens.Tween | null = null
     if (!player) {
       hint = this.add
-        .text(0, -13, 'click to talk', {
+        .text(0, portrait ? -28 : -13, 'click to talk', {
           color: '#2e2620',
           fontFamily: 'system-ui, "Segoe UI", sans-serif',
           fontSize: '6px',
@@ -442,10 +562,15 @@ class TiledScene extends Phaser.Scene {
         })
         .setOrigin(0.5, 1)
         .setVisible(false)
-      if (!this.reducedMotion) hintTween = this.tweens.add({ targets: hint, y: -15, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+      if (!this.reducedMotion) hintTween = this.tweens.add({ targets: hint, y: hint.y - 2, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
     }
-    container.add(hint ? [shadow, sprite, label, hint] : [shadow, sprite, label])
-    return { container, sprite, label, hint, hintTween, labelAbove: false, key, facing: 'down' as Facing, last: { x: position.x, y: position.y }, idle: null }
+    const contents: Phaser.GameObjects.GameObject[] = [shadow, sprite]
+    if (portraitFrame) contents.push(portraitFrame)
+    if (portrait) contents.push(portrait)
+    contents.push(label)
+    if (hint) contents.push(hint)
+    container.add(contents)
+    return { container, sprite, label, hint, hintTween, labelAbove: false, key, portraitUrl, facing: 'down' as Facing, last: { x: position.x, y: position.y }, idle: null }
   }
 
   // ---------------------------------------------------------------------------
@@ -507,16 +632,16 @@ class TiledScene extends Phaser.Scene {
     }
     switch (ambient.id) {
       case 'night':
-        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 0x0b1a3a, 0.28 + 0.2 * strength).setDepth(40))
+        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 0x0b1a3a, 0.16 + 0.1 * strength).setDepth(40))
         break
       case 'fog': {
-        const fog = this.add.tileSprite(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 'fx-fog').setDepth(40).setAlpha(0.22 + 0.25 * strength)
+        const fog = this.add.tileSprite(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 'fx-fog').setDepth(40).setAlpha(0.14 + 0.14 * strength)
         keep(fog)
         if (!this.reducedMotion) keep(this.tweens.add({ targets: fog, tilePositionX: 320, duration: 40_000, repeat: -1 }) as unknown as Phaser.GameObjects.GameObject)
         break
       }
       case 'clouds': {
-        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 0x203040, 0.08 + 0.08 * strength).setDepth(40))
+        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 0x203040, 0.04 + 0.04 * strength).setDepth(40))
         for (let i = 0; i < 2 + ambient.intensity; i += 1) {
           const cloud = this.add.image(jitter(i, 7, 3) * mapW, jitter(i, 9, 4) * mapH, 'fx-clouds').setDepth(41).setAlpha(0.18).setTint(0x1a2430).setScale(2)
           keep(cloud)
@@ -527,7 +652,7 @@ class TiledScene extends Phaser.Scene {
       case 'rain':
       case 'snow':
       case 'dust': {
-        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, ambient.id === 'dust' ? 0x8a6b3a : 0x1b2a3a, 0.08 + 0.1 * strength).setDepth(40))
+        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, ambient.id === 'dust' ? 0x8a6b3a : 0x1b2a3a, 0.05 + 0.05 * strength).setDepth(40))
         if (this.reducedMotion) break
         const texture = ambient.id === 'rain' ? 'fx-rain' : 'fx-snow'
         const emitter = this.add.particles(0, 0, texture, {
@@ -630,7 +755,7 @@ class TiledScene extends Phaser.Scene {
     if (this.sound.locked) return
 
     const ambientId = snapshot.ambient?.id ?? 'clear'
-    const wantMusic = MUSIC_FOR[ambientId] ?? 'calm-village'
+    const wantMusic = selectMusicTrack(ambientId, snapshot.seed || snapshot.map.id)
     if (wantMusic !== this.musicKey && this.cache.audio.exists(`music-${wantMusic}`)) {
       const previous = this.music
       if (previous) {

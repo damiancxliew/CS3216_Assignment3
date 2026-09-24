@@ -11,6 +11,13 @@ export interface OpenAiClientOptions {
   /** Strict mode guarantees schema adherence; turn off only to debug a schema the API rejects. */
   strict?: boolean
   timeoutMs?: number
+  maxRetries?: number
+  /**
+   * Total wall-clock budget shared by every request made through this client.
+   * This is useful when several planner/repair calls run inside one serverless
+   * invocation and must leave time for persistence before the host deadline.
+   */
+  deadlineMs?: number
 }
 
 /**
@@ -35,15 +42,26 @@ export function toOpenAiStrictSchema(schema: Record<string, unknown>): Record<st
 export class OpenAiLlmClient implements LlmClient {
   private readonly client: OpenAI
   private readonly strict: boolean
+  private readonly timeoutMs: number
+  private readonly maxRetries: number
+  private readonly deadlineAt: number | null
 
   constructor(options: OpenAiClientOptions = {}) {
     const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY
     if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
-    this.client = new OpenAI({ apiKey, timeout: options.timeoutMs ?? 300_000, maxRetries: 2 })
+    this.timeoutMs = options.timeoutMs ?? 300_000
+    this.maxRetries = options.maxRetries ?? 2
+    this.deadlineAt = options.deadlineMs === undefined ? null : Date.now() + options.deadlineMs
+    this.client = new OpenAI({ apiKey, timeout: this.timeoutMs, maxRetries: this.maxRetries })
     this.strict = options.strict ?? true
   }
 
   async completeJson(request: LlmJsonRequest): Promise<LlmJsonResponse> {
+    const remainingMs = this.deadlineAt === null ? this.timeoutMs : this.deadlineAt - Date.now()
+    if (remainingMs <= 0) {
+      throw new Error('Generation reached its time limit before another model call could start')
+    }
+
     const started = Date.now()
     const response = await this.client.responses.create({
       model: request.model,
@@ -60,6 +78,9 @@ export class OpenAiLlmClient implements LlmClient {
       max_output_tokens: request.maxOutputTokens,
       ...(request.reasoningEffort ? { reasoning: { effort: request.reasoningEffort } } : {}),
       store: false,
+    }, {
+      timeout: Math.min(this.timeoutMs, remainingMs),
+      maxRetries: this.maxRetries,
     })
     const latencyMs = Date.now() - started
 
