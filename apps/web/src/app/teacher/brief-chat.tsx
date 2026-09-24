@@ -70,8 +70,9 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
         } else {
           setError(result.error);
         }
-      } catch {
-        setError("That didn’t reach the server — the file may be too large. Try again, or paste the text instead.");
+      } catch (error) {
+        console.error("teacher brief request failed", error);
+        setError("Couldn’t complete that request. Please try again.");
       }
     });
   }
@@ -260,7 +261,7 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
                 }}
                 rows={2}
                 disabled={pending}
-                placeholder={acceptLabel ? "Or type your own. Enter sends, Shift+Enter for a new line." : "Type your answer. Enter sends, Shift+Enter for a new line."}
+                placeholder={acceptLabel ? "Or type your own…" : "Your answer…"}
                 aria-label="Your answer"
                 className={`${control} flex-1 resize-none`}
               />
@@ -317,11 +318,7 @@ function Start({
     return (
       <div className="flex flex-col gap-4">
         <p className="text-base text-ink">
-          <span className="font-semibold">You have a brief half-done</span>
-          <span className="text-muted">
-            {" "}
-            — {sources} source{sources === 1 ? "" : "s"} uploaded, {answered} question{answered === 1 ? "" : "s"} answered.
-          </span>
+          Your setup is unfinished ({sources} source{sources === 1 ? "" : "s"}, {answered} answer{answered === 1 ? "" : "s"}).
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onResume} disabled={pending} className={button.primary}>
@@ -433,7 +430,7 @@ function SourceStep({
         </Chip>
       </form>
       {!pasting ? (
-        <p className="text-sm text-muted">Any size PDF — the text is read here in your browser. A scanned PDF has no text layer; paste its text instead.</p>
+        <p className="text-sm text-muted">Scanned PDFs aren’t supported. Paste the text instead.</p>
       ) : null}
     </div>
   );
@@ -545,7 +542,7 @@ function SummaryRows({
 
   return (
     <div className="mt-3 flex flex-col gap-4 border-t border-line pt-4 text-base">
-      <p className="text-muted">Everything below is settled. Change anything, then create the adventure.</p>
+      <p className="text-muted">Review your choices, then create the adventure.</p>
       <dl className="flex flex-col divide-y divide-line">
         {rows.map((row) => (
           <div key={row.key} className="flex items-start gap-3 py-2.5">

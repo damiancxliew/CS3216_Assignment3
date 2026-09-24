@@ -20,16 +20,34 @@ async function call<T>(url: string, init?: RequestInit): Promise<{ ok: true; bod
   let response: Response;
   try {
     response = await fetch(url, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
-  } catch {
+  } catch (error) {
+    console.warn("Play API request failed", error);
     return { ok: false, error: { code: "network_error", message: "Could not reach the server. Please try again." }, timings: {} };
   }
   const timings = parseServerTiming(response.headers.get("server-timing"));
-  const body = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok) {
-    const error = (body as { error?: ApiFailure } | null)?.error ?? { code: "unknown", message: `HTTP ${response.status}` };
-    return { ok: false, error, timings };
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch (error) {
+    console.warn("Could not read play API response", error);
+    body = null;
   }
-  if (body === null || typeof body !== "object") return { ok: false, error: { code: "invalid_response", message: "The server returned an invalid response. Please try again." }, timings };
+  if (!response.ok) {
+    const apiError = (body as { error?: ApiFailure } | null)?.error;
+    if (!apiError) {
+      console.error("Play API returned an error without details", response.status, body);
+      return { ok: false, error: { code: "unknown", message: "Something went wrong. Please try again." }, timings };
+    }
+    if (apiError.code === "incompatible_version") {
+      console.error("Play API reported an incompatible adventure version", apiError);
+      return { ok: false, error: { code: apiError.code, message: "This adventure can’t be opened right now. Ask your teacher for help." }, timings };
+    }
+    return { ok: false, error: apiError, timings };
+  }
+  if (body === null || typeof body !== "object") {
+    console.error("Play API returned an invalid response", response.status, body);
+    return { ok: false, error: { code: "invalid_response", message: "Something went wrong. Please try again." }, timings };
+  }
   return { ok: true, body: body as T, timings };
 }
 
