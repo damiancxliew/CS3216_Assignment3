@@ -21,7 +21,11 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
   const from = [{ x: to.x - 1, y: to.y }, { x: to.x + 1, y: to.y }, { x: to.x, y: to.y - 1 }, { x: to.x, y: to.y + 1 }].find((point) => canStep(spatial.map, spatial.state.doors, point, to))!;
   spatial.state.actors.player = from;
   session.world.location.player = evidence.roomId;
-  const currentState = () => session.state({ enabled: false, deadlineAt: null });
+  let includeArchivedScroll = false;
+  const currentState = () => {
+    const state = session.state({ enabled: false, deadlineAt: null });
+    return { ...state, journal: [...state.journal, ...(includeArchivedScroll ? [{ id: "earlier-stage-scroll", text: "Earlier discoveries: A record kept from a previous stage.", sourceSpan: "Archive, p. 2", collectedAt: new Date().toISOString() }] : [])] };
+  };
   const initial = { ...currentState(), revision: 1, mintReady: false };
   const root = resolve("apps/web");
   const stubs: Record<string, string> = {
@@ -89,8 +93,12 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     });
     await page.goto(vite.resolvedUrls!.local[0]!);
     await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
-    await page.getByRole("button", { name: "Notes (0)" }).click();
+    await mkdir(resolve("output/reader-check"), { recursive: true });
+    await page.screenshot({ path: resolve("output/reader-check/notes-toolbar-desktop.png") });
+    await page.getByRole("group", { name: "Adventure tools" }).getByRole("button", { name: "Notes (0)" }).click();
     expect(await page.getByText("No scrolls collected yet.", { exact: false }).isVisible()).toBe(true);
+    await page.keyboard.press("Escape");
+    expect(await page.getByRole("button", { name: "Notes (0)" }).evaluate((element) => element === document.activeElement)).toBe(true);
     await page.locator("canvas").focus();
     await page.keyboard.press(to.x > from.x ? "ArrowRight" : to.x < from.x ? "ArrowLeft" : to.y > from.y ? "ArrowDown" : "ArrowUp");
     const modal = page.getByRole("dialog", { name: evidence.name });
@@ -99,16 +107,15 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     expect(await modal.getByText("Unfolding the document…").isVisible()).toBe(true);
     await page.keyboard.press("Escape");
     // Notes stays useful while the movement/collection request is still held.
-    if (await page.getByRole("button", { name: "Notes (1)" }).getAttribute("aria-expanded") !== "true") await page.getByRole("button", { name: "Notes (1)" }).click();
-    await page.getByRole("list", { name: "Collected notes" }).getByRole("button").click();
+    await page.getByRole("button", { name: "Notes (1)" }).click();
     await modal.waitFor({ timeout: 1_000 });
     expect(movementReturned).toBe(false);
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Escape");
     releaseMove();
-    await expect.poll(async () => page.getByRole("list", { name: "Collected notes" }).getByText(evidence.content.text, { exact: false }).count()).toBe(1);
+    await expect.poll(() => movementReturned).toBe(true);
     expect(await modal.count()).toBe(0);
-    await page.getByRole("list", { name: "Collected notes" }).getByRole("button").click();
+    await page.getByRole("button", { name: "Notes (1)" }).click();
     await modal.getByText("Saved in your notes").waitFor();
     expect(inspectRequests).toBe(0);
     expect(await modal.getByText(evidence.content.text, { exact: true }).isVisible()).toBe(true);
@@ -129,6 +136,29 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     expect(await modal.evaluate((element) => element.contains(document.activeElement))).toBe(true);
     await modal.getByRole("button", { name: "Roll up scroll" }).click();
     expect(await modal.count()).toBe(0);
+    expect(await page.getByRole("button", { name: "Notes (1)" }).evaluate((element) => element === document.activeElement)).toBe(true);
+    await page.screenshot({ path: resolve("output/reader-check/notes-toolbar-mobile.png") });
+    includeArchivedScroll = true;
+    await page.getByRole("button", { name: "Notes (2)" }).waitFor({ timeout: 15_000 });
+    await page.getByRole("button", { name: "Notes (2)" }).click();
+    const notes = page.getByRole("dialog");
+    expect(await notes.getByRole("heading", { name: "Earlier discoveries" }).isVisible()).toBe(true);
+    expect(await notes.getByRole("button", { name: "Next scroll" }).isDisabled()).toBe(true);
+    await notes.getByRole("button", { name: "Previous scroll" }).click();
+    expect(await notes.getByText(evidence.content.text, { exact: true }).isVisible()).toBe(true);
+    expect(await notes.getByRole("button", { name: "Previous scroll" }).isDisabled()).toBe(true);
+    await notes.getByLabel("Choose a collected scroll").selectOption("earlier-stage-scroll");
+    expect(await notes.getByText("A record kept from a previous stage.", { exact: true }).isVisible()).toBe(true);
+    await notes.getByRole("button", { name: "Previous scroll" }).click();
+    await page.evaluate(() => document.documentElement.dataset.theme = "dark");
+    await page.screenshot({ path: resolve("output/reader-check/notes-dark-mobile.png") });
+    const mobileBounds = await notes.boundingBox();
+    expect(mobileBounds!.y + mobileBounds!.height).toBeLessThanOrEqual(650);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: resolve("output/reader-check/notes-dark-desktop.png") });
+    await page.keyboard.press("Escape");
+    expect(await page.getByRole("button", { name: "Notes (2)" }).evaluate((element) => element === document.activeElement)).toBe(true);
     expect(errors).toEqual([]);
   } finally {
     releaseMove();
