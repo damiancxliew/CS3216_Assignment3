@@ -115,6 +115,8 @@ export interface PlayState extends PublicAttemptState {
   pendingDialogue: boolean;
   /** Evidence in the player's room that they have not examined yet. Names only — content is what examining reveals. */
   evidenceHere: { id: string; name: string; position: { x: number; y: number } | null; canInspect: boolean }[];
+  /** Every placed document on this stage's map, so the renderer can draw it. Names only, like the room labels. */
+  props: { id: string; name: string; roomId: string; position: { x: number; y: number }; found: boolean }[];
   /** Version of the option set shown; commits carry it back so a stale set is rejected (FR-14). */
   optionsVersion: string;
   stageCount: number;
@@ -443,6 +445,10 @@ export class PlaySession {
           const canInspect = playerPoint !== null && position !== null && compiled !== null && isInPhysicalInteractionRange(world.spatial!.map, world.spatial!.state.doors, playerPoint, position);
           return { id: item.id, name: item.name, position, canInspect };
         }),
+      props: this.stage.evidence.flatMap((item) => {
+        const position = compiled?.placements.find((p) => p.id === item.id)?.position;
+        return position ? [{ id: item.id, name: item.name, roomId: item.roomId, position, found: known.has(item.id) }] : [];
+      }),
       objectiveHints: this.objectiveHints(),
       roomImages: this.generatedImages("landmark", this.stage.rooms.map((r) => r.id)),
       evidenceImages: this.generatedImages("prop", this.stage.evidence.map((e) => e.id)),

@@ -18,8 +18,10 @@ export type EditField = {
 
 /**
  * A pencil that swaps the read-only dossier card for the matching form in
- * place. Published versions render the pencil disabled: frozen specs are
- * refused server-side anyway (P4), this just explains why upfront.
+ * place. The pencil sits beside the content rather than over it, so a
+ * one-line card (an objective, a position) is never covered. Published
+ * versions render it disabled: frozen specs are refused server-side anyway
+ * (P4), this just explains why upfront.
  */
 export function InlineEdit({
   action,
@@ -68,15 +70,15 @@ export function InlineEdit({
   }
 
   return (
-    <div className="group/edit relative">
-      {children}
+    <div className="flex w-full items-start gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">{children}</div>
       <button
         type="button"
         aria-label={label}
         title={editable ? label : `Published and frozen — choose “Edit as a new version”`}
         disabled={!editable}
         onClick={() => setEditing(true)}
-        className="absolute -right-1 -top-1 rounded-control border border-line bg-surface p-1.5 text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+        className="shrink-0 rounded-control border border-line bg-surface p-1.5 text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
           <path d="M17 3a2.8 2.8 0 1 1 4 4L8 20l-5 1 1-5Z" />
