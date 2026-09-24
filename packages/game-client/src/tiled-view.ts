@@ -20,6 +20,7 @@ import { fixtureScenery, roomScenery, usesUrbanGround } from './scenery.js'
 import { matchMapPalette } from './pixel-art.js'
 import type { MapThemeId, PlaygroundSnapshot, SoundCueId } from './model.js'
 import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
+import { RoomWandering, ROOM_STEP_MS } from './room-wandering.js'
 import type { MapView } from './view.js'
 
 const T = 16
@@ -154,6 +155,7 @@ class TiledScene extends Phaser.Scene {
   private ambientLoop: Phaser.Sound.BaseSound | null = null
   private ambientLoopKey: string | null = null
   private following = false
+  private readonly wandering = new RoomWandering()
 
   constructor(snapshot: PlaygroundSnapshot, onDestination: (point: Point, inputAt?: number) => void, reducedMotion: boolean, onReady: () => void, options: TiledViewOptions) {
     super({ key: 'tiled-map' })
@@ -214,7 +216,10 @@ class TiledScene extends Phaser.Scene {
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
       // A character under the pointer means "talk to them", not "walk here".
-      const actor = this.current.actors.find((a) => a.id !== 'player' && a.position.x === point.x && a.position.y === point.y)
+      const actor = this.current.actors.find((a) => {
+        const position = this.wandering.position(a.id, a.position)
+        return a.id !== 'player' && position.x === point.x && position.y === point.y
+      })
       if (actor && this.onActor) {
         this.onActor(actor.id)
         return
@@ -544,12 +549,24 @@ class TiledScene extends Phaser.Scene {
   }
 
   private renderSnapshot(snapshot: PlaygroundSnapshot, snap = false): void {
+    this.wandering.sync(snapshot, Boolean(snapshot.roomWandering && snapshot.running && !this.reducedMotion))
     this.renderLandmarkTiles(snapshot)
     for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
 
     this.renderProps(snapshot)
+    this.renderActors(snapshot, snap)
+    this.applyAmbient(snapshot)
+    this.playEffects(snapshot)
+    this.applyAudio(snapshot)
+    this.followPlayer()
+    this.layoutCaptions()
+  }
+
+  private renderActors(snapshot: PlaygroundSnapshot, snap = false): void {
     const occupied = new Map<string, number>()
-    for (const actor of snapshot.actors) {
+    for (const source of snapshot.actors) {
+      const actor = { ...source, position: this.wandering.position(source.id, source.position) }
+      const duration = snapshot.roomWandering && actor.id !== 'player' && actor.space?.kind === 'room' ? ROOM_STEP_MS : STEP_MS
       const fallbackKey = `char-${actor.sprite ?? this.defaultSprite}`
       const generatedKey = actor.spriteSheetUrl ? assetTextureKey(actor.spriteSheetUrl) : null
       const key = generatedKey && this.textures.exists(generatedKey) ? generatedKey : fallbackKey
@@ -581,7 +598,7 @@ class TiledScene extends Phaser.Scene {
         const walker = marker
         marker.sprite.play(animKey, true)
         marker.idle?.remove()
-        marker.idle = this.time.delayedCall(STEP_MS + 100, () => {
+        marker.idle = this.time.delayedCall(duration + 100, () => {
           walker.idle = null
           if (!walker.sprite.active) return
           if (walker.sprite.anims.currentAnim?.key === animKey && walker.sprite.anims.isPlaying) walker.sprite.stop()
@@ -594,9 +611,9 @@ class TiledScene extends Phaser.Scene {
       if (snap || this.reducedMotion) {
         this.tweens.killTweensOf(marker.container)
         marker.container.setPosition(x, y)
-      } else if (marker.container.x !== x || marker.container.y !== y) {
+      } else if (moved || (!this.tweens.isTweening(marker.container) && (marker.container.x !== x || marker.container.y !== y))) {
         this.tweens.killTweensOf(marker.container)
-        this.tweens.add({ targets: marker.container, x, y, duration: STEP_MS, ease: 'Linear' })
+        this.tweens.add({ targets: marker.container, x, y, duration, ease: 'Linear' })
       }
     }
     for (const [id, marker] of this.markers) {
@@ -606,11 +623,6 @@ class TiledScene extends Phaser.Scene {
         this.markers.delete(id)
       }
     }
-    this.applyAmbient(snapshot)
-    this.playEffects(snapshot)
-    this.applyAudio(snapshot)
-    this.followPlayer()
-    this.layoutCaptions()
   }
 
   private renderProps(snapshot: PlaygroundSnapshot): void {
@@ -663,7 +675,11 @@ class TiledScene extends Phaser.Scene {
   }
 
   /** Keep captions separated throughout walking tweens, including between snapshots. */
-  override update(): void {
+  override update(_time: number, delta: number): void {
+    if (this.ready && this.current.roomWandering && this.current.running && !this.reducedMotion && !document.hidden) {
+      const hoveredId = this.hoveredTarget?.startsWith('actor:') ? this.hoveredTarget.slice(6) : undefined
+      if (this.wandering.advance(this.current, delta, hoveredId)) this.renderActors(this.current)
+    }
     if (this.ready) this.layoutCaptions()
   }
 
