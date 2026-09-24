@@ -348,7 +348,7 @@ export function PlayClient({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-      <section className="relative min-h-[55vh] flex-1 bg-sunken lg:min-h-0" aria-label="Map">
+      <section className="relative h-[32dvh] min-h-[11rem] shrink-0 bg-sunken lg:h-auto lg:min-h-0 lg:flex-1" aria-label="Map">
         <MapCanvas
           state={state}
           audio={{ muted, cues }}
@@ -359,8 +359,11 @@ export function PlayClient({
           onTalk={onTalk}
         />
         {hintVisible ? (
-          <p className="pointer-events-none absolute bottom-16 left-3 right-3 rounded-control bg-ink/85 px-3.5 py-2 text-base font-semibold text-paper lg:bottom-3 lg:right-48">
-            Arrows or WASD to walk. Click a character to talk, or press Enter to talk to whoever is with you.
+          <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-ink/85 px-3 py-1.5 text-sm font-semibold text-paper lg:bottom-3 lg:right-48 lg:top-auto lg:px-3.5 lg:py-2 lg:text-base">
+            <span className="lg:hidden">Tap the map to walk. Tap a character to talk.</span>
+            <span className="hidden lg:inline">
+              Arrows or WASD to walk. Click a character to talk, or press Enter to talk to whoever is with you.
+            </span>
           </p>
         ) : null}
         <button
@@ -376,15 +379,18 @@ export function PlayClient({
           type="button"
           onClick={toggleMuted}
           aria-pressed={muted}
-          className="absolute bottom-3 right-3 inline-flex min-h-11 items-center gap-2 rounded-control bg-ink/85 px-3.5 py-2 text-base font-semibold text-paper hover:bg-ink"
+          className="absolute bottom-3 right-3 inline-flex min-h-11 items-center gap-2 rounded-control bg-ink/85 px-3 py-2 text-base font-semibold text-paper hover:bg-ink lg:px-3.5"
         >
           {muted ? <VolumeX className="h-5 w-5" aria-hidden /> : <Volume2 className="h-5 w-5" aria-hidden />}
-          {muted ? "Sound off" : "Sound on"}
+          <span className="sr-only sm:not-sr-only">{muted ? "Sound off" : "Sound on"}</span>
         </button>
         {lastResolution ? (
-          <div role="status" className="absolute left-3 right-3 top-3 mx-auto max-w-2xl rounded-surface border-l-[3px] border-world bg-surface p-5 text-ink shadow-xl">
+          <div
+            role="status"
+            className="absolute inset-x-3 top-3 mx-auto max-h-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto rounded-surface border-l-[3px] border-world bg-surface p-4 text-ink shadow-xl sm:p-5"
+          >
             <p className="mb-2 text-base font-semibold text-world">What happened</p>
-            <p className="text-lg leading-relaxed">{lastResolution}</p>
+            <p className="leading-relaxed sm:text-lg">{lastResolution}</p>
             <button type="button" className={`${primary} mt-4`} onClick={() => setLastResolution(null)}>
               Got it
             </button>
@@ -392,7 +398,7 @@ export function PlayClient({
         ) : null}
       </section>
 
-      <aside className="flex min-h-0 w-full min-w-0 flex-col overflow-y-auto border-t border-line bg-paper text-base lg:w-[30rem] lg:border-l lg:border-t-0">
+      <aside className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto border-t border-line bg-paper text-base lg:w-[30rem] lg:flex-none lg:border-l lg:border-t-0">
         {/* ── Top: where you are, where you can go ─────────────────────────── */}
         <section className="flex shrink-0 flex-col gap-3 border-b border-line px-5 py-4" aria-labelledby="where">
           <div className="flex items-start justify-between gap-3">
@@ -488,11 +494,11 @@ export function PlayClient({
             </p>
           )}
 
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4" role="log" aria-live="polite" aria-label="Conversation">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-3 sm:py-4" role="log" aria-live="polite" aria-label="Conversation">
             {state.transcript.length === 0 && pendingSpeech === null ? (
-              <div className="m-auto flex max-w-sm flex-col items-center gap-2 text-center">
-                <p className="font-serif text-xl text-ink">Nothing has been said yet</p>
-                <p className="text-base leading-relaxed text-muted">
+              <div className="mx-auto flex max-w-sm flex-col items-center gap-2 text-center lg:m-auto">
+                <p className="font-serif text-lg text-ink sm:text-xl">Nothing has been said yet</p>
+                <p className="hidden text-base leading-relaxed text-muted sm:block">
                   {talkingTo
                     ? `Ask ${talkingTo.name} a question. Hearing what they think is how you complete a goal about them.`
                     : "Find someone and ask them a question. Your goals below say who is worth talking to."}
@@ -612,7 +618,7 @@ export function PlayClient({
 
           {canDecide ? (
             <div className="flex flex-col gap-2 rounded-surface border border-signal bg-signal-wash p-3">
-              <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
+              <button type="button" className="flex w-full flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-left" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
                 <span id="decide" className="font-serif text-xl text-ink">
                   You can decide now
                 </span>
@@ -646,7 +652,7 @@ export function PlayClient({
               ) : null}
             </div>
           ) : (
-            <button type="button" className="flex w-full items-center justify-between rounded-control border border-dashed border-line-strong px-3 py-2.5 text-left hover:border-ink" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
+            <button type="button" className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-control border border-dashed border-line-strong px-3 py-2.5 text-left hover:border-ink" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
               <span id="decide" className="inline-flex items-center gap-2 text-base font-semibold text-muted">
                 <Lock className="h-4 w-4" aria-hidden /> Decision locked. Finish your goals first.
               </span>

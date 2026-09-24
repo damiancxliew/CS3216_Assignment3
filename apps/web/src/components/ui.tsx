@@ -236,10 +236,10 @@ export function Page({
     <main className={`mx-auto flex min-h-screen w-full flex-col gap-10 px-6 py-10 sm:py-14 ${width === "wide" ? "max-w-5xl" : "max-w-3xl"}${fill ? " lg:h-dvh lg:min-h-0 lg:overflow-hidden" : ""}`}>
       <div className="flex items-center justify-between gap-4">
         <Wordmark />
-        {kicker ? <div className="text-base text-muted">{kicker}</div> : null}
+        {kicker ? <div className="shrink-0 text-base text-muted">{kicker}</div> : null}
       </div>
       <header className="flex flex-col gap-3">
-        <h1 className="font-serif text-4xl text-ink sm:text-5xl">{title}</h1>
+        <h1 className="font-serif text-3xl text-ink sm:text-5xl">{title}</h1>
         {lede ? <div className="max-w-[62ch] text-lg text-muted">{lede}</div> : null}
       </header>
       {children}
@@ -270,7 +270,7 @@ export function Mark({ className = "h-5 w-5" }: { className?: string }) {
 
 export function Wordmark({ className = "" }: { className?: string }) {
   return (
-    <Link href="/" className={`inline-flex items-center gap-2.5 font-serif text-lg text-ink hover:text-record ${className}`}>
+    <Link href="/" className={`inline-flex shrink-0 items-center gap-2.5 whitespace-nowrap font-serif text-base text-ink hover:text-record sm:text-lg ${className}`}>
       <Mark />
       Historical Adventures
     </Link>
