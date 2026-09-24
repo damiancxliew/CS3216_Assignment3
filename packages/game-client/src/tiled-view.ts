@@ -10,7 +10,7 @@
  *   fx/rain.png fx/snow.png (8px frames), fx/fog.png, fx/clouds.png, fx/smoke.png (32px frames)
  */
 import Phaser from 'phaser'
-import type { Point, StageMap } from '@adventure/game-core'
+import { spaceAt, type Point, type StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
 import type { PlaygroundSnapshot, SoundCueId } from './model.js'
 import type { MapView } from './view.js'
@@ -81,6 +81,8 @@ export interface TiledViewOptions {
   defaultSprite?: string
   /** Called when the player clicks a character instead of a tile. */
   onActor?: (actorId: string) => void
+  /** Called when the player clicks a document or object lying on the map. */
+  onProp?: (propId: string) => void
 }
 
 class TiledScene extends Phaser.Scene {
@@ -90,6 +92,7 @@ class TiledScene extends Phaser.Scene {
   private readonly base: string
   private readonly defaultSprite: string
   private readonly onActor: ((actorId: string) => void) | undefined
+  private readonly onProp: ((propId: string) => void) | undefined
   private reducedMotion: boolean
   private ready = false
   private map?: Phaser.Tilemaps.Tilemap
@@ -114,6 +117,7 @@ class TiledScene extends Phaser.Scene {
       idle: Phaser.Time.TimerEvent | null
     }
   >()
+  private props = new Map<string, { container: Phaser.GameObjects.Container; hint: Phaser.GameObjects.Text; tween: Phaser.Tweens.Tween | null; found: boolean }>()
   /** Tiles whose nameplate would land on a door, i.e. the tile above each door. */
   private plateBlocked = new Set<string>()
   private loadedSprites = new Set<string>()
@@ -136,6 +140,7 @@ class TiledScene extends Phaser.Scene {
     this.base = options.assetBase.replace(/\/$/, '')
     this.defaultSprite = options.defaultSprite ?? 'Villager'
     this.onActor = options.onActor
+    this.onProp = options.onProp
   }
 
   preload(): void {
@@ -165,6 +170,12 @@ class TiledScene extends Phaser.Scene {
       const actor = this.current.actors.find((a) => a.id !== 'player' && a.position.x === point.x && a.position.y === point.y)
       if (actor && this.onActor) {
         this.onActor(actor.id)
+        return
+      }
+      // A document under the pointer means "go read it", not "walk here".
+      const prop = (this.current.props ?? []).find((p) => p.position.x === point.x && p.position.y === point.y)
+      if (prop && this.onProp) {
+        this.onProp(prop.id)
         return
       }
       this.onDestination(point, pointer.time || performance.now())
@@ -247,6 +258,8 @@ class TiledScene extends Phaser.Scene {
     this.labels = []
     this.markers.forEach((m) => m.container.destroy())
     this.markers.clear()
+    this.props.forEach((p) => p.container.destroy())
+    this.props.clear()
     this.clearAmbient()
 
     const source = this.current.map
@@ -333,6 +346,7 @@ class TiledScene extends Phaser.Scene {
 
     const playerSpace = snapshot.actors.find((a) => a.id === 'player')?.space
     const playerRoomId = playerSpace?.kind === 'room' ? playerSpace.roomId : null
+    this.renderProps(snapshot, playerRoomId)
     const occupied = new Map<string, number>()
     for (const actor of snapshot.actors) {
       const key = actor.sprite ?? this.defaultSprite
@@ -395,6 +409,74 @@ class TiledScene extends Phaser.Scene {
     this.playEffects(snapshot)
     this.applyAudio(snapshot)
     this.followPlayer()
+  }
+
+  /**
+   * Documents lying on the map: a parchment tile the player can walk to and click.
+   * One that has been read keeps its place but stops asking to be read.
+   */
+  private renderProps(snapshot: PlaygroundSnapshot, playerRoomId: string | null): void {
+    const props = snapshot.props ?? []
+    for (const prop of props) {
+      let entry = this.props.get(prop.id)
+      if (!entry) {
+        entry = this.createProp(prop.name)
+        this.props.set(prop.id, entry)
+      }
+      entry.container.setPosition(prop.position.x * T + T / 2, prop.position.y * T + T / 2)
+      entry.container.setDepth(9 + prop.position.y / 1000)
+      if (entry.found !== prop.found) {
+        entry.found = prop.found
+        entry.container.setAlpha(prop.found ? 0.55 : 1)
+        if (prop.found) {
+          entry.tween?.remove()
+          entry.tween = null
+        }
+      }
+      const space = spaceAt(snapshot.map, prop.position)
+      const inPlayerRoom = playerRoomId !== null && space?.kind === 'room' && space.roomId === playerRoomId
+      entry.hint.setVisible(!prop.found && inPlayerRoom)
+    }
+    for (const [id, entry] of this.props) {
+      if (!props.some((p) => p.id === id)) {
+        entry.container.destroy()
+        this.props.delete(id)
+      }
+    }
+  }
+
+  private createProp(name: string) {
+    const container = this.add.container(0, 0)
+    const shadow = this.add.ellipse(0, 5, 10, 4, 0x000000, 0.25)
+    const sheet = this.add.rectangle(0, 0, 10, 12, 0xf6e7c1).setStrokeStyle(1, 0x6b563a)
+    const lines = [-3, 0, 3].map((offset) => this.add.rectangle(0, offset, 6, 1, 0x8a7550))
+    const label = this.add
+      .text(0, 8, name, {
+        color: '#2e2620',
+        fontFamily: 'system-ui, "Segoe UI", sans-serif',
+        fontSize: '6px',
+        fontStyle: 'bold',
+        backgroundColor: '#f2dfae',
+        padding: { x: 3, y: 1 },
+        resolution: 8,
+      })
+      .setOrigin(0.5, 0)
+      .setAlpha(0.95)
+    const hint = this.add
+      .text(0, -10, 'click to read', {
+        color: '#2e2620',
+        fontFamily: 'system-ui, "Segoe UI", sans-serif',
+        fontSize: '6px',
+        fontStyle: 'bold',
+        backgroundColor: '#ffe9a8',
+        padding: { x: 3, y: 1 },
+        resolution: 8,
+      })
+      .setOrigin(0.5, 1)
+      .setVisible(false)
+    container.add([shadow, sheet, ...lines, label, hint])
+    const tween = this.reducedMotion ? null : this.tweens.add({ targets: hint, y: -12, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+    return { container, hint, tween, found: false }
   }
 
   /** Nameplate under the feet by default, flipped over the head where it would cover a door. */
@@ -507,16 +589,16 @@ class TiledScene extends Phaser.Scene {
     }
     switch (ambient.id) {
       case 'night':
-        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 0x0b1a3a, 0.28 + 0.2 * strength).setDepth(40))
+        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 0x0b1a3a, 0.16 + 0.1 * strength).setDepth(40))
         break
       case 'fog': {
-        const fog = this.add.tileSprite(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 'fx-fog').setDepth(40).setAlpha(0.22 + 0.25 * strength)
+        const fog = this.add.tileSprite(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 'fx-fog').setDepth(40).setAlpha(0.14 + 0.14 * strength)
         keep(fog)
         if (!this.reducedMotion) keep(this.tweens.add({ targets: fog, tilePositionX: 320, duration: 40_000, repeat: -1 }) as unknown as Phaser.GameObjects.GameObject)
         break
       }
       case 'clouds': {
-        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 0x203040, 0.08 + 0.08 * strength).setDepth(40))
+        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 0x203040, 0.04 + 0.04 * strength).setDepth(40))
         for (let i = 0; i < 2 + ambient.intensity; i += 1) {
           const cloud = this.add.image(jitter(i, 7, 3) * mapW, jitter(i, 9, 4) * mapH, 'fx-clouds').setDepth(41).setAlpha(0.18).setTint(0x1a2430).setScale(2)
           keep(cloud)
@@ -527,7 +609,7 @@ class TiledScene extends Phaser.Scene {
       case 'rain':
       case 'snow':
       case 'dust': {
-        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, ambient.id === 'dust' ? 0x8a6b3a : 0x1b2a3a, 0.08 + 0.1 * strength).setDepth(40))
+        keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, ambient.id === 'dust' ? 0x8a6b3a : 0x1b2a3a, 0.05 + 0.05 * strength).setDepth(40))
         if (this.reducedMotion) break
         const texture = ambient.id === 'rain' ? 'fx-rain' : 'fx-snow'
         const emitter = this.add.particles(0, 0, texture, {

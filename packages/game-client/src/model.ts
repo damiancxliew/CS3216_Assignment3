@@ -36,6 +36,8 @@ export interface PlaygroundSnapshot {
     /** Which way the actor last moved, for a walk cycle. */
     facing?: 'down' | 'up' | 'left' | 'right'
   }>
+  /** Documents and objects lying on the map, drawn where the compiler placed them. */
+  props?: Array<{ id: string; name: string; position: Point; found: boolean }>
   playerGoal: PlayerGoal
   playerStatus: TravelStatus
   running: boolean
