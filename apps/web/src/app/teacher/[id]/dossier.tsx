@@ -56,9 +56,9 @@ function Artwork({
     return (
       <div data-artwork-kind={kind} className={`relative overflow-hidden rounded-control border border-line bg-sunken ${className}`}>
         <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className="h-full w-full object-cover" />
-        {imageStatus === "failed" ? (
+        {imageStatus === "failed" || imageStatus === "placeholder" ? (
           <span className="absolute inset-x-1 bottom-1 rounded bg-ink/80 px-1.5 py-0.5 text-center text-xs font-semibold text-paper">
-            Needs retry
+            {imageStatus === "failed" ? "Needs retry" : kind === "portrait" ? "Default portrait" : "Placeholder"}
           </span>
         ) : null}
       </div>
