@@ -95,13 +95,13 @@ export async function inspectEvidence(driver: PlayDriver, evidenceId: string): P
   return result.state;
 }
 
-export async function talkToAgent(driver: PlayDriver, agentId: string): Promise<PlayState> {
+export async function talkToAgent(driver: PlayDriver, agentId: string, body = "A word, if you have one."): Promise<PlayState> {
   const state = await stateOf(driver);
   const agent = state.actors.find((actor) => actor.id === agentId);
   if (!agent?.position) throw new Error(`agent ${agentId} has no authoritative position`);
   await walkTo(driver, agent.position);
   const current = await stateOf(driver);
-  const result = await postMessage(driver.deps, driver.attemptId, driver.userId, { roomId: current.currentRoomId!, body: "A word, if you have one.", addresseeId: agentId });
+  const result = await postMessage(driver.deps, driver.attemptId, driver.userId, { roomId: current.currentRoomId!, body, addresseeId: agentId });
   driver.capture?.("message", result);
   if (!result.ok) throw new Error(`message failed: ${JSON.stringify(result.error)}`);
   return result.state;

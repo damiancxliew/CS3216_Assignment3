@@ -618,9 +618,9 @@ describe('budget rails (K5)', () => {
       ...fixtureStageConfig,
       maxTicks: 1,
       agents: { 'agent-temenggong': fixtureStageConfig.agents['agent-temenggong']! },
-      budget: { maxActions: 3, maxActionsPerActor: 10 },
+      budget: { maxActions: 2, maxActionsPerActor: 10 },
     })
-    expect(telemetry.totalActions).toBe(3)
+    expect(telemetry.totalActions).toBe(2)
     expect(telemetry.stoppedBy).toBe('action_budget')
   })
 
