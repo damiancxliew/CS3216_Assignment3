@@ -110,7 +110,8 @@ export async function runAgentTurn(
     say.trim() === '' ? [] : [{ type: 'speak', roomId: input.room.id, body: say, addresseeId: null }]
   const candidates = [
     ...spoken,
-    ...proposals.filter((proposal) => proposal.type !== 'speak' && proposal.type !== 'goal_evidence').map((proposal) => stamp(proposal, options)),
+    ...proposals.filter((proposal) => proposal.type === 'record_private_note').slice(0, 1),
+    ...proposals.filter((proposal) => proposal.type !== 'speak' && proposal.type !== 'goal_evidence' && proposal.type !== 'record_private_note').map((proposal) => stamp(proposal, options)),
   ]
   const filtered = filterActions(
     candidates,

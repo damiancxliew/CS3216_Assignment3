@@ -434,6 +434,7 @@ function applySpatialAction(world: WorldState, entry: ActorAction, context: Acti
     case 'record_private_note': {
       const notes = world.privateNotes[actorId] ?? (world.privateNotes[actorId] = [])
       notes.push(action.note)
+      if (notes.length > 4) notes.splice(0, notes.length - 4)
       return { ok: true }
     }
     case 'commit_decision':
@@ -540,6 +541,7 @@ export function applyAction(world: WorldState, entry: ActorAction, context: Acti
     case 'record_private_note': {
       const notes = world.privateNotes[actorId] ?? (world.privateNotes[actorId] = [])
       notes.push(action.note)
+      if (notes.length > 4) notes.splice(0, notes.length - 4)
       return { ok: true }
     }
     case 'commit_decision':

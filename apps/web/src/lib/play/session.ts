@@ -821,20 +821,27 @@ export class PlaySession {
     const entry: ActorAction | undefined = filtered.actions[0];
     if (!entry) return { ok: false, error: { code: "invalid_request", message: filtered.dropped[0]?.reason ?? "That is not something you can do." } };
 
+    const witnesses = action.type === "share_evidence"
+      ? hearingActorIds(world, PLAYER_ID).filter((id) => world.actors[id]?.kind === "agent" && !(world.evidenceKnown[id] ?? []).includes(action.evidenceId))
+      : [];
     const result = applyAction(world, entry);
     if (result.ok) {
       this.snap.stageStats.actions += 1;
       this.bump();
     }
 
-    // Knocking gives whoever is behind that door a beat to answer it (K4, #8) — only them, so the
-    // wait is one model call. Walking costs nothing: characters answer when spoken to, and a stage
-    // resolving is the moment everyone acts.
+    // Knocking gives whoever is behind that door a beat to answer it (K4, #8).
+    // Walking stays free of model calls; sharing new evidence can prompt a witness to react.
     if (action.type === "knock" && result.ok) {
       const inside = Object.entries(world.location)
         .filter(([actorId, roomId]) => roomId === action.roomId && actorId !== PLAYER_ID)
         .map(([actorId]) => actorId);
       if (inside.length > 0) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE, inside);
+    }
+    if (action.type === "share_evidence" && result.ok && witnesses.length > 0) {
+      const item = this.stage.evidence.find((candidate) => candidate.id === action.evidenceId);
+      const cue = item ? `The player has just shared ${item.name}: ${item.content.text}` : "The player has just shared evidence with you.";
+      await this.tick(client, 1, witnesses, cue);
     }
 
     return { ok: true, refused: result.ok ? null : result.reason };
@@ -933,13 +940,14 @@ export class PlaySession {
   }
 
   /** Let the characters act autonomously for a bounded number of ticks (FR-12a/FR-12b); `only` narrows who. */
-  async tick(client: LlmClient, maxTicks: number, only?: readonly string[]): Promise<void> {
+  async tick(client: LlmClient, maxTicks: number, only?: readonly string[], sceneCue?: string): Promise<void> {
     if (this.snap.status !== "active") return;
     const config = this.stageConfig();
     const agents = only ? Object.fromEntries(Object.entries(config.agents).filter(([id]) => only.includes(id))) : config.agents;
     const run = await runStage(client, this.snap.world, {
       ...config,
       agents,
+      ...(sceneCue === undefined ? {} : { sceneCue }),
       maxTicks,
       tokenBudget: Math.max(0, STAGE_TOKEN_BUDGET - this.snap.stageStats.tokens),
     });
@@ -1037,8 +1045,16 @@ export class PlaySession {
 
   private openStage(index: number): void {
     const bundle = toStageRuntime(this.spec, index);
+    const priorNotes = new Map(this.stage.agents.flatMap((agent) => {
+      const note = this.snap.world.privateNotes[agent.id]?.at(-1);
+      return note ? [[agent.stakeholderId, note] as const] : [];
+    }));
     this.snap.stageIndex = index;
     this.snap.world = worldFor(this.spec, index, this.attemptId, this.compiledStages);
+    for (const agent of this.spec.stages[index]!.agents) {
+      const note = priorNotes.get(agent.stakeholderId);
+      if (note) this.snap.world.privateNotes[agent.id] = [note];
+    }
     this.snap.decisions = [];
     this.snap.playerPos = this.snap.world.spatial?.state.actors[PLAYER_ID] ?? null;
     this.snap.spokenAt = {};

@@ -56,6 +56,7 @@ export interface StageReplyConfig {
 export interface StageConfig {
   sharedContext: string
   stageBrief: string
+  sceneCue?: string
   decision?: StageDecisionConfig
   /** agentId -> per-stage configuration. Only agents listed here can act. */
   agents: Record<string, StageAgent>
@@ -171,7 +172,7 @@ export function buildAgentTurnInput(
     privateContext: {
       ...stageAgent.privateContext,
       // Notes the agent wrote on earlier ticks are part of its own context, and only its own.
-      notes: [...stageAgent.privateContext.notes, ...(world.privateNotes[agentId] ?? [])],
+      notes: [...stageAgent.privateContext.notes, ...(world.privateNotes[agentId] ?? []).slice(-1)],
     },
     sharedContext: config.sharedContext,
     stageBrief: config.stageBrief,
@@ -181,6 +182,7 @@ export function buildAgentTurnInput(
     transcript: here,
     recalled,
     playerMessage,
+    ...(config.sceneCue === undefined ? {} : { sceneCue: config.sceneCue }),
     ...(addressed.length === 0 ? {} : { replyToSeqs: addressed.map((line) => line.seq) }),
     actionsRemaining,
     options,

@@ -79,6 +79,8 @@ export interface AgentTurnInput {
   recalled?: readonly RecalledLine[]
   /** What the player just said in this room, if anything. Untrusted text (FR-20). */
   playerMessage: string | null
+  /** A witnessed event that has just made this character's next turn relevant. */
+  sceneCue?: string
   /**
    * Several humans spoke to this character before it could answer. They are put to it together so
    * one reply serves the room, rather than each speaker being answered in turn. Untrusted text.
