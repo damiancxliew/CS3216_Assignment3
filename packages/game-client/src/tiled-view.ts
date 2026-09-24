@@ -89,6 +89,8 @@ export interface TiledViewOptions {
   assetBase: string
   /** Directory containing <theme>/terrain.png for curated map themes. */
   themeBase?: string
+  /** Local room art shown while generated art is pending or unavailable. */
+  roomFallbackUrl?: string
   /** Sprite key to use for an actor that does not name one. */
   defaultSprite?: string
   /** Called when the player clicks a character instead of a tile. */
@@ -106,6 +108,7 @@ class TiledScene extends Phaser.Scene {
   private readonly base: string
   private readonly themeBase: string
   private readonly defaultSprite: string
+  private readonly roomFallbackUrl: string | undefined
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
   private readonly onLandmark: ((landmarkId: string) => void) | undefined
@@ -159,6 +162,7 @@ class TiledScene extends Phaser.Scene {
     this.base = options.assetBase.replace(/\/$/, '')
     this.themeBase = (options.themeBase ?? `${this.base}/themes`).replace(/\/$/, '')
     this.defaultSprite = options.defaultSprite ?? 'Villager'
+    this.roomFallbackUrl = options.roomFallbackUrl
     this.onActor = options.onActor
     this.onProp = options.onProp
     this.onLandmark = options.onLandmark
@@ -176,8 +180,8 @@ class TiledScene extends Phaser.Scene {
     this.load.spritesheet('fx-smoke', `${this.base}/fx/smoke.png`, { frameWidth: 32, frameHeight: 32 })
     this.load.image('fx-fog', `${this.base}/fx/fog.png`)
     this.load.image('fx-clouds', `${this.base}/fx/clouds.png`)
+    if (this.roomFallbackUrl) this.load.image('room-fallback', this.roomFallbackUrl)
     for (const key of this.spriteKeys(this.current)) this.queueSprite(key)
-    for (const url of this.assetUrls(this.current)) this.queueAsset(url)
     for (const track of MUSIC_TRACKS) this.load.audio(`music-${track}`, `${this.base}/audio/music/${track}.ogg`)
     for (const loop of new Set(Object.values(AMBIENT_LOOP))) if (loop) this.load.audio(`loop-${loop}`, `${this.base}/audio/sfx/${loop}.ogg`)
     for (const cue of SFX) this.load.audio(`sfx-${cue}`, `${this.base}/audio/sfx/${cue}.ogg`)
@@ -252,6 +256,8 @@ class TiledScene extends Phaser.Scene {
     if (this.sound.locked) this.sound.once(Phaser.Sound.Events.UNLOCKED, () => this.applyAudio(this.current))
     this.renderSnapshot(this.current, true)
     this.fitCamera()
+    // Generated art can be remote; let the playable map appear before requesting it.
+    queueMicrotask(() => this.apply(this.current))
     queueMicrotask(this.onReady)
   }
 
@@ -509,6 +515,7 @@ class TiledScene extends Phaser.Scene {
     const landmarks = snapshot.landmarks ?? []
     for (const landmark of landmarks) {
       const imageUrl = landmark.imageUrl && this.textures.exists(portraitTextureKey(landmark.imageUrl)) ? landmark.imageUrl : null
+      const textureKey = imageUrl ? portraitTextureKey(imageUrl) : this.textures.exists('room-fallback') ? 'room-fallback' : null
       let entry = this.landmarks.get(landmark.id)
       if (entry && entry.imageUrl !== imageUrl) {
         entry.container.destroy()
@@ -518,8 +525,8 @@ class TiledScene extends Phaser.Scene {
       if (!entry) {
         const container = this.add.container(0, 0)
         const shadow = this.add.ellipse(0, 7, 18, 5, 0x000000, 0.3)
-        const object = imageUrl
-          ? this.add.image(0, -4, portraitTextureKey(imageUrl)).setDisplaySize(24, 24)
+        const object = textureKey
+          ? this.add.image(0, -4, textureKey).setDisplaySize(24, 24)
           : this.add.graphics().fillStyle(0x877861).fillRect(-9, -12, 18, 20).fillStyle(0xb8a58a).fillRect(-7, -11, 14, 17).fillStyle(0x655946).fillRect(-7, 3, 14, 3)
         const label = this.add.text(0, 12, landmark.name, {
           color: '#fff8e7', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '6px', fontStyle: 'bold',
