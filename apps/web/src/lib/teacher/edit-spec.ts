@@ -251,13 +251,22 @@ export async function applySpecEdit(
     .update({ json: next })
     .eq("id", version.id)
     .is("published_at", null);
-  if (updateError) return { error: updateError.message };
+  if (updateError) {
+    console.error("could not save edited adventure content", adventureId, specVersionId, updateError);
+    return { error: "Couldn’t save this change. Please try again." };
+  }
 
   // After the json write, so `compiled_spec` stamps against the new json.
   const { error: mapsError } = await admin.rpc("set_version_maps", { p_spec_version_id: version.id, p_maps: compilation.stages });
-  if (mapsError) return { error: mapsError.message };
+  if (mapsError) {
+    console.error("could not rebuild edited adventure map", adventureId, specVersionId, mapsError);
+    return { error: "Couldn’t save this change. Please try again." };
+  }
 
   const failure = await mirrorEdit(admin, version.id, next, edit);
-  if (failure) return { error: failure };
+  if (failure) {
+    console.error("could not update adventure content index", adventureId, specVersionId, failure);
+    return { error: "Couldn’t save this change. Please try again." };
+  }
   return {};
 }

@@ -410,7 +410,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         intentHandlerRef.current?.(latest.current.intent);
         const canvas = parent.querySelector("canvas");
         canvas?.setAttribute("tabindex", "0");
-        canvas?.setAttribute("aria-label", "Settlement map. Arrow keys or WASD to walk, Enter to talk to whoever is with you, click a tile to walk there.");
+        canvas?.setAttribute("aria-label", "Map. Use arrow keys or WASD to walk. Press Enter to talk, or click a tile to move.");
         // Walking works from anywhere on the page unless a field has focus, so the map never needs to be clicked first.
         document.addEventListener("keydown", onKey, { signal: controller.signal });
         document.addEventListener("keyup", onKeyUp, { signal: controller.signal });
@@ -419,9 +419,10 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         document.addEventListener("visibilitychange", clearHeld, { signal: controller.signal });
         reduced.addEventListener("change", (e) => view?.setReducedMotion(e.matches), { signal: controller.signal });
       } catch (error) {
+        console.error("Map failed to start", error);
         const note = document.createElement("p");
         note.className = "p-4 text-sm text-muted";
-        note.textContent = `The map could not start (${error instanceof Error ? error.message : "unknown error"}). The controls on the right still work.`;
+        note.textContent = "The map could not start. You can still use the controls on the right.";
         parent.replaceChildren(note);
       }
     })();

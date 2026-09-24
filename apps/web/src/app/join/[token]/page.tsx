@@ -44,9 +44,6 @@ export default async function JoinPage({
   if (!adventure) {
     return (
       <Shell intro="This link isn’t open" title="Ask your teacher for the current one">
-        <p className="max-w-[50ch] text-lg text-muted">
-          Either this adventure hasn’t been published yet, or the link has been replaced.
-        </p>
       </Shell>
     );
   }
@@ -75,7 +72,7 @@ export default async function JoinPage({
           </form>
         ) : (
           <div className="flex flex-col gap-3">
-            <p className="max-w-[50ch] text-base text-muted">Sign in so your progress is saved and you can pick the attempt back up later.</p>
+            <p className="max-w-[50ch] text-base text-muted">Sign in to save your progress and continue later.</p>
             <SignInButton next={`/join/${token}`} label="Sign in with Google" />
           </div>
         )}

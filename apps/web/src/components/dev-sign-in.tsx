@@ -31,7 +31,8 @@ export function DevSignIn({ next = "/" }: { next?: string }) {
       ({ error } = await supabase.auth.signUp({ email, password }));
     }
     if (error) {
-      setError(error.message);
+      console.error("Local sign-in failed:", error);
+      setError("Could not sign in. Check the details and try again.");
       setPending(false);
       return;
     }
@@ -49,7 +50,7 @@ export function DevSignIn({ next = "/" }: { next?: string }) {
           {pending ? <Pending>Signing in…</Pending> : "Sign in or create account"}
         </button>
         {error ? <ErrorText>{error}</ErrorText> : null}
-        <p className="text-sm text-muted">Only rendered in `next dev`. Unknown emails are created on the spot.</p>
+        <p className="text-sm text-muted">For local testing. New email addresses create an account.</p>
       </form>
     </details>
   );

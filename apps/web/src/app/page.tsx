@@ -11,15 +11,15 @@ import { track } from "@/lib/analytics/posthog";
 const teacherSteps = [
   {
     title: "Drop in your sources",
-    body: "A dispatch, a treaty, three pages of a textbook chapter. Whatever you already teach from.",
+    body: "A dispatch, a treaty, or a few pages from a textbook—use the sources you already teach.",
   },
   {
     title: "Get a world back",
-    body: "Locations, stakeholders who each want something different, evidence worth finding, and a decision at the end of every stage.",
+    body: "Explore locations, meet people with competing interests, find evidence, and make a decision at each stage.",
   },
   {
     title: "Publish one link",
-    body: "Published versions are frozen. Editing afterwards makes a new version and leaves the class currently playing untouched.",
+    body: "Make changes anytime; students already playing keep their current version.",
   },
 ];
 
@@ -28,19 +28,19 @@ const beats = [
     index: "01",
     clip: { src: "/media/world.mp4", poster: "/media/world.jpg" },
     title: "A place you can walk.",
-    body: "The map, the goals, the people who are actually in the room with you.",
+    body: "The map, the goals, and the people in the room with you.",
   },
   {
     index: "02",
     clip: { src: "/media/dialogue.mp4", poster: "/media/dialogue.jpg" },
     title: "People who want different things.",
-    body: "Each stakeholder answers in character, from their own interests. Nobody hands over the whole truth.",
+    body: "Each person speaks from their own interests, so students must compare perspectives.",
   },
   {
     index: "03",
     clip: { src: "/media/decision.mp4", poster: "/media/decision.jpg" },
     title: "A decision, with a clock.",
-    body: "The stage ends on the student's commitment. The evidence they found either carries it or it doesn't.",
+    body: "Students decide before time runs out. The evidence they find shapes what happens next.",
   },
   {
     index: "04",
@@ -115,8 +115,7 @@ export default function Home() {
             Play the source material.
           </h1>
           <p className="max-w-[52ch] text-lg text-muted sm:text-xl sm:leading-[1.45]">
-            A teacher drops in their sources. The system builds a world around
-            them. A student finds out what their decisions cost.
+            Turn historical sources into a world students can explore—and decisions they have to live with.
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <LandingCta label="Sign in with Google to build one" />
@@ -137,15 +136,15 @@ export default function Home() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-control border border-record/40 bg-record-wash px-3 py-1.5 text-sm font-semibold text-record shadow backdrop-blur-sm">
-              handout, p. 3 — cited in the game
+              Handout, p. 3
             </span>
             <span className="rounded-control border border-world/40 bg-world-wash px-3 py-1.5 text-sm font-semibold text-world shadow backdrop-blur-sm">
-              what the simulation assumed
+              Simulation assumption
             </span>
           </div>
           <figcaption className="flex flex-col gap-1 text-base text-muted">
-            <span>Real footage. A student questioning Sir Stamford Raffles at Singapore, 1819.</span>
-            <span>Blue is what the documents say. Green is what the game did. They never share a paragraph.</span>
+            <span>A student questions Sir Stamford Raffles at Singapore, 1819.</span>
+            <span>Blue shows the source. Green shows the simulation’s assumptions.</span>
           </figcaption>
         </figure>
       </section>
@@ -178,7 +177,7 @@ export default function Home() {
                     source="The Founding of a Trading Post at Singapore, 1819 (classroom handout), p. 4"
                   />
                   <WorldEntry label="Where the record is silent, the simulation assumed">
-                    The game names its own inventions and keeps them out of the cited paragraph.
+                    The game labels details that aren’t in the source.
                   </WorldEntry>
                 </div>
               ) : null}
@@ -200,7 +199,6 @@ export default function Home() {
       </section>
 
       <footer className="flex flex-wrap items-baseline justify-between gap-4 border-t border-line pt-8 text-base text-muted">
-        <p>Built for CS3216 Assignment 3, National University of Singapore.</p>
         <Link href="https://github.com/damiancxliew/CS3216_Assignment3" className={button.subtle}>
           Source on GitHub
         </Link>

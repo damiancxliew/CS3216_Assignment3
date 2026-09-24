@@ -66,7 +66,7 @@ export function StageCountdown({
   }, [expired, attemptId, deadlineIso]);
 
   if (!deadlineIso) {
-    return <span className="text-sm font-normal text-muted">no timer</span>;
+    return <span className="text-sm font-normal text-muted">No timer</span>;
   }
   if (remaining === null) return <span className="text-muted">…</span>;
   if (remaining === 0) {

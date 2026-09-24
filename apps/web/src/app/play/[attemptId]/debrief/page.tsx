@@ -55,7 +55,7 @@ export default async function DebriefPage({
         <p className="text-base text-muted">{debrief.adventureTitle}. Your debrief.</p>
         <h1 className="font-serif text-4xl text-ink sm:text-5xl">{debrief.ending.title}</h1>
         <p className="max-w-[60ch] pt-2 text-base text-muted">
-          Two kinds of thing are on this page. In blue, what the documents say, with the source and the page. In green, what the game did and what it made up where the documents were silent.
+          Blue shows what the sources say, with page references. Green shows what happened in the simulation.
         </p>
       </header>
 
@@ -86,7 +86,7 @@ export default async function DebriefPage({
         )}
         <WorldEntry label="How it ended in the game">
           <p>{debrief.simulatedOutcome}</p>
-          <p className="mt-2 text-base text-muted">This is what happened in the game, not a historical claim.</p>
+          <p className="mt-2 text-base text-muted">Simulation outcomes are fictional.</p>
         </WorldEntry>
       </Part>
 
@@ -94,7 +94,7 @@ export default async function DebriefPage({
         <p className="max-w-[62ch] font-serif text-xl leading-[1.6] text-ink">{debrief.documentedHistory.text}</p>
         {debrief.documentedHistory.citations.length === 0 ? (
           <p className="max-w-[60ch] text-base text-muted">
-            No page-level citations were attached to this ending, so treat the paragraph above as the simulation’s summary of the record rather than the record itself.
+            No page citations are available for this ending. Treat the paragraph above as a summary, not a source.
           </p>
         ) : (
           <ol className="flex flex-col gap-6">
@@ -117,7 +117,7 @@ export default async function DebriefPage({
       <Part title="Where the record is silent, the simulation assumed" register="world">
         {debrief.assumptions.length === 0 ? (
           <p className="max-w-[60ch] text-base text-muted">
-            The simulation recorded no assumptions for this attempt. That does not mean it made none, only that none were logged.
+            No assumptions are listed for this attempt.
           </p>
         ) : (
           <ul className="flex flex-col gap-6">

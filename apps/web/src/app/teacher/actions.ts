@@ -87,7 +87,10 @@ export async function startBrief(): Promise<TurnResult> {
     .insert({ owner_id: user.id, title: "Untitled adventure" })
     .select("id")
     .single<{ id: string }>();
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("could not create teacher adventure", error);
+    return { ok: false, error: "Couldn’t start a new adventure. Please try again." };
+  }
   return saveBrief(initialBriefState(data.id));
 }
 
@@ -116,14 +119,19 @@ async function loadBriefSources(adventureId: string) {
 async function saveBrief(state: BriefState): Promise<TurnResult> {
   const supabase = await createClient();
   const { error } = await supabase.from("adventure").update({ brief_state: state }).eq("id", state.adventureId);
-  return error ? { ok: false, error: error.message } : { ok: true, state };
+  if (error) {
+    console.error("could not save adventure setup", state.adventureId, error);
+    return { ok: false, error: "Couldn’t save your progress. Please try again." };
+  }
+  return { ok: true, state };
 }
 
 export async function briefTurn(state: BriefState, input: BriefInput): Promise<TurnResult> {
   const checked = await requireBrief(state);
   if ("error" in checked) return { ok: false, error: checked.error };
   if (!process.env.OPENAI_API_KEY) {
-    return { ok: false, error: "The assistant is not configured on this server (OPENAI_API_KEY is missing)" };
+    console.error("adventure assistant unavailable: OPENAI_API_KEY is missing");
+    return { ok: false, error: "This feature is temporarily unavailable. Please try again later." };
   }
   const { list, documents } = await loadBriefSources(checked.state.adventureId);
   const result = await runBriefTurn({ ...checked.state, sources: list }, input, new OpenAiLlmClient({ timeoutMs: 90_000 }), documents);
@@ -163,7 +171,10 @@ export async function addBriefSource(state: BriefState, formData: FormData): Pro
       text: doc.pages.map((p) => p.text).join("\f"),
     },
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("could not save uploaded teacher source", checked.state.adventureId, error);
+    return { ok: false, error: "Couldn’t save that source. Please try again." };
+  }
 
   const { list } = await loadBriefSources(checked.state.adventureId);
   const pages = `${doc.pageCount} page${doc.pageCount === 1 ? "" : "s"}`;
@@ -224,7 +235,8 @@ async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocume
     return { doc, storageKey: `upload:${crypto.randomUUID()}/${file.name}` };
   } catch (error) {
     if (error instanceof ExtractionError) return { error: error.message };
-    return { error: error instanceof Error ? error.message : "Could not read that source" };
+    console.error("could not extract uploaded teacher source", error);
+    return { error: "Couldn’t read that source. Check the file and try again." };
   }
 }
 
@@ -250,7 +262,10 @@ export async function finishBrief(state: BriefState): Promise<ActionResult> {
       brief_state: null,
     })
     .eq("id", checked.state.adventureId);
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("could not finish adventure setup", checked.state.adventureId, error);
+    return { error: "Couldn’t create the adventure. Please try again." };
+  }
 
   revalidatePath("/teacher");
   redirect(`/teacher/${checked.state.adventureId}`);
@@ -260,7 +275,10 @@ export async function finishBrief(state: BriefState): Promise<ActionResult> {
 export async function discardBrief(adventureId: string): Promise<ActionResult> {
   const { supabase } = await requireOwnership(adventureId);
   const { error } = await supabase.from("adventure").delete().eq("id", adventureId).not("brief_state", "is", null);
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("could not discard unfinished adventure", adventureId, error);
+    return { error: "Couldn’t discard this setup. Please try again." };
+  }
   revalidatePath("/teacher");
   return {};
 }
@@ -291,7 +309,8 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
   const { user } = await requireOwnership(adventureId);
 
   if (!process.env.OPENAI_API_KEY) {
-    return { error: "Generation is not configured on this server (OPENAI_API_KEY is missing)" };
+    console.error("adventure generation unavailable: OPENAI_API_KEY is missing", adventureId);
+    return { error: "This feature is temporarily unavailable. Please try again later." };
   }
 
   try {
@@ -317,15 +336,21 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
           }[]
         >(),
     ]);
-    if (adventureResult.error) return { error: `Could not load the adventure: ${adventureResult.error.message}` };
-    if (sourcesResult.error) return { error: `Could not load the sources: ${sourcesResult.error.message}` };
+    if (adventureResult.error) {
+      console.error("could not load adventure for generation", adventureId, adventureResult.error);
+      return { error: "Couldn’t load this adventure. Please try again." };
+    }
+    if (sourcesResult.error) {
+      console.error("could not load sources for generation", adventureId, sourcesResult.error);
+      return { error: "Couldn’t load the sources. Please try again." };
+    }
 
     const adventure = adventureResult.data;
     if (!adventure) return { error: "Adventure not found" };
 
     const brief = storedBrief.safeParse(adventure);
     if (!brief.success) {
-      return { error: "This adventure has no brief. It predates the assistant — create a new adventure to set one up." };
+      return { error: "This adventure can’t be regenerated. Create a new adventure to use the guided setup." };
     }
     const { setting, student_role, learning_objectives, reading_level, stage_outline } = brief.data;
 
@@ -353,7 +378,34 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
       }),
       createdBy: user.id,
     });
-    if (!result.ok) return { error: result.error };
+    if (!result.ok) {
+      if (result.result?.status === "failed" && result.result.reason === "invalid-teacher-input") {
+        console.error("adventure setup could not be used for generation", adventureId, result);
+        return { error: "Review the adventure setup and try again." };
+      }
+      if (result.result?.status === "failed" && result.result.reason === "llm-error") {
+        console.error("adventure model request failed", adventureId, result.result);
+        return { error: "Adventure generation failed. Please try again." };
+      }
+      if (result.result?.status === "failed" && result.result.reason === "refusal") {
+        console.error("adventure generation was refused", adventureId, result.result);
+        return { error: "Couldn’t generate an adventure from these sources. Review them and try again." };
+      }
+      if (result.result?.status === "failed" && result.result.reason === "unparseable") {
+        console.error("adventure generation returned an unusable result", adventureId, result.result);
+        return { error: "Adventure generation didn’t finish. Please try again." };
+      }
+      if (result.result?.status === "failed" && result.result.reason === "invalid-after-repair") {
+        console.error("generated adventure failed validation", adventureId, result.result);
+        return { error: "The generated adventure needs more work. Please try again." };
+      }
+      if (result.result) {
+        console.error("could not save generated adventure", adventureId, result);
+        return { error: "Couldn’t save the generated adventure. Please try again." };
+      }
+      console.error("adventure generation could not start", adventureId, result);
+      return { error: "Couldn’t generate the adventure. Check the sources and try again." };
+    }
 
     revalidatePath(`/teacher/${adventureId}`);
     const notes = [
@@ -366,7 +418,7 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
   } catch (error) {
     console.error("adventure generation failed unexpectedly", adventureId, error);
     return {
-      error: "Generation stopped before it could finish. Please try again; if a draft now appears, reload the page instead.",
+      error: "Generation didn’t finish. Refresh the page to check for a draft, then try again if needed.",
     };
   }
 }
@@ -386,8 +438,9 @@ export async function importSpec(
   let candidate: unknown;
   try {
     candidate = JSON.parse(String(formData.get("spec") ?? ""));
-  } catch {
-    return { error: "That isn’t valid JSON" };
+  } catch (error) {
+    console.error("invalid imported adventure file", adventureId, error);
+    return { error: "This file isn’t in a supported format." };
   }
 
   const admin = createAdminClient();
@@ -398,11 +451,18 @@ export async function importSpec(
     });
   } catch (error) {
     if (error instanceof SpecPersistError) {
+      if (error.issues.length === 0 && error.message !== "this adventure already has an unpublished draft; publish or discard it first") {
+        console.error("could not import adventure file", adventureId, error);
+        return { error: "Couldn’t import this adventure. Please check the file and try again." };
+      }
       const detail = error.issues
         .slice(0, 3)
         .map((i) => `${i.path}: ${i.message}`)
         .join("; ");
-      return { error: detail ? `${error.message} — ${detail}` : error.message };
+      if (error.issues.length > 0) {
+        return { error: detail ? `This adventure file needs changes: ${detail}` : "This adventure file needs changes." };
+      }
+      return { error: error.message };
     }
     throw error;
   }
@@ -416,7 +476,10 @@ export async function publishAdventure(adventureId: string): Promise<ActionResul
   const { error } = await supabase.rpc("publish_adventure", {
     p_adventure_id: adventureId,
   });
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("could not publish adventure", adventureId, error);
+    return { error: "Couldn’t publish this adventure. Please try again." };
+  }
 
   // Story-specific images (portraits, landmarks, props) are generated after the response is sent:
   // publish never blocks on them, and a failure leaves the curated placeholder in place (D6/FR-6a).
@@ -443,7 +506,10 @@ export async function startEdit(adventureId: string): Promise<ActionResult> {
   const { error } = await supabase.rpc("create_draft_version", {
     p_adventure_id: adventureId,
   });
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("could not create adventure draft", adventureId, error);
+    return { error: "Couldn’t create a draft. Please try again." };
+  }
 
   revalidatePath(`/teacher/${adventureId}`);
   return {};
@@ -459,7 +525,8 @@ export async function generateArtwork(adventureId: string): Promise<ActionResult
   await requireOwnership(adventureId);
 
   if (!process.env.OPENAI_API_KEY) {
-    return { error: "Artwork generation is not configured on this server (OPENAI_API_KEY is missing)" };
+    console.error("artwork generation unavailable: OPENAI_API_KEY is missing", adventureId);
+    return { error: "This feature is temporarily unavailable. Please try again later." };
   }
 
   const admin = createAdminClient();
@@ -475,7 +542,7 @@ export async function generateArtwork(adventureId: string): Promise<ActionResult
     .order("version", { ascending: false })
     .returns<{ id: string; version: number; published_at: string | null }[]>();
   const shown = (versions ?? []).find((v) => v.published_at === null) ?? (versions ?? []).find((v) => v.version === adventure?.published_version);
-  if (!shown) return { error: "Generate a version first — artwork illustrates the spec" };
+  if (!shown) return { error: "Generate an adventure version first to create artwork." };
 
   const { data: pending } = await admin
     .from("asset")
@@ -510,7 +577,8 @@ export async function regenerateAsset(adventureId: string, specVersionId: string
   await requireOwnership(adventureId);
 
   if (!process.env.OPENAI_API_KEY) {
-    return { error: "Artwork generation is not configured on this server (OPENAI_API_KEY is missing)" };
+    console.error("artwork regeneration unavailable: OPENAI_API_KEY is missing", adventureId);
+    return { error: "This feature is temporarily unavailable. Please try again later." };
   }
 
   const admin = createAdminClient();
@@ -556,7 +624,10 @@ export async function rotateShareToken(adventureId: string): Promise<ActionResul
   const { error } = await supabase.rpc("rotate_share_token", {
     p_adventure_id: adventureId,
   });
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("could not replace adventure share link", adventureId, error);
+    return { error: "Couldn’t replace the link. Please try again." };
+  }
 
   revalidatePath(`/teacher/${adventureId}`);
   return {};
@@ -590,7 +661,10 @@ export async function updateDefaultTimer(
     .from("adventure")
     .update({ default_timer_seconds: seconds })
     .eq("id", adventureId);
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("could not save default adventure timer", adventureId, error);
+    return { error: "Couldn’t save the timer. Please try again." };
+  }
 
   revalidatePath(`/teacher/${adventureId}`);
   return {};
@@ -605,7 +679,13 @@ export async function updateDefaultTimer(
 async function applyEdit(adventureId: string, specVersionId: string, edit: SpecEdit): Promise<ActionResult> {
   await requireOwnership(adventureId);
   const result = await applySpecEdit(createAdminClient(), { adventureId, specVersionId }, edit);
-  if (result.error) return { error: result.error };
+  if (result.error) {
+    if (/^(unknown |no stage row)/.test(result.error)) {
+      console.error("could not locate adventure item for edit", adventureId, specVersionId, edit, result.error);
+      return { error: "This item could not be found. Refresh the page and try again." };
+    }
+    return { error: result.error };
+  }
   revalidatePath(`/teacher/${adventureId}`);
   return { notice: "Saved." };
 }
@@ -629,7 +709,10 @@ export async function updateRetries(
     .from("adventure")
     .update({ allow_retries: choice === "on" })
     .eq("id", adventureId);
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("could not save adventure retry setting", adventureId, error);
+    return { error: "Couldn’t save this setting. Please try again." };
+  }
 
   revalidatePath(`/teacher/${adventureId}`);
   return {};

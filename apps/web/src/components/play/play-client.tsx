@@ -423,7 +423,7 @@ export function PlayClient({
             </p>
             <div className="rounded-control border-l-[3px] border-world bg-surface px-4 py-3">
               <p className="text-sm font-semibold text-muted">Your first move</p>
-              <p className="text-base text-ink">Follow the goals shown in the game panel. You can reopen this role brief at any time.</p>
+              <p className="text-base text-ink">Work toward the goals shown.</p>
             </div>
             <button type="button" className={`${primary} min-h-12 w-full text-lg capitalize sm:w-fit sm:self-end`} autoFocus onClick={() => setRoleBriefOpen(false)}>
               Begin as {state.player.name}
@@ -445,9 +445,9 @@ export function PlayClient({
         />
         {hintVisible ? (
           <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-ink/85 px-3 py-1.5 text-sm font-semibold text-paper lg:bottom-3 lg:right-48 lg:top-auto lg:px-3.5 lg:py-2 lg:text-base">
-            <span className="lg:hidden">Tap the map to walk. Tap a character to talk, or a document to read it.</span>
+            <span className="lg:hidden">Tap to walk; tap a person or document to interact.</span>
             <span className="hidden lg:inline">
-              Arrows or WASD to walk. Click a character to talk, a document to read it, or press Enter to talk to whoever is with you.
+              Use arrows or WASD to walk. Click a person or document to interact; press Enter to talk.
             </span>
           </p>
         ) : null}
@@ -588,7 +588,7 @@ export function PlayClient({
             </div>
           ) : (
             <p id="talk" className="px-5 pt-4 text-base text-ink">
-              {here ? "Nobody is here right now. Try another building, or wait and see who comes in." : "Walk into a building to find someone to talk to."}
+              {here ? "No one is here. Try another building." : "Walk into a building to find someone to talk to."}
             </p>
           )}
 
@@ -597,9 +597,7 @@ export function PlayClient({
               <div className="mx-auto flex max-w-sm flex-col items-center gap-2 text-center lg:m-auto">
                 <p className="font-serif text-lg text-ink sm:text-xl">Nothing has been said yet</p>
                 <p className="hidden text-base leading-relaxed text-muted sm:block">
-                  {talkingTo
-                    ? `Ask ${talkingTo.name} a question. Hearing what they think is how you complete a goal about them.`
-                    : "Find someone and ask them a question. Your goals below say who is worth talking to."}
+                  {talkingTo ? `Ask ${talkingTo.name} a question.` : "Find someone to talk to."}
                 </p>
               </div>
             ) : null}
@@ -781,11 +779,10 @@ export function PlayClient({
           ) : null}
           {offline ? (
             <p role="alert" className="rounded-control border border-signal bg-signal-wash px-3.5 py-2.5 text-base leading-snug text-ink">
-              Lost contact with the server, so this page has stopped updating. Your progress is saved —{" "}
+              Connection lost.{" "}
               <button type="button" className="underline underline-offset-2" onClick={() => window.location.reload()}>
-                reload to continue
+                Reload to continue
               </button>
-              .
             </p>
           ) : null}
           {notice ? (

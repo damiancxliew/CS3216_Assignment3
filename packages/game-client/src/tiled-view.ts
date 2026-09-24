@@ -497,7 +497,7 @@ class TiledScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setAlpha(0.95)
     const hint = this.add
-      .text(0, -10, 'click to read', {
+      .text(0, -10, 'Select to read', {
         color: '#2e2620',
         fontFamily: 'system-ui, "Segoe UI", sans-serif',
         fontSize: '6px',
@@ -551,7 +551,7 @@ class TiledScene extends Phaser.Scene {
     let hintTween: Phaser.Tweens.Tween | null = null
     if (!player) {
       hint = this.add
-        .text(0, portrait ? -28 : -13, 'click to talk', {
+        .text(0, portrait ? -28 : -13, 'Select to talk', {
           color: '#2e2620',
           fontFamily: 'system-ui, "Segoe UI", sans-serif',
           fontSize: '6px',

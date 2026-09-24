@@ -38,6 +38,7 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   if (!resume) notFound();
 
   const initial = await getState(playDeps(), attemptId, user.id);
+  if (!initial.ok) console.error("Unable to load play state", initial.error);
   const active = initial.ok && initial.state.status === "active" ? initial.state : null;
 
   return (
@@ -79,7 +80,7 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
         <PlayClient attemptId={attemptId} initialState={initial.state} retriesAllowed={resume.retriesAllowed} />
       ) : (
         <section className="m-6 flex max-w-xl flex-col gap-3 rounded-surface border border-line bg-surface p-6">
-          <p className="text-ink">This attempt cannot be played right now: {initial.error.message}</p>
+          <p className="text-ink">This adventure can’t be opened right now. Try again later or ask your teacher for help.</p>
           {resume.status === "completed" ? (
             <Link href={`/play/${attemptId}/debrief`} className={`${button.quiet} w-fit`}>
               Read your debrief
