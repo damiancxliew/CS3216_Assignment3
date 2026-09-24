@@ -7,6 +7,7 @@ import { DossierSections } from "./dossier";
 import { SharePanel } from "./share-panel";
 import { StoryGeneration, type GenerationJob } from "./story-generation";
 import {
+  advanceGeneration,
   generateFromSources,
   publishAdventure,
   startEdit,
@@ -35,7 +36,7 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-// Generation is one long model call; the actions invoked from this page inherit this budget.
+// Each planner attempt is a separate server action and may need several minutes.
 export const maxDuration = 300;
 
 type EditorTab = "overview" | "stages" | "story" | "publish" | "attempts";
@@ -149,7 +150,7 @@ export default async function AdventurePage({
   const sourceRows = sources ?? [];
   const { data: generationJob } = tab === "overview" ? await supabase
     .from("generation_job")
-    .select("state, phase, started_at, updated_at")
+    .select("state, phase, started_at, updated_at, message")
     .eq("adventure_id", id)
     .maybeSingle<GenerationJob>() : { data: null };
 
@@ -288,6 +289,7 @@ export default async function AdventurePage({
           <StoryGeneration
             adventureId={id}
             action={generateFromSources.bind(null, id)}
+            advance={advanceGeneration.bind(null, id)}
             label={versions.length === 0 ? "Generate the adventure" : "Generate a new version"}
             initialJob={generationJob}
           />

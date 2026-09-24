@@ -93,6 +93,8 @@ export interface GenerateOptions {
   onProgress?: (phase: 'planning' | 'checking' | 'repairing') => void | Promise<void>
   /** Application-owned checks, such as map compilation, whose issues should enter the repair loop. */
   validatePlayable?: (spec: AdventureSpec) => SpecIssue[]
+  /** Resume one bounded repair in a later request. The caller persists these server-side. */
+  resume?: { attempt: number; previousOutput: string; issues: SpecIssue[] }
 }
 
 interface Candidate {
@@ -206,13 +208,16 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
   const jsonSchema = plannerOutputJsonSchema()
   const retriever = LexicalRetriever.fromDocuments(options.documents)
 
-  let userTurn = user
+  let userTurn = options.resume
+    ? `${user}\n\n${buildRepairPrompt(options.resume.previousOutput, options.resume.issues, options.resume.attempt, MAX_REPAIRS)}`
+    : user
   let lastOutput: string | null = null
   let lastCandidate: Candidate | null = null
 
   for (let attempt = 0; attempt <= config.maxRepairs; attempt++) {
-    const purpose = attempt === 0 ? 'plan' : 'repair'
-    await options.onProgress?.(attempt === 0 ? 'planning' : 'repairing')
+    const overallAttempt = (options.resume?.attempt ?? 0) + attempt
+    const purpose = overallAttempt === 0 ? 'plan' : 'repair'
+    await options.onProgress?.(overallAttempt === 0 ? 'planning' : 'repairing')
     let response: LlmJsonResponse
     try {
       response = await options.llm.completeJson({
@@ -235,7 +240,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
       })
     }
     metrics.attempts += 1
-    if (attempt > 0) metrics.repairs += 1
+    if (overallAttempt > 0) metrics.repairs += 1
     metrics.usage = addUsage(metrics.usage, response.usage)
     const callCost = estimateCostUsd(response.model, response.usage)
     metrics.costUsd = metrics.costUsd === null || callCost === null ? null : metrics.costUsd + callCost
@@ -253,7 +258,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
       const issue = { path: '$', message: 'output was not valid JSON' }
       call.issues = [issue]
       if (attempt === config.maxRepairs) return finish({ status: 'failed', reason: 'unparseable', issues: [issue], missingInformation: [], lastOutput, metrics })
-      userTurn = `${user}\n\n${buildRepairPrompt(lastOutput ?? '', [issue], attempt + 1, config.maxRepairs)}`
+      userTurn = `${user}\n\n${buildRepairPrompt(lastOutput ?? '', [issue], overallAttempt + 1, options.resume ? MAX_REPAIRS : config.maxRepairs)}`
       continue
     }
 
@@ -272,7 +277,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
       return finish({ status: 'ok', spec: candidate.spec, missingInformation: candidate.missingInformation, warnings, metrics })
     }
     if (attempt === config.maxRepairs) break
-    userTurn = `${user}\n\n${buildRepairPrompt(lastOutput ?? '', candidate.issues, attempt + 1, config.maxRepairs)}`
+    userTurn = `${user}\n\n${buildRepairPrompt(lastOutput ?? '', candidate.issues, overallAttempt + 1, options.resume ? MAX_REPAIRS : config.maxRepairs)}`
   }
 
   return finish({
