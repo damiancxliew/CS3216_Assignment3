@@ -42,10 +42,7 @@ export default async function JoinPage({
   // A draft, archived or nonexistent adventure is indistinguishable from here:
   // the link is simply not a way in until the teacher publishes (P3).
   if (!adventure) {
-    return (
-      <Shell intro="This link isn’t open" title="Ask your teacher for the current one">
-      </Shell>
-    );
+    return <Shell intro="This link isn’t open" title="Ask your teacher for the current one" />;
   }
 
   const supabase = await createClient();
@@ -90,7 +87,7 @@ function Shell({
 }: {
   intro: string;
   title: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-6 py-8">
