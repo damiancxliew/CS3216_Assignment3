@@ -1,5 +1,6 @@
 /** OpenAI image model adapter (PRD D14). Server-side only. */
 import OpenAI, { APIError } from 'openai'
+import sharp from 'sharp'
 
 import { type ImageRequest, type ImageResult, type ImageService, ImageServiceError } from './types'
 
@@ -15,6 +16,32 @@ export const IMAGE_PRICING: Record<string, Record<ImageRequest['quality'], Recor
     medium: { '1024x1024': 0.034, '1024x1536': 0.05, '1536x1024': 0.05 },
     high: { '1024x1024': 0.133, '1024x1536': 0.2, '1536x1024': 0.2 },
   },
+}
+
+/** The model draws all poses together. Crop each cell before reducing it so
+ * no frame can borrow pixels from its neighbour. Reject unusable sheets. */
+export async function normalizeWalkingSpriteSheet(bytes: Uint8Array): Promise<Uint8Array> {
+  const source = sharp(bytes)
+  const metadata = await source.metadata()
+  if (!metadata.width || !metadata.height || metadata.width !== metadata.height || metadata.width % 4 !== 0) {
+    throw new Error('walking sprite sheet must be square with a 4 by 4 grid')
+  }
+  const cellSize = metadata.width / 4
+  const output = Buffer.alloc(64 * 64 * 4)
+  for (let row = 0; row < 4; row += 1) {
+    for (let column = 0; column < 4; column += 1) {
+      const frame = await sharp(bytes).extract({ left: column * cellSize, top: row * cellSize, width: cellSize, height: cellSize })
+        .resize(16, 16, { kernel: 'nearest' }).ensureAlpha().raw().toBuffer()
+      let occupied = 0
+      for (let pixel = 0; pixel < 256; pixel += 1) {
+        if (frame[pixel * 4 + 3]! > 32) occupied += 1
+        const target = ((row * 16 + Math.floor(pixel / 16)) * 64 + column * 16 + pixel % 16) * 4
+        frame.copy(output, target, pixel * 4, pixel * 4 + 4)
+      }
+      if (occupied < 8 || occupied > 224) throw new Error(`walking sprite frame ${row + 1},${column + 1} is empty or has no transparent margin`)
+    }
+  }
+  return new Uint8Array(await sharp(output, { raw: { width: 64, height: 64, channels: 4 } }).png().toBuffer())
 }
 
 export class OpenAiImageService implements ImageService {
@@ -48,6 +75,19 @@ export class OpenAiImageService implements ImageService {
     }
     const b64 = response.data?.[0]?.b64_json
     if (!b64) throw new ImageServiceError('failed', 'image response contained no data')
+    if (request.kind === 'sprite') {
+      try {
+        const sheet = await normalizeWalkingSpriteSheet(Buffer.from(b64, 'base64'))
+        return {
+          bytes: new Uint8Array(sheet),
+          mimeType: 'image/png',
+          model: this.model,
+          costUsd: IMAGE_PRICING[this.model]?.[request.quality][request.size] ?? 0,
+        }
+      } catch (error) {
+        throw new ImageServiceError('failed', error instanceof Error ? error.message : String(error))
+      }
+    }
     return {
       bytes: new Uint8Array(Buffer.from(b64, 'base64')),
       mimeType: 'image/webp',

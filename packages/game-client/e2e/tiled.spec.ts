@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { overlaps } from '../src/map-labels.js'
 
-test('newsroom captions, identity art and displaced click targets', async ({ page }, testInfo) => {
+test('newsroom captions, walking sprites and displaced click targets', async ({ page }, testInfo) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.route('**/game/ninja/**', async (route) => {
@@ -12,10 +12,7 @@ test('newsroom captions, identity art and displaced click targets', async ({ pag
     const contentType = suffix.endsWith('.svg') ? 'image/svg+xml' : suffix.endsWith('.ogg') ? 'audio/ogg' : 'image/png'
     await route.fulfill({ body, contentType })
   })
-  await page.route('**/missing-portrait.png', (route) => route.fulfill({ status: 404, body: '' }))
-  await page.route('**/game/portraits/adolf-hitler.jpg', async (route) => route.fulfill({
-    contentType: 'image/jpeg', body: await readFile(resolve('../..', 'apps/web/public/game/portraits/adolf-hitler.jpg')),
-  }))
+  await page.route('**/missing-sprite.png', (route) => route.fulfill({ status: 404, body: '' }))
   // A blank same-origin document avoids mounting the unrelated primitive demo.
   await page.route('**/tiled-test', (route) => route.fulfill({ contentType: 'text/html', body: '<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body></body></html>' }))
   await page.goto('/tiled-test', { waitUntil: 'domcontentloaded' })
@@ -26,7 +23,7 @@ test('newsroom captions, identity art and displaced click targets', async ({ pag
   })
   const inspect = () => page.evaluate(() => (window as any).tiledHarness.inspect())
   const initial = await inspect()
-  expect(initial.stockSprites).toEqual(['char-Boy'])
+  expect(initial.stockSprites).toEqual(['char-Princess', 'char-Princess', 'char-Boy'])
   expect(initial.images).toHaveLength(1)
   expect(initial.ground).toBe(1000)
   for (const [index, caption] of initial.captions.entries()) {
@@ -42,15 +39,14 @@ test('newsroom captions, identity art and displaced click targets', async ({ pag
   await page.mouse.click(focusedPropPoint.x, focusedPropPoint.y)
   expect(await page.evaluate(() => (window as any).tiledHarness.clicks)).toContain('prop:card')
 
-  // Asset completion must replace the neutral marker without changing the map or sprite key.
+  // A completed sheet replaces the curated walker without changing the map.
   await page.evaluate(() => {
     const harness = (window as any).tiledHarness
-    const portrait = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><path fill="#716c5b" d="M0 0h64v64H0z"/><path fill="#282b28" d="M9 64V48l16-9h14l16 9v16zM21 12h23v21H21z"/><path fill="#c4a27c" d="M24 19h17v21H24z"/><path fill="#252b29" d="M25 25h4v2h-4zm11 0h4v2h-4z"/></svg>')
-    harness.snapshot.actors.find((actor: any) => actor.id === 'tojo').portraitUrl = portrait
+    harness.snapshot.actors.find((actor: any) => actor.id === 'tojo').spriteSheetUrl = '/game/ninja/characters/Boy/walk.png'
     harness.view.render(structuredClone(harness.snapshot))
   })
-  await expect.poll(async () => (await inspect()).images.filter((key: string) => key.startsWith('asset-')).length).toBe(2)
-  expect((await inspect()).stockSprites).toEqual(['char-Boy'])
+  await expect.poll(async () => (await inspect()).stockSprites.filter((key: string) => key.startsWith('asset-')).length).toBe(1)
+  expect((await inspect()).stockSprites).toContain('char-Princess')
   await page.screenshot({ path: testInfo.outputPath('newsroom.png') })
 
   // Caption placement also runs between snapshots, while characters cross each other.
@@ -79,12 +75,12 @@ test('newsroom captions, identity art and displaced click targets', async ({ pag
   expect(collisionFrames).toEqual([])
   await page.evaluate(() => {
     const harness = (window as any).tiledHarness
-    harness.snapshot.actors.find((entry: any) => entry.id === 'tojo').portraitUrl = '/missing-portrait.png'
-    harness.snapshot.actors.find((entry: any) => entry.id === 'hitler').portraitUrl = '/missing-portrait.png'
+    harness.snapshot.actors.find((entry: any) => entry.id === 'tojo').spriteSheetUrl = '/missing-sprite.png'
+    harness.snapshot.actors.find((entry: any) => entry.id === 'hitler').spriteSheetUrl = '/missing-sprite.png'
     harness.view.render(structuredClone(harness.snapshot))
   })
   await expect.poll(async () => (await inspect()).images.length).toBe(1)
   expect((await inspect()).images).toEqual(initial.images)
-  expect((await inspect()).stockSprites).toEqual(['char-Boy'])
+  expect((await inspect()).stockSprites).toEqual(initial.stockSprites)
   expect(errors).toEqual([])
 })

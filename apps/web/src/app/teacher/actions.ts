@@ -503,8 +503,11 @@ export async function importSpec(
 }
 
 export async function publishAdventure(adventureId: string): Promise<ActionResult> {
+  if (!process.env.OPENAI_API_KEY) {
+    return { error: "Artwork generation is unavailable. Please try publishing later." };
+  }
   const { supabase } = await requireOwnership(adventureId);
-  const { error } = await supabase.rpc("publish_adventure", {
+  const { error } = await supabase.rpc("publish_adventure_with_assets", {
     p_adventure_id: adventureId,
   });
   if (error) {
@@ -512,23 +515,33 @@ export async function publishAdventure(adventureId: string): Promise<ActionResul
     return { error: "Couldn’t publish this adventure. Please try again." };
   }
 
-  // Story-specific images (portraits, landmarks, props) are generated after the response is sent:
-  // publish never blocks on them, and a failure leaves the curated placeholder in place (D6/FR-6a).
+  // Publishing closes the draft immediately. New student attempts open only
+  // after the artwork and walking sprites have settled.
   const { data: published } = await supabase.from("adventure").select("published_version").eq("id", adventureId).single<{ published_version: number }>();
-  if (published?.published_version && process.env.OPENAI_API_KEY) {
+  if (published?.published_version) {
     const version = published.published_version;
-    after(async () => {
-      try {
-        const result = await generateAssetsForVersion({ admin: createAdminClient(), images: new OpenAiImageService(), adventureId, version });
-        console.info("asset generation", adventureId, `v${version}`, result);
-      } catch (error) {
-        console.error("asset generation failed", adventureId, `v${version}`, error);
-      }
-    });
+    after(() => finishArtworkGeneration(adventureId, version));
   }
 
   revalidatePath(`/teacher/${adventureId}`);
   return {};
+}
+
+async function finishArtworkGeneration(adventureId: string, version: number): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const result = await generateAssetsForVersion({ admin, images: new OpenAiImageService(), adventureId, version });
+    if (!result.ok) throw new Error(result.reason);
+    const { error } = await admin.from("adventure")
+      .update({ assets_ready: true })
+      .eq("id", adventureId)
+      .eq("published_version", version);
+    if (error) throw error;
+    console.info("asset generation complete", adventureId, `v${version}`, result);
+    revalidatePath(`/teacher/${adventureId}`);
+  } catch (error) {
+    console.error("asset generation failed", adventureId, `v${version}`, error);
+  }
 }
 
 /** Editing a published adventure means a new draft version, never an edit in place (P4). */
@@ -571,24 +584,18 @@ export async function generateArtwork(adventureId: string, specVersionId: string
 
   const { data: pending } = await admin
     .from("asset")
-    .select("asset_id")
+    .select("asset_id, updated_at")
     .eq("spec_version_id", versionRow.id)
     .eq("status", "pending")
+    .gte("updated_at", new Date(Date.now() - 600_000).toISOString())
     .limit(1)
-    .returns<{ asset_id: string }[]>();
+    .returns<{ asset_id: string; updated_at: string }[]>();
   if (pending && pending.length > 0) {
     return { notice: `Artwork is already being generated for version ${versionRow.version}.` };
   }
 
   const version = versionRow.version;
-  after(async () => {
-    try {
-      const result = await generateAssetsForVersion({ admin: createAdminClient(), images: new OpenAiImageService(), adventureId, version });
-      console.info("artwork generation", adventureId, `v${version}`, result);
-    } catch (error) {
-      console.error("artwork generation failed", adventureId, `v${version}`, error);
-    }
-  });
+  after(() => finishArtworkGeneration(adventureId, version));
   return { notice: `Artwork is being generated for version ${version}; the page will update as each piece lands.` };
 }
 

@@ -35,10 +35,8 @@ export interface PlaygroundSnapshot {
     status: TravelStatus
     /** Character sheet key for a tiled renderer; ignored by the primitive one. */
     sprite?: string
-    /** Generated identity art shown as the actor itself; curated faces remain UI fallbacks. */
-    portraitUrl?: string | null
-    /** A sourced likeness to use when the primary portrait is absent or fails to load. */
-    portraitFallbackUrl?: string | null
+    /** Generated 4x4 walking sheet for this character. */
+    spriteSheetUrl?: string | null
     /** Whether the host considers this actor close enough to interact with now. */
     interactive?: boolean
     /** Which way the actor last moved, for a walk cycle. */

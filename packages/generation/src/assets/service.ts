@@ -2,13 +2,12 @@
  * D5 — asset generation (PRD D4, FR-6/FR-6a/FR-6b).
  *
  * Only `spec.assetEligibility[]` entries can reach the image model, and the
- * schema already restricts those to portrait | landmark | prop. This module
+ * schema restricts those to portrait | landmark | prop | sprite. This module
  * re-checks at the service boundary (`assertGeneratable`) so a caller that
  * bypasses the spec — the compiler, a teacher "regenerate" button, a test —
  * still cannot request terrain. A prompt-hash cache means a subject reused
  * across stages costs nothing, and every
- * failure resolves to the curated placeholder: the manifest is always complete
- * and publish never waits on it (FR-6a).
+ * failure resolves to the curated placeholder: the manifest is always complete.
  *
  * `ignoreCache` exists for the teacher's "regenerate" button: it skips the
  * prompt-hash read so a record can be forced to re-draw, but still writes the
@@ -33,9 +32,10 @@ const STYLE: Record<GeneratableAssetKind, string> = {
   ].join(' '),
   landmark: 'A game-ready 32x32 pixel-art tile sheet of one solid physical landmark, occupying exactly two 16x16 map tiles in each direction. Draw one complete object centered in the square on a transparent background with a transparent margin of at most two pixels. Three-quarter top-down view matching hand-authored 16-bit game tiles: deliberate hard square pixel edges, strong readable silhouette, no antialiasing, no soft lighting, no gradients, and a limited muted palette of at most 16 colors. Show only the object, with no scene, ground plane, frame, placard, UI, text, characters, shadow outside the footprint, or painterly texture. The image will be reduced to 32x32 pixels and cut into four 16x16 terrain tiles.',
   prop: 'Single small physical object for a top-down 16px pixel-art game map. Three-quarter top-down view, crisp square pixels, simple readable silhouette, limited muted palette, transparent background. No scene, ground plane, frame, UI, text, characters, gradients or painterly texture.',
+  sprite: 'Create a precise 4-column by 4-row walking sprite sheet for ONE full-body character in a 16-bit top-down pixel-art game. Every cell shows the same person at the same size and position. Columns, left to right: facing down, up, left, right. Rows, top to bottom: standing, left-foot step, standing, right-foot step. Equal square cells with no gap or border. Transparent background in every cell. Keep clothing, hairstyle, skin tone, accessories and silhouette consistent across all sixteen cells. No portraits, photographs, scene, ground, shadow, text, grid lines or other characters. The sheet will be reduced to 64x64 pixels, giving each frame exactly 16x16 pixels.',
 }
 
-const SIZES: Record<GeneratableAssetKind, ImageRequest['size']> = { portrait: '1024x1024', landmark: '1024x1024', prop: '1024x1024' }
+const SIZES: Record<GeneratableAssetKind, ImageRequest['size']> = { portrait: '1024x1024', landmark: '1024x1024', prop: '1024x1024', sprite: '1024x1024' }
 
 const THEME_PALETTES = {
   classic: 'warm grass green, dark brown wood, cream stone',
@@ -124,6 +124,18 @@ export function playableAssetEligibility(spec: AdventureSpec): AssetEligibility[
       entityId: room.id,
       subject: room.landmark.name,
       prompt: room.landmark.description,
+    })
+  }
+  const spriteStakeholders = new Set(eligible.filter((asset) => asset.kind === 'sprite').map((asset) => asset.entityId))
+  for (const stakeholder of spec.stakeholders) {
+    if (spriteStakeholders.has(stakeholder.id)) continue
+    const portrait = eligible.find((asset) => asset.kind === 'portrait' && asset.entityId === stakeholder.id)
+    eligible.push({
+      id: `asset-sprite-${createHash('sha256').update(stakeholder.id).digest('hex').slice(0, 16)}`,
+      kind: 'sprite',
+      entityId: stakeholder.id,
+      subject: stakeholder.name,
+      prompt: `${stakeholder.role}. ${portrait?.prompt ?? stakeholder.summary.text}`.slice(0, 600),
     })
   }
   return eligible
@@ -219,7 +231,7 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
 
 /** What the client shows for an entity right now: generated if ready/cached, else the placeholder. */
 export function resolveAssetUrl(manifest: AssetManifest | null, entityId: string, fallbackKind: GeneratableAssetKind): string {
-  const record = manifest?.records.find((r) => r.entityId === entityId)
+  const record = manifest?.records.find((r) => r.entityId === entityId && r.kind === fallbackKind)
   if (record && (record.status === 'ready' || record.status === 'cached')) return record.url
   return record?.placeholderUrl ?? placeholderUrl(fallbackKind)
 }

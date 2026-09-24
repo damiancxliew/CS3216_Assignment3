@@ -38,7 +38,7 @@ function Artwork({
   imageStatus,
   className = "w-full aspect-square",
 }: {
-  kind: "portrait" | "landmark" | "prop";
+  kind: "portrait" | "landmark" | "prop" | "sprite";
   alt: string;
   imageUrl: string | null;
   imageStatus: ImageStatus;
@@ -55,7 +55,7 @@ function Artwork({
   if (imageUrl) {
     return (
       <div data-artwork-kind={kind} className={`relative overflow-hidden rounded-control border border-line bg-sunken ${className}`}>
-        <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className="h-full w-full object-cover" />
+        <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className={`h-full w-full object-contain ${kind === "sprite" ? "[image-rendering:pixelated]" : "object-cover"}`} />
         {imageStatus === "failed" || imageStatus === "placeholder" ? (
           <span className="absolute inset-x-1 bottom-1 rounded bg-ink/80 px-1.5 py-0.5 text-center text-xs font-semibold text-paper">
             {imageStatus === "failed" ? "Needs retry" : kind === "portrait" ? "Default portrait" : "Placeholder"}
@@ -436,19 +436,19 @@ export function DossierSections({
         </ul>
       </Section> : null}
 
-      {view === "artwork" ? <Section title="Artwork" lede="Portraits, places and objects for this version.">
+      {view === "artwork" ? <Section title="Artwork" lede="Portraits, walking sprites, places and objects for this version.">
         <div className="flex flex-col gap-4">
           <p className="max-w-[65ch] text-base text-muted">
             {isDraft
-              ? `These images belong to draft version ${version}. Publish this version to make them available to students. Artwork generated after publishing appears in the game automatically; no extra edit or publish step is needed.`
-              : `These images belong to published version ${version}. New or regenerated images are applied automatically. Students may need to refresh an open game; updates can take up to a minute to appear.`}
+              ? `These images belong to draft version ${version}. Publishing starts artwork generation. Students can play when every image has finished.`
+              : `These images belong to published version ${version}. Ready images appear in the game automatically. Students may need to refresh an open game.`}
           </p>
           <p className="text-base text-ink">
             {dossier.assets.generated} of {dossier.assets.eligible} planned images ready
             {dossier.assets.pending > 0 ? ` · ${dossier.assets.pending} in progress` : ""}
             {dossier.assets.failed > 0 ? ` · ${dossier.assets.failed} failed` : ""}
           </p>
-          <p className="text-sm text-muted">This version plans {dossier.artwork.filter((item) => item.kind === "portrait").length} portraits, {dossier.artwork.filter((item) => item.kind === "landmark").length} places and {dossier.artwork.filter((item) => item.kind === "prop").length} objects, based on its story and physical landmarks.</p>
+          <p className="text-sm text-muted">Planned: {dossier.artwork.filter((item) => item.kind === "portrait").length} portraits, {dossier.artwork.filter((item) => item.kind === "sprite").length} walking sprites, {dossier.artwork.filter((item) => item.kind === "landmark").length} places, {dossier.artwork.filter((item) => item.kind === "prop").length} objects.</p>
           <ArtworkProgress
             action={generateArtwork.bind(null, adventureId, specVersionId)}
             label={`Generate artwork for ${isDraft ? "draft " : ""}v${version}`}
@@ -462,7 +462,7 @@ export function DossierSections({
                   <Artwork kind={item.kind} alt={`Artwork of ${item.name}`} imageUrl={item.imageUrl} imageStatus={item.imageStatus} className="h-24 w-24 shrink-0" />
                   <div className="flex min-w-0 flex-col gap-1">
                     <p className="font-semibold text-ink">{item.name}</p>
-                    <p className="text-sm capitalize text-muted">{item.kind === "prop" ? "Object" : item.kind === "landmark" ? "Place" : "Portrait"} · {item.imageStatus === "generated" ? "Ready" : item.imageStatus === "pending" ? "Generating" : item.imageStatus === "failed" ? "Failed" : "Placeholder"}</p>
+                    <p className="text-sm text-muted">{item.kind === "prop" ? "Object" : item.kind === "landmark" ? "Place" : item.kind === "sprite" ? "Walking sprite" : "Portrait"} · {item.imageStatus === "generated" ? "Ready" : item.imageStatus === "pending" ? "Generating" : item.imageStatus === "failed" ? "Failed" : "Placeholder"}</p>
                     <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={item.assetId} />
                   </div>
                 </li>

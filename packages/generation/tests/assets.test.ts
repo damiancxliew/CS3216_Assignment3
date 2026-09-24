@@ -28,6 +28,7 @@ describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
     expect(assets.filter((asset) => asset.kind === 'landmark').map((asset) => asset.entityId).sort()).toEqual(physicalRooms.sort())
     expect(assets.some((asset) => asset.id === 'old-room-only-image')).toBe(false)
     expect(assets.filter((asset) => asset.kind === 'landmark').every((asset) => asset.id.length <= 48)).toBe(true)
+    expect(assets.filter((asset) => asset.kind === 'sprite')).toHaveLength(spec.stakeholders.length)
   })
 
   it('rejects terrain, structural and UI requests', () => {
@@ -39,7 +40,7 @@ describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
         expect((error as ImageServiceError).code).toBe('not-generatable')
       }
     }
-    for (const kind of ['portrait', 'landmark', 'prop']) expect(() => assertGeneratable({ kind })).not.toThrow()
+    for (const kind of ['portrait', 'landmark', 'prop', 'sprite']) expect(() => assertGeneratable({ kind })).not.toThrow()
   })
 
   it('never lets an ineligible entry reach the image service even if the spec object was tampered with', async () => {
