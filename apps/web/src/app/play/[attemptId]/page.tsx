@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { ThemeSelect } from "@/components/theme-provider";
 import { PlayClient } from "@/components/play/play-client";
 import { button, Mark } from "@/components/ui";
 import { loadResumeState } from "@/lib/attempts/resume";
@@ -71,9 +72,12 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
             </div>
           </details>
         ) : null}
-        <Link href="/" className={`${button.subtle} lg:ml-auto`}>
-          Leave
-        </Link>
+        <div className="flex shrink-0 items-center gap-3 lg:ml-auto">
+          <ThemeSelect />
+          <Link href="/" className={button.subtle}>
+            Leave
+          </Link>
+        </div>
       </header>
 
       {initial.ok ? (

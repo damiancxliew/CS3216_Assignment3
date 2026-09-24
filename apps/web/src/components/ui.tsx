@@ -5,13 +5,14 @@
  * and the three states every screen needs: waiting, empty, failed.
  */
 import Link from "next/link";
+import { ThemeSelect } from "@/components/theme-provider";
 
 /** Teacher-facing names for the Spec v2 reading bands. */
 export { READING_BAND_LABELS } from "@/lib/brief/schema";
 
 export const button = {
   primary:
-    "inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full border-2 border-ink bg-signal px-5 py-2.5 text-base font-extrabold text-white shadow-[0_4px_0_var(--ink)] transition-all hover:-translate-y-0.5 hover:bg-ink active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0",
+    "inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full border-2 border-ink bg-signal px-5 py-2.5 text-base font-extrabold text-on-signal shadow-[0_4px_0_var(--ink)] transition-all hover:-translate-y-0.5 hover:bg-ink hover:text-paper active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0",
   quiet:
     "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border-2 border-ink bg-surface px-4 py-2 text-base font-bold text-ink shadow-[0_3px_0_var(--ink)] transition-all hover:-translate-y-0.5 hover:bg-signal-wash active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0",
   subtle:
@@ -251,7 +252,10 @@ export function Page({
     <main className={`mx-auto flex min-h-screen w-full flex-col gap-8 px-5 py-8 sm:gap-10 sm:px-6 sm:py-12 ${width === "wide" ? "max-w-6xl" : "max-w-3xl"}${fill ? " lg:h-dvh lg:min-h-0 lg:overflow-hidden" : ""}`}>
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
         <Wordmark />
-        {kicker ? <div className="shrink-0 text-base text-muted">{kicker}</div> : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <ThemeSelect />
+          {kicker ? <div className="shrink-0 text-base text-muted">{kicker}</div> : null}
+        </div>
       </div>
       <header className="flex flex-col gap-3">
         <h1 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">{title}</h1>

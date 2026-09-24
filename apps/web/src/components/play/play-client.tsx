@@ -96,7 +96,7 @@ function Portrait({ src, name, size = 40 }: { src: string | null; name: string; 
     const monogram = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
     return (
       <span
-        className="inline-flex shrink-0 items-center justify-center self-start rounded-control border border-line bg-[#3a2a24] font-serif text-paper"
+        className="inline-flex shrink-0 items-center justify-center self-start rounded-control border border-line bg-inverse font-serif text-on-inverse"
         style={box}
         role="img"
         aria-label={`${name}'s identity marker`}
@@ -630,7 +630,7 @@ export function PlayClient({
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
       {roleBriefOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-5" role="presentation">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-inverse/70 p-5" role="presentation">
           <section
             role="dialog"
             aria-modal="true"
@@ -677,7 +677,7 @@ export function PlayClient({
           onLandmark={onLandmark}
         />
         {hintVisible ? (
-          <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-ink/85 px-3 py-1.5 text-sm font-semibold text-paper lg:bottom-3 lg:right-48 lg:top-auto lg:px-3.5 lg:py-2 lg:text-base">
+          <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-inverse/85 px-3 py-1.5 text-sm font-semibold text-on-inverse lg:bottom-3 lg:right-48 lg:top-auto lg:px-3.5 lg:py-2 lg:text-base">
             <span className="lg:hidden">Tap to walk; tap a person, document, or landmark to interact.</span>
             <span className="hidden lg:inline">
               Use arrows or WASD to walk. Click a person, document, or landmark to interact; press Enter to talk.
@@ -688,7 +688,7 @@ export function PlayClient({
           type="button"
           onClick={() => setHintVisible((shown) => !shown)}
           aria-pressed={hintVisible}
-          className="absolute bottom-3 right-36 inline-flex min-h-11 min-w-11 items-center justify-center rounded-control bg-ink/85 px-3 py-2 text-paper hover:bg-ink"
+          className="absolute bottom-3 right-36 inline-flex min-h-11 min-w-11 items-center justify-center rounded-control bg-inverse/85 px-3 py-2 text-on-inverse hover:bg-inverse"
         >
           <HelpCircle className="h-5 w-5" aria-hidden />
           <span className="sr-only">How to move and talk</span>
@@ -697,7 +697,7 @@ export function PlayClient({
           type="button"
           onClick={toggleMuted}
           aria-pressed={muted}
-          className="absolute bottom-3 right-3 inline-flex min-h-11 items-center gap-2 rounded-control bg-ink/85 px-3 py-2 text-base font-semibold text-paper hover:bg-ink lg:px-3.5"
+          className="absolute bottom-3 right-3 inline-flex min-h-11 items-center gap-2 rounded-control bg-inverse/85 px-3 py-2 text-base font-semibold text-on-inverse hover:bg-inverse lg:px-3.5"
         >
           {muted ? <VolumeX className="h-5 w-5" aria-hidden /> : <Volume2 className="h-5 w-5" aria-hidden />}
           <span className="sr-only sm:not-sr-only">{muted ? "Sound off" : "Sound on"}</span>
@@ -1062,7 +1062,7 @@ export function PlayClient({
       ) : null}
 
       {openLandmark ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="landmark-title">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-inverse/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="landmark-title">
           <div className="flex max-h-[80dvh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-surface border-l-[3px] border-world bg-paper p-5 shadow-xl sm:p-6">
             <div>
               <p className={label}>You inspect</p>

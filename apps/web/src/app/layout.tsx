@@ -4,6 +4,8 @@ import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { AuthListener } from "@/components/auth-listener";
+import { ThemeProvider } from "@/components/theme-provider";
+import { themeScript } from "@/lib/theme";
 import { Analytics } from "@/lib/analytics/posthog";
 import "./globals.css";
 
@@ -48,12 +50,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className={`${ui.variable} ${record.variable}`}>
-        <Analytics>
-          <AuthListener />
-          {children}
-        </Analytics>
+        <ThemeProvider>
+          <Analytics>
+            <AuthListener />
+            {children}
+          </Analytics>
+        </ThemeProvider>
         <VercelAnalytics />
         <SpeedInsights />
       </body>

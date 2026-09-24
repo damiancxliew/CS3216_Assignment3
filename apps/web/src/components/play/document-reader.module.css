@@ -67,6 +67,38 @@
 .loading { display: flex; min-height: 160px; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; color: #77562f; }
 .hint { font-size: 13px; }
 .illustration { display: block; width: 80px; height: 80px; object-fit: cover; margin: 0 auto 18px; border: 1px solid #a6804680; border-radius: 4px; filter: sepia(.35); }
+
+/* Keep the scroll silhouette, with a dim reading surface at night. */
+:global([data-theme="dark"]) .dialog { color: var(--ink); color-scheme: dark; }
+:global([data-theme="dark"]) .paper {
+  border-color: var(--line-strong);
+  background: linear-gradient(90deg, #241f1c, #302923 4%, #342d27 50%, #302923 96%, #241f1c);
+  box-shadow: inset 0 8px 14px -9px #000, inset 0 -8px 14px -9px #000;
+}
+:global([data-theme="dark"]) .roller { background: linear-gradient(#392c20, #776045 40%, #493725); border-color: #80684b; box-shadow: inset 0 2px 3px #b4946540, 0 3px 5px #0005; }
+:global([data-theme="dark"]) .roller::before,
+:global([data-theme="dark"]) .roller::after { background: linear-gradient(#392c20, #776045 40%, #493725); border-color: #80684b; }
+:global([data-theme="dark"]) .title,
+:global([data-theme="dark"]) .text::first-letter { color: var(--ink); }
+:global([data-theme="dark"]) .eyebrow,
+:global([data-theme="dark"]) .kicker,
+:global([data-theme="dark"]) .source,
+:global([data-theme="dark"]) .footer > p,
+:global([data-theme="dark"]) .loading,
+:global([data-theme="dark"]) .divider { color: #cfbda6; }
+:global([data-theme="dark"]) .source,
+:global([data-theme="dark"]) .footer { border-color: #80684b; }
+:global([data-theme="dark"]) .divider::before,
+:global([data-theme="dark"]) .divider::after { background: #80684b; }
+:global([data-theme="dark"]) .close,
+:global([data-theme="dark"]) .button { color: var(--ink); background: #493d30; border-color: #80684b; }
+:global([data-theme="dark"]) .close:hover,
+:global([data-theme="dark"]) .button:hover { background: #60503d; }
+:global([data-theme="dark"]) .close:focus-visible,
+:global([data-theme="dark"]) .button:focus-visible,
+:global([data-theme="dark"]) .content:focus-visible { outline-color: var(--record); }
+:global([data-theme="dark"]) .content { scrollbar-color: #80684b transparent; }
+
 @media (max-width: 540px) {
   .header { padding: 16px 16px 4px; }
   .eyebrow { font-size: 10px; letter-spacing: .08em; }

@@ -22,7 +22,7 @@ function WorldPreview() {
           const Icon = place.icon;
           return (
             <button key={place.name} type="button" aria-pressed={selected === index} aria-controls={detailId} onClick={() => setSelected(index)} className="relative flex min-w-0 flex-col items-center gap-2 rounded-lg py-1 text-sm font-bold">
-              <span className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-ink transition-colors ${selected === index ? "bg-world text-white shadow-[0_4px_0_var(--ink)]" : "bg-surface text-ink hover:bg-world-wash"}`}><Icon className="h-6 w-6" aria-hidden /></span>
+              <span className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-ink transition-colors ${selected === index ? "bg-world text-on-accent shadow-[0_4px_0_var(--ink)]" : "bg-surface text-ink hover:bg-world-wash"}`}><Icon className="h-6 w-6" aria-hidden /></span>
               {place.name}
             </button>
           );
@@ -46,7 +46,7 @@ function DialoguePreview() {
           <p className="mb-1 flex items-center gap-2 text-sm font-bold text-record"><Store className="h-4 w-4" aria-hidden /> The merchant</p>
           <p className="text-lg font-bold leading-snug">“Open the port. My trade depends on it.”</p>
         </div>
-        <div className="ml-5 rounded-2xl rounded-br-sm border-2 border-ink bg-ink p-4 text-paper">
+        <div className="ml-5 rounded-2xl rounded-br-sm border-2 border-ink bg-inverse p-4 text-on-inverse">
           <p className="mb-1 flex items-center gap-2 text-sm font-bold text-[#ffe66d]"><Users className="h-4 w-4" aria-hidden /> The local ruler</p>
           <p className="text-lg font-bold leading-snug">“And who will control what happens here?”</p>
         </div>
@@ -74,7 +74,7 @@ function DecisionPreview() {
       <p className="mt-5 text-2xl font-black tracking-tight">Enough evidence to take a side?</p>
       <div className="my-4 flex flex-wrap gap-2">
         {choices.map((choice, index) => (
-          <button key={choice.title} type="button" aria-pressed={selected === index} aria-controls={resultId} onClick={() => setSelected(index)} className={`flex min-h-12 items-center gap-2 rounded-xl border-2 border-ink px-4 py-2 text-base font-bold transition-colors ${selected === index ? "bg-ink text-paper" : "bg-surface hover:bg-[#ffe66d]"}`}>
+          <button key={choice.title} type="button" aria-pressed={selected === index} aria-controls={resultId} onClick={() => setSelected(index)} className={`flex min-h-12 items-center gap-2 rounded-xl border-2 border-ink px-4 py-2 text-base font-bold transition-colors ${selected === index ? "bg-ink text-paper" : "bg-surface hover:bg-sunshine"}`}>
             {choice.title}{selected === index ? <Check className="h-4 w-4" aria-hidden /> : <ArrowRight className="h-4 w-4" aria-hidden />}
           </button>
         ))}
@@ -103,7 +103,7 @@ function DebriefPreview() {
           <p className="mt-1 text-base text-muted">Part of the story, not a historical quote.</p>
         </div>
       </div>
-      <p className="mt-auto flex items-center gap-2 pt-4 text-base font-bold"><ArrowDown className="h-5 w-5 shrink-0 text-[#7140ac]" aria-hidden /> Leave with an argument you can support.</p>
+      <p className="mt-auto flex items-center gap-2 pt-4 text-base font-bold"><ArrowDown className="h-5 w-5 shrink-0 text-spark" aria-hidden /> Leave with an argument you can support.</p>
     </>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { ThemeSelect } from "@/components/theme-provider";
 import { DebriefViewed } from "@/components/debrief-viewed";
 import { button, RecordEntry, WorldEntry, Wordmark } from "@/components/ui";
 import { loadDebrief } from "@/lib/attempts/debrief";
@@ -42,6 +43,7 @@ export default async function DebriefPage({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Wordmark />
         <div className="flex flex-wrap items-center gap-3">
+          <ThemeSelect />
           <Link href={`/play/${debrief.attemptId}`} className={button.quiet}>
             Back to your attempt
           </Link>

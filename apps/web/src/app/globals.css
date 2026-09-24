@@ -5,6 +5,7 @@
  * and energetic. Record blue and world green still distinguish source from
  * simulation throughout the experience. */
 :root {
+  color-scheme: light;
   --paper: #fff8e9;
   --surface: #fffdf8;
   --surface-sunken: #f1e8d7;
@@ -22,6 +23,39 @@
   --danger: #b82e3e;
   --danger-wash: #ffe0e5;
   --spark: #7c4dcc;
+  --spark-wash: #efe4ff;
+  --sunshine: #ffe66d;
+  --inverse: #172033;
+  --on-inverse: #fff8e9;
+  --on-accent: #ffffff;
+  --on-signal: #ffffff;
+  --shadow: #172033;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #111722;
+  --surface: #1a2332;
+  --surface-sunken: #0d121c;
+  --ink: #f5eddf;
+  --ink-muted: #b5bdcb;
+  --line: #364254;
+  --line-strong: #748198;
+  --record: #a3b6ff;
+  --record-wash: #252f50;
+  --world: #7edbb4;
+  --world-wash: #193b32;
+  --signal: #ffac86;
+  --signal-wash: #482d29;
+  --danger: #ff9cad;
+  --danger-wash: #482632;
+  --spark: #c6a4ff;
+  --spark-wash: #352747;
+  --sunshine: #494021;
+  --inverse: #0b1019;
+  --on-accent: #111722;
+  --on-signal: #111722;
+  --shadow: #000000;
 }
 
 @theme inline {
@@ -40,6 +74,13 @@
   --color-signal-wash: var(--signal-wash);
   --color-danger: var(--danger);
   --color-danger-wash: var(--danger-wash);
+  --color-spark: var(--spark);
+  --color-spark-wash: var(--spark-wash);
+  --color-sunshine: var(--sunshine);
+  --color-inverse: var(--inverse);
+  --color-on-inverse: var(--on-inverse);
+  --color-on-accent: var(--on-accent);
+  --color-on-signal: var(--on-signal);
 
   --font-sans: var(--font-ui), system-ui, sans-serif;
   --font-serif: var(--font-record), Georgia, serif;
@@ -83,7 +124,6 @@
 }
 
 html {
-  color-scheme: light;
   scroll-behavior: smooth;
 }
 
@@ -114,11 +154,11 @@ select {
 }
 
 .game-shadow {
-  box-shadow: 0 7px 0 color-mix(in srgb, var(--ink) 12%, transparent), 0 22px 60px color-mix(in srgb, var(--ink) 10%, transparent);
+  box-shadow: 0 7px 0 color-mix(in srgb, var(--shadow) 12%, transparent), 0 22px 60px color-mix(in srgb, var(--shadow) 10%, transparent);
 }
 
 .sticker {
-  box-shadow: 0 4px 0 color-mix(in srgb, var(--ink) 18%, transparent);
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--shadow) 18%, transparent);
   transform: rotate(-1.5deg);
 }
 

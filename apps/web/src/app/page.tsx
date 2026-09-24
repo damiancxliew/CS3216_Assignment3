@@ -4,6 +4,7 @@ import { ArrowRight, Clock3, Gamepad2, Map, MessageCircle, ShieldCheck, Sparkles
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { ThemeSelect } from "@/components/theme-provider";
 import { LandingCta } from "@/components/landing-cta";
 import { LandingQuestPreview } from "@/components/landing-quest-preview";
 import { button, Wordmark } from "@/components/ui";
@@ -20,7 +21,7 @@ const beats = [
   { index: "01", icon: Map, title: "Walk the world", body: "Explore the map, enter rooms and hunt for the people who know more.", tone: "bg-world-wash" },
   { index: "02", icon: MessageCircle, title: "Question everyone", body: "Characters have competing interests. Students decide who to trust.", tone: "bg-record-wash" },
   { index: "03", icon: Clock3, title: "Choose under pressure", body: "The clock keeps moving, and the evidence students find changes their options.", tone: "bg-signal-wash" },
-  { index: "04", icon: ShieldCheck, title: "Know fact from fiction", body: "Every ending separates documented history from the simulation’s assumptions.", tone: "bg-[#efe4ff]" },
+  { index: "04", icon: ShieldCheck, title: "Know fact from fiction", body: "Every ending separates documented history from the simulation’s assumptions.", tone: "bg-spark-wash" },
 ] as const;
 
 function Clip({ src, poster, label, className }: { src: string; poster: string; label: string; className?: string }) {
@@ -57,16 +58,19 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-20 overflow-hidden px-5 py-6 sm:px-8 sm:py-8 lg:gap-28">
-      <nav className="flex items-center justify-between gap-4">
+      <nav className="flex flex-wrap items-center justify-between gap-4">
         <Wordmark />
-        <Link href="/teacher" className={button.quiet}>
-          Teacher console <ArrowRight className="h-4 w-4" aria-hidden />
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <ThemeSelect />
+          <Link href="/teacher" className={button.quiet}>
+            Teacher console <ArrowRight className="h-4 w-4" aria-hidden />
+          </Link>
+        </div>
       </nav>
 
       <section className="grid items-center gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         <div className="relative z-10 flex flex-col items-start gap-7">
-          <div className="sticker inline-flex items-center gap-2 rounded-full border-2 border-ink bg-[#ffe66d] px-4 py-2 text-sm font-black uppercase tracking-wider text-ink">
+          <div className="sticker inline-flex items-center gap-2 rounded-full border-2 border-ink bg-sunshine px-4 py-2 text-sm font-black uppercase tracking-wider text-ink">
             <Gamepad2 className="h-5 w-5" aria-hidden /> History you can play
           </div>
           <h1 className="max-w-[11ch] text-5xl font-black leading-[0.94] tracking-[-0.06em] text-ink sm:text-7xl lg:text-[5.4rem]">
@@ -87,31 +91,31 @@ export default function Home() {
         </div>
 
         <div className="game-grid relative -mx-5 px-5 py-10 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
-          <div className="absolute -right-16 -top-2 h-44 w-44 rounded-full bg-[#ffe66d] opacity-70 blur-2xl" aria-hidden />
+          <div className="absolute -right-16 -top-2 h-44 w-44 rounded-full bg-sunshine opacity-70 blur-2xl" aria-hidden />
           <div className="absolute -bottom-8 -left-8 h-48 w-48 rounded-full bg-world-wash blur-xl" aria-hidden />
-          <figure className="game-shadow relative rotate-1 overflow-hidden rounded-[1.75rem] border-[3px] border-ink bg-ink p-2 transition-transform hover:rotate-0">
-            <div className="flex items-center gap-2 px-2 pb-2 text-paper">
+          <figure className="game-shadow relative rotate-1 overflow-hidden rounded-[1.75rem] border-[3px] border-ink bg-inverse p-2 transition-transform hover:rotate-0">
+            <div className="flex items-center gap-2 px-2 pb-2 text-on-inverse">
               <span className="h-2.5 w-2.5 rounded-full bg-signal" />
-              <span className="h-2.5 w-2.5 rounded-full bg-[#ffe66d]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-sunshine" />
               <span className="h-2.5 w-2.5 rounded-full bg-world" />
-              <span className="ml-2 text-xs font-bold uppercase tracking-widest text-paper/70">Live adventure</span>
+              <span className="ml-2 text-xs font-bold uppercase tracking-widest text-on-inverse/70">Live adventure</span>
             </div>
             <Clip src="/media/dialogue.mp4" poster="/media/dialogue.jpg" label="Gameplay footage: a student questioning Sir Stamford Raffles at Singapore, 1819" className="aspect-video w-full rounded-[1.15rem] object-cover" />
           </figure>
           <div className="sticker absolute -bottom-2 left-8 flex max-w-56 items-center gap-3 rounded-2xl border-2 border-ink bg-surface px-4 py-3 font-bold text-ink sm:left-0">
             <Sparkles className="h-6 w-6 shrink-0 text-signal" aria-hidden /> You’re the reporter. Who gets the headline?
           </div>
-          <div className="absolute -right-1 top-2 rounded-2xl border-2 border-ink bg-record px-4 py-3 text-sm font-black text-white shadow-[0_4px_0_var(--ink)] sm:right-1">Stage 2 of 3</div>
+          <div className="absolute -right-1 top-2 rounded-2xl border-2 border-ink bg-record px-4 py-3 text-sm font-black text-on-accent shadow-[0_4px_0_var(--ink)] sm:right-1">Stage 2 of 3</div>
         </div>
       </section>
 
-      <section id="gameplay" className="flex scroll-mt-6 flex-col gap-10 rounded-[2rem] bg-ink px-5 py-10 text-paper sm:px-8 sm:py-14 lg:px-12">
+      <section id="gameplay" className="flex scroll-mt-6 flex-col gap-10 rounded-[2rem] bg-inverse px-5 py-10 text-on-inverse sm:px-8 sm:py-14 lg:px-12">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="mb-2 text-sm font-black uppercase tracking-[0.18em] text-[#ffe66d]">Inside every adventure</p>
             <h2 className="max-w-[14ch] text-4xl font-black tracking-[-0.045em] sm:text-6xl">Read less. Do more. Remember it.</h2>
           </div>
-          <p className="max-w-md text-base text-paper/70 sm:text-lg">Students learn the context because they need it to make the next move.</p>
+          <p className="max-w-md text-base text-on-inverse/70 sm:text-lg">Students learn the context because they need it to make the next move.</p>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2">
@@ -134,7 +138,7 @@ export default function Home() {
             );
           })}
         </div>
-        <p className="-mt-5 text-sm text-paper/70">Illustrative examples of play. Characters, evidence and choices come from each adventure.</p>
+        <p className="-mt-5 text-sm text-on-inverse/70">Illustrative examples of play. Characters, evidence and choices come from each adventure.</p>
       </section>
 
       <section className="flex flex-col gap-10">
@@ -144,7 +148,7 @@ export default function Home() {
         </div>
         <div className="grid gap-5 md:grid-cols-3">
           {teacherSteps.map((step, index) => (
-            <article key={step.title} className={`game-shadow flex min-h-64 flex-col justify-between rounded-surface border-2 border-ink p-6 ${index === 0 ? "bg-[#ffe66d]" : index === 1 ? "bg-world-wash" : "bg-record-wash"}`}>
+            <article key={step.title} className={`game-shadow flex min-h-64 flex-col justify-between rounded-surface border-2 border-ink p-6 ${index === 0 ? "bg-sunshine" : index === 1 ? "bg-world-wash" : "bg-record-wash"}`}>
               <span className="text-5xl font-black text-ink/20">{step.number}</span>
               <div><h3 className="text-2xl font-black tracking-tight text-ink">{step.title}</h3><p className="mt-2 text-base leading-relaxed text-muted">{step.body}</p></div>
             </article>
