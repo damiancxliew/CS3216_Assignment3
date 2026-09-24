@@ -23,7 +23,6 @@ import {
   ASSET_KIND_ENTITY,
   DECISION_STANCES,
   GENERATABLE_ASSET_KINDS,
-  MAX_GENERATED_ASSETS,
   MAP_THEMES,
   MODEL_TIERS,
   READING_BANDS,
@@ -318,7 +317,7 @@ const adventureSpecShape = {
   ambientOverlay: ambientOverlaySchema,
   stages: z.array(stageSchema).min(1).max(MAX_STAGES),
   endings: z.array(endingSchema).min(1).max(MAX_ENDINGS),
-  assetEligibility: z.array(assetEligibilitySchema).max(MAX_GENERATED_ASSETS),
+  assetEligibility: z.array(assetEligibilitySchema),
 }
 
 export const adventureSpecObjectSchema = z.object(adventureSpecShape)

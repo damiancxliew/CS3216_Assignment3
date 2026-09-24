@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import { loadFixtureJson, loadI1Documents, loadI1Spec } from '../src/fixtures'
 import { verifyGrounding } from '../src/ingest/spans'
-import { MAX_GENERATED_ASSETS } from '../src/spec/catalogue'
 import { publicProjection, resolveStageSettings, validateAdventureSpec, validatePublishedSpec } from '../src/spec/v2'
 
 type Json = Record<string, any>
@@ -64,7 +63,6 @@ describe('I1 fixture', () => {
     expect(targets).toContain('stage')
     expect(targets).toContain('ending')
     expect(spec.assetEligibility.length).toBeGreaterThan(0)
-    expect(spec.assetEligibility.length).toBeLessThanOrEqual(MAX_GENERATED_ASSETS)
     expect(spec.stages.map((s) => resolveStageSettings(spec, s).ambientOverlay.id)).toEqual(['clouds', 'rain', 'dust'])
     expect(spec.stages.map((s) => resolveStageSettings(spec, s).timerSeconds)).toEqual([480, 600, 0])
     const enclosureById = Object.fromEntries(spec.stages.flatMap((stage) => stage.rooms.map((room) => [room.id, [room.enclosure, room.doorDefault]])))
@@ -124,12 +122,15 @@ describe('Adventure Spec v2 rejects', () => {
     expectInvalid(spec, 'assetEligibility.6.kind')
   })
 
-  it('more than 8 generated assets (D4)', async () => {
+  it('accepts more than eight eligible images', async () => {
     const spec = await fixture()
-    const rooms = ['landing-beach', 'ship-cabin', 'temenggong-hall', 'farquhar-tent', 'hussein-quarters']
-    rooms.forEach((room, i) => spec.assetEligibility.push({ id: `asset-extra-${i}`, kind: 'landmark', entityId: room, subject: room, prompt: 'x' }))
-    expect(spec.assetEligibility).toHaveLength(11)
-    expectInvalid(spec, 'assetEligibility')
+    const rooms = spec.stages.flatMap((stage: Json) => stage.rooms.map((room: Json) => room.id))
+    spec.assetEligibility = [
+      ...spec.assetEligibility.filter((asset: Json) => asset.kind === 'portrait').slice(0, 2),
+      ...rooms.map((room: string, i: number) => ({ id: `asset-extra-${i}`, kind: 'landmark', entityId: room, subject: room, prompt: 'A physical fixture' })),
+    ]
+    expect(spec.assetEligibility.length).toBeGreaterThan(8)
+    expect(validateAdventureSpec(spec).ok).toBe(true)
   })
 
   it('an asset whose kind does not match its entity', async () => {

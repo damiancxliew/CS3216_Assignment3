@@ -1,9 +1,10 @@
 import { loadI1Spec } from "@adventure/generation/fixtures";
-import { findPath, isWalkable, type Point } from "@adventure/game-core";
+import { compileStage, findPath, isWalkable, type Point } from "@adventure/game-core";
 import { FakeLlmClient, moveActorStep } from "@adventure/orchestration";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { PlaySession } from "@/lib/play/session";
+import { toStageLayout } from "@/lib/play/layout";
 
 let spec: Awaited<ReturnType<typeof loadI1Spec>>;
 
@@ -35,6 +36,19 @@ function straightPath(session: PlaySession, length: number): Point[] {
 }
 
 describe("authoritative spatial movement", () => {
+  it("blocks tile landmarks in an older compiled map without fixture metadata", async () => {
+    const oldStages = spec.stages.map((stage, index) => compileStage({ ...toStageLayout(stage), landmarks: [] }, `old-landmarks-${index}`));
+    const session = PlaySession.start(spec, "old-landmark-map", 1, clock(), null, oldStages);
+    const roomSpec = spec.stages[0]!.rooms.find((room) => room.landmark)!;
+    const room = session.world.spatial!.map.rooms.find((candidate) => candidate.id === roomSpec.id)!;
+    const fixture = { x: room.x + room.width - 4, y: room.y + 2 };
+    const beside = { x: fixture.x - 1, y: fixture.y };
+    session.world.spatial!.state.actors.player = beside;
+    session.world.location.player = room.id;
+    const result = await session.action(new FakeLlmClient({ replies: ['{"say":"unused","actions":[]}'] }), { type: "move_step", stageId: spec.stages[0]!.id, from: beside, to: fixture });
+    expect(result).toEqual({ ok: true, refused: "A landmark blocks the way." });
+    expect(session.world.spatial!.state.actors.player).toEqual(beside);
+  });
   it("moves one adjacent tile, advances a targeted NPC, and never calls the model", async () => {
     const timer = clock();
     const session = PlaySession.start(spec, "movement-success", 1, timer);

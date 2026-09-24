@@ -5,8 +5,8 @@
  * schema already restricts those to portrait | landmark | prop. This module
  * re-checks at the service boundary (`assertGeneratable`) so a caller that
  * bypasses the spec — the compiler, a teacher "regenerate" button, a test —
- * still cannot request terrain. Hard cap of 8 generated images per adventure,
- * prompt-hash cache so a subject reused across stages costs nothing, and every
+ * still cannot request terrain. A prompt-hash cache means a subject reused
+ * across stages costs nothing, and every
  * failure resolves to the curated placeholder: the manifest is always complete
  * and publish never waits on it (FR-6a).
  *
@@ -16,7 +16,7 @@
  */
 import { createHash } from 'node:crypto'
 
-import { CURATED_PLACEHOLDERS, GENERATABLE_ASSET_KINDS, GENERIC_PLACEHOLDER, type GeneratableAssetKind, MAX_GENERATED_ASSETS } from '../spec/catalogue'
+import { CURATED_PLACEHOLDERS, GENERATABLE_ASSET_KINDS, GENERIC_PLACEHOLDER, type GeneratableAssetKind } from '../spec/catalogue'
 import type { AdventureSpec, AssetEligibility } from '../spec/v2'
 import { type AssetCache, type AssetManifest, type AssetRecord, type AssetStore, type ImageRequest, type ImageService, ImageServiceError } from './types'
 
@@ -103,7 +103,6 @@ export interface GenerateAssetsOptions {
   cache: AssetCache
   store: AssetStore
   quality?: ImageRequest['quality']
-  maxImages?: number
   /** Skip the prompt-hash read (regeneration); results are still written to the cache. */
   ignoreCache?: boolean
   /** Called after every record settles, so a UI can show progress. */
@@ -142,12 +141,11 @@ export function pendingManifest(spec: AdventureSpec, images: ImageService, quali
 /**
  * Generate every eligible asset, filling `manifest` in place when one is given
  * (publish hands over its pending manifest). Never throws for a single image: each record
- * ends as ready | cached | failed | filtered | skipped-cap, and `url` is always
+ * ends as ready | cached | failed | filtered, and `url` is always
  * usable. Sequential on purpose — image endpoints rate-limit per minute.
  */
 export async function generateAssets(spec: AdventureSpec, options: GenerateAssetsOptions, manifest?: AssetManifest): Promise<AssetManifest> {
   const quality = options.quality ?? 'medium'
-  const maxImages = Math.min(options.maxImages ?? MAX_GENERATED_ASSETS, MAX_GENERATED_ASSETS)
   manifest ??= pendingManifest(spec, options.images, quality)
 
   for (const [index, entry] of spec.assetEligibility.entries()) {
@@ -159,8 +157,6 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
       if (cached) {
         Object.assign(record, { status: 'cached', url: cached.url, model: cached.model })
         manifest.cacheHits += 1
-      } else if (manifest.generatedCount >= maxImages) {
-        Object.assign(record, { status: 'skipped-cap', error: `cap of ${maxImages} generated images reached` })
       } else {
         manifest.generatedCount += 1
         let result

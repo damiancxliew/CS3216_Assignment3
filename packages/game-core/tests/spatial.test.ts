@@ -6,6 +6,7 @@ import {
   canHearSpeech,
   compileStage,
   findPath,
+  landmarkKindFor,
   isInPhysicalInteractionRange,
   isWalkable,
   canStep,
@@ -92,6 +93,29 @@ function firstRoomFloor(compiled: CompiledStage) {
 }
 
 describe('settlement compiler', () => {
+  it('chooses a physical fixture from each landmark description', () => {
+    expect(landmarkKindFor('Charter table', 'An opened charter', 'hall')).toBe('table')
+    expect(landmarkKindFor('Old fountain', 'A stone water source', 'courtyard')).toBe('well')
+    expect(landmarkKindFor('Landing pier', 'A timber quay', 'dock')).toBe('dock')
+  })
+  it('compiles tile-built landmarks as solid, reachable fixtures', () => {
+    const input = { ...layout(2), landmarks: [{ roomId: 'room-1', kind: 'table' as const }] }
+    const compiled = compileStage(input, 'landmark-seed')
+    const landmark = compiled.map.landmarks?.[0]
+    expect(landmark).toMatchObject({ roomId: 'room-1', kind: 'table', width: 2, height: 2 })
+    expect(validateCompiledStage(compiled).valid).toBe(true)
+    expect(projectMap(compiled).landmarks).toEqual(compiled.map.landmarks)
+    for (let y = landmark!.y; y < landmark!.y + landmark!.height; y += 1) {
+      for (let x = landmark!.x; x < landmark!.x + landmark!.width; x += 1) {
+        expect(isWalkable(compiled.map, compiled.initialDoors, { x, y })).toBe(false)
+        expect(compiled.placements.every(({ position }) => position.x !== x || position.y !== y)).toBe(true)
+      }
+    }
+    const occupiedByOldSave = { x: landmark!.x, y: landmark!.y }
+    const stepOff = { x: landmark!.x - 1, y: landmark!.y }
+    expect(canStep(compiled.map, compiled.initialDoors, occupiedByOldSave, stepOff)).toBe(true)
+    expect(canStep(compiled.map, compiled.initialDoors, stepOff, occupiedByOldSave)).toBe(false)
+  })
   it('compiles the authored fixture and matches the committed artifact', () => {
     const compiled = compileStage(settlementFixture, 'fixture-seed')
     const artifact = JSON.parse(
