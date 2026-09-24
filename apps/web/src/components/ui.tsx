@@ -11,16 +11,16 @@ export { READING_BAND_LABELS } from "@/lib/brief/schema";
 
 export const button = {
   primary:
-    "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-control bg-ink px-4 py-2 text-base font-semibold text-paper transition-colors hover:bg-record active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0",
+    "inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full border-2 border-ink bg-signal px-5 py-2.5 text-base font-extrabold text-white shadow-[0_4px_0_var(--ink)] transition-all hover:-translate-y-0.5 hover:bg-ink active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0",
   quiet:
-    "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-4 py-2 text-base font-semibold text-ink transition-colors hover:border-ink hover:bg-surface active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0",
+    "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border-2 border-ink bg-surface px-4 py-2 text-base font-bold text-ink shadow-[0_3px_0_var(--ink)] transition-all hover:-translate-y-0.5 hover:bg-signal-wash active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0",
   subtle:
-    "inline-flex min-h-9 items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-60",
+    "inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-line-strong bg-surface/70 px-3.5 py-1.5 text-sm font-bold text-muted transition-all hover:border-ink hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-60",
   link: "text-base text-muted underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink",
 };
 
 export const control =
-  "w-full rounded-control border border-line bg-surface px-3 py-2.5 text-base text-ink placeholder:text-muted transition-colors focus:border-record focus:outline-none disabled:opacity-60";
+  "w-full rounded-control border-2 border-line bg-surface px-3.5 py-3 text-base text-ink placeholder:text-muted transition-all focus:border-record focus:shadow-[0_0_0_4px_var(--record-wash)] focus:outline-none disabled:opacity-60";
 
 /** A button label while its action runs: the spinner plus what is happening. */
 export function Pending({ children }: { children: React.ReactNode }) {
@@ -71,8 +71,8 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-start gap-3 rounded-surface border border-line bg-surface px-6 py-7">
-      <p className="font-serif text-xl text-ink">{title}</p>
+    <div className="game-shadow flex flex-col items-start gap-3 rounded-surface border-2 border-ink bg-surface px-6 py-7">
+      <p className="text-xl font-extrabold tracking-tight text-ink">{title}</p>
       {children ? <div className="max-w-[56ch] text-base text-muted">{children}</div> : null}
       {action ? <div className="pt-1">{action}</div> : null}
     </div>
@@ -99,7 +99,7 @@ export function StatusBadge({
       ? "border-world/40 bg-world-wash text-world"
       : "border-line-strong text-muted";
   return (
-    <span className={`whitespace-nowrap rounded-control border px-2.5 py-1 font-sans text-sm font-semibold leading-tight ${tone}`}>
+    <span className={`whitespace-nowrap rounded-full border px-3 py-1 font-sans text-xs font-extrabold uppercase tracking-wide leading-tight ${tone}`}>
       {label}
     </span>
   );
@@ -220,9 +220,9 @@ export function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-5 border-t border-line pt-8">
+    <section className="flex flex-col gap-5 border-t-2 border-line pt-8">
       <div className="flex flex-col gap-1.5">
-        <h2 className="font-serif text-2xl text-ink">{title}</h2>
+        <h2 className="text-2xl font-extrabold tracking-tight text-ink">{title}</h2>
         {lede ? <p className="max-w-[60ch] text-base text-muted">{lede}</p> : null}
       </div>
       {children}
@@ -248,13 +248,13 @@ export function Page({
   children: React.ReactNode;
 }) {
   return (
-    <main className={`mx-auto flex min-h-screen w-full flex-col gap-8 px-5 py-8 sm:gap-10 sm:px-6 sm:py-14 ${width === "wide" ? "max-w-5xl" : "max-w-3xl"}${fill ? " lg:h-dvh lg:min-h-0 lg:overflow-hidden" : ""}`}>
+    <main className={`mx-auto flex min-h-screen w-full flex-col gap-8 px-5 py-8 sm:gap-10 sm:px-6 sm:py-12 ${width === "wide" ? "max-w-6xl" : "max-w-3xl"}${fill ? " lg:h-dvh lg:min-h-0 lg:overflow-hidden" : ""}`}>
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
         <Wordmark />
         {kicker ? <div className="shrink-0 text-base text-muted">{kicker}</div> : null}
       </div>
       <header className="flex flex-col gap-3">
-        <h1 className="font-serif text-3xl text-ink sm:text-5xl">{title}</h1>
+        <h1 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">{title}</h1>
         {lede ? <div className="max-w-[62ch] text-lg text-muted">{lede}</div> : null}
       </header>
       {children}
@@ -285,8 +285,8 @@ export function Mark({ className = "h-5 w-5" }: { className?: string }) {
 
 export function Wordmark({ className = "" }: { className?: string }) {
   return (
-    <Link href="/" className={`inline-flex shrink-0 items-center gap-2.5 whitespace-nowrap font-serif text-base text-ink hover:text-record sm:text-lg ${className}`}>
-      <Mark />
+    <Link href="/" className={`group inline-flex shrink-0 items-center gap-2.5 whitespace-nowrap text-base font-black tracking-tight text-ink transition-transform hover:-rotate-1 hover:scale-[1.02] sm:text-lg ${className}`}>
+      <span className="rounded-control border-2 border-ink bg-signal-wash p-1 shadow-[0_2px_0_var(--ink)]"><Mark className="h-5 w-5" /></span>
       Historical Adventures
     </Link>
   );

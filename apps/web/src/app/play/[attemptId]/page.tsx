@@ -43,9 +43,9 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
 
   return (
     <main className="flex h-dvh min-h-0 flex-col">
-      <header className="flex shrink-0 flex-col items-start gap-x-6 gap-y-2 border-b border-line bg-surface px-5 py-3 lg:flex-row lg:items-baseline">
-        <h1 className="inline-flex max-w-full break-words items-center gap-2.5 font-serif text-lg text-ink sm:text-xl">
-          <Mark />
+      <header className="flex shrink-0 flex-col items-start gap-x-6 gap-y-2 border-b-2 border-ink bg-surface px-5 py-3 lg:flex-row lg:items-baseline">
+        <h1 className="inline-flex max-w-full break-words items-center gap-2.5 text-lg font-black tracking-tight text-ink sm:text-xl">
+          <span className="rounded-control bg-signal-wash p-1"><Mark /></span>
           {resume.adventureTitle}
         </h1>
         {active ? (

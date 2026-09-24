@@ -53,7 +53,7 @@ export default async function DebriefPage({
 
       <header className="flex flex-col gap-3">
         <p className="text-base text-muted">{debrief.adventureTitle}. Your debrief.</p>
-        <h1 className="font-serif text-4xl text-ink sm:text-5xl">{debrief.ending.title}</h1>
+        <h1 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">{debrief.ending.title}</h1>
         <p className="max-w-[60ch] pt-2 text-base text-muted">
           Blue shows what the sources say, with page references. Green shows what happened in the simulation.
         </p>
@@ -175,7 +175,7 @@ function Part({
   const tone = register === "record" ? "text-record" : register === "world" ? "text-world" : "text-ink";
   return (
     <section className="flex flex-col gap-6 border-t border-line pt-8">
-      <h2 className={`font-serif text-2xl ${tone}`}>{title}</h2>
+      <h2 className={`text-2xl font-extrabold tracking-tight ${tone}`}>{title}</h2>
       {children}
     </section>
   );

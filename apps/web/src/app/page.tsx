@@ -1,53 +1,25 @@
 "use client";
 
+import { ArrowRight, Clock3, Gamepad2, Map, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { LandingCta } from "@/components/landing-cta";
-import { button, RecordEntry, WorldEntry, Wordmark } from "@/components/ui";
+import { button, Wordmark } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
 
 const teacherSteps = [
-  {
-    title: "Drop in your sources",
-    body: "A dispatch, a treaty, or a few pages from a textbook—use the sources you already teach.",
-  },
-  {
-    title: "Get a world back",
-    body: "Explore locations, meet people with competing interests, find evidence, and make a decision at each stage.",
-  },
-  {
-    title: "Publish one link",
-    body: "Make changes anytime; students already playing keep their current version.",
-  },
-];
+  { number: "01", title: "Drop in your sources", body: "Use the handouts, treaties and textbook pages you already teach." },
+  { number: "02", title: "Get a playable world", body: "We turn them into places, people, evidence and high-stakes choices." },
+  { number: "03", title: "Send one link", body: "Students jump in. You keep control of the sources, stages and timing." },
+] as const;
 
 const beats = [
-  {
-    index: "01",
-    clip: { src: "/media/world.mp4", poster: "/media/world.jpg" },
-    title: "A place you can walk.",
-    body: "The map, the goals, and the people in the room with you.",
-  },
-  {
-    index: "02",
-    clip: { src: "/media/dialogue.mp4", poster: "/media/dialogue.jpg" },
-    title: "People who want different things.",
-    body: "Each person speaks from their own interests, so students must compare perspectives.",
-  },
-  {
-    index: "03",
-    clip: { src: "/media/decision.mp4", poster: "/media/decision.jpg" },
-    title: "A decision, with a clock.",
-    body: "Students decide before time runs out. The evidence they find shapes what happens next.",
-  },
-  {
-    index: "04",
-    clip: { src: "/media/debrief.mp4", poster: "/media/debrief.jpg" },
-    title: "A debrief that shows its sources.",
-    body: null,
-  },
+  { index: "01", icon: Map, clip: { src: "/media/world.mp4", poster: "/media/world.jpg" }, title: "Walk the world", body: "Explore the map, enter rooms and hunt for the people who know more.", tone: "bg-world-wash" },
+  { index: "02", icon: MessageCircle, clip: { src: "/media/dialogue.mp4", poster: "/media/dialogue.jpg" }, title: "Question everyone", body: "Characters have competing interests. Students decide who to trust.", tone: "bg-record-wash" },
+  { index: "03", icon: Clock3, clip: { src: "/media/decision.mp4", poster: "/media/decision.jpg" }, title: "Choose under pressure", body: "The clock keeps moving, and the evidence students find changes their options.", tone: "bg-signal-wash" },
+  { index: "04", icon: ShieldCheck, clip: { src: "/media/debrief.mp4", poster: "/media/debrief.jpg" }, title: "Know fact from fiction", body: "Every ending separates documented history from the simulation’s assumptions.", tone: "bg-[#efe4ff]" },
 ] as const;
 
 function Clip({ src, poster, label, className }: { src: string; poster: string; label: string; className?: string }) {
@@ -57,20 +29,15 @@ function Clip({ src, poster, label, className }: { src: string; poster: string; 
   useEffect(() => {
     const video = ref.current;
     if (!video) return;
-
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setReduced(true);
       return;
     }
-
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.intersectionRatio >= 0.25) {
-            void video.play().catch(() => {});
-          } else {
-            video.pause();
-          }
+          if (entry.intersectionRatio >= 0.25) void video.play().catch(() => {});
+          else video.pause();
         }
       },
       { threshold: [0, 0.25] },
@@ -79,20 +46,7 @@ function Clip({ src, poster, label, className }: { src: string; poster: string; 
     return () => observer.disconnect();
   }, []);
 
-  return (
-    <video
-      ref={ref}
-      muted
-      loop
-      playsInline
-      preload="none"
-      controls={reduced}
-      poster={poster}
-      aria-label={label}
-      className={className}
-      src={src}
-    />
-  );
+  return <video ref={ref} muted loop playsInline preload="none" controls={reduced} poster={poster} aria-label={label} className={className} src={src} />;
 }
 
 export default function Home() {
@@ -101,107 +55,109 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-24 px-6 py-8 sm:py-10">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-20 overflow-hidden px-5 py-6 sm:px-8 sm:py-8 lg:gap-28">
       <nav className="flex items-center justify-between gap-4">
         <Wordmark />
         <Link href="/teacher" className={button.quiet}>
-          Open the teacher console
+          Teacher console <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
       </nav>
 
-      <section className="flex flex-col gap-10">
-        <div className="flex flex-col gap-7">
-          <h1 className="max-w-[14ch] font-serif text-5xl text-ink sm:text-[4rem] sm:leading-[1.02]">
-            Play the source material.
+      <section className="grid items-center gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+        <div className="relative z-10 flex flex-col items-start gap-7">
+          <div className="sticker inline-flex items-center gap-2 rounded-full border-2 border-ink bg-[#ffe66d] px-4 py-2 text-sm font-black uppercase tracking-wider text-ink">
+            <Gamepad2 className="h-5 w-5" aria-hidden /> History you can play
+          </div>
+          <h1 className="max-w-[11ch] text-5xl font-black leading-[0.94] tracking-[-0.06em] text-ink sm:text-7xl lg:text-[5.4rem]">
+            Don’t just teach history. <span className="text-signal">Drop them into it.</span>
           </h1>
-          <p className="max-w-[52ch] text-lg text-muted sm:text-xl sm:leading-[1.45]">
-            Turn historical sources into a world students can explore—and decisions they have to live with.
+          <p className="max-w-[54ch] text-lg font-medium leading-relaxed text-muted sm:text-xl">
+            Turn your own source material into a living world students can explore, question and change.
           </p>
           <div className="flex flex-wrap items-center gap-4">
-            <LandingCta label="Sign in with Google to build one" />
-            <a href="#reel" className={button.quiet}>
-              See a real run
-            </a>
+            <LandingCta label="Build your first adventure" />
+            <a href="#gameplay" className={button.quiet}>See the game <ArrowRight className="h-4 w-4" aria-hidden /></a>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1 text-sm font-bold text-muted">
+            <span className="rounded-full bg-world-wash px-3 py-1.5 text-world">No coding</span>
+            <span className="rounded-full bg-record-wash px-3 py-1.5 text-record">Source-grounded</span>
+            <span className="rounded-full bg-signal-wash px-3 py-1.5 text-signal">Made for classrooms</span>
           </div>
         </div>
 
-        <figure className="flex flex-col gap-3">
-          <div className="rounded-surface border border-line bg-ink p-2 sm:p-3">
-            <Clip
-              src="/media/dialogue.mp4"
-              poster="/media/dialogue.jpg"
-              label="Gameplay footage: a student questioning Sir Stamford Raffles at Singapore, 1819"
-              className="w-full rounded-control"
-            />
+        <div className="game-grid relative -mx-5 px-5 py-10 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
+          <div className="absolute -right-16 -top-2 h-44 w-44 rounded-full bg-[#ffe66d] opacity-70 blur-2xl" aria-hidden />
+          <div className="absolute -bottom-8 -left-8 h-48 w-48 rounded-full bg-world-wash blur-xl" aria-hidden />
+          <figure className="game-shadow relative rotate-1 overflow-hidden rounded-[1.75rem] border-[3px] border-ink bg-ink p-2 transition-transform hover:rotate-0">
+            <div className="flex items-center gap-2 px-2 pb-2 text-paper">
+              <span className="h-2.5 w-2.5 rounded-full bg-signal" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#ffe66d]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-world" />
+              <span className="ml-2 text-xs font-bold uppercase tracking-widest text-paper/70">Live adventure</span>
+            </div>
+            <Clip src="/media/dialogue.mp4" poster="/media/dialogue.jpg" label="Gameplay footage: a student questioning Sir Stamford Raffles at Singapore, 1819" className="aspect-video w-full rounded-[1.15rem] object-cover" />
+          </figure>
+          <div className="sticker absolute -bottom-2 left-8 flex max-w-56 items-center gap-3 rounded-2xl border-2 border-ink bg-surface px-4 py-3 font-bold text-ink sm:left-0">
+            <Sparkles className="h-6 w-6 shrink-0 text-signal" aria-hidden /> You’re the reporter. Who gets the headline?
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-control border border-record/40 bg-record-wash px-3 py-1.5 text-sm font-semibold text-record shadow backdrop-blur-sm">
-              Handout, p. 3
-            </span>
-            <span className="rounded-control border border-world/40 bg-world-wash px-3 py-1.5 text-sm font-semibold text-world shadow backdrop-blur-sm">
-              Simulation assumption
-            </span>
-          </div>
-          <figcaption className="flex flex-col gap-1 text-base text-muted">
-            <span>A student questions Sir Stamford Raffles at Singapore, 1819.</span>
-            <span>Blue shows the source. Green shows the simulation’s assumptions.</span>
-          </figcaption>
-        </figure>
+          <div className="absolute -right-1 top-2 rounded-2xl border-2 border-ink bg-record px-4 py-3 text-sm font-black text-white shadow-[0_4px_0_var(--ink)] sm:right-1">Stage 2 of 3</div>
+        </div>
       </section>
 
-      <section id="reel" className="flex flex-col gap-20 border-t border-line pt-12">
-        {beats.map((beat, i) => (
-          <div key={beat.index} className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
-            <figure
-              className={`rounded-surface border border-line bg-ink p-2 sm:p-3 ${
-                i % 2 === 0 ? "lg:order-1" : "lg:order-2"
-              }`}
-            >
-              <Clip
-                src={beat.clip.src}
-                poster={beat.clip.poster}
-                label={`Gameplay footage: ${beat.title}`}
-                className="w-full rounded-control"
-              />
-            </figure>
-            <div className={`flex flex-col gap-4 ${i % 2 === 0 ? "lg:order-2" : "lg:order-1"}`}>
-              <p className="text-sm font-semibold text-muted" aria-hidden>
-                {beat.index}
-              </p>
-              <h3 className="font-serif text-3xl text-ink">{beat.title}</h3>
-              {beat.body ? <p className="max-w-[46ch] text-lg text-muted">{beat.body}</p> : null}
-              {beat.index === "04" ? (
-                <div className="flex flex-col gap-5 pt-1">
-                  <RecordEntry
-                    quote="in 1823 dismissed Farquhar, replacing him with John Crawfurd"
-                    source="The Founding of a Trading Post at Singapore, 1819 (classroom handout), p. 4"
-                  />
-                  <WorldEntry label="Where the record is silent, the simulation assumed">
-                    The game labels details that aren’t in the source.
-                  </WorldEntry>
+      <section id="gameplay" className="flex scroll-mt-6 flex-col gap-10 rounded-[2rem] bg-ink px-5 py-10 text-paper sm:px-8 sm:py-14 lg:px-12">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="mb-2 text-sm font-black uppercase tracking-[0.18em] text-[#ffe66d]">Inside every adventure</p>
+            <h2 className="max-w-[14ch] text-4xl font-black tracking-[-0.045em] sm:text-6xl">Read less. Do more. Remember it.</h2>
+          </div>
+          <p className="max-w-md text-base text-paper/70 sm:text-lg">Students learn the context because they need it to make the next move.</p>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          {beats.map((beat) => {
+            const Icon = beat.icon;
+            return (
+              <article key={beat.index} className={`overflow-hidden rounded-surface ${beat.tone} text-ink`}>
+                <figure className="m-2 overflow-hidden rounded-[1rem] border-2 border-ink bg-ink">
+                  <Clip src={beat.clip.src} poster={beat.clip.poster} label={`Gameplay footage: ${beat.title}`} className="aspect-video w-full object-cover" />
+                </figure>
+                <div className="flex gap-4 px-5 pb-6 pt-3 sm:px-6">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-surface shadow-[0_3px_0_var(--ink)]"><Icon className="h-5 w-5" aria-hidden /></span>
+                  <div>
+                    <p className="mb-1 text-xs font-black uppercase tracking-widest text-muted">Quest {beat.index}</p>
+                    <h3 className="text-2xl font-black tracking-tight">{beat.title}</h3>
+                    <p className="mt-1 text-base leading-relaxed text-muted">{beat.body}</p>
+                  </div>
                 </div>
-              ) : null}
-            </div>
-          </div>
-        ))}
+              </article>
+            );
+          })}
+        </div>
       </section>
 
-      <section className="flex flex-col gap-10 border-t border-line pt-12">
-        <div className="grid gap-8 sm:grid-cols-3">
-          {teacherSteps.map((step) => (
-            <div key={step.title} className="flex flex-col gap-2">
-              <h3 className="font-serif text-2xl text-ink">{step.title}</h3>
-              <p className="text-base text-muted">{step.body}</p>
-            </div>
+      <section className="flex flex-col gap-10">
+        <div className="max-w-2xl">
+          <p className="mb-2 text-sm font-black uppercase tracking-[0.18em] text-record">From PDF to playtime</p>
+          <h2 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">Your lesson. Now with a world inside.</h2>
+        </div>
+        <div className="grid gap-5 md:grid-cols-3">
+          {teacherSteps.map((step, index) => (
+            <article key={step.title} className={`game-shadow flex min-h-64 flex-col justify-between rounded-surface border-2 border-ink p-6 ${index === 0 ? "bg-[#ffe66d]" : index === 1 ? "bg-world-wash" : "bg-record-wash"}`}>
+              <span className="text-5xl font-black text-ink/20">{step.number}</span>
+              <div><h3 className="text-2xl font-black tracking-tight text-ink">{step.title}</h3><p className="mt-2 text-base leading-relaxed text-muted">{step.body}</p></div>
+            </article>
           ))}
         </div>
-        <LandingCta />
       </section>
 
-      <footer className="flex flex-wrap items-baseline justify-between gap-4 border-t border-line pt-8 text-base text-muted">
-        <Link href="https://github.com/damiancxliew/CS3216_Assignment3" className={button.subtle}>
-          Source on GitHub
-        </Link>
+      <section className="game-grid flex flex-col items-start justify-between gap-8 rounded-[2rem] border-[3px] border-ink bg-signal-wash px-7 py-10 sm:flex-row sm:items-center sm:px-10">
+        <div><p className="text-sm font-black uppercase tracking-[0.18em] text-signal">Ready, teacher?</p><h2 className="mt-2 max-w-xl text-4xl font-black tracking-[-0.04em] text-ink sm:text-5xl">Make the next lesson feel like an adventure.</h2></div>
+        <LandingCta label="Start building" />
+      </section>
+
+      <footer className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-line py-7 text-sm font-semibold text-muted">
+        <Wordmark />
+        <Link href="https://github.com/damiancxliew/CS3216_Assignment3" className={button.subtle}>Source on GitHub</Link>
       </footer>
     </main>
   );

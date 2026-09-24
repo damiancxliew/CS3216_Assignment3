@@ -61,7 +61,8 @@ export default async function TeacherHome() {
 
   return (
     <Page
-      title="Your adventures"
+      title="Choose your next adventure"
+      lede="Build a new historical world or jump back into one you already started."
       kicker={<form action="/auth/signout" method="post"><button type="submit" className="hover:text-ink">Sign out</button></form>}
       width="wide"
       fill
@@ -72,15 +73,15 @@ export default async function TeacherHome() {
           adventures.length === 0 ? (
             <EmptyState title="No adventures yet">Start with the class you are teaching next.</EmptyState>
           ) : (
-            <ul className="flex flex-col divide-y divide-line border-y border-line">
+            <ul className="grid gap-4">
               {adventures.map((adventure) => (
                 <li key={adventure.id}>
                   <Link
                     href={`/teacher/${adventure.id}`}
-                    className="group flex items-baseline justify-between gap-4 py-4 transition-colors hover:text-record"
+                    className="group flex items-center justify-between gap-4 rounded-surface border-2 border-line bg-surface p-5 transition-all hover:-translate-y-1 hover:border-ink hover:shadow-[0_5px_0_var(--ink)]"
                   >
                     <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="font-serif text-xl text-ink group-hover:text-record">{adventure.title}</span>
+                      <span className="text-xl font-extrabold tracking-tight text-ink group-hover:text-record">{adventure.title}</span>
                       {adventure.setting ? <span className="text-base text-muted">{adventure.setting}</span> : null}
                     </span>
                     <StatusBadge status={adventure.status} version={adventure.published_version} />

@@ -24,9 +24,9 @@ const record = Literata({
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-const title = "Historical Adventures — play the source material";
+const title = "Historical Adventures — history you can play";
 const description =
-  "Teachers drop in historical sources; students explore a generated world, question the people in it, and live with what they decide.";
+  "Turn your own historical sources into a living world students can explore, question and change.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
