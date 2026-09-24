@@ -53,7 +53,8 @@ export interface MapCanvasProps {
   onIntentDone: () => void;
   /** The player stepped into a room the server does not know they are in. Resolve to false to put them back. */
   onSteps: (from: Point, path: Point[]) => Promise<{ position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number }>;
-  /** The player stopped somewhere; remember it for resume. */
+  /** The position shown by the map, including steps still awaiting server acknowledgement. */
+  onLocalPosition: (position: Point | null) => void;
   /** The player is standing outside a closed door. */
   onWaitingAtDoor: (roomId: string | null) => void;
   /** The player clicked a character, or pressed Enter/E with someone in the room: start talking to them. */
@@ -97,10 +98,10 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
-  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark });
-  latest.current = { state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark };
+  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark });
+  latest.current = { state, audio, intent, onIntentDone, onSteps, onLocalPosition, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark };
   const playerPos = useRef<Point | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
   const intentHandlerRef = useRef<((next: MapIntent) => void) | null>(null);
@@ -123,6 +124,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
     let sendInFlight = false;
     let pending: PendingStep[] = [];
     let nextSendAt = 0;
+    let batchUntil = 0;
     let sendTimer: number | undefined;
     const npcPositions = new Map<string, Point>();
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -163,7 +165,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
               space: spaceAt(map as StageMap, position),
               targetRoomId: null,
               status: "idle" as const,
-              interactive: s.hearingActorIds.includes(a.id),
+              interactive: canHearSpeech(map as StageMap, player, position),
               ...(a.sprite ? { sprite: a.sprite } : {}),
             };
           }).filter((actor): actor is NonNullable<typeof actor> => actor !== null),
@@ -195,6 +197,10 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
     };
     const render = () => view?.render(snapshot());
     renderRef.current = render;
+    const showPosition = (position: Point | null) => {
+      playerPos.current = position;
+      latest.current.onLocalPosition(position);
+    };
 
     const logBatch = (step: PendingStep, acknowledgement: { timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number }, stepsSent: number, queueDepth: number) => {
       if (!perfEnabled || !step.requestSentAt) return;
@@ -209,6 +215,19 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
 
     const drain = async () => {
       if (destroyed || sendInFlight || pending.length === 0 || latest.current.state.map?.id !== mapId) return;
+      // Let a continuing walk accumulate a few steps before its first write.
+      // A one-tile click or a stopped walk still flushes immediately.
+      if (pending.length < 3 && (path.length > 0 || held.size > 0) && performance.now() < batchUntil) {
+        if (sendTimer === undefined) sendTimer = window.setTimeout(() => {
+          sendTimer = undefined;
+          void drain();
+        }, batchUntil - performance.now());
+        return;
+      }
+      if (sendTimer !== undefined) {
+        window.clearTimeout(sendTimer);
+        sendTimer = undefined;
+      }
       const wait = nextSendAt - performance.now();
       if (wait > 0) {
         if (sendTimer === undefined) sendTimer = window.setTimeout(() => {
@@ -238,7 +257,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         const position = acknowledgement.position;
         if (position && (position.x !== step.from.x || position.y !== step.from.y)) {
           const destination = queuedTarget?.point ?? path.at(-1) ?? pending.at(-1)?.to;
-          playerPos.current = position;
+          showPosition(position);
           pending = [];
           path = [];
           pathInputAt = undefined;
@@ -259,9 +278,9 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         pending = [];
         path = [];
         pathInputAt = undefined;
-        if (acknowledgement.position) playerPos.current = acknowledgement.position;
+        if (acknowledgement.position) showPosition(acknowledgement.position);
       } else if (pending.length === 0 && acknowledgement.position && (!playerPos.current || acknowledgement.position.x !== playerPos.current.x || acknowledgement.position.y !== playerPos.current.y)) {
-        playerPos.current = acknowledgement.position;
+        showPosition(acknowledgement.position);
         path = [];
         pathInputAt = undefined;
       }
@@ -300,7 +319,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       facing = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? "right" : "left") : ddy > 0 ? "down" : "up";
       const advanced = optimisticAdvance(from, { to, inputAt, movedAt: 0 }, pending);
       if (!advanced) return;
-      playerPos.current = advanced.position;
+      if (pending.length === 0) batchUntil = performance.now() + STEP_MS * 2;
+      showPosition(advanced.position);
       pending = advanced.queue;
       if (path[0]?.x === to.x && path[0]?.y === to.y) path.shift();
       render();
@@ -399,7 +419,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       if (next.revision < acknowledgedRevision.current) return;
       acknowledgedRevision.current = next.revision;
       if (pending.length === 0 && !sendInFlight && next.playerPos && (!playerPos.current || playerPos.current.x !== next.playerPos.x || playerPos.current.y !== next.playerPos.y)) {
-        playerPos.current = next.playerPos;
+        showPosition(next.playerPos);
         path = [];
         pathInputAt = undefined;
       }
@@ -430,7 +450,11 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       if (key === "Enter" || key === "e") {
         // Talk to whoever is in the room with you.
         const s = latest.current.state;
-        const here = s.agents.filter((a) => s.hearingActorIds.includes(a.id));
+        const point = playerPos.current ?? s.playerPos;
+        const here = s.agents.filter((agent) => {
+          const position = s.actors.find((actor) => actor.id === agent.id)?.position;
+          return point && position ? canHearSpeech(map as StageMap, point, position) : s.hearingActorIds.includes(agent.id);
+        });
         if (here.length > 0) {
           event.preventDefault();
           latest.current.onTalk(here[0]!.id);
@@ -464,7 +488,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       try {
         const { createTiledMapView } = await import("@adventure/game-client/tiled-view");
         if (destroyed) return;
-        playerPos.current = latest.current.state.playerPos;
+        showPosition(latest.current.state.playerPos);
         acknowledgedRevision.current = latest.current.state.revision;
         view = await createTiledMapView(parent, snapshot(), (point, inputAt) => goTo(point, inputAt), reduced.matches, {
           assetBase: ASSET_BASE,
