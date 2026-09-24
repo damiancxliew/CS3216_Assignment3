@@ -224,7 +224,7 @@ describe("SupabasePlayStore runtime validation", () => {
   });
 
   it("maps a save_play_turn conflict to RuntimeConflictError", async () => {
-    client.rpcResult = { data: null, error: { code: "40001", message: "revision conflict" } };
+    client.rpcResult = { data: null, error: { code: "PT409", message: "attempt is no longer active" } };
     const events: PlayEvents = { utterances: [], decisions: [], resolution: null, openedStageIndex: null, endingId: null, telemetry: null };
 
     await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toBeInstanceOf(RuntimeConflictError);

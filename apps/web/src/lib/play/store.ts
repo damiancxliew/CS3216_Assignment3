@@ -387,7 +387,7 @@ export class SupabasePlayStore implements PlayStore {
       p_ending_id: events.endingId,
       p_minted_options: persistedMintedOptions,
     }));
-    if (error && (error.code === "40001" || /revision conflict/.test(error.message))) throw new PlayConflictError();
+    if (error && (error.code === "PT409" || error.code === "40001" || /revision conflict/.test(error.message))) throw new PlayConflictError();
     if (error) throw new Error(`save_play_turn: ${error.message}`);
     const result = data as { runtimeRevision?: unknown; stageDeadlineAt?: unknown } | null;
     if (!result || typeof result.runtimeRevision !== "number" || (result.stageDeadlineAt !== null && typeof result.stageDeadlineAt !== "string")) throw new Error("save_play_turn: invalid response");
