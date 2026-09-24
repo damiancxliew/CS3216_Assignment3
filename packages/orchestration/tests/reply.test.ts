@@ -282,7 +282,7 @@ describe('answering a human (FR-12b, revised)', () => {
     expect(result.turn.say).toBe('I will hear the terms.')
   })
 
-  it('allows one world action alongside an addressed reply and drops the rest', async () => {
+  it('allows a private note and one world action alongside an addressed reply', async () => {
     const world = createFixtureWorld()
     const client = new FakeLlmClient({
       replies: [
@@ -303,8 +303,8 @@ describe('answering a human (FR-12b, revised)', () => {
       nowMs: 0,
     })
 
-    expect(result.turn.actions.map((entry) => entry.action.type)).toEqual(['speak', 'move_room'])
-    expect(result.turn.dropped).toHaveLength(2)
+    expect(result.turn.actions.map((entry) => entry.action.type)).toEqual(['speak', 'record_private_note', 'move_room'])
+    expect(result.turn.dropped).toHaveLength(1)
     expect(result.turn.dropped.every((drop) => drop.reason === 'budget_exhausted')).toBe(true)
     expect(world.location['agent-temenggong']).toBe('room-tally-shed')
   })
