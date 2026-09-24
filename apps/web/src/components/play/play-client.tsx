@@ -99,10 +99,12 @@ export function PlayClient({
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
+  const [pendingRead, setPendingRead] = useState<string | null>(null);
   const [roleBriefOpen, setRoleBriefOpen] = useState(initialState.status === "active" && initialState.revision === 0);
   const [hintVisible, setHintVisible] = useState(true);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
+  const readRef = useRef<(evidenceId: string) => void>(() => {});
   const revision = useRef(initialState.revision);
   const serverViewKey = useRef(`${initialState.stage.id}:${initialState.status}`);
   const { muted, toggleMuted, cues } = useSoundCues(state, notice);
@@ -307,18 +309,39 @@ export function PlayClient({
     const ok = await act("Reading…", () => playApi.action(attemptId, { type: "inspect", evidenceId }));
     if (ok) setReading(evidenceId);
   }
+  readRef.current = (evidenceId) => { void read(evidenceId); };
 
   /** From the map: read the document if you are next to it, otherwise walk over first. */
   function onProp(propId: string) {
     setHintVisible(false);
     const current = stateRef.current;
     if (current.journal.some((entry) => entry.id === propId) || current.evidenceHere.some((item) => item.id === propId && item.canInspect)) {
+      setPendingRead(null);
       void read(propId);
       return;
     }
     const prop = current.props.find((item) => item.id === propId);
-    if (prop) setIntent({ kind: "point", point: prop.position });
+    if (prop) {
+      setPendingRead(propId);
+      setIntent({ kind: "point", point: prop.position });
+    }
   }
+
+  // A map click is one action: after the walk reaches inspection range, finish it by opening
+  // the document instead of requiring a second click on the same prop.
+  useEffect(() => {
+    if (!pendingRead || busy !== null) return;
+    const current = stateRef.current;
+    const readable = current.journal.some((entry) => entry.id === pendingRead)
+      || current.evidenceHere.some((item) => item.id === pendingRead && item.canInspect);
+    if (readable) {
+      setPendingRead(null);
+      setIntent(null);
+      readRef.current(pendingRead);
+    } else if (!current.props.some((item) => item.id === pendingRead)) {
+      setPendingRead(null);
+    }
+  }, [pendingRead, state.revision, busy]);
 
   const openDocument = reading ? state.journal.find((entry) => entry.id === reading) ?? null : null;
   const openDocumentName = reading ? state.props.find((item) => item.id === reading)?.name ?? "Document" : "";

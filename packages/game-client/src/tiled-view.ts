@@ -12,6 +12,7 @@
 import Phaser from 'phaser'
 import { spaceAt, type Point, type StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
+import { selectPropHintId, selectPropHitId } from './prop-hint.js'
 import type { PlaygroundSnapshot, SoundCueId } from './model.js'
 import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
 import type { MapView } from './view.js'
@@ -167,6 +168,16 @@ class TiledScene extends Phaser.Scene {
     for (const key of this.spriteKeys(this.current)) this.registerAnimations(key)
     this.buildMap()
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const propHit = selectPropHitId([...this.props].map(([id, entry]) => ({
+        id,
+        position: { x: entry.container.x, y: entry.container.y },
+        bounds: entry.container.getBounds(),
+      })), { x: pointer.worldX, y: pointer.worldY })
+      if (propHit && this.onProp) {
+        this.onProp(propHit)
+        this.game.canvas.focus()
+        return
+      }
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
       // A character under the pointer means "talk to them", not "walk here".
@@ -359,9 +370,10 @@ class TiledScene extends Phaser.Scene {
   private renderSnapshot(snapshot: PlaygroundSnapshot, snap = false): void {
     for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
 
-    const playerSpace = snapshot.actors.find((a) => a.id === 'player')?.space
+    const player = snapshot.actors.find((a) => a.id === 'player')
+    const playerSpace = player?.space
     const playerRoomId = playerSpace?.kind === 'room' ? playerSpace.roomId : null
-    this.renderProps(snapshot, playerRoomId)
+    this.renderProps(snapshot, player?.position ?? null, playerRoomId)
     const occupied = new Map<string, number>()
     for (const actor of snapshot.actors) {
       const key = actor.sprite ?? this.defaultSprite
@@ -431,8 +443,16 @@ class TiledScene extends Phaser.Scene {
    * Documents lying on the map: a parchment tile the player can walk to and click.
    * One that has been read keeps its place but stops asking to be read.
    */
-  private renderProps(snapshot: PlaygroundSnapshot, playerRoomId: string | null): void {
+  private renderProps(snapshot: PlaygroundSnapshot, playerPosition: Point | null, playerRoomId: string | null): void {
     const props = snapshot.props ?? []
+    const visibleProps = props.filter((prop) => {
+      if (prop.found || playerRoomId === null) return false
+      const space = spaceAt(snapshot.map, prop.position)
+      return space?.kind === 'room' && space.roomId === playerRoomId
+    })
+    // The labels identify every document. A single hint on the nearest unread one is enough to
+    // teach the interaction without stacking identical prompts throughout a crowded room.
+    const hintedPropId = selectPropHintId(visibleProps, playerPosition)
     for (const prop of props) {
       let entry = this.props.get(prop.id)
       if (!entry) {
@@ -449,9 +469,7 @@ class TiledScene extends Phaser.Scene {
           entry.tween = null
         }
       }
-      const space = spaceAt(snapshot.map, prop.position)
-      const inPlayerRoom = playerRoomId !== null && space?.kind === 'room' && space.roomId === playerRoomId
-      entry.hint.setVisible(!prop.found && inPlayerRoom)
+      entry.hint.setVisible(prop.id === hintedPropId)
     }
     for (const [id, entry] of this.props) {
       if (!props.some((p) => p.id === id)) {
