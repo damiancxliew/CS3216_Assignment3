@@ -11,16 +11,15 @@ export default function Loading() {
         <Skeleton className="h-12 w-3/4" />
         <Skeleton className="h-6 w-1/2" />
       </header>
-      {["Brief", "Playable version", "Stage timer", "Share with students", "Attempts"].map((title) => (
-        <section key={title} className="flex flex-col gap-5 border-t border-line pt-8">
-          <h2 className="font-serif text-2xl text-ink">{title}</h2>
-          <div className="flex flex-col gap-3 rounded-surface border border-line bg-surface p-5">
-            <Skeleton className="h-5 w-full" />
-            <Skeleton className="h-5 w-5/6" />
-            <Skeleton className="h-5 w-2/3" />
-          </div>
-        </section>
-      ))}
+      <Skeleton className="h-12 w-full" />
+      <section className="flex flex-col gap-5 border-t border-line pt-8">
+        <Skeleton className="h-8 w-44" />
+        <div className="flex flex-col gap-3 rounded-surface border border-line bg-surface p-5">
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-5/6" />
+          <Skeleton className="h-5 w-2/3" />
+        </div>
+      </section>
     </main>
   );
 }
