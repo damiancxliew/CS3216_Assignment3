@@ -11,11 +11,12 @@ export { READING_BAND_LABELS } from "@/lib/brief/schema";
 
 export const button = {
   primary:
-    "inline-flex min-h-11 items-center justify-center gap-2 rounded-control bg-ink px-4 py-2 text-base font-semibold text-paper transition-colors hover:bg-record disabled:cursor-not-allowed disabled:opacity-60",
+    "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-control bg-ink px-4 py-2 text-base font-semibold text-paper transition-colors hover:bg-record active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0",
   quiet:
-    "inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-4 py-2 text-base font-semibold text-ink transition-colors hover:border-ink hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60",
+    "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-4 py-2 text-base font-semibold text-ink transition-colors hover:border-ink hover:bg-surface active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0",
   subtle:
     "inline-flex min-h-9 items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-60",
+  link: "text-base text-muted underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink",
 };
 
 export const control =
@@ -98,7 +99,7 @@ export function StatusBadge({
       ? "border-world/40 bg-world-wash text-world"
       : "border-line-strong text-muted";
   return (
-    <span className={`whitespace-nowrap rounded-control border px-2.5 py-1 text-sm font-semibold ${tone}`}>
+    <span className={`whitespace-nowrap rounded-control border px-2.5 py-1 font-sans text-sm font-semibold leading-tight ${tone}`}>
       {label}
     </span>
   );
@@ -109,6 +110,9 @@ export function Field({
   label,
   placeholder,
   defaultValue,
+  type = "text",
+  inputMode,
+  min,
   optional,
   multiline,
   rows = 4,
@@ -118,6 +122,9 @@ export function Field({
   label: string;
   placeholder?: string;
   defaultValue?: string;
+  type?: React.HTMLInputTypeAttribute;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  min?: number;
   optional?: boolean;
   multiline?: boolean;
   rows?: number;
@@ -129,7 +136,15 @@ export function Field({
       {multiline ? (
         <textarea name={name} rows={rows} placeholder={placeholder} defaultValue={defaultValue} className={control} />
       ) : (
-        <input name={name} placeholder={placeholder} defaultValue={defaultValue} className={control} />
+        <input
+          name={name}
+          type={type}
+          inputMode={inputMode}
+          min={min}
+          placeholder={placeholder}
+          defaultValue={defaultValue}
+          className={control}
+        />
       )}
       {hint ? <span className="text-sm text-muted">{hint}</span> : null}
     </label>
@@ -233,8 +248,8 @@ export function Page({
   children: React.ReactNode;
 }) {
   return (
-    <main className={`mx-auto flex min-h-screen w-full flex-col gap-10 px-6 py-10 sm:py-14 ${width === "wide" ? "max-w-5xl" : "max-w-3xl"}${fill ? " lg:h-dvh lg:min-h-0 lg:overflow-hidden" : ""}`}>
-      <div className="flex items-center justify-between gap-4">
+    <main className={`mx-auto flex min-h-screen w-full flex-col gap-8 px-5 py-8 sm:gap-10 sm:px-6 sm:py-14 ${width === "wide" ? "max-w-5xl" : "max-w-3xl"}${fill ? " lg:h-dvh lg:min-h-0 lg:overflow-hidden" : ""}`}>
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
         <Wordmark />
         {kicker ? <div className="shrink-0 text-base text-muted">{kicker}</div> : null}
       </div>

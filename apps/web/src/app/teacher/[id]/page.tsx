@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 import { DossierSections } from "./dossier";
 import { SharePanel } from "./share-panel";
@@ -151,12 +152,13 @@ export default async function AdventurePage({
   return (
     <Page
       kicker={
-        <Link href="/teacher" className="hover:text-ink">
+        <Link href="/teacher" className="inline-flex min-h-11 items-center gap-2 rounded-control px-2 hover:bg-surface hover:text-ink">
+          <ArrowLeft className="h-4 w-4" aria-hidden />
           All adventures
         </Link>
       }
       title={
-        <span className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+        <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {adventure.title}
           <StatusBadge status={adventure.status} version={adventure.published_version} />
         </span>
@@ -166,10 +168,10 @@ export default async function AdventurePage({
     >
       <Section title="Brief">
         {adventure.reading_level ? (
-          <dl className="flex flex-col divide-y divide-line text-base">
+          <dl className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface px-4 text-base sm:px-5">
             <BriefRow label="Student plays">{adventure.student_role}</BriefRow>
             <BriefRow label="Objectives">
-              <ul className="list-disc pl-4">
+              <ul className="list-disc space-y-1 pl-5">
                 {adventure.learning_objectives?.map((objective) => <li key={objective}>{objective}</li>)}
               </ul>
             </BriefRow>
@@ -227,11 +229,11 @@ export default async function AdventurePage({
             Generating takes a minute or two. Nothing here is visible to students until you publish.
           </EmptyState>
         ) : (
-          <ul className="flex flex-col divide-y divide-line border-y border-line text-base">
+          <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-surface border border-line bg-surface px-4 text-base sm:px-5">
             {versions.map((version) => (
-              <li key={version.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2.5">
+              <li key={version.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
                 <span className="font-semibold text-ink">Version {version.version}</span>
-                <span className="text-base text-muted">
+                <span className="text-sm text-muted sm:text-right sm:text-base">
                   {version.published_at
                     ? `Published ${new Date(version.published_at).toLocaleString()}, frozen`
                     : "Draft, editable"}
@@ -293,12 +295,16 @@ export default async function AdventurePage({
           action={updateDefaultTimer.bind(null, adventure.id)}
           submitLabel="Save default"
           pendingLabel="Saving…"
+          className="flex max-w-xl flex-col gap-4"
         >
           <Field
             name="default_timer_seconds"
             label="Default per stage, in seconds"
             hint="0 disables timers entirely. Each stage can override this above."
             defaultValue={String(adventure.default_timer_seconds)}
+            type="number"
+            inputMode="numeric"
+            min={0}
           />
         </ActionForm>
       </Section>
@@ -341,7 +347,7 @@ export default async function AdventurePage({
         {attempts && attempts.length > 0 ? (
           <div className="flex flex-col gap-6">
             {totals.length > 0 ? (
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+              <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 <Stat label="Finished" value={`${finished.length} of ${attempts.length}`} />
                 <Stat label="Stages played" value={String(totals.length)} />
                 <Stat label="Ended by the clock" value={`${Math.round((totals.filter((t) => t.ended_by === "timer").length / totals.length) * 100)}%`} />
@@ -354,11 +360,11 @@ export default async function AdventurePage({
                 ) : null}
               </dl>
             ) : null}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-surface border border-line bg-surface">
               <table className="w-full min-w-[40rem] border-collapse text-base">
                 <thead>
-                  <tr className="border-b border-line text-left text-muted">
-                    <th className="py-2 pr-4 font-semibold">Version</th>
+                  <tr className="border-b border-line bg-sunken/50 text-left text-muted">
+                    <th className="py-2 pl-4 pr-4 font-semibold">Version</th>
                     <th className="py-2 pr-4 font-semibold">Status</th>
                     <th className="py-2 pr-4 text-right font-semibold">Stages</th>
                     <th className="py-2 pr-4 text-right font-semibold">Minutes</th>
@@ -373,14 +379,14 @@ export default async function AdventurePage({
                     const rows = attempt.attempt_telemetry ?? [];
                     return (
                       <tr key={attempt.id} className="border-b border-line tabular-nums">
-                        <td className="py-2 pr-4">{attempt.published_version}</td>
+                        <td className="py-2 pl-4 pr-4">{attempt.published_version}</td>
                         <td className="py-2 pr-4 capitalize">{attempt.status}</td>
                         <td className="py-2 pr-4 text-right">{rows.length}</td>
                         <td className="py-2 pr-4 text-right">{minutes(rows)}</td>
                         <td className="py-2 pr-4 text-right">{rows.reduce((n, r) => n + r.messages, 0)}</td>
                         <td className="py-2 pr-4 text-right">{rows.reduce((n, r) => n + r.evidence_found, 0)}</td>
                         <td className="py-2 pr-4 text-right">{tokens(rows).toLocaleString()}</td>
-                        <td className="py-2 text-muted">{new Date(attempt.updated_at).toLocaleString()}</td>
+                        <td className="whitespace-nowrap py-2 pr-4 text-muted">{new Date(attempt.updated_at).toLocaleString()}</td>
                       </tr>
                     );
                   })}
@@ -411,8 +417,8 @@ function BriefRow({ label, children }: { label: string; children: React.ReactNod
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-base text-muted">{label}</dt>
+    <div className="flex min-h-24 flex-col justify-between gap-2 rounded-control border border-line bg-surface p-3.5">
+      <dt className="text-sm text-muted">{label}</dt>
       <dd className="font-serif text-2xl text-ink tabular-nums">{value}</dd>
     </div>
   );
