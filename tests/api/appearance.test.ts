@@ -75,6 +75,12 @@ describe("curated characters", () => {
     if (!result.ok) throw new Error(result.error.message);
     expect(result.state.stage.mapTheme).toBe("coast");
     expect(result.state.roomImages[room.id]).toBe("https://example.test/landmark.png");
+    expect(result.state.landmarks).toContainEqual(expect.objectContaining({
+      id: room.id,
+      roomId: room.id,
+      name: room.landmark?.name ?? room.name,
+      position: expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }),
+    }));
     expect(result.state.evidenceImages[evidence.id]).toBe("https://example.test/prop.png");
   });
 });

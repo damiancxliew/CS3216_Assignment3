@@ -95,6 +95,8 @@ export interface TiledViewOptions {
   onActor?: (actorId: string) => void
   /** Called when the player clicks a document or object lying on the map. */
   onProp?: (propId: string) => void
+  /** Called when the player clicks an in-world landmark. */
+  onLandmark?: (landmarkId: string) => void
 }
 
 class TiledScene extends Phaser.Scene {
@@ -106,6 +108,7 @@ class TiledScene extends Phaser.Scene {
   private readonly defaultSprite: string
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
+  private readonly onLandmark: ((landmarkId: string) => void) | undefined
   private reducedMotion: boolean
   private ready = false
   private map?: Phaser.Tilemaps.Tilemap
@@ -137,7 +140,7 @@ class TiledScene extends Phaser.Scene {
   private plateBlocked = new Set<string>()
   private loadedSprites = new Set<string>()
   private queuedAssets = new Set<string>()
-  private landmarks = new Map<string, { url: string; objects: Phaser.GameObjects.GameObject[] }>()
+  private landmarks = new Map<string, { imageUrl: string | null; container: Phaser.GameObjects.Container; hint: Phaser.GameObjects.Text }>()
   private ambientId: string | null = null
   private ambientObjects: Phaser.GameObjects.GameObject[] = []
   private playedEffects = new Set<string>()
@@ -159,6 +162,7 @@ class TiledScene extends Phaser.Scene {
     this.defaultSprite = options.defaultSprite ?? 'Villager'
     this.onActor = options.onActor
     this.onProp = options.onProp
+    this.onLandmark = options.onLandmark
   }
 
   preload(): void {
@@ -195,6 +199,16 @@ class TiledScene extends Phaser.Scene {
         this.game.canvas.focus()
         return
       }
+      const landmarkHit = selectPropHitId([...this.landmarks].map(([id, entry]) => ({
+        id,
+        position: { x: entry.container.x, y: entry.container.y },
+        bounds: entry.container.getBounds(),
+      })), { x: pointer.worldX, y: pointer.worldY })
+      if (landmarkHit && this.onLandmark) {
+        this.onLandmark(landmarkHit)
+        this.game.canvas.focus()
+        return
+      }
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
       // A character under the pointer means "talk to them", not "walk here".
@@ -207,6 +221,12 @@ class TiledScene extends Phaser.Scene {
       const prop = (this.current.props ?? []).find((p) => p.position.x === point.x && p.position.y === point.y)
       if (prop && this.onProp) {
         this.onProp(prop.id)
+        return
+      }
+      const landmark = (this.current.landmarks ?? []).find((item) => item.position.x === point.x && item.position.y === point.y)
+      if (landmark && this.onLandmark) {
+        this.onLandmark(landmark.id)
+        this.game.canvas.focus()
         return
       }
       this.onDestination(point, pointer.time || performance.now())
@@ -307,7 +327,7 @@ class TiledScene extends Phaser.Scene {
     this.markers.clear()
     this.props.forEach((p) => p.container.destroy())
     this.props.clear()
-    this.landmarks.forEach((entry) => entry.objects.forEach((object) => object.destroy()))
+    this.landmarks.forEach((entry) => entry.container.destroy())
     this.landmarks.clear()
     this.clearAmbient()
 
@@ -403,12 +423,12 @@ class TiledScene extends Phaser.Scene {
   }
 
   private renderSnapshot(snapshot: PlaygroundSnapshot, snap = false): void {
-    this.renderLandmarks(snapshot)
     for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
 
     const player = snapshot.actors.find((a) => a.id === 'player')
     const playerSpace = player?.space
     const playerRoomId = playerSpace?.kind === 'room' ? playerSpace.roomId : null
+    this.renderLandmarks(snapshot, playerRoomId)
     this.renderProps(snapshot, player?.position ?? null, playerRoomId)
     const occupied = new Map<string, number>()
     for (const actor of snapshot.actors) {
@@ -475,19 +495,42 @@ class TiledScene extends Phaser.Scene {
     this.followPlayer()
   }
 
-  private renderLandmarks(snapshot: PlaygroundSnapshot): void {
-    for (const room of snapshot.map.rooms) {
-      const url = snapshot.roomImages?.[room.id]
-      const prior = this.landmarks.get(room.id)
-      if (prior?.url === url) continue
-      prior?.objects.forEach((object) => object.destroy())
-      this.landmarks.delete(room.id)
-      if (!url || !this.textures.exists(portraitTextureKey(url))) continue
-      const x = (room.x + room.width / 2) * T
-      const y = (room.y + Math.min(2.5, room.height / 2)) * T
-      const frame = this.add.rectangle(x, y, 35, 25, 0x2e2620).setDepth(4)
-      const art = this.add.image(x, y, portraitTextureKey(url)).setDisplaySize(31, 21).setDepth(5)
-      this.landmarks.set(room.id, { url, objects: [frame, art] })
+  private renderLandmarks(snapshot: PlaygroundSnapshot, playerRoomId: string | null): void {
+    const landmarks = snapshot.landmarks ?? []
+    for (const landmark of landmarks) {
+      const imageUrl = landmark.imageUrl && this.textures.exists(portraitTextureKey(landmark.imageUrl)) ? landmark.imageUrl : null
+      let entry = this.landmarks.get(landmark.id)
+      if (entry && entry.imageUrl !== imageUrl) {
+        entry.container.destroy()
+        this.landmarks.delete(landmark.id)
+        entry = undefined
+      }
+      if (!entry) {
+        const container = this.add.container(0, 0)
+        const shadow = this.add.ellipse(0, 7, 18, 5, 0x000000, 0.3)
+        const object = imageUrl
+          ? this.add.image(0, -4, portraitTextureKey(imageUrl)).setDisplaySize(24, 24)
+          : this.add.graphics().fillStyle(0x877861).fillRect(-9, -12, 18, 20).fillStyle(0xb8a58a).fillRect(-7, -11, 14, 17).fillStyle(0x655946).fillRect(-7, 3, 14, 3)
+        const label = this.add.text(0, 12, landmark.name, {
+          color: '#fff8e7', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '6px', fontStyle: 'bold',
+          backgroundColor: '#3a2a24', padding: { x: 3, y: 1 }, resolution: 8,
+        }).setOrigin(0.5, 0)
+        const hint = this.add.text(0, -18, 'click to inspect', {
+          color: '#2e2620', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '6px', fontStyle: 'bold',
+          backgroundColor: '#ffe9a8', padding: { x: 3, y: 1 }, resolution: 8,
+        }).setOrigin(0.5, 1)
+        container.add([shadow, object, label, hint])
+        entry = { imageUrl, container, hint }
+        this.landmarks.set(landmark.id, entry)
+      }
+      entry.container.setPosition(landmark.position.x * T + T / 2, landmark.position.y * T + T / 2)
+      entry.container.setDepth(8 + landmark.position.y / 1000)
+      entry.hint.setVisible(playerRoomId === landmark.roomId)
+    }
+    for (const [id, entry] of this.landmarks) {
+      if (landmarks.some((landmark) => landmark.id === id)) continue
+      entry.container.destroy()
+      this.landmarks.delete(id)
     }
   }
 

@@ -99,6 +99,8 @@ export function PlayClient({
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
+  const [inspectingLandmark, setInspectingLandmark] = useState<string | null>(null);
+  const [pendingLandmark, setPendingLandmark] = useState<string | null>(null);
   const [pendingRead, setPendingRead] = useState<string | null>(null);
   const [roleBriefOpen, setRoleBriefOpen] = useState(initialState.status === "active" && initialState.revision === 0);
   const [hintVisible, setHintVisible] = useState(true);
@@ -327,6 +329,32 @@ export function PlayClient({
     }
   }
 
+  function onLandmark(landmarkId: string) {
+    setHintVisible(false);
+    const current = stateRef.current;
+    const landmark = current.landmarks.find((item) => item.id === landmarkId);
+    if (!landmark) return;
+    if (current.currentRoomId === landmark.roomId) {
+      setPendingLandmark(null);
+      setInspectingLandmark(landmarkId);
+    } else {
+      setPendingLandmark(landmarkId);
+      setIntent({ kind: "room", roomId: landmark.roomId });
+    }
+  }
+
+  useEffect(() => {
+    if (!pendingLandmark) return;
+    const landmark = state.landmarks.find((item) => item.id === pendingLandmark);
+    if (!landmark) {
+      setPendingLandmark(null);
+    } else if (state.currentRoomId === landmark.roomId) {
+      setPendingLandmark(null);
+      setIntent(null);
+      setInspectingLandmark(landmark.id);
+    }
+  }, [pendingLandmark, state.currentRoomId, state.landmarks]);
+
   // A map click is one action: after the walk reaches inspection range, finish it by opening
   // the document instead of requiring a second click on the same prop.
   useEffect(() => {
@@ -345,6 +373,7 @@ export function PlayClient({
 
   const openDocument = reading ? state.journal.find((entry) => entry.id === reading) ?? null : null;
   const openDocumentName = reading ? state.props.find((item) => item.id === reading)?.name ?? "Document" : "";
+  const openLandmark = inspectingLandmark ? state.landmarks.find((item) => item.id === inspectingLandmark) ?? null : null;
 
   if (state.status === "completed") {
     return (
@@ -442,12 +471,13 @@ export function PlayClient({
           onWaitingAtDoor={setWaitingAtDoor}
           onTalk={onTalk}
           onProp={onProp}
+          onLandmark={onLandmark}
         />
         {hintVisible ? (
           <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-ink/85 px-3 py-1.5 text-sm font-semibold text-paper lg:bottom-3 lg:right-48 lg:top-auto lg:px-3.5 lg:py-2 lg:text-base">
-            <span className="lg:hidden">Tap to walk; tap a person or document to interact.</span>
+            <span className="lg:hidden">Tap to walk; tap a person, document, or landmark to interact.</span>
             <span className="hidden lg:inline">
-              Use arrows or WASD to walk. Click a person or document to interact; press Enter to talk.
+              Use arrows or WASD to walk. Click a person, document, or landmark to interact; press Enter to talk.
             </span>
           </p>
         ) : null}
@@ -515,10 +545,11 @@ export function PlayClient({
               <Timer className="h-5 w-5" aria-hidden /> <StageCountdown attemptId={attemptId} deadlineIso={state.timer.deadlineAt} serverNowIso={state.timer.serverNow} />
             </span>
           </div>
-          {here && state.roomImages[here.id] ? (
-            // eslint-disable-next-line @next/next/no-img-element -- generated landmark from storage
-            <img src={state.roomImages[here.id]} alt={here.name} className="aspect-[3/1] w-full rounded-control border border-line object-cover" />
-          ) : null}
+          {state.landmarks.filter((landmark) => landmark.roomId === state.currentRoomId).map((landmark) => (
+            <button key={landmark.id} type="button" className={chip} onClick={() => onLandmark(landmark.id)}>
+              Inspect {landmark.name}
+            </button>
+          ))}
           <div className="flex flex-wrap gap-2">
             {state.rooms
               .filter((r) => r.id !== state.currentRoomId)
@@ -818,6 +849,18 @@ export function PlayClient({
             <button type="button" className={`${primary} w-fit`} onClick={() => setReading(null)} autoFocus>
               Put it down
             </button>
+          </div>
+        </div>
+      ) : null}
+      {openLandmark ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="landmark-title">
+          <div className="flex max-h-[80dvh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-surface border-l-[3px] border-world bg-paper p-5 shadow-xl sm:p-6">
+            <div>
+              <p className={label}>You inspect</p>
+              <h2 id="landmark-title" className="font-serif text-2xl leading-tight text-ink">{openLandmark.name}</h2>
+            </div>
+            <p className="whitespace-pre-line text-lg leading-relaxed text-ink">{openLandmark.description}</p>
+            <button type="button" className={`${primary} w-fit`} onClick={() => setInspectingLandmark(null)} autoFocus>Continue exploring</button>
           </div>
         </div>
       ) : null}

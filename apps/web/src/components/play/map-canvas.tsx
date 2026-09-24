@@ -58,6 +58,7 @@ export interface MapCanvasProps {
   onTalk: (actorId: string) => void;
   /** The player clicked a document lying on the map: read it, or walk over to it first. */
   onProp: (propId: string) => void;
+  onLandmark: (landmarkId: string) => void;
 }
 
 function doorsOf(state: PlayState): Record<string, DoorState> {
@@ -92,10 +93,10 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onLandmark }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
-  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp });
-  latest.current = { state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp };
+  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onLandmark });
+  latest.current = { state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onLandmark };
   const playerPos = useRef<Point | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
   const intentHandlerRef = useRef<((next: MapIntent) => void) | null>(null);
@@ -166,6 +167,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
         doors,
         actors,
         props,
+        landmarks: s.landmarks.map((landmark) => ({ id: landmark.id, roomId: landmark.roomId, name: landmark.name, position: landmark.position, ...(s.roomImages[landmark.id] ? { imageUrl: s.roomImages[landmark.id] } : {}) })),
         playerGoal: goal,
         playerStatus: path.length ? ("moving" as const) : ("idle" as const),
         running: true,
@@ -404,6 +406,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
           defaultSprite: "Villager",
           onActor: (actorId) => latest.current.onTalk(actorId),
           onProp: (propId) => latest.current.onProp(propId),
+          onLandmark: (landmarkId) => latest.current.onLandmark(landmarkId),
         });
         if (destroyed) {
           view.destroy();
