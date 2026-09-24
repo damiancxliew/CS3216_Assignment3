@@ -17,7 +17,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { findPath, isWalkable, type DoorState, type Point, type StageMap } from "@adventure/game-core";
+import { canHearSpeech, findPath, isInPhysicalInteractionRange, isWalkable, spaceAt, type DoorState, type Point, type StageMap } from "@adventure/game-core";
 import { playApi } from "./api";
 import type { MapIntent } from "./map-canvas";
 import { useSoundCues } from "./sound";
@@ -40,6 +40,7 @@ const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas),
 });
 
 const POLL_MS = 8_000;
+const IDLE_POLL_MS = 30_000;
 /** The controls hint belongs to the first seconds of a stage, not to the whole game. */
 const HINT_MS = 7_000;
 /** A failing server is not polled at the same rate: back off, and give up rather than pile on. */
@@ -54,8 +55,8 @@ function landmarkDistance(point: Point, landmark: Landmark): number {
   return dx + dy;
 }
 
-function landmarkApproach(state: PlayState, landmark: Landmark): Point | null {
-  if (!state.map || !state.playerPos) return null;
+function landmarkApproach(state: PlayState, landmark: Landmark, from: Point | null): Point | null {
+  if (!state.map || !from) return null;
   const map = state.map as StageMap;
   const room = map.rooms.find((candidate) => candidate.id === landmark.roomId);
   if (!room) return null;
@@ -67,12 +68,25 @@ function landmarkApproach(state: PlayState, landmark: Landmark): Point | null {
       if (landmarkDistance(point, landmark) !== 1 || !isWalkable(map, doors, point)
         || point.x <= room.x || point.x >= room.x + room.width - 1
         || point.y <= room.y || point.y >= room.y + room.height - 1) continue;
-      const route = findPath(map, doors, state.playerPos, point);
+      const route = findPath(map, doors, from, point);
       if (route) candidates.push({ point, distance: route.length });
     }
   }
   candidates.sort((left, right) => left.distance - right.distance);
   return candidates[0]?.point ?? null;
+}
+
+function localRoomId(state: PlayState, position: Point | null): string | null {
+  if (!state.map || !position) return null;
+  const space = spaceAt(state.map as StageMap, position);
+  return space?.kind === "room" ? space.roomId : space?.kind === "outdoor" ? space.locationId ?? null : null;
+}
+
+function localCanInspect(state: PlayState, position: Point | null, propId: string): boolean {
+  const prop = state.props.find((item) => item.id === propId);
+  if (!state.map || !position || !prop) return false;
+  const doors: Record<string, "open" | "closed"> = Object.fromEntries(state.map.doors.map((door) => [door.id, state.rooms.find((room) => room.id === door.roomId)?.doorOpen ? "open" : "closed"]));
+  return isInPhysicalInteractionRange(state.map as StageMap, doors, position, prop.position);
 }
 
 /** Generated identity art, with a sober monogram while generation is pending or filtered. */
@@ -125,6 +139,7 @@ export function PlayClient({
   const router = useRouter();
   const [state, setState] = useState<PlayState>(initialState);
   const stateRef = useRef(initialState);
+  const [localPosition, setLocalPosition] = useState<{ stageId: string; point: Point | null } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const busyRef = useRef<string | null>(null);
   useEffect(() => {
@@ -183,6 +198,7 @@ export function PlayClient({
     stateRef.current = next;
     setState(next);
   }, []);
+  const visiblePosition = localPosition?.stageId === state.stage.id ? localPosition.point : state.playerPos;
 
   const [offline, setOffline] = useState(false);
   const [mintAttempt, setMintAttempt] = useState(0);
@@ -218,7 +234,12 @@ export function PlayClient({
       if (document.visibilityState === "visible" && !busyRef.current) await refresh();
       if (failures.current >= GIVE_UP_AFTER) setOffline(true);
       if (cancelled || failures.current >= GIVE_UP_AFTER) return;
-      timer = window.setTimeout(tick, Math.min(POLL_MS * 2 ** failures.current, MAX_POLL_MS));
+      const interval = stateRef.current.pendingDialogue || stateRef.current.mintReady ? POLL_MS : IDLE_POLL_MS;
+      const delay = Math.min(interval * 2 ** failures.current, MAX_POLL_MS);
+      const deadline = stateRef.current.timer.deadlineAt && failures.current === 0
+        ? Math.max(1_000, new Date(stateRef.current.timer.deadlineAt).getTime() - Date.now() + 250)
+        : delay;
+      timer = window.setTimeout(tick, Math.min(deadline, delay));
     };
     timer = window.setTimeout(tick, POLL_MS);
     return () => { cancelled = true; window.clearTimeout(timer); };
@@ -278,8 +299,14 @@ export function PlayClient({
   }, [state.stage.id]);
 
   const here = state.rooms.find((r) => r.id === state.currentRoomId) ?? null;
-  const peopleHere = state.agents.filter((a) => state.hearingActorIds.includes(a.id));
+  const peopleHere = state.agents.filter((agent) => {
+    const actor = state.actors.find((candidate) => candidate.id === agent.id);
+    return state.map && visiblePosition && actor?.position
+      ? canHearSpeech(state.map as StageMap, visiblePosition, actor.position)
+      : state.hearingActorIds.includes(agent.id);
+  });
   const effectiveAddressee = peopleHere.some((a) => a.id === addressee) ? addressee : peopleHere[0]?.id ?? null;
+  const canSendToAddressee = effectiveAddressee !== null && state.hearingActorIds.includes(effectiveAddressee);
   const talkingTo = peopleHere.find((a) => a.id === effectiveAddressee) ?? null;
   const waitingRoom = waitingAtDoor ? state.rooms.find((room) => room.id === waitingAtDoor) : null;
   const waitingDoor = waitingAtDoor ? state.map?.doors.find((door) => door.roomId === waitingAtDoor) : null;
@@ -312,7 +339,7 @@ export function PlayClient({
     const current = stateRef.current;
     const body = draft.trim();
     const roomId = current.currentRoomId;
-    if (!body || !roomId || busy !== null || speaking || current.pendingDialogue) return;
+    if (!body || !roomId || !canSendToAddressee || busy !== null || speaking || current.pendingDialogue) return;
     setDraft("");
     setPendingSpeech({ id: crypto.randomUUID(), roomId, body });
     setSpeaking(true);
@@ -396,26 +423,31 @@ export function PlayClient({
     setHintVisible(false);
     setReading(null);
     setAddressee(actorId);
-    if (!stateRef.current.hearingActorIds.includes(actorId)) {
+    const current = stateRef.current;
+    const point = localPosition?.stageId === current.stage.id ? localPosition.point : current.playerPos;
+    const target = current.actors.find((actor) => actor.id === actorId)?.position;
+    if (!current.map || !point || !target || !canHearSpeech(current.map as StageMap, point, target)) {
       setPendingTalk(actorId);
-      const point = stateRef.current.actors.find((actor) => actor.id === actorId)?.position;
-      if (point) setIntent({ kind: "point", point });
+      if (target) setIntent({ kind: "point", point: target });
       return;
     }
-    setPendingTalk(null);
+    setPendingTalk(current.hearingActorIds.includes(actorId) ? null : actorId);
     composer.current?.focus();
     composer.current?.scrollIntoView({ block: "nearest" });
-  }, []);
+  }, [localPosition]);
 
   // Stop as soon as the selected person is within speaking range; occupying their tile is neither
   // necessary nor possible because actors collide.
   useEffect(() => {
-    if (!pendingTalk || !state.hearingActorIds.includes(pendingTalk)) return;
-    setPendingTalk(null);
-    setIntent(null);
+    if (!pendingTalk) return;
+    const target = state.actors.find((actor) => actor.id === pendingTalk)?.position;
+    const inRange = state.map && visiblePosition && target && canHearSpeech(state.map as StageMap, visiblePosition, target);
+    if (!inRange) return;
+    if (state.hearingActorIds.includes(pendingTalk)) setPendingTalk(null);
+    if (inRange) setIntent(null);
     composer.current?.focus();
     composer.current?.scrollIntoView({ block: "nearest" });
-  }, [pendingTalk, state.hearingActorIds]);
+  }, [pendingTalk, state, visiblePosition]);
 
   /** Examine a document, then put it in front of the player to read. */
   async function read(evidenceId: string, open = true) {
@@ -451,7 +483,8 @@ export function PlayClient({
   function onProp(propId: string) {
     setHintVisible(false);
     const current = stateRef.current;
-    if (current.journal.some((entry) => entry.id === propId) || current.evidenceHere.some((item) => item.id === propId && item.canInspect)) {
+    const point = localPosition?.stageId === current.stage.id ? localPosition.point : current.playerPos;
+    if (current.journal.some((entry) => entry.id === propId) || (localCanInspect(current, point, propId) && current.evidenceHere.some((item) => item.id === propId && item.canInspect))) {
       setPendingRead(null);
       void read(propId);
       return;
@@ -459,7 +492,11 @@ export function PlayClient({
     const prop = current.props.find((item) => item.id === propId);
     if (prop) {
       setPendingRead(propId);
-      setIntent({ kind: "point", point: prop.position });
+      if (localCanInspect(current, point, propId)) {
+        setIntent(null);
+        setReading(propId);
+      }
+      else setIntent({ kind: "point", point: prop.position });
     }
   }
 
@@ -468,8 +505,14 @@ export function PlayClient({
     const current = stateRef.current;
     const landmark = current.landmarks.find((item) => item.id === landmarkId);
     if (!landmark) return;
+    const point = localPosition?.stageId === current.stage.id ? localPosition.point : current.playerPos;
+    if (point && localRoomId(current, point) === landmark.roomId && landmarkDistance(point, landmark) === 1) {
+      setPendingLandmark(null);
+      setInspectingLandmark(landmarkId);
+      return;
+    }
     setPendingLandmark(landmarkId);
-    setIntent(current.currentRoomId !== landmark.roomId ? { kind: "room", roomId: landmark.roomId } : null);
+    setIntent(localRoomId(current, point) !== landmark.roomId && current.currentRoomId !== landmark.roomId ? { kind: "room", roomId: landmark.roomId } : null);
   }
 
   useEffect(() => {
@@ -477,25 +520,32 @@ export function PlayClient({
     const landmark = state.landmarks.find((item) => item.id === pendingLandmark);
     if (!landmark) {
       setPendingLandmark(null);
-    } else if (state.currentRoomId === landmark.roomId) {
-      if (state.playerPos && landmarkDistance(state.playerPos, landmark) === 1) {
+    } else if (localRoomId(state, visiblePosition) === landmark.roomId || state.currentRoomId === landmark.roomId) {
+      if (visiblePosition && landmarkDistance(visiblePosition, landmark) === 1) {
         setPendingLandmark(null);
         setIntent(null);
         setInspectingLandmark(landmark.id);
       } else {
-        const point = landmarkApproach(state, landmark);
+        const point = landmarkApproach(state, landmark, visiblePosition);
         if (point) setIntent((current) => current?.kind === "point" ? current : { kind: "point", point });
       }
     }
-  }, [pendingLandmark, state]);
+  }, [pendingLandmark, state, visiblePosition]);
 
   // A map click is one action: after the walk reaches inspection range, finish it by opening
   // the document instead of requiring a second click on the same prop.
   useEffect(() => {
     if (!pendingRead || busy !== null) return;
     const current = stateRef.current;
+    const nearby = localCanInspect(current, visiblePosition, pendingRead);
     const readable = current.journal.some((entry) => entry.id === pendingRead)
-      || current.evidenceHere.some((item) => item.id === pendingRead && item.canInspect);
+      || nearby && current.evidenceHere.some((item) => item.id === pendingRead && item.canInspect);
+    if (nearby) {
+      setIntent(null);
+      setReading(pendingRead);
+    } else if (!readable) {
+      setReading((open) => open === pendingRead ? null : open);
+    }
     if (readable) {
       setPendingRead(null);
       setIntent(null);
@@ -503,7 +553,7 @@ export function PlayClient({
     } else if (!current.props.some((item) => item.id === pendingRead)) {
       setPendingRead(null);
     }
-  }, [pendingRead, state.revision, busy, loadingDocuments]);
+  }, [pendingRead, state.revision, busy, loadingDocuments, visiblePosition]);
 
   // Walking directly over a document picks it up even when movement did not begin from its label.
   useEffect(() => {
@@ -620,6 +670,7 @@ export function PlayClient({
           onIntentDone={() => setIntent(null)}
           onSteps={onSteps}
           onWaitingAtDoor={setWaitingAtDoor}
+          onLocalPosition={(point) => setLocalPosition({ stageId: stateRef.current.stage.id, point })}
           onTalk={onTalk}
           onProp={onProp}
           onPickup={onPickup}
@@ -739,8 +790,8 @@ export function PlayClient({
           {state.evidenceHere.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 border-l-[3px] border-world py-1 pl-3">
               <span className="text-base font-semibold text-world">Documents here</span>
-              {state.evidenceHere.map((item) => item.canInspect ? (
-                <button key={item.id} type="button" className={chip} disabled={busy !== null} onClick={() => void read(item.id)}>
+              {state.evidenceHere.map((item) => item.canInspect || localCanInspect(state, visiblePosition, item.id) ? (
+                <button key={item.id} type="button" className={chip} disabled={busy !== null} onClick={() => onProp(item.id)}>
                   <Search className="h-4 w-4" aria-hidden /> Read {item.name}
                 </button>
               ) : (
@@ -847,8 +898,8 @@ export function PlayClient({
               className="min-h-12 min-w-0 flex-1 rounded-control border border-line bg-surface px-4 py-2 text-base text-ink placeholder:text-muted focus:border-record focus:outline-none disabled:opacity-60"
               maxLength={2000}
             />
-            <button type="submit" className={`${primary} min-h-11`} disabled={busy !== null || speaking || state.pendingDialogue || !draft.trim() || !peopleHere.length}>
-              {speaking || state.pendingDialogue ? <Pending>Saying it</Pending> : "Say it"}
+            <button type="submit" className={`${primary} min-h-11`} disabled={busy !== null || speaking || state.pendingDialogue || !draft.trim() || !canSendToAddressee}>
+              {speaking || state.pendingDialogue ? <Pending>Saying it</Pending> : canSendToAddressee ? "Say it" : "Coming closer…"}
             </button>
           </form>
         </section>
