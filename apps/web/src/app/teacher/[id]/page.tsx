@@ -56,6 +56,7 @@ type Adventure = {
   setting: string | null;
   status: "draft" | "published" | "archived";
   published_version: number | null;
+  assets_ready: boolean;
   default_timer_seconds: number;
   allow_retries: boolean;
   share_token: string;
@@ -105,7 +106,7 @@ export default async function AdventurePage({
   // authoring view matches the owner rather than relying on visibility alone.
   const { data: adventure } = await supabase
     .from("adventure")
-    .select("id, title, setting, status, published_version, default_timer_seconds, allow_retries, share_token, student_role, learning_objectives, reading_level, stage_outline")
+    .select("id, title, setting, status, published_version, assets_ready, default_timer_seconds, allow_retries, share_token, student_role, learning_objectives, reading_level, stage_outline")
     .eq("id", id)
     .eq("owner_id", user.id)
     .maybeSingle<Adventure>();
@@ -341,9 +342,10 @@ export default async function AdventurePage({
           <p className="text-base text-muted">Generate the adventure from Overview before publishing.</p>
         )}
         {published && !draft ? <p className="max-w-[60ch] text-base text-muted">Editing creates a new draft. Students already playing can finish their current version.</p> : null}
+        {published ? <p className="text-base text-muted">{adventure.assets_ready ? "Artwork is ready. Students can play this version." : "Preparing artwork and NPC walking sprites. Students can play once generation finishes."}</p> : null}
       </Section>
 
-      {dossier && shown ? <DossierSections dossier={dossier} adventureId={id} specVersionId={shown.id} version={shown.version} isDraft={shown === draft} view="artwork" watchForArtwork={shown === published && Boolean(process.env.OPENAI_API_KEY) && published.published_at !== null && Date.now() - Date.parse(published.published_at) < 360_000} /> : null}
+      {dossier && shown ? <DossierSections dossier={dossier} adventureId={id} specVersionId={shown.id} version={shown.version} isDraft={shown === draft} view="artwork" watchForArtwork={shown === published && !adventure.assets_ready && Boolean(process.env.OPENAI_API_KEY) && published.published_at !== null && Date.now() - Date.parse(published.published_at) < 600_000} /> : null}
 
       <Section
         title="Stage timer"
@@ -393,6 +395,7 @@ export default async function AdventurePage({
           adventureId={adventure.id}
           token={adventure.share_token}
           published={adventure.status === "published"}
+          ready={adventure.assets_ready}
         />
         {adventure.status === "published" ? (
           <Link href={`/join/${adventure.share_token}`} className={`${button.quiet} w-fit`}>

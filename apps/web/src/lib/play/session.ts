@@ -127,7 +127,7 @@ export interface PlayState extends PublicAttemptState {
   /** Generated prop image per evidence item, when one exists (D4). Keys are evidence ids. */
   evidenceImages: Record<string, string>;
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
-  actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; position: Point | null; sprite: Character; portraitUrl: string | null }[];
+  actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; position: Point | null; sprite: Character; portraitUrl: string | null; spriteSheetUrl: string | null }[];
   hearingActorIds: string[];
   pendingDialogue: boolean;
   mintReady: boolean;
@@ -451,7 +451,7 @@ export class PlaySession {
       pendingDialogue: this.snap.pendingReply?.expiresAt !== undefined && this.snap.pendingReply.expiresAt > now.getTime(),
       mintReady: this.mintReady(),
       actors: [
-        { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, position: world.spatial?.state.actors[PLAYER_ID] ?? null, sprite: PLAYER_CHARACTER, portraitUrl: null },
+        { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, position: world.spatial?.state.actors[PLAYER_ID] ?? null, sprite: PLAYER_CHARACTER, portraitUrl: null, spriteSheetUrl: null },
         ...this.stage.agents.map((agent) => ({
           id: agent.id,
           name: this.agentName(agent.id),
@@ -460,6 +460,7 @@ export class PlaySession {
           position: world.spatial?.state.actors[agent.id] ?? null,
           sprite: this.characterOf(agent.stakeholderId),
           portraitUrl: this.portraitFor(agent.stakeholderId),
+          spriteSheetUrl: this.spriteFor(agent.stakeholderId),
         })),
       ],
       evidenceHere: this.stage.evidence
@@ -626,6 +627,11 @@ export class PlaySession {
     const record = this.assets?.records.find((r) => r.entityId === stakeholderId && r.kind === "portrait");
     if (record && (record.status === "ready" || record.status === "cached")) return record.url;
     return historicalPortraitFor(this.spec.stakeholders.find((stakeholder) => stakeholder.id === stakeholderId)?.name ?? "");
+  }
+
+  private spriteFor(stakeholderId: string): string | null {
+    const record = this.assets?.records.find((r) => r.entityId === stakeholderId && r.kind === "sprite");
+    return record && (record.status === "ready" || record.status === "cached") ? record.url : null;
   }
 
   private agentName(agentId: string): string {

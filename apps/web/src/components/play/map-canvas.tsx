@@ -22,7 +22,6 @@ import type { SoundCueId } from "@adventure/game-client";
 import { useEffect, useRef } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
-import { historicalPortraitFor } from "@/lib/play/historical-portraits";
 import { MAX_PENDING_STEPS, MAX_STEPS_PER_REQUEST, optimisticAdvance, settleBatch, type PendingStep } from "@/lib/play/optimistic-queue";
 import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PlayState } from "@/lib/play/session";
@@ -158,8 +157,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
               targetRoomId: null,
               status: "idle" as const,
               interactive: canHearSpeech(map as StageMap, player, position),
-              portraitUrl: a.portraitUrl,
-              portraitFallbackUrl: historicalPortraitFor(a.name),
+              spriteSheetUrl: a.spriteSheetUrl,
               ...(a.sprite ? { sprite: a.sprite } : {}),
             };
           }).filter((actor): actor is NonNullable<typeof actor> => actor !== null),

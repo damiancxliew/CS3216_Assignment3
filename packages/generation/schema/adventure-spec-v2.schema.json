@@ -1229,7 +1229,8 @@
             "enum": [
               "portrait",
               "landmark",
-              "prop"
+              "prop",
+              "sprite"
             ]
           },
           "entityId": {

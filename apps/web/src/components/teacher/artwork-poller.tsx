@@ -24,7 +24,7 @@ export function ArtworkProgress({
   const [result, formAction, pending] = useActionState(action, {} as ActionResult);
   const requested = requestedAt !== null && Date.now() - requestedAt < 60_000;
   const starting = requested || (!assets.started && watchForArtwork);
-  const working = pending || starting || assets.pending > 0;
+  const working = pending || watchForArtwork || starting || assets.pending > 0;
   const processed = Math.min(assets.eligible, assets.generated + assets.failed);
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function ArtworkProgress({
           {starting && assets.pending === 0
             ? <progress aria-label="Starting artwork generation" className="h-2 w-full accent-world" />
             : <progress value={processed} max={assets.eligible} aria-label="Artwork generation progress" className="h-2 w-full accent-world" />}
-          {assets.pending > 0 ? <p>Images appear here as they finish.</p> : null}
+          {assets.pending > 0 ? <p>Finished images appear in the gallery below.</p> : null}
         </div>
       ) : null}
       {result.error ? <ErrorText>{result.error}</ErrorText> : result.notice && !working && !sawPending ? <p className="text-base text-muted">{result.notice}</p> : null}

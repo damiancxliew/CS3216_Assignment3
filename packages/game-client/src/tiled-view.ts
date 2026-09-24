@@ -80,7 +80,7 @@ function jitter(x: number, y: number, salt: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296
 }
 
-function portraitTextureKey(url: string): string {
+function assetTextureKey(url: string): string {
   let hash = 2166136261
   for (let index = 0; index < url.length; index += 1) {
     hash ^= url.charCodeAt(index)
@@ -133,8 +133,7 @@ class TiledScene extends Phaser.Scene {
     string,
     {
       container: Phaser.GameObjects.Container
-      sprite: Phaser.GameObjects.Sprite | null
-      portraitUrl: string | null
+      sprite: Phaser.GameObjects.Sprite
       key: string
       facing: Facing
       last: Point
@@ -185,6 +184,7 @@ class TiledScene extends Phaser.Scene {
     this.load.image('fx-fog', `${this.base}/fx/fog.png`)
     this.load.image('fx-clouds', `${this.base}/fx/clouds.png`)
     for (const key of this.spriteKeys(this.current)) this.queueSprite(key)
+    for (const url of this.spriteSheetUrls(this.current)) this.queueGeneratedSprite(url)
     for (const url of this.assetUrls(this.current)) this.queueAsset(url)
     for (const track of MUSIC_TRACKS) this.load.audio(`music-${track}`, `${this.base}/audio/music/${track}.ogg`)
     for (const loop of new Set(Object.values(AMBIENT_LOOP))) if (loop) this.load.audio(`loop-${loop}`, `${this.base}/audio/sfx/${loop}.ogg`)
@@ -194,6 +194,7 @@ class TiledScene extends Phaser.Scene {
   create(): void {
     this.ready = true
     for (const key of this.spriteKeys(this.current)) this.registerAnimations(key)
+    for (const url of this.spriteSheetUrls(this.current)) this.registerAnimations(assetTextureKey(url), true)
     this.buildMap()
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       this.hoveredTarget = this.hitTarget({ x: pointer.worldX, y: pointer.worldY })
@@ -260,12 +261,15 @@ class TiledScene extends Phaser.Scene {
       this.playedEffects.clear()
     }
     const missingSprites = this.spriteKeys(snapshot).filter((key) => !this.loadedSprites.has(key))
+    const missingGenerated = this.spriteSheetUrls(snapshot).filter((url) => !this.queuedAssets.has(url))
     const missingAssets = this.assetUrls(snapshot).filter((url) => !this.queuedAssets.has(url))
-    if (missingSprites.length > 0 || missingAssets.length > 0) {
+    if (missingSprites.length > 0 || missingGenerated.length > 0 || missingAssets.length > 0) {
       for (const key of missingSprites) this.queueSprite(key)
+      for (const url of missingGenerated) this.queueGeneratedSprite(url)
       for (const url of missingAssets) this.queueAsset(url)
       this.load.once('complete', () => {
         for (const key of missingSprites) this.registerAnimations(key)
+        for (const url of missingGenerated) this.registerAnimations(assetTextureKey(url), true)
         this.renderSnapshot(this.current, mapChanged)
       })
       this.load.start()
@@ -277,16 +281,18 @@ class TiledScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   private spriteKeys(snapshot: PlaygroundSnapshot): string[] {
-    return [...new Set(snapshot.actors.filter((a) => a.id === 'player').map((a) => a.sprite ?? this.defaultSprite))]
+    return [...new Set(snapshot.actors.map((a) => a.sprite ?? this.defaultSprite))]
   }
 
   private assetUrls(snapshot: PlaygroundSnapshot): string[] {
     return [...new Set([
-      ...snapshot.actors.flatMap((actor) => actor.id !== 'player' && actor.portraitUrl ? [actor.portraitUrl] : []),
-      ...snapshot.actors.flatMap((actor) => actor.id !== 'player' && actor.portraitFallbackUrl ? [actor.portraitFallbackUrl] : []),
       ...(snapshot.props ?? []).flatMap((prop) => prop.imageUrl ? [prop.imageUrl] : []),
       ...(snapshot.landmarks ?? []).flatMap((landmark) => landmark.imageUrl ? [landmark.imageUrl] : []),
     ])]
+  }
+
+  private spriteSheetUrls(snapshot: PlaygroundSnapshot): string[] {
+    return [...new Set(snapshot.actors.flatMap((actor) => actor.spriteSheetUrl ? [actor.spriteSheetUrl] : []))]
   }
 
   private queueSprite(key: string): void {
@@ -295,20 +301,27 @@ class TiledScene extends Phaser.Scene {
     this.load.spritesheet(`char-${key}`, `${this.base}/characters/${key}/walk.png`, { frameWidth: T, frameHeight: T })
   }
 
+  private queueGeneratedSprite(url: string): void {
+    if (this.queuedAssets.has(url)) return
+    this.queuedAssets.add(url)
+    this.load.spritesheet(assetTextureKey(url), url, { frameWidth: T, frameHeight: T })
+  }
+
   private queueAsset(url: string): void {
     if (this.queuedAssets.has(url)) return
     this.queuedAssets.add(url)
-    this.load.image(portraitTextureKey(url), url)
+    this.load.image(assetTextureKey(url), url)
   }
 
-  private registerAnimations(key: string): void {
-    if (!this.textures.exists(`char-${key}`)) return
+  private registerAnimations(key: string, generated = false): void {
+    const textureKey = generated ? key : `char-${key}`
+    if (!this.textures.exists(textureKey)) return
     DIRECTIONS.forEach((facing, column) => {
-      const anim = `char-${key}-${facing}`
+      const anim = `${textureKey}-${facing}`
       if (this.anims.exists(anim)) return
       this.anims.create({
         key: anim,
-        frames: [0, 1, 2, 3].map((row) => ({ key: `char-${key}`, frame: row * 4 + column })),
+        frames: [0, 1, 2, 3].map((row) => ({ key: textureKey, frame: row * 4 + column })),
         frameRate: 8,
         repeat: -1,
       })
@@ -449,7 +462,7 @@ class TiledScene extends Phaser.Scene {
     const landmarks = snapshot.landmarks ?? []
     const signature = JSON.stringify(landmarks.map((landmark) => [
       landmark.id, landmark.kind, landmark.name, landmark.description, landmark.position.x, landmark.position.y,
-      landmark.imageUrl, landmark.imageUrl ? this.textures.exists(portraitTextureKey(landmark.imageUrl)) : false,
+      landmark.imageUrl, landmark.imageUrl ? this.textures.exists(assetTextureKey(landmark.imageUrl)) : false,
     ]))
     if (signature === this.landmarkTileSignature) return
     this.landmarkTileSignature = signature
@@ -465,7 +478,7 @@ class TiledScene extends Phaser.Scene {
 
     for (const landmark of landmarks) {
       const url = landmark.imageUrl
-      const sourceKey = url ? portraitTextureKey(url) : null
+      const sourceKey = url ? assetTextureKey(url) : null
       const hasGenerated = sourceKey !== null && this.textures.exists(sourceKey)
       if (hasGenerated && sourceKey) {
         // Older generated images may be 1024px. Sampling them onto a 32px canvas
@@ -532,8 +545,9 @@ class TiledScene extends Phaser.Scene {
     this.renderProps(snapshot)
     const occupied = new Map<string, number>()
     for (const actor of snapshot.actors) {
-      const key = actor.sprite ?? this.defaultSprite
-      const portraitUrl = [actor.portraitUrl, actor.portraitFallbackUrl].find((url) => url && this.textures.exists(portraitTextureKey(url))) ?? null
+      const fallbackKey = `char-${actor.sprite ?? this.defaultSprite}`
+      const generatedKey = actor.spriteSheetUrl ? assetTextureKey(actor.spriteSheetUrl) : null
+      const key = generatedKey && this.textures.exists(generatedKey) ? generatedKey : fallbackKey
       const positionKey = `${actor.position.x},${actor.position.y}`
       const offset = occupied.get(positionKey) ?? 0
       occupied.set(positionKey, offset + 1)
@@ -541,13 +555,13 @@ class TiledScene extends Phaser.Scene {
       const y = actor.position.y * T + T / 2 + (offset === 0 ? 0 : Math.round(Math.sin(offset * (Math.PI / 3)) * 5))
 
       let marker = this.markers.get(actor.id)
-      if (marker && (marker.key !== key || marker.portraitUrl !== portraitUrl)) {
+      if (marker && marker.key !== key) {
         marker.idle?.remove()
         marker.container.destroy()
         marker = undefined
       }
       if (!marker) {
-        marker = this.createMarker(actor.id === 'player', actor.name, key, actor.position, portraitUrl)
+        marker = this.createMarker(key, actor.position)
         this.markers.set(actor.id, marker)
         marker.container.setPosition(x, y)
       }
@@ -557,18 +571,18 @@ class TiledScene extends Phaser.Scene {
       const facing: Facing = actor.facing ?? (moved ? (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up') : marker.facing)
       marker.facing = facing
       marker.last = { x: actor.position.x, y: actor.position.y }
-      const animKey = `char-${key}-${facing}`
-      if (marker.sprite && moved && !this.reducedMotion && this.anims.exists(animKey)) {
+      const animKey = `${key}-${facing}`
+      if (moved && !this.reducedMotion && this.anims.exists(animKey)) {
         const walker = marker
         marker.sprite.play(animKey, true)
         marker.idle?.remove()
         marker.idle = this.time.delayedCall(STEP_MS + 100, () => {
           walker.idle = null
-          if (!walker.sprite?.active) return
+          if (!walker.sprite.active) return
           if (walker.sprite.anims.currentAnim?.key === animKey && walker.sprite.anims.isPlaying) walker.sprite.stop()
-          if (this.textures.exists(`char-${key}`)) walker.sprite.setFrame(DIRECTIONS.indexOf(facing))
+          if (this.textures.exists(key)) walker.sprite.setFrame(DIRECTIONS.indexOf(facing))
         })
-      } else if (marker.sprite && marker.idle === null && this.textures.exists(`char-${key}`)) {
+      } else if (marker.idle === null && this.textures.exists(key)) {
         marker.sprite.setFrame(DIRECTIONS.indexOf(facing))
       }
       marker.container.setDepth(10 + actor.position.y / 1000 + (actor.id === 'player' ? 0.5 : 0))
@@ -598,7 +612,7 @@ class TiledScene extends Phaser.Scene {
     const props = snapshot.props ?? []
     for (const prop of props) {
       let entry = this.props.get(prop.id)
-      const imageUrl = prop.imageUrl && this.textures.exists(portraitTextureKey(prop.imageUrl)) ? prop.imageUrl : null
+      const imageUrl = prop.imageUrl && this.textures.exists(assetTextureKey(prop.imageUrl)) ? prop.imageUrl : null
       if (entry && entry.imageUrl !== imageUrl) {
         entry.container.destroy()
         this.props.delete(prop.id)
@@ -627,36 +641,20 @@ class TiledScene extends Phaser.Scene {
     const container = this.add.container(0, 0)
     const shadow = this.add.ellipse(0, 5, 10, 4, 0x000000, 0.25)
     const sheet = imageUrl
-      ? this.add.image(0, 0, portraitTextureKey(imageUrl)).setDisplaySize(14, 14)
+      ? this.add.image(0, 0, assetTextureKey(imageUrl)).setDisplaySize(14, 14)
       : this.add.rectangle(0, 0, 10, 12, 0xf6e7c1).setStrokeStyle(1, 0x6b563a)
     const lines = imageUrl ? [] : [-3, 0, 3].map((offset) => this.add.rectangle(0, offset, 6, 1, 0x8a7550))
     container.add([shadow, sheet, ...lines])
     return { container, found: false, imageUrl }
   }
 
-  private createMarker(player: boolean, name: string, key: string, position: Point, portraitUrl: string | null) {
+  private createMarker(key: string, position: Point) {
     const container = this.add.container(0, 0)
     const shadow = this.add.ellipse(0, 8, 16, 5, 0x000000, 0.3)
-    container.add(shadow)
-    let sprite: Phaser.GameObjects.Sprite | null = null
-    if (player) {
-      const textureKey = this.textures.exists(`char-${key}`) ? `char-${key}` : '__DEFAULT'
-      sprite = this.add.sprite(0, 0, textureKey, 0)
-      container.add(sprite)
-    } else {
-      // A portrait token IS the character, not a badge on an unrelated fantasy sprite.
-      container.add(this.add.rectangle(0, -2, 20, 23, 0x272e2c).setStrokeStyle(1, 0xcab48b))
-      if (portraitUrl) {
-        container.add(this.add.image(0, -3, portraitTextureKey(portraitUrl)).setDisplaySize(18, 20))
-      } else {
-        const initials = name.trim().split(/\s+/u).map((part) => Array.from(part)[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
-        container.add(this.add.text(0, -3, initials || '?', {
-          fontFamily: 'Georgia, serif', fontSize: '8px', color: '#e5d5b4', resolution: 8,
-        }).setOrigin(0.5))
-      }
-      container.add(this.add.triangle(0, 12, 0, 0, 6, 0, 3, 3, 0xcab48b))
-    }
-    return { container, sprite, portraitUrl, key, facing: 'down' as Facing, last: { x: position.x, y: position.y }, idle: null as Phaser.Time.TimerEvent | null }
+    const textureKey = this.textures.exists(key) ? key : '__DEFAULT'
+    const sprite = this.add.sprite(0, 0, textureKey, 0)
+    container.add([shadow, sprite])
+    return { container, sprite, key, facing: 'down' as Facing, last: { x: position.x, y: position.y }, idle: null as Phaser.Time.TimerEvent | null }
   }
 
   /** Keep captions separated throughout walking tweens, including between snapshots. */

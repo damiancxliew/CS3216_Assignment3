@@ -11,6 +11,7 @@ type Preview = {
   title: string;
   setting: string | null;
   teacher_name: string | null;
+  assets_ready: boolean;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -18,10 +19,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function preview(token: string): Promise<Preview | null> {
   if (!UUID.test(token)) return null;
   const supabase = await createClient();
-  const { data } = await supabase
-    .rpc("share_link_preview", { p_token: token })
-    .maybeSingle<Preview>();
-  return data ?? null;
+  const [details, readiness] = await Promise.all([
+    supabase.rpc("share_link_preview", { p_token: token }).maybeSingle<Omit<Preview, "assets_ready">>(),
+    supabase.rpc("share_link_ready", { p_token: token }),
+  ]);
+  return details.data ? { ...details.data, assets_ready: readiness.data === true } : null;
 }
 
 export const metadata: Metadata = {
@@ -44,6 +46,11 @@ export default async function JoinPage({
   // the link is simply not a way in until the teacher publishes (P3).
   if (!adventure) {
     return <Shell intro="This link isn’t open" title="Ask your teacher for the current one" />;
+  }
+  if (!adventure.assets_ready) {
+    return <Shell intro="Preparing the adventure" title={adventure.title}>
+      <p className="text-lg text-muted">Artwork and walking characters are being generated. Refresh this page shortly.</p>
+    </Shell>;
   }
 
   const supabase = await createClient();

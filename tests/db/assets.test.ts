@@ -65,11 +65,12 @@ describe("asset generation after publish", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(images.requests.map((r) => r.kind).every((k) => ["portrait", "landmark", "prop"].includes(k))).toBe(true);
+    expect(images.requests.map((r) => r.kind).every((k) => ["portrait", "landmark", "prop", "sprite"].includes(k))).toBe(true);
     const manifest = await loadManifest(admin, result.specVersionId, adventureId, 1);
     const playableAssets = playableAssetEligibility(spec);
     expect(manifest!.records).toHaveLength(playableAssets.length);
     expect(manifest!.records.filter((record) => record.kind === "landmark")).toHaveLength(spec.stages.flatMap((stage) => stage.rooms.filter((room) => room.landmark)).length);
+    expect(manifest!.records.filter((record) => record.kind === "sprite")).toHaveLength(spec.stakeholders.length);
     const portraits = manifest!.records.filter((r) => r.kind === "portrait");
     expect(portraits.length).toBeGreaterThan(0);
     for (const p of portraits) {
@@ -114,6 +115,7 @@ describe("asset generation after publish", () => {
     const pendingOrFiltered = result.state.agents.filter((a) => a.portraitUrl === null);
     expect(generated.length + pendingOrFiltered.length).toBe(result.state.agents.length);
     expect(generated.length).toBeGreaterThan(0);
+    expect(result.state.actors.some((actor) => actor.kind === "agent" && actor.spriteSheetUrl?.includes("/storage/v1/object/public/assets/"))).toBe(true);
     expect(result.state.landmarks.some((landmark) => landmark.imageUrl?.includes("/storage/v1/object/public/assets/"))).toBe(true);
   });
 });

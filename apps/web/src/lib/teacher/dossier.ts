@@ -73,7 +73,7 @@ export type DossierStage = {
 };
 
 export type Dossier = {
-  artwork: { id: string; kind: "portrait" | "landmark" | "prop"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null }[];
+  artwork: { id: string; kind: "portrait" | "landmark" | "prop" | "sprite"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null }[];
   stakeholders: DossierStakeholder[];
   stages: DossierStage[];
   endings: {
@@ -97,8 +97,8 @@ function imageStatus(record: AssetRecord | undefined): ImageStatus {
 }
 
 /** The manifest row for a spec entity, if artwork was ever attempted for it. */
-function recordFor(manifest: AssetManifest | null, entityId: string): AssetRecord | undefined {
-  return manifest?.records.find((r) => r.entityId === entityId);
+function recordFor(manifest: AssetManifest | null, entityId: string, kind: AssetRecord['kind']): AssetRecord | undefined {
+  return manifest?.records.find((r) => r.entityId === entityId && r.kind === kind);
 }
 
 /**
@@ -118,7 +118,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
   }
 
   const stakeholders: DossierStakeholder[] = spec.stakeholders.map((s) => {
-    const record = recordFor(manifest, s.id);
+    const record = recordFor(manifest, s.id, "portrait");
     const status = imageStatus(record);
     return {
       id: s.id,
@@ -144,7 +144,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
       return map ? { width: map.width, height: map.height, rooms: map.rooms, doors: map.doors } : null;
     })(),
     rooms: stage.rooms.map((room) => {
-      const record = room.landmark ? recordFor(manifest, room.id) : undefined;
+      const record = room.landmark ? recordFor(manifest, room.id, "landmark") : undefined;
       const status = imageStatus(record);
       return {
         id: room.id,
@@ -164,7 +164,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
       publicPosition: agent.publicPosition.text,
     })),
     evidence: stage.evidence.map((item) => {
-      const record = recordFor(manifest, item.id);
+      const record = recordFor(manifest, item.id, "prop");
       const status = imageStatus(record);
       return {
         id: item.id,
@@ -192,8 +192,11 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
   const playableIds = new Set(playable.map((asset) => asset.id));
   const records = (manifest?.records ?? []).filter((record) => playableIds.has(record.assetId));
   const artwork = playable.map((entry) => {
+    const ownRecord = records.find((record) => record.assetId === entry.id);
     const entity = entry.kind === "portrait"
       ? stakeholders.find((person) => person.id === entry.entityId)
+      : entry.kind === "sprite"
+        ? undefined
       : entry.kind === "landmark"
         ? stages.flatMap((stage) => stage.rooms).find((room) => room.id === entry.entityId)
         : stages.flatMap((stage) => stage.evidence).find((item) => item.id === entry.entityId);
@@ -201,9 +204,9 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
       id: entry.id,
       kind: entry.kind,
       name: entity?.name ?? entry.subject,
-      imageUrl: entity?.imageUrl ?? placeholderUrl(entry.kind),
-      imageStatus: entity?.imageStatus ?? ("placeholder" as ImageStatus),
-      assetId: entity?.assetId ?? null,
+      imageUrl: entry.kind === "sprite" ? (ownRecord && imageStatus(ownRecord) === "generated" ? ownRecord.url : placeholderUrl("sprite")) : entity?.imageUrl ?? placeholderUrl(entry.kind),
+      imageStatus: entry.kind === "sprite" ? imageStatus(ownRecord) : entity?.imageStatus ?? ("placeholder" as ImageStatus),
+      assetId: entry.kind === "sprite" ? ownRecord?.assetId ?? null : entity?.assetId ?? null,
     };
   });
   return {

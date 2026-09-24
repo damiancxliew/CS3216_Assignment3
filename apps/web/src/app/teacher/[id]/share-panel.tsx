@@ -17,10 +17,12 @@ export function SharePanel({
   adventureId,
   token,
   published,
+  ready,
 }: {
   adventureId: string;
   token: string;
   published: boolean;
+  ready: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
@@ -36,7 +38,7 @@ export function SharePanel({
       <div className="flex flex-col items-stretch gap-2 sm:flex-row">
         <code
           title={`/join/${token}`}
-          className={`flex min-h-11 min-w-0 flex-1 items-center overflow-hidden text-ellipsis whitespace-nowrap rounded-control border border-line bg-paper px-3 py-2 text-sm ${published ? "text-ink" : "text-muted line-through decoration-line-strong"}`}
+          className={`flex min-h-11 min-w-0 flex-1 items-center overflow-hidden text-ellipsis whitespace-nowrap rounded-control border border-line bg-paper px-3 py-2 text-sm ${published && ready ? "text-ink" : "text-muted line-through decoration-line-strong"}`}
         >
           /join/{token}
         </code>
@@ -57,6 +59,7 @@ export function SharePanel({
             if (revert.current !== null) clearTimeout(revert.current);
             revert.current = setTimeout(() => setCopied(false), 2000);
           }}
+          disabled={!published || !ready}
           className={`${button.quiet} sm:shrink-0`}
         >
           {copied ? "Copied" : "Copy link"}
@@ -65,6 +68,8 @@ export function SharePanel({
       <div aria-live="polite">
         {copyFailed ? (
           <p className="text-sm text-danger">Couldn’t copy the link. Select and copy it above.</p>
+        ) : published && !ready ? (
+          <p className="text-sm text-muted">Artwork and NPC walking sprites are being prepared. The link opens for students when they are ready.</p>
         ) : published ? null : (
           <p className="text-sm text-muted">Students can’t use this link until the adventure is published.</p>
         )}
