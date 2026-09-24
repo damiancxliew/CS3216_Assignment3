@@ -1,5 +1,17 @@
 # Student browser acceptance
 
+The document-reader regression test runs without Supabase or a Next server. It
+starts a temporary Vite harness with the real play UI, map, and session, holds the
+movement response, and checks immediate pickup, pending Notes, modal focus, and
+mobile scrolling. Install Playwright Chromium, then run:
+
+```sh
+RUN_READER_BROWSER_TESTS=1 npx vitest run tests/browser/document-reader.test.ts
+```
+
+Set `PLAYWRIGHT_CHANNEL=msedge` to use an installed Edge browser instead. Screenshots
+are saved under `output/reader-check/`.
+
 Run from the repository root against a running local Supabase instance with this
 branch's migrations applied. The test creates fresh users and an adventure; it
 does not reset the database. Install Playwright Chromium if it is not available.

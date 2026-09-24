@@ -61,6 +61,8 @@ export interface MapCanvasProps {
   onTalk: (actorId: string) => void;
   /** The player clicked a document lying on the map: read it, or walk over to it first. */
   onProp: (propId: string) => void;
+  /** Open the reader on the local step, before movement is acknowledged. */
+  onPickup: (propId: string) => void;
   onLandmark: (landmarkId: string) => void;
 }
 
@@ -96,10 +98,10 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onLandmark }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
-  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onLandmark });
-  latest.current = { state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onLandmark };
+  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark });
+  latest.current = { state, audio, intent, onIntentDone, onSteps, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark };
   const playerPos = useRef<Point | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
   const intentHandlerRef = useRef<((next: MapIntent) => void) | null>(null);
@@ -279,6 +281,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
     };
 
     const stepTo = (to: Point, inputAt = performance.now()) => {
+      if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
       if (latest.current.state.map?.id !== mapId || pending.length >= MAX_PENDING_STEPS) return;
       const s = latest.current.state;
       const from = playerPos.current ?? s.playerPos;
@@ -303,6 +306,13 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       if (path[0]?.x === to.x && path[0]?.y === to.y) path.shift();
       render();
       pending.at(-1)!.movedAt = performance.now();
+      const pickup = s.props.find((prop) => !prop.found && prop.position.x === to.x && prop.position.y === to.y);
+      if (pickup) {
+        path = [];
+        queuedTarget = null;
+        clearHeld();
+        latest.current.onPickup(pickup.id);
+      }
       void drain();
     };
 
@@ -343,6 +353,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
     }, WANDER_TICK_MS);
 
     const goTo = (target: Point, inputAt = performance.now()) => {
+      if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
       if (sendInFlight || pending.length > 0) {
         queuedTarget = { point: target, inputAt };
         return;
@@ -412,6 +423,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onWaiti
       return el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
     };
     const onKey = (event: KeyboardEvent) => {
+      if (document.querySelector('dialog[open], [aria-modal="true"]')) { clearHeld(); return; }
       if (event.ctrlKey || event.altKey || event.metaKey || typing(event.target)) return;
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       const target = event.target instanceof Element ? event.target : null;

@@ -11,7 +11,7 @@
  * decision, which stays quiet until you can actually make it, then lights up.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
-import { ArrowRight, Check, CornerDownRight, DoorOpen, FileText, HelpCircle, Lock, Search, Timer, UserRound, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowRight, Check, CornerDownRight, DoorOpen, FileText, HelpCircle, Lock, Search, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -26,6 +26,7 @@ import { StageCountdown } from "@/components/stage-countdown";
 import { Pending, Spinner, Thinking } from "@/components/ui";
 import type { PlayState } from "@/lib/play/session";
 import { withSceneBreaks } from "@/lib/play/transcript";
+import { DocumentReader } from "./document-reader";
 
 const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas), {
   ssr: false,
@@ -141,6 +142,9 @@ export function PlayClient({
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
+  const [loadingDocuments, setLoadingDocuments] = useState<string[]>([]);
+  const [documentErrors, setDocumentErrors] = useState<Record<string, string>>({});
+  const readingRequests = useRef(new Set<string>());
   const [inspectingLandmark, setInspectingLandmark] = useState<string | null>(null);
   const [pendingLandmark, setPendingLandmark] = useState<string | null>(null);
   const [pendingRead, setPendingRead] = useState<string | null>(null);
@@ -149,7 +153,7 @@ export function PlayClient({
   const transcriptLog = useRef<HTMLDivElement>(null);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
-  const readRef = useRef<(evidenceId: string) => void>(() => {});
+  const readRef = useRef<(evidenceId: string, open?: boolean) => void>(() => {});
   const autoReadAt = useRef<string | null>(null);
   const revision = useRef(initialState.revision);
   const serverViewKey = useRef(`${initialState.stage.id}:${initialState.status}`);
@@ -347,8 +351,12 @@ export function PlayClient({
     async (from: Point, path: Point[]) => {
       const before = stateRef.current;
       if (before.status !== "active" || busy === "Deciding…" || busy === "Knocking…") return { position: before.playerPos, accepted: false, retry: false };
-      // Reading is an inline HUD state. Walking naturally puts the file away.
-      if (path.length > 0) setReading(null);
+      const failPickup = () => {
+        const ids = before.props.filter((prop) => !prop.found && path.some((point) => point.x === prop.position.x && point.y === prop.position.y)).map((prop) => prop.id);
+        if (!ids.length) return;
+        setPendingRead((current) => current && ids.includes(current) ? null : current);
+        setDocumentErrors((errors) => ({ ...errors, ...Object.fromEntries(ids.map((id) => [id, "Couldn’t pick up this scroll. Move closer and try again."])) }));
+      };
       setHintVisible(false);
       try {
         let requestSentAt = 0;
@@ -363,16 +371,19 @@ export function PlayClient({
           }
           if (result.error.code === "stale_state") {
             await refresh();
+            if (stateRef.current.playerPos?.x !== from.x || stateRef.current.playerPos?.y !== from.y) failPickup();
             return { position: stateRef.current.playerPos, accepted: false, retry: true, timings: result.timings, requestSentAt, acknowledgedAt };
           }
+          failPickup();
           setNotice(result.error.message);
           await refresh();
           return { position: stateRef.current.playerPos, accepted: false, retry: false, timings: result.timings, requestSentAt, acknowledgedAt };
         }
         accept(result.body.state);
-        if (result.body.refused) setNotice(result.body.refused);
+        if (result.body.refused) { failPickup(); setNotice(result.body.refused); }
         return { position: stateRef.current.playerPos, accepted: !result.body.refused && stateRef.current.stage.id === before.stage.id, retry: false, timings: result.timings, requestSentAt, acknowledgedAt };
       } catch {
+        failPickup();
         setNotice("Could not reach the server. Please try again.");
         return { position: stateRef.current.playerPos, accepted: false, retry: false };
       }
@@ -407,19 +418,34 @@ export function PlayClient({
   }, [pendingTalk, state.hearingActorIds]);
 
   /** Examine a document, then put it in front of the player to read. */
-  async function read(evidenceId: string) {
+  async function read(evidenceId: string, open = true) {
+    if (open) setReading(evidenceId);
     const known = stateRef.current.journal.some((entry) => entry.id === evidenceId);
-    if (known) {
-      setReading(evidenceId);
-      return;
+    if (known || readingRequests.current.has(evidenceId)) return;
+    readingRequests.current.add(evidenceId);
+    setLoadingDocuments((ids) => ids.includes(evidenceId) ? ids : [...ids, evidenceId]);
+    setDocumentErrors((errors) => ({ ...errors, [evidenceId]: "" }));
+    try {
+      const ok = await act("Reading…", () => {
+        // A queued movement may have collected it while this request was waiting.
+        if (stateRef.current.journal.some((entry) => entry.id === evidenceId)) return Promise.resolve({ ok: true as const, body: { state: stateRef.current } });
+        return playApi.action(attemptId, { type: "inspect", evidenceId });
+      });
+      if (!ok) setDocumentErrors((errors) => ({ ...errors, [evidenceId]: "Couldn’t open this scroll. Move closer and try again." }));
+    } catch {
+      setDocumentErrors((errors) => ({ ...errors, [evidenceId]: "Couldn’t load this scroll. Please try again." }));
+    } finally {
+      readingRequests.current.delete(evidenceId);
     }
-    // Open the sheet immediately. The content replaces its loading state as soon as the
-    // authoritative pickup returns, instead of making the click appear to do nothing.
-    setReading(evidenceId);
-    const ok = await act("Reading…", () => playApi.action(attemptId, { type: "inspect", evidenceId }));
-    if (!ok) setReading((current) => current === evidenceId ? null : current);
   }
-  readRef.current = (evidenceId) => { void read(evidenceId); };
+  readRef.current = (evidenceId, open) => { void read(evidenceId, open); };
+
+  function onPickup(evidenceId: string) {
+    setIntent(null);
+    setReading(evidenceId);
+    setPendingRead(evidenceId);
+    setLoadingDocuments((ids) => ids.includes(evidenceId) ? ids : [...ids, evidenceId]);
+  }
 
   /** From the map: read the document if you are next to it, otherwise walk over first. */
   function onProp(propId: string) {
@@ -473,11 +499,11 @@ export function PlayClient({
     if (readable) {
       setPendingRead(null);
       setIntent(null);
-      readRef.current(pendingRead);
+      readRef.current(pendingRead, !loadingDocuments.includes(pendingRead));
     } else if (!current.props.some((item) => item.id === pendingRead)) {
       setPendingRead(null);
     }
-  }, [pendingRead, state.revision, busy]);
+  }, [pendingRead, state.revision, busy, loadingDocuments]);
 
   // Walking directly over a document picks it up even when movement did not begin from its label.
   useEffect(() => {
@@ -498,6 +524,7 @@ export function PlayClient({
   const openDocument = reading ? state.journal.find((entry) => entry.id === reading) ?? null : null;
   const openDocumentName = reading ? state.props.find((item) => item.id === reading)?.name ?? "Document" : "";
   const openLandmark = inspectingLandmark ? state.landmarks.find((item) => item.id === inspectingLandmark) ?? null : null;
+  const pendingDocuments = loadingDocuments.filter((id) => !state.journal.some((entry) => entry.id === id) && state.props.some((prop) => prop.id === id));
 
   if (state.status === "completed") {
     return (
@@ -595,6 +622,7 @@ export function PlayClient({
           onWaitingAtDoor={setWaitingAtDoor}
           onTalk={onTalk}
           onProp={onProp}
+          onPickup={onPickup}
           onLandmark={onLandmark}
         />
         {hintVisible ? (
@@ -832,12 +860,41 @@ export function PlayClient({
               <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>
               <span className="ml-3 text-muted">Stage {state.stage.index + 1} of {state.stageCount}</span>
             </p>
-            {state.journal.length ? (
-              <button type="button" className={subtle} onClick={() => setNotesOpen((v) => !v)} aria-expanded={notesOpen}>
-                Notes ({state.journal.length})
+              <button type="button" className={subtle} onClick={() => setNotesOpen((v) => !v)} aria-expanded={notesOpen} aria-controls="collected-notes">
+                Notes ({state.journal.length + pendingDocuments.length})
               </button>
-            ) : null}
           </div>
+          {notesOpen ? (
+            <ul id="collected-notes" aria-label="Collected notes" className="flex max-h-48 shrink-0 flex-col gap-2 overflow-y-auto border-l-[3px] border-world pl-3">
+              {!state.journal.length && !pendingDocuments.length ? <li className="p-3 text-muted">No scrolls collected yet. Walk to a document to read it.</li> : null}
+              {pendingDocuments.map((id) => (
+                <li key={id}>
+                  <button type="button" onClick={() => setReading(id)} className="flex min-h-11 w-full items-center gap-3 rounded-control bg-surface p-3 text-left text-ink">
+                    {documentErrors[id] ? <FileText className="h-5 w-5 shrink-0" /> : <Spinner />}
+                    <span>{state.props.find((prop) => prop.id === id)?.name ?? "Document"}<span className="block text-sm text-muted">{documentErrors[id] ? "Couldn’t load · open to retry" : "Loading scroll… Open to read"}</span></span>
+                  </button>
+                </li>
+              ))}
+              {state.journal.map((j) => (
+                <li key={j.id}>
+                  <button
+                    type="button"
+                    onClick={() => setReading(j.id)}
+                    className="flex w-full gap-3 rounded-control bg-surface p-3 text-left text-base leading-relaxed text-ink hover:bg-sunken"
+                  >
+                    {state.evidenceImages[j.id] ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
+                      <img src={state.evidenceImages[j.id]} alt="" className="h-14 w-14 flex-none rounded-control object-cover" />
+                    ) : null}
+                    <span className="min-w-0">
+                      <span className="line-clamp-2 block">{j.text}</span>
+                      {j.sourceSpan ? <span className="mt-1 block font-serif text-base italic text-record">{j.sourceSpan}</span> : null}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <ul className="flex flex-col gap-1.5">
             {state.stage.objectives.map((o) => (
               <li key={o.id} className={`flex items-start gap-2.5 text-base leading-snug ${o.met ? "text-muted" : "font-semibold text-ink"}`}>
@@ -859,28 +916,6 @@ export function PlayClient({
               </li>
             ))}
           </ul>
-          {notesOpen && state.journal.length ? (
-            <ul className="flex max-h-48 flex-col gap-2 overflow-y-auto border-l-[3px] border-world pl-3">
-              {state.journal.map((j) => (
-                <li key={j.id}>
-                  <button
-                    type="button"
-                    onClick={() => setReading(j.id)}
-                    className="flex w-full gap-3 rounded-control bg-surface p-3 text-left text-base leading-relaxed text-ink hover:bg-sunken"
-                  >
-                    {state.evidenceImages[j.id] ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
-                      <img src={state.evidenceImages[j.id]} alt="" className="h-14 w-14 flex-none rounded-control object-cover" />
-                    ) : null}
-                    <span className="min-w-0">
-                      <span className="line-clamp-2 block">{j.text}</span>
-                      {j.sourceSpan ? <span className="mt-1 block font-serif text-base italic text-record">{j.sourceSpan}</span> : null}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
 
           {canDecide ? (
             <div className="flex flex-col gap-2 rounded-surface border border-signal bg-signal-wash p-3">
@@ -969,6 +1004,8 @@ export function PlayClient({
           imageUrl={openDocument ? state.evidenceImages[openDocument.id] ?? null : null}
           position={openDocument ? state.journal.findIndex((entry) => entry.id === openDocument.id) + 1 : null}
           total={state.journal.length}
+          error={reading ? documentErrors[reading] ?? null : null}
+          onRetry={() => void read(reading)}
           onClose={() => setReading(null)}
         />
       ) : null}
@@ -985,125 +1022,6 @@ export function PlayClient({
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * Evidence opens above the game like a case file laid across the desk. The
- * frame stays fixed while the paper itself scrolls, so long records remain
- * readable without displacing the conversation HUD.
- */
-function DocumentReader({
-  entry,
-  name,
-  imageUrl,
-  position,
-  total,
-  onClose,
-}: {
-  entry: PlayState["journal"][number] | null;
-  name: string;
-  imageUrl: string | null;
-  position: number | null;
-  total: number;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-3 backdrop-blur-[1px] sm:p-6"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        className="flex max-h-[calc(100dvh-1.5rem)] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-surface border border-record/40 bg-paper shadow-2xl sm:max-h-[min(88dvh,56rem)]"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="document-title"
-      >
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-record/25 bg-paper px-4 py-3 sm:px-6">
-        <div className="flex min-w-0 items-center gap-2 text-record">
-          <FileText className="h-5 w-5 shrink-0" aria-hidden />
-          <p className="truncate text-sm font-semibold uppercase tracking-[0.12em]">
-            {position === null ? "Opening case file" : `Case file ${position} of ${total}`}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-control border border-line-strong bg-surface text-muted transition-colors hover:border-ink hover:text-ink"
-          onClick={onClose}
-          autoFocus
-          aria-label={`Put down ${name}`}
-        >
-          <X className="h-5 w-5" aria-hidden />
-        </button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto bg-record-wash/45 p-3 overscroll-contain sm:p-6">
-          <article className="relative mx-auto flex max-w-2xl flex-col gap-5 overflow-hidden rounded-surface border border-record/35 bg-surface px-5 py-6 shadow-sm sm:px-8 sm:py-8">
-          <span className="absolute right-0 top-0 h-10 w-10 border-b border-l border-record/25 bg-record-wash" aria-hidden />
-          <header className="flex items-start gap-4 border-b border-line pb-4 pr-8">
-            {imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- generated prop from storage
-              <img src={imageUrl} alt="" className="h-20 w-20 flex-none rounded-control border border-line object-cover" />
-            ) : (
-              <span className="inline-flex h-12 w-12 flex-none items-center justify-center rounded-control bg-record-wash text-record" aria-hidden>
-                <FileText className="h-6 w-6" />
-              </span>
-            )}
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-record">
-                {entry ? "Evidence collected · saved to your notes" : "Examining evidence…"}
-              </p>
-              <h2 id="document-title" className="mt-1 font-serif text-2xl leading-tight text-ink sm:text-3xl">
-                {name}
-              </h2>
-            </div>
-          </header>
-
-          {entry ? (
-            <>
-              <p className="whitespace-pre-line font-serif text-lg leading-[1.75] text-ink">{entry.text}</p>
-              {entry.sourceSpan ? (
-                <footer className="border-l-[3px] border-record bg-record-wash/50 px-4 py-3">
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">From the historical record</p>
-                  <p className="font-serif text-base italic text-record">{entry.sourceSpan}</p>
-                </footer>
-              ) : null}
-            </>
-          ) : (
-            <div className="flex min-h-32 items-center justify-center gap-3 text-base text-muted" role="status" aria-live="polite">
-              <Spinner /> Reading the document…
-            </div>
-          )}
-          </article>
-        </div>
-
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-record/25 bg-paper px-4 py-3 sm:px-6">
-          <p className="inline-flex items-center gap-2 text-sm font-semibold text-world">
-            {entry ? <Check className="h-4 w-4" aria-hidden /> : <Spinner className="h-4 w-4" />}
-            {entry ? "Added to notes" : "Collecting"}
-          </p>
-          <button type="button" className={subtle} onClick={onClose}>
-            Close file
-          </button>
-        </div>
-      </section>
     </div>
   );
 }

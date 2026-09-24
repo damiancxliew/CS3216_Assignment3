@@ -1,0 +1,77 @@
+.dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(48rem, calc(100vw - 1.5rem));
+  max-width: none;
+  max-height: calc(100dvh - 1.5rem);
+  padding: 12px 8px;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  color: #392515;
+  color-scheme: light;
+}
+.dialog::backdrop { background: rgb(19 16 12 / 72%); backdrop-filter: blur(3px); }
+.scroll { filter: drop-shadow(0 20px 28px rgb(0 0 0 / 45%)); }
+.roller {
+  position: relative;
+  z-index: 1;
+  height: 29px;
+  border: 1px solid #97713e;
+  border-radius: 9px;
+  background: linear-gradient(#a77a41 0%, #ead09a 19%, #fae9bb 40%, #d9b375 72%, #947044 100%);
+  box-shadow: inset 0 2px 3px #fff2ce80, 0 3px 5px #51351845;
+}
+.roller::before, .roller::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 13px;
+  border: 1px solid #68451e;
+  border-radius: 5px;
+  background: linear-gradient(#7c5028, #be9354 38%, #936130 65%, #58391f);
+}
+.roller::before { left: -5px; }
+.roller::after { right: -5px; }
+.paper {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 7rem);
+  margin: -4px 13px;
+  border-inline: 1px solid #bd985f;
+  background:
+    radial-gradient(ellipse at 15% 20%, #fff8dc75, transparent 50%),
+    repeating-linear-gradient(7deg, #79512c04 0 1px, transparent 1px 4px),
+    linear-gradient(90deg, #c4a06c, #ecdaaa 4%, #f7e9c5 14%, #efddb1 86%, #dfc38f 96%, #ba9059);
+  box-shadow: inset 0 8px 14px -9px #64421c, inset 0 -8px 14px -9px #64421c;
+}
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; padding: 20px 30px 4px; }
+.eyebrow { display: flex; align-items: center; gap: 8px; font: 600 12px/1.5 var(--font-ui, system-ui), sans-serif; letter-spacing: .13em; text-transform: uppercase; color: #77562f; }
+.close { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border: 1px solid #9b794a75; border-radius: 50%; color: #684624; background: #fff5d630; cursor: pointer; }
+.close:hover, .button:hover { background: #bd945636; }
+.close:focus-visible, .button:focus-visible, .content:focus-visible { outline: 3px solid #855926; outline-offset: 3px; }
+.content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #a67c43 #e8d3a3; padding: 16px 48px 32px; overflow-wrap: anywhere; }
+.kicker { text-align: center; text-transform: uppercase; letter-spacing: .18em; color: #856539; font-size: 11px; font-weight: 600; }
+.title { margin: 12px 0 20px; text-align: center; font: 600 clamp(1.65rem, 3.5vw, 2.4rem)/1.2 var(--font-record, Georgia), serif; text-wrap: balance; color: #3c2816; }
+.divider { display: flex; align-items: center; gap: 12px; width: 75%; margin: 0 auto 26px; color: #97703b; font-size: 11px; }
+.divider::before, .divider::after { content: ""; height: 1px; flex: 1; background: #a680465c; }
+.text { white-space: pre-line; font: 400 1.2rem/1.85 var(--font-record, Georgia), serif; }
+.text::first-letter { float: left; font-size: 3.4rem; line-height: 1; padding: 6px 8px 0 0; color: #784423; }
+.source { margin-top: 28px; padding: 18px 0 0; border-top: 1px solid #a6804660; font: italic 1rem/1.75 var(--font-record, Georgia), serif; color: #674929; }
+.source > p:first-child { margin-bottom: 8px; }
+.footer { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 0 30px; border-top: 1px solid #a680464a; padding: 14px 0 20px; }
+.footer > p { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #6b5732; }
+.button { min-height: 44px; padding: 9px 17px; border: 1px solid #987143; border-radius: 4px; background: #e2c78e50; color: #58391f; font-size: 14px; font-weight: 600; cursor: pointer; }
+.loading { display: flex; min-height: 160px; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; color: #77562f; }
+.hint { font-size: 13px; }
+.illustration { display: block; width: 80px; height: 80px; object-fit: cover; margin: 0 auto 18px; border: 1px solid #a6804680; border-radius: 4px; filter: sepia(.35); }
+@media (max-width: 540px) {
+  .header { padding: 16px 16px 4px; }
+  .eyebrow { font-size: 10px; letter-spacing: .08em; }
+  .content { padding: 16px 22px 24px; }
+  .text { font-size: 1.05rem; line-height: 1.75; }
+  .footer { margin-inline: 16px; }
+  .roller { height: 23px; }
+}
