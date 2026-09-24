@@ -90,11 +90,11 @@ function Shell({
   children?: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-6 py-8">
+    <main className="game-grid mx-auto flex min-h-screen w-full max-w-4xl flex-col px-6 py-8">
       <Wordmark />
-      <div className="flex flex-1 flex-col justify-center gap-5 py-16">
-        <p className="text-base text-muted">{intro}</p>
-        <h1 className="font-serif text-4xl text-ink sm:text-5xl">{title}</h1>
+      <div className="my-auto flex flex-col gap-5 rounded-[2rem] border-[3px] border-ink bg-surface px-7 py-10 shadow-[0_8px_0_var(--ink)] sm:px-12 sm:py-14">
+        <p className="w-fit rounded-full bg-[#ffe66d] px-4 py-2 text-sm font-black uppercase tracking-wider text-ink">{intro}</p>
+        <h1 className="max-w-[15ch] text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">{title}</h1>
         {children}
       </div>
     </main>

@@ -28,10 +28,15 @@ export function TeacherWorkspace({ adventures, resume }: { adventures: React.Rea
         className={
           composing
             ? "mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col px-6 py-5 sm:px-8"
-            : "flex min-h-0 flex-col gap-5 rounded-surface border border-line bg-surface p-6 lg:max-h-full"
+            : "game-shadow flex min-h-0 flex-col gap-5 rounded-surface border-2 border-ink bg-signal-wash p-6 lg:max-h-full"
         }
       >
-        {composing ? null : <h2 className="font-serif text-2xl text-ink">New adventure</h2>}
+        {composing ? null : (
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-signal">Create a new quest</p>
+            <h2 className="mt-1 text-2xl font-black tracking-tight text-ink">What should students step into?</h2>
+          </div>
+        )}
         <BriefChat resume={resume} onComposingChange={setComposing} />
       </section>
     </div>

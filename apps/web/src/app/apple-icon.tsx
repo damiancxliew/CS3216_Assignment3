@@ -19,12 +19,13 @@ export default function AppleIcon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#f1f3f5",
+          background: "#ffe4d2",
+          border: "12px solid #172033",
         }}
       >
         <svg width={124} height={124} viewBox="0 0 32 32">
-          <path d={MARK_PATHS.record} fill="#1c468a" />
-          <path d={MARK_PATHS.world} fill="#4f6033" />
+          <path d={MARK_PATHS.record} fill="#3659cf" />
+          <path d={MARK_PATHS.world} fill="#258663" />
         </svg>
       </div>
     ),

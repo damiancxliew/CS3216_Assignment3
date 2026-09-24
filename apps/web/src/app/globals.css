@@ -1,53 +1,27 @@
 @import "tailwindcss";
 
-/*
- * Two registers, one system. History speaks in a serif and ink-blue; the
- * interface and the simulation speak in a sans, with the map's moss green
- * marking what the game itself did or assumed. Nothing else is coloured
- * except the one signal that asks for attention (the timer, the decision)
- * and the one that reports a failure.
- *
- * Contrast floor: muted text is at least 7:1 on paper in both schemes, so it
- * reads as secondary, not faint.
- */
+/* A bright game shell around a serious learning experience. Historical
+ * excerpts keep their serif voice, while the product itself is warm, rounded
+ * and energetic. Record blue and world green still distinguish source from
+ * simulation throughout the experience. */
 :root {
-  --paper: #f1f3f5;
-  --surface: #ffffff;
-  --surface-sunken: #e4e8ec;
-  --ink: #141c25;
-  --ink-muted: #465059;
-  --line: #c6cdd4;
-  --line-strong: #7f8b98;
+  --paper: #fff8e9;
+  --surface: #fffdf8;
+  --surface-sunken: #f1e8d7;
+  --ink: #172033;
+  --ink-muted: #5c6472;
+  --line: #ded3c1;
+  --line-strong: #9e927e;
 
-  --record: #1c468a;
-  --record-wash: #e0e9f5;
-  --world: #4f6033;
-  --world-wash: #e5eadb;
-  --signal: #a97a00;
-  --signal-wash: #f6ead0;
-  --danger: #ab2117;
-  --danger-wash: #f8e1df;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #141a21;
-    --surface: #1d2630;
-    --surface-sunken: #0e1318;
-    --ink: #eaedf0;
-    --ink-muted: #aab4be;
-    --line: #303b47;
-    --line-strong: #56636f;
-
-    --record: #9dbcec;
-    --record-wash: #1b2b45;
-    --world: #b3c193;
-    --world-wash: #242d1d;
-    --signal: #e9c455;
-    --signal-wash: #352b10;
-    --danger: #f5908a;
-    --danger-wash: #3d1d1b;
-  }
+  --record: #3659cf;
+  --record-wash: #e7ecff;
+  --world: #258663;
+  --world-wash: #dff4e9;
+  --signal: #d85f35;
+  --signal-wash: #ffe4d2;
+  --danger: #b82e3e;
+  --danger-wash: #ffe0e5;
+  --spark: #7c4dcc;
 }
 
 @theme inline {
@@ -70,8 +44,8 @@
   --font-sans: var(--font-ui), system-ui, sans-serif;
   --font-serif: var(--font-record), Georgia, serif;
 
-  --radius-control: 8px;
-  --radius-surface: 14px;
+  --radius-control: 12px;
+  --radius-surface: 22px;
 
   --text-xs: 0.875rem;
   --text-xs--line-height: 1.45;
@@ -109,16 +83,43 @@
 }
 
 html {
-  color-scheme: light dark;
+  color-scheme: light;
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--paper);
+  background:
+    radial-gradient(circle at 8% 4%, color-mix(in srgb, var(--signal-wash) 75%, transparent) 0, transparent 24rem),
+    radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--record-wash) 80%, transparent) 0, transparent 28rem),
+    var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 1.0625rem;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+}
+
+button,
+a,
+summary,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.game-grid {
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 15%, transparent) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.game-shadow {
+  box-shadow: 0 7px 0 color-mix(in srgb, var(--ink) 12%, transparent), 0 22px 60px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.sticker {
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--ink) 18%, transparent);
+  transform: rotate(-1.5deg);
 }
 
 .font-serif {
@@ -173,8 +174,8 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--record);
-  outline-offset: 2px;
+  outline: 3px solid var(--record);
+  outline-offset: 3px;
 }
 
 ::selection {
