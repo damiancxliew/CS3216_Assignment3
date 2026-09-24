@@ -6,9 +6,10 @@
  * the player is in. Crossing into a room posts `move_room`; if the server refuses
  * (a closed door, a stale stage), the player is put back.
  *
- * Agents' tile-to-tile wandering is cosmetic and stays inside their location.
+ * Agent markers use the same server position as speech and interaction checks.
  */
 import {
+  canHearSpeech,
   canStep,
   findPath,
   isWalkable,
@@ -21,15 +22,12 @@ import type { SoundCueId } from "@adventure/game-client";
 import { useEffect, useRef } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
-import { chooseRoomWanderStep, isInsideLocation, pointKey } from "@/lib/play/npc-wander";
 import { MAX_PENDING_STEPS, MAX_STEPS_PER_REQUEST, optimisticAdvance, settleBatch, type PendingStep } from "@/lib/play/optimistic-queue";
 import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PlayState } from "@/lib/play/session";
 import type { ServerTiming } from "./api";
 
 const STEP_MS = 160;
-const WANDER_TICK_MS = 700;
-const WANDER_CHANCE = 0.45;
 
 const KEYS: Record<string, Point> = {
   ArrowUp: { x: 0, y: -1 },
@@ -120,13 +118,10 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
     let facing: "down" | "up" | "left" | "right" = "down";
     let path: Point[] = [];
     let pathInputAt: number | undefined;
-    let queuedTarget: { point: Point; inputAt: number } | null = null;
     let sendInFlight = false;
     let pending: PendingStep[] = [];
     let nextSendAt = 0;
-    let batchUntil = 0;
     let sendTimer: number | undefined;
-    const npcPositions = new Map<string, Point>();
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const perfEnabled = (() => {
       try {
@@ -152,12 +147,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
             const key = a.roomId ?? OUTDOORS_ROOM_ID;
             const n = occupantsByRoom.get(key) ?? 0;
             occupantsByRoom.set(key, n + 1);
-            const remembered = npcPositions.get(a.id);
-            const position = remembered && a.roomId && isInsideLocation(map as StageMap, a.roomId, remembered)
-              ? remembered
-              : a.position ?? (a.roomId ? seatIn(map as StageMap, a.roomId, n + 1) : outdoorSeat(map as StageMap, n));
+            const position = a.position ?? (a.roomId ? seatIn(map as StageMap, a.roomId, n + 1) : outdoorSeat(map as StageMap, n));
             if (!position) return null;
-            npcPositions.set(a.id, position);
             return {
               id: a.id,
               name: a.name,
@@ -215,15 +206,9 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
 
     const drain = async () => {
       if (destroyed || sendInFlight || pending.length === 0 || latest.current.state.map?.id !== mapId) return;
-      // Let a continuing walk accumulate a few steps before its first write.
-      // A one-tile click or a stopped walk still flushes immediately.
-      if (pending.length < 3 && (path.length > 0 || held.size > 0) && performance.now() < batchUntil) {
-        if (sendTimer === undefined) sendTimer = window.setTimeout(() => {
-          sendTimer = undefined;
-          void drain();
-        }, batchUntil - performance.now());
-        return;
-      }
+      // Commit a continuing walk in full batches, then flush a partial batch
+      // as soon as the player stops so interaction can begin.
+      if (pending.length < MAX_STEPS_PER_REQUEST && (path.length > 0 || held.size > 0)) return;
       if (sendTimer !== undefined) {
         window.clearTimeout(sendTimer);
         sendTimer = undefined;
@@ -243,9 +228,10 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       sendInFlight = true;
       let acknowledgement: { position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number };
       try {
-        // One request per step-worth of walking: the server grants exactly that, so
-        // pacing to it keeps the queue level however long a round trip takes.
-        nextSendAt = performance.now() + STEP_MS * count;
+        // A new token accrues after one step interval. The walk animation has
+        // already spent time on this batch, so waiting for every token to refill
+        // again would unnecessarily stall the next interaction.
+        nextSendAt = performance.now() + STEP_MS;
         acknowledgement = await latest.current.onSteps(step.from, batch.map((queued) => queued.to));
       } catch {
         acknowledgement = { position: latest.current.state.playerPos, accepted: false, retry: false };
@@ -256,12 +242,11 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       if (acknowledgement.retry) {
         const position = acknowledgement.position;
         if (position && (position.x !== step.from.x || position.y !== step.from.y)) {
-          const destination = queuedTarget?.point ?? path.at(-1) ?? pending.at(-1)?.to;
+          const destination = path.at(-1) ?? pending.at(-1)?.to;
           showPosition(position);
           pending = [];
           path = [];
           pathInputAt = undefined;
-          queuedTarget = null;
           render();
           if (destination) window.setTimeout(() => {
             if (!destroyed && latest.current.state.map?.id === mapId) goTo(destination);
@@ -289,13 +274,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       render();
       logBatch(step, { ...acknowledgement, acknowledgedAt }, count, pending.length);
       if (path.length === 0) latest.current.onIntentDone();
-      if (pending.length === 0 && queuedTarget) {
-        const target = queuedTarget;
-        queuedTarget = null;
-        goTo(target.point, target.inputAt);
-      } else {
-        void drain();
-      }
+      void drain();
     };
 
     const stepTo = (to: Point, inputAt = performance.now()) => {
@@ -319,7 +298,6 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       facing = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? "right" : "left") : ddy > 0 ? "down" : "up";
       const advanced = optimisticAdvance(from, { to, inputAt, movedAt: 0 }, pending);
       if (!advanced) return;
-      if (pending.length === 0) batchUntil = performance.now() + STEP_MS * 2;
       showPosition(advanced.position);
       pending = advanced.queue;
       if (path[0]?.x === to.x && path[0]?.y === to.y) path.shift();
@@ -328,7 +306,6 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       const pickup = s.props.find((prop) => !prop.found && prop.position.x === to.x && prop.position.y === to.y);
       if (pickup) {
         path = [];
-        queuedTarget = null;
         clearHeld();
         latest.current.onPickup(pickup.id);
       }
@@ -343,40 +320,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       void stepTo(next, inputAt);
     }, STEP_MS);
 
-    const wander = window.setInterval(() => {
-      if (document.visibilityState !== "visible" || reduced.matches) return;
-      const s = latest.current.state;
-      const agents = s.actors.filter((actor) => actor.kind === "agent");
-      const activeIds = new Set(agents.map((actor) => actor.id));
-      for (const id of npcPositions.keys()) if (!activeIds.has(id)) npcPositions.delete(id);
-
-      // Snapshot once to seed any newly-added actor before choosing steps.
-      snapshot();
-      const blocked = new Set(s.props.filter((prop) => !prop.found).map((prop) => pointKey(prop.position)));
-      const player = playerPos.current ?? s.playerPos;
-      if (player) blocked.add(pointKey(player));
-      for (const position of npcPositions.values()) blocked.add(pointKey(position));
-
-      let moved = false;
-      for (const actor of agents) {
-        if (!actor.roomId || s.hearingActorIds.includes(actor.id) || Math.random() > WANDER_CHANCE) continue;
-        const from = npcPositions.get(actor.id);
-        if (!from) continue;
-        blocked.delete(pointKey(from));
-        const next = chooseRoomWanderStep(map as StageMap, doorsOf(s), actor.roomId, from, blocked);
-        npcPositions.set(actor.id, next);
-        blocked.add(pointKey(next));
-        moved ||= next.x !== from.x || next.y !== from.y;
-      }
-      if (moved) render();
-    }, WANDER_TICK_MS);
-
     const goTo = (target: Point, inputAt = performance.now()) => {
       if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
-      if (sendInFlight || pending.length > 0) {
-        queuedTarget = { point: target, inputAt };
-        return;
-      }
       const from = playerPos.current ?? latest.current.state.playerPos;
       if (!from) return;
       const doors = doorsOf(latest.current.state);
@@ -408,8 +353,8 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       if (!next) {
         path = [];
         pathInputAt = undefined;
-        queuedTarget = null;
         render();
+        void drain();
         return;
       }
       if (next.kind === "room") goToRoom(next.roomId);
@@ -435,6 +380,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       held.clear();
       if (repeat !== undefined) window.clearInterval(repeat);
       repeat = undefined;
+      void drain();
     };
     const typing = (target: EventTarget | null) => {
       const el = target as HTMLElement | null;
@@ -531,7 +477,6 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       clearHeld();
       if (sendTimer !== undefined) window.clearTimeout(sendTimer);
       window.clearInterval(walk);
-      window.clearInterval(wander);
       view?.destroy();
       renderRef.current = null;
       parent.replaceChildren();
