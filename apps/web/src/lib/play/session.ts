@@ -107,6 +107,8 @@ export interface PlayState extends PublicAttemptState {
   objectiveHints: Record<string, string>;
   /** Generated landmark image per room, when the asset service produced one (D4). */
   roomImages: Record<string, string>;
+  /** Room fixtures that can be inspected on the map, even before generated art is ready. */
+  landmarks: { id: string; roomId: string; name: string; description: string; position: Point }[];
   /** Generated prop image per evidence item, when one exists (D4). Keys are evidence ids. */
   evidenceImages: Record<string, string>;
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
@@ -364,6 +366,7 @@ export class PlaySession {
     const secondsRemaining =
       timer.enabled && timer.deadlineAt ? Math.max(0, Math.floor((new Date(timer.deadlineAt).getTime() - now.getTime()) / 1000)) : null;
     const { ambientOverlay } = resolveStageSettings(this.spec, this.stage);
+    const roomImages = this.generatedImages("landmark", this.stage.rooms.map((room) => room.id));
 
     return {
       attemptId: this.attemptId,
@@ -452,7 +455,18 @@ export class PlaySession {
         return position ? [{ id: item.id, name: item.name, roomId: item.roomId, position, found: known.has(item.id) }] : [];
       }),
       objectiveHints: this.objectiveHints(),
-      roomImages: this.generatedImages("landmark", this.stage.rooms.map((r) => r.id)),
+      roomImages,
+      landmarks: this.stage.rooms.flatMap((room) => {
+        const mapRoom = compiled?.map.rooms.find((candidate) => candidate.id === room.id);
+        if ((!room.landmark && !roomImages[room.id]) || !mapRoom) return [];
+        return [{
+          id: room.id,
+          roomId: room.id,
+          name: room.landmark?.name ?? room.name,
+          description: room.landmark?.description ?? room.purpose,
+          position: { x: mapRoom.x + Math.max(1, mapRoom.width - 2), y: mapRoom.y + Math.floor(mapRoom.height / 2) },
+        }];
+      }),
       evidenceImages: this.generatedImages("prop", this.stage.evidence.map((e) => e.id)),
       optionsVersion: derived.version,
       stageCount: this.spec.stages.length,
