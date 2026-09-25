@@ -246,6 +246,25 @@
         { "id": "obj-hear-farquhar", "title": "Hear Farquhar's assessment of the island", "requires": [], "targetId": "agent-farquhar-s0" },
         { "id": "obj-meet-temenggong", "title": "Be received by the Temenggong", "requires": ["obj-hear-farquhar"], "targetId": "agent-temenggong-s0" }
       ],
+      "accountClues": [
+        {
+          "id": "clue-who-can-sign",
+          "question": "Is the Temenggong's signature enough to establish the post?",
+          "firstAgentId": "agent-raffles-s0",
+          "firstAccount": {
+            "text": "A preliminary agreement with the Temenggong is enough to begin now.",
+            "spans": [{ "sourceId": "handout", "page": 2, "quote": "On 30 January 1819 Raffles and the Temenggong signed a preliminary agreement" }],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "secondAgentId": "agent-temenggong-s0",
+          "secondAccount": {
+            "text": "I administer the island, but a Sultan's authority will be needed for a lasting grant.",
+            "spans": [{ "sourceId": "handout", "page": 3, "quote": "The Temenggong sent for Hussein, who was living in obscurity in Riau." }],
+            "assumptionIds": ["assume-private-motives"]
+          },
+          "evidenceId": "ev-island-survey"
+        }
+      ],
       "decision": {
         "id": "dec-landing",
         "title": "What do you advise Raffles to do about the Temenggong's offer?",
@@ -574,6 +593,25 @@
         { "id": "obj-see-ledger", "title": "Inspect Farquhar's licence ledger", "requires": [], "targetId": "ev-licences" },
         { "id": "obj-hear-farquhar-defence", "title": "Hear Farquhar defend his administration", "requires": ["obj-see-ledger"], "targetId": "agent-farquhar-s2" },
         { "id": "obj-hear-raffles", "title": "Hear what Raffles intends for the town", "requires": [], "targetId": "agent-raffles-s2" }
+      ],
+      "accountClues": [
+        {
+          "id": "clue-pay-for-port",
+          "question": "How can the settlement pay its costs while remaining a free port?",
+          "firstAgentId": "agent-farquhar-s2",
+          "firstAccount": {
+            "text": "Licences for gambling, opium and arrack raise revenue without charging port duties.",
+            "spans": [{ "sourceId": "handout", "page": 4, "quote": "To raise money he licensed gambling houses and permitted the sale of opium and arrack" }],
+            "assumptionIds": []
+          },
+          "secondAgentId": "agent-raffles-s2",
+          "secondAccount": {
+            "text": "The free port should continue, but the gambling and opium licences should end.",
+            "spans": [{ "sourceId": "handout", "page": 4, "quote": "When Raffles returned in 1822 he disapproved of these measures, redrew the town plan" }],
+            "assumptionIds": []
+          },
+          "evidenceId": "ev-licences"
+        }
       ],
       "decision": {
         "id": "dec-settlement",

@@ -237,6 +237,18 @@ export const objectiveSchema = z.object({
 })
 export type Objective = z.infer<typeof objectiveSchema>
 
+/** Two source-grounded accounts of one issue, uncovered as the student speaks to each witness. */
+export const accountClueSchema = z.object({
+  id: idSchema,
+  question: text(240),
+  firstAgentId: idSchema,
+  firstAccount: grounded(350),
+  secondAgentId: idSchema,
+  secondAccount: grounded(350),
+  evidenceId: idSchema,
+})
+export type AccountClue = z.infer<typeof accountClueSchema>
+
 export const branchTargetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('stage'), stageId: idSchema }),
   z.object({ kind: z.literal('ending'), endingId: idSchema }),
@@ -286,6 +298,8 @@ export const stageSchema = z.object({
   agents: z.array(agentSchema).min(1).max(MAX_AGENTS_PER_STAGE),
   evidence: z.array(evidenceSchema).min(1).max(MAX_EVIDENCE_PER_STAGE),
   objectives: z.array(objectiveSchema).min(1).max(MAX_OBJECTIVES_PER_STAGE),
+  /** Older published specs have no comparison clue. */
+  accountClues: z.array(accountClueSchema).max(3).default([]),
   decision: decisionSchema,
 })
 export type Stage = z.infer<typeof stageSchema>
@@ -361,6 +375,7 @@ export function refineAdventureSpec(spec: AdventureSpecShape, ctx: z.RefinementC
     stage.agents.forEach((a, i) => register(a.id, ['stages', si, 'agents', i, 'id']))
     stage.evidence.forEach((e, i) => register(e.id, ['stages', si, 'evidence', i, 'id']))
     stage.objectives.forEach((o, i) => register(o.id, ['stages', si, 'objectives', i, 'id']))
+    stage.accountClues.forEach((clue, i) => register(clue.id, ['stages', si, 'accountClues', i, 'id']))
     register(stage.decision.id, ['stages', si, 'decision', 'id'])
     stage.decision.options.forEach((o, i) => register(o.id, ['stages', si, 'decision', 'options', i, 'id']))
   })
@@ -427,6 +442,16 @@ export function refineAdventureSpec(spec: AdventureSpecShape, ctx: z.RefinementC
       const p = [...path, 'evidence', i]
       if (!roomIds.has(item.roomId)) issue([...p, 'roomId'], `unknown room "${item.roomId}" in this stage`)
       checkGrounding(item.content, [...p, 'content'])
+    })
+
+    stage.accountClues.forEach((clue, i) => {
+      const p = [...path, 'accountClues', i]
+      if (!agentIds.has(clue.firstAgentId)) issue([...p, 'firstAgentId'], `unknown agent "${clue.firstAgentId}" in this stage`)
+      if (!agentIds.has(clue.secondAgentId)) issue([...p, 'secondAgentId'], `unknown agent "${clue.secondAgentId}" in this stage`)
+      if (clue.firstAgentId === clue.secondAgentId) issue([...p, 'secondAgentId'], 'accounts must come from different agents')
+      if (!evidenceIds.has(clue.evidenceId)) issue([...p, 'evidenceId'], `unknown evidence "${clue.evidenceId}" in this stage`)
+      checkGrounding(clue.firstAccount, [...p, 'firstAccount'])
+      checkGrounding(clue.secondAccount, [...p, 'secondAccount'])
     })
 
     // A closed door can only be opened from inside (D7), so a closed room nobody starts in

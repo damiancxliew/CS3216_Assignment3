@@ -25,6 +25,16 @@ describe('I1 fixture', () => {
     if (result.ok) expect(result.spec.stages.every((stage) => stage.mapTheme === 'classic')).toBe(true)
   })
 
+  it('grounds conflicting accounts and keeps their witnesses and document in the same stage', async () => {
+    const spec = await fixture()
+    expect(spec.stages.flatMap((stage: Json) => stage.accountClues ?? [])).toHaveLength(2)
+    spec.stages[0].accountClues[0].secondAgentId = spec.stages[0].accountClues[0].firstAgentId
+    expectInvalid(spec, 'accountClues.0.secondAgentId', 'different agents')
+    spec.stages[0].accountClues[0].secondAgentId = 'agent-temenggong-s0'
+    spec.stages[0].accountClues[0].evidenceId = 'ev-succession'
+    expectInvalid(spec, 'accountClues.0.evidenceId', 'unknown evidence')
+  })
+
   it('accepts a stage theme chosen by the planner and rejects unknown themes', async () => {
     const spec = await fixture()
     spec.stages[0].mapTheme = 'coast'

@@ -109,6 +109,9 @@
 .character { background: var(--world); }
 .character .modalFrame { background: linear-gradient(120deg, #174b3d, #2d6552); }
 .character .modalPaper { border-radius: 3px; border-top: 4px double var(--line-strong); }
+.accounts { background: var(--world); }
+.accounts .modalFrame { background: linear-gradient(120deg, #174b3d, #2d6552); }
+.accounts .modalPaper { border-radius: 3px; border-top: 4px double var(--line-strong); }
 .briefContext { border: 1px dashed var(--line-strong); border-radius: 6px; background: var(--surface); padding: 16px; }
 .game :is(button, input):focus-visible, .shell :is(a, button, summary):focus-visible, .dialog :is(button, input):focus-visible { outline: 3px solid var(--record); outline-offset: 3px; }
 .header :is(a, button, summary):focus-visible, .close:focus-visible { outline-color: #ffe0a2; }

@@ -92,8 +92,12 @@ export interface PlaySnapshot {
   stageIndex: number;
   world: WorldState;
   decisions: Decision[];
-  /** Standing carried between stages, by agent id (the resolver's `agentDeltas` accumulate here). */
+  /** Standing carried between stages by stakeholder id; older snapshots may have agent ids. */
   dispositions: Record<string, number>;
+  /** Earlier public choices and outcomes, kept for the next chapter's NPC context. */
+  priorDecisions?: { stageId: string; stageTitle: string; choice: string | null; outcome: string }[];
+  /** Private memory follows the person when a stage assigns a new agent id. */
+  stakeholderMemory?: Record<string, { note: string; reaction: string }>;
   journal: JournalEntry[];
   announcements: Announcement[];
   pendingEffects: PublicEffect[];
@@ -123,6 +127,14 @@ export interface PlaySnapshot {
 export interface PlayState extends PublicAttemptState {
   /** The authored dilemma, available before choices unlock so exploration has a purpose. */
   decisionPrompt: string;
+  previousDecision: { stageTitle: string; choice: string | null; outcome: string } | null;
+  accountClues: {
+    id: string;
+    question: string;
+    first: { agentId: string; name: string; account: string | null; quote: string | null };
+    second: { agentId: string; name: string; account: string | null; quote: string | null };
+    evidence: { id: string; name: string; found: boolean };
+  }[];
   map: PublicMap | null;
   /** What to actually do for each goal, in plain words ("Talk to X in Y"), keyed by objective id. */
   objectiveHints: Record<string, string>;
@@ -318,6 +330,8 @@ export class PlaySession {
       world,
       decisions: [],
       dispositions: {},
+      priorDecisions: [],
+      stakeholderMemory: {},
       journal: [],
       announcements: [],
       pendingEffects: [],
@@ -350,6 +364,8 @@ export class PlaySession {
     }
     return new PlaySession(spec, attemptId, publishedVersion, {
       ...cloned,
+      priorDecisions: cloned.priorDecisions ?? [],
+      stakeholderMemory: cloned.stakeholderMemory ?? {},
       spokenAt: cloned.spokenAt ?? {},
       stageStats: cloned.stageStats ?? { openedAt: clock.now().toISOString(), tokens: 0, messages: 0, actions: 0, evidence: 0 },
       stepRate: cloned.stepRate ?? { tokens: 1, lastMs: clock.now().getTime() },
@@ -400,6 +416,8 @@ export class PlaySession {
       adventureId: this.spec.id,
       publishedVersion: this.publishedVersion,
       decisionPrompt: this.stage.decision.prompt,
+      previousDecision: this.snap.priorDecisions?.at(-1) ?? null,
+      accountClues: this.accountClues(),
       status: this.snap.status,
       player: {
         name: this.spec.player.name,
@@ -590,6 +608,27 @@ export class PlaySession {
     return answered.size;
   }
 
+  private accountClues(): PlayState["accountClues"] {
+    const heard = this.playerHeard();
+    const known = new Set(this.snap.world.evidenceKnown[PLAYER_ID] ?? []);
+    return this.stage.accountClues.map((clue) => {
+      const questions = new Set(heard.filter((line) => line.speakerId === PLAYER_ID &&
+        line.body.toLocaleLowerCase().includes(clue.question.toLocaleLowerCase())).map((line) => line.seq));
+      const side = (agentId: string, account: string) => {
+        const reply = heard.findLast((line) => line.speakerId === agentId && line.replyToSeqs?.some((seq) => questions.has(seq)));
+        return { agentId, name: this.agentName(agentId), account: reply ? account : null, quote: reply?.body ?? null };
+      };
+      const evidence = this.stage.evidence.find((item) => item.id === clue.evidenceId)!;
+      return {
+        id: clue.id,
+        question: clue.question,
+        first: side(clue.firstAgentId, clue.firstAccount.text),
+        second: side(clue.secondAgentId, clue.secondAccount.text),
+        evidence: { id: evidence.id, name: evidence.name, found: known.has(evidence.id) },
+      };
+    });
+  }
+
   /** A reply may claim only goals available before that reply begins. */
   private claimableGoals(agentId: string): Stage["objectives"] {
     if (this.conversationExchanges(agentId) < GOAL_CONVERSATION_EXCHANGES - 1) return [];
@@ -708,8 +747,26 @@ export class PlaySession {
   }
 
   private stageConfig(): StageConfig {
+    const previous = (this.snap.priorDecisions ?? []).map((entry) =>
+      `${entry.stageTitle}: ${entry.choice ? `The player chose "${entry.choice}".` : "The player made no decision."} ${entry.outcome}`);
+    const agents = Object.fromEntries(Object.entries(this.bundle.stage.agents).map(([id, config]) => {
+      const stakeholderId = this.stage.agents.find((agent) => agent.id === id)?.stakeholderId;
+      const memory = stakeholderId ? this.snap.stakeholderMemory?.[stakeholderId] : undefined;
+      const accountNotes = this.stage.accountClues.flatMap((clue) =>
+        clue.firstAgentId === id ? [`On "${clue.question}", your account is: ${clue.firstAccount.text}`]
+          : clue.secondAgentId === id ? [`On "${clue.question}", your account is: ${clue.secondAccount.text}`] : []);
+      return [id, {
+        ...config,
+        privateContext: {
+          ...config.privateContext,
+          notes: [...config.privateContext.notes, ...(memory ? [memory.reaction] : []), ...accountNotes],
+        },
+      }];
+    }));
     return {
       ...this.bundle.stage,
+      stageBrief: [this.bundle.stage.stageBrief, ...previous].join("\n"),
+      agents,
       decision: { catalogue: this.optionCatalogue(), ledger: this.ledger },
       tokenBudget: STAGE_TOKEN_BUDGET,
       replies: { inbox: this.inbox, limiter: this.limiter, now: () => this.clock.now().getTime() },
@@ -1166,13 +1223,33 @@ export class PlaySession {
         optionId,
         actions: [],
         evidenceCollected,
-        dispositions: this.snap.dispositions,
+        dispositions: Object.fromEntries(this.stage.agents.map((agent) => [
+          agent.id,
+          this.snap.dispositions[agent.stakeholderId] ?? this.snap.dispositions[agent.id] ?? 0,
+        ])),
         decisions: this.ledger.all(),
         mintedOptions: this.snap.mintedOptions,
       }),
     );
+    const choice = optionId === null ? null : this.stage.decision.options.find((option) => option.id === optionId)?.label
+      ?? this.snap.mintedOptions?.find((option) => option.id === optionId)?.label ?? optionId;
+    const outcome = record.outcome.sharedContextAppend ?? record.outcome.announcement;
+    this.snap.priorDecisions ??= [];
+    this.snap.priorDecisions.push({ stageId: this.stage.id, stageTitle: this.stage.title, choice, outcome });
+    this.snap.stakeholderMemory ??= {};
     for (const delta of record.outcome.agentDeltas) {
-      this.snap.dispositions[delta.agentId] = (this.snap.dispositions[delta.agentId] ?? 0) + (delta.dispositionDelta ?? 0);
+      const agent = this.stage.agents.find((candidate) => candidate.id === delta.agentId);
+      if (!agent) continue;
+      this.snap.dispositions[agent.stakeholderId] = delta.disposition;
+      const priorNote = this.snap.world.privateNotes[agent.id]?.at(-1)
+        ?? this.snap.stakeholderMemory[agent.stakeholderId]?.note ?? "";
+      const resolutionNote = record.privateNotes.find((candidate) => candidate.agentId === agent.id)?.note ?? "";
+      const view = delta.dispositionDelta > 0 ? "more willing to trust the player"
+        : delta.dispositionDelta < 0 ? "more wary of the player" : "unchanged toward the player";
+      this.snap.stakeholderMemory[agent.stakeholderId] = {
+        note: priorNote,
+        reaction: `After the player ${choice ? `chose "${choice}"` : "let the decision pass"}, ${outcome} You are ${view}. ${resolutionNote}`.slice(0, 900),
+      };
     }
     const resolution = publicResolution(record);
     const createdAt = this.clock.now().toISOString();
@@ -1213,14 +1290,10 @@ export class PlaySession {
 
   private openStage(index: number): void {
     const bundle = toStageRuntime(this.spec, index);
-    const priorNotes = new Map(this.stage.agents.flatMap((agent) => {
-      const note = this.snap.world.privateNotes[agent.id]?.at(-1);
-      return note ? [[agent.stakeholderId, note] as const] : [];
-    }));
     this.snap.stageIndex = index;
     this.snap.world = worldFor(this.spec, index, this.attemptId, this.compiledStages);
     for (const agent of this.spec.stages[index]!.agents) {
-      const note = priorNotes.get(agent.stakeholderId);
+      const note = this.snap.stakeholderMemory?.[agent.stakeholderId]?.note;
       if (note) this.snap.world.privateNotes[agent.id] = [note];
     }
     this.snap.decisions = [];
