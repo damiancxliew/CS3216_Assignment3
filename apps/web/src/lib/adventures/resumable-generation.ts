@@ -225,10 +225,12 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
 
     console.error("adventure generation step failed", adventureId, result.reason, result.issues.slice(0, 3));
     const message = result.reason === "invalid-after-repair"
-      ? "The generated adventure needs more work. Review the sources and try again."
-      : result.reason === "llm-error"
-        ? `Adventure generation failed during a model call${result.issues[0] ? ` (${result.issues[0].message.slice(0, 200)})` : ""}. Please try again.`
-        : "Adventure generation did not finish. Please try again.";
+      ? `We couldn’t generate a valid playable draft after ${MAX_REPAIRS + 1} attempts.${result.issues[0] ? ` Last check: ${result.issues[0].message.slice(0, 160)}.` : ""} Please try again.`
+      : result.reason === "unparseable"
+        ? "We couldn’t generate a draft in the required format. Please try again."
+        : result.reason === "llm-error"
+          ? `Adventure generation failed during a model call${result.issues[0] ? ` (${result.issues[0].message.slice(0, 200)})` : ""}. Please try again.`
+          : "Adventure generation did not finish. Please try again.";
     return failJob(admin, adventureId, message);
   } catch (error) {
     console.error("adventure generation step failed unexpectedly", adventureId, error);
