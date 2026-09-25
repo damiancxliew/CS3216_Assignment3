@@ -5,6 +5,7 @@ import { useActionState, useEffect, useRef, useState, type ReactNode } from "rea
 
 import type { ActionResult } from "../actions";
 import { button, ErrorText, Pending } from "@/components/ui";
+import { ProgressBar } from "@/components/teacher/progress-bar";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
 import { createClient } from "@/lib/supabase/client";
@@ -109,7 +110,7 @@ export function StoryGeneration({
         <div role="status" aria-live="polite" className="flex max-w-xl flex-col gap-2 text-sm text-muted">
           <p>{status}. You can leave this page and return to continue later.</p>
           {continuationError ? <ErrorText>{continuationError}</ErrorText> : null}
-          <progress aria-label="Story generation in progress" className="h-2 w-full accent-world" />
+          <ProgressBar indeterminate label="Story generation in progress" />
         </div>
       ) : result.error ? <ErrorText>{result.error}</ErrorText>
         : job?.state === "failed" ? <ErrorText>{job.message ?? "The last generation attempt did not finish. Try again."}</ErrorText>
