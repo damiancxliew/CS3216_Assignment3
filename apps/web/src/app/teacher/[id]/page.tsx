@@ -158,18 +158,29 @@ export default async function AdventurePage({
 
   const { data: attempts } = tab === "attempts" ? await supabase
     .from("attempt")
-    .select("id, status, published_version, updated_at, attempt_telemetry(stage_index, ended_by, duration_seconds, tokens, messages, evidence_found)")
+    .select("id, student_id, status, published_version, updated_at, attempt_telemetry(stage_index, ended_by, duration_seconds, tokens, messages, evidence_found)")
     .eq("adventure_id", id)
     .order("updated_at", { ascending: false })
     .returns<
       {
         id: string;
+        student_id: string;
         status: string;
         published_version: number;
         updated_at: string;
         attempt_telemetry: { stage_index: number; ended_by: string; duration_seconds: number; tokens: number; messages: number; evidence_found: number }[];
       }[]
     >() : { data: null };
+  const studentEmails = new Map<string, string>();
+  if (attempts?.length) {
+    // Ownership was checked above. Auth emails are only available through the
+    // server-side admin client; look up each student once for repeat attempts.
+    const admin = createAdminClient();
+    await Promise.all([...new Set(attempts.map((attempt) => attempt.student_id))].map(async (studentId) => {
+      const { data } = await admin.auth.admin.getUserById(studentId);
+      if (data.user?.email) studentEmails.set(studentId, data.user.email);
+    }));
+  }
   // P11: what an attempt costs and how long it takes, summed from the per-stage rows.
   const totals = (attempts ?? []).map((a) => a.attempt_telemetry ?? []).flat();
   const finished = (attempts ?? []).filter((a) => a.status === "completed");
@@ -443,10 +454,11 @@ export default async function AdventurePage({
               </dl>
             ) : null}
             <div className="overflow-x-auto rounded-surface border border-line bg-surface">
-              <table className="w-full min-w-[40rem] border-collapse text-base">
+              <table className="w-full min-w-[50rem] border-collapse text-base">
                 <thead>
                   <tr className="border-b border-line bg-sunken/50 text-left text-muted">
-                    <th className="py-2 pl-4 pr-4 font-semibold">Version</th>
+                    <th className="py-2 pl-4 pr-4 font-semibold">Student email</th>
+                    <th className="py-2 pr-4 font-semibold">Version</th>
                     <th className="py-2 pr-4 font-semibold">Status</th>
                     <th className="py-2 pr-4 text-right font-semibold">Stages</th>
                     <th className="py-2 pr-4 text-right font-semibold">Minutes</th>
@@ -461,7 +473,8 @@ export default async function AdventurePage({
                     const rows = attempt.attempt_telemetry ?? [];
                     return (
                       <tr key={attempt.id} className="border-b border-line tabular-nums">
-                        <td className="py-2 pl-4 pr-4">{attempt.published_version}</td>
+                        <td className="py-2 pl-4 pr-4">{studentEmails.get(attempt.student_id) ?? `Student ${attempt.student_id.slice(0, 8)}`}</td>
+                        <td className="py-2 pr-4">{attempt.published_version}</td>
                         <td className="py-2 pr-4 capitalize">{attempt.status}</td>
                         <td className="py-2 pr-4 text-right">{rows.length}</td>
                         <td className="py-2 pr-4 text-right">{minutes(rows)}</td>

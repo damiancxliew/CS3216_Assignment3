@@ -37,7 +37,7 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     "next/navigation": "export const useRouter = () => ({ refresh() {}, push() {} });",
     "next/link": "import React from 'react'; export default function Link(p) { return React.createElement('a', p); }",
     "next/dynamic": "import React from 'react'; export default function dynamic(load) { const C = React.lazy(() => load().then(defaultExport => ({default: defaultExport}))); return p => React.createElement(React.Suspense, {fallback: null}, React.createElement(C, p)); }",
-    "@/app/play/[attemptId]/actions": "export const restartAttempt = async () => ({ok:false});",
+    "@/app/play/[attemptId]/actions": "export const restartAttempt = async () => ({ok:false}); export const completeWalkthrough = async () => ({ok:true});",
     "@/components/stage-countdown": "export const StageCountdown = () => null;",
   };
   const vite = await createServer({
@@ -67,7 +67,7 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
           import { ThemeProvider } from '/src/components/theme-provider.tsx';
           import styles from '/src/components/play/adventure-chrome.module.css';
           import '/src/app/globals.css';
-          createRoot(document.getElementById('root')).render(<ThemeProvider><main className={styles.shell} style={{display:'flex', flexDirection:'column', height:'100dvh', width:'100%'}}><AdventureHeader title="A Post at the River Mouth" active={${JSON.stringify(initial)}} recap={[]} /><PlayClient attemptId="reader-browser" initialState={${JSON.stringify(initial)}} retriesAllowed={false} /></main></ThemeProvider>);
+          createRoot(document.getElementById('root')).render(<ThemeProvider><main className={styles.shell} style={{display:'flex', flexDirection:'column', height:'100dvh', width:'100%'}}><AdventureHeader title="A Post at the River Mouth" active={${JSON.stringify(initial)}} recap={[]} /><PlayClient attemptId="reader-browser" initialState={${JSON.stringify(initial)}} retriesAllowed={false} walkthroughSeen={{mobile:true,desktop:true}} /></main></ThemeProvider>);
         `, "reader-test.tsx", { loader: "tsx", jsx: "automatic" })).code;
       },
       configureServer(server) {

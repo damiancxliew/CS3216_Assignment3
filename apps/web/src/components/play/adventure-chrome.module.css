@@ -127,6 +127,7 @@
 .game :is(button, input):focus-visible, .shell :is(a, button, summary):focus-visible, .dialog :is(button, input):focus-visible { outline: 3px solid var(--record); outline-offset: 3px; }
 .header :is(a, button, summary):focus-visible, .close:focus-visible { outline-color: #ffe0a2; }
 @media (max-width: 1023px) {
+  .game { overflow-y: auto; }
   .panel { border-left: 0; border-top: 8px solid var(--wood); box-shadow: inset 0 2px var(--brass); }
   .header { gap: 10px 16px; padding: 12px 20px; }
   .chapter { order: 3; flex-basis: 100%; }
