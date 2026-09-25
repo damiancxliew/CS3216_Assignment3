@@ -94,7 +94,8 @@ export function Pricing() {
                   </>
                 )}
               </div>
-              <ul className="mt-6 flex flex-1 flex-col gap-2.5">
+              {tier.includes ? <p className="mt-6 text-sm font-black uppercase tracking-[0.12em] text-muted">{tier.includes}</p> : null}
+              <ul className={`${tier.includes ? "mt-3" : "mt-6"} flex flex-1 flex-col gap-2.5`}>
                 {tier.features.map((feature) => (
                   <li key={feature} className="flex items-start gap-2.5 text-base font-semibold text-ink">
                     <Check className="mt-0.5 h-5 w-5 shrink-0 text-world" aria-hidden />

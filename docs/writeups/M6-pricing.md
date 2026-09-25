@@ -43,20 +43,25 @@ punishes the exact behaviour we want (replaying with a different strategy).
 ## The model: per-teacher, with a class allowance
 
 Prices are unchanged from the first draft; the allowances were cut on 25 Sep once the cost
-per attempt was measured (below). The landing page calls the free tier Starter.
+per attempt was measured (below). Each tier includes everything in the one before. The
+cards list only what the product does today or a plan term the team can honour — shared
+department libraries, forks and school admin are not listed until they are built.
 
 | Tier | Price | Included | Who it is for |
 | --- | --- | --- | --- |
-| **Starter** | S$0 | 2 published adventures, 30 student attempts/month (one class, one lesson), curated art only, our branding on the debrief | A teacher trying it on next week's lesson. This is the acquisition channel (M4), not a trial |
-| **Teacher** | S$12/month (S$120/year) | Unlimited adventures, 150 attempts/month (≈ 5 class lessons of 30), own source library, custom asset generation, no branding | The individual adopter, paid personally or from a department budget |
-| **Department** | S$400/year (S$40/month) per department, up to 10 teachers | Pooled 5,000 attempts/year, shared adventure library, teacher-corrected forks across the department | The realistic purchase unit — adoption happens at a department meeting |
-| **School / district** | Quoted | SSO, LMS export, admin roster, pooled allowance | Follows a successful term-long pilot |
-| **Extra attempts** | S$6 per 100 | Any paid tier | A class that runs over |
+| **Starter** | S$0 | Adventures built from your own PDFs and notes, 2 published adventures, 30 student attempts/month (one class, one lesson), stock art only, Historical Adventures watermark on the debrief | A teacher trying it on next week's lesson. This is the acquisition channel (M4), not a trial; the watermark is a link back from every student's debrief |
+| **Teacher** | S$12/month (S$120/year) | Starter, plus: class results summary, unlimited published adventures, 150 attempts/month (≈ 5 class lessons of 30), custom artwork, no watermark | The individual adopter, paid personally or from a department budget |
+| **Department** | S$400/year (S$40/month), up to 10 teachers | Teacher, plus: 5,000 attempts/year shared across the department, an onboarding session where we build the first adventure with them, priority support during the pilot | The realistic purchase unit — adoption happens at a department meeting |
+| **School / district** | Quoted, later | SSO, LMS export, admin roster (none built yet) | Follows a successful term-long pilot |
 
 Overage is sold as attempt packs rather than throttled mid-lesson: a class must never
 stop playing because an allowance ran out. Failing open and invoicing is the only
-acceptable behaviour in a classroom. At S$0.06 an attempt, a pack covers even the most
-expensive attempt measured.
+acceptable behaviour in a classroom. The pack price is not on the page yet; at the
+measured cost it needs to be at least S$0.06 an attempt to cover the most expensive one.
+
+The onboarding session is the one benefit that costs the team time rather than tokens —
+about an hour per department. At S$400 a year that is affordable, and it is also how the
+first adventure gets built well, which is what makes a department renew.
 
 ## Does it pay?
 
@@ -94,9 +99,9 @@ Department is the cheaper way to buy it, which is where a department meeting sta
 3. The free tier is generous enough to run one real lesson with a real class, because
    our acquisition loop is a teacher showing a colleague a lesson that worked (M4) —
    crippling the free tier would break the only channel we have.
-4. It leaves the compounding asset alone: the shared, teacher-corrected library is a
-   *benefit* of the paid tiers, not a paywalled artifact, because its value to us (M3)
-   is that it grows.
+4. It leaves room for the compounding asset: when the shared, teacher-corrected library
+   (M3) is built, it joins Department as a *benefit*, not a paywalled artifact, because
+   its value to us is that it grows. It is not on the page until it exists.
 
 ## What would change it
 

@@ -187,6 +187,14 @@ export default async function DebriefPage({
             Leave for the home page
           </Link>
         </div>
+        {/* Starter's watermark (M6). Paid plans drop it once plans are enforced; until then every debrief shows it. */}
+        <p className="text-sm font-semibold text-muted">
+          Made with{" "}
+          <Link href="/" className="font-extrabold text-ink underline decoration-2 underline-offset-4 hover:text-world">
+            Historical Adventures
+          </Link>
+          {" "}— turn your own sources into a world students can play.
+        </p>
       </footer>
     </main>
   );

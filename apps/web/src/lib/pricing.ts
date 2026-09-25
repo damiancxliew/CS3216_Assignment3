@@ -16,6 +16,9 @@ export type PricingTier = {
   annualTotal: number | null;
   featured: boolean;
   cta: { label: string; href: string };
+  /** Lead-in above the list when a tier builds on the one before, e.g. "Everything in Starter, plus:". */
+  includes: string | null;
+  /** Only what the product does today, or a plan term; nothing unbuilt is listed (M6). */
   features: readonly string[];
 };
 
@@ -29,12 +32,13 @@ export const PRICING_TIERS = [
     annualTotal: null,
     featured: false,
     cta: { label: "Start free", href: "/teacher" },
+    includes: null,
     features: [
+      "Adventures built from your own PDFs and notes",
       "2 published adventures",
-      "30 student attempts a month — one class, one lesson",
-      "Full debrief with citations",
-      "Stock art only — no custom asset generation",
-      "Our branding on the debrief",
+      "30 student attempts a month",
+      "Stock art only",
+      "Historical Adventures watermark on the debrief",
     ],
   },
   {
@@ -46,13 +50,13 @@ export const PRICING_TIERS = [
     annualTotal: 120,
     featured: true,
     cta: { label: "Start free, upgrade later", href: "/teacher" },
+    includes: "Everything in Starter, plus:",
     features: [
+      "Class results summary",
       "Unlimited published adventures",
-      "150 student attempts a month — about five class lessons",
-      "Your own source library",
-      "Custom asset generation",
-      "No Historical Adventures branding",
-      "Extra attempts at S$6 per 100 — a class is never cut off mid-lesson",
+      "150 student attempts a month",
+      "Custom artwork: covers, portraits and props",
+      "No watermark on the debrief",
     ],
   },
   {
@@ -64,12 +68,11 @@ export const PRICING_TIERS = [
     annualTotal: 400,
     featured: false,
     cta: { label: "Talk to us", href: "/teacher" },
+    includes: "Everything in Teacher, for up to 10 teachers:",
     features: [
-      "Up to 10 teachers",
-      "5,000 pooled attempts a year",
-      "Shared department library",
-      "Teacher-corrected forks across the department",
-      "Priority support during a pilot",
+      "5,000 student attempts a year, shared across the department",
+      "An onboarding session: we build your first adventure with you",
+      "Priority support during the pilot",
     ],
   },
 ] as const satisfies readonly PricingTier[];
