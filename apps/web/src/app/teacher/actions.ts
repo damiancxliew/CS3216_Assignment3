@@ -32,6 +32,7 @@ import {
   stageOutlineSchema,
 } from "@/lib/brief/schema";
 import { runBriefTurn, type TurnResult } from "@/lib/brief/turn";
+import { parseBriefEdit } from "@/lib/brief/edit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -288,6 +289,37 @@ const storedBrief = z.object({
   reading_level: readingLevelSchema,
   stage_outline: z.array(stageOutlineSchema).max(3),
 });
+
+/** Save the next generation's brief without changing any existing spec version. */
+export async function updateBrief(adventureId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const { supabase } = await requireOwnership(adventureId);
+  const brief = parseBriefEdit(formData);
+  if (!brief) return { error: "Check the brief: fill every field, use 1–6 objectives, and keep ages in order." };
+
+  const { data: active, error: activeError } = await supabase.from("generation_job")
+    .select("state")
+    .eq("adventure_id", adventureId)
+    .eq("state", "running")
+    .maybeSingle();
+  if (activeError) return { error: "Couldn’t check generation status. Please try again." };
+  if (active) return { error: "Wait for generation to finish before editing the brief." };
+
+  const { error } = await supabase.from("adventure").update({
+    title: brief.title,
+    setting: brief.setting,
+    student_role: brief.studentRole,
+    learning_objectives: brief.learningObjectives,
+    reading_level: brief.readingLevel,
+    stage_outline: brief.stageOutline,
+  }).eq("id", adventureId);
+  if (error) {
+    console.error("could not update adventure brief", adventureId, error);
+    return { error: "Couldn’t save the brief. Please try again." };
+  }
+  revalidatePath("/teacher");
+  revalidatePath(`/teacher/${adventureId}`);
+  return { notice: "Brief saved. The next generated version will use these changes." };
+}
 
 /** Start a resumable adventure generation job without waiting for a model call. */
 export async function generateFromSources(adventureId: string): Promise<ActionResult> {
