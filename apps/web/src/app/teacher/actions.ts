@@ -12,7 +12,7 @@ import {
   slugify,
   type ExtractedDocument,
 } from "@adventure/generation";
-import { isCurrentSpriteRecord, OpenAiImageService } from "@adventure/generation/assets";
+import { isCurrentSpriteRecord, OpenAiImageService, playableAssetEligibility } from "@adventure/generation/assets";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
 import { MAP_STYLES, validatePublishedSpec } from "@adventure/generation/spec";
 
@@ -480,10 +480,10 @@ export async function regenerateAsset(adventureId: string, specVersionId: string
   const admin = createAdminClient();
   const { data: version } = await admin
     .from("spec_version")
-    .select("id, version")
+    .select("id, version, json")
     .eq("id", specVersionId)
     .eq("adventure_id", adventureId)
-    .maybeSingle<{ id: string; version: number }>();
+    .maybeSingle<{ id: string; version: number; json: unknown }>();
   if (!version) return { error: "That version is not part of this adventure" };
 
   const { data: record } = await admin
@@ -492,7 +492,13 @@ export async function regenerateAsset(adventureId: string, specVersionId: string
     .eq("spec_version_id", specVersionId)
     .eq("asset_id", assetId)
     .maybeSingle<{ asset_id: string }>();
-  if (!record) return { error: "That artwork does not exist yet — generate the set first" };
+  if (!record) {
+    // Derived assets (the adventure cover) have no row until they are drawn, so
+    // accept an id the stored spec's playable eligibility list would produce.
+    const validated = validatePublishedSpec(version.json);
+    const eligible = validated.ok && playableAssetEligibility(validated.spec).some((asset) => asset.id === assetId);
+    if (!eligible) return { error: "That artwork does not exist yet — generate the set first" };
+  }
 
   try {
     const result = await generateAssetsForVersion({

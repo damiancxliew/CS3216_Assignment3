@@ -10,6 +10,10 @@ const versions: LibraryVersion[] = [
 const asset = (version: string, kind: string, status = "ready"): LibraryAsset => ({ spec_version_id: version, asset_id: `${version}-${kind}`, kind, status, url: `/${version}-${kind}.png` });
 
 describe("adventure library artwork", () => {
+  it("prefers the generated cover art over every gameplay asset", () => {
+    expect(selectLibraryArtwork(adventure, versions, [asset("draft", "portrait"), asset("draft", "landmark"), asset("draft", "prop"), asset("draft", "cover", "cached")]))
+      .toEqual({ cover: { url: "/draft-cover.png", kind: "cover" }, portraits: ["/draft-portrait.png"] });
+  });
   it("uses the active draft's portrait before landmarks, regardless of row order", () => {
     expect(selectLibraryArtwork(adventure, versions, [asset("other", "portrait"), asset("published", "portrait"), asset("draft", "landmark", "cached"), asset("draft", "portrait")]))
       .toEqual({ cover: { url: "/draft-portrait.png", kind: "portrait" }, portraits: [] });

@@ -74,7 +74,7 @@ export type DossierStage = {
 };
 
 export type Dossier = {
-  artwork: { id: string; kind: "portrait" | "landmark" | "prop" | "sprite"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null; failureReason: string | null; canAcceptRejected: boolean }[];
+  artwork: { id: string; kind: "portrait" | "landmark" | "prop" | "sprite" | "cover"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null; failureReason: string | null; canAcceptRejected: boolean }[];
   stakeholders: DossierStakeholder[];
   stages: DossierStage[];
   endings: {
@@ -196,20 +196,24 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
   const artwork = playable.map((entry) => {
     const ownRecord = records.find((record) => record.assetId === entry.id);
     const outdatedSprite = entry.kind === "sprite" && ownRecord && (ownRecord.status === "ready" || ownRecord.status === "cached") && !isCurrentSpriteRecord(spec, ownRecord);
-    const entity = entry.kind === "portrait"
-      ? stakeholders.find((person) => person.id === entry.entityId)
-      : entry.kind === "sprite"
-        ? undefined
-      : entry.kind === "landmark"
-        ? stages.flatMap((stage) => stage.rooms).find((room) => room.id === entry.entityId)
-        : stages.flatMap((stage) => stage.evidence).find((item) => item.id === entry.entityId);
+    // Sprites and the adventure cover are derived, entity-less entries: the
+    // entityId (stakeholder or adventure id) does not point into the dossier projections.
+    const entityless = entry.kind === "sprite" || entry.kind === "cover";
+    const entity = entityless
+      ? undefined
+      : entry.kind === "portrait"
+        ? stakeholders.find((person) => person.id === entry.entityId)
+        : entry.kind === "landmark"
+          ? stages.flatMap((stage) => stage.rooms).find((room) => room.id === entry.entityId)
+          : stages.flatMap((stage) => stage.evidence).find((item) => item.id === entry.entityId);
     return {
       id: entry.id,
       kind: entry.kind,
       name: entity?.name ?? entry.subject,
-      imageUrl: ownRecord && ownRecord.url !== ownRecord.placeholderUrl ? ownRecord.url : entry.kind === "sprite" ? placeholderUrl("sprite") : entity?.imageUrl ?? placeholderUrl(entry.kind),
-      imageStatus: outdatedSprite ? ("failed" as ImageStatus) : entry.kind === "sprite" ? imageStatus(ownRecord) : entity?.imageStatus ?? ("placeholder" as ImageStatus),
-      assetId: entry.kind === "sprite" ? ownRecord?.assetId ?? null : entity?.assetId ?? null,
+      imageUrl: ownRecord && ownRecord.url !== ownRecord.placeholderUrl ? ownRecord.url : entityless ? placeholderUrl(entry.kind) : entity?.imageUrl ?? placeholderUrl(entry.kind),
+      imageStatus: outdatedSprite ? ("failed" as ImageStatus) : entityless ? imageStatus(ownRecord) : entity?.imageStatus ?? ("placeholder" as ImageStatus),
+      // The derived cover id is stable, so its Regenerate button can appear even before a row exists.
+      assetId: entry.kind === "cover" ? ownRecord?.assetId ?? entry.id : entry.kind === "sprite" ? ownRecord?.assetId ?? null : entity?.assetId ?? null,
       failureReason: outdatedSprite ? "Older walking sprite. Regenerate to use the current format." : ownRecord?.status === "failed" || ownRecord?.status === "filtered" || ownRecord?.status === "skipped-cap" ? ownRecord.error ?? "Generation failed. Try again." : null,
       canAcceptRejected: entry.kind === "sprite" && ownRecord?.status === "failed" && ownRecord.url !== ownRecord.placeholderUrl && /pose template|mix directions/.test(ownRecord.error ?? "") && isCurrentSpriteRecord(spec, ownRecord),
     };

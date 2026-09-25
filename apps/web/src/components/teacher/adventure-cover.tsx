@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Compass } from "lucide-react";
 
 /** A decorative atlas also covers missing, still-generating, and broken image URLs. */
-export function AdventureCover({ src, kind = "portrait" }: { src: string | null; kind?: "portrait" | "landmark" | "prop" }) {
+export function AdventureCover({ src, kind = "portrait" }: { src: string | null; kind?: "cover" | "portrait" | "landmark" | "prop" }) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const gridId = useId();
   const imageRef = useRef<HTMLImageElement>(null);
@@ -29,7 +29,7 @@ export function AdventureCover({ src, kind = "portrait" }: { src: string | null;
       <Compass className="absolute right-6 top-6 h-16 w-16 rotate-12 text-record/30" strokeWidth={1} />
       {src && failedSrc !== src ? (
         // Dynamic public storage URLs are already generated assets; avoid a second image processing service.
-        kind === "portrait" ? (
+        kind === "portrait" || kind === "cover" ? (
           // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
           <img {...imageProps} className={`absolute inset-0 h-full w-full object-cover ${motion}`} />
         ) : (

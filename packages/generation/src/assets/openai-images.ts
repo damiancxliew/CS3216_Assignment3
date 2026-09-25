@@ -119,7 +119,7 @@ export class OpenAiImageService implements ImageService {
           size: request.size,
           quality: request.quality,
           output_format: 'webp',
-          background: request.kind === 'portrait' ? 'opaque' : 'transparent',
+          background: request.kind === 'portrait' || request.kind === 'cover' ? 'opaque' : 'transparent',
           n: 1,
         })
     } catch (error) {

@@ -6,8 +6,8 @@ export type LibraryAsset = { spec_version_id: string; asset_id: string; kind: st
 export type CoverKind = (typeof COVER_KINDS)[number];
 export type AdventureArtwork = { cover: { url: string; kind: CoverKind } | null; portraits: string[] };
 
-/** Cover preference: a portrait is a full illustration, while landmark and prop art are map tiles. */
-const COVER_KINDS = ["portrait", "landmark", "prop"] as const;
+/** Cover preference: the generated key art wins; a portrait is a full illustration, while landmark and prop art are map tiles. Older versions have no cover row, so the fallback chain still applies. */
+const COVER_KINDS = ["cover", "portrait", "landmark", "prop"] as const;
 
 /** Match the editor's active version. Never borrow artwork from another story or an older draft. */
 export function selectLibraryArtwork(adventure: LibraryAdventure, versions: LibraryVersion[], assets: LibraryAsset[]): AdventureArtwork {
