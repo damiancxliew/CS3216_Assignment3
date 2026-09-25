@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import { describe, expect, it } from 'vitest'
 
 import { FakeImageService, InMemoryAssetCache, InMemoryAssetStore } from '../src/assets/memory'
@@ -23,14 +25,15 @@ describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
   it('uses the precision model only for sprites and keys their cache separately', async () => {
     const images = new OpenAiImageService({ apiKey: 'test-key', model: 'gpt-image-1-mini', spriteModel: 'gpt-image-2.5-sunburst' })
     expect(images.modelForKind('sprite')).toBe('gpt-image-2.5-sunburst')
-    for (const kind of ['portrait', 'landmark', 'prop'] as const) expect(images.modelForKind(kind)).toBe('gpt-image-1-mini')
+    for (const kind of ['portrait', 'landmark', 'prop', 'cover'] as const) expect(images.modelForKind(kind)).toBe('gpt-image-1-mini')
     const spec = await loadI1Spec()
     spec.assetEligibility = playableAssetEligibility(spec)
     const manifest = pendingManifest(spec, images)
     for (const entry of spec.assetEligibility) {
       const record = manifest.records.find((item) => item.assetId === entry.id)!
       const model = images.modelForKind(entry.kind)
-      expect(record.promptHash).toBe(promptHash({ kind: entry.kind, prompt: buildImagePrompt(entry, spec), size: '1024x1024', quality: 'medium' }, model))
+      const size = entry.kind === 'cover' ? '1536x1024' : '1024x1024'
+      expect(record.promptHash).toBe(promptHash({ kind: entry.kind, prompt: buildImagePrompt(entry, spec), size, quality: 'medium' }, model))
     }
   })
 
@@ -54,6 +57,7 @@ describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
     current.status = 'ready'
     current.model = 'fake-image-model'
     expect(isCurrentSpriteRecord(spec, current)).toBe(true)
+    expect(isCurrentSpriteRecord(spec, { ...current, url: 'https://example.com/asset-sprite-rejected.webp' })).toBe(false)
     expect(isCurrentSpriteRecord(spec, { ...current, promptHash: 'old-layout' })).toBe(false)
     const images = new FakeImageService()
     await generateAssets({ ...spec, assetEligibility: [sprite] }, { images, cache: new InMemoryAssetCache(), store: new InMemoryAssetStore(), quality: 'low' })
@@ -70,7 +74,7 @@ describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
         expect((error as ImageServiceError).code).toBe('not-generatable')
       }
     }
-    for (const kind of ['portrait', 'landmark', 'prop', 'sprite']) expect(() => assertGeneratable({ kind })).not.toThrow()
+    for (const kind of ['portrait', 'landmark', 'prop', 'sprite', 'cover']) expect(() => assertGeneratable({ kind })).not.toThrow()
   })
 
   it('never lets an ineligible entry reach the image service even if the spec object was tampered with', async () => {
@@ -244,6 +248,41 @@ describe('D5 — failure handling (FR-6a)', () => {
     expect(prompt).toMatch(/transparent background/)
     expect(prompt).toMatch(/snow white, pale blue-gray, dark timber/)
     expect(prompt).toMatch(/no scene, ground plane, frame/)
+  })
+
+  it('derives one adventure cover, listed first, and never duplicates it', async () => {
+    const spec = await loadI1Spec()
+    const assets = playableAssetEligibility(spec)
+    const covers = assets.filter((asset) => asset.kind === 'cover')
+    expect(covers).toHaveLength(1)
+    const cover = covers[0]!
+    expect(assets[0]).toBe(cover)
+    expect(cover.entityId).toBe(spec.id)
+    expect(cover.id).toBe(`asset-cover-${createHash('sha256').update(spec.id).digest('hex').slice(0, 16)}`)
+    expect(cover.id.length).toBeLessThanOrEqual(48)
+    expect(cover.prompt).toContain(spec.setting)
+    expect(cover.prompt).toContain('Places seen in this adventure:')
+    expect(cover.prompt.length).toBeLessThanOrEqual(600)
+    expect(cover.subject.length).toBeLessThanOrEqual(120)
+    // an existing cover entry is kept, not duplicated or reordered
+    const withCover = playableAssetEligibility({ ...spec, assetEligibility: [cover, ...spec.assetEligibility] })
+    expect(withCover.filter((asset) => asset.kind === 'cover')).toHaveLength(1)
+    expect(withCover.findIndex((asset) => asset.kind === 'cover')).toBe(0)
+  })
+
+  it('draws the cover wide at medium quality and drops the map-tile scale line', async () => {
+    const spec = await loadI1Spec()
+    spec.stages[0]!.mapTheme = 'winter'
+    const cover = playableAssetEligibility(spec).find((asset) => asset.kind === 'cover')!
+    const prompt = buildImagePrompt(cover, spec)
+    expect(prompt).toContain('Wide establishing key-art illustration')
+    expect(prompt).toContain('snow white, pale blue-gray, dark timber')
+    expect(prompt).toContain('map palette')
+    expect(prompt).not.toContain('16x16 terrain tiles')
+    const images = new FakeImageService()
+    await generateAssets({ ...spec, assetEligibility: [cover] }, { images, cache: new InMemoryAssetCache(), store: new InMemoryAssetStore(), quality: 'low' })
+    expect(images.requests[0]?.size).toBe('1536x1024')
+    expect(images.requests[0]?.quality).toBe('medium')
   })
 
   it('asks for sober, stakeholder-specific pixel portraits that stay legible on the map', async () => {

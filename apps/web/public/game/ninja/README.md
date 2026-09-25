@@ -4,6 +4,9 @@ Assets created by:
 [Pixel-boy](https://pixel-boy.itch.io/)
 [AAA](https://www.instagram.com/challenger.aaa/?hl=fr)
 
+`audio/sfx/chatter.ogg` and `audio/sfx/crowd.ogg` are not from the pack: they are
+synthesised by `scripts/make-street-audio.py` in this repository.
+
 # License
 
 They are released under the Creative Commons Zero (CC0) license.

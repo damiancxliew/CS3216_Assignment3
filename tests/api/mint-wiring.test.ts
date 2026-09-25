@@ -28,13 +28,13 @@ function record(attemptId: string, adventureSpec: AdventureSpec = spec): Attempt
 }
 
 function mintReply(labels: readonly string[] = ["Offer a temporary anchorage"]): string {
-  return JSON.stringify(labels.map((label) => ({
+  return JSON.stringify({ proposals: labels.map((label) => ({
     label,
     stance: "cooperative",
     branchTargetKey: "opt-sign-preliminary",
     preconditions: [{ kind: "actor_in_room", actorId: "player", roomId: "landing-beach" }],
     why: "The public exchange opened this route.",
-  })));
+  })) });
 }
 
 function deferredLlm(replies: readonly string[] = [mintReply()]) {

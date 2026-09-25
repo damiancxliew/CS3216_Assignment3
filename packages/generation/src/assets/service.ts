@@ -2,7 +2,7 @@
  * D5 — asset generation (PRD D4, FR-6/FR-6a/FR-6b).
  *
  * Only `spec.assetEligibility[]` entries can reach the image model, and the
- * schema restricts those to portrait | landmark | prop | sprite. This module
+ * schema restricts those to portrait | landmark | prop | sprite | cover. This module
  * re-checks at the service boundary (`assertGeneratable`) so a caller that
  * bypasses the spec — the compiler, a teacher "regenerate" button, a test —
  * still cannot request terrain. A prompt-hash cache means a subject reused
@@ -32,10 +32,11 @@ const STYLE: Record<GeneratableAssetKind, string> = {
   ].join(' '),
   landmark: 'A game-ready 32x32 pixel-art tile sheet of one solid physical landmark, occupying exactly two 16x16 map tiles in each direction. Draw one complete object centered in the square on a transparent background with a transparent margin of at most two pixels. Three-quarter top-down view matching hand-authored 16-bit game tiles: deliberate hard square pixel edges, strong readable silhouette, no antialiasing, no soft lighting, no gradients, and a limited muted palette of at most 16 colors. Show only the object, with no scene, ground plane, frame, placard, UI, text, characters, shadow outside the footprint, or painterly texture. The image will be reduced to 32x32 pixels and cut into four 16x16 terrain tiles.',
   prop: 'Single small physical object for a top-down 16px pixel-art game map. Three-quarter top-down view, crisp square pixels, simple readable silhouette, limited muted palette, transparent background. No scene, ground plane, frame, UI, text, characters, gradients or painterly texture.',
+  cover: 'Wide establishing key-art illustration of the historical setting, for the cover of an educational adventure. Hand-authored 16-bit pixel art in the same visual family as the game maps: crisp square pixels, hard edges, a limited muted period palette, no antialiasing, and no painterly or photographic rendering. Compose one readable wide scene of the place — period architecture, terrain, sky and weather — seen from a slightly elevated three-quarter vantage point, with distinct foreground, midground and background layers. Any people are small, distant and incidental. No close-up faces or portraits, no text, lettering, titles, captions, logos, banners, flags, insignia, frames, borders, vignettes, UI, watermarks or modern objects. The card crops the image to a wide strip, so keep the important detail near the centre and away from the extreme edges.',
   sprite: 'Edit the attached grayscale walking sprite sheet into ONE new full-body character for a 16-bit top-down pixel-art game. Use the reference as a strict POSE AND GRID TEMPLATE, not as the character identity: colorize and change the hair, face, skin tone, clothing and accessories to match the described person. Preserve the exact four-by-four cell layout and the same pose silhouette in each corresponding cell. Do not redraw, rotate, shift, enlarge, or crop any pose silhouette. COLUMNS are facing directions: column 1 faces the viewer (down), column 2 shows the BACK OF THE HEAD and back of clothing (up), column 3 faces left in profile, column 4 faces right in profile. ROWS are walking phases: standing, left foot forward, standing, right foot forward. The four frames in each column must always face the same direction; only limbs move. Keep all sixteen cells aligned and equally sized, with transparent backgrounds and no grid lines. No portraits, photographs, scene, ground, shadow, text, or other characters. The sheet will be reduced to 64x64 pixels, giving each frame exactly 16x16 pixels.',
 }
 
-const SIZES: Record<GeneratableAssetKind, ImageRequest['size']> = { portrait: '1024x1024', landmark: '1024x1024', prop: '1024x1024', sprite: '1024x1024' }
+const SIZES: Record<GeneratableAssetKind, ImageRequest['size']> = { portrait: '1024x1024', landmark: '1024x1024', prop: '1024x1024', sprite: '1024x1024', cover: '1536x1024' }
 
 const THEME_PALETTES = {
   classic: 'warm grass green, dark brown wood, cream stone',
@@ -64,10 +65,16 @@ export function assertGeneratable(request: { kind: string }): asserts request is
 export function buildImagePrompt(entry: AssetEligibility, spec: AdventureSpec): string {
   const subject = entry.subject.replace(/\s+/g, ' ').trim()
   const brief = entry.prompt.replace(/\s+/g, ' ').trim()
-  const stage = spec.stages.find((candidate) => entry.kind === 'landmark'
-    ? candidate.rooms.some((room) => room.id === entry.entityId)
-    : entry.kind === 'prop' && candidate.evidence.some((item) => item.id === entry.entityId))
-  const mapStyle = entry.kind === 'portrait' ? null : `Match the ${stage?.mapTheme ?? 'classic'} map tiles: ${THEME_PALETTES[stage?.mapTheme ?? 'classic']}. Keep the object's scale and pixel density consistent with 16x16 terrain tiles.`
+  const stage = entry.kind === 'cover'
+    ? spec.stages[0]
+    : spec.stages.find((candidate) => entry.kind === 'landmark'
+      ? candidate.rooms.some((room) => room.id === entry.entityId)
+      : entry.kind === 'prop' && candidate.evidence.some((item) => item.id === entry.entityId))
+  const mapStyle = entry.kind === 'portrait'
+    ? null
+    : entry.kind === 'cover'
+      ? `Match the ${stage?.mapTheme ?? 'classic'} map palette: ${THEME_PALETTES[stage?.mapTheme ?? 'classic']}.`
+      : `Match the ${stage?.mapTheme ?? 'classic'} map tiles: ${THEME_PALETTES[stage?.mapTheme ?? 'classic']}. Keep the object's scale and pixel density consistent with 16x16 terrain tiles.`
   return [
     `Subject: ${subject}.`,
     `Description (from the adventure author): """${brief}"""`,
@@ -102,18 +109,25 @@ function imageModel(images: ImageService, kind: GeneratableAssetKind): string {
   return images.modelForKind?.(kind) ?? images.model
 }
 
-/** Sprite frames need more detail than the default low quality used for larger artwork. */
+/** Sprite frames and the wide cover need more detail than the default low quality used for larger artwork. */
 export function assetQuality(kind: GeneratableAssetKind, quality: ImageRequest['quality']): ImageRequest['quality'] {
-  return kind === 'sprite' && quality === 'low' ? 'medium' : quality
+  return (kind === 'sprite' || kind === 'cover') && quality === 'low' ? 'medium' : quality
 }
 
 /** Older sprite prompts lacked a pose reference and produced mixed-facing walk cycles. */
 export function isCurrentSpriteRecord(spec: AdventureSpec, record: AssetRecord): boolean {
   if (record.kind !== 'sprite' || !record.model) return false
+  // Rejected images are full-size model outputs. Even if a teacher accepted one
+  // before normalization was added, it cannot be read as 16px game frames.
+  if (isRawRejectedSpriteUrl(record.url)) return false
   const entry = playableAssetEligibility(spec).find((asset) => asset.id === record.assetId && asset.kind === 'sprite')
   if (!entry) return false
   const prompt = buildImagePrompt(entry, spec)
   return (['medium', 'high'] as const).some((quality) => record.promptHash === promptHash({ kind: 'sprite', prompt, size: SIZES.sprite, quality }, record.model!))
+}
+
+export function isRawRejectedSpriteUrl(url: string): boolean {
+  return /-rejected\.(?:webp|png|jpeg)(?:\?|$)/.test(url)
 }
 
 export interface GenerateAssetsOptions {
@@ -154,6 +168,18 @@ export function playableAssetEligibility(spec: AdventureSpec): AssetEligibility[
       entityId: stakeholder.id,
       subject: stakeholder.name,
       prompt: `${stakeholder.role}. ${portrait?.prompt ?? stakeholder.summary.text}`.slice(0, 600),
+    })
+  }
+  // One adventure-level cover, derived like sprites; it leads the list because
+  // it is the first image a teacher sees and generation walks the list in order.
+  if (!eligible.some((asset) => asset.kind === 'cover')) {
+    const places = (spec.stages[0]?.rooms ?? []).slice(0, 4).map((room) => room.landmark?.name ?? room.name)
+    eligible.unshift({
+      id: `asset-cover-${createHash('sha256').update(spec.id).digest('hex').slice(0, 16)}`,
+      kind: 'cover',
+      entityId: spec.id,
+      subject: spec.title.slice(0, 120),
+      prompt: `Wide view of ${spec.setting}.${places.length ? ` Places seen in this adventure: ${places.join(', ')}.` : ''} ${spec.description}`.slice(0, 600),
     })
   }
   return eligible

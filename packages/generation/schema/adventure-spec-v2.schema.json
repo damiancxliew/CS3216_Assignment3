@@ -1499,7 +1499,8 @@
               "portrait",
               "landmark",
               "prop",
-              "sprite"
+              "sprite",
+              "cover"
             ]
           },
           "entityId": {

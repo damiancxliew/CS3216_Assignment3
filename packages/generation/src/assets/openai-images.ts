@@ -26,7 +26,7 @@ const referencePixels = sharp(Buffer.from(WALKING_SHEET_REFERENCE, 'base64'))
 
 /** The model draws all poses together. Crop each cell before reducing it so
  * no frame can borrow pixels from its neighbour. Reject unusable sheets. */
-export async function normalizeWalkingSpriteSheet(bytes: Uint8Array): Promise<Uint8Array> {
+export async function normalizeWalkingSpriteSheet(bytes: Uint8Array, options: { allowPoseMismatch?: boolean } = {}): Promise<Uint8Array> {
   const source = sharp(bytes)
   const metadata = await source.metadata()
   if (!metadata.width || !metadata.height || metadata.width !== metadata.height || metadata.width % 4 !== 0) {
@@ -56,7 +56,7 @@ export async function normalizeWalkingSpriteSheet(bytes: Uint8Array): Promise<Ui
       // Editing models can return sixteen occupied cells while shifting limbs,
       // clipping frames, or rotating a walker mid-step. The pose reference is
       // the contract the game renderer animates, so enforce it per frame.
-      if (maskIntersection / maskUnion < 0.58) throw new Error(`walking sprite frame ${row + 1},${column + 1} does not match the pose template`)
+      if (!options.allowPoseMismatch && maskIntersection / maskUnion < 0.58) throw new Error(`walking sprite frame ${row + 1},${column + 1} does not match the pose template`)
     }
   }
   // Reject only clear row-major direction layouts. Walking poses can differ
@@ -76,7 +76,7 @@ export async function normalizeWalkingSpriteSheet(bytes: Uint8Array): Promise<Ui
       }
     }
   }
-  if (acrossSteps > 0 && acrossDirections < acrossSteps * 0.2) {
+  if (!options.allowPoseMismatch && acrossSteps > 0 && acrossDirections < acrossSteps * 0.2) {
     throw new Error('walking sprite sheet appears to mix directions into the animation frames')
   }
   return new Uint8Array(await sharp(output, { raw: { width: 64, height: 64, channels: 4 } }).png().toBuffer())
@@ -119,7 +119,7 @@ export class OpenAiImageService implements ImageService {
           size: request.size,
           quality: request.quality,
           output_format: 'webp',
-          background: request.kind === 'portrait' ? 'opaque' : 'transparent',
+          background: request.kind === 'portrait' || request.kind === 'cover' ? 'opaque' : 'transparent',
           n: 1,
         })
     } catch (error) {

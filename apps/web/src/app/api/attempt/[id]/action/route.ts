@@ -36,7 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const parsed = actionRequestSchema.safeParse(await readJson(request));
   if (!parsed.success) return withPlayPerf(errorResponse({ code: "invalid_request", message: "Unknown action." }), timings, { route: "action", type: "unknown", attemptId: id });
 
-  const result = await postAction({ ...playDeps(), timings }, id, userId, parsed.data);
+  const result = await postAction({ ...playDeps(id), timings }, id, userId, parsed.data);
   const response = result.ok ? publicJson({ accepted: true, refused: result.value.refused, state: result.state }) : errorResponse(result.error);
   return withPlayPerf(response, timings, { route: "action", type: parsed.data.type, attemptId: id });
 }

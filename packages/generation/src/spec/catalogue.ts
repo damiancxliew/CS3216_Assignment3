@@ -64,7 +64,7 @@ export type RoomSize = (typeof ROOM_SIZES)[number]
  * Terrain, structural and UI art are curated and are deliberately absent from
  * this list, so a spec that asks for them fails schema validation.
  */
-export const GENERATABLE_ASSET_KINDS = ['portrait', 'landmark', 'prop', 'sprite'] as const
+export const GENERATABLE_ASSET_KINDS = ['portrait', 'landmark', 'prop', 'sprite', 'cover'] as const
 export type GeneratableAssetKind = (typeof GENERATABLE_ASSET_KINDS)[number]
 
 /** Curated placeholders every generated asset falls back to (FR-6a). */
@@ -73,18 +73,20 @@ export const CURATED_PLACEHOLDERS = {
   landmark: 'placeholder-landmark',
   prop: 'placeholder-prop',
   sprite: 'placeholder-generic',
+  cover: 'placeholder-generic',
 } as const satisfies Record<GeneratableAssetKind, string>
 
 /** Fallback for anything that is not a generatable kind (defence in depth). */
 export const GENERIC_PLACEHOLDER = 'placeholder-generic'
 
-/** Which spec entity each generatable asset kind may attach to. */
+/** Which spec entity each generatable asset kind may attach to. `cover` is adventure-level card/key art, not gameplay art. */
 export const ASSET_KIND_ENTITY = {
   portrait: 'stakeholder',
   landmark: 'room',
   prop: 'evidence',
   sprite: 'stakeholder',
-} as const satisfies Record<GeneratableAssetKind, 'stakeholder' | 'room' | 'evidence'>
+  cover: 'adventure',
+} as const satisfies Record<GeneratableAssetKind, 'stakeholder' | 'room' | 'evidence' | 'adventure'>
 
 /** Decision stances, used by the eval harness to prove branching (PRD §9.3). */
 export const DECISION_STANCES = ['cooperative', 'antagonistic', 'neutral', 'evasive'] as const

@@ -4,17 +4,33 @@ import type { PlaygroundSnapshot } from './model.js'
 import type { StoryArt } from './story-art.js'
 import { makeFaunaSheet, storyFauna } from './fauna.js'
 import { isExposed } from './weather.js'
+import { passingRemark, streetTalk, type StreetTalk } from './street-talk.js'
 
 export const RESIDENT_SPRITES = ['Villager', 'Villager2', 'Woman', 'OldMan', 'Monk2']
-type Resident = { sprite: Phaser.GameObjects.Sprite; shadow: Phaser.GameObjects.Ellipse; sheet: string; stepMs: number; at: Point; path: Point[]; progress: number; pause: number; stop: number }
+/** A passer-by the player can hear or greet. Flavour only, so it carries no actor id. */
+export interface StreetPerson { id: string; name: string; at: Point }
+type Talker = { id: string; talk: StreetTalk; line: number; cooldown: number }
+type Resident = { sprite: Phaser.GameObjects.Sprite; shadow: Phaser.GameObjects.Ellipse; sheet: string; stepMs: number; at: Point; path: Point[]; progress: number; pause: number; stop: number; person?: Talker; bubble: Phaser.GameObjects.Text | null; bubbleFor: number }
 
-/** Cosmetic passers-by never join conversations or alter authoritative actor positions. */
+const REMARK_RANGE = 2
+const REMARK_COOLDOWN_MS = 11000
+
+/** Cosmetic passers-by never join conversations or alter authoritative actor positions:
+ * their greetings and small talk are drawn locally from the public setting and never
+ * reach the transcript, evidence or a character agent.
+ */
 export class AmbientLife {
   private residents: Resident[] = []
   private stops: Point[] = []
   private routes: StageMap
-  constructor(scene: Phaser.Scene, snapshot: PlaygroundSnapshot, art: StoryArt) {
+  private readonly scene: Phaser.Scene
+  private readonly art: StoryArt['id']
+  private readonly onRemark: ((person: StreetPerson, line: string) => void) | undefined
+  constructor(scene: Phaser.Scene, snapshot: PlaygroundSnapshot, art: StoryArt, options?: { onRemark?: (person: StreetPerson, line: string) => void }) {
     const map = snapshot.map
+    this.scene = scene
+    this.art = art.id
+    this.onRemark = options?.onRemark
     // Reuse core pathfinding on a public outdoor-only projection: no shortcuts through rooms.
     this.routes = { ...map, tiles: map.tiles.map((row, y) => row.map((tile, x) => isExposed(map, x, y) && tile !== 'door' ? tile : 'wall')) }
     const allowed = (p: Point) => isWalkable(this.routes, {}, p)
@@ -29,7 +45,9 @@ export class AmbientLife {
       const stop = Math.floor(i * this.stops.length / count), at = this.stops[stop]!, sheet = sheets[i % sheets.length]!
       const shadow = scene.add.ellipse(at.x * 16 + 8, at.y * 16 + 13, 10, 4, 0x243d35, .22).setDepth(8)
       const sprite = scene.add.sprite(at.x * 16 + 8, at.y * 16 + 6, `char-${sheet}`, 0).setDepth(12).setName(`ambient-${population}-${i}`)
-      this.residents.push({ sprite, shadow, sheet: `char-${sheet}`, stepMs: 430, at, path: [], progress: 0, pause: i * 450, stop })
+      const id = `street-${i}`
+      const person: Talker = { id, talk: streetTalk(`${snapshot.map.id}:${id}`, art.id, snapshot.storyContext ?? ''), line: -1, cooldown: 2000 + i * 900 }
+      this.residents.push({ sprite, shadow, sheet: `char-${sheet}`, stepMs: 430, at, path: [], progress: 0, pause: i * 450, stop, person, bubble: null, bubbleFor: 0 })
     }
     for (const [index, species] of storyFauna(snapshot.environment, art, snapshot.storyContext ?? '').entries()) {
       const sheet = makeFaunaSheet(scene, species)
@@ -38,13 +56,67 @@ export class AmbientLife {
         const stop = (index * 7 + i * 2 + 1) % this.stops.length, at = this.stops[stop]!
         const shadow = scene.add.ellipse(at.x * 16 + 8, at.y * 16 + 13, species === 'camel' ? 13 : 9, 5, 0x243d35, .2).setDepth(8)
         const sprite = scene.add.sprite(at.x * 16 + 8, at.y * 16 + 6, sheet, 0).setDepth(12).setName(`ambient-animal-${species}-${i}`)
-        this.residents.push({ sprite, shadow, sheet, stepMs: species === 'camel' ? 620 : 510, at, path: [], progress: 0, pause: i * 1200, stop })
+        this.residents.push({ sprite, shadow, sheet, stepMs: species === 'camel' ? 620 : 510, at, path: [], progress: 0, pause: i * 1200, stop, bubble: null, bubbleFor: 0 })
       }
     }
   }
-  update(delta: number, reduced: boolean, running: boolean): void {
+  /** Everyone the player could greet right now, nearest first. */
+  people(): StreetPerson[] {
+    return this.residents.flatMap(r => r.person ? [{ id: r.person.id, name: r.person.talk.name, at: r.at }] : [])
+  }
+
+  personAt(tile: Point): StreetPerson | null {
+    const found = this.residents.find(r => r.person && r.at.x === tile.x && r.at.y === tile.y)
+    return found?.person ? { id: found.person.id, name: found.person.talk.name, at: found.at } : null
+  }
+
+  /** How busy the street feels around the player, for the crowd murmur. */
+  crowd(player: Point, radius = 7): number {
+    return this.people().filter(p => Math.abs(p.at.x - player.x) <= radius && Math.abs(p.at.y - player.y) <= radius).length
+  }
+
+  /** Greeting a passer-by: cycles their small talk. Returns the spoken line. */
+  talk(id: string): string | null {
+    const resident = this.residents.find(r => r.person?.id === id)
+    if (!resident?.person) return null
+    const person = resident.person
+    person.line = (person.line + 1) % person.talk.lines.length
+    person.cooldown = REMARK_COOLDOWN_MS
+    const line = person.talk.lines[person.line]!
+    this.say(resident, line, 4200)
+    resident.pause = Math.max(resident.pause, 2600)
+    return line
+  }
+
+  private say(resident: Resident, text: string, ms: number): void {
+    resident.bubble?.destroy()
+    resident.bubble = this.scene.add.text(resident.sprite.x, resident.sprite.y - 12, text, {
+      color: '#241f18', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '7px',
+      backgroundColor: '#f6e7c1', padding: { x: 3, y: 2 }, resolution: 8,
+      wordWrap: { width: 92, useAdvancedWrap: true }, align: 'center',
+    }).setOrigin(.5, 1).setDepth(58)
+    resident.bubbleFor = ms
+  }
+
+  update(delta: number, reduced: boolean, running: boolean, player?: Point): void {
     const dt = Math.min(delta, 80)
     for (const person of this.residents) {
+      if (person.bubble) {
+        person.bubble.setPosition(person.sprite.x, person.sprite.y - 12)
+        person.bubbleFor -= dt
+        if (person.bubbleFor <= 0) { person.bubble.destroy(); person.bubble = null }
+      }
+      if (person.person) {
+        person.person.cooldown -= dt
+        // Walking past somebody in the street earns a passing word, once in a while.
+        if (player && person.person.cooldown <= 0 && running
+          && Math.abs(person.at.x - player.x) <= REMARK_RANGE && Math.abs(person.at.y - player.y) <= REMARK_RANGE) {
+          person.person.cooldown = REMARK_COOLDOWN_MS
+          const line = passingRemark(`${person.person.id}:${person.at.x},${person.at.y}`, this.art)
+          this.say(person, line, 2400)
+          this.onRemark?.({ id: person.person.id, name: person.person.talk.name, at: person.at }, line)
+        }
+      }
       if (reduced || !running || document.hidden) { person.sprite.anims.pause(); continue }
       person.sprite.anims.resume()
       if (person.pause > 0) { person.pause -= dt; continue }
@@ -65,5 +137,5 @@ export class AmbientLife {
       }
     }
   }
-  destroy(): void { this.residents.forEach(p => { p.sprite.destroy(); p.shadow.destroy() }) }
+  destroy(): void { this.residents.forEach(p => { p.sprite.destroy(); p.shadow.destroy(); p.bubble?.destroy() }) }
 }

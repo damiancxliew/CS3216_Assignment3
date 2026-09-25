@@ -198,6 +198,10 @@ export class EnvironmentArt {
     this.wind = snapshot.environment?.wind === 'calm' ? 0 : snapshot.environment?.wind === 'gusts' ? 1.7 : 1
     const map = snapshot.map
     const width = map.width * T, height = map.height * T
+    // Room membership is tile-based. Reuse it during rasterisation instead of
+    // searching every room for each of the map's millions of pixels.
+    const exposed = Array.from({ length: map.height }, (_, y) =>
+      Array.from({ length: map.width }, (_, x) => isExposed(map, x, y) && map.tiles[y]?.[x] !== 'water'))
     const seed = roomFinish(`${art.id}:${snapshot.storyContext ?? snapshot.seed}`).seed
     const waterBodies = map.waterBodies ?? []
     if (waterBodies.length) {
@@ -317,9 +321,13 @@ export class EnvironmentArt {
     const mask = r.getImageData(0, 0, width, height)
     for (let py = 0; py < height; py++) for (let px = 0; px < width; px++) {
       const i = (py * width + px) * 4
+      if (!mask.data[i + 3] || !exposed[Math.floor(py / T)]?.[Math.floor(px / T)]) {
+        mask.data[i + 3] = 0
+        continue
+      }
       const noise = formal ? 0 : (field(px, py, 13, seed + 54) - .5) * 40
       // Never paint a ribbon across a wall/interior or outside the quay boundary.
-      mask.data[i + 3] = isExposed(map, Math.floor(px / T), Math.floor(py / T)) && map.tiles[Math.floor(py / T)]?.[Math.floor(px / T)] !== 'water' && mask.data[i + 3]! > 100 + noise ? 255 : 0
+      mask.data[i + 3] = mask.data[i + 3]! > 100 + noise ? 255 : 0
     }
     r.putImageData(mask, 0, 0)
     r.globalCompositeOperation = 'source-in'; r.fillStyle = materialPattern(art.path, r); r.fillRect(0, 0, width, height)
@@ -331,7 +339,6 @@ export class EnvironmentArt {
       ...(snapshot.landmarks ?? []).flatMap((item) => [item.position, { x: item.position.x + 1, y: item.position.y + 1 }]),
     ]
     const reserved = (x: number, y: number) => protectedPoints.some((p) => Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1)
-    const exposed = Array.from({ length: map.height }, (_, y) => Array.from({ length: map.width }, (_, x) => isExposed(map, x, y) && map.tiles[y]?.[x] !== 'water'))
     // Clip every ground detail to the outdoor footprint, including overhanging fern leaves.
     c.save(); c.beginPath()
     for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) {
@@ -339,19 +346,23 @@ export class EnvironmentArt {
     }
     c.clip()
     const secondary = materialPattern(art.secondary, c)
+    const lush = art.vegetation > 0
+    const civicGarden = art.secondary === 6 && art.id === 'civic'
     for (let y = 1; y < map.height - 1; y++) for (let x = 1; x < map.width - 1; x++) {
       if (!exposed[y]?.[x] || reserved(x, y)) continue
       const nearWall = x > 2 && y > 2 && x < map.width - 3 && y < map.height - 3 && [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => map.tiles[y + dy!]?.[x + dx!] === 'wall')
-      const lush = art.vegetation > 0
-      for (let py = y * T; py < (y + 1) * T; py++) for (let px = x * T; px < (x + 1) * T; px++) {
+      // Ground grain is decorative. Sampling in 4px blocks keeps 4 samples per
+      // tile edge while avoiding hundreds of thousands of canvas calls at load.
+      for (let py = y * T; py < (y + 1) * T; py += 4) for (let px = x * T; px < (x + 1) * T; px += 4) {
+        const garden = civicGarden && this.water.some(body => Math.hypot((px - body.x) / (body.width * .9), (py - body.y) / (body.height * 1.15)) < 1)
+        if ((civicGarden ? garden : art.secondary === 3 || art.secondary === 14 ? nearWall && field(px, py, 73, seed + 43) > .66 : field(px, py, 73, seed + 43) > (art.id === 'civic' ? .74 : .60))) { c.fillStyle = secondary; c.fillRect(px, py, 4, 4) }
+        if (!lush) continue
         const growth = field(px, py, 37, seed + 74) * 0.7 + field(px, py, 9, seed + 75) * 0.3
         const threshold = 1 - art.vegetation * .55 - (nearWall ? .12 : 0)
-        const garden = art.id === 'civic' && this.water.some(body => Math.hypot((px - body.x) / (body.width * .9), (py - body.y) / (body.height * 1.15)) < 1)
-        if ((art.secondary === 6 && art.id === 'civic' ? garden : art.secondary === 3 || art.secondary === 14 ? nearWall && field(px, py, 73, seed + 43) > .66 : field(px, py, 73, seed + 43) > (art.id === 'civic' ? .74 : .60))) { c.fillStyle = secondary; c.fillRect(px, py, 1, 1) }
-        if (growth < threshold - 0.025 || !lush) continue
+        if (growth < threshold - 0.025) continue
         const n = surfaceNoise(Math.floor(px / 2), Math.floor(py / 2), 76)
         const colors = growth < threshold ? ['#716a49', '#80734f', '#656445'] : ['#657846', '#70834a', '#5c7041', '#7a8b50', '#50663d']
-        pixel(c, colors[Math.floor(n * colors.length)]!, px, py)
+        pixel(c, colors[Math.floor(n * colors.length)]!, px, py, 4, 4)
       }
       const n = surfaceNoise(x, y, seed + 78)
       if (lush && n < art.vegetation && (nearWall || field(x * T + 8, y * T + 8, 37, seed + 74) > 0.5)) {

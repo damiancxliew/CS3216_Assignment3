@@ -65,7 +65,7 @@ describe("asset generation after publish", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(images.requests.map((r) => r.kind).every((k) => ["portrait", "landmark", "prop", "sprite"].includes(k))).toBe(true);
+    expect(images.requests.map((r) => r.kind).every((k) => ["portrait", "landmark", "prop", "sprite", "cover"].includes(k))).toBe(true);
     const manifest = await loadManifest(admin, result.specVersionId, adventureId, 1);
     const playableAssets = playableAssetEligibility(spec);
     expect(manifest!.records).toHaveLength(playableAssets.length);

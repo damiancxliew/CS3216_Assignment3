@@ -14,7 +14,7 @@ const stageId = 'stage-harbour-negotiation'
 const branchTarget = { kind: 'stage' as const, stageId: 'stage-settlement' }
 const branchTargets = [{ key: 'settlement', target: branchTarget, description: 'Continue to the settlement terms.' }]
 
-const response = (proposals: readonly Record<string, unknown>[]): string => JSON.stringify(proposals)
+const response = (proposals: readonly Record<string, unknown>[]): string => JSON.stringify({ proposals })
 
 function context(overrides: Partial<MintContext> = {}): MintContext {
   return {
@@ -140,14 +140,14 @@ describe('Resolver option minting (FR-13)', () => {
   })
 
   it('rejects a proposal with no preconditions before minting', async () => {
-    const parsed = mintProposalsSchema.safeParse([proposal({ preconditions: [] })])
+    const parsed = mintProposalsSchema.safeParse({ proposals: [proposal({ preconditions: [] })] })
 
     expect(parsed.success).toBe(false)
 
     const emptyProposal = proposal({ preconditions: [] }) as unknown as MintProposal
     const safeParse = vi.spyOn(mintProposalsSchema, 'safeParse').mockReturnValue({
       success: true,
-      data: [emptyProposal],
+      data: { proposals: [emptyProposal] },
     })
     const result = await mintOptions(
       new FakeLlmClient({ replies: [response([proposal()])] }),

@@ -159,7 +159,7 @@ export type Stakeholder = z.infer<typeof stakeholderSchema>
 export const assetEligibilitySchema = z.object({
   id: idSchema,
   kind: z.enum(GENERATABLE_ASSET_KINDS),
-  /** The spec entity this asset depicts: a stakeholder (portrait), room (landmark) or evidence (prop). */
+  /** The spec entity this asset depicts: a stakeholder (portrait), room (landmark), evidence (prop) or the adventure itself (cover). */
   entityId: idSchema,
   subject: text(120),
   /** Visual brief for the image model. Delimited data, never instructions. */
@@ -522,8 +522,12 @@ export function refineAdventureSpec(spec: AdventureSpecShape, ctx: z.RefinementC
   spec.assetEligibility.forEach((asset, i) => {
     const p = ['assetEligibility', i]
     const entity = ASSET_KIND_ENTITY[asset.kind]
-    const pool = entity === 'stakeholder' ? stakeholderIds : entity === 'room' ? roomIdsAll : evidenceIdsAll
-    if (!pool.has(asset.entityId)) issue([...p, 'entityId'], `${asset.kind} must reference a ${entity} id; "${asset.entityId}" is not one`)
+    const pool = entity === 'stakeholder' ? stakeholderIds : entity === 'room' ? roomIdsAll : entity === 'adventure' ? new Set([spec.id]) : evidenceIdsAll
+    if (!pool.has(asset.entityId)) {
+      issue([...p, 'entityId'], entity === 'adventure'
+        ? `${asset.kind} must reference the adventure id; "${asset.entityId}" is not it`
+        : `${asset.kind} must reference a ${entity} id; "${asset.entityId}" is not one`)
+    }
     if (assetEntities.has(asset.entityId)) issue([...p, 'entityId'], `entity "${asset.entityId}" already has a generated asset`)
     assetEntities.add(asset.entityId)
   })

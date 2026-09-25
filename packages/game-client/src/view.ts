@@ -42,6 +42,8 @@ function jitter(x: number, y: number, salt: number): number {
 export interface MapView {
   render(snapshot: PlaygroundSnapshot): void
   setReducedMotion(enabled: boolean): void
+  /** Exchange a word with a cosmetic passer-by beside the player, if there is one. */
+  greetNearby?(): boolean
   destroy(): void
 }
 

@@ -8,7 +8,7 @@
  * longer validates (older fixtures), so the page can fall back quietly.
  */
 import type { MapDoor, MapRoom } from "@adventure/game-core";
-import { isCurrentSpriteRecord, placeholderUrl, playableAssetEligibility, type AssetManifest, type AssetRecord } from "@adventure/generation/assets";
+import { isCurrentSpriteRecord, isRawRejectedSpriteUrl, placeholderUrl, playableAssetEligibility, type AssetManifest, type AssetRecord } from "@adventure/generation/assets";
 import { resolveStageSettings, validatePublishedSpec, type AdventureSpec, type MapStyleId } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -74,7 +74,7 @@ export type DossierStage = {
 };
 
 export type Dossier = {
-  artwork: { id: string; kind: "portrait" | "landmark" | "prop" | "sprite"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null; failureReason: string | null; canAcceptRejected: boolean }[];
+  artwork: { id: string; kind: "portrait" | "landmark" | "prop" | "sprite" | "cover"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null; failureReason: string | null; canAcceptRejected: boolean }[];
   stakeholders: DossierStakeholder[];
   stages: DossierStage[];
   endings: {
@@ -195,23 +195,28 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
   const records = (manifest?.records ?? []).filter((record) => playableIds.has(record.assetId));
   const artwork = playable.map((entry) => {
     const ownRecord = records.find((record) => record.assetId === entry.id);
-    const outdatedSprite = entry.kind === "sprite" && ownRecord && (ownRecord.status === "ready" || ownRecord.status === "cached") && !isCurrentSpriteRecord(spec, ownRecord);
-    const entity = entry.kind === "portrait"
-      ? stakeholders.find((person) => person.id === entry.entityId)
-      : entry.kind === "sprite"
-        ? undefined
-      : entry.kind === "landmark"
-        ? stages.flatMap((stage) => stage.rooms).find((room) => room.id === entry.entityId)
-        : stages.flatMap((stage) => stage.evidence).find((item) => item.id === entry.entityId);
+    const rawAcceptedSprite = entry.kind === "sprite" && ownRecord && (ownRecord.status === "ready" || ownRecord.status === "cached") && isRawRejectedSpriteUrl(ownRecord.url);
+    const outdatedSprite = entry.kind === "sprite" && ownRecord && (ownRecord.status === "ready" || ownRecord.status === "cached") && !rawAcceptedSprite && !isCurrentSpriteRecord(spec, ownRecord);
+    // Sprites and the adventure cover are derived, entity-less entries: the
+    // entityId (stakeholder or adventure id) does not point into the dossier projections.
+    const entityless = entry.kind === "sprite" || entry.kind === "cover";
+    const entity = entityless
+      ? undefined
+      : entry.kind === "portrait"
+        ? stakeholders.find((person) => person.id === entry.entityId)
+        : entry.kind === "landmark"
+          ? stages.flatMap((stage) => stage.rooms).find((room) => room.id === entry.entityId)
+          : stages.flatMap((stage) => stage.evidence).find((item) => item.id === entry.entityId);
     return {
       id: entry.id,
       kind: entry.kind,
       name: entity?.name ?? entry.subject,
-      imageUrl: ownRecord && ownRecord.url !== ownRecord.placeholderUrl ? ownRecord.url : entry.kind === "sprite" ? placeholderUrl("sprite") : entity?.imageUrl ?? placeholderUrl(entry.kind),
-      imageStatus: outdatedSprite ? ("failed" as ImageStatus) : entry.kind === "sprite" ? imageStatus(ownRecord) : entity?.imageStatus ?? ("placeholder" as ImageStatus),
-      assetId: entry.kind === "sprite" ? ownRecord?.assetId ?? null : entity?.assetId ?? null,
-      failureReason: outdatedSprite ? "Older walking sprite. Regenerate to use the current format." : ownRecord?.status === "failed" || ownRecord?.status === "filtered" || ownRecord?.status === "skipped-cap" ? ownRecord.error ?? "Generation failed. Try again." : null,
-      canAcceptRejected: entry.kind === "sprite" && ownRecord?.status === "failed" && ownRecord.url !== ownRecord.placeholderUrl && /pose template|mix directions/.test(ownRecord.error ?? "") && isCurrentSpriteRecord(spec, ownRecord),
+      imageUrl: ownRecord && ownRecord.url !== ownRecord.placeholderUrl ? ownRecord.url : entityless ? placeholderUrl(entry.kind) : entity?.imageUrl ?? placeholderUrl(entry.kind),
+      imageStatus: outdatedSprite || rawAcceptedSprite ? ("failed" as ImageStatus) : entityless ? imageStatus(ownRecord) : entity?.imageStatus ?? ("placeholder" as ImageStatus),
+      // The derived cover id is stable, so its Regenerate button can appear even before a row exists.
+      assetId: entry.kind === "cover" ? ownRecord?.assetId ?? entry.id : entry.kind === "sprite" ? ownRecord?.assetId ?? null : entity?.assetId ?? null,
+      failureReason: rawAcceptedSprite ? "This accepted sprite needs to be prepared for the game. Review and accept it again." : outdatedSprite ? "Older walking sprite. Regenerate to use the current format." : ownRecord?.status === "failed" || ownRecord?.status === "filtered" || ownRecord?.status === "skipped-cap" ? ownRecord.error ?? "Generation failed. Try again." : null,
+      canAcceptRejected: entry.kind === "sprite" && !!ownRecord && isRawRejectedSpriteUrl(ownRecord.url) && (rawAcceptedSprite || (ownRecord.status === "failed" && /pose template|mix directions/.test(ownRecord.error ?? ""))) && isCurrentSpriteRecord(spec, { ...ownRecord, url: "/accepted-sprite.png" }),
     };
   });
   return {

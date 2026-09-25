@@ -42,7 +42,7 @@ function Artwork({
   imageStatus,
   className = "w-full aspect-square",
 }: {
-  kind: "portrait" | "landmark" | "prop" | "sprite";
+  kind: "portrait" | "landmark" | "prop" | "sprite" | "cover";
   alt: string;
   imageUrl: string | null;
   imageStatus: ImageStatus;
@@ -435,7 +435,7 @@ export function DossierSections({
             {dossier.assets.generated} of {dossier.assets.eligible} images ready
             {dossier.assets.pending > 0 ? ` · ${dossier.assets.pending} pending` : ""}
             {dossier.assets.failed > 0 ? ` · ${dossier.assets.failed} failed` : ""}
-            <span className="text-muted"> · {artworkKindCount(dossier.artwork.filter((item) => item.kind === "portrait").length, "portrait")}, {artworkKindCount(dossier.artwork.filter((item) => item.kind === "sprite").length, "sprite")}, {artworkKindCount(dossier.artwork.filter((item) => item.kind === "landmark").length, "place")}, {artworkKindCount(dossier.artwork.filter((item) => item.kind === "prop").length, "object")}</span>
+            <span className="text-muted"> · {artworkKindCount(dossier.artwork.filter((item) => item.kind === "cover").length, "cover art")}, {artworkKindCount(dossier.artwork.filter((item) => item.kind === "portrait").length, "portrait")}, {artworkKindCount(dossier.artwork.filter((item) => item.kind === "sprite").length, "sprite")}, {artworkKindCount(dossier.artwork.filter((item) => item.kind === "landmark").length, "place")}, {artworkKindCount(dossier.artwork.filter((item) => item.kind === "prop").length, "object")}</span>
           </p>
           <ArtworkProgress
             assets={dossier.assets}
@@ -449,7 +449,7 @@ export function DossierSections({
                     <Artwork kind={item.kind} alt={`Artwork of ${item.name}`} imageUrl={item.imageUrl} imageStatus={item.imageStatus} className="h-24 w-24 shrink-0" />
                     <div className="flex min-w-0 flex-col gap-1">
                       <p className="font-semibold text-ink">{item.name}</p>
-                      <p className="text-sm text-muted">{item.kind === "prop" ? "Object" : item.kind === "landmark" ? "Place" : item.kind === "sprite" ? "Walking sprite" : "Portrait"} · {item.imageStatus === "generated" ? "Ready" : item.imageStatus === "pending" ? "Pending" : item.imageStatus === "failed" ? "Failed" : "Placeholder"}</p>
+                      <p className="text-sm text-muted">{item.kind === "cover" ? "Cover art" : item.kind === "prop" ? "Object" : item.kind === "landmark" ? "Place" : item.kind === "sprite" ? "Walking sprite" : "Portrait"} · {item.imageStatus === "generated" ? "Ready" : item.imageStatus === "pending" ? "Pending" : item.imageStatus === "failed" ? "Failed" : "Placeholder"}</p>
                       {item.failureReason ? <p className="break-words text-sm text-muted">{item.failureReason}</p> : null}
                       <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={item.assetId} />
                     </div>

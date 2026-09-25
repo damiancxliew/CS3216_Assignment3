@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AuthListener } from "@/components/auth-listener";
 import { ThemeProvider } from "@/components/theme-provider";
 import { themeScript } from "@/lib/theme";
+import { inputModalityScript } from "@/lib/input-modality";
 import { Analytics } from "@/lib/analytics/posthog";
 import { SITE_DESCRIPTION } from "@/lib/seo/structured-data";
 import "./globals.css";
@@ -70,6 +71,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: inputModalityScript }} />
       </head>
       <body className={`${ui.variable} ${record.variable}`}>
         <ThemeProvider>

@@ -406,7 +406,10 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
         if (here.length > 0) {
           event.preventDefault();
           latest.current.onTalk(here[0]!.id);
+          return;
         }
+        // Nobody from the story is in earshot: pass a word with a bystander instead.
+        if (view?.greetNearby?.()) event.preventDefault();
         return;
       }
       const delta = KEYS[key];
