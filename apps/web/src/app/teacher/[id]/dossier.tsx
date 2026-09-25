@@ -142,38 +142,19 @@ export function DossierSections({
       <Section title="Stages">
         <ol className="flex flex-col gap-8">
           {dossier.stages.filter((stage) => stage.id === stageId).map((stage) => {
-            const banner = stage.rooms.find((r) => r.landmark) ?? stage.rooms[0];
             const roomNames = Object.fromEntries(stage.rooms.map((r) => [r.id, r.name]));
             return (
               <li key={stage.id} className="flex flex-col gap-6 overflow-hidden rounded-surface border border-line bg-surface">
-                {view === "stage-style" ? <div className="relative">
-                  {banner?.imageUrl ? (
-                    <ImageViewer src={banner.imageUrl} title={banner.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`} className="w-full">
-                      <img
-                        src={banner.imageUrl}
-                        alt={banner.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`}
-                        width={1536}
-                        height={512}
-                        loading="lazy"
-                        className="w-full aspect-[3/1] object-cover"
-                      />
-                    </ImageViewer>
-                  ) : (
-                    // Defensive fallback for malformed legacy specs.
-                    <div role="img" aria-label={`Stage ${stage.index + 1}`} className="h-36 w-full bg-sunken" />
-                  )}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-baseline justify-between gap-2 bg-ink/60 px-5 py-3">
-                    <p className="font-serif text-xl text-paper">
-                      {stage.index + 1}. {stage.title}
-                    </p>
+                {view === "stage-style" ? (
+                  <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-line px-6 pt-6 pb-4">
+                    <h3 className="font-serif text-xl text-ink">{stage.index + 1}. {stage.title}</h3>
                     {stage.ambientOverlay ? (
-                      <span className="rounded-control border border-paper/40 px-2.5 py-1 text-sm font-semibold capitalize text-paper">
+                      <span className="rounded-control border border-line px-2.5 py-1 text-sm font-semibold capitalize text-muted">
                         {stage.ambientOverlay.id}, {INTENSITY_LABELS[stage.ambientOverlay.intensity] ?? stage.ambientOverlay.intensity}
                       </span>
                     ) : null}
-                    <span className="rounded-control border border-paper/40 px-2.5 py-1 text-sm font-semibold capitalize text-paper">{stage.mapTheme} map</span>
                   </div>
-                </div> : null}
+                ) : null}
 
                 <div className="flex flex-col gap-6 p-6">
                   {view === "stage-content" ? <>
