@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ThemeSelect } from "@/components/theme-provider";
 import { DebriefViewed } from "@/components/debrief-viewed";
+import { ShareButtons } from "@/components/share-buttons";
 import { button, RecordEntry, WorldEntry, Wordmark } from "@/components/ui";
 import { loadDebrief } from "@/lib/attempts/debrief";
 import { createClient } from "@/lib/supabase/server";
@@ -173,13 +174,19 @@ export default async function DebriefPage({
         ) : <p className="text-base text-muted">You did not collect any scrolls. Use the cited historical record above to reflect on what information you were missing.</p>}
       </Part>
 
-      <footer className="flex flex-wrap items-center gap-3 border-t border-line pt-8">
-        <Link href={`/play/${debrief.attemptId}`} className={button.quiet}>
-          Back to your attempt
-        </Link>
-        <Link href="/" className={button.subtle}>
-          Leave for the home page
-        </Link>
+      <footer className="flex flex-col gap-5 border-t border-line pt-8">
+        <div className="flex flex-col gap-3">
+          <h2 className="text-lg font-extrabold tracking-tight text-ink">Share your ending</h2>
+          <ShareButtons adventure={debrief.adventureTitle} ending={debrief.ending.title} />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href={`/play/${debrief.attemptId}`} className={button.quiet}>
+            Back to your attempt
+          </Link>
+          <Link href="/" className={button.subtle}>
+            Leave for the home page
+          </Link>
+        </div>
       </footer>
     </main>
   );
