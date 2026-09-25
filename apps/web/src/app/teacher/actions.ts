@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
@@ -12,7 +13,7 @@ import {
   slugify,
   type ExtractedDocument,
 } from "@adventure/generation";
-import { isCurrentSpriteRecord, OpenAiImageService, playableAssetEligibility } from "@adventure/generation/assets";
+import { isCurrentSpriteRecord, isRawRejectedSpriteUrl, normalizeWalkingSpriteSheet, OpenAiImageService, playableAssetEligibility } from "@adventure/generation/assets";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
 import { MAP_STYLES, validatePublishedSpec } from "@adventure/generation/spec";
 
@@ -547,7 +548,9 @@ export async function acceptRejectedSprite(adventureId: string, specVersionId: s
     .eq("asset_id", assetId)
     .eq("kind", "sprite")
     .maybeSingle<{ asset_id: string; entity_id: string; status: string; url: string; placeholder_url: string; prompt_hash: string; model: string | null; error: string | null }>();
-  if (!record || record.status !== "failed" || record.url === record.placeholder_url || !/pose template|mix directions/.test(record.error ?? "")) {
+  const rejected = record?.status === "failed" && /pose template|mix directions/.test(record.error ?? "");
+  const previouslyAcceptedRaw = record?.status === "ready" && isRawRejectedSpriteUrl(record.url);
+  if (!record || !isRawRejectedSpriteUrl(record.url) || (!rejected && !previouslyAcceptedRaw)) {
     return { error: "There is no rejected sprite to accept." };
   }
   if (!isCurrentSpriteRecord(validated.spec, {
@@ -555,7 +558,7 @@ export async function acceptRejectedSprite(adventureId: string, specVersionId: s
     entityId: record.entity_id,
     kind: "sprite",
     status: "failed",
-    url: record.url,
+    url: "/accepted-sprite.png",
     placeholderUrl: record.placeholder_url,
     promptHash: record.prompt_hash,
     model: record.model,
@@ -563,12 +566,34 @@ export async function acceptRejectedSprite(adventureId: string, specVersionId: s
     error: record.error,
   })) return { error: "This sprite uses an older layout. Regenerate it before review." };
 
+  // The rejected image is the model's full-size output. Phaser needs a 64x64
+  // sheet with sixteen 16px frames even when the teacher accepts its poses.
+  const bucket = admin.storage.from("assets");
+  const sourceUrl = new URL(record.url);
+  const bucketUrl = new URL(bucket.getPublicUrl("").data.publicUrl);
+  const bucketPath = `${bucketUrl.pathname.replace(/\/$/, "")}/`;
+  if (sourceUrl.origin !== bucketUrl.origin || !sourceUrl.pathname.startsWith(bucketPath)) {
+    return { error: "The rejected sprite is outside adventure storage." };
+  }
+  const sourcePath = decodeURIComponent(sourceUrl.pathname.slice(bucketPath.length));
+  const { data: original, error: downloadError } = await bucket.download(sourcePath);
+  if (downloadError || !original) return { error: "Couldn’t load the rejected sprite. Please regenerate it." };
+  let playable: Uint8Array;
+  try {
+    playable = await normalizeWalkingSpriteSheet(new Uint8Array(await original.arrayBuffer()), { allowPoseMismatch: true });
+  } catch {
+    return { error: "This image cannot be turned into a playable walking sprite. Please regenerate it." };
+  }
+  const acceptedPath = `adventures/${validated.spec.id}/${assetId}-${randomUUID()}-accepted.png`;
+  const { error: uploadError } = await bucket.upload(acceptedPath, playable, { contentType: "image/png" });
+  if (uploadError) return { error: "Couldn’t save the accepted sprite. Please try again." };
+  const acceptedUrl = bucket.getPublicUrl(acceptedPath).data.publicUrl;
   const { data: accepted, error } = await admin.from("asset")
-    .update({ status: "ready", error: null, updated_at: new Date().toISOString() })
+    .update({ status: "ready", url: acceptedUrl, error: null, updated_at: new Date().toISOString() })
     .eq("spec_version_id", specVersionId)
     .eq("asset_id", assetId)
     .eq("kind", "sprite")
-    .eq("status", "failed")
+    .eq("status", record.status)
     .eq("url", record.url)
     .select("asset_id")
     .maybeSingle<{ asset_id: string }>();

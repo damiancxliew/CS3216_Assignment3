@@ -117,10 +117,17 @@ export function assetQuality(kind: GeneratableAssetKind, quality: ImageRequest['
 /** Older sprite prompts lacked a pose reference and produced mixed-facing walk cycles. */
 export function isCurrentSpriteRecord(spec: AdventureSpec, record: AssetRecord): boolean {
   if (record.kind !== 'sprite' || !record.model) return false
+  // Rejected images are full-size model outputs. Even if a teacher accepted one
+  // before normalization was added, it cannot be read as 16px game frames.
+  if (isRawRejectedSpriteUrl(record.url)) return false
   const entry = playableAssetEligibility(spec).find((asset) => asset.id === record.assetId && asset.kind === 'sprite')
   if (!entry) return false
   const prompt = buildImagePrompt(entry, spec)
   return (['medium', 'high'] as const).some((quality) => record.promptHash === promptHash({ kind: 'sprite', prompt, size: SIZES.sprite, quality }, record.model!))
+}
+
+export function isRawRejectedSpriteUrl(url: string): boolean {
+  return /-rejected\.(?:webp|png|jpeg)(?:\?|$)/.test(url)
 }
 
 export interface GenerateAssetsOptions {

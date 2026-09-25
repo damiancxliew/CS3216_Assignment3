@@ -37,4 +37,13 @@ describe('walking sprite sheet normalization', () => {
     const input = await readFile(new URL(`./fixtures/sprites/merdeka-sprite-${number}.png`, import.meta.url))
     await expect(normalizeWalkingSpriteSheet(input)).rejects.toThrow(/pose template/)
   })
+
+  it('turns an overridden full-size rejected image into playable 16px frames', async () => {
+    const malformed = await readFile(new URL('./fixtures/sprites/merdeka-sprite-2.png', import.meta.url))
+    const modelOutput = await sharp(malformed).resize(1024, 1024, { kernel: 'nearest' }).webp().toBuffer()
+    await expect(normalizeWalkingSpriteSheet(modelOutput)).rejects.toThrow(/pose template/)
+    const accepted = await normalizeWalkingSpriteSheet(modelOutput, { allowPoseMismatch: true })
+    const metadata = await sharp(accepted).metadata()
+    expect([metadata.format, metadata.width, metadata.height]).toEqual(['png', 64, 64])
+  })
 })
