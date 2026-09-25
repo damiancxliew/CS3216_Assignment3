@@ -1,4 +1,4 @@
-import { PRICING_TIERS } from "@/lib/pricing";
+import { PRICING_TIERS, type PricingTier } from "@/lib/pricing";
 
 // Shared with layout.tsx so the tag, the meta description and the JSON-LD all
 // quote the same sentence.
@@ -33,22 +33,31 @@ export function landingStructuredData() {
         applicationCategory: "EducationalApplication",
         operatingSystem: "Web",
         description: SITE_DESCRIPTION,
-        offers: PRICING_TIERS.filter((tier) => tier.price !== null).map((tier) => ({
-          "@type": "Offer",
-          name: tier.name,
-          price: tier.price,
-          priceCurrency: "SGD",
-          ...(tier.period ? {
-            priceSpecification: {
-              "@type": "UnitPriceSpecification",
-              price: tier.price,
-              priceCurrency: "SGD",
-              billingDuration: tier.period === "year" ? "P1Y" : "P1M",
-            },
-          } : {}),
-          url: `${siteUrl}/#pricing`,
-        })),
+        // One offer per price a visitor can pick: the monthly card and, where the Annual switch
+        // quotes one, its yearly price.
+        offers: PRICING_TIERS.filter((tier) => tier.price !== null).flatMap((tier) => [
+          offer(tier.name, tier.price, tier.period, siteUrl),
+          ...(tier.annual ? [offer(`${tier.name} (annual)`, tier.annual.price, tier.annual.period, siteUrl)] : []),
+        ]),
       },
     ],
+  };
+}
+
+function offer(name: string, price: number, period: PricingTier["period"], siteUrl: string) {
+  return {
+    "@type": "Offer",
+    name,
+    price,
+    priceCurrency: "SGD",
+    ...(period ? {
+      priceSpecification: {
+        "@type": "UnitPriceSpecification",
+        price,
+        priceCurrency: "SGD",
+        billingDuration: period === "year" ? "P1Y" : "P1M",
+      },
+    } : {}),
+    url: `${siteUrl}/#pricing`,
   };
 }

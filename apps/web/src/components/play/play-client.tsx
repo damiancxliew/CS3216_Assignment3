@@ -940,6 +940,7 @@ export function PlayClient({
             <input
               id="conversation-message"
               ref={composer}
+              autoComplete="off"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               disabled={busy !== null || speaking || state.pendingDialogue || !peopleHere.length}
