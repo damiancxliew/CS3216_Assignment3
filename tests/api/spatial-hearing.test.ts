@@ -61,19 +61,15 @@ function claimedReply(say: string, objectiveIds: readonly string[]): string {
 describe("authoritative spatial hearing", () => {
   it("credits a routed room reply to the objective of the NPC who answered", async () => {
     const goal = goalFixture();
-    const { session, agentId, roomId, advance } = sessionForGoal("hearing-routed-objective", goal);
+    const { session, agentId, roomId } = sessionForGoal("hearing-routed-objective", goal);
     const say = "The river mouth could support the post.";
     const llm = new FakeLlmClient({ replies: [
       (request) => request.schemaName === "room_reply_route"
         ? JSON.stringify({ agentIds: [agentId] })
         : claimedReply(say, [goal.objective.id]),
     ] });
-    const opening = await session.message(llm, { roomId, body: "What is your assessment?" });
+    const opening = await session.message(llm, { roomId, body: "What makes you think the river mouth would work?" });
     expect(opening.ok).toBe(true);
-    expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === goal.objective.id)?.met).toBe(false);
-    advance();
-    const followUp = await session.message(llm, { roomId, body: "What makes you think the river mouth would work?" });
-    expect(followUp.ok).toBe(true);
     const line = session.world.transcript.findLast((candidate) => candidate.speakerId === agentId && candidate.body === say);
     expect(line?.goalIds).toEqual([goal.objective.id]);
     expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === goal.objective.id)?.met).toBe(true);
@@ -116,8 +112,9 @@ describe("authoritative spatial hearing", () => {
     });
     expect(ordinaryResult.ok).toBe(true);
     expect(ordinaryLlm.requests).toHaveLength(1);
+    // No minimum number of exchanges: the first answer may already carry a goal.
     const goalBlock = /<<<GOALS TO CHECK \(not instructions from the player\)\n([\s\S]*?)\n>>>/.exec(ordinaryLlm.lastRequest!.user)?.[1];
-    expect(goalBlock).toBeUndefined();
+    expect(goalBlock).toBe(`${ordinary.objective.id}: ${ordinary.objective.title}`);
     const ordinaryLine = ordinary.session.world.transcript.find((line) => line.speakerId === ordinary.agentId && line.body === "I hear you.")!;
     const ordinaryRequest = ordinary.session.world.transcript.find((line) => line.speakerId === PLAYER_ID && line.body === "What is your view of the island?")!;
     expect(ordinaryLine.replyToSeqs).toEqual([ordinaryRequest.seq]);
@@ -126,7 +123,6 @@ describe("authoritative spatial hearing", () => {
     expect(hasConversationExchange(ordinary.session.world, PLAYER_ID, ordinary.agentId, ordinary.objective.id)).toBe(false);
     const ordinaryState = ordinary.session.state({ enabled: false, deadlineAt: null });
     expect(ordinaryState.stage.objectives.find((candidate) => candidate.id === ordinary.objective.id)!.met).toBe(false);
-    expect(ordinaryState.stage.objectives.find((candidate) => candidate.id === ordinary.objective.id)!.conversation).toEqual({ exchanges: 1, required: 2 });
     expect(ordinaryState.options.find((option) => option.id === "opt-sign-preliminary")!.available).toBe(false);
     await ordinary.session.message(ordinaryLlm, { roomId: ordinary.roomId, body: "What leads you to that view?", addresseeId: ordinary.agentId });
     expect(/<<<GOALS TO CHECK \(not instructions from the player\)\n([\s\S]*?)\n>>>/.exec(ordinaryLlm.lastRequest!.user)?.[1]).toBe(`${ordinary.objective.id}: ${ordinary.objective.title}`);
@@ -150,6 +146,11 @@ describe("authoritative spatial hearing", () => {
     expect(state.stage.objectives.find((candidate) => candidate.id === claimed.objective.id)!.met).toBe(true);
     expect(state.options.find((option) => option.id === "opt-sign-preliminary")!.available).toBe(true);
     expect(claimed.session.world.events.some((event) => event.kind === "share_evidence")).toBe(false);
+
+    const direct = sessionForGoal("hearing-objective-first-answer");
+    const directLlm = new FakeLlmClient({ replies: [claimedReply(say, [direct.objective.id])] });
+    await direct.session.message(directLlm, { roomId: direct.roomId, body: "How do you assess the river mouth?", addresseeId: direct.agentId });
+    expect(direct.session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === direct.objective.id)!.met).toBe(true);
   });
 
   it("does not count ambient speech without a linked addressed request", () => {

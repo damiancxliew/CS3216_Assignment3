@@ -5,7 +5,7 @@ import styles from "./game-walkthrough.module.css";
 
 const steps = [
   { target: "story", title: "Follow the story", body: "Open the story header to review this stage and what has happened so far." },
-  { target: "map", title: "Explore the map", body: "Tap or click to walk. Select a person, document, or landmark to interact. On a keyboard, use the arrow keys or WASD to move." },
+  { target: "map", title: "Explore the map", body: "Use the arrow keys or WASD to walk, or tap the map on a touch screen. Select a person, document, or landmark to interact." },
   { target: "tools", title: "Keep your notes", body: "Open Notes to review the documents and clues you collect as you explore." },
   { target: "rooms", title: "Move between rooms", body: "Use the room controls to go somewhere, inspect what is nearby, and open doors." },
   { target: "conversation", title: "Talk to people", body: "Get close to someone and type a question. Their replies can help you complete your goals." },

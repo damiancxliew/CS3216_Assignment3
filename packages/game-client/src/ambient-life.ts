@@ -5,6 +5,7 @@ import type { StoryArt } from './story-art.js'
 import { makeFaunaSheet, storyFauna } from './fauna.js'
 import { isExposed } from './weather.js'
 import { passingRemark, streetTalk, type StreetTalk } from './street-talk.js'
+import { overlaps, type LabelRect } from './map-labels.js'
 
 export const RESIDENT_SPRITES = ['Villager', 'Villager2', 'Woman', 'OldMan', 'Monk2']
 /** A passer-by the player can hear or greet. Flavour only, so it carries no actor id. */
@@ -14,6 +15,9 @@ type Resident = { sprite: Phaser.GameObjects.Sprite; shadow: Phaser.GameObjects.
 
 const REMARK_RANGE = 2
 const REMARK_COOLDOWN_MS = 11000
+/** Above name tags and room labels (depth 60), so a line being spoken is never covered. */
+const BUBBLE_DEPTH = 62
+const BUBBLE_LIFT = 12
 
 /** Cosmetic passers-by never join conversations or alter authoritative actor positions:
  * their greetings and small talk are drawn locally from the public setting and never
@@ -75,6 +79,11 @@ export class AmbientLife {
     return this.people().filter(p => Math.abs(p.at.x - player.x) <= radius && Math.abs(p.at.y - player.y) <= radius).length
   }
 
+  /** Where speech bubbles are on screen, so captions can keep clear of them. */
+  bubbleBounds(): LabelRect[] {
+    return this.residents.flatMap(r => r.bubble ? [r.bubble.getBounds()] : [])
+  }
+
   /** Greeting a passer-by: cycles their small talk. Returns the spoken line. */
   talk(id: string): string | null {
     const resident = this.residents.find(r => r.person?.id === id)
@@ -94,15 +103,34 @@ export class AmbientLife {
       color: '#241f18', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '7px',
       backgroundColor: '#f6e7c1', padding: { x: 3, y: 2 }, resolution: 8,
       wordWrap: { width: 92, useAdvancedWrap: true }, align: 'center',
-    }).setOrigin(.5, 1).setDepth(58)
+    }).setOrigin(.5, 1).setDepth(BUBBLE_DEPTH)
     resident.bubbleFor = ms
+    this.stackBubbles()
+  }
+
+  /** Follow each speaker, then lift any bubble that would cover an earlier one. */
+  private stackBubbles(): void {
+    const placed: LabelRect[] = []
+    for (const person of this.residents) {
+      const bubble = person.bubble
+      if (!bubble) continue
+      let y = person.sprite.y - BUBBLE_LIFT
+      bubble.setPosition(person.sprite.x, y)
+      for (let tries = 0; tries < 8; tries++) {
+        const bounds = bubble.getBounds()
+        const covered = placed.find(rect => overlaps(bounds, rect, 1))
+        if (!covered) break
+        y = covered.y - 1
+        bubble.setPosition(person.sprite.x, y)
+      }
+      placed.push(bubble.getBounds())
+    }
   }
 
   update(delta: number, reduced: boolean, running: boolean, player?: Point): void {
     const dt = Math.min(delta, 80)
     for (const person of this.residents) {
       if (person.bubble) {
-        person.bubble.setPosition(person.sprite.x, person.sprite.y - 12)
         person.bubbleFor -= dt
         if (person.bubbleFor <= 0) { person.bubble.destroy(); person.bubble = null }
       }
@@ -136,6 +164,7 @@ export class AmbientLife {
         if (!person.path.length) { person.pause = 1500 + person.stop % 4 * 700; person.sprite.stop() }
       }
     }
+    this.stackBubbles()
   }
   destroy(): void { this.residents.forEach(p => { p.sprite.destroy(); p.shadow.destroy(); p.bubble?.destroy() }) }
 }

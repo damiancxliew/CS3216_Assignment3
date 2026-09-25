@@ -162,6 +162,8 @@ export interface ResolverInputParts {
   decisions?: readonly Decision[]
   /** Resolver-minted options still in the current stage. */
   mintedOptions?: readonly MintedOption[]
+  /** Public lines the player heard this stage, for the Resolver's narration. */
+  transcript?: ResolverInput['transcript']
 }
 
 export function toResolverInput(spec: AdventureSpec, bundle: StageRuntimeBundle, parts: ResolverInputParts): ResolverInput {
@@ -181,5 +183,6 @@ export function toResolverInput(spec: AdventureSpec, bundle: StageRuntimeBundle,
     }),
     actions: parts.actions,
     evidenceCollected: parts.evidenceCollected,
+    ...(parts.transcript === undefined ? {} : { transcript: parts.transcript }),
   }
 }

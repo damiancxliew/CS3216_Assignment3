@@ -16,10 +16,12 @@ export function overlaps(left: LabelRect, right: LabelRect, gap = 2): boolean {
 
 /** One shared layout for people, evidence and fixtures. When space runs out,
  * omit a lower-priority caption; focusing its object promotes it on the next pass.
- * Never shrink text or place one name over another to make it fit. */
-export function layoutMapLabels(candidates: readonly MapLabelCandidate[], bounds: LabelRect, obstacles: readonly LabelRect[], focusedId?: string): Map<string, LabelRect> {
+ * Never shrink text or place one name over another to make it fit.
+ * `blockers` are other text on the map (room names, speech bubbles) that no caption may cover,
+ * not even one pinned above a walking character; `obstacles` only push unpinned captions aside. */
+export function layoutMapLabels(candidates: readonly MapLabelCandidate[], bounds: LabelRect, obstacles: readonly LabelRect[], focusedId?: string, blockers: readonly LabelRect[] = []): Map<string, LabelRect> {
   const placed = new Map<string, LabelRect>()
-  const occupied = [...obstacles]
+  const occupied = [...obstacles, ...blockers]
   for (const item of [...candidates].sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))) {
     const { anchor, width, height } = item
     const center = anchor.x + anchor.width / 2
@@ -42,7 +44,7 @@ export function layoutMapLabels(candidates: readonly MapLabelCandidate[], bounds
       if (position.x < bounds.x || position.x + width > bounds.x + bounds.width
         || position.y < bounds.y || position.y + height > bounds.y + bounds.height) continue
       // Pinned captions only dodge other captions; scenery must not bump them around mid-walk.
-      if ((item.above ? [...placed.values()] : occupied).some((rect) => overlaps(position, rect))) continue
+      if ((item.above ? [...placed.values(), ...blockers] : occupied).some((rect) => overlaps(position, rect))) continue
       placed.set(item.id, position)
       occupied.push(position)
       break
@@ -52,7 +54,7 @@ export function layoutMapLabels(candidates: readonly MapLabelCandidate[], bounds
   // the pointer. Only promote focus when its caption would otherwise be hidden.
   if (focusedId && !placed.has(focusedId) && candidates.some((item) => item.id === focusedId)) {
     const priority = Math.max(...candidates.map((item) => item.priority)) + 1
-    return layoutMapLabels(candidates.map((item) => item.id === focusedId ? { ...item, priority } : item), bounds, obstacles)
+    return layoutMapLabels(candidates.map((item) => item.id === focusedId ? { ...item, priority } : item), bounds, obstacles, undefined, blockers)
   }
   return placed
 }

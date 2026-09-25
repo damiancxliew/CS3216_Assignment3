@@ -95,7 +95,6 @@ export function CaseBoard({ state, tab, onTab, hintLevels, onHint, onGuide, onRe
                       {locked ? <p className="mt-1 flex items-start gap-1 text-sm"><CornerDownRight size={14} className="mt-0.5 shrink-0" aria-hidden /> Finish first: {missing.join("; ")}</p> : null}
                       {!goal.met && !locked ? (
                         <>
-                          {goal.conversation ? <p className="mt-1 text-sm">Replies {goal.conversation.exchanges} of {goal.conversation.required}; follow up for a substantive answer.</p> : null}
                           {hintLevel > 0 ? <p className="mt-1 text-sm text-muted">{hintLevel === 1 ? state.objectiveClues[goal.id] ?? state.objectiveHints[goal.id] : state.objectiveHints[goal.id]}</p> : null}
                           <div className="mt-2 flex flex-wrap gap-2">
                             <button type="button" className={subtle} onClick={() => onGuide(goal)}>{goal.target.kind === "agent" ? `Talk to ${goal.target.name}` : `Read ${goal.target.name}`} <ArrowRight size={15} aria-hidden /></button>

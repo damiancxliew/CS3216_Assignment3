@@ -68,7 +68,8 @@ describe("NPC continuity and conflicting accounts", () => {
     now += 2_000;
     const secondRoom = approach(session, second.id);
     const secondLlm = new FakeLlmClient({ replies: [JSON.stringify({ say: "The ruler's signature matters.", actions: [] })] });
-    expect((await session.message(secondLlm, { roomId: secondRoom, body: `${second.id}, ${question}`, addresseeId: second.id })).ok).toBe(true);
+    // In the player's own words: the key words are enough.
+    expect((await session.message(secondLlm, { roomId: secondRoom, body: "In your view, who holds the authority to grant a trading post here?", addresseeId: second.id })).ok).toBe(true);
     expect(clues().second.account).toBe(stage.accountClues[0]!.secondAccount.text);
     expect(clues().second.quote).toBe("The ruler's signature matters.");
   });
