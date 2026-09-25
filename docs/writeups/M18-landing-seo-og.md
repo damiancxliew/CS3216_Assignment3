@@ -31,7 +31,7 @@ from the simulation's assumptions.
 **Three steps from PDF to playtime**, so a teacher can see the whole loop — drop in your
 sources → get a playable world → send one link — without scrolling into marketing copy.
 
-**Pricing.** Three tiers (Starter / Classroom / Staffroom) with a monthly–annual toggle,
+**Pricing.** Three tiers (Scout / Expedition / Dynasty) with a monthly–annual toggle,
 rendered from `lib/pricing.ts`, which is the same set of figures argued for in M6. Two
 deliberate decisions here:
 
@@ -117,5 +117,5 @@ funnel measured in M19.
 Two things. First, the per-topic template pages described above: they are the only part of
 the SEO story that would bring traffic we do not already know. Second, the pricing section
 currently states tiers; once billing is live it should state *usage* — "your class of 30
-used 2% of this month's allowance" is a far stronger argument for the Classroom tier than
+used 2% of this month's allowance" is a far stronger argument for the Expedition tier than
 any copy we can write.

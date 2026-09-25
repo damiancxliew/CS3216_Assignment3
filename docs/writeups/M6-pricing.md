@@ -40,6 +40,8 @@ punishes the exact behaviour we want (replaying with a different strategy).
 
 ## The model: per-teacher, with a class allowance
 
+The landing page ships these tiers as Scout, Expedition and Dynasty; the figures below are unchanged.
+
 | Tier | Price | Included | Who it is for |
 | --- | --- | --- | --- |
 | **Free** | S$0 | 2 published adventures, 60 student attempts/month, our branding on the debrief | A teacher trying it on next week's lesson. This is the acquisition channel (M4), not a trial |

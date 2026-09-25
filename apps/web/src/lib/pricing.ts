@@ -20,8 +20,8 @@ export type PricingTier = {
 
 export const PRICING_TIERS = [
   {
-    id: "starter",
-    name: "Starter",
+    id: "scout",
+    name: "Scout",
     tagline: "Try it on next week's lesson.",
     monthly: 0,
     annualMonthly: null,
@@ -36,8 +36,8 @@ export const PRICING_TIERS = [
     ],
   },
   {
-    id: "classroom",
-    name: "Classroom",
+    id: "expedition",
+    name: "Expedition",
     tagline: "The teacher who now runs this every term.",
     monthly: 12,
     annualMonthly: 10,
@@ -53,8 +53,8 @@ export const PRICING_TIERS = [
     ],
   },
   {
-    id: "staffroom",
-    name: "Staffroom",
+    id: "dynasty",
+    name: "Dynasty",
     tagline: "A whole history department.",
     monthly: 40,
     annualMonthly: 33,
