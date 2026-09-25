@@ -95,7 +95,7 @@ export async function startGenerationJob(admin: SupabaseClient, input: {
     adventure_id: input.adventureId,
     teacher: input.teacher,
     source_snapshot: input.documents.map((document) => ({ id: document.id, contentHash: document.contentHash })),
-    planner_config: { ...DEFAULT_PLANNER_CONFIG, reasoningEffort: "low" },
+    planner_config: DEFAULT_PLANNER_CONFIG,
     layout_seed: randomUUID(),
     created_by: input.createdBy,
     attempt: 0,
