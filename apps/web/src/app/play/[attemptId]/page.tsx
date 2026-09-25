@@ -42,13 +42,18 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   const initial = await getState(playDeps(), attemptId, user.id);
   if (!initial.ok) console.error("Unable to load play state", initial.error);
   const active = initial.ok && initial.state.status === "active" ? initial.state : null;
+  const { data: walkthrough } = await supabase.from("profile")
+    .select("walkthrough_mobile_completed, walkthrough_desktop_completed")
+    .eq("id", user.id)
+    .single();
 
   return (
     <main className={`${styles.shell} flex h-dvh min-h-0 flex-col`}>
       <AdventureHeader title={resume.adventureTitle} active={active} recap={resume.recap} />
 
       {initial.ok ? (
-        <PlayClient attemptId={attemptId} initialState={initial.state} retriesAllowed={resume.retriesAllowed} />
+        <PlayClient attemptId={attemptId} initialState={initial.state} retriesAllowed={resume.retriesAllowed}
+          walkthroughSeen={{ mobile: walkthrough?.walkthrough_mobile_completed ?? false, desktop: walkthrough?.walkthrough_desktop_completed ?? false }} />
       ) : (
         <section className="m-6 flex max-w-xl flex-col gap-3 rounded-surface border border-line bg-surface p-6">
           <p className="text-ink">This adventure can’t be opened right now. Try again later or ask your teacher for help.</p>
