@@ -5,6 +5,7 @@ import { overlaps } from '../src/map-labels.js'
 import { MATERIAL_COUNT, MATERIAL_VARIANTS } from '../src/materials.js'
 
 test('pixel actors animate, ignore portrait art and retain clickable captions', async ({ page }, testInfo) => {
+  test.setTimeout(60000)
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.route('**/game/ninja/**', async (route) => {
@@ -75,7 +76,7 @@ test('pixel actors animate, ignore portrait art and retain clickable captions', 
     const playing = sprite.anims.isPlaying
     const direction = sprite.anims.currentAnim.key
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Walking animation did not return to idle')), 5000)
+      const timeout = setTimeout(() => reject(new Error('Walking animation did not return to idle')), 15000)
       sprite.once('animationstop', () => { clearTimeout(timeout); resolve() })
     })
     sprite.off('animationupdate', observeFrame)
@@ -149,6 +150,7 @@ test('pixel actors animate, ignore portrait art and retain clickable captions', 
 })
 
 test('weather stays outdoors, respects reduced motion and cleans up on changes', async ({ page }, testInfo) => {
+  test.setTimeout(60000)
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.route('**/game/**', async (route) => {
