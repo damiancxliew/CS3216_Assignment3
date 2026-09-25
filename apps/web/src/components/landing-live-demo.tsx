@@ -65,7 +65,7 @@ export function LandingLiveDemo({ onStage }: { onStage?: (stage: { index: number
 
       {state && !focus ? (
         <p className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border-2 border-ink bg-surface/95 px-3 py-1 text-xs font-extrabold text-ink">
-          <MousePointerClick className="h-4 w-4" aria-hidden /> Click to walk. Click someone to talk.
+          <MousePointerClick className="h-4 w-4" aria-hidden /> Click the map, then walk with the arrow keys. Click someone to talk.
         </p>
       ) : null}
 

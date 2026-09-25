@@ -63,7 +63,7 @@ async function runInternal<T>(
   // The deadline is server-held (D12/FR-16): if it has passed, the stage resolves before anything else.
   let timer = timerOf(record);
   if (record.status === "active" && timer.deadlineAt && now.getTime() >= new Date(timer.deadlineAt).getTime()) {
-    await session.expire();
+    await session.expire(deps.llm);
     timer = { enabled: false, deadlineAt: null };
   }
 

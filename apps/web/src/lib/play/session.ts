@@ -12,6 +12,7 @@ import {
   DEFAULT_REPLY_RATE_LIMIT,
   advanceSpatialMovement,
   applyAction,
+  createLlmResolver,
   deriveOptions,
   fakeResolver,
   filterActions,
@@ -236,13 +237,12 @@ function worldFor(spec: AdventureSpec, index: number, attemptId: string, compile
 
 /** Budget for autonomous agent activity per stage (FR-12b). Kept modest: this is money per attempt. */
 const STAGE_TOKEN_BUDGET = 60_000;
-/** An NPC goal needs an opening exchange and a substantive follow-up. */
-const GOAL_CONVERSATION_EXCHANGES = 2;
 const MINTED_OPTIONS_CAP = 2;
 const MINT_TRIGGER_TRANSCRIPT_LINES = 6;
 const MINT_TRANSCRIPT_WINDOW = 120;
-const AUTONOMOUS_TICKS_PER_MOVE = 1;
 const DECISION_TICKS = 2;
+/** Lines of the stage's public conversation the Resolver reads when it narrates the outcome. */
+const RESOLVER_TRANSCRIPT_WINDOW = 80;
 
 /**
  * Walking speed is a long-run average, not a deadline per request: a request that
@@ -252,6 +252,24 @@ const DECISION_TICKS = 2;
 const STEP_INTERVAL_MS = 160;
 /** Tokens a standing player banks, so one request may carry a batch of steps. */
 const STEP_BURST = 8;
+
+const QUESTION_FILLER = new Set(["what", "when", "where", "which", "whom", "whose", "that", "this", "these", "those", "your", "they", "them", "their", "there", "have", "does", "with", "from", "about", "would", "could", "should", "were", "will", "into", "than", "then", "think", "tell"]);
+
+function keyWords(text: string): Set<string> {
+  return new Set((text.toLocaleLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []).filter((word) => word.length > 3 && !QUESTION_FILLER.has(word)));
+}
+
+/**
+ * Whether a player's line asks an account clue's question. Players type their own words, so this
+ * matches on the question's key words rather than its exact wording.
+ */
+function asksAbout(body: string, question: string): boolean {
+  const wanted = keyWords(question);
+  if (wanted.size === 0) return body.toLocaleLowerCase().includes(question.toLocaleLowerCase());
+  const said = keyWords(body);
+  const shared = [...wanted].filter((word) => said.has(word)).length;
+  return shared >= Math.ceil(wanted.size / 2);
+}
 
 function messageId(attemptId: string, stageId: string, line: Utterance): string {
   return `${attemptId}:${stageId}:${line.seq}`;
@@ -444,9 +462,6 @@ export class PlaySession {
           title: o.title,
           met: this.objectiveMet(o.id),
           requires: o.requires,
-          conversation: this.stage.agents.some((agent) => agent.id === o.targetId)
-            ? { exchanges: this.conversationExchanges(o.targetId), required: GOAL_CONVERSATION_EXCHANGES }
-            : null,
           target: this.stage.agents.some((agent) => agent.id === o.targetId)
             ? { kind: "agent" as const, id: o.targetId, name: this.agentName(o.targetId), roomId: this.roomOf(o.targetId) }
             : {
@@ -625,8 +640,7 @@ export class PlaySession {
     const heard = this.playerHeard();
     const known = new Set(this.snap.world.evidenceKnown[PLAYER_ID] ?? []);
     return this.stage.accountClues.map((clue) => {
-      const questions = new Set(heard.filter((line) => line.speakerId === PLAYER_ID &&
-        line.body.toLocaleLowerCase().includes(clue.question.toLocaleLowerCase())).map((line) => line.seq));
+      const questions = new Set(heard.filter((line) => line.speakerId === PLAYER_ID && asksAbout(line.body, clue.question)).map((line) => line.seq));
       const side = (agentId: string, account: string) => {
         const reply = heard.findLast((line) => line.speakerId === agentId && line.replyToSeqs?.some((seq) => questions.has(seq)));
         return { agentId, name: this.agentName(agentId), account: reply ? account : null, quote: reply?.body ?? null };
@@ -642,9 +656,12 @@ export class PlaySession {
     });
   }
 
-  /** A reply may claim only goals available before that reply begins. */
+  /**
+   * A reply may claim only goals available before that reply begins. There is no minimum number of
+   * exchanges: a goal is met when the character actually says its substance, which may be the first
+   * answer or may never happen, depending on how the conversation goes.
+   */
   private claimableGoals(agentId: string): Stage["objectives"] {
-    if (this.conversationExchanges(agentId) < GOAL_CONVERSATION_EXCHANGES - 1) return [];
     return this.stage.objectives.filter((objective) => objective.targetId === agentId &&
       !this.objectiveMet(objective.id) && objective.requires.every((id) => this.objectiveMet(id)));
   }
@@ -663,10 +680,8 @@ export class PlaySession {
         const where = roomName(this.roomOf(agent.id));
         const exchanges = this.conversationExchanges(agent.id);
         out[objective.id] = exchanges === 0
-          ? `Ask ${this.agentName(agent.id)}${where ? ` in ${where}` : ""} about this, then follow up on the answer`
-          : exchanges < GOAL_CONVERSATION_EXCHANGES
-            ? `Ask ${this.agentName(agent.id)} a follow-up question about this`
-            : `Keep discussing this with ${this.agentName(agent.id)} until you hear a substantive answer`;
+          ? `Ask ${this.agentName(agent.id)}${where ? ` in ${where}` : ""} about this`
+          : `Keep talking this over with ${this.agentName(agent.id)}; a vague or guarded answer does not count yet`;
         continue;
       }
       const item = this.stage.evidence.find((e) => e.id === objective.targetId);
@@ -1035,16 +1050,13 @@ export class PlaySession {
       this.bump();
     }
 
-    // Knocking gives whoever is behind that door a beat to answer it (K4, #8).
-    // Walking stays free of model calls; sharing new evidence can prompt a witness to react.
+    // Whoever is behind the door answers a valid knock at once (K4, #8). This used to wait on a
+    // model turn first, which held every knock for seconds, and the door opened either way.
+    // Walking and knocking stay free of model calls; sharing new evidence can prompt a witness to react.
     if (action.type === "knock" && result.ok) {
-      const inside = Object.entries(world.location)
-        .filter(([actorId, roomId]) => roomId === action.roomId && actorId !== PLAYER_ID)
-        .map(([actorId]) => actorId);
-      if (inside.length > 0) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE, inside);
-      // An occupant answers a valid knock even if the model omits open_door.
       // The player outside still cannot operate the door.
-      const opener = inside.find((actorId) => world.actors[actorId]?.kind === "agent" && world.location[actorId] === action.roomId);
+      const opener = Object.entries(world.location)
+        .find(([actorId, roomId]) => roomId === action.roomId && world.actors[actorId]?.kind === "agent")?.[0];
       if (opener && world.rooms[action.roomId]?.doorOpen === false) {
         applyAction(world, { actorKind: "agent", actorId: opener, action: { type: "open_door", roomId: action.roomId } });
         this.bump();
@@ -1219,21 +1231,32 @@ export class PlaySession {
     await this.tick(client, DECISION_TICKS);
     for (const actorId of this.ledger.pending()) this.ledger.pass(actorId);
 
-    return { ok: true, resolution: await this.resolve(optionId) };
+    return { ok: true, resolution: await this.resolve(client, optionId) };
   }
 
-  /** The stage timer ran out: everyone still undecided passes and the stage resolves (D12/FR-16). */
-  async expire(): Promise<DecisionOutcome> {
+  /**
+   * The stage timer ran out: everyone still undecided passes and the stage resolves (D12/FR-16).
+   * Without a client the outcome is narrated from the rules' template.
+   */
+  async expire(client: LlmClient | null = null): Promise<DecisionOutcome> {
     if (this.snap.status !== "active") return { ok: false, error: { code: "stage_closed", message: "This adventure has ended." } };
     const playerDecision = this.ledger.all().find((d) => d.actorId === PLAYER_ID);
     this.ledger.expire();
-    return { ok: true, resolution: await this.resolve(playerDecision?.optionId ?? null) };
+    return { ok: true, resolution: await this.resolve(client, playerDecision?.optionId ?? null) };
   }
 
-  private async resolve(optionId: string | null) {
+  /**
+   * The rules decide the roll, the branch and every change in standing; the LLM Resolver only
+   * narrates that settled outcome from what the player saw and heard. If the model fails or
+   * returns something invalid, it falls back to the rules' own announcement.
+   */
+  private async resolve(client: LlmClient | null, optionId: string | null) {
     const world = this.snap.world;
     const evidenceCollected = (world.evidenceKnown[PLAYER_ID] ?? []).filter((id) => this.stage.evidence.some((e) => e.id === id)).length;
-    const { record } = await fakeResolver.resolveStage(
+    const metrics = new StructuredCallMetrics();
+    const resolver = client ? createLlmResolver(client, { metrics }) : fakeResolver;
+    const transcript = this.playerHeard().slice(-RESOLVER_TRANSCRIPT_WINDOW).map((line) => ({ roomId: line.roomId, speakerName: line.speakerName, body: line.body }));
+    const { record } = await resolver.resolveStage(
       toResolverInput(this.spec, this.bundle, {
         attemptId: this.attemptId,
         seed: `${this.attemptId}|${this.publishedVersion}`,
@@ -1247,8 +1270,11 @@ export class PlaySession {
         ])),
         decisions: this.ledger.all(),
         mintedOptions: this.snap.mintedOptions,
+        transcript,
       }),
     );
+    this.snap.tokensSpent += metrics.totalTokens;
+    this.snap.stageStats.tokens += metrics.totalTokens;
     const choice = optionId === null ? null : this.stage.decision.options.find((option) => option.id === optionId)?.label
       ?? this.snap.mintedOptions?.find((option) => option.id === optionId)?.label ?? optionId;
     const outcome = record.outcome.sharedContextAppend ?? record.outcome.announcement;

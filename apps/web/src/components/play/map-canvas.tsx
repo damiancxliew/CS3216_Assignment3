@@ -20,7 +20,7 @@ import {
   type StageMap,
 } from "@adventure/game-core";
 import type { SoundCueId } from "@adventure/game-client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 
 import { ASSET_BASE, PLAYER_CHARACTER } from "@/lib/play/appearance";
 import { MAX_PENDING_STEPS, MAX_STEPS_PER_REQUEST, optimisticAdvance, settleBatch, type PendingStep } from "@/lib/play/optimistic-queue";
@@ -68,6 +68,25 @@ export interface MapCanvasProps {
   keyboardScope?: "page" | "map";
   /** "overview" fits the stage in a small frame (landing demo); play keeps the default detail zoom. */
   camera?: "detail" | "overview";
+  /**
+   * Filled with a function that sends any steps still waiting on the client and resolves once the
+   * server has them, so an action that depends on where the player stands (a knock, a message)
+   * is never judged against a position the server has not heard yet.
+   */
+  settleRef?: MutableRefObject<(() => Promise<void>) | null>;
+}
+
+/** How long an action waits for the walk to reach the server before it goes anyway. */
+const SETTLE_TIMEOUT_MS = 2_000;
+
+function sameSpace(map: StageMap, from: Point, to: Point): boolean {
+  const a = spaceAt(map, from);
+  const b = spaceAt(map, to);
+  if (a?.kind !== b?.kind) return false;
+  if (a?.kind === "room" && b?.kind === "room") return a.roomId === b.roomId;
+  if (a?.kind === "door" && b?.kind === "door") return a.doorId === b.doorId;
+  if (a?.kind === "outdoor" && b?.kind === "outdoor") return a.locationId === b.locationId;
+  return true;
 }
 
 function doorsOf(state: PlayState): Record<string, DoorState> {
@@ -102,7 +121,7 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark, keyboardScope = "page", camera = "detail" }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark, keyboardScope = "page", camera = "detail", settleRef }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
   const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark });
   latest.current = { state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark };
@@ -139,6 +158,13 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
     })();
     const held = new Map<string, Point>();
     let repeat: number | undefined;
+    let settleWaiters: (() => void)[] = [];
+    const notifySettled = () => {
+      if (pending.length > 0 || sendInFlight) return;
+      const waiters = settleWaiters;
+      settleWaiters = [];
+      waiters.forEach((resolve) => resolve());
+    };
 
     const snapshot = () => {
       const s = latest.current.state;
@@ -217,16 +243,23 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       });
     };
 
-    const drain = async () => {
-      if (destroyed || sendInFlight || pending.length === 0 || latest.current.state.map?.id !== mapId) return;
-      // Commit a continuing walk in full batches, then flush a partial batch
-      // as soon as the player stops so interaction can begin.
-      if (pending.length < MAX_STEPS_PER_REQUEST && (path.length > 0 || held.size > 0)) return;
+    const drain = async (force = false) => {
+      if (destroyed || latest.current.state.map?.id !== mapId) return;
+      if (sendInFlight) return;
+      if (pending.length === 0) {
+        notifySettled();
+        return;
+      }
+      // Commit a continuing walk in full batches, then flush a partial batch as soon as the player
+      // stops so interaction can begin. Crossing into another room, doorway or open place is sent
+      // at once: who can hear the player, and whether they can knock, depend on it.
+      const crossed = pending.some((step) => !sameSpace(map as StageMap, step.from, step.to));
+      if (!force && !crossed && pending.length < MAX_STEPS_PER_REQUEST && (path.length > 0 || held.size > 0)) return;
       if (sendTimer !== undefined) {
         window.clearTimeout(sendTimer);
         sendTimer = undefined;
       }
-      const wait = nextSendAt - performance.now();
+      const wait = force ? 0 : nextSendAt - performance.now();
       if (wait > 0) {
         if (sendTimer === undefined) sendTimer = window.setTimeout(() => {
           sendTimer = undefined;
@@ -369,6 +402,19 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       if (next.kind === "room") goToRoom(next.roomId);
       else goTo(next.point);
     };
+    if (settleRef) settleRef.current = () => new Promise<void>((resolve) => {
+      if (pending.length === 0 && !sendInFlight) {
+        resolve();
+        return;
+      }
+      const done = () => {
+        window.clearTimeout(timer);
+        resolve();
+      };
+      const timer = window.setTimeout(done, SETTLE_TIMEOUT_MS);
+      settleWaiters.push(done);
+      void drain(true);
+    });
     reconcileRef.current = (next) => {
       if (next.revision < acknowledgedRevision.current) return;
       acknowledgedRevision.current = next.revision;
@@ -465,7 +511,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
         intentHandlerRef.current?.(latest.current.intent);
         const canvas = parent.querySelector("canvas");
         canvas?.setAttribute("tabindex", "0");
-        canvas?.setAttribute("aria-label", "Map. Use arrow keys or WASD to walk. Press Enter to talk, or click a tile to move.");
+        canvas?.setAttribute("aria-label", "Map. Use arrow keys or WASD to walk. Press Enter to talk.");
         // In play, walking works from anywhere on the page unless a field has focus, so the map never needs to be clicked first.
         const keys: HTMLElement | Document = keyboardScope === "map" ? parent : document;
         keys.addEventListener("keydown", onKey as EventListener, { signal: controller.signal });
@@ -487,6 +533,9 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       destroyed = true;
       intentHandlerRef.current = null;
       reconcileRef.current = null;
+      if (settleRef) settleRef.current = null;
+      settleWaiters.forEach((resolve) => resolve());
+      settleWaiters = [];
       controller.abort();
       clearHeld();
       if (sendTimer !== undefined) window.clearTimeout(sendTimer);

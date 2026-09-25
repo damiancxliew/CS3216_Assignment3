@@ -210,6 +210,7 @@ export function PlayClient({
   const transcriptLog = useRef<HTMLDivElement>(null);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLInputElement>(null);
+  const settleMoves = useRef<(() => Promise<void>) | null>(null);
   const readRef = useRef<(evidenceId: string, open?: boolean) => void>(() => {});
   const autoReadAt = useRef<string | null>(null);
   const revision = useRef(initialState.revision);
@@ -361,15 +362,18 @@ export function PlayClient({
     setCutsceneOpen(true);
   }, [state.stage.id]);
 
-  const here = state.rooms.find((r) => r.id === state.currentRoomId) ?? null;
+  // The panel follows the map, not the last server reply: the walk runs ahead of its
+  // acknowledgement, and waiting for it made rooms, knocks and listeners lag behind the player.
+  const hereId = state.map && visiblePosition ? localRoomId(state, visiblePosition) : state.currentRoomId;
+  const here = state.rooms.find((r) => r.id === hereId) ?? null;
   const peopleHere = state.agents.filter((agent) => {
     const actor = state.actors.find((candidate) => candidate.id === agent.id);
     return state.map && visiblePosition && actor?.position
       ? canHearSpeech(state.map as StageMap, visiblePosition, actor.position)
       : state.hearingActorIds.includes(agent.id);
   });
-  const canSendToRoom = peopleHere.some((person) => state.hearingActorIds.includes(person.id));
-  const waitingDoor = state.map?.doors.find((door) => state.playerPos?.x === door.outside.x && state.playerPos.y === door.outside.y && state.rooms.find((room) => room.id === door.roomId)?.doorOpen === false);
+  const canSendToRoom = peopleHere.length > 0;
+  const waitingDoor = state.map?.doors.find((door) => visiblePosition?.x === door.outside.x && visiblePosition.y === door.outside.y && state.rooms.find((room) => room.id === door.roomId)?.doorOpen === false);
   const waitingRoom = waitingDoor ? state.rooms.find((room) => room.id === waitingDoor.roomId) : null;
   const items = withSceneBreaks(state.transcript, {
     currentRoomId: state.currentRoomId,
@@ -377,10 +381,11 @@ export function PlayClient({
     actorName: (actorId) => state.agents.find((agent) => agent.id === actorId)?.name ?? "someone else",
   });
 
-  async function act(label: string, run: () => Promise<{ ok: true; body: { state: PlayState; refused?: string | null } } | { ok: false; error: { message: string } }>) {
+  async function act(label: string, run: () => Promise<{ ok: true; body: { state: PlayState; refused?: string | null } } | { ok: false; error: { message: string } }>, options: { settle?: boolean } = {}) {
     setBusy(label);
     setNotice(null);
     try {
+      if (options.settle) await settleMoves.current?.();
       const result = await serialize(run);
       if (!result.ok) {
         setNotice(result.error.message);
@@ -396,15 +401,21 @@ export function PlayClient({
   }
 
   async function send() {
-    const current = stateRef.current;
     const body = draft.trim();
-    const roomId = current.currentRoomId;
-    if (!body || !roomId || !canSendToRoom || busy !== null || speaking || current.pendingDialogue) return;
+    if (!body || !canSendToRoom || busy !== null || speaking || stateRef.current.pendingDialogue) return;
     setDraft("");
-    setPendingSpeech({ id: crypto.randomUUID(), roomId, body });
+    setPendingSpeech({ id: crypto.randomUUID(), roomId: hereId ?? stateRef.current.currentRoomId ?? "", body });
     setSpeaking(true);
     setNotice(null);
     try {
+      // Speak from where the server has the player standing, once the last steps have reached it.
+      await settleMoves.current?.();
+      await queue.current;
+      const roomId = stateRef.current.currentRoomId;
+      if (!roomId) {
+        setDraft((value) => (value === "" ? body : value));
+        return;
+      }
       const result = await playApi.message(attemptId, { roomId, body, addresseeId: null });
       if (!result.ok) {
         setDraft((value) => (value === "" ? body : value));
@@ -699,10 +710,8 @@ export function PlayClient({
 
   function guideToGoal(goal: PlayState["stage"]["objectives"][number]) {
     setBoardOpen(false);
-    if (goal.target.kind === "agent") {
-      setDraft((current) => current || `${goal.target.name}, ${goal.conversation?.exchanges ? "what makes you say that?" : state.decisionPrompt}`);
-      onTalk(goal.target.id);
-    } else onProp(goal.target.id);
+    if (goal.target.kind === "agent") onTalk(goal.target.id);
+    else onProp(goal.target.id);
   }
 
   return (
@@ -745,6 +754,7 @@ export function PlayClient({
           onProp={onProp}
           onPickup={onPickup}
           onLandmark={onLandmark}
+          settleRef={settleMoves}
         />
         {hintVisible ? (
           <p className="pointer-events-none absolute left-3 right-3 top-3 rounded-control bg-inverse/85 px-3 py-1.5 text-sm font-semibold text-on-inverse lg:px-3.5 lg:py-2 lg:text-base">
@@ -836,17 +846,18 @@ export function PlayClient({
           </div>
           <div data-walkthrough="rooms">
             <RoomActions
-              key={`${state.stage.id}:${state.currentRoomId}`}
+              key={`${state.stage.id}:${hereId}`}
               state={state}
+              roomId={hereId}
               busy={busy !== null}
               onRoom={(roomId) => { setReading(null); setIntent({ kind: "room", roomId }); }}
               onLandmark={onLandmark}
               onDocument={onProp}
-              onDoor={() => { if (here) void act(here.doorOpen ? "Closing…" : "Opening…", () => playApi.action(attemptId, { type: here.doorOpen ? "close_door" : "open_door", roomId: here.id })); }}
+              onDoor={() => { if (here) void act(here.doorOpen ? "Closing…" : "Opening…", () => playApi.action(attemptId, { type: here.doorOpen ? "close_door" : "open_door", roomId: here.id }), { settle: true }); }}
             />
           </div>
           {waitingDoor ? (
-            <button type="button" className={primary} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingDoor.roomId }))}>
+            <button type="button" className={primary} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingDoor.roomId }), { settle: true })}>
               Knock on {waitingRoom?.name ?? "the door"}
             </button>
           ) : null}
@@ -961,7 +972,6 @@ export function PlayClient({
                 <div className="min-w-0">
                   <h2 id="decide" className="font-serif text-lg leading-tight text-ink">{currentGoal.title}</h2>
                   <p className="mt-1 text-sm text-muted">{currentGoal.target.name} · {goalRoom}</p>
-                  {currentGoal.conversation ? <p className="text-sm text-muted">Replies {currentGoal.conversation.exchanges} of {currentGoal.conversation.required}; ask a follow-up for a substantive answer.</p> : null}
                 </div>
               </div>
               <button type="button" className={`${subtle} self-start`} disabled={busy !== null} onClick={() => guideToGoal(currentGoal)}>
@@ -1042,10 +1052,8 @@ export function PlayClient({
                       ) : <p className="text-sm text-muted">Hear their answer to reveal this account.</p>}
                       <button type="button" className={`${subtle} mt-auto text-sm`} disabled={!roomId} onClick={() => {
                         setAccountsOpen(false);
-                        if (nearby) {
-                          setDraft(`${account.name}, ${clue.question}`);
-                          window.requestAnimationFrame(() => composer.current?.focus());
-                        } else if (roomId) setIntent({ kind: "room", roomId });
+                        if (nearby) window.requestAnimationFrame(() => composer.current?.focus());
+                        else if (roomId) setIntent({ kind: "room", roomId });
                       }}>
                         {nearby ? `Ask ${account.name}` : `Find ${account.name} in ${roomName}`}
                       </button>

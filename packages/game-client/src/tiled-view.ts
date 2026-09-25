@@ -194,7 +194,9 @@ class TiledScene extends Phaser.Scene {
       }
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
-      if (!this.pointRevealed(point)) { this.onDestination(point, pointer.time || performance.now()); this.game.canvas.focus(); return }
+      // A mouse walks with the keyboard; only touch, which has no keys, taps a tile to walk there.
+      const walks = pointer.wasTouch
+      if (!this.pointRevealed(point)) { if (walks) this.onDestination(point, pointer.time || performance.now()); this.game.canvas.focus(); return }
       // A character under the pointer means "talk to them", not "walk here".
       const actor = this.current.actors.find((a) => {
         const position = this.wandering.position(a.id, a.position)
@@ -223,7 +225,7 @@ class TiledScene extends Phaser.Scene {
         this.game.canvas.focus()
         return
       }
-      this.onDestination(point, pointer.time || performance.now())
+      if (walks) this.onDestination(point, pointer.time || performance.now())
       this.game.canvas.focus()
     })
     this.game.canvas.tabIndex = 0
@@ -808,8 +810,9 @@ class TiledScene extends Phaser.Scene {
     })
     const roomBounds = this.labels.map((label) => label.getBounds())
     const doorBounds = this.current.map.doors.map((door) => ({ x: door.position.x * T, y: door.position.y * T, width: T, height: T }))
+    // Room names and speech bubbles are text too: no name tag may sit on top of them.
     const placed = layoutMapLabels(candidates.filter((candidate) => overlaps(candidate.anchor, viewport, 0)), viewport,
-      [...roomBounds, ...doorBounds, ...targets.map((target) => target.bounds)], focused)
+      [...doorBounds, ...targets.map((target) => target.bounds)], focused, [...roomBounds, ...(this.ambientLife?.bubbleBounds() ?? [])])
     this.captionLines?.clear().lineStyle(0.5, 0xe1d1af, 0.7)
     for (const target of targets) {
       const text = this.captions.get(target.id)!
