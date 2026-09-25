@@ -865,42 +865,63 @@ export function PlayClient({
           <div className={styles.progress} aria-hidden="true">
             {state.stage.objectives.map((objective) => <span key={objective.id} data-complete={objective.met} />)}
           </div>
-          <ul className="flex flex-col gap-1.5">
+          <p className="text-sm text-muted">Yellow = available now · Green = done · Grey = locked</p>
+          <ul className="flex flex-col gap-2">
             {state.stage.objectives.map((o) => {
               const hintKey = `${state.stage.id}:${o.id}`;
               const hintLevel = goalHintLevels[hintKey] ?? 0;
+              const missing = o.requires
+                .filter((id) => !state.stage.objectives.find((candidate) => candidate.id === id)?.met)
+                .map((id) => state.stage.objectives.find((candidate) => candidate.id === id)?.title ?? id);
+              const locked = !o.met && missing.length > 0;
               return (
-              <li key={o.id} className={`flex items-start gap-2.5 text-base leading-snug ${o.met ? "text-muted" : "font-semibold text-ink"}`}>
-                <span
-                  aria-hidden
-                  className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${o.met ? "border-world bg-world text-paper" : "border-line-strong"}`}
-                >
-                  {o.met ? <Check className="h-3.5 w-3.5" strokeWidth={3.5} aria-hidden /> : null}
-                </span>
-                <span className="min-w-0">
-                  <span className={o.met ? "line-through" : ""}>{o.title}</span>
-                  {!o.met && state.objectiveHints[o.id] ? (
-                    <span className="flex flex-col items-start gap-1 text-sm font-normal text-muted">
-                      {hintLevel > 0 ? (
-                        <span className="flex items-start gap-1">
-                          <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                          {hintLevel === 1 ? (state.objectiveClues[o.id] ?? state.objectiveHints[o.id]) : state.objectiveHints[o.id]}
-                        </span>
-                      ) : null}
-                      {hintLevel < (state.objectiveClues[o.id] ? 2 : 1) ? (
-                        <button
-                          type="button"
-                          className="inline-flex min-h-9 items-center gap-1 underline underline-offset-2 hover:text-ink"
-                          onClick={() => setGoalHintLevels((levels) => ({ ...levels, [hintKey]: Math.min(2, (levels[hintKey] ?? 0) + 1) }))}
-                        >
-                          <HelpCircle className="h-3.5 w-3.5" aria-hidden /> {hintLevel ? "Clearer hint" : "Show hint"}
-                        </button>
-                      ) : null}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="sr-only">{o.met ? "done" : "not yet"}</span>
-              </li>
+                <li key={o.id} className={`flex items-start gap-2.5 rounded-control border px-3 py-2 text-base leading-snug ${
+                  o.met ? "border-world/30 bg-world-wash/50 text-world" : locked
+                    ? "border-line bg-surface/50 text-muted"
+                    : "border-[#b77900] bg-[#fff5bf] font-semibold text-ink"
+                }`}>
+                  <span aria-hidden className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+                    o.met ? "border-world bg-world text-paper" : locked
+                      ? "border-line-strong bg-sunken text-muted"
+                      : "border-[#8a5900] bg-[#facc15] text-ink"
+                  }`}>
+                    {o.met ? <Check className="h-3.5 w-3.5" strokeWidth={3.5} aria-hidden /> : locked ? <Lock className="h-2.5 w-2.5" aria-hidden /> : <span className="h-1.5 w-1.5 rounded-full bg-ink" />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-xs font-bold uppercase tracking-wide">{o.met ? "Done" : locked ? "Locked" : "Available now"}</span>
+                    <span className={`block ${o.met ? "line-through" : ""}`}>{o.title}</span>
+                    {!o.met && !locked && o.conversation ? (
+                      <span className="block text-sm font-semibold text-[#704800]">
+                        {o.conversation.exchanges < o.conversation.required
+                          ? `Replies: ${o.conversation.exchanges} of ${o.conversation.required}`
+                          : "Conversation needs a substantive answer"}
+                      </span>
+                    ) : null}
+                    {locked ? (
+                      <span className="flex items-start gap-1 text-sm font-normal text-muted">
+                        <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> Finish first: {missing.join("; ")}
+                      </span>
+                    ) : !o.met && state.objectiveHints[o.id] ? (
+                      <span className="flex flex-col items-start gap-1 text-sm font-normal text-muted">
+                        {hintLevel > 0 ? (
+                          <span className="flex items-start gap-1">
+                            <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                            {hintLevel === 1 ? (state.objectiveClues[o.id] ?? state.objectiveHints[o.id]) : state.objectiveHints[o.id]}
+                          </span>
+                        ) : null}
+                        {hintLevel < (state.objectiveClues[o.id] ? 2 : 1) ? (
+                          <button
+                            type="button"
+                            className="inline-flex min-h-9 items-center gap-1 underline underline-offset-2 hover:text-ink"
+                            onClick={() => setGoalHintLevels((levels) => ({ ...levels, [hintKey]: Math.min(2, (levels[hintKey] ?? 0) + 1) }))}
+                          >
+                            <HelpCircle className="h-3.5 w-3.5" aria-hidden /> {hintLevel ? "Clearer hint" : "Show hint"}
+                          </button>
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </span>
+                </li>
               );
             })}
           </ul>

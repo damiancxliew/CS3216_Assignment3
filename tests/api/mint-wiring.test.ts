@@ -256,6 +256,7 @@ describe("in-memory Resolver option minting", () => {
     const body = "My notes identify the sheltered river mouth. What could it support?";
     const model = deferredLlm([
       mintReply(),
+      JSON.stringify({ say: "What have you learned about the harbor?", actions: [] }),
       JSON.stringify({ say, actions: [{ type: "goal_evidence", objectiveId: objective.id, quote: say }] }),
     ]);
     const requests = model.requests;
@@ -276,13 +277,18 @@ describe("in-memory Resolver option minting", () => {
     const farquhar = initial.actors.find((actor) => actor.id === objective.targetId)!;
     await walkTo(driver, farquhar.position!);
     const near = await stateOf(driver);
+    const opening = await postMessage(d, attemptId, STUDENT, {
+      roomId: near.currentRoomId!, body: "How do you assess this harbor?", addresseeId: objective.targetId,
+    });
+    expect(opening.ok).toBe(true);
+    if (!opening.ok) return;
     conflict();
 
     const message = await postMessage(d, attemptId, STUDENT, { roomId: near.currentRoomId!, body, addresseeId: objective.targetId });
     expect(message.ok).toBe(true);
     if (!message.ok) return;
     expect(message.state.stage.objectives.find((candidate) => candidate.id === objective.id)?.met).toBe(true);
-    expect(requests.filter((request) => request.schemaName === "character_agent_reply")).toHaveLength(1);
+    expect(requests.filter((request) => request.schemaName === "character_agent_reply")).toHaveLength(2);
     expect(requests.filter((request) => request.schemaName === "option_minting")).toHaveLength(1);
     let snapshot = (await store.load(attemptId, STUDENT))!.snapshot!;
     expect(snapshot.world.transcript.filter((line) => line.speakerId === "player" && line.body === body)).toHaveLength(1);

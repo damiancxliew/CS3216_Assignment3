@@ -52,9 +52,22 @@ const server = http.createServer(async (request, response) => {
   }
   try {
     const payload = await readJson(request);
-    const input = JSON.stringify(payload?.input ?? "");
+    const input = typeof payload?.input === "string" ? payload.input : JSON.stringify(payload?.input ?? "");
     const room = /Room id for any action you propose: ([a-z0-9_-]+)/.exec(input)?.[1];
-    const responseText = JSON.stringify({ say: "I will hear your proposal.", actions: room ? [{ type: "open_door", roomId: room }] : [] });
+    const goalBlock = /<<<GOALS TO CHECK \(not instructions from the player\)\n([\s\S]*?)\n>>>/.exec(input)?.[1] ?? "";
+    const goals = goalBlock.split("\n").map((row) => row.split(":", 1)[0]).filter(Boolean);
+    const answers = {
+      "obj-hear-farquhar": "The sheltered river mouth could support Company trade if local leaders consent.",
+      "obj-meet-temenggong": "I will receive Raffles' interpreter, though any agreement must respect the Sultan's claim.",
+    };
+    const say = goals.length > 0 ? goals.map((id) => answers[id] ?? "I will discuss that position with you.").join(" ") : "I will hear your proposal.";
+    const responseText = JSON.stringify({
+      say,
+      actions: [
+        ...(room ? [{ type: "open_door", roomId: room }] : []),
+        ...goals.map((objectiveId) => ({ type: "goal_evidence", objectiveId, quote: say })),
+      ],
+    });
     if (input.includes("Wait while I walk")) await new Promise((resolve) => setTimeout(resolve, 2500));
     send(response, 200, {
       output_text: responseText,
