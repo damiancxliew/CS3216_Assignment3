@@ -23,6 +23,7 @@ export const ANALYTICS_EVENTS = {
   endingReached: "ending_reached",
   debriefViewed: "debrief_viewed",
   debriefShared: "debrief_shared",
+  pricingCtaClicked: "pricing_cta_clicked",
 } as const;
 
 export type AnalyticsEvent =
