@@ -33,17 +33,34 @@ test('indoor characters wander visibly and remain clickable after a state refres
     const marker = scene.markers.get('tojo')
     return { x: marker.container.x, y: marker.container.y }
   })
-  await expect.poll(position, { timeout: 8000 }).not.toEqual({ x: initial.x * 16 + 8, y: initial.y * 16 + 8 })
+  // Drive the scene clock explicitly: headless CI can throttle animation frames
+  // even when the page is visible. This still exercises the scene's update path.
+  const moved = await page.evaluate(() => {
+    const scene = (window as any).wanderingHarness.game.scene.getScene('tiled-map')
+    const start = scene.current.actors.find((actor: any) => actor.id === 'tojo').position
+    for (let tick = 0; tick < 200; tick += 1) {
+      scene.update(0, 100)
+      const next = scene.wandering.position('tojo', start)
+      if (next.x !== start.x || next.y !== start.y) {
+        scene.renderActors(scene.current, true)
+        return next
+      }
+    }
+    return start
+  })
+  expect(moved).not.toEqual(initial)
+  expect(await position()).toEqual({ x: moved.x * 16 + 8, y: moved.y * 16 + 8 })
   const point = await page.evaluate(() => {
     const harness = (window as any).wanderingHarness
     harness.view.render(structuredClone(harness.snapshot))
     return harness.pointFor('Hideki Tojo')
   })
   await page.mouse.move(point.x, point.y)
-  // Let an in-progress tile finish before checking the hover pause and clicking.
-  await page.waitForTimeout(500)
   const paused = await position()
-  await page.waitForTimeout(800)
+  await page.evaluate(() => {
+    const scene = (window as any).wanderingHarness.game.scene.getScene('tiled-map')
+    for (let tick = 0; tick < 40; tick += 1) scene.update(0, 100)
+  })
   expect(await position()).toEqual(paused)
   const target = await page.evaluate(() => (window as any).wanderingHarness.pointFor('Hideki Tojo'))
   await page.mouse.click(target.x, target.y)
