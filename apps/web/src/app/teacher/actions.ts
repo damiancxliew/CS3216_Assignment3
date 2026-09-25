@@ -12,9 +12,9 @@ import {
   slugify,
   type ExtractedDocument,
 } from "@adventure/generation";
-import { OpenAiImageService } from "@adventure/generation/assets";
+import { isCurrentSpriteRecord, OpenAiImageService } from "@adventure/generation/assets";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
-import { MAP_STYLES } from "@adventure/generation/spec";
+import { MAP_STYLES, validatePublishedSpec } from "@adventure/generation/spec";
 
 import { type SourceRow, sourcesToDocuments } from "@/lib/adventures/generate-from-sources";
 import { advanceGenerationJob, startGenerationJob } from "@/lib/adventures/resumable-generation";
@@ -560,6 +560,55 @@ export async function regenerateAsset(adventureId: string, specVersionId: string
     console.error("asset regeneration failed", adventureId, assetId, error);
     return { error: "Couldn’t regenerate this image. Please try again." };
   }
+}
+
+/** A teacher may explicitly use a sprite that failed the pose check. */
+export async function acceptRejectedSprite(adventureId: string, specVersionId: string, assetId: string): Promise<ActionResult> {
+  await requireOwnership(adventureId);
+  const admin = createAdminClient();
+  const { data: version } = await admin.from("spec_version")
+    .select("id, json")
+    .eq("id", specVersionId)
+    .eq("adventure_id", adventureId)
+    .maybeSingle<{ id: string; json: unknown }>();
+  if (!version) return { error: "That adventure version was not found." };
+  const validated = validatePublishedSpec(version.json);
+  if (!validated.ok) return { error: "That adventure version cannot be reviewed." };
+
+  const { data: record } = await admin.from("asset")
+    .select("asset_id, entity_id, status, url, placeholder_url, prompt_hash, model, error")
+    .eq("spec_version_id", specVersionId)
+    .eq("asset_id", assetId)
+    .eq("kind", "sprite")
+    .maybeSingle<{ asset_id: string; entity_id: string; status: string; url: string; placeholder_url: string; prompt_hash: string; model: string | null; error: string | null }>();
+  if (!record || record.status !== "failed" || record.url === record.placeholder_url || !/pose template|mix directions/.test(record.error ?? "")) {
+    return { error: "There is no rejected sprite to accept." };
+  }
+  if (!isCurrentSpriteRecord(validated.spec, {
+    assetId: record.asset_id,
+    entityId: record.entity_id,
+    kind: "sprite",
+    status: "failed",
+    url: record.url,
+    placeholderUrl: record.placeholder_url,
+    promptHash: record.prompt_hash,
+    model: record.model,
+    costUsd: 0,
+    error: record.error,
+  })) return { error: "This sprite uses an older layout. Regenerate it before review." };
+
+  const { data: accepted, error } = await admin.from("asset")
+    .update({ status: "ready", error: null, updated_at: new Date().toISOString() })
+    .eq("spec_version_id", specVersionId)
+    .eq("asset_id", assetId)
+    .eq("kind", "sprite")
+    .eq("status", "failed")
+    .eq("url", record.url)
+    .select("asset_id")
+    .maybeSingle<{ asset_id: string }>();
+  if (error || !accepted) return { error: "This sprite changed during review. Refresh and try again." };
+  revalidatePath(`/teacher/${adventureId}`);
+  return { notice: "Sprite accepted. It will appear in the game on refresh." };
 }
 
 export async function rotateShareToken(adventureId: string): Promise<ActionResult> {
