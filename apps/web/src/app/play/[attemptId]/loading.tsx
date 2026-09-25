@@ -1,32 +1,72 @@
 import { Skeleton, Spinner } from "@/components/ui";
+import styles from "@/components/play/adventure-chrome.module.css";
 
-/** The play page's shape, so the map and panel appear where they will be while the first state is read. */
+/** Keep the loading view in the same frame as the playable page. */
 export default function Loading() {
   return (
-    <main className="flex h-screen flex-col" aria-busy>
-      <header className="flex items-baseline gap-6 border-b border-line bg-surface px-5 py-3">
-        <Skeleton className="h-7 w-56" />
-        <Skeleton className="h-5 w-40" />
+    <main className={`${styles.shell} flex h-dvh min-h-0 flex-col`} aria-busy>
+      <header className={`${styles.header} shrink-0`}>
+        <div className={styles.adventureTitle}>
+          <span className={styles.headerEmblem} aria-hidden />
+          <Skeleton className="h-6 w-48 max-w-[45vw] bg-white/30" />
+        </div>
+        <div className={`${styles.chapter} flex flex-wrap items-center gap-3`}>
+          <Skeleton className="h-6 w-24 bg-white/30" />
+          <Skeleton className="h-5 w-40 bg-white/30" />
+        </div>
+        <div className={styles.headerActions}>
+          <Skeleton className="h-9 w-20 bg-white/30" />
+          <Skeleton className="h-9 w-16 bg-white/30" />
+        </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section className="relative flex min-h-[55vh] flex-1 items-center justify-center bg-world-wash lg:min-h-0" aria-label="Map">
-          <span className="inline-flex items-center gap-2 rounded-control bg-surface px-4 py-2.5 text-base font-semibold text-ink" role="status">
+
+      <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row`}>
+        <section className="relative h-[32dvh] min-h-[11rem] shrink-0 bg-sunken lg:h-auto lg:min-h-0 lg:flex-1" aria-label="Map">
+          <span className="absolute inset-0 flex items-center justify-center gap-2 text-base font-semibold text-ink" role="status">
             <Spinner /> Opening your attempt…
           </span>
+          <div className="absolute inset-x-3 bottom-3 flex justify-between gap-2" aria-hidden>
+            <Skeleton className="h-11 w-28 bg-ink/20" />
+            <div className="flex gap-2">
+              <Skeleton className="h-11 w-11 bg-ink/20" />
+              <Skeleton className="h-11 w-28 bg-ink/20" />
+            </div>
+          </div>
         </section>
-        <aside className="flex w-full flex-col gap-4 border-t border-line bg-paper px-5 py-4 lg:w-[30rem] lg:border-l lg:border-t-0">
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-8 w-2/3" />
-          <div className="flex gap-2">
-            <Skeleton className="h-11 w-28" />
-            <Skeleton className="h-11 w-24" />
-            <Skeleton className="h-11 w-32" />
-          </div>
-          <div className="mt-auto flex flex-col gap-2 border-t border-line pt-4">
-            <Skeleton className="h-5 w-40" />
+
+        <aside className={`${styles.panel} flex min-h-0 w-full min-w-0 shrink-0 flex-col text-base lg:w-[min(42rem,48vw)]`}>
+          <section className={`${styles.where} flex shrink-0 flex-col gap-3 px-5 py-4`} aria-label="Location loading">
+            <Skeleton className="h-5 w-2/3" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-40" />
+              </div>
+              <Skeleton className="h-9 w-20" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Skeleton className="h-11 w-full" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+          </section>
+
+          <section className={`${styles.conversation} flex min-h-0 flex-1 flex-col gap-3 px-5 py-4`} aria-label="Conversation loading">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-3/4" />
+            <div className="flex-1" />
+            <Skeleton className="h-4 w-40" />
+            <div className="flex gap-2">
+              <Skeleton className="h-12 flex-1" />
+              <Skeleton className="h-12 w-20" />
+            </div>
+          </section>
+
+          <section className={`${styles.quests} flex flex-col gap-3 px-5 py-4 lg:min-h-0 lg:max-h-[34%]`} aria-label="Goals loading">
+            <Skeleton className="h-4 w-36" />
             <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-48" />
             <Skeleton className="h-5 w-5/6" />
-          </div>
+          </section>
         </aside>
       </div>
     </main>
