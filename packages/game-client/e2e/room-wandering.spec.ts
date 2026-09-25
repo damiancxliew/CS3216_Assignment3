@@ -15,6 +15,10 @@ test('indoor characters wander visibly and remain clickable after a state refres
   await page.route('**/game/portraits/**', (route) => route.fulfill({ status: 404, body: '' }))
   await page.route('**/wander-test', (route) => route.fulfill({ contentType: 'text/html', body: '<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body></body></html>' }))
   await page.goto('/wander-test')
+  // The renderer pauses ambient motion in hidden tabs. CI runs browser
+  // projects concurrently, so make this page visible before timing a walk.
+  await page.bringToFront()
+  await expect.poll(() => page.evaluate(() => document.hidden)).toBe(false)
   const initial = await page.evaluate(async () => {
     const path = '/e2e/tiled-harness.ts'
     const harness = await import(/* @vite-ignore */ path)
