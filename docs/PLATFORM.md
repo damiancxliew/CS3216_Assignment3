@@ -142,7 +142,7 @@ json blob. Persona, motivations, hidden interests and knowledge horizon go only 
 consequently exposes a stakeholder's name, role and public position and nothing else.
 
 Editing a published adventure is refused by the freeze triggers, not by the UI: the
-console surfaces that as "this version is frozen, choose *Edit as a new version*",
+console surfaces that as "this version is frozen, choose *Create a new version*",
 which calls `create_draft_version` (P4).
 
 ## Turn API (I3)

@@ -468,46 +468,6 @@ export async function startEdit(adventureId: string): Promise<ActionResult> {
   return {};
 }
 
-/**
- * D5/D6: artwork is also available before publish — the teacher can ask for
- * the draft (or published) version's images up front, so the page is already a
- * visual dossier when students arrive. Runs inside `after(...)` like publish:
- * the manifest rows land `pending` first and settle one by one.
- */
-export async function generateArtwork(adventureId: string, specVersionId: string): Promise<ActionResult> {
-  await requireOwnership(adventureId);
-
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("artwork generation unavailable: OPENAI_API_KEY is missing", adventureId);
-    return { error: "This feature is temporarily unavailable. Please try again later." };
-  }
-
-  const admin = createAdminClient();
-  const { data: versionRow } = await admin
-    .from("spec_version")
-    .select("id, version, published_at")
-    .eq("id", specVersionId)
-    .eq("adventure_id", adventureId)
-    .maybeSingle<{ id: string; version: number; published_at: string | null }>();
-  if (!versionRow) return { error: "That version is not part of this adventure." };
-
-  const { data: pending } = await admin
-    .from("asset")
-    .select("asset_id, updated_at")
-    .eq("spec_version_id", versionRow.id)
-    .eq("status", "pending")
-    .gte("updated_at", new Date(Date.now() - 600_000).toISOString())
-    .limit(1)
-    .returns<{ asset_id: string; updated_at: string }[]>();
-  if (pending && pending.length > 0) {
-    return { notice: `Artwork is already being generated for version ${versionRow.version}.` };
-  }
-
-  const version = versionRow.version;
-  after(() => finishArtworkGeneration(adventureId, version));
-  return { notice: `Artwork is being generated for version ${version}; the page will update as each piece lands.` };
-}
-
 /** Re-draw one asset and report its actual outcome to the teacher. */
 export async function regenerateAsset(adventureId: string, specVersionId: string, assetId: string): Promise<ActionResult> {
   await requireOwnership(adventureId);

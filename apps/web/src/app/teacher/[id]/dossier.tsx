@@ -16,7 +16,6 @@ import {
   editRoom,
   editStage,
   editStakeholder,
-  generateArtwork,
   regenerateAsset,
 } from "../actions";
 import { AssetRegeneration } from "@/components/teacher/asset-regeneration";
@@ -29,6 +28,8 @@ import { RecordEntry, Section, Skeleton, WorldEntry } from "@/components/ui";
 import type { Dossier, ImageStatus } from "@/lib/teacher/dossier";
 
 const INTENSITY_LABELS = ["", "light", "moderate", "heavy"] as const;
+
+const artworkKindCount = (n: number, singular: string) => `${n} ${singular}${n === 1 ? "" : "s"}`;
 
 /**
  * An asset tile with a fixed aspect ratio, so the four states (generated,
@@ -92,7 +93,6 @@ export function DossierSections({
   dossier,
   adventureId,
   specVersionId,
-  version,
   isDraft,
   view,
   stageId,
@@ -101,7 +101,6 @@ export function DossierSections({
   dossier: Dossier;
   adventureId: string;
   specVersionId: string;
-  version: number;
   isDraft: boolean;
   view: "story" | "stage-content" | "stage-style" | "artwork";
   stageId?: string;
@@ -429,22 +428,16 @@ export function DossierSections({
         </ul>
       </Section> : null}
 
-      {view === "artwork" ? <Section title="Artwork" lede="Portraits, walking sprites, places and objects for this version.">
+      {view === "artwork" ? <Section title="Artwork">
         <div className="flex flex-col gap-4">
-          <p className="max-w-[65ch] text-base text-muted">
-            {isDraft
-              ? `These images belong to draft version ${version}. Publishing starts artwork generation. Students can play when every image has finished.`
-              : `These images belong to published version ${version}. Ready images appear in the game automatically. Students may need to refresh an open game.`}
-          </p>
+          {isDraft ? <p className="text-base text-muted">Starts automatically when you publish.</p> : null}
           <p className="text-base text-ink">
-            {dossier.assets.generated} of {dossier.assets.eligible} planned images ready
+            {dossier.assets.generated} of {dossier.assets.eligible} images ready
             {dossier.assets.pending > 0 ? ` · ${dossier.assets.pending} pending` : ""}
             {dossier.assets.failed > 0 ? ` · ${dossier.assets.failed} failed` : ""}
+            <span className="text-muted"> · {artworkKindCount(dossier.artwork.filter((item) => item.kind === "portrait").length, "portrait")}, {artworkKindCount(dossier.artwork.filter((item) => item.kind === "sprite").length, "sprite")}, {artworkKindCount(dossier.artwork.filter((item) => item.kind === "landmark").length, "place")}, {artworkKindCount(dossier.artwork.filter((item) => item.kind === "prop").length, "object")}</span>
           </p>
-          <p className="text-sm text-muted">Planned: {dossier.artwork.filter((item) => item.kind === "portrait").length} portraits, {dossier.artwork.filter((item) => item.kind === "sprite").length} walking sprites, {dossier.artwork.filter((item) => item.kind === "landmark").length} places, {dossier.artwork.filter((item) => item.kind === "prop").length} objects.</p>
           <ArtworkProgress
-            action={generateArtwork.bind(null, adventureId, specVersionId)}
-            label={`Generate artwork for ${isDraft ? "draft " : ""}v${version}`}
             assets={dossier.assets}
             watchForArtwork={watchForArtwork}
           />

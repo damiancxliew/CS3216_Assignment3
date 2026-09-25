@@ -85,7 +85,7 @@ export function InlineEdit({
       <button
         type="button"
         aria-label={label}
-        title={editable ? label : `Published and frozen — choose “Edit as a new version”`}
+        title={editable ? label : `Published and frozen — choose “Create a new version”`}
         disabled={!editable}
         onClick={() => setEditing(true)}
         className="inline-flex shrink-0 items-center gap-1.5 rounded-control border border-line bg-surface p-1.5 text-sm text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 
 import { DossierSections } from "./dossier";
 import { BriefEditor } from "./brief-editor";
@@ -121,13 +121,16 @@ export default async function AdventurePage({
   const versions = versionRows ?? [];
   const draft = versions.find((v) => v.published_at === null) ?? null;
   const published = versions.find((v) => v.version === adventure.published_version) ?? null;
-  // The dossier shows the draft when one exists, else the published version.
+  // The dossier shows the draft when one exists, else the published version —
+  // except on Publish & share, where the artwork that is live belongs to the
+  // published version, so that version leads there.
   const shown = draft ?? published;
+  const dossierFor = tab === "publish" ? (published ?? draft) : shown;
 
   // `spec_version.json` is revoked from `authenticated`, so the dossier is
   // built with the service role now that ownership is confirmed.
-  const dossier = shown && (tab === "stages" || tab === "story" || tab === "publish")
-    ? await buildDossier(createAdminClient(), { adventureId: id, specVersionId: shown.id })
+  const dossier = dossierFor && (tab === "stages" || tab === "story" || tab === "publish")
+    ? await buildDossier(createAdminClient(), { adventureId: id, specVersionId: dossierFor.id })
     : null;
   const selectedStage = dossier?.stages.find((stage) => stage.id === query.stage) ?? dossier?.stages[0] ?? null;
   const stageUrl = (stageId: string, view: "content" | "style") =>
@@ -173,6 +176,10 @@ export default async function AdventurePage({
   const minutes = (rows: { duration_seconds: number }[]) => Math.round(rows.reduce((sum, r) => sum + r.duration_seconds, 0) / 60);
   const tokens = (rows: { tokens: number }[]) => rows.reduce((sum, r) => sum + r.tokens, 0);
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+  const releaseChecklist: { done: boolean; label: string }[] = [
+    { done: shown !== null, label: shown ? "Story ready" : "No story yet" },
+  ];
 
   return (
     <Page
@@ -268,35 +275,13 @@ export default async function AdventurePage({
               readingLevel: adventure.reading_level,
               stageOutline: adventure.stage_outline,
             }}
-          /></>
+          />
+          </>
         ) : (
           <p className="text-base text-muted">
             This adventure can’t be regenerated. Create a new adventure to use the guided setup.
           </p>
         )}
-      </Section>
-
-      <Section title="Playable version" lede="The brief above generates a draft from your sources. You can edit each stage before publishing.">
-        {versions.length === 0 ? (
-          <EmptyState title="Not generated yet">
-            Use the brief form above to generate a draft. Nothing is visible to students until you publish.
-          </EmptyState>
-        ) : (
-          <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-surface border border-line bg-surface px-4 text-base sm:px-5">
-            {versions.map((version) => (
-              <li key={version.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-                <span className="font-semibold text-ink">Version {version.version}</span>
-                <span className="text-sm text-muted sm:text-right sm:text-base">
-                  {version.published_at
-                    ? `Published ${new Date(version.published_at).toLocaleString()}, frozen`
-                    : "Draft, editable"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {draft ? <p className="text-base text-muted">Publish or discard this draft before generating another.</p> : null}
       </Section>
       </> : null}
 
@@ -327,73 +312,54 @@ export default async function AdventurePage({
                 </Link>
               ))}
             </nav>
-            <DossierSections dossier={dossier} adventureId={id} specVersionId={shown.id} version={shown.version} isDraft={shown === draft} view={stageView === "content" ? "stage-content" : "stage-style"} stageId={selectedStage.id} />
+            <DossierSections dossier={dossier} adventureId={id} specVersionId={shown.id} isDraft={shown === draft} view={stageView === "content" ? "stage-content" : "stage-style"} stageId={selectedStage.id} />
           </>
         ) : <EmptyState title="No stages yet">Generate the adventure from Overview to create its stages.</EmptyState>
       ) : null}
 
       {tab === "story" ? (
-        dossier && shown ? <DossierSections dossier={dossier} adventureId={id} specVersionId={shown.id} version={shown.version} isDraft={shown === draft} view="story" />
+        dossier && shown ? <DossierSections dossier={dossier} adventureId={id} specVersionId={shown.id} isDraft={shown === draft} view="story" />
         : <EmptyState title="No story yet">Generate the adventure from Overview to review its cast and endings.</EmptyState>
       ) : null}
 
       {tab === "publish" ? <>
-      <Section title="Version">
+      <Section title="Release">
+        <ul className="flex flex-col gap-1.5 text-base">
+          {releaseChecklist.map((row) => (
+            <li key={row.label} className={`flex items-center gap-2.5 ${row.done ? "text-ink" : "text-muted"}`}>
+              {row.done ? (
+                <Check className="h-4 w-4 shrink-0" aria-hidden />
+              ) : (
+                <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-50 mx-[5px]" aria-hidden />
+              )}
+              {row.label}
+            </li>
+          ))}
+        </ul>
         {draft ? (
           <ActionButton action={publishAdventure.bind(null, id)} label={`Publish version ${draft.version}`} pendingLabel="Publishing…" event={ANALYTICS_EVENTS.adventurePublished} />
         ) : published ? (
-          <ActionButton action={startEdit.bind(null, id)} label="Edit as a new version" pendingLabel="Copying…" variant="quiet" />
+          <ActionButton action={startEdit.bind(null, id)} label="Create a new version" pendingLabel="Copying…" />
         ) : (
-          <p className="text-base text-muted">Generate the adventure from Overview before publishing.</p>
+          <p className="text-base text-muted">Write the story from Overview first.</p>
         )}
-        {published && !draft ? <p className="max-w-[60ch] text-base text-muted">Editing creates a new draft. Students already playing can finish their current version.</p> : null}
-        {published ? <p className="text-base text-muted">{adventure.assets_ready ? "Artwork is ready. Students can play this version." : "Preparing artwork and NPC walking sprites. Students can play once generation finishes."}</p> : null}
+        {versions.length > 0 ? (
+          <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-surface border border-line bg-surface px-4 text-base sm:px-5">
+            {versions.map((version) => (
+              <li key={version.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+                <span className="font-semibold text-ink">Version {version.version}</span>
+                <span className="text-sm text-muted sm:text-right sm:text-base">
+                  {version.published_at
+                    ? `Published ${new Date(version.published_at).toLocaleString()}, frozen`
+                    : "Draft, editable"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </Section>
 
-      {dossier && shown ? <DossierSections dossier={dossier} adventureId={id} specVersionId={shown.id} version={shown.version} isDraft={shown === draft} view="artwork" watchForArtwork={shown === published && !adventure.assets_ready && Boolean(process.env.OPENAI_API_KEY) && published.published_at !== null && Date.now() - Date.parse(published.published_at) < 600_000} /> : null}
-
-      <Section
-        title="Stage timer"
-        lede="The timer starts when a student enters a stage. Refreshing or reopening the page won’t reset it."
-      >
-        <ActionForm
-          action={updateDefaultTimer.bind(null, adventure.id)}
-          submitLabel="Save default"
-          pendingLabel="Saving…"
-          className="flex max-w-xl flex-col gap-4"
-        >
-          <Field
-            name="default_timer_seconds"
-            label="Default per stage, in seconds"
-            hint="0 disables timers entirely. Each stage can override this above."
-            defaultValue={String(adventure.default_timer_seconds)}
-            type="number"
-            inputMode="numeric"
-            min={0}
-          />
-        </ActionForm>
-      </Section>
-
-      <Section
-        title="Retries"
-        lede="An attempt that is still open always resumes, whatever this is set to. This decides what happens once a student has reached an ending."
-      >
-        <ActionForm
-          action={updateRetries.bind(null, adventure.id)}
-          submitLabel="Save"
-          pendingLabel="Saving…"
-        >
-          <SelectField
-            name="allow_retries"
-            label="When a student has finished"
-            options={[
-              { value: "on", label: "Let them play again from the start" },
-              { value: "off", label: "Keep them on the attempt they finished" },
-            ]}
-            defaultValue={adventure.allow_retries ? "on" : "off"}
-          />
-        </ActionForm>
-      </Section>
+      {dossier && dossierFor ? <DossierSections dossier={dossier} adventureId={id} specVersionId={dossierFor.id} isDraft={dossierFor === draft} view="artwork" watchForArtwork={dossierFor === published && !adventure.assets_ready && Boolean(process.env.OPENAI_API_KEY) && published.published_at !== null && Date.now() - Date.parse(published.published_at) < 600_000} /> : null}
 
       <Section title="Share with students">
         <SharePanel
@@ -408,6 +374,54 @@ export default async function AdventurePage({
           </Link>
         ) : null}
       </Section>
+
+      <details className="rounded-surface border border-line bg-surface px-4 py-3 sm:px-5">
+        <summary className="cursor-pointer font-serif text-xl text-ink">Playing settings</summary>
+        <div className="mt-4 flex flex-col gap-6">
+          <Section
+            title="Stage timer"
+            lede="The timer starts when a student enters a stage. Refreshing or reopening the page won’t reset it."
+          >
+            <ActionForm
+              action={updateDefaultTimer.bind(null, adventure.id)}
+              submitLabel="Save default"
+              pendingLabel="Saving…"
+              className="flex max-w-xl flex-col gap-4"
+            >
+              <Field
+                name="default_timer_seconds"
+                label="Default per stage, in seconds"
+                hint="0 disables timers entirely. Each stage can override this above."
+                defaultValue={String(adventure.default_timer_seconds)}
+                type="number"
+                inputMode="numeric"
+                min={0}
+              />
+            </ActionForm>
+          </Section>
+
+          <Section
+            title="Retries"
+            lede="An attempt that is still open always resumes, whatever this is set to. This decides what happens once a student has reached an ending."
+          >
+            <ActionForm
+              action={updateRetries.bind(null, adventure.id)}
+              submitLabel="Save"
+              pendingLabel="Saving…"
+            >
+              <SelectField
+                name="allow_retries"
+                label="When a student has finished"
+                options={[
+                  { value: "on", label: "Let them play again from the start" },
+                  { value: "off", label: "Keep them on the attempt they finished" },
+                ]}
+                defaultValue={adventure.allow_retries ? "on" : "off"}
+              />
+            </ActionForm>
+          </Section>
+        </div>
+      </details>
       </> : null}
 
       {tab === "attempts" ? (

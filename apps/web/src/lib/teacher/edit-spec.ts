@@ -235,7 +235,7 @@ export async function applySpecEdit(
     .maybeSingle<{ id: string; version: number; json: unknown; published_at: string | null; compiled_stages: unknown }>();
   if (!version) return { error: "That version is not part of this adventure" };
   if (version.published_at !== null) {
-    return { error: "This version is published and frozen. Choose “Edit as a new version” first." };
+    return { error: "This version is published and frozen. Choose “Create a new version” first." };
   }
 
   const stored = validateAdventureSpec(version.json);
