@@ -46,6 +46,27 @@ async function failJob(admin: SupabaseClient, adventureId: string, message: stri
   return { state: "failed", message };
 }
 
+/** Supabase rejects with a plain object, so `String(error)` alone would say "[object Object]". */
+function errorDetail(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string") {
+    const { message, code } = error as { message: string; code?: unknown };
+    return typeof code === "string" ? `${code}: ${message}` : message;
+  }
+  return String(error);
+}
+
+/**
+ * The job row is the only trace of a failed step a teacher — or whoever is
+ * reading production — ever sees, so it names the cause instead of the step.
+ */
+function unexpectedMessage(error: unknown): string {
+  const detail = errorDetail(error).slice(0, 200);
+  if (detail.includes("OPENAI_API_KEY")) return "Story generation is not configured on this server: OPENAI_API_KEY is missing.";
+  if (detail.startsWith("Sources changed")) return detail;
+  return `Generation stopped unexpectedly (${detail}). Please try again.`;
+}
+
 function validatePlayable(spec: AdventureSpec, layoutSeed: string): SpecIssue[] {
   const compilation = compileAdventure(spec, layoutSeed);
   if (!compilation.ok) return compilation.issues;
@@ -204,7 +225,7 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
     const message = result.reason === "invalid-after-repair"
       ? "The generated adventure needs more work. Review the sources and try again."
       : result.reason === "llm-error"
-        ? "Adventure generation failed during a model call. Please try again."
+        ? `Adventure generation failed during a model call${result.issues[0] ? ` (${result.issues[0].message.slice(0, 200)})` : ""}. Please try again.`
         : "Adventure generation did not finish. Please try again.";
     return failJob(admin, adventureId, message);
   } catch (error) {
@@ -221,7 +242,7 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
     }
     const message = error instanceof SpecPersistError
       ? "Couldn’t save the generated adventure. Please try again."
-      : "Generation stopped unexpectedly. Please try again.";
+      : unexpectedMessage(error);
     return failJob(admin, adventureId, message);
   }
 }
