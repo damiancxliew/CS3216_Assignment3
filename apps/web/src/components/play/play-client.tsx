@@ -182,7 +182,7 @@ export function PlayClient({
   const revision = useRef(initialState.revision);
   const serverViewKey = useRef(`${initialState.stage.id}:${initialState.status}`);
   const previousStageId = useRef(initialState.stage.id);
-  const { muted, toggleMuted, cues } = useSoundCues(state, notice);
+  const { muted, toggleMuted, cues, playCue } = useSoundCues(state, notice);
 
   useEffect(() => {
     const key = `${state.stage.id}:${state.status}`;
@@ -321,6 +321,22 @@ export function PlayClient({
     setRoleBriefOpen(true);
   }, [canDecide, state.stage.id]);
 
+  // Panels that open and close without a state change get their cues here; closes
+  // are only in the handlers below so a stage reset does not play them again.
+  const previousReading = useRef<string | null>(null);
+  useEffect(() => {
+    if (reading && reading !== previousReading.current) playCue("page");
+    previousReading.current = reading;
+  }, [reading, playCue]);
+  useEffect(() => {
+    if (notesOpen) playCue("notes");
+  }, [notesOpen, playCue]);
+  const previousLandmark = useRef<string | null>(null);
+  useEffect(() => {
+    if (inspectingLandmark && inspectingLandmark !== previousLandmark.current) playCue("landmark");
+    previousLandmark.current = inspectingLandmark;
+  }, [inspectingLandmark, playCue]);
+
   const here = state.rooms.find((r) => r.id === state.currentRoomId) ?? null;
   const peopleHere = state.agents.filter((agent) => {
     const actor = state.actors.find((candidate) => candidate.id === agent.id);
@@ -363,6 +379,7 @@ export function PlayClient({
     const body = draft.trim();
     const roomId = current.currentRoomId;
     if (!body || !roomId || !canSendToAddressee || busy !== null || speaking || current.pendingDialogue) return;
+    playCue("speak");
     setDraft("");
     setPendingSpeech({ id: crypto.randomUUID(), roomId, body });
     setSpeaking(true);
@@ -381,6 +398,7 @@ export function PlayClient({
   }
 
   async function decide(optionId: string) {
+    playCue("decide");
     setBusy("Deciding…");
     setNotice(null);
     try {
@@ -660,7 +678,7 @@ export function PlayClient({
   return (
     <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row`}>
       {roleBriefOpen ? (
-        <AdventureDialog kind="character" titleId="role-brief-title" descriptionId="role-brief-description" onClose={() => setRoleBriefOpen(false)}>
+        <AdventureDialog kind="character" titleId="role-brief-title" descriptionId="role-brief-description" onClose={() => { playCue("close"); setRoleBriefOpen(false); }}>
             <div className="flex flex-col gap-2">
               <p className={styles.modalKicker}>You are {state.player.name}</p>
               <h2 id="role-brief-title" className={styles.modalTitle}>
@@ -677,7 +695,7 @@ export function PlayClient({
               <p className="text-base text-ink">{state.decisionPrompt}</p>
               <p className="mt-2 text-base text-muted">Gather evidence and hear different perspectives. Use your notes to weigh the choices.</p>
             </div>
-            <button type="button" className={`${primary} min-h-12 w-full text-lg sm:w-fit sm:self-end`} onClick={() => setRoleBriefOpen(false)}>
+            <button type="button" className={`${primary} min-h-12 w-full text-lg sm:w-fit sm:self-end`} onClick={() => { playCue("close"); setRoleBriefOpen(false); }}>
               Begin as {state.player.name}
             </button>
         </AdventureDialog>
@@ -783,7 +801,7 @@ export function PlayClient({
             onDoor={() => { if (here) void act(here.doorOpen ? "Closing…" : "Opening…", () => playApi.action(attemptId, { type: here.doorOpen ? "close_door" : "open_door", roomId: here.id })); }}
           />
           {knockReady ? (
-            <button type="button" className={primary} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor! }))}>
+            <button type="button" className={primary} disabled={busy !== null} onClick={() => { playCue("knock"); void act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor! })); }}>
               Knock on {waitingRoom?.name ?? "the door"}
             </button>
           ) : null}
@@ -1035,12 +1053,12 @@ export function PlayClient({
           onSelect={setReading}
           error={activeDocumentId ? documentErrors[activeDocumentId] ?? null : null}
           onRetry={() => { if (activeDocumentId) void read(activeDocumentId); }}
-          onClose={() => { setReading(null); setNotesOpen(false); }}
+          onClose={() => { playCue("close"); setReading(null); setNotesOpen(false); }}
         />
       ) : null}
 
       {openLandmark ? (
-        <AdventureDialog kind="landmark" titleId="landmark-title" descriptionId="landmark-description" onClose={() => setInspectingLandmark(null)}>
+        <AdventureDialog kind="landmark" titleId="landmark-title" descriptionId="landmark-description" onClose={() => { playCue("close"); setInspectingLandmark(null); }}>
             <div>
               <p className={styles.modalKicker}><MapPin size={14} aria-hidden /> {state.rooms.find((room) => room.id === openLandmark.roomId)?.name ?? "Out in the world"}</p>
               <h2 id="landmark-title" className={styles.modalTitle}>{openLandmark.name}</h2>
@@ -1048,7 +1066,7 @@ export function PlayClient({
             <p id="landmark-description" className="whitespace-pre-line text-lg leading-relaxed text-ink">{openLandmark.description}</p>
             <div className={styles.modalFooter}>
               <span className={styles.fieldStamp}><Compass size={16} aria-hidden /> An explorer’s field note</span>
-              <button type="button" className={`${primary} w-fit`} onClick={() => setInspectingLandmark(null)} autoFocus>Continue exploring <ArrowRight size={18} aria-hidden /></button>
+              <button type="button" className={`${primary} w-fit`} onClick={() => { playCue("close"); setInspectingLandmark(null); }} autoFocus>Continue exploring <ArrowRight size={18} aria-hidden /></button>
             </div>
         </AdventureDialog>
       ) : null}

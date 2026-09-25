@@ -67,7 +67,7 @@ export interface PlaygroundSnapshot {
   audio?: { muted: boolean; cues?: Array<{ key: string; id: SoundCueId }> }
 }
 
-export type SoundCueId = 'accept' | 'evidence' | 'resolution' | 'alert' | 'refused' | 'door' | 'step'
+export type SoundCueId = 'accept' | 'evidence' | 'resolution' | 'alert' | 'refused' | 'door-open' | 'door-close' | 'knock' | 'speak' | 'voice' | 'page' | 'close' | 'landmark' | 'notes' | 'goal' | 'stage' | 'decide' | 'step'
 
 function clone<T>(value: T): T {
   return structuredClone(value)

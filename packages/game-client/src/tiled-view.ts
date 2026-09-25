@@ -67,7 +67,8 @@ const TERRAIN: Partial<Record<MapThemeId, TerrainTheme>> = {
 }
 
 const AMBIENT_LOOP: Partial<Record<string, string>> = { rain: 'rain', dust: 'wind', clouds: 'wind', snow: 'wind' }
-const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert', 'refused', 'door', 'step']
+const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert', 'refused', 'door-open', 'door-close', 'knock', 'speak', 'voice', 'page', 'close', 'landmark', 'notes', 'goal', 'stage', 'decide', 'step']
+const SFX_VOLUME: Partial<Record<SoundCueId, number>> = { step: 0.25, speak: 0.3, close: 0.35, page: 0.4, notes: 0.4, landmark: 0.45, voice: 0.5, goal: 0.5, stage: 0.5, knock: 0.55, 'door-open': 0.55, 'door-close': 0.55 }
 const MUSIC_VOLUME = 0.35
 
 const DIRECTIONS = ['down', 'up', 'left', 'right'] as const
@@ -1013,7 +1014,7 @@ class TiledScene extends Phaser.Scene {
     for (const cue of snapshot.audio?.cues ?? []) {
       if (this.playedCues.has(cue.key)) continue
       this.playedCues.add(cue.key)
-      if (this.cache.audio.exists(`sfx-${cue.id}`)) this.sound.play(`sfx-${cue.id}`, { volume: cue.id === 'step' ? 0.25 : 0.6 })
+      if (this.cache.audio.exists(`sfx-${cue.id}`)) this.sound.play(`sfx-${cue.id}`, { volume: SFX_VOLUME[cue.id] ?? 0.6 })
     }
   }
 
