@@ -129,6 +129,18 @@ function Portrait({ src, name, size = 40 }: { src: string | null; name: string; 
   );
 }
 
+type GoalState = "available" | "done" | "locked";
+const GOAL_STATE_LABEL: Record<GoalState, string> = { available: "Available now", done: "Done", locked: "Locked" };
+
+/** The round status marker shared by goal cards and their colour key; tinted by the parent's goalTone. */
+function GoalMark({ state, className = "" }: { state: GoalState; className?: string }) {
+  return (
+    <span aria-hidden className={`${styles.goalIcon} ${className} inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2`}>
+      {state === "done" ? <Check className="h-3.5 w-3.5" strokeWidth={3.5} aria-hidden /> : state === "locked" ? <Lock className="h-2.5 w-2.5" aria-hidden /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+    </span>
+  );
+}
+
 const chip =
   `${styles.chip} inline-flex min-h-11 items-center gap-1.5 rounded-control border border-line-strong bg-surface px-3.5 py-2 text-base font-semibold leading-tight text-ink transition-colors hover:border-ink disabled:opacity-60`;
 const primary =
@@ -898,7 +910,14 @@ export function PlayClient({
           <div className={styles.progress} aria-hidden="true">
             {state.stage.objectives.map((objective) => <span key={objective.id} data-complete={objective.met} />)}
           </div>
-          <p className="text-sm text-muted">Yellow = available now · Green = done · Grey = locked</p>
+          <ul className={styles.goalKey} aria-label="Goal colour key">
+            {(["available", "done", "locked"] as const).map((tone) => (
+              <li key={tone} className={styles.goalTone} data-state={tone}>
+                <GoalMark state={tone} />
+                {GOAL_STATE_LABEL[tone]}
+              </li>
+            ))}
+          </ul>
           <ul className="flex flex-col gap-2">
             {state.stage.objectives.map((o) => {
               const hintKey = `${state.stage.id}:${o.id}`;
@@ -907,24 +926,19 @@ export function PlayClient({
                 .filter((id) => !state.stage.objectives.find((candidate) => candidate.id === id)?.met)
                 .map((id) => state.stage.objectives.find((candidate) => candidate.id === id)?.title ?? id);
               const locked = !o.met && missing.length > 0;
+              const goalState: GoalState = o.met ? "done" : locked ? "locked" : "available";
               return (
-                <li key={o.id} className={`flex items-start gap-2.5 rounded-control border px-3 py-2 text-base leading-snug ${
-                  o.met ? "border-world/30 bg-world-wash/50 text-world" : locked
-                    ? "border-line bg-surface/50 text-muted"
-                    : "border-[#b77900] bg-[#fff5bf] font-semibold text-ink"
-                }`}>
-                  <span aria-hidden className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
-                    o.met ? "border-world bg-world text-paper" : locked
-                      ? "border-line-strong bg-sunken text-muted"
-                      : "border-[#8a5900] bg-[#facc15] text-ink"
-                  }`}>
-                    {o.met ? <Check className="h-3.5 w-3.5" strokeWidth={3.5} aria-hidden /> : locked ? <Lock className="h-2.5 w-2.5" aria-hidden /> : <span className="h-1.5 w-1.5 rounded-full bg-ink" />}
-                  </span>
+                <li
+                  key={o.id}
+                  className={`${styles.goal} ${styles.goalTone} flex items-start gap-2.5 rounded-control px-3 py-2 text-base leading-snug ${goalState === "available" ? "font-semibold" : ""}`}
+                  data-state={goalState}
+                >
+                  <GoalMark state={goalState} className="mt-0.5" />
                   <span className="min-w-0">
-                    <span className="block text-xs font-bold uppercase tracking-wide">{o.met ? "Done" : locked ? "Locked" : "Available now"}</span>
+                    <span className={`${styles.goalLabel} block text-xs font-bold uppercase tracking-wide`}>{GOAL_STATE_LABEL[goalState]}</span>
                     <span className={`block ${o.met ? "line-through" : ""}`}>{o.title}</span>
                     {!o.met && !locked && o.conversation ? (
-                      <span className="block text-sm font-semibold text-[#704800]">
+                      <span className={`${styles.goalMeta} block text-sm font-semibold`}>
                         {o.conversation.exchanges < o.conversation.required
                           ? `Replies: ${o.conversation.exchanges} of ${o.conversation.required}`
                           : "Conversation needs a substantive answer"}
@@ -935,7 +949,7 @@ export function PlayClient({
                         <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> Finish first: {missing.join("; ")}
                       </span>
                     ) : !o.met && state.objectiveHints[o.id] ? (
-                      <span className="flex flex-col items-start gap-1 text-sm font-normal text-muted">
+                      <span className={`${styles.goalMeta} flex flex-col items-start gap-1 text-sm font-normal`}>
                         {hintLevel > 0 ? (
                           <span className="flex items-start gap-1">
                             <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -945,7 +959,7 @@ export function PlayClient({
                         {hintLevel < (state.objectiveClues[o.id] ? 2 : 1) ? (
                           <button
                             type="button"
-                            className="inline-flex min-h-9 items-center gap-1 underline underline-offset-2 hover:text-ink"
+                            className="inline-flex min-h-9 items-center gap-1 underline underline-offset-2"
                             onClick={() => setGoalHintLevels((levels) => ({ ...levels, [hintKey]: Math.min(2, (levels[hintKey] ?? 0) + 1) }))}
                           >
                             <HelpCircle className="h-3.5 w-3.5" aria-hidden /> {hintLevel ? "Clearer hint" : "Show hint"}
