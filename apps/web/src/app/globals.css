@@ -108,6 +108,26 @@
   --text-5xl--line-height: 1.05;
 
   --animate-thinking: thinking 1.2s ease-in-out infinite;
+  --animate-progress-stripes: progress-stripes 900ms linear infinite;
+  --animate-progress-sweep: progress-sweep 1.4s cubic-bezier(.45,0,.55,1) infinite;
+
+  @keyframes progress-stripes {
+    from {
+      background-position: 0 0;
+    }
+    to {
+      background-position: 32px 0;
+    }
+  }
+
+  @keyframes progress-sweep {
+    0% {
+      left: -40%;
+    }
+    100% {
+      left: 100%;
+    }
+  }
 
   @keyframes thinking {
     0%,
@@ -221,6 +241,18 @@ select {
 ::selection {
   background: var(--record-wash);
   color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-progress-stripes {
+    animation: none;
+  }
+
+  .animate-progress-sweep {
+    animation: none;
+    left: 0;
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

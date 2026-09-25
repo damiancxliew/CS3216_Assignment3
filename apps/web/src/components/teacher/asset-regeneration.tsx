@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
 import type { ActionResult } from "@/app/teacher/actions";
+import { ProgressBar } from "@/components/teacher/progress-bar";
 import { button, ErrorText, Pending } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 
@@ -70,7 +71,7 @@ export function AssetRegeneration({
       {working ? (
         <div role="status" aria-live="polite" className="flex flex-col gap-1 text-sm text-muted">
           <span>Drawing a new image…</span>
-          <progress aria-label="Image regeneration in progress" className="h-2 w-full accent-world" />
+          <ProgressBar indeterminate label="Image regeneration in progress" />
         </div>
       ) : result.error ? <ErrorText>{result.error}</ErrorText>
         : outcome === "failed" ? <p className="text-sm text-danger">Couldn’t generate a new image.</p>

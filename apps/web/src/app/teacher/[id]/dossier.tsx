@@ -19,6 +19,7 @@ import {
   regenerateAsset,
 } from "../actions";
 import { AssetRegeneration } from "@/components/teacher/asset-regeneration";
+import { ImageViewer } from "@/components/teacher/image-viewer";
 import { InlineEdit } from "@/components/teacher/inline-edit";
 import { StageMapPlan } from "@/components/teacher/stage-map";
 import { ArtworkProgress } from "@/components/teacher/artwork-poller";
@@ -53,15 +54,18 @@ function Artwork({
     );
   }
   if (imageUrl) {
+    const caption = imageStatus === "failed" ? "Needs retry" : imageStatus === "placeholder" ? (kind === "portrait" ? "Default portrait" : "Placeholder") : undefined;
     return (
-      <div data-artwork-kind={kind} className={`relative overflow-hidden rounded-control border border-line bg-sunken ${className}`}>
-        <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className={`h-full w-full object-contain ${kind === "sprite" ? "[image-rendering:pixelated]" : "object-cover"}`} />
-        {imageStatus === "failed" || imageStatus === "placeholder" ? (
-          <span className="absolute inset-x-1 bottom-1 rounded bg-ink/80 px-1.5 py-0.5 text-center text-xs font-semibold text-paper">
-            {imageStatus === "failed" ? "Needs retry" : kind === "portrait" ? "Default portrait" : "Placeholder"}
-          </span>
-        ) : null}
-      </div>
+      <ImageViewer src={imageUrl} title={alt} caption={caption} className={`overflow-hidden rounded-control border border-line bg-sunken ${className}`}>
+        <div data-artwork-kind={kind} className="relative h-full w-full">
+          <img src={imageUrl} alt={alt} width={800} height={800} loading="lazy" className={`h-full w-full object-contain ${kind === "sprite" ? "[image-rendering:pixelated]" : "object-cover"}`} />
+          {caption ? (
+            <span className="absolute inset-x-1 bottom-1 rounded bg-ink/80 px-1.5 py-0.5 text-center text-xs font-semibold text-paper">
+              {caption}
+            </span>
+          ) : null}
+        </div>
+      </ImageViewer>
     );
   }
   return (
@@ -144,19 +148,21 @@ export function DossierSections({
               <li key={stage.id} className="flex flex-col gap-6 overflow-hidden rounded-surface border border-line bg-surface">
                 {view === "stage-style" ? <div className="relative">
                   {banner?.imageUrl ? (
-                    <img
-                      src={banner.imageUrl}
-                      alt={banner.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`}
-                      width={1536}
-                      height={512}
-                      loading="lazy"
-                      className="w-full aspect-[3/1] object-cover"
-                    />
+                    <ImageViewer src={banner.imageUrl} title={banner.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`} className="w-full">
+                      <img
+                        src={banner.imageUrl}
+                        alt={banner.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`}
+                        width={1536}
+                        height={512}
+                        loading="lazy"
+                        className="w-full aspect-[3/1] object-cover"
+                      />
+                    </ImageViewer>
                   ) : (
                     // Defensive fallback for malformed legacy specs.
                     <div role="img" aria-label={`Stage ${stage.index + 1}`} className="h-36 w-full bg-sunken" />
                   )}
-                  <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-baseline justify-between gap-2 bg-ink/60 px-5 py-3">
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-baseline justify-between gap-2 bg-ink/60 px-5 py-3">
                     <p className="font-serif text-xl text-paper">
                       {stage.index + 1}. {stage.title}
                     </p>
