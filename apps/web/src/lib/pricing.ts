@@ -20,8 +20,8 @@ export type PricingTier = {
 
 export const PRICING_TIERS = [
   {
-    id: "scout",
-    name: "Scout",
+    id: "starter",
+    name: "Starter",
     tagline: "Try it on next week's lesson.",
     monthly: 0,
     annualMonthly: null,
@@ -32,12 +32,13 @@ export const PRICING_TIERS = [
       "2 published adventures",
       "60 student attempts a month",
       "Full debrief with citations",
+      "Stock art only — no custom asset generation",
       "Our branding on the debrief",
     ],
   },
   {
-    id: "expedition",
-    name: "Expedition",
+    id: "teacher",
+    name: "Teacher",
     tagline: "The teacher who now runs this every term.",
     monthly: 12,
     annualMonthly: 10,
@@ -48,13 +49,14 @@ export const PRICING_TIERS = [
       "Unlimited published adventures",
       "600 student attempts a month",
       "Your own source library",
+      "Custom asset generation",
       "No Historical Adventures branding",
       "Attempt packs if a class runs over",
     ],
   },
   {
-    id: "dynasty",
-    name: "Dynasty",
+    id: "department",
+    name: "Department",
     tagline: "A whole history department.",
     monthly: 40,
     annualMonthly: 33,

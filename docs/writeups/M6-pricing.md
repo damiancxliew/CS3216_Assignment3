@@ -40,7 +40,7 @@ punishes the exact behaviour we want (replaying with a different strategy).
 
 ## The model: per-teacher, with a class allowance
 
-The landing page ships these tiers as Scout, Expedition and Dynasty; the figures below are unchanged.
+The landing page ships the free tier as Starter; the figures below are unchanged.
 
 | Tier | Price | Included | Who it is for |
 | --- | --- | --- | --- |
