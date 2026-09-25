@@ -50,7 +50,7 @@ import { isDeepStrictEqual } from "node:util";
 import { PLAYER_ID, toResolverInput, toStageRuntime, type StageRuntimeBundle } from "@adventure/generation/runtime";
 import { resolveStageSettings, type AdventureSpec, type Stage } from "@adventure/generation/spec";
 
-import type { AssetManifest } from "@adventure/generation/assets";
+import { isCurrentSpriteRecord, type AssetManifest } from "@adventure/generation/assets";
 
 import { characterFor, PLAYER_CHARACTER, type Character } from "./appearance";
 import { historicalPortraitFor } from "./historical-portraits";
@@ -634,7 +634,7 @@ export class PlaySession {
 
   private spriteFor(stakeholderId: string): string | null {
     const record = this.assets?.records.find((r) => r.entityId === stakeholderId && r.kind === "sprite");
-    return record && (record.status === "ready" || record.status === "cached") ? record.url : null;
+    return record && (record.status === "ready" || record.status === "cached") && isCurrentSpriteRecord(this.spec, record) ? record.url : null;
   }
 
   private agentName(agentId: string): string {
