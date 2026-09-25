@@ -231,6 +231,13 @@ describe("SupabasePlayStore runtime validation", () => {
     await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toMatchObject({ name: "PlayConflictError", message: "The attempt changed. Refresh and try again." });
   });
 
+  it.each(["revision", "inactive"] as const)("maps a returned %s conflict to PlayConflictError", async (conflict) => {
+    client.rpcResult = { data: { conflict }, error: null };
+    const events: PlayEvents = { utterances: [], decisions: [], resolution: null, openedStageIndex: null, endingId: null, telemetry: null };
+
+    await expect(new SupabasePlayStore(client as never).save(record, snapshot, events)).rejects.toBeInstanceOf(PlayConflictError);
+  });
+
   it("surfaces non-conflict save errors and refuses failed runtime reads", async () => {
     client.rpcResult = { data: null, error: { message: "out of disk" } };
     const events: PlayEvents = { utterances: [], decisions: [], resolution: null, openedStageIndex: null, endingId: null, telemetry: null };

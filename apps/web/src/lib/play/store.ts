@@ -389,6 +389,7 @@ export class SupabasePlayStore implements PlayStore {
     }));
     if (error && (error.code === "PT409" || error.code === "40001" || /revision conflict/.test(error.message))) throw new PlayConflictError();
     if (error) throw new Error(`save_play_turn: ${error.message}`);
+    if (data && typeof data === "object" && typeof (data as { conflict?: unknown }).conflict === "string") throw new PlayConflictError();
     const result = data as { runtimeRevision?: unknown; stageDeadlineAt?: unknown } | null;
     if (!result || typeof result.runtimeRevision !== "number" || (result.stageDeadlineAt !== null && typeof result.stageDeadlineAt !== "string")) throw new Error("save_play_turn: invalid response");
     record.runtimeRevision = result.runtimeRevision;
