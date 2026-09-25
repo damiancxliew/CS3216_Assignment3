@@ -37,6 +37,7 @@ describe('D9/FR-15 — the Resolver/Orchestrator LLM', () => {
     const result = await resolver.resolveStage(fixtureResolverInput)
 
     expect(result.record.outcome.announcement).toBe('A model-authored announcement.')
+    expect(client.lastRequest).toMatchObject({ model: 'gpt-6-sol', reasoningEffort: 'low' })
     expect(result.record.outcome.sharedContextAppend).toBe('A model-authored public memory.')
     expect(result.record.rolls).toEqual(base.record.rolls)
     expect(result.record.outcome.next).toEqual(base.record.outcome.next)
