@@ -387,7 +387,7 @@ export default async function AdventurePage({
       </Section>
 
       <details className="rounded-surface border border-line bg-surface px-4 py-3 sm:px-5">
-        <summary className="cursor-pointer font-serif text-xl text-ink">Playing settings</summary>
+        <summary className="cursor-pointer text-xl font-extrabold tracking-tight text-ink">Playing settings</summary>
         <div className="mt-4 flex flex-col gap-6">
           <Section
             title="Stage timer"
@@ -402,7 +402,7 @@ export default async function AdventurePage({
               <Field
                 name="default_timer_seconds"
                 label="Default per stage, in seconds"
-                hint="0 disables timers entirely. Each stage can override this above."
+                hint="0 disables timers entirely. Each stage can override this in the Stages tab."
                 defaultValue={String(adventure.default_timer_seconds)}
                 type="number"
                 inputMode="numeric"
@@ -492,7 +492,7 @@ export default async function AdventurePage({
         ) : (
           <EmptyState title="Nobody has joined yet">
             {adventure.status === "published"
-              ? "Share the link above with your class. Each attempt appears here as soon as a student enters."
+              ? "Copy the link from Publish & share and send it to your class. Each attempt appears here as soon as a student enters."
               : "Attempts appear here once the adventure is published and students open the link."}
           </EmptyState>
         )}
@@ -515,7 +515,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-h-24 flex-col justify-between gap-2 rounded-control border border-line bg-surface p-3.5">
       <dt className="text-sm text-muted">{label}</dt>
-      <dd className="font-serif text-2xl text-ink tabular-nums">{value}</dd>
+      <dd className="text-2xl font-extrabold tracking-tight text-ink tabular-nums">{value}</dd>
     </div>
   );
 }
