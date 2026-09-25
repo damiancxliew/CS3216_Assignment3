@@ -6,12 +6,11 @@
  * spatial layer on top of the same state, not a second source of truth.
  *
  * The panel is a HUD with one focal point. Top: where you are and where you can
- * go (compact). Middle: the conversation, which is the game, so it takes the
- * height. Bottom, always visible: your goals as a progress strip and the
- * decision, which stays quiet until you can actually make it, then lights up.
+ * go. Middle: the conversation, which takes the height. Bottom: one next action
+ * and a case board link. The board holds the full goals, evidence and decision.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
-import { ArrowRight, Check, Compass, CornerDownRight, DoorOpen, Flag, HelpCircle, Lock, MapPin, ScrollText, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight, Compass, DoorOpen, Flag, HelpCircle, MapPin, ScrollText, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -33,6 +32,7 @@ import { StageCutscene } from "./stage-cutscene";
 import styles from "./adventure-chrome.module.css";
 import roomStyles from "./room-panel.module.css";
 import { RoomActions } from "./room-actions";
+import { CaseBoard, type BoardTab } from "./case-board";
 
 const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas), {
   ssr: false,
@@ -162,7 +162,8 @@ export function PlayClient({
   const [pendingTalk, setPendingTalk] = useState<string | null>(null);
   const [goalHintLevels, setGoalHintLevels] = useState<Record<string, number>>({});
   const [lastResolution, setLastResolution] = useState<string | null>(null);
-  const [decisionOpen, setDecisionOpen] = useState(false);
+  const [boardOpen, setBoardOpen] = useState(false);
+  const [boardTab, setBoardTab] = useState<BoardTab>("goals");
   const [decidingOption, setDecidingOption] = useState<string | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
@@ -305,7 +306,6 @@ export function PlayClient({
   // The moment a choice becomes possible, show it; a new stage closes it again.
   const canDecide = state.options.some((o) => o.available);
   useEffect(() => {
-    setDecisionOpen(canDecide);
     if (previousStageId.current === state.stage.id) return;
     previousStageId.current = state.stage.id;
     setIntent(null);
@@ -316,12 +316,14 @@ export function PlayClient({
     setReading(null);
     setNotesOpen(false);
     setAccountsOpen(false);
+    setBoardOpen(false);
+    setBoardTab("goals");
     setLoadingDocuments([]);
     setDocumentErrors({});
     setDraft("");
     setNotice(null);
     setCutsceneOpen(true);
-  }, [canDecide, state.stage.id]);
+  }, [state.stage.id]);
 
   const here = state.rooms.find((r) => r.id === state.currentRoomId) ?? null;
   const peopleHere = state.agents.filter((agent) => {
@@ -391,6 +393,7 @@ export function PlayClient({
         return;
       }
       setLastResolution(result.body.resolution.announcement);
+      setBoardOpen(false);
       accept(result.body.state);
     } finally {
       setBusy(null);
@@ -654,8 +657,17 @@ export function PlayClient({
 
   const goalsMet = state.stage.objectives.filter((o) => o.met).length;
   const goalsTotal = state.stage.objectives.length;
-  const decided = state.commitments.filter((c) => c.committed).length;
+  const currentGoal = state.stage.objectives.find((goal) => !goal.met && goal.requires.every((id) => state.stage.objectives.find((candidate) => candidate.id === id)?.met));
+  const goalRoom = state.rooms.find((room) => room.id === currentGoal?.target.roomId)?.name ?? "the map";
   const lowTime = state.timer.enabled && state.timer.secondsRemaining !== null && state.timer.secondsRemaining <= 120;
+
+  function guideToGoal(goal: PlayState["stage"]["objectives"][number]) {
+    setBoardOpen(false);
+    if (goal.target.kind === "agent") {
+      setDraft((current) => current || `${goal.target.name}, ${goal.conversation?.exchanges ? "what makes you say that?" : state.decisionPrompt}`);
+      onTalk(goal.target.id);
+    } else onProp(goal.target.id);
+  }
 
   return (
     <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row`}>
@@ -729,7 +741,7 @@ export function PlayClient({
 
       <aside className={`${styles.panel} flex min-h-0 w-full min-w-0 shrink-0 flex-col text-base lg:w-[min(42rem,48vw)]`}>
         {/* ── Top: where you are, where you can go ─────────────────────────── */}
-        <section className={`${styles.where} flex shrink-0 flex-col gap-3 px-5 py-4`} aria-labelledby="where">
+        <section className={`${styles.where} order-2 flex shrink-0 flex-col gap-3 px-5 py-4 lg:order-1`} aria-labelledby="where">
           <div className={roomStyles.roleLine}>
             <span>You are playing <strong className="text-ink">{state.player.role}</strong></span>
             <button type="button" onClick={() => setCutsceneOpen(true)} aria-label={`Open your role brief: ${state.player.role}`}>Read role brief</button>
@@ -767,7 +779,7 @@ export function PlayClient({
         </section>
 
         {/* ── Middle: the conversation. This is the game; it gets the height. ── */}
-        <section className={`${roomStyles.conversation} ${styles.conversation} flex flex-1 flex-col`} aria-labelledby="talk">
+        <section className={`${roomStyles.conversation} ${styles.conversation} order-3 flex flex-1 flex-col lg:order-2`} aria-labelledby="talk">
           {peopleHere.length > 0 ? (
             <>
               <div className={roomStyles.introduction}>
@@ -852,180 +864,67 @@ export function PlayClient({
           </form>
         </section>
 
-        {/* ── Bottom, always visible: goals + the decision ─────────────────── */}
-        <section className={`${styles.quests} flex flex-col gap-3 px-5 py-4 lg:min-h-0 lg:max-h-[34%] lg:overflow-y-auto`} aria-labelledby="decide">
-          <div>
-            <p className={styles.questHeading}><Flag size={15} aria-hidden /> Your next chapter</p>
-            <p className="text-base leading-snug text-ink">{state.decisionPrompt}</p>
-          </div>
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="text-base text-ink">
-              <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>
-              <span className="ml-3 text-muted">Stage {state.stage.index + 1} of {state.stageCount}</span>
-            </p>
-            {state.accountClues.length ? (
-              <button type="button" className="shrink-0 text-sm font-semibold text-world underline underline-offset-2" onClick={() => setAccountsOpen(true)}>
-                Compare accounts
-              </button>
-            ) : null}
-          </div>
-          <div className={styles.progress} aria-hidden="true">
-            {state.stage.objectives.map((objective) => <span key={objective.id} data-complete={objective.met} />)}
-          </div>
-          <p className="text-sm text-muted">Yellow = available now · Green = done · Grey = locked</p>
-          <ul className="flex flex-col gap-2">
-            {state.stage.objectives.map((o) => {
-              const hintKey = `${state.stage.id}:${o.id}`;
-              const hintLevel = goalHintLevels[hintKey] ?? 0;
-              const missing = o.requires
-                .filter((id) => !state.stage.objectives.find((candidate) => candidate.id === id)?.met)
-                .map((id) => state.stage.objectives.find((candidate) => candidate.id === id)?.title ?? id);
-              const locked = !o.met && missing.length > 0;
-              return (
-                <li key={o.id} className={`flex items-start gap-2.5 rounded-control border px-3 py-2 text-base leading-snug ${
-                  o.met ? "border-world/30 bg-world-wash/50 text-world" : locked
-                    ? "border-line bg-surface/50 text-muted"
-                    : "border-[#b77900] bg-[#fff5bf] font-semibold text-ink"
-                }`}>
-                  <span aria-hidden className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
-                    o.met ? "border-world bg-world text-paper" : locked
-                      ? "border-line-strong bg-sunken text-muted"
-                      : "border-[#8a5900] bg-[#facc15] text-ink"
-                  }`}>
-                    {o.met ? <Check className="h-3.5 w-3.5" strokeWidth={3.5} aria-hidden /> : locked ? <Lock className="h-2.5 w-2.5" aria-hidden /> : <span className="h-1.5 w-1.5 rounded-full bg-ink" />}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-xs font-bold uppercase tracking-wide">{o.met ? "Done" : locked ? "Locked" : "Available now"}</span>
-                    <span className={`block ${o.met ? "line-through" : ""}`}>{o.title}</span>
-                    {!o.met && !locked && o.conversation ? (
-                      <span className="block text-sm font-semibold text-[#704800]">
-                        {o.conversation.exchanges < o.conversation.required
-                          ? `Replies: ${o.conversation.exchanges} of ${o.conversation.required}`
-                          : "Conversation needs a substantive answer"}
-                      </span>
-                    ) : null}
-                    {locked ? (
-                      <span className="flex items-start gap-1 text-sm font-normal text-muted">
-                        <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> Finish first: {missing.join("; ")}
-                      </span>
-                    ) : !o.met && state.objectiveHints[o.id] ? (
-                      <span className="flex flex-col items-start gap-1 text-sm font-normal text-muted">
-                        {hintLevel > 0 ? (
-                          <span className="flex items-start gap-1">
-                            <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                            {hintLevel === 1 ? (state.objectiveClues[o.id] ?? state.objectiveHints[o.id]) : state.objectiveHints[o.id]}
-                          </span>
-                        ) : null}
-                        {hintLevel < (state.objectiveClues[o.id] ? 2 : 1) ? (
-                          <button
-                            type="button"
-                            className="inline-flex min-h-9 items-center gap-1 underline underline-offset-2 hover:text-ink"
-                            onClick={() => setGoalHintLevels((levels) => ({ ...levels, [hintKey]: Math.min(2, (levels[hintKey] ?? 0) + 1) }))}
-                          >
-                            <HelpCircle className="h-3.5 w-3.5" aria-hidden /> {hintLevel ? "Clearer hint" : "Show hint"}
-                          </button>
-                        ) : null}
-                      </span>
-                    ) : null}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-
-          {canDecide ? (
-            <div className="flex flex-col gap-2 rounded-surface border border-signal bg-signal-wash p-3">
-              <button type="button" className="flex w-full flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-left" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
-                <span id="decide" className="font-serif text-xl text-ink">
-                  You can decide now
-                </span>
-                <span className="text-base text-muted">
-                  {decided} of {state.commitments.length} decided. {decisionOpen ? "Hide" : "Show"}
-                </span>
-              </button>
-              {decisionOpen ? (
-                <>
-                  <p className="text-base leading-snug text-ink">This ends the stage. There is no going back.</p>
-                  <button type="button" className={`${subtle} self-start`} onClick={() => setNotesOpen(true)}>
-                    <ScrollText className="h-4 w-4" aria-hidden /> Review your evidence ({collectedDocuments.length})
-                  </button>
-                  <ul className="flex flex-col gap-2">
-                    {state.options.map((o) => (
-                      <li key={o.id}>
-                        <button
-                          type="button"
-                          className={`${o.available ? primary : chip} w-full flex-col items-start gap-0.5 text-left ${o.available ? "" : "min-h-11"}`}
-                          disabled={!o.available || busy !== null || speaking || state.pendingDialogue}
-                          onClick={() => decide(o.id)}
-                        >
-                          <span className="flex items-start gap-2 leading-snug">
-                            {decidingOption === o.id ? <Spinner className="mt-0.5 h-4 w-4" /> : null}
-                            {o.label}
-                          </span>
-                          {decidingOption === o.id ? (
-                            <span className="text-sm font-normal opacity-80">Deciding… writing what happens next.</span>
-                          ) : null}
-                          {!o.available ? (
-                            <span className="inline-flex items-center gap-1 text-sm font-normal text-muted">
-                              <Lock className="h-3.5 w-3.5" aria-hidden /> {o.unavailableReason}
-                            </span>
-                          ) : null}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  {decidingOption ? (
-                    <p role="status" aria-live="polite" className="inline-flex items-center gap-2 text-base text-ink">
-                      <Spinner /> Deciding… this can take a moment while the next chapter is written.
-                    </p>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
-          ) : (
-            <button type="button" className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-control border border-dashed border-line-strong px-3 py-2.5 text-left hover:border-ink" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
-              <span id="decide" className="inline-flex items-center gap-2 text-base font-semibold text-muted">
-                <Lock className="h-4 w-4" aria-hidden /> Decision locked. Finish your goals first.
-              </span>
-              <span className="text-sm text-muted">{decisionOpen ? "Hide" : "See choices"}</span>
+        {/* One action stays visible; the full case lives in its own board. */}
+        <section className={`${styles.quests} order-1 flex shrink-0 flex-col gap-2.5 px-5 py-3.5 lg:order-3`} aria-labelledby="decide">
+          <div className="flex items-center justify-between gap-3">
+            <p className={styles.questHeading}><Flag size={15} aria-hidden /> Next step · {goalsMet}/{goalsTotal} goals</p>
+            <button type="button" aria-label="Open case board" className="min-h-11 shrink-0 text-sm font-semibold text-world underline underline-offset-2" onClick={() => { setBoardTab("goals"); setBoardOpen(true); }}>
+              Case board
             </button>
-          )}
-          {!canDecide && decisionOpen ? (
-            <ul className="flex flex-col gap-1.5 text-base leading-snug text-muted">
-              {state.options.map((o) => (
-                <li key={o.id} className="rounded-control bg-surface px-3 py-2">
-                  {o.label}
-                  {o.unavailableReason ? <span className="block text-sm">{o.unavailableReason}</span> : null}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          {state.announcements.length ? (
-            <div role="log" aria-label="Announcements" className="flex flex-col gap-1.5">
-              {state.announcements.map((announcement) => <p key={announcement.id} role="status" className="rounded-control border border-line bg-surface px-3.5 py-2.5 text-base leading-snug text-ink">{announcement.body}</p>)}
-            </div>
-          ) : null}
-          {offline ? (
-            <p role="alert" className="rounded-control border border-signal bg-signal-wash px-3.5 py-2.5 text-base leading-snug text-ink">
-              Connection lost.{" "}
-              <button type="button" className="underline underline-offset-2" onClick={() => window.location.reload()}>
-                Reload to continue
+          </div>
+          {canDecide ? (
+            <>
+              <button id="decide" type="button" className={`${primary} w-full justify-between text-left`} onClick={() => { setBoardTab("decision"); setBoardOpen(true); }}>
+                You can decide now <ArrowRight size={18} aria-hidden />
               </button>
+              <p className="text-sm text-muted">Review your evidence and choose how this chapter ends.</p>
+            </>
+          ) : currentGoal ? (
+            <>
+              <div className="flex items-start gap-2">
+                <span aria-hidden className={`${styles.goalDot} mt-1.5 h-4 w-4 shrink-0 rounded-full border-2`} />
+                <div className="min-w-0">
+                  <h2 id="decide" className="font-serif text-lg leading-tight text-ink">{currentGoal.title}</h2>
+                  <p className="mt-1 text-sm text-muted">{currentGoal.target.name} · {goalRoom}</p>
+                  {currentGoal.conversation ? <p className="text-sm text-muted">Replies {currentGoal.conversation.exchanges} of {currentGoal.conversation.required}; ask a follow-up for a substantive answer.</p> : null}
+                </div>
+              </div>
+              <button type="button" className={`${subtle} self-start`} disabled={busy !== null} onClick={() => guideToGoal(currentGoal)}>
+                {currentGoal.target.kind === "agent" ? `Talk to ${currentGoal.target.name}` : `Read ${currentGoal.target.name}`} <ArrowRight size={16} aria-hidden />
+              </button>
+            </>
+          ) : (
+            <p id="decide" className="text-sm text-ink">Open the case board to review the remaining goals and choices.</p>
+          )}
+          <div className={styles.progress} aria-hidden="true">
+            {state.stage.objectives.map((goal) => <span key={goal.id} data-complete={goal.met} />)}
+          </div>
+          {offline ? (
+            <p role="alert" className="rounded-control border border-signal bg-signal-wash px-3 py-2 text-sm text-ink">
+              Connection lost. <button type="button" className="underline" onClick={() => window.location.reload()}>Reload to continue</button>
             </p>
           ) : null}
-          {notice ? (
-            <p role="status" className="rounded-control border border-signal bg-signal-wash px-3.5 py-2.5 text-base leading-snug text-ink">
-              {notice}
-            </p>
-          ) : null}
-          {busy && busy !== "Speaking…" ? (
-            <p role="status" aria-live="polite" className="inline-flex items-center gap-2 text-base text-muted">
-              <Spinner /> {busy}
-            </p>
-          ) : null}
+          {notice ? <p role="status" className="rounded-control border border-signal bg-signal-wash px-3 py-2 text-sm text-ink">{notice}</p> : null}
+          {busy && busy !== "Speaking…" ? <p role="status" aria-live="polite" className="inline-flex items-center gap-2 text-sm text-muted"><Spinner /> {busy}</p> : null}
         </section>
       </aside>
+
+      {boardOpen ? (
+        <CaseBoard
+          state={state}
+          tab={boardTab}
+          onTab={setBoardTab}
+          hintLevels={goalHintLevels}
+          onHint={(key, level) => setGoalHintLevels((levels) => ({ ...levels, [key]: level }))}
+          onGuide={guideToGoal}
+          onRead={(id) => { setBoardOpen(false); setReading(id); }}
+          onAccounts={() => { setBoardOpen(false); setAccountsOpen(true); }}
+          onDecide={(id) => { void decide(id); }}
+          decidingOption={decidingOption}
+          busy={busy !== null || speaking || state.pendingDialogue}
+          onClose={() => setBoardOpen(false)}
+        />
+      ) : null}
 
       {reading || notesOpen ? (
         <DocumentReader

@@ -16,6 +16,9 @@
   --wood: #65472f;
   --wood-edge: #382b22;
   --brass: #d6b778;
+  --goal-current-bg: #fff5bf;
+  --goal-current-border: #a66e00;
+  --goal-current-dot: #facc15;
   color: var(--ink);
 }
 :global([data-theme="dark"]) .game,
@@ -37,6 +40,9 @@
   --wood: #413226;
   --wood-edge: #211d18;
   --brass: #b99b66;
+  --goal-current-bg: #4a3e20;
+  --goal-current-border: #e5be51;
+  --goal-current-dot: #e5be51;
 }
 .shell { background: var(--paper); }
 .header {
@@ -83,6 +89,8 @@
 .myBubble { border-radius: 16px 3px 16px 16px; background: var(--world-wash); color: var(--ink); }
 .quests { position: relative; border-top: 3px double var(--line-strong); background: linear-gradient(110deg, #b78d3410, transparent), var(--paper); }
 .questHeading { display: flex; align-items: center; gap: 7px; color: var(--world); font-weight: 700; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+.goalAvailable { border-color: var(--goal-current-border); background: var(--goal-current-bg); color: var(--ink); }
+.goalDot { border-color: var(--goal-current-border); background: var(--goal-current-dot); color: var(--ink); }
 .progress { display: flex; gap: 5px; margin-top: 8px; }
 .progress span { flex: 1; height: 5px; border-radius: 2px; background: var(--line); }
 .progress span[data-complete="true"] { background: var(--world); }
@@ -112,6 +120,9 @@
 .accounts { background: var(--world); }
 .accounts .modalFrame { background: linear-gradient(120deg, #174b3d, #2d6552); }
 .accounts .modalPaper { border-radius: 3px; border-top: 4px double var(--line-strong); }
+.board { width: min(48rem, calc(100vw - 1.25rem)); background: var(--world); }
+.board .modalFrame { background: linear-gradient(120deg, #174b3d, #2d6552); }
+.board .modalPaper { border-radius: 3px; border-top: 4px double var(--line-strong); }
 .briefContext { border: 1px dashed var(--line-strong); border-radius: 6px; background: var(--surface); padding: 16px; }
 .game :is(button, input):focus-visible, .shell :is(a, button, summary):focus-visible, .dialog :is(button, input):focus-visible { outline: 3px solid var(--record); outline-offset: 3px; }
 .header :is(a, button, summary):focus-visible, .close:focus-visible { outline-color: #ffe0a2; }

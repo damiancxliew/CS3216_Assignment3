@@ -199,10 +199,10 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
     const mobileGeometry = await page.evaluate(() => {
       const composer = document.querySelector('section[aria-labelledby="talk"] form')!.getBoundingClientRect();
       const goals = document.querySelector('section[aria-labelledby="decide"]')!.getBoundingClientRect();
-      return { scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth, composerBottom: composer.bottom, goalsTop: goals.top };
+      return { scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth, composerTop: composer.top, goalsBottom: goals.bottom };
     });
     expect(mobileGeometry.scrollWidth).toBeLessThanOrEqual(mobileGeometry.clientWidth);
-    expect(mobileGeometry.composerBottom).toBeLessThanOrEqual(mobileGeometry.goalsTop + 1);
+    expect(mobileGeometry.goalsBottom).toBeLessThanOrEqual(mobileGeometry.composerTop + 1);
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.locator('canvas[tabindex="0"]').waitFor({ state: "visible" });
     const dialogueState = (await publicState(page, attemptId)).body;

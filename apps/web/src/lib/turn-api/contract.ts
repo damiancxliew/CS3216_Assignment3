@@ -134,6 +134,8 @@ export const publicStageSchema = z.object({
       requires: z.array(z.string()),
       /** Audible player/NPC exchanges so the follow-up requirement is visible. */
       conversation: z.object({ exchanges: z.number(), required: z.number() }).nullable(),
+      /** A public map destination for the currently available goal. */
+      target: z.object({ kind: z.enum(["agent", "evidence"]), id: z.string(), name: z.string(), roomId: z.string().nullable() }),
     }),
   ),
 });
