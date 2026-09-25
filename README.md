@@ -91,6 +91,11 @@ See [`.env.example`](.env.example). Deployment (Vercel) needs
 `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_POSTHOG_KEY` and `OPENAI_API_KEY`, with the Vercel
 project's root directory set to `apps/web` and the Next.js preset.
 
+Only `main` deploys automatically ([`apps/web/vercel.json`](apps/web/vercel.json), read from the
+project's root directory): the Hobby plan allows 100
+deployments a day per account, and branch previews used it up. For a preview of a branch, run
+`npx vercel deploy` from `apps/web`.
+
 ## Security model in one paragraph
 
 Every response a client sees is a public projection: private agent context, unrevealed
