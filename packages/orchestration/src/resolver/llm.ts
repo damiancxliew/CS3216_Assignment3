@@ -22,8 +22,11 @@ import {
 import { resolveStageSync } from './fake'
 import type { Resolver, ResolverInput, ResolverResult } from './types'
 
+/** The same model option minting uses; low effort because the outcome is already decided. */
+export const RESOLVER_MODEL = 'gpt-6-sol'
+
 export const RESOLVER_LLM_PROFILE = {
-  reasoningEffort: 'medium',
+  reasoningEffort: 'low',
   verbosity: 'low',
   maxOutputTokens: 1200,
 } as const
@@ -166,6 +169,7 @@ async function callResolverNarration(
   client: LlmClient,
   prompt: ResolverPrompt,
   modelTier: ModelTier,
+  explicitTier: boolean,
   metrics: StructuredCallMetrics | undefined,
 ): Promise<StructuredResult<ResolverNarration> | null> {
   try {
@@ -175,6 +179,7 @@ async function callResolverNarration(
         schema: resolverNarrationSchema,
         schemaName: 'resolver_narration',
         modelTier,
+        ...(explicitTier ? {} : { model: RESOLVER_MODEL }),
         system: prompt.system,
         user: prompt.user,
         ...RESOLVER_LLM_PROFILE,
@@ -198,6 +203,7 @@ export function createLlmResolver(
         client,
         prompt,
         options.modelTier ?? TIER_BY_ROLE.resolver,
+        options.modelTier !== undefined,
         options.metrics,
       )
       if (result === null) return fallback(base, 0)
