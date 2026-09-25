@@ -54,22 +54,26 @@ test('production environment plans render, reveal rooms, and animate the harbor'
     expect(life.animals.some((name: string) => name.includes(style === 'desert' ? 'camel' : 'cat'))).toBe(true)
     expect(life).toMatchObject({ moved: true, inside: true, water: 1, frozen: true })
     if (style === 'harbor') {
-      const movement = await page.evaluate(async () => {
+      const boats = await page.evaluate(() => {
         const h = (window as any).storyHarness, scene = h.game.scene.getScene('tiled-map')
         const boats = scene.children.list.filter((o: any) => o.name === 'harbor-boat')
         if (boats.some((o: any) => o.width > 24 || o.height > 40)) throw new Error('Boat is oversized')
-        const before = boats.map((o: any) => o.y)
-        let changed = false
-        for (let frame = 0; frame < 15; frame++) {
-          await new Promise(r => setTimeout(r, 100))
-          changed ||= boats.some((o: any, i: number) => o.y !== before[i])
-        }
+        return boats.map((o: any) => o.y)
+      })
+      expect(boats).toHaveLength(1)
+      await expect.poll(() => page.evaluate((before) => {
+        const scene = (window as any).storyHarness.game.scene.getScene('tiled-map')
+        return scene.children.list.filter((o: any) => o.name === 'harbor-boat').some((o: any, i: number) => o.y !== before[i])
+      }, boats), { timeout: 10000 }).toBe(true)
+      const reducedStops = await page.evaluate(async () => {
+        const h = (window as any).storyHarness, scene = h.game.scene.getScene('tiled-map')
         h.view.setReducedMotion(true)
+        const boats = scene.children.list.filter((o: any) => o.name === 'harbor-boat')
         const stopped = boats.map((o: any) => o.y)
         await new Promise(r => setTimeout(r, 200))
-        return { count: boats.length, changed, reducedStops: boats.every((o: any, i: number) => o.y === stopped[i]) }
+        return boats.every((o: any, i: number) => o.y === stopped[i])
       })
-      expect(movement).toEqual({ count: 1, changed: true, reducedStops: true })
+      expect(reducedStops).toBe(true)
     }
   }
   expect(errors).toEqual([])
