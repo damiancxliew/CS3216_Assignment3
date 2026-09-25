@@ -1,0 +1,18 @@
+# Consumed by the GitHub "Settings" app (https://github.com/apps/settings).
+# Without that app installed this file is documentation only: apply the same
+# rules with the commands in docs/branch-protection.md.
+branches:
+  - name: main
+    protection:
+      required_pull_request_reviews: null
+      required_status_checks:
+        # Only the CI workflow runs on every pull request. The per-package
+        # workflows are path-filtered, so requiring them would leave unrelated
+        # pull requests waiting on checks that never start.
+        strict: true
+        contexts:
+          - web
+          - database
+      enforce_admins: false
+      required_linear_history: false
+      restrictions: null
