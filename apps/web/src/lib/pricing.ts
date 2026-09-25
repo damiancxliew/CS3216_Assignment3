@@ -1,7 +1,8 @@
 /**
  * The single source of truth for pricing: the landing section renders from
  * this and the JSON-LD offers are generated from it, so the two can't drift.
- * Figures are in SGD and come from docs/writeups/M6-pricing.md.
+ * Figures are in SGD and come from docs/writeups/M6-pricing.md, where the allowances
+ * are sized against the measured cost per attempt (docs/writeups/M12-play-metrics.md).
  */
 export type PricingTier = {
   id: string;
@@ -30,7 +31,7 @@ export const PRICING_TIERS = [
     cta: { label: "Start free", href: "/teacher" },
     features: [
       "2 published adventures",
-      "60 student attempts a month",
+      "30 student attempts a month — one class, one lesson",
       "Full debrief with citations",
       "Stock art only — no custom asset generation",
       "Our branding on the debrief",
@@ -47,11 +48,11 @@ export const PRICING_TIERS = [
     cta: { label: "Start free, upgrade later", href: "/teacher" },
     features: [
       "Unlimited published adventures",
-      "600 student attempts a month",
+      "150 student attempts a month — about five class lessons",
       "Your own source library",
       "Custom asset generation",
       "No Historical Adventures branding",
-      "Attempt packs if a class runs over",
+      "Extra attempts at S$6 per 100 — a class is never cut off mid-lesson",
     ],
   },
   {
@@ -65,7 +66,7 @@ export const PRICING_TIERS = [
     cta: { label: "Talk to us", href: "/teacher" },
     features: [
       "Up to 10 teachers",
-      "8,000 pooled attempts a year",
+      "5,000 pooled attempts a year",
       "Shared department library",
       "Teacher-corrected forks across the department",
       "Priority support during a pilot",

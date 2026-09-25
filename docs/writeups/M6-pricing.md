@@ -42,33 +42,48 @@ punishes the exact behaviour we want (replaying with a different strategy).
 
 ## The model: per-teacher, with a class allowance
 
-The landing page ships the free tier as Starter; the figures below are unchanged.
+Prices are unchanged from the first draft; the allowances were cut on 25 Sep once the cost
+per attempt was measured (below). The landing page calls the free tier Starter.
 
 | Tier | Price | Included | Who it is for |
 | --- | --- | --- | --- |
-| **Free** | S$0 | 2 published adventures, 60 student attempts/month, curated art only, our branding on the debrief | A teacher trying it on next week's lesson. This is the acquisition channel (M4), not a trial |
-| **Teacher** | S$12/month (S$120/year) | Unlimited adventures, 600 attempts/month (≈ 4 classes × 5 lessons), own source library, custom asset generation, no branding | The individual adopter, paid personally or from a department budget |
-| **Department** | S$400/year per department (up to 10 teachers) | Pooled 8,000 attempts/year, shared adventure library, teacher-corrected forks across the department | The realistic purchase unit — adoption happens at a department meeting |
+| **Starter** | S$0 | 2 published adventures, 30 student attempts/month (one class, one lesson), curated art only, our branding on the debrief | A teacher trying it on next week's lesson. This is the acquisition channel (M4), not a trial |
+| **Teacher** | S$12/month (S$120/year) | Unlimited adventures, 150 attempts/month (≈ 5 class lessons of 30), own source library, custom asset generation, no branding | The individual adopter, paid personally or from a department budget |
+| **Department** | S$400/year (S$40/month) per department, up to 10 teachers | Pooled 5,000 attempts/year, shared adventure library, teacher-corrected forks across the department | The realistic purchase unit — adoption happens at a department meeting |
 | **School / district** | Quoted | SSO, LMS export, admin roster, pooled allowance | Follows a successful term-long pilot |
+| **Extra attempts** | S$6 per 100 | Any paid tier | A class that runs over |
 
 Overage is sold as attempt packs rather than throttled mid-lesson: a class must never
 stop playing because an allowance ran out. Failing open and invoicing is the only
-acceptable behaviour in a classroom.
+acceptable behaviour in a classroom. At S$0.06 an attempt, a pack covers even the most
+expensive attempt measured.
+
+## Does it pay?
+
+Measured cost per attempt: median **S$0.042**, max S$0.060 ([M12](M12-play-metrics.md));
+generation ≈ S$0.59 per adventure.
 
 **Gross margin at the Teacher tier** = `12 − (attempts used × cost/attempt) − (generations × cost/generation)`.
 
 | Teacher-tier month | Attempts | Generations | Cost | Margin at S$12 (S$10 annual) |
 | --- | --- | --- | --- | --- |
 | Typical: 4 classes × 30, one adventure each | 120 | 4 | S$7.40 | **+S$4.60** (+S$2.60) |
-| Top of allowance | 600 | 10 | S$31.10 | **−S$19.10** (−S$21.10) |
-| Top of allowance, minting moved to `gpt-6-luna` | 600 | 10 | S$12.50 | −S$0.50 (−S$2.50) |
+| Top of allowance, median attempts | 150 | 5 | S$9.25 | **+S$2.75** (+S$0.75) |
+| Top of allowance, every attempt as costly as the worst measured | 150 | 5 | S$11.95 | +S$0.05 (−S$1.95) |
 
-The allowances were meant to keep a teacher at the *top* of their allowance positive. At
-the measured S$0.042 per attempt they do not: 600 attempts only break even below
-S$0.02 per attempt (S$0.017 on annual billing). The typical month is positive; the
-allowance is not. The same arithmetic puts Starter at ≈ S$3.70 a month per active free
-teacher (60 attempts, 2 generations) and Department at ≈ S$336 of attempt cost against
-S$400 a year if the pool is used up.
+A teacher at the *top* of their allowance is positive at the median cost, which was the
+test the first draft set and failed at 600 attempts (−S$19.10). The margin is thin on
+annual billing, so the allowance should not grow until the cost does not either.
+
+| Other tiers, fully used | Cost | Revenue | Margin |
+| --- | --- | --- | --- |
+| Starter, per active free teacher (30 attempts, 2 generations a month) | S$2.44/month | S$0 | acquisition cost |
+| Department (5,000 attempts, ~40 generations a year) | S$233.60/year | S$400 | **+S$166.40** (42%) |
+
+The tiers now step up in the right direction: Teacher works out at S$0.067 per included
+attempt on annual billing and Department at S$0.08, paying for the shared library. Two
+teachers are better off on two Teacher plans (S$240, 3,600 attempts); from four teachers
+Department is the cheaper way to buy it, which is where a department meeting starts.
 
 ## Why this is the right shape
 
@@ -83,16 +98,18 @@ S$400 a year if the pool is used up.
    *benefit* of the paid tiers, not a paywalled artifact, because its value to us (M3)
    is that it grows.
 
-## To finalise before submission
+## What would change it
 
-The cost figures are in. What is left is a decision on the allowance, since the
-measured cost makes the top-of-allowance month negative. The levers, cheapest first:
+1. **Move option minting to `gpt-6-luna`.** Minting is ~77% of a typical attempt; on the
+   cheap tier an attempt costs ≈ S$0.011. If an M11-style eval shows proposals stay
+   grounded and valid, the Teacher allowance can go back up to ~400 a month at the same
+   margin. This is the first thing to try, before touching the price.
+2. **Real classroom attempts.** The figures come from simulated students; turn the cost
+   meter on (`PLAY_COST_LOG=1`) for the first pilot and re-check the median. Chatty real
+   play could reach ~S$0.10–0.13 per attempt (M12's estimate), which would make the top
+   of the Teacher allowance negative again.
+3. **Raise the price** only if both of those fail, since the argument above is that S$12
+   is what a teacher can expense without asking.
 
-1. **Move option minting to `gpt-6-luna`** — it is ~77% of a typical attempt, and this
-   takes an attempt to ≈ S$0.011. Needs an eval that proposal quality holds.
-2. **Lower the allowances** to what the typical month uses (e.g. Teacher 250, Starter 30).
-3. **Raise the price**, last, since the argument above is that S$12 is what a teacher can
-   expense without asking.
-
-The agent tick rate (FR-12b), which this section used to name as the lever, turned out
-not to be one: character replies are under a quarter of the cost.
+The agent tick rate (FR-12b), which the first draft named as the lever, is not one:
+character replies are under a quarter of the cost.
