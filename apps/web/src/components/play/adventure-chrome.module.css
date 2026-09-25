@@ -86,33 +86,27 @@
 .progress { display: flex; gap: 5px; margin-top: 8px; }
 .progress span { flex: 1; height: 5px; border-radius: 2px; background: var(--line); }
 .progress span[data-complete="true"] { background: var(--world); }
-/* Goal cards and the colour key share one palette per state, so each key chip
- * looks like a miniature of the card it describes. Every tone carries its own
- * text colours instead of inheriting --ink, which flips light in dark mode. */
-.goalTone[data-state="available"] {
-  --goal-bg: #fbeeb8; --goal-border: #b98200; --goal-ink: #2f2100; --goal-label: #7d4c00; --goal-meta: #5a3b00;
-  --goal-icon-bg: #f5c23a; --goal-icon-border: #8a5a00; --goal-icon-ink: #2f2100;
-}
-.goalTone[data-state="done"] {
-  --goal-bg: var(--world-wash); --goal-border: color-mix(in srgb, var(--world) 40%, transparent); --goal-ink: var(--world); --goal-label: var(--world); --goal-meta: var(--world);
-  --goal-icon-bg: var(--world); --goal-icon-border: var(--world); --goal-icon-ink: var(--paper);
-}
-.goalTone[data-state="locked"] {
-  --goal-bg: color-mix(in srgb, var(--surface-sunken) 55%, transparent); --goal-border: var(--line); --goal-ink: var(--ink-muted); --goal-label: var(--ink-muted); --goal-meta: var(--ink-muted);
-  --goal-icon-bg: var(--surface-sunken); --goal-icon-border: var(--line-strong); --goal-icon-ink: var(--ink-muted);
-}
-:global([data-theme="dark"]) .goalTone[data-state="available"] {
-  --goal-bg: #3d3216; --goal-border: #d9a630; --goal-ink: #fff1cc; --goal-label: #ffd466; --goal-meta: #f0d595;
-  --goal-icon-bg: #f5c23a; --goal-icon-border: #f5c23a; --goal-icon-ink: #2f2100;
-}
-.goal { border: 1px solid var(--goal-border); background: var(--goal-bg); color: var(--goal-ink); }
-.goal[data-state="available"] { border-left-width: 5px; box-shadow: 0 2px 0 color-mix(in srgb, var(--goal-border) 30%, transparent); }
-.goalLabel { color: var(--goal-label); }
-.goalMeta { color: var(--goal-meta); }
-.goalMeta button:hover { color: var(--goal-ink); }
-.goalIcon { border-color: var(--goal-icon-border); background: var(--goal-icon-bg); color: var(--goal-icon-ink); }
-.goalKey { display: flex; flex-wrap: wrap; gap: 6px; }
-.goalKey li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border: 1px solid var(--goal-border); border-radius: 999px; background: var(--goal-bg); color: var(--goal-ink); font-size: 13px; font-weight: 600; line-height: 1.2; }
+/* Goals read as ledger entries: a quiet row with a coloured edge. The same
+ * three tones colour the progress segments and the swatches in the key, so
+ * the key needs no icons. Text never inherits a tone's background colour. */
+.goalTone { --goal-accent: var(--line-strong); }
+.goalTone[data-state="available"] { --goal-accent: #b27a12; --goal-label: #85570a; }
+.goalTone[data-state="done"] { --goal-accent: var(--world); --goal-label: var(--world); }
+.goalTone[data-state="locked"] { --goal-accent: var(--line-strong); --goal-label: var(--ink-muted); }
+:global([data-theme="dark"]) .goalTone[data-state="available"] { --goal-accent: #e2b451; --goal-label: #eec36a; }
+.progress span.goalTone { background: var(--goal-accent); }
+.progress span.goalTone[data-state="locked"] { background: color-mix(in srgb, var(--line-strong) 45%, transparent); }
+.goal { position: relative; border: 1px solid var(--line); border-radius: 3px 8px 8px 3px; background: var(--surface); color: var(--ink); }
+.goal::before { content: ""; position: absolute; inset: -1px auto -1px -1px; width: 4px; border-radius: 3px 0 0 3px; background: var(--goal-accent); }
+.goal[data-state="available"] { background: color-mix(in srgb, var(--goal-accent) 7%, var(--surface)); border-color: color-mix(in srgb, var(--goal-accent) 45%, var(--line)); }
+.goal[data-state="done"] { background: transparent; color: var(--ink-muted); }
+.goal[data-state="locked"] { background: transparent; border-style: dashed; color: var(--ink-muted); }
+.goal[data-state="locked"]::before { background: repeating-linear-gradient(180deg, var(--goal-accent) 0 4px, transparent 4px 7px); }
+.goalLabel { color: var(--goal-label); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.goalKey { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--ink-muted); font-size: 12px; letter-spacing: .04em; }
+.goalKey li { display: inline-flex; align-items: center; gap: 6px; }
+.goalKey li::before { content: ""; width: 14px; height: 5px; border-radius: 2px; background: var(--goal-accent); }
+.goalKey li[data-state="locked"]::before { background: color-mix(in srgb, var(--line-strong) 45%, transparent); }
 .resolution { border: 2px solid var(--line-strong); border-radius: 4px 4px 18px 4px; background: var(--paper); box-shadow: 5px 5px 0 #382b2240; }
 .resolution > p:first-child { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
 .tool { border: 1px solid #c5aa79; border-radius: 8px; background: #453a2e; color: #fff1d3; box-shadow: 0 3px 0 #211d18; }

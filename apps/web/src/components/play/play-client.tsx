@@ -11,7 +11,7 @@
  * decision, which stays quiet until you can actually make it, then lights up.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
-import { ArrowRight, Check, Compass, CornerDownRight, DoorOpen, Flag, HelpCircle, Lock, MapPin, ScrollText, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight, Compass, CornerDownRight, DoorOpen, Flag, HelpCircle, Lock, MapPin, ScrollText, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -131,15 +131,6 @@ function Portrait({ src, name, size = 40 }: { src: string | null; name: string; 
 
 type GoalState = "available" | "done" | "locked";
 const GOAL_STATE_LABEL: Record<GoalState, string> = { available: "Available now", done: "Done", locked: "Locked" };
-
-/** The round status marker shared by goal cards and their colour key; tinted by the parent's goalTone. */
-function GoalMark({ state, className = "" }: { state: GoalState; className?: string }) {
-  return (
-    <span aria-hidden className={`${styles.goalIcon} ${className} inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2`}>
-      {state === "done" ? <Check className="h-3.5 w-3.5" strokeWidth={3.5} aria-hidden /> : state === "locked" ? <Lock className="h-2.5 w-2.5" aria-hidden /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-    </span>
-  );
-}
 
 const chip =
   `${styles.chip} inline-flex min-h-11 items-center gap-1.5 rounded-control border border-line-strong bg-surface px-3.5 py-2 text-base font-semibold leading-tight text-ink transition-colors hover:border-ink disabled:opacity-60`;
@@ -689,6 +680,12 @@ export function PlayClient({
 
   const goalsMet = state.stage.objectives.filter((o) => o.met).length;
   const goalsTotal = state.stage.objectives.length;
+  type Objective = (typeof state.stage.objectives)[number];
+  const unmetPrerequisites = (objective: Objective) => objective.requires
+    .filter((id) => !state.stage.objectives.find((candidate) => candidate.id === id)?.met)
+    .map((id) => state.stage.objectives.find((candidate) => candidate.id === id)?.title ?? id);
+  const goalStateOf = (objective: Objective): GoalState =>
+    objective.met ? "done" : unmetPrerequisites(objective).length ? "locked" : "available";
   const decided = state.commitments.filter((c) => c.committed).length;
   const lowTime = state.timer.enabled && state.timer.secondsRemaining !== null && state.timer.secondsRemaining <= 120;
 
@@ -908,37 +905,33 @@ export function PlayClient({
             </div>
           </div>
           <div className={styles.progress} aria-hidden="true">
-            {state.stage.objectives.map((objective) => <span key={objective.id} data-complete={objective.met} />)}
+            {state.stage.objectives.map((objective) => (
+              <span key={objective.id} className={styles.goalTone} data-complete={objective.met} data-state={goalStateOf(objective)} />
+            ))}
           </div>
           <ul className={styles.goalKey} aria-label="Goal colour key">
             {(["available", "done", "locked"] as const).map((tone) => (
-              <li key={tone} className={styles.goalTone} data-state={tone}>
-                <GoalMark state={tone} />
-                {GOAL_STATE_LABEL[tone]}
-              </li>
+              <li key={tone} className={styles.goalTone} data-state={tone}>{GOAL_STATE_LABEL[tone]}</li>
             ))}
           </ul>
           <ul className="flex flex-col gap-2">
             {state.stage.objectives.map((o) => {
               const hintKey = `${state.stage.id}:${o.id}`;
               const hintLevel = goalHintLevels[hintKey] ?? 0;
-              const missing = o.requires
-                .filter((id) => !state.stage.objectives.find((candidate) => candidate.id === id)?.met)
-                .map((id) => state.stage.objectives.find((candidate) => candidate.id === id)?.title ?? id);
-              const locked = !o.met && missing.length > 0;
-              const goalState: GoalState = o.met ? "done" : locked ? "locked" : "available";
+              const missing = unmetPrerequisites(o);
+              const goalState = goalStateOf(o);
+              const locked = goalState === "locked";
               return (
                 <li
                   key={o.id}
-                  className={`${styles.goal} ${styles.goalTone} flex items-start gap-2.5 rounded-control px-3 py-2 text-base leading-snug ${goalState === "available" ? "font-semibold" : ""}`}
+                  className={`${styles.goal} ${styles.goalTone} py-2 pl-4 pr-3 text-base leading-snug`}
                   data-state={goalState}
                 >
-                  <GoalMark state={goalState} className="mt-0.5" />
-                  <span className="min-w-0">
-                    <span className={`${styles.goalLabel} block text-xs font-bold uppercase tracking-wide`}>{GOAL_STATE_LABEL[goalState]}</span>
-                    <span className={`block ${o.met ? "line-through" : ""}`}>{o.title}</span>
+                  <span className="block min-w-0">
+                    <span className={`${styles.goalLabel} block`}>{GOAL_STATE_LABEL[goalState]}</span>
+                    <span className={`block ${goalState === "available" ? "font-semibold" : ""} ${o.met ? "line-through decoration-1" : ""}`}>{o.title}</span>
                     {!o.met && !locked && o.conversation ? (
-                      <span className={`${styles.goalMeta} block text-sm font-semibold`}>
+                      <span className="mt-0.5 block text-sm text-muted">
                         {o.conversation.exchanges < o.conversation.required
                           ? `Replies: ${o.conversation.exchanges} of ${o.conversation.required}`
                           : "Conversation needs a substantive answer"}
@@ -949,7 +942,7 @@ export function PlayClient({
                         <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> Finish first: {missing.join("; ")}
                       </span>
                     ) : !o.met && state.objectiveHints[o.id] ? (
-                      <span className={`${styles.goalMeta} flex flex-col items-start gap-1 text-sm font-normal`}>
+                      <span className="flex flex-col items-start gap-1 text-sm font-normal text-muted">
                         {hintLevel > 0 ? (
                           <span className="flex items-start gap-1">
                             <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -959,7 +952,7 @@ export function PlayClient({
                         {hintLevel < (state.objectiveClues[o.id] ? 2 : 1) ? (
                           <button
                             type="button"
-                            className="inline-flex min-h-9 items-center gap-1 underline underline-offset-2"
+                            className="inline-flex min-h-9 items-center gap-1 underline underline-offset-2 hover:text-ink"
                             onClick={() => setGoalHintLevels((levels) => ({ ...levels, [hintKey]: Math.min(2, (levels[hintKey] ?? 0) + 1) }))}
                           >
                             <HelpCircle className="h-3.5 w-3.5" aria-hidden /> {hintLevel ? "Clearer hint" : "Show hint"}
