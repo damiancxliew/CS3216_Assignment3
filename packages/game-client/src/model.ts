@@ -61,6 +61,8 @@ export interface PlaygroundSnapshot {
   roomNames?: Readonly<Record<string, string>>
   /** Public room purposes used to choose materials and period-appropriate fixtures. */
   roomDescriptions?: Readonly<Record<string, string>>
+  /** Authored location kinds used to choose curated ground for open locations. */
+  roomKinds?: Readonly<Record<string, string>>
   mapTheme?: MapThemeId
   visualStyle?: StoryStyle
   environment?: EnvironmentPlan | null

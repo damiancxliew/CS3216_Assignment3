@@ -23,7 +23,7 @@ import { RoomShells } from './room-shells.js'
 import { detailZoom } from './camera.js'
 import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
-import { applyEnvironment, paintStoryWalls, storyArt } from './story-art.js'
+import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, storyArt } from './story-art.js'
 import type { PlaygroundSnapshot, SoundCueId } from './model.js'
 import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
 import { RoomWandering, ROOM_STEP_MS } from './room-wandering.js'
@@ -237,6 +237,7 @@ class TiledScene extends Phaser.Scene {
       || JSON.stringify(snapshot.environment) !== JSON.stringify(previous.environment)
       || snapshot.mapTheme !== previous.mapTheme || snapshot.storyContext !== previous.storyContext
       || JSON.stringify(snapshot.roomDescriptions) !== JSON.stringify(previous.roomDescriptions)
+      || JSON.stringify(snapshot.roomKinds) !== JSON.stringify(previous.roomKinds)
       || JSON.stringify(snapshot.roomNames) !== JSON.stringify(previous.roomNames)
     if (mapChanged) {
       this.tweens.killAll()
@@ -357,6 +358,12 @@ class TiledScene extends Phaser.Scene {
       this.ground.putTileAt(materialTile(art.ground, x, y), x, y)
     }
     for (const room of source.rooms) {
+      if (room.enclosure === 'open') {
+        const material = MATERIAL_NAMES.indexOf(openFloorForKind(this.current.roomKinds?.[room.id]))
+        for (let y = room.y; y < room.y + room.height; y += 1) {
+          for (let x = room.x; x < room.x + room.width; x += 1) this.ground.putTileAt(materialTile(material, x, y), x, y)
+        }
+      }
       // A door on the top wall keeps the room name outside the room, above the wall.
       const doorOnTopWall = source.doors.some((door) => door.roomId === room.id && door.position.y === room.y)
       this.labels.push(

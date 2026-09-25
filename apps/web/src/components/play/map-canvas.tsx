@@ -179,6 +179,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
         revision: s.revision,
         roomNames: Object.fromEntries(s.rooms.map((r) => [r.id, r.name])),
         roomDescriptions: Object.fromEntries(s.rooms.map((r) => [r.id, r.purpose ?? ""])),
+        roomKinds: Object.fromEntries(s.rooms.filter((r) => r.kind).map((r) => [r.id, r.kind!])),
         mapTheme: s.stage.mapTheme,
         visualStyle: s.stage.visualStyle ?? 'auto',
         environment: s.stage.environment ?? null,

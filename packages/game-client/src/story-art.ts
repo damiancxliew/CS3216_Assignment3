@@ -4,6 +4,24 @@ export const STORY_STYLES = ['auto', 'civic', 'harbor', 'village', 'jungle', 'de
 export type StoryStyle = typeof STORY_STYLES[number]
 export type Decoration = 'planter' | 'bench' | 'lamp' | 'crate' | 'barrel' | 'rope' | 'pottery' | 'awning' | 'palm' | 'boulder' | 'log' | 'fern' | 'pipe' | 'sacks' | 'brazier' | 'column' | 'rubble' | 'sandbags' | 'bicycle' | 'noticeboard' | 'flowerbed' | 'cart' | 'fishing-net' | 'bollard' | 'canopy' | 'laundry' | 'urn' | 'cypress' | 'buoy' | 'anchor'
 export const MATERIAL_NAMES = ['cobble', 'limestone', 'checker', 'timber', 'flagstone', 'slate', 'grass', 'earth', 'sand', 'sandstone', 'brick', 'gravel', 'snow', 'ice', 'decking', 'terracotta', 'mosaic', 'basalt', 'mud', 'leaves'] as const
+/** Default floor materials for authored open locations. */
+export const OPEN_FLOOR_DEFAULTS = {
+  cobble: 'cobble',
+  brick: 'brick',
+  boardwalk: 'decking',
+  earth: 'earth',
+} as const satisfies Record<string, typeof MATERIAL_NAMES[number]>
+
+export function openFloorForKind(kind?: string): typeof MATERIAL_NAMES[number] {
+  switch (kind) {
+    case 'dock': return OPEN_FLOOR_DEFAULTS.boardwalk
+    case 'street':
+    case 'market': return OPEN_FLOOR_DEFAULTS.brick
+    case 'field':
+    case 'camp': return OPEN_FLOOR_DEFAULTS.earth
+    default: return OPEN_FLOOR_DEFAULTS.cobble
+  }
+}
 export interface EnvironmentPlan {
   description: string
   ground: typeof MATERIAL_NAMES[number]; accent: typeof MATERIAL_NAMES[number]; path: typeof MATERIAL_NAMES[number]

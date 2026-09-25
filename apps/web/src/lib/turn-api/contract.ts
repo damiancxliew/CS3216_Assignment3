@@ -41,6 +41,7 @@ export const publicRoomSchema = z.object({
   id: z.string(),
   name: z.string(),
   purpose: z.string().nullable(),
+  kind: z.string().optional(),
   enclosure: z.enum(["open", "enclosed"]),
   doorOpen: z.boolean(),
   occupantIds: z.array(z.string()),

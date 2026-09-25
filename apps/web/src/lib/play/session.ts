@@ -424,6 +424,7 @@ export class PlaySession {
         id: room.id,
         name: room.name,
         purpose: room.purpose,
+        kind: room.kind,
         enclosure: world.spatial!.map.rooms.find((candidate) => candidate.id === room.id)!.enclosure,
         doorOpen: world.rooms[room.id]?.doorOpen ?? room.doorDefault === "open",
         occupantIds: Object.entries(world.location)
