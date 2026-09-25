@@ -8,7 +8,7 @@ export interface AssetRecord {
   entityId: string
   kind: GeneratableAssetKind
   status: AssetStatus
-  /** Always usable: the generated image once ready, otherwise the curated placeholder. */
+  /** Generated image when ready; a rejected image may be stored here for teacher review. */
   url: string
   placeholderUrl: string
   promptHash: string
@@ -47,6 +47,7 @@ export class ImageServiceError extends Error {
   constructor(
     readonly code: 'content-filtered' | 'failed' | 'not-generatable',
     message: string,
+    readonly rejectedImage?: { bytes: Uint8Array; mimeType: ImageResult['mimeType']; costUsd: number },
   ) {
     super(message)
     this.name = 'ImageServiceError'

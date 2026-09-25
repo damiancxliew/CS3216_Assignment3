@@ -73,7 +73,7 @@ export type DossierStage = {
 };
 
 export type Dossier = {
-  artwork: { id: string; kind: "portrait" | "landmark" | "prop" | "sprite"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null }[];
+  artwork: { id: string; kind: "portrait" | "landmark" | "prop" | "sprite"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null; failureReason: string | null }[];
   stakeholders: DossierStakeholder[];
   stages: DossierStage[];
   endings: {
@@ -205,9 +205,10 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
       id: entry.id,
       kind: entry.kind,
       name: entity?.name ?? entry.subject,
-      imageUrl: entry.kind === "sprite" ? (ownRecord && imageStatus(ownRecord) === "generated" ? ownRecord.url : placeholderUrl("sprite")) : entity?.imageUrl ?? placeholderUrl(entry.kind),
+      imageUrl: ownRecord && ownRecord.url !== ownRecord.placeholderUrl ? ownRecord.url : entry.kind === "sprite" ? placeholderUrl("sprite") : entity?.imageUrl ?? placeholderUrl(entry.kind),
       imageStatus: outdatedSprite ? ("failed" as ImageStatus) : entry.kind === "sprite" ? imageStatus(ownRecord) : entity?.imageStatus ?? ("placeholder" as ImageStatus),
       assetId: entry.kind === "sprite" ? ownRecord?.assetId ?? null : entity?.assetId ?? null,
+      failureReason: outdatedSprite ? "Older walking sprite. Regenerate to use the current format." : ownRecord?.status === "failed" || ownRecord?.status === "filtered" || ownRecord?.status === "skipped-cap" ? ownRecord.error ?? "Generation failed. Try again." : null,
     };
   });
   return {

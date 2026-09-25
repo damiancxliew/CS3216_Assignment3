@@ -45,9 +45,8 @@ export async function normalizeWalkingSpriteSheet(bytes: Uint8Array): Promise<Ui
       if (occupied < 8 || occupied > 224) throw new Error(`walking sprite frame ${row + 1},${column + 1} is empty or has no transparent margin`)
     }
   }
-  // A correct sheet varies more across direction columns than down the walk
-  // cycle. The reported bad sheet had four direction rows; each animation
-  // column then turned the character as it walked.
+  // Reject only clear row-major direction layouts. Walking poses can differ
+  // substantially, so a close ratio is not reliable evidence of a bad sheet.
   let acrossDirections = 0
   let acrossSteps = 0
   for (let row = 0; row < 4; row += 1) for (let column = 0; column < 4; column += 1) {
@@ -63,7 +62,7 @@ export async function normalizeWalkingSpriteSheet(bytes: Uint8Array): Promise<Ui
       }
     }
   }
-  if (acrossDirections < 10_000 || acrossDirections < acrossSteps * 0.6) {
+  if (acrossSteps > 0 && acrossDirections < acrossSteps * 0.2) {
     throw new Error('walking sprite sheet appears to mix directions into the animation frames')
   }
   return new Uint8Array(await sharp(output, { raw: { width: 64, height: 64, channels: 4 } }).png().toBuffer())
@@ -92,7 +91,7 @@ export class OpenAiImageService implements ImageService {
           quality: request.quality,
           output_format: 'webp',
           background: 'transparent',
-          input_fidelity: 'high',
+          ...(/^gpt-image-2(?:\.|-|$)/.test(this.model) ? {} : { input_fidelity: 'high' as const }),
           n: 1,
         })
         : await this.client.images.generate({
@@ -122,7 +121,11 @@ export class OpenAiImageService implements ImageService {
           costUsd: IMAGE_PRICING[this.model]?.[request.quality][request.size] ?? 0,
         }
       } catch (error) {
-        throw new ImageServiceError('failed', error instanceof Error ? error.message : String(error))
+        throw new ImageServiceError('failed', error instanceof Error ? error.message : String(error), {
+          bytes: new Uint8Array(Buffer.from(b64, 'base64')),
+          mimeType: 'image/webp',
+          costUsd: IMAGE_PRICING[this.model]?.[request.quality][request.size] ?? 0,
+        })
       }
     }
     return {

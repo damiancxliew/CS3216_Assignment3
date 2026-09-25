@@ -18,6 +18,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npx vitest run tests/api
+      - run: npm test --workspace @adventure/generation -- tests/assets.test.ts tests/sprite-sheet.test.ts
       - run: npm run build
 
   database:

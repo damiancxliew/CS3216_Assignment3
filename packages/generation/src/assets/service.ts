@@ -224,10 +224,23 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
       }
     } catch (error) {
       const code = error instanceof ImageServiceError ? error.code : 'failed'
+      let rejectedUrl: string | null = null
+      if (error instanceof ImageServiceError && error.rejectedImage) {
+        const image = error.rejectedImage
+        currentManifest.totalCostUsd += image.costUsd
+        record.costUsd = image.costUsd
+        record.model = options.images.model
+        try {
+          rejectedUrl = await options.store.put(`adventures/${spec.id}/${entry.id}-${record.promptHash.slice(0, 12)}-rejected.${image.mimeType.split('/')[1]}`, image.bytes, image.mimeType)
+        } catch (uploadError) {
+          // Preserve the validation error even if the diagnostic upload fails.
+          record.error = `Could not save rejected image: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`
+        }
+      }
       Object.assign(record, {
         status: code === 'content-filtered' ? 'filtered' : 'failed',
-        url: record.placeholderUrl,
-        error: error instanceof Error ? error.message : String(error),
+        url: rejectedUrl ?? record.placeholderUrl,
+        error: [error instanceof Error ? error.message : String(error), record.error].filter(Boolean).join(' · '),
       })
     }
     await options.onRecord?.(record)

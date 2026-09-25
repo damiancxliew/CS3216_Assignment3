@@ -1,4 +1,4 @@
-import type { AssetManifest, AssetRecord } from "@adventure/generation/assets";
+import { playableAssetEligibility, type AssetManifest, type AssetRecord } from "@adventure/generation/assets";
 import { loadI1Spec } from "@adventure/generation/fixtures";
 import { describe, expect, it } from "vitest";
 
@@ -41,6 +41,20 @@ describe("dossier view model", () => {
     const dossier = dossierFromSpec(spec, null);
     expect(dossier.assets.started).toBe(false);
     expect(findForbiddenKeys(dossier)).toEqual([]);
+  });
+
+  it("shows the rejected sprite and failure reason only in the teacher artwork gallery", async () => {
+    const spec = await loadI1Spec();
+    const sprite = playableAssetEligibility(spec).find((entry) => entry.kind === "sprite")!;
+    const rejected = record(sprite, "failed", "https://example.test/rejected.webp");
+    rejected.error = "walking sprite frame 1,1 is empty";
+    const dossier = dossierFromSpec(spec, manifestFor(spec, [rejected]));
+    expect(dossier.artwork.find((item) => item.id === sprite.id)).toMatchObject({
+      imageStatus: "failed",
+      imageUrl: rejected.url,
+      failureReason: rejected.error,
+    });
+    expect(dossier.assets.generated).toBe(0);
   });
 
   it("resolves generated urls and falls back to the faceset/placeholder otherwise", async () => {

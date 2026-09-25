@@ -471,6 +471,7 @@ export function DossierSections({
                   <div className="flex min-w-0 flex-col gap-1">
                     <p className="font-semibold text-ink">{item.name}</p>
                     <p className="text-sm text-muted">{item.kind === "prop" ? "Object" : item.kind === "landmark" ? "Place" : item.kind === "sprite" ? "Walking sprite" : "Portrait"} · {item.imageStatus === "generated" ? "Ready" : item.imageStatus === "pending" ? "Generating" : item.imageStatus === "failed" ? "Failed" : "Placeholder"}</p>
+                    {item.failureReason ? <p className="break-words text-sm text-muted">{item.failureReason}</p> : null}
                     <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={item.assetId} />
                   </div>
                 </li>
