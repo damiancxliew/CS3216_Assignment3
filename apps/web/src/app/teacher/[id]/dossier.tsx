@@ -48,7 +48,7 @@ function Artwork({
 }) {
   if (imageStatus === "pending") {
     return (
-      <div data-artwork-kind={kind} role="img" aria-label={`${alt}, artwork in progress`} className={`flex items-center justify-center overflow-hidden rounded-control border border-line bg-sunken ${className}`}>
+      <div data-artwork-kind={kind} role="img" aria-label={`${alt}, artwork pending`} className={`flex items-center justify-center overflow-hidden rounded-control border border-line bg-sunken ${className}`}>
         <Skeleton className="h-full w-full rounded-none" />
       </div>
     );
@@ -81,8 +81,6 @@ function RegenerateButton({ adventureId, specVersionId, assetId }: { adventureId
     <div className="mt-auto pt-1">
       <AssetRegeneration
         action={regenerateAsset.bind(null, adventureId, specVersionId, assetId)}
-        specVersionId={specVersionId}
-        assetId={assetId}
       />
     </div>
   );
@@ -438,7 +436,7 @@ export function DossierSections({
           </p>
           <p className="text-base text-ink">
             {dossier.assets.generated} of {dossier.assets.eligible} planned images ready
-            {dossier.assets.pending > 0 ? ` · ${dossier.assets.pending} in progress` : ""}
+            {dossier.assets.pending > 0 ? ` · ${dossier.assets.pending} pending` : ""}
             {dossier.assets.failed > 0 ? ` · ${dossier.assets.failed} failed` : ""}
           </p>
           <p className="text-sm text-muted">Planned: {dossier.artwork.filter((item) => item.kind === "portrait").length} portraits, {dossier.artwork.filter((item) => item.kind === "sprite").length} walking sprites, {dossier.artwork.filter((item) => item.kind === "landmark").length} places, {dossier.artwork.filter((item) => item.kind === "prop").length} objects.</p>
@@ -455,7 +453,7 @@ export function DossierSections({
                   <Artwork kind={item.kind} alt={`Artwork of ${item.name}`} imageUrl={item.imageUrl} imageStatus={item.imageStatus} className="h-24 w-24 shrink-0" />
                   <div className="flex min-w-0 flex-col gap-1">
                     <p className="font-semibold text-ink">{item.name}</p>
-                    <p className="text-sm text-muted">{item.kind === "prop" ? "Object" : item.kind === "landmark" ? "Place" : item.kind === "sprite" ? "Walking sprite" : "Portrait"} · {item.imageStatus === "generated" ? "Ready" : item.imageStatus === "pending" ? "Generating" : item.imageStatus === "failed" ? "Failed" : "Placeholder"}</p>
+                    <p className="text-sm text-muted">{item.kind === "prop" ? "Object" : item.kind === "landmark" ? "Place" : item.kind === "sprite" ? "Walking sprite" : "Portrait"} · {item.imageStatus === "generated" ? "Ready" : item.imageStatus === "pending" ? "Pending" : item.imageStatus === "failed" ? "Failed" : "Placeholder"}</p>
                     {item.failureReason ? <p className="break-words text-sm text-muted">{item.failureReason}</p> : null}
                     <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={item.assetId} />
                   </div>

@@ -508,12 +508,7 @@ export async function generateArtwork(adventureId: string, specVersionId: string
   return { notice: `Artwork is being generated for version ${version}; the page will update as each piece lands.` };
 }
 
-/**
- * Re-draws one asset. The cache row for its prompt hash is dropped first so
- * the same prompt cannot come straight back from `asset_cache`; the run itself
- * then writes the fresh result back to the cache. Artwork rows are not part
- * of the frozen spec, so regenerating a published version's art is legal (P4).
- */
+/** Re-draw one asset and report its actual outcome to the teacher. */
 export async function regenerateAsset(adventureId: string, specVersionId: string, assetId: string): Promise<ActionResult> {
   await requireOwnership(adventureId);
 
@@ -533,31 +528,38 @@ export async function regenerateAsset(adventureId: string, specVersionId: string
 
   const { data: record } = await admin
     .from("asset")
-    .select("prompt_hash")
+    .select("asset_id")
     .eq("spec_version_id", specVersionId)
     .eq("asset_id", assetId)
-    .maybeSingle<{ prompt_hash: string }>();
+    .maybeSingle<{ asset_id: string }>();
   if (!record) return { error: "That artwork does not exist yet — generate the set first" };
 
-  await admin.from("asset_cache").delete().eq("prompt_hash", record.prompt_hash);
-
-  const versionNumber = version.version;
-  after(async () => {
-    try {
-      const result = await generateAssetsForVersion({
-        admin: createAdminClient(),
-        images: new OpenAiImageService(),
-        adventureId,
-        version: versionNumber,
-        onlyAssetIds: [assetId],
-        ignoreCache: true,
-      });
-      console.info("asset regeneration", adventureId, assetId, result);
-    } catch (error) {
-      console.error("asset regeneration failed", adventureId, assetId, error);
+  try {
+    const result = await generateAssetsForVersion({
+      admin,
+      images: new OpenAiImageService(),
+      adventureId,
+      version: version.version,
+      onlyAssetIds: [assetId],
+      ignoreCache: true,
+    });
+    if (!result.ok) return { error: `Couldn’t regenerate this image: ${result.reason}.` };
+    if (result.generated !== 1) {
+      if (result.failed === 0) return { error: "This image is no longer eligible for regeneration." };
+      const { data: latest } = await admin.from("asset")
+        .select("error")
+        .eq("spec_version_id", specVersionId)
+        .eq("asset_id", assetId)
+        .maybeSingle<{ error: string | null }>();
+      revalidatePath(`/teacher/${adventureId}`);
+      return { error: latest?.error ?? "Couldn’t regenerate this image. Please try again." };
     }
-  });
-  return { notice: "Regenerating; the page will update when the new image lands." };
+    revalidatePath(`/teacher/${adventureId}`);
+    return { notice: "New image ready." };
+  } catch (error) {
+    console.error("asset regeneration failed", adventureId, assetId, error);
+    return { error: "Couldn’t regenerate this image. Please try again." };
+  }
 }
 
 export async function rotateShareToken(adventureId: string): Promise<ActionResult> {
