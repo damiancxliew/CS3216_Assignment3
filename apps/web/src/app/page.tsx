@@ -2,14 +2,17 @@
 
 import { ArrowRight, Clock3, Gamepad2, Map, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ThemeSelect } from "@/components/theme-provider";
 import { LandingCta } from "@/components/landing-cta";
+import { LandingLiveDemo } from "@/components/landing-live-demo";
 import { LandingQuestPreview } from "@/components/landing-quest-preview";
+import { Pricing } from "@/components/pricing";
 import { button, Wordmark } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
+import { landingStructuredData } from "@/lib/seo/structured-data";
 
 const teacherSteps = [
   { number: "01", title: "Drop in your sources", body: "Use the handouts, treaties and textbook pages you already teach." },
@@ -24,56 +27,34 @@ const beats = [
   { index: "04", icon: ShieldCheck, title: "Know fact from fiction", body: "Every ending separates documented history from the simulation’s assumptions.", tone: "bg-spark-wash" },
 ] as const;
 
-function Clip({ src, poster, label, className }: { src: string; poster: string; label: string; className?: string }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    const video = ref.current;
-    if (!video) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setReduced(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.intersectionRatio >= 0.25) void video.play().catch(() => {});
-          else video.pause();
-        }
-      },
-      { threshold: [0, 0.25] },
-    );
-    observer.observe(video);
-    return () => observer.disconnect();
-  }, []);
-
-  return <video ref={ref} muted loop playsInline preload="none" controls={reduced} poster={poster} aria-label={label} className={className} src={src} />;
-}
-
 export default function Home() {
+  const [stage, setStage] = useState<{ index: number; count: number } | null>(null);
   useEffect(() => {
     track(ANALYTICS_EVENTS.landingViewed);
   }, []);
 
+  const structuredDataJson = JSON.stringify(landingStructuredData()).replace(/</g, "\\u003c");
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-20 overflow-hidden px-5 py-6 sm:px-8 sm:py-8 lg:gap-28">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredDataJson }} />
       <nav className="flex flex-wrap items-center justify-between gap-4">
         <Wordmark />
         <div className="flex flex-wrap items-center gap-3">
           <ThemeSelect />
+          <a href="#pricing" className={button.subtle}>Pricing</a>
           <Link href="/teacher" className={button.quiet}>
             Teacher console <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         </div>
       </nav>
 
-      <section className="grid items-center gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+      <section aria-labelledby="hero-heading" className="grid items-center gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         <div className="relative z-10 flex flex-col items-start gap-7">
           <div className="sticker inline-flex items-center gap-2 rounded-full border-2 border-ink bg-sunshine px-4 py-2 text-sm font-black uppercase tracking-wider text-ink">
             <Gamepad2 className="h-5 w-5" aria-hidden /> History you can play
           </div>
-          <h1 className="max-w-[11ch] text-5xl font-black leading-[0.94] tracking-[-0.06em] text-ink sm:text-7xl lg:text-[5.4rem]">
+          <h1 id="hero-heading" className="max-w-[11ch] text-5xl font-black leading-[0.94] tracking-[-0.06em] text-ink sm:text-7xl lg:text-[5.4rem]">
             Don’t just teach history. <span className="text-signal">Drop them into it.</span>
           </h1>
           <p className="max-w-[54ch] text-lg font-medium leading-relaxed text-muted sm:text-xl">
@@ -100,20 +81,20 @@ export default function Home() {
               <span className="h-2.5 w-2.5 rounded-full bg-world" />
               <span className="ml-2 text-xs font-bold uppercase tracking-widest text-on-inverse/70">Live adventure</span>
             </div>
-            <Clip src="/media/dialogue.mp4" poster="/media/dialogue.jpg" label="Gameplay footage: a student questioning Sir Stamford Raffles at Singapore, 1819" className="aspect-video w-full rounded-[1.15rem] object-cover" />
+            <LandingLiveDemo onStage={setStage} />
           </figure>
           <div className="sticker absolute -bottom-2 left-8 flex max-w-56 items-center gap-3 rounded-2xl border-2 border-ink bg-surface px-4 py-3 font-bold text-ink sm:left-0">
-            <Sparkles className="h-6 w-6 shrink-0 text-signal" aria-hidden /> You’re the reporter. Who gets the headline?
+            <Sparkles className="h-6 w-6 shrink-0 text-signal" aria-hidden /> You’re Raffles’ interpreter. Who do you trust?
           </div>
-          <div className="absolute -right-1 top-2 rounded-2xl border-2 border-ink bg-record px-4 py-3 text-sm font-black text-on-accent shadow-[0_4px_0_var(--ink)] sm:right-1">Stage 2 of 3</div>
+          <div className="absolute -right-1 top-2 rounded-2xl border-2 border-ink bg-record px-4 py-3 text-sm font-black text-on-accent shadow-[0_4px_0_var(--ink)] sm:right-1">{stage ? `Stage ${stage.index + 1} of ${stage.count}` : "Singapore, 1819"}</div>
         </div>
       </section>
 
-      <section id="gameplay" className="flex scroll-mt-6 flex-col gap-10 rounded-[2rem] bg-inverse px-5 py-10 text-on-inverse sm:px-8 sm:py-14 lg:px-12">
+      <section id="gameplay" aria-labelledby="gameplay-heading" className="flex scroll-mt-6 flex-col gap-10 rounded-[2rem] bg-inverse px-5 py-10 text-on-inverse sm:px-8 sm:py-14 lg:px-12">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="mb-2 text-sm font-black uppercase tracking-[0.18em] text-[#ffe66d]">Inside every adventure</p>
-            <h2 className="max-w-[14ch] text-4xl font-black tracking-[-0.045em] sm:text-6xl">Read less. Do more. Remember it.</h2>
+            <h2 id="gameplay-heading" className="max-w-[14ch] text-4xl font-black tracking-[-0.045em] sm:text-6xl">Read less. Do more. Remember it.</h2>
           </div>
           <p className="max-w-md text-base text-on-inverse/70 sm:text-lg">Students learn the context because they need it to make the next move.</p>
         </div>
@@ -141,10 +122,10 @@ export default function Home() {
         <p className="-mt-5 text-sm text-on-inverse/70">Illustrative examples of play. Characters, evidence and choices come from each adventure.</p>
       </section>
 
-      <section className="flex flex-col gap-10">
+      <section aria-labelledby="teacher-steps-heading" className="flex flex-col gap-10">
         <div className="max-w-2xl">
           <p className="mb-2 text-sm font-black uppercase tracking-[0.18em] text-record">From PDF to playtime</p>
-          <h2 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">Your lesson. Now with a world inside.</h2>
+          <h2 id="teacher-steps-heading" className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">Your lesson. Now with a world inside.</h2>
         </div>
         <div className="grid gap-5 md:grid-cols-3">
           {teacherSteps.map((step, index) => (
@@ -156,8 +137,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="game-grid flex flex-col items-start justify-between gap-8 rounded-[2rem] border-[3px] border-ink bg-signal-wash px-7 py-10 sm:flex-row sm:items-center sm:px-10">
-        <div><p className="text-sm font-black uppercase tracking-[0.18em] text-signal">Ready, teacher?</p><h2 className="mt-2 max-w-xl text-4xl font-black tracking-[-0.04em] text-ink sm:text-5xl">Make the next lesson feel like an adventure.</h2></div>
+      <Pricing />
+
+      <section aria-labelledby="cta-heading" className="game-grid flex flex-col items-start justify-between gap-8 rounded-[2rem] border-[3px] border-ink bg-signal-wash px-7 py-10 sm:flex-row sm:items-center sm:px-10">
+        <div><p className="text-sm font-black uppercase tracking-[0.18em] text-signal">Ready, teacher?</p><h2 id="cta-heading" className="mt-2 max-w-xl text-4xl font-black tracking-[-0.04em] text-ink sm:text-5xl">Make the next lesson feel like an adventure.</h2></div>
         <LandingCta label="Start building" />
       </section>
 

@@ -22,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const parsed = requestSchema.safeParse(await readJson(request));
   if (!parsed.success) return errorResponse({ code: "invalid_request", message: "Expected { optionId }." });
 
-  const result = await postDecision(playDeps(), id, userId, parsed.data);
+  const result = await postDecision(playDeps(id), id, userId, parsed.data);
   if (!result.ok) return errorResponse(result.error);
   return publicJson({ accepted: true, resolution: result.value, state: result.state });
 }

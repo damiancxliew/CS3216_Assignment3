@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ThemeSelect } from "@/components/theme-provider";
 import { DebriefViewed } from "@/components/debrief-viewed";
+import { ShareButtons } from "@/components/share-buttons";
 import { button, RecordEntry, WorldEntry, Wordmark } from "@/components/ui";
 import { loadDebrief } from "@/lib/attempts/debrief";
 import { createClient } from "@/lib/supabase/server";
@@ -173,13 +174,27 @@ export default async function DebriefPage({
         ) : <p className="text-base text-muted">You did not collect any scrolls. Use the cited historical record above to reflect on what information you were missing.</p>}
       </Part>
 
-      <footer className="flex flex-wrap items-center gap-3 border-t border-line pt-8">
-        <Link href={`/play/${debrief.attemptId}`} className={button.quiet}>
-          Back to your attempt
-        </Link>
-        <Link href="/" className={button.subtle}>
-          Leave for the home page
-        </Link>
+      <footer className="flex flex-col gap-5 border-t border-line pt-8">
+        <div className="flex flex-col gap-3">
+          <h2 className="text-lg font-extrabold tracking-tight text-ink">Share your ending</h2>
+          <ShareButtons adventure={debrief.adventureTitle} ending={debrief.ending.title} />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href={`/play/${debrief.attemptId}`} className={button.quiet}>
+            Back to your attempt
+          </Link>
+          <Link href="/" className={button.subtle}>
+            Leave for the home page
+          </Link>
+        </div>
+        {/* Starter's watermark (M6). Paid plans drop it once plans are enforced; until then every debrief shows it. */}
+        <p className="text-sm font-semibold text-muted">
+          Made with{" "}
+          <Link href="/" className="font-extrabold text-ink underline decoration-2 underline-offset-4 hover:text-world">
+            Historical Adventures
+          </Link>
+          {" "}— turn your own sources into a world students can play.
+        </p>
       </footer>
     </main>
   );

@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const parsed = requestSchema.safeParse(await readJson(request));
   if (!parsed.success) return errorResponse({ code: "invalid_request", message: "Expected { roomId, body }." });
 
-  const result = await postMessage(playDeps(), id, userId, parsed.data);
+  const result = await postMessage(playDeps(id), id, userId, parsed.data);
   if (!result.ok) return errorResponse(result.error);
   return publicJson({ accepted: true, newMessages: result.value, state: result.state });
 }

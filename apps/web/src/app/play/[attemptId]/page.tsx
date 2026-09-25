@@ -39,7 +39,7 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   const resume = await loadResumeState(supabase, attemptId);
   if (!resume) notFound();
 
-  const initial = await getState(playDeps(), attemptId, user.id);
+  const initial = await getState(playDeps(attemptId), attemptId, user.id);
   if (!initial.ok) console.error("Unable to load play state", initial.error);
   const active = initial.ok && initial.state.status === "active" ? initial.state : null;
   const { data: walkthrough } = await supabase.from("profile")

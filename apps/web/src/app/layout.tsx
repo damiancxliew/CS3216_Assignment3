@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible_Next, Literata } from "next/font/google";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { themeScript } from "@/lib/theme";
 import { inputModalityScript } from "@/lib/input-modality";
 import { Analytics } from "@/lib/analytics/posthog";
+import { SITE_DESCRIPTION } from "@/lib/seo/structured-data";
 import "./globals.css";
 
 // The interface voice. Chosen for the same reason the product has reading
@@ -28,21 +29,37 @@ const record = Literata({
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 const title = "Historical Adventures — history you can play";
-const description =
-  "Turn your own historical sources into a living world students can explore, question and change.";
+const description = SITE_DESCRIPTION;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: { default: title, template: "%s — Historical Adventures" },
   description,
+  keywords: [
+    "history education",
+    "AI learning games",
+    "classroom simulation",
+    "source-based history",
+    "secondary school history",
+    "interactive history lessons",
+  ],
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     url: siteUrl,
     title,
     description,
     siteName: "Historical Adventures",
+    locale: "en_SG",
   },
   twitter: { card: "summary_large_image", title, description },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fff8e9" },
+    { media: "(prefers-color-scheme: dark)", color: "#111722" },
+  ],
 };
 
 export default function RootLayout({

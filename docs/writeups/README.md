@@ -8,7 +8,8 @@
 | 3 | Moat | `M3-moat.md` | Done |
 | 4 | Target users + acquisition | `M4-users-acquisition.md` | Done |
 | 5 | MVP scope + future features | `M5-mvp-scope.md` | Done |
-| 6 | Pricing / monetisation | `M6-pricing.md` | Structure done; **[M12]** cost figures outstanding |
+| 6 | Pricing / monetisation | `M6-pricing.md` | Done; allowances sized to measured cost, revisit after the minting-model eval |
+| 12 | Play-side cost per attempt | `M12-play-metrics.md` | Done (simulated students; re-check with real attempts) |
 | 14 | Name + logo | `M14-name-logo.md` | Done |
 | 18 | Landing page, SEO, OG | `M18-landing-seo-og.md` | Done |
 | 19 | Analytics + insights | `M19-analytics.md` | Awaiting a real data window + the change made because of it |

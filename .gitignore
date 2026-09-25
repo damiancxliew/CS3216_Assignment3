@@ -12,3 +12,8 @@ supabase/.branches/
 supabase/.temp/
 .DS_Store
 *.log
+
+# Per-call play cost log (PLAY_COST_LOG=1)
+play-cost*.jsonl
+# ...except measured runs kept as evidence for the M12 play write-up
+!docs/writeups/data/play-cost-*.jsonl

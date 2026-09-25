@@ -61,6 +61,13 @@ export interface MapCanvasProps {
   /** Open the reader on the local step, before movement is acknowledged. */
   onPickup: (propId: string) => void;
   onLandmark: (landmarkId: string) => void;
+  /**
+   * "page" (play): arrow keys walk from anywhere and the map takes focus on mount.
+   * "map" (landing demo): keys only while the map has focus, so the page still scrolls.
+   */
+  keyboardScope?: "page" | "map";
+  /** "overview" fits the stage in a small frame (landing demo); play keeps the default detail zoom. */
+  camera?: "detail" | "overview";
 }
 
 function doorsOf(state: PlayState): Record<string, DoorState> {
@@ -95,7 +102,7 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark, keyboardScope = "page", camera = "detail" }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
   const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark });
   latest.current = { state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark };
@@ -448,6 +455,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
           onActor: (actorId) => latest.current.onTalk(actorId),
           onProp: (propId) => latest.current.onProp(propId),
           onLandmark: (landmarkId) => latest.current.onLandmark(landmarkId),
+          camera,
         });
         if (destroyed) {
           view.destroy();
@@ -458,10 +466,11 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
         const canvas = parent.querySelector("canvas");
         canvas?.setAttribute("tabindex", "0");
         canvas?.setAttribute("aria-label", "Map. Use arrow keys or WASD to walk. Press Enter to talk, or click a tile to move.");
-        // Walking works from anywhere on the page unless a field has focus, so the map never needs to be clicked first.
-        document.addEventListener("keydown", onKey, { signal: controller.signal });
-        document.addEventListener("keyup", onKeyUp, { signal: controller.signal });
-        canvas?.focus({ preventScroll: true });
+        // In play, walking works from anywhere on the page unless a field has focus, so the map never needs to be clicked first.
+        const keys: HTMLElement | Document = keyboardScope === "map" ? parent : document;
+        keys.addEventListener("keydown", onKey as EventListener, { signal: controller.signal });
+        keys.addEventListener("keyup", onKeyUp as EventListener, { signal: controller.signal });
+        if (keyboardScope === "page") canvas?.focus({ preventScroll: true });
         window.addEventListener("blur", clearHeld, { signal: controller.signal });
         document.addEventListener("visibilitychange", clearHeld, { signal: controller.signal });
         reduced.addEventListener("change", (e) => view?.setReducedMotion(e.matches), { signal: controller.signal });

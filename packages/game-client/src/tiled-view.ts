@@ -21,7 +21,7 @@ import { matchMapPalette } from './pixel-art.js'
 import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, surfaceNoise } from './materials.js'
 import { isExposed, WeatherSurface } from './weather.js'
 import { RoomShells } from './room-shells.js'
-import { detailZoom } from './camera.js'
+import { detailZoom, overviewZoom } from './camera.js'
 import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
 import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, storyArt } from './story-art.js'
@@ -77,6 +77,8 @@ export interface TiledViewOptions {
   onProp?: (propId: string) => void
   /** Called when the player clicks an in-world landmark. */
   onLandmark?: (landmarkId: string) => void
+  /** "detail" (play) magnifies around the player; "overview" fits the stage's width in a small preview. */
+  camera?: 'detail' | 'overview'
 }
 
 class TiledScene extends Phaser.Scene {
@@ -85,6 +87,7 @@ class TiledScene extends Phaser.Scene {
   private readonly onReady: () => void
   private readonly base: string
   private readonly defaultSprite: string
+  private readonly cameraMode: 'detail' | 'overview'
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
   private readonly onLandmark: ((landmarkId: string) => void) | undefined
@@ -143,6 +146,7 @@ class TiledScene extends Phaser.Scene {
     this.onReady = onReady
     this.base = options.assetBase.replace(/\/$/, '')
     this.defaultSprite = options.defaultSprite ?? 'Villager'
+    this.cameraMode = options.camera ?? 'detail'
     this.onActor = options.onActor
     this.onProp = options.onProp
     this.onLandmark = options.onLandmark
@@ -843,7 +847,7 @@ class TiledScene extends Phaser.Scene {
     const mapW = this.current.map.width * T
     const mapH = this.current.map.height * T
     const { width, height } = this.scale.gameSize
-    const zoom = detailZoom(width, height, mapW, mapH)
+    const zoom = this.cameraMode === 'overview' ? overviewZoom(width, mapW) : detailZoom(width, height, mapW, mapH)
     cam.setZoom(zoom)
     cam.setRoundPixels(true)
     if (mapW * zoom <= width && mapH * zoom <= height) {

@@ -10,6 +10,7 @@ import { findForbiddenKeys, type ApiError } from "@/lib/turn-api/contract";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
+import { costMeterEnabled, meteredClient } from "./cost-meter";
 import type { PlayServiceDeps } from "./service";
 import type { SessionError } from "./session";
 import { SupabasePlayStore } from "./store";
@@ -41,10 +42,13 @@ export async function requireUserId(): Promise<string | NextResponse> {
 
 let deps: PlayServiceDeps | null = null;
 
-/** One store and one model client per server process; both are stateless across requests. */
-export function playDeps(): PlayServiceDeps {
+/**
+ * One store and one model client per server process; both are stateless across requests.
+ * With PLAY_COST_LOG=1 the client is wrapped per request so each call is logged against its attempt.
+ */
+export function playDeps(attemptId: string): PlayServiceDeps {
   if (!deps) deps = { store: new SupabasePlayStore(createAdminClient()), llm: createOpenAiClient() };
-  return deps;
+  return costMeterEnabled() ? { ...deps, llm: meteredClient(deps.llm, attemptId) } : deps;
 }
 
 /**

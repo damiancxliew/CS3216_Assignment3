@@ -15,7 +15,8 @@
     "db:reset": "supabase db reset",
     "db:start": "supabase start",
     "db:test": "supabase db reset && vitest run tests/db",
-    "db:seed": "vitest run --config scripts/vitest.seed.config.ts"
+    "db:seed": "vitest run --config scripts/vitest.seed.config.ts",
+    "measure:play-cost": "vitest run --config scripts/vitest.measure.config.ts"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.116.0",
