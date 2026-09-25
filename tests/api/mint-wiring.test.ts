@@ -129,17 +129,22 @@ function deps(attemptId: string, replies: readonly string[], adventureSpec: Adve
   return { d: { store, llm }, store, llm };
 }
 
-async function addPublicLines(d: PlayServiceDeps, store: MemoryPlayStore, attemptId: string, count = 6): Promise<Awaited<ReturnType<typeof postMessage>>> {
+async function addPublicLines(d: PlayServiceDeps, store: MemoryPlayStore, attemptId: string, count = 6) {
+  // Mint tests need public transcript input without starting the room's NPC reply flow.
+  const record = (await store.load(attemptId, STUDENT))!;
+  const session = record.snapshot
+    ? PlaySession.resume(record.spec, attemptId, record.publishedVersion, record.snapshot, { now: store.clock })
+    : PlaySession.start(record.spec, attemptId, record.publishedVersion, { now: store.clock });
+  const roomId = session.world.location.player!;
   let now = store.clock().getTime();
-  now += 5000;
-  store.clock = () => new Date(now);
-  let result: Awaited<ReturnType<typeof postMessage>> = await postMessage(d, attemptId, STUDENT, { roomId: "landing-beach", body: "The negotiation continues." });
-  for (let index = 1; index < count; index += 1) {
+  for (let index = 0; index < count; index += 1) {
     now += 5000;
     store.clock = () => new Date(now);
-    result = await postMessage(d, attemptId, STUDENT, { roomId: "landing-beach", body: `The negotiation continues, line ${index}.` });
+    const body = index === 0 ? "The negotiation continues." : `The negotiation continues, line ${index}.`;
+    expect(applyAction(session.world, { actorKind: "player", actorId: "player", action: { type: "speak", roomId, body, addresseeId: null } }).ok).toBe(true);
   }
-  return result;
+  store.add({ ...record, snapshot: session.snapshot(), runtimeRevision: record.runtimeRevision + 1 });
+  return getState(d, attemptId, STUDENT);
 }
 
 beforeAll(async () => {
@@ -711,8 +716,8 @@ describe("in-memory Resolver option minting", () => {
     let now = Date.parse("2026-09-22T12:00:00.000Z");
     const session = PlaySession.start(spec, "mint-refused-move", 1, { now: () => new Date(now) });
     for (let index = 0; index < 6; index += 1) {
-      const message = session.beginMessage({ roomId: "landing-beach", body: `A public line ${index}.` });
-      expect(message.ok).toBe(true);
+      const spoken = applyAction(session.world, { actorKind: "player", actorId: "player", action: { type: "speak", roomId: "landing-beach", body: `A public line ${index}.`, addresseeId: null } });
+      expect(spoken.ok).toBe(true);
       now += 1000;
     }
     const before = session.snapshot();
