@@ -35,6 +35,17 @@ describe('I1 fixture', () => {
     expectInvalid(spec, 'stages.0.mapTheme')
   })
 
+  it('supports story-specific art direction while older adventures retain automatic selection', async () => {
+    const spec = await fixture()
+    const legacy = validateAdventureSpec(spec)
+    expect(legacy.ok && legacy.spec.stages[0]?.visualStyle).toBe('auto')
+    spec.stages[0].visualStyle = 'harbor'
+    const directed = validateAdventureSpec(spec)
+    expect(directed.ok && directed.spec.stages[0]?.visualStyle).toBe('harbor')
+    spec.stages[0].visualStyle = 'unrecognized'
+    expectInvalid(spec, 'stages.0.visualStyle')
+  })
+
   it('keeps legacy missing enclosure values as explicit null', async () => {
     const spec = await fixture()
     spec.stages.forEach((stage: Json) => stage.rooms.forEach((room: Json) => {
@@ -233,8 +244,15 @@ describe('Adventure Spec v2 rejects', () => {
 
   it('an unknown ambient overlay or effect-style id', async () => {
     const spec = await fixture()
-    spec.stages[0].ambientOverlay = { id: 'thunderstorm', intensity: 2 }
+    spec.stages[0].ambientOverlay = { id: 'unknown-weather', intensity: 2 }
     expectInvalid(spec, 'stages.0.ambientOverlay.id')
+  })
+
+  it('accepts thunderstorms and haze as stage atmospheres', async () => {
+    const spec = await fixture()
+    spec.stages[0].ambientOverlay = { id: 'thunderstorm', intensity: 3 }
+    spec.stages[1].ambientOverlay = { id: 'haze', intensity: 1 }
+    expect(validateAdventureSpec(spec).ok).toBe(true)
   })
 
   it('a fourth stage', async () => {

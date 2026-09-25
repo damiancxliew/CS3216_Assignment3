@@ -1,12 +1,11 @@
 /**
  * Which hand-drawn character from the curated pack backs each stakeholder.
- * The map uses generated identity art (or a sober monogram while it is
- * unavailable); these deterministic sheets remain useful for compatibility
- * and teacher-facing fallbacks. The pack (Ninja Adventure, CC0) lives under
+ * Every map actor uses a deterministic animated sheet in the same pixel style.
+ * Generated or historical portraits stay in the conversation UI.
+ * The pack (Ninja Adventure, CC0) lives under
  * `public/game/ninja`; see the LICENSE there.
  *
- * Portraits are the generated identity layer allowed by PRD D4. Terrain,
- * structures and UI remain curated so the generated art cannot break geometry.
+ * All sheets have four directions and four walking frames at native 16px size.
  */
 export const ASSET_BASE = "/game/ninja";
 

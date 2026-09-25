@@ -6,12 +6,16 @@
  */
 
 /** Ambient overlays (PRD D19 / FR-15a). Owner of the id list: Yi Hao. */
-export const AMBIENT_OVERLAYS = ['clear', 'clouds', 'rain', 'fog', 'night', 'dust', 'snow'] as const
+export const AMBIENT_OVERLAYS = ['clear', 'clouds', 'rain', 'thunderstorm', 'haze', 'fog', 'night', 'dust', 'snow'] as const
 export type AmbientOverlayId = (typeof AMBIENT_OVERLAYS)[number]
 
 /** Curated 16px terrain sets. The original pack remains the default for older adventures. */
 export const MAP_THEMES = ['classic', 'desert', 'winter', 'forest', 'coast'] as const
 export type MapThemeId = (typeof MAP_THEMES)[number]
+
+/** Narrative art direction, separate from climate. Auto supports previously saved adventures. */
+export const MAP_STYLES = ['auto', 'civic', 'harbor', 'village', 'jungle', 'desert', 'industrial', 'winter', 'palace', 'ruins', 'battlefield'] as const
+export type MapStyleId = (typeof MAP_STYLES)[number]
 
 /** One-shot scene effects (PRD D19 / FR-15b). Emitted by the Resolver, never by the planner. */
 export const SCENE_EFFECTS = [

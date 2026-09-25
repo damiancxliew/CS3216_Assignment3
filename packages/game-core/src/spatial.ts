@@ -1,3 +1,5 @@
+import { sceneryAt } from './scenery.js'
+import { roomContains, roomInterior } from './room-shapes.js'
 import type { DoorStates, Point, Space, StageMap } from './types.js'
 import { landmarkAt } from './landmarks.js'
 
@@ -18,17 +20,14 @@ function doorAt(map: StageMap, point: Point) {
 }
 
 function containsPoint(room: StageMap['rooms'][number], point: Point): boolean {
-  return point.x >= room.x && point.x < room.x + room.width && point.y >= room.y && point.y < room.y + room.height
+  return roomContains(room, point)
 }
 
 function roomAt(map: StageMap, point: Point) {
   return map.rooms.find(
     (room) =>
       room.enclosure === 'enclosed' &&
-      point.x > room.x &&
-      point.x < room.x + room.width - 1 &&
-      point.y > room.y &&
-      point.y < room.y + room.height - 1,
+      roomInterior(room, point),
   )
 }
 
@@ -62,7 +61,7 @@ export function areInSameRoom(map: StageMap, left: Point, right: Point): boolean
 
 export function isWalkable(map: StageMap, doors: DoorStates, point: Point): boolean {
   if (!inBounds(map, point)) return false
-  if (landmarkAt(map, point)) return false
+  if (landmarkAt(map, point) || sceneryAt(map, point)) return false
   const tile = map.tiles[point.y]?.[point.x]
   if (tile === 'grass' || tile === 'path' || tile === 'floor') return true
   if (tile !== 'door') return false

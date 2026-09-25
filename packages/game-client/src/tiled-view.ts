@@ -1,72 +1,45 @@
 /**
  * Tileset renderer: the same `MapView` contract as `view.ts`, drawn from a curated
- * 16px pack instead of primitives. Terrain, walls, doors, characters and effects
- * are hand-drawn assets (PRD D4). Generated landmarks are reduced and palette
+ * 16px pack with procedural material variants and outdoor weather. Walls, doors,
+ * characters and effects use curated assets. Generated landmarks are reduced and palette
  * matched to the same grid before becoming four physical map tiles.
  *
  * Expects, under `assetBase`:
- *   tiles/floor.png     ground autotiles (22 columns)     tiles/wall.png      room walls (10 columns)
- *   tiles/interior.png  plank floors (22 columns)         tiles/house.png     door frames (33 columns)
+ *   tiles/house.png     door frames (33 columns); native material/wall atlases are painted locally.
  *   characters/<Sprite>/walk.png   4 columns = down/up/left/right, 4 rows = frames
- *   fx/rain.png fx/snow.png (8px frames), fx/fog.png, fx/clouds.png, fx/smoke.png (32px frames)
- * Optional theme terrain sheets live under `themeBase/<theme>/terrain.png`.
+ *   fx/snow.png (8px frames), fx/clouds.png, fx/smoke.png (32px frames)
+ * Public story direction selects materials and scenery without changing authoritative geometry.
  */
 import Phaser from 'phaser'
 import { LANDMARK_KINDS, spaceAt, type Point, type StageMap } from '@adventure/game-core'
 import { tileFromPointer } from './pointer.js'
 import { selectHitTargetId } from './prop-hint.js'
 import { layoutMapLabels, overlaps, type LabelRect } from './map-labels.js'
-import { fixtureScenery, roomScenery, usesUrbanGround } from './scenery.js'
+import { fixtureScenery } from './scenery.js'
 import { matchMapPalette } from './pixel-art.js'
-import type { MapThemeId, PlaygroundSnapshot, SoundCueId } from './model.js'
+import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, surfaceNoise } from './materials.js'
+import { isExposed, WeatherSurface } from './weather.js'
+import { RoomShells } from './room-shells.js'
+import { detailZoom } from './camera.js'
+import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
+import { EnvironmentArt } from './environment-art.js'
+import { applyEnvironment, paintStoryWalls, storyArt } from './story-art.js'
+import type { PlaygroundSnapshot, SoundCueId } from './model.js'
 import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
 import { RoomWandering, ROOM_STEP_MS } from './room-wandering.js'
 import type { MapView } from './view.js'
 
 const T = 16
 
-// Ground (floor.png, 22 columns). Path autotile keyed by which neighbours are also path: N=1 E=2 S=4 W=8.
-const FLOOR_COLS = 22
 const at = (cols: number) => (c: number, r: number) => r * cols + c
-const F = at(FLOOR_COLS)
-const GRASS = [F(0, 12), F(0, 12), F(0, 12), F(0, 12), F(1, 12), F(2, 12), F(3, 12), F(4, 12), F(2, 11), F(3, 11)]
-const PATH: Record<number, number> = {
-  0: F(3, 10),
-  1: F(3, 9),
-  4: F(3, 7),
-  5: F(3, 8),
-  2: F(0, 10),
-  8: F(2, 10),
-  10: F(1, 10),
-  6: F(0, 7),
-  12: F(2, 7),
-  3: F(0, 9),
-  9: F(2, 9),
-  7: F(0, 8),
-  13: F(2, 8),
-  14: F(1, 7),
-  11: F(1, 9),
-  15: F(1, 8),
-}
-// Walls (wall.png, 10 columns): the brown room block at columns 0-4, rows 6-10.
+// Procedural wall atlas retains the original pack's 10-column wall indices.
 const W = at(10)
 const WALL = { tl: W(0, 6), t: W(1, 6), tr: W(4, 6), l: W(0, 7), r: W(4, 7), bl: W(0, 10), b: W(1, 10), br: W(4, 10) }
-// Interior planks (interior.png, 22 columns).
-const I = at(22)
-const PLANKS = [I(12, 1), I(12, 1), I(13, 1), I(12, 2), I(13, 2)]
 // Doors (house.png, 33 columns).
 const H = at(33)
 const DOOR = { closed: H(2, 3), open: H(9, 3) }
 
-type TerrainTheme = { ground: readonly number[]; path: readonly number[]; classicPath?: boolean; pathTint?: number; floorTint: number; wallTint: number; doorTint: number; background: string }
-const TERRAIN: Partial<Record<MapThemeId, TerrainTheme>> = {
-  desert: { ground: [7], path: [], classicPath: true, pathTint: 0xe3c17f, floorTint: 0xd8b679, wallTint: 0xc49b63, doorTint: 0xcaa36e, background: '#dbca7c' },
-  winter: { ground: [145, 145, 144], path: [], classicPath: true, pathTint: 0xc9d8e4, floorTint: 0xcad9e4, wallTint: 0xaabed5, doorTint: 0xb9cee0, background: '#d7ecf4' },
-  forest: { ground: [0, 1, 2, 27, 28], path: [32, 32, 31], floorTint: 0xb99972, wallTint: 0x9b7961, doorTint: 0xa6886b, background: '#5c9f56' },
-  coast: { ground: [7, 7, 7], path: [25, 25, 25], floorTint: 0xd3b484, wallTint: 0xb7a288, doorTint: 0xc9aa7e, background: '#81b075' },
-}
-
-const AMBIENT_LOOP: Partial<Record<string, string>> = { rain: 'rain', dust: 'wind', clouds: 'wind', snow: 'wind' }
+const AMBIENT_LOOP: Partial<Record<string, string>> = { rain: 'rain', thunderstorm: 'rain', haze: 'wind', dust: 'wind', clouds: 'wind', snow: 'wind' }
 const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert', 'refused', 'door', 'step']
 const MUSIC_VOLUME = 0.35
 
@@ -92,7 +65,7 @@ function assetTextureKey(url: string): string {
 
 export interface TiledViewOptions {
   assetBase: string
-  /** Directory containing <theme>/terrain.png for curated map themes. */
+  /** Legacy option retained for callers; story-directed materials are now painted locally. */
   themeBase?: string
   /** Sprite key to use for an actor that does not name one. */
   defaultSprite?: string
@@ -109,7 +82,6 @@ class TiledScene extends Phaser.Scene {
   private readonly onDestination: (point: Point, inputAt?: number) => void
   private readonly onReady: () => void
   private readonly base: string
-  private readonly themeBase: string
   private readonly defaultSprite: string
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
@@ -118,8 +90,6 @@ class TiledScene extends Phaser.Scene {
   private ready = false
   private map?: Phaser.Tilemaps.Tilemap
   private ground?: Phaser.Tilemaps.TilemapLayer
-  private pathLayer: Phaser.Tilemaps.TilemapLayer | undefined
-  private floors?: Phaser.Tilemaps.TilemapLayer
   private walls?: Phaser.Tilemaps.TilemapLayer
   private landmarkLayer?: Phaser.Tilemaps.TilemapLayer
   private generatedLandmarkLayers = new Map<string, Phaser.Tilemaps.TilemapLayer>()
@@ -148,6 +118,11 @@ class TiledScene extends Phaser.Scene {
   private queuedAssets = new Set<string>()
   private ambientId: string | null = null
   private ambientObjects: Phaser.GameObjects.GameObject[] = []
+  private weather: WeatherSurface | undefined
+  private surfaceDetails: Phaser.GameObjects.Graphics | undefined
+  private ambientLife: AmbientLife | undefined
+  private environment: EnvironmentArt | undefined
+  private roomShells: RoomShells | undefined
   private playedEffects = new Set<string>()
   private playedCues = new Set<string>()
   private music: Phaser.Sound.BaseSound | null = null
@@ -164,7 +139,6 @@ class TiledScene extends Phaser.Scene {
     this.reducedMotion = reducedMotion
     this.onReady = onReady
     this.base = options.assetBase.replace(/\/$/, '')
-    this.themeBase = (options.themeBase ?? `${this.base}/themes`).replace(/\/$/, '')
     this.defaultSprite = options.defaultSprite ?? 'Villager'
     this.onActor = options.onActor
     this.onProp = options.onProp
@@ -172,19 +146,11 @@ class TiledScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image('tiles-floor', `${this.base}/tiles/floor.png`)
-    this.load.image('tiles-wall', `${this.base}/tiles/wall.png`)
-    this.load.image('tiles-interior', `${this.base}/tiles/interior.png`)
     this.load.image('landmark-tiles', `${this.base}/tiles/landmarks.svg`)
-    this.load.image('period-interiors', `${this.base}/tiles/period-interiors.svg`)
     this.load.image('period-fixtures', `${this.base}/tiles/period-fixtures.svg`)
-    const theme = this.current.mapTheme ?? 'classic'
-    if (TERRAIN[theme]) this.load.image('theme-terrain', `${this.themeBase}/${theme}/terrain.png`)
     this.load.spritesheet('house', `${this.base}/tiles/house.png`, { frameWidth: T, frameHeight: T })
-    this.load.spritesheet('fx-rain', `${this.base}/fx/rain.png`, { frameWidth: 8, frameHeight: 8 })
     this.load.spritesheet('fx-snow', `${this.base}/fx/snow.png`, { frameWidth: 8, frameHeight: 8 })
     this.load.spritesheet('fx-smoke', `${this.base}/fx/smoke.png`, { frameWidth: 32, frameHeight: 32 })
-    this.load.image('fx-fog', `${this.base}/fx/fog.png`)
     this.load.image('fx-clouds', `${this.base}/fx/clouds.png`)
     for (const key of this.spriteKeys(this.current)) this.queueSprite(key)
     for (const url of this.spriteSheetUrls(this.current)) this.queueGeneratedSprite(url)
@@ -196,6 +162,9 @@ class TiledScene extends Phaser.Scene {
 
   create(): void {
     this.ready = true
+    const materials = this.textures.createCanvas('period-interiors', MATERIAL_COUNT * T, 16 * MATERIAL_VARIANTS)
+    if (materials) { paintMaterials(materials.context); materials.refresh() }
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clearAmbient())
     for (const key of this.spriteKeys(this.current)) this.registerAnimations(key)
     for (const url of this.spriteSheetUrls(this.current)) this.registerAnimations(assetTextureKey(url), true)
     this.buildMap()
@@ -215,6 +184,7 @@ class TiledScene extends Phaser.Scene {
       }
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
+      if (!this.pointRevealed(point)) { this.onDestination(point, pointer.time || performance.now()); this.game.canvas.focus(); return }
       // A character under the pointer means "talk to them", not "walk here".
       const actor = this.current.actors.find((a) => {
         const position = this.wandering.position(a.id, a.position)
@@ -263,7 +233,11 @@ class TiledScene extends Phaser.Scene {
     const previous = this.current
     this.current = snapshot
     if (!this.ready) return
-    const mapChanged = snapshot.map.id !== previous.map.id
+    const mapChanged = snapshot.map.id !== previous.map.id || snapshot.visualStyle !== previous.visualStyle
+      || JSON.stringify(snapshot.environment) !== JSON.stringify(previous.environment)
+      || snapshot.mapTheme !== previous.mapTheme || snapshot.storyContext !== previous.storyContext
+      || JSON.stringify(snapshot.roomDescriptions) !== JSON.stringify(previous.roomDescriptions)
+      || JSON.stringify(snapshot.roomNames) !== JSON.stringify(previous.roomNames)
     if (mapChanged) {
       this.tweens.killAll()
       this.buildMap()
@@ -290,7 +264,7 @@ class TiledScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   private spriteKeys(snapshot: PlaygroundSnapshot): string[] {
-    return [...new Set(snapshot.actors.map((a) => a.sprite ?? this.defaultSprite))]
+    return [...new Set([...RESIDENT_SPRITES, this.defaultSprite, ...snapshot.actors.map((a) => a.sprite ?? this.defaultSprite)])]
   }
 
   private assetUrls(snapshot: PlaygroundSnapshot): string[] {
@@ -338,6 +312,10 @@ class TiledScene extends Phaser.Scene {
   }
 
   private buildMap(): void {
+    this.ambientLife?.destroy()
+    this.environment?.destroy()
+    this.roomShells?.destroy()
+    this.surfaceDetails?.destroy()
     this.generatedLandmarkLayers.forEach((layer) => layer.destroy())
     this.generatedLandmarkLayers.clear()
     this.map?.destroy()
@@ -360,69 +338,25 @@ class TiledScene extends Phaser.Scene {
     this.clearAmbient()
 
     const source = this.current.map
-    const urban = usesUrbanGround(source.rooms.map((room) => this.roomDescription(room.id)))
+    const art = applyEnvironment(storyArt(this.current.visualStyle, this.current.mapTheme, this.current.storyContext, source.rooms.map((room) => this.roomDescription(room.id)).join(' ')), this.current.environment)
     const map = this.make.tilemap({ tileWidth: T, tileHeight: T, width: source.width, height: source.height })
-    const terrain = TERRAIN[this.current.mapTheme ?? 'classic']
-    const floorSet = map.addTilesetImage(terrain ? 'theme-terrain' : 'tiles-floor', terrain ? 'theme-terrain' : 'tiles-floor', T, T, 0, 0)!
-    const pathSet = terrain?.classicPath ? map.addTilesetImage('tiles-floor', 'tiles-floor', T, T, 0, 0)! : null
-    const wallSet = map.addTilesetImage('tiles-wall', 'tiles-wall', T, T, 0, 0)!
-    const interiorSet = map.addTilesetImage('tiles-interior', 'tiles-interior', T, T, 0, 0)!
+    if (this.textures.exists('story-walls')) this.textures.remove('story-walls')
+    const wallTexture = this.textures.createCanvas('story-walls', 160, 176)!
+    paintStoryWalls(wallTexture.context, art)
+    wallTexture.refresh()
+    const wallSet = map.addTilesetImage('story-walls', 'story-walls', T, T, 0, 0)!
     const landmarkSet = map.addTilesetImage('landmark-tiles', 'landmark-tiles', T, T, 0, 0)!
     const periodSet = map.addTilesetImage('period-interiors', 'period-interiors', T, T, 0, 0, 1000)!
     const fixtureSet = map.addTilesetImage('period-fixtures', 'period-fixtures', T, T, 0, 0, 2000)!
-    this.ground = map.createBlankLayer('ground', [floorSet, periodSet])!.setDepth(0)
-    this.pathLayer = pathSet ? map.createBlankLayer('paths', pathSet)!.setDepth(0.5).setTint(terrain?.pathTint ?? 0xffffff) : undefined
-    this.floors = map.createBlankLayer('floors', [interiorSet, periodSet])!.setDepth(1)
+    this.ground = map.createBlankLayer('ground', periodSet)!.setDepth(0)
     this.walls = map.createBlankLayer('walls', wallSet)!.setDepth(2)
     this.landmarkLayer = map.createBlankLayer('landmark-fixtures', [landmarkSet, fixtureSet])!.setDepth(4)
-    if (terrain) {
-      this.cameras.main.setBackgroundColor(terrain.background)
-      this.floors.setTint(terrain.floorTint)
-      this.walls.setTint(terrain.wallTint)
-    }
-    if (urban) {
-      this.walls.setTint(0xb5bcb1)
-      this.floors.setTint(0xffffff)
-      this.cameras.main.setBackgroundColor('#414945')
-    }
+    this.cameras.main.setBackgroundColor('#29332f')
     this.map = map
-
-    const isPath = (x: number, y: number) => source.tiles[y]?.[x] === 'path'
-    for (let y = 0; y < source.height; y += 1) {
-      for (let x = 0; x < source.width; x += 1) {
-        const tile = source.tiles[y]![x]!
-        // Public place descriptions select paving for a newsroom; outdoor settings keep their terrain.
-        const groundTiles = terrain?.ground ?? GRASS
-        this.ground.putTileAt(urban ? 1000 : groundTiles[Math.floor(jitter(x, y, 1) * groundTiles.length)]!, x, y)
-        if (tile === 'path') {
-          const mask = (isPath(x, y - 1) ? 1 : 0) | (isPath(x + 1, y) ? 2 : 0) | (isPath(x, y + 1) ? 4 : 0) | (isPath(x - 1, y) ? 8 : 0)
-          const pathTiles = terrain?.path
-          if (urban) this.ground.putTileAt(1001, x, y)
-          else if (this.pathLayer) this.pathLayer.putTileAt(PATH[mask] ?? PATH[15]!, x, y)
-          else this.ground.putTileAt(pathTiles ? pathTiles[Math.floor(jitter(x, y, 3) * pathTiles.length)]! : PATH[mask] ?? PATH[15]!, x, y)
-        }
-      }
+    for (let y = 0; y < source.height; y++) for (let x = 0; x < source.width; x++) {
+      this.ground.putTileAt(materialTile(art.ground, x, y), x, y)
     }
     for (const room of source.rooms) {
-      const style = roomScenery(this.roomDescription(room.id))
-      const periodFloor = { newsroom: 1002, archive: 1003, council: 1004, workshop: 1005, plain: urban ? 1003 : null }[style]
-      if (room.enclosure === 'enclosed') {
-        const x1 = room.x + room.width - 1
-        const y1 = room.y + room.height - 1
-        for (let y = room.y; y <= y1; y += 1) {
-          for (let x = room.x; x <= x1; x += 1) {
-            const edgeX = x === room.x ? 'l' : x === x1 ? 'r' : null
-            const edgeY = y === room.y ? 't' : y === y1 ? 'b' : null
-            if (!edgeX && !edgeY) {
-              this.floors.putTileAt(periodFloor ?? PLANKS[Math.floor(jitter(x, y, 2) * PLANKS.length)]!, x, y)
-              continue
-            }
-            this.floors.putTileAt(periodFloor ?? PLANKS[0]!, x, y) // under the door tile
-            const index = edgeX && edgeY ? WALL[`${edgeY}${edgeX}` as 'tl' | 'tr' | 'bl' | 'br'] : edgeX ? WALL[edgeX] : WALL[edgeY as 't' | 'b']
-            this.walls.putTileAt(index, x, y)
-          }
-        }
-      }
       // A door on the top wall keeps the room name outside the room, above the wall.
       const doorOnTopWall = source.doors.some((door) => door.roomId === room.id && door.position.y === room.y)
       this.labels.push(
@@ -460,10 +394,26 @@ class TiledScene extends Phaser.Scene {
     for (const door of source.doors) {
       this.walls.removeTileAt(door.position.x, door.position.y)
       const image = this.add.image(door.position.x * T + T / 2, door.position.y * T + T / 2, 'house', DOOR.closed).setDepth(3)
-      if (terrain) image.setTint(terrain.doorTint)
+      image.setTint(Phaser.Display.Color.HexStringToColor(art.wallLight).color)
       this.doors.set(door.id, image)
     }
     this.renderLandmarkTiles(this.current)
+    // Contact shadows and moss join adjacent tiles into surfaces with age and depth.
+    this.environment = new EnvironmentArt(this, this.current, art)
+    this.ambientLife = new AmbientLife(this, this.current, art)
+    this.roomShells = new RoomShells(this, this.current, art)
+    const details = this.surfaceDetails = this.add.graphics().setDepth(1.6)
+    for (let y = 1; y < source.height - 1; y++) for (let x = 1; x < source.width - 1; x++) {
+      if (!isExposed(source, x, y) || source.tiles[y]?.[x] === 'water') continue
+      if (source.tiles[y - 1]?.[x] === 'wall') {
+        details.fillStyle(0x26352c, 0.18).fillRect(x * T, y * T, T, 3)
+        details.fillStyle(0x26352c, 0.07).fillRect(x * T, y * T + 3, T, 2)
+      }
+      if (source.tiles[y]?.[x - 1] === 'wall') details.fillStyle(0x26352c, 0.14).fillRect(x * T, y * T, 2, T)
+      if (art.vegetation > 0.3 && source.tiles[y]?.[x] !== 'path' && surfaceNoise(x, y, 80) < 0.12) {
+        details.fillStyle(0x6e7958, 0.45).fillRect(x * T + 7, y * T + 5, 3, 1).fillRect(x * T + 8, y * T + 6, 1, 2)
+      }
+    }
   }
 
   /** Stamp each landmark as four real map tiles. Curated tiles remain the fallback while art loads. */
@@ -555,6 +505,7 @@ class TiledScene extends Phaser.Scene {
 
     this.renderProps(snapshot)
     this.renderActors(snapshot, snap)
+    this.roomShells?.reveal(snapshot, this.reducedMotion || snap)
     this.applyAmbient(snapshot)
     this.playEffects(snapshot)
     this.applyAudio(snapshot)
@@ -567,7 +518,8 @@ class TiledScene extends Phaser.Scene {
     for (const source of snapshot.actors) {
       const actor = { ...source, position: this.wandering.position(source.id, source.position) }
       const duration = snapshot.roomWandering && actor.id !== 'player' && actor.space?.kind === 'room' ? ROOM_STEP_MS : STEP_MS
-      const fallbackKey = `char-${actor.sprite ?? this.defaultSprite}`
+      const requestedKey = actor.sprite ?? this.defaultSprite
+      const fallbackKey = this.textures.exists(`char-${requestedKey}`) ? `char-${requestedKey}` : `char-${this.defaultSprite}`
       const generatedKey = actor.spriteSheetUrl ? assetTextureKey(actor.spriteSheetUrl) : null
       const key = generatedKey && this.textures.exists(generatedKey) ? generatedKey : fallbackKey
       const positionKey = `${actor.position.x},${actor.position.y}`
@@ -590,11 +542,15 @@ class TiledScene extends Phaser.Scene {
       const dx = actor.position.x - marker.last.x
       const dy = actor.position.y - marker.last.y
       const moved = dx !== 0 || dy !== 0
-      const facing: Facing = actor.facing ?? (moved ? (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up') : marker.facing)
+      const facing: Facing = moved ? (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up') : actor.facing ?? marker.facing
       marker.facing = facing
       marker.last = { x: actor.position.x, y: actor.position.y }
       const animKey = `${key}-${facing}`
-      if (moved && !this.reducedMotion && this.anims.exists(animKey)) {
+      if (snap || this.reducedMotion) {
+        marker.idle?.remove()
+        marker.idle = null
+        marker.sprite.stop().setFrame(DIRECTIONS.indexOf(facing))
+      } else if (moved && this.anims.exists(animKey)) {
         const walker = marker
         marker.sprite.play(animKey, true)
         marker.idle?.remove()
@@ -676,6 +632,9 @@ class TiledScene extends Phaser.Scene {
 
   /** Keep captions separated throughout walking tweens, including between snapshots. */
   override update(_time: number, delta: number): void {
+    this.ambientLife?.update(delta, this.reducedMotion, this.current.running)
+    this.weather?.update(delta)
+    this.environment?.update(delta, this.reducedMotion)
     if (this.ready && this.current.roomWandering && this.current.running && !this.reducedMotion && !document.hidden) {
       const hoveredId = this.hoveredTarget?.startsWith('actor:') ? this.hoveredTarget.slice(6) : undefined
       if (this.wandering.advance(this.current, delta, hoveredId)) this.renderActors(this.current)
@@ -688,25 +647,33 @@ class TiledScene extends Phaser.Scene {
     return `${this.roomName(id)} ${this.current.roomDescriptions?.[id] ?? ''} ${landmark?.name ?? ''} ${landmark?.description ?? ''}`
   }
 
+  private pointRevealed(point: Point): boolean {
+    const location = spaceAt(this.current.map, point)
+    if (location?.kind !== 'room') return true
+    const player = this.current.actors.find(a => a.id === 'player')
+    const here = player ? spaceAt(this.current.map, player.position) : null
+    return here?.kind === 'room' && here.roomId === location.roomId
+  }
+
   private targets(): Array<{ id: string; name: string; action: string; priority: number; near: boolean; bounds: LabelRect }> {
     const player = this.current.actors.find((actor) => actor.id === 'player')
     const playerRoom = player?.space?.kind === 'room' ? player.space.roomId : null
     return [
       ...this.current.actors.flatMap((actor) => {
         const marker = this.markers.get(actor.id)
-        if (!marker) return []
+        if (!marker || !this.pointRevealed(actor.position)) return []
         const isPlayer = actor.id === 'player'
         return [{ id: `actor:${actor.id}`, name: actor.name, action: isPlayer ? '' : 'Talk', priority: isPlayer ? 40 : 30,
           near: !isPlayer && (actor.interactive ?? (playerRoom !== null && actor.space?.kind === 'room' && actor.space.roomId === playerRoom)),
-          bounds: { x: marker.container.x - (isPlayer ? 8 : 10), y: marker.container.y - (isPlayer ? 8 : 14), width: isPlayer ? 16 : 20, height: isPlayer ? 16 : 28 } }]
+          bounds: { x: marker.container.x - 8, y: marker.container.y - 8, width: 16, height: 16 } }]
       }),
-      ...(this.current.props ?? []).map((prop) => {
+      ...(this.current.props ?? []).filter(prop => this.pointRevealed(prop.position)).map((prop) => {
         const room = spaceAt(this.current.map, prop.position)
         return { id: `prop:${prop.id}`, name: prop.name, action: prop.found ? 'Read again' : 'Read', priority: prop.found ? 10 : 25,
           near: !prop.found && playerRoom !== null && room?.kind === 'room' && room.roomId === playerRoom,
           bounds: { x: prop.position.x * T + 1, y: prop.position.y * T + 1, width: 14, height: 14 } }
       }),
-      ...(this.current.landmarks ?? []).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
+      ...(this.current.landmarks ?? []).filter(landmark => this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
         near: playerRoom !== null && landmark.roomId === playerRoom,
         bounds: { x: landmark.position.x * T, y: landmark.position.y * T, width: 32, height: 32 } })),
     ]
@@ -812,10 +779,7 @@ class TiledScene extends Phaser.Scene {
     const mapW = this.current.map.width * T
     const mapH = this.current.map.height * T
     const { width, height } = this.scale.gameSize
-    // Fill the viewport: the map is scaled to fit whichever dimension binds, never below 2x so
-    // sprites stay legible; beyond that the camera follows the player.
-    const fit = Math.min(width / mapW, height / mapH)
-    const zoom = Math.max(2, Math.min(5, Math.round(fit * 4) / 4))
+    const zoom = detailZoom(width, height, mapW, mapH)
     cam.setZoom(zoom)
     cam.setRoundPixels(true)
     if (mapW * zoom <= width && mapH * zoom <= height) {
@@ -842,6 +806,8 @@ class TiledScene extends Phaser.Scene {
   // atmosphere (FR-15a) and effects (FR-15b)
 
   private clearAmbient(): void {
+    this.weather?.destroy()
+    this.weather = undefined
     this.ambientObjects.forEach((o) => o.destroy())
     this.ambientObjects = []
     this.ambientId = null
@@ -853,6 +819,10 @@ class TiledScene extends Phaser.Scene {
     if (signature === this.ambientId) return
     this.clearAmbient()
     this.ambientId = signature
+    if (['rain', 'thunderstorm', 'haze', 'fog', 'dust'].includes(ambient.id)) {
+      this.weather = new WeatherSurface(this, snapshot.map, ambient.id, ambient.intensity, this.reducedMotion)
+      return
+    }
     const mapW = snapshot.map.width * T
     const mapH = snapshot.map.height * T
     const strength = ambient.intensity / 3
@@ -864,36 +834,28 @@ class TiledScene extends Phaser.Scene {
       case 'night':
         keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 0x0b1a3a, 0.16 + 0.1 * strength).setDepth(40))
         break
-      case 'fog': {
-        const fog = this.add.tileSprite(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 'fx-fog').setDepth(40).setAlpha(0.14 + 0.14 * strength)
-        keep(fog)
-        if (!this.reducedMotion) keep(this.tweens.add({ targets: fog, tilePositionX: 320, duration: 40_000, repeat: -1 }) as unknown as Phaser.GameObjects.GameObject)
-        break
-      }
       case 'clouds': {
         keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, 0x203040, 0.04 + 0.04 * strength).setDepth(40))
         for (let i = 0; i < 2 + ambient.intensity; i += 1) {
-          const cloud = this.add.image(jitter(i, 7, 3) * mapW, jitter(i, 9, 4) * mapH, 'fx-clouds').setDepth(41).setAlpha(0.18).setTint(0x1a2430).setScale(2)
+          const cloud = this.add.image(jitter(i, 7, 3) * mapW, jitter(i, 9, 4) * mapH, 'fx-clouds').setDepth(41).setAlpha(0.08).setTint(0x1a2430).setScale(2)
           keep(cloud)
           if (!this.reducedMotion) keep(this.tweens.add({ targets: cloud, x: cloud.x + mapW, duration: 60_000 + i * 9000, repeat: -1 }) as unknown as Phaser.GameObjects.GameObject)
         }
         break
       }
-      case 'rain':
       case 'snow':
       case 'dust': {
         keep(this.add.rectangle(mapW / 2, mapH / 2, mapW * 2, mapH * 2, ambient.id === 'dust' ? 0x8a6b3a : 0x1b2a3a, 0.05 + 0.05 * strength).setDepth(40))
         if (this.reducedMotion) break
-        const texture = ambient.id === 'rain' ? 'fx-rain' : 'fx-snow'
-        const emitter = this.add.particles(0, 0, texture, {
+        const emitter = this.add.particles(0, 0, 'fx-snow', {
           x: { min: -mapW * 0.2, max: mapW * 1.2 },
           y: -T,
-          frame: ambient.id === 'rain' ? [0, 1, 2] : [0, 1, 2, 3, 4, 5, 6],
-          lifespan: ambient.id === 'rain' ? 1400 : 5000,
-          speedY: ambient.id === 'rain' ? { min: 180, max: 260 } : ambient.id === 'snow' ? { min: 14, max: 28 } : { min: 4, max: 10 },
-          speedX: ambient.id === 'rain' ? 30 : ambient.id === 'dust' ? { min: 40, max: 90 } : { min: -8, max: 8 },
+          frame: [0, 1, 2, 3, 4, 5, 6],
+          lifespan: 5000,
+          speedY: ambient.id === 'snow' ? { min: 14, max: 28 } : { min: 4, max: 10 },
+          speedX: ambient.id === 'dust' ? { min: 40, max: 90 } : { min: -8, max: 8 },
           quantity: ambient.intensity,
-          frequency: ambient.id === 'rain' ? 16 : 60,
+          frequency: 60,
           alpha: ambient.id === 'dust' ? { start: 0.5, end: 0 } : { start: 0.9, end: 0.4 },
           ...(ambient.id === 'dust' ? { tint: 0xc9a86a } : {}),
           scale: ambient.id === 'dust' ? 0.6 : 1,
