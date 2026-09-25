@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { canHearSpeech, findPath, isInPhysicalInteractionRange, isWalkable, spaceAt, type DoorState, type Point, type StageMap } from "@adventure/game-core";
 import { playApi } from "./api";
 import type { MapIntent } from "./map-canvas";
-import { useSoundCues } from "./sound";
+import { stageMusicUrl, useSoundCues, useStageMusic } from "./sound";
 import { restartAttempt } from "@/app/play/[attemptId]/actions";
 import { StageCountdown } from "@/components/stage-countdown";
 import { Pending, Spinner, Thinking } from "@/components/ui";
@@ -162,6 +162,7 @@ export function PlayClient({
   const [goalHintLevels, setGoalHintLevels] = useState<Record<string, number>>({});
   const [lastResolution, setLastResolution] = useState<string | null>(null);
   const [decisionOpen, setDecisionOpen] = useState(false);
+  const [decidingOption, setDecidingOption] = useState<string | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
   const [loadingDocuments, setLoadingDocuments] = useState<string[]>([]);
@@ -181,6 +182,8 @@ export function PlayClient({
   const serverViewKey = useRef(`${initialState.stage.id}:${initialState.status}`);
   const previousStageId = useRef(initialState.stage.id);
   const { muted, toggleMuted, cues } = useSoundCues(state, notice);
+  // The map renderer is rebuilt on every stage; the soundtrack is not, so it crossfades instead of stacking.
+  useStageMusic(stageMusicUrl(state), muted);
 
   useEffect(() => {
     const key = `${state.stage.id}:${state.status}`;
@@ -375,6 +378,7 @@ export function PlayClient({
 
   async function decide(optionId: string) {
     setBusy("Deciding…");
+    setDecidingOption(optionId);
     setNotice(null);
     try {
       const result = await serialize(() => playApi.decide(attemptId, { optionId, optionsVersion: state.optionsVersion }));
@@ -387,6 +391,7 @@ export function PlayClient({
       accept(result.body.state);
     } finally {
       setBusy(null);
+      setDecidingOption(null);
     }
   }
 
@@ -946,7 +951,13 @@ export function PlayClient({
                           disabled={!o.available || busy !== null || speaking || state.pendingDialogue}
                           onClick={() => decide(o.id)}
                         >
-                          <span className="leading-snug">{o.label}</span>
+                          <span className="flex items-start gap-2 leading-snug">
+                            {decidingOption === o.id ? <Spinner className="mt-0.5 h-4 w-4" /> : null}
+                            {o.label}
+                          </span>
+                          {decidingOption === o.id ? (
+                            <span className="text-sm font-normal opacity-80">Deciding… writing what happens next.</span>
+                          ) : null}
                           {!o.available ? (
                             <span className="inline-flex items-center gap-1 text-sm font-normal text-muted">
                               <Lock className="h-3.5 w-3.5" aria-hidden /> {o.unavailableReason}
@@ -956,6 +967,11 @@ export function PlayClient({
                       </li>
                     ))}
                   </ul>
+                  {decidingOption ? (
+                    <p role="status" aria-live="polite" className="inline-flex items-center gap-2 text-base text-ink">
+                      <Spinner /> Deciding… this can take a moment while the next chapter is written.
+                    </p>
+                  ) : null}
                 </>
               ) : null}
             </div>

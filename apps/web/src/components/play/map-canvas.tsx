@@ -164,7 +164,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       const goal = path.length ? { kind: "point" as const, point: path[path.length - 1]! } : null;
       const props = s.props.map((prop) => ({ id: prop.id, name: prop.name, position: prop.position, found: prop.found, ...(s.evidenceImages[prop.id] ? { imageUrl: s.evidenceImages[prop.id] } : {}) }));
       return {
-        // Keep music selection stable for this stage while allowing other stages and adventures to vary.
+        // Keep generated art stable for this stage while allowing other stages and adventures to vary.
         seed: `${s.adventureId}:${s.stage.id}`,
         map: map as StageMap,
         doors,
