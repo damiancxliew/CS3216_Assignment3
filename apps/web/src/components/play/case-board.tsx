@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, CornerDownRight, Flag, HelpCircle, Lock, ScrollText } from "lucide-react";
+import { ArrowRight, CornerDownRight, Flag, HelpCircle, Lock, ScrollText } from "lucide-react";
 
 import type { PlayState } from "@/lib/play/session";
 import { Spinner } from "@/components/ui";
@@ -9,6 +9,14 @@ import styles from "./adventure-chrome.module.css";
 
 export type BoardTab = "goals" | "evidence" | "decision";
 type Goal = PlayState["stage"]["objectives"][number];
+type GoalState = "available" | "done" | "locked";
+
+const GOAL_STATE_LABEL: Record<GoalState, string> = { available: "Available now", done: "Done", locked: "Locked" };
+
+export function goalStateOf(goal: Goal, objectives: Goal[]): GoalState {
+  if (goal.met) return "done";
+  return goal.requires.some((id) => !objectives.find((candidate) => candidate.id === id)?.met) ? "locked" : "available";
+}
 
 const primary = `${styles.primary} inline-flex min-h-11 items-center justify-center gap-2 rounded-control bg-ink px-4 py-2 text-base font-semibold leading-snug text-paper hover:bg-record disabled:opacity-60`;
 const subtle = "inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-line-strong px-3 py-2 text-sm font-semibold text-ink hover:border-ink disabled:opacity-60";
@@ -62,25 +70,28 @@ export function CaseBoard({ state, tab, onTab, hintLevels, onHint, onGuide, onRe
       </div>
 
       <section id="case-panel-goals" role="tabpanel" aria-labelledby="case-tab-goals" hidden={tab !== "goals"} className={`${tab === "goals" ? "flex" : "hidden"} flex-col gap-3`}>
-          <p className="text-sm text-muted">Yellow = available now · Green = done · Grey = finish prerequisites first</p>
-          <div className={styles.progress} aria-hidden="true">{state.stage.objectives.map((goal) => <span key={goal.id} data-complete={goal.met} />)}</div>
+          <p className="text-sm text-muted">Complete available goals to unlock the ones that follow.</p>
+          <div className={styles.progress} aria-hidden="true">{state.stage.objectives.map((goal) => <span key={goal.id} className={styles.goalTone} data-complete={goal.met} data-state={goalStateOf(goal, state.stage.objectives)} />)}</div>
+          <ul className={styles.goalKey} aria-label="Goal colour key">
+            {(["available", "done", "locked"] as const).map((tone) => (
+              <li key={tone} className={styles.goalTone} data-state={tone}>{GOAL_STATE_LABEL[tone]}</li>
+            ))}
+          </ul>
           <ol className="flex flex-col gap-2">
             {state.stage.objectives.map((goal) => {
               const missing = goal.requires.filter((id) => !state.stage.objectives.find((candidate) => candidate.id === id)?.met)
                 .map((id) => state.stage.objectives.find((candidate) => candidate.id === id)?.title ?? id);
-              const locked = !goal.met && missing.length > 0;
+              const goalState = goalStateOf(goal, state.stage.objectives);
+              const locked = goalState === "locked";
               const hintKey = `${state.stage.id}:${goal.id}`;
               const hintLevel = hintLevels[hintKey] ?? 0;
               const maxHints = state.objectiveClues[goal.id] ? 2 : 1;
               return (
-                <li key={goal.id} className={`rounded-control border px-3 py-3 ${goal.met ? "border-world/30 bg-world-wash/50" : locked ? "border-line bg-surface/50 text-muted" : styles.goalAvailable}`}>
-                  <div className="flex items-start gap-2.5">
-                    <span aria-hidden className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${goal.met ? "border-world bg-world text-paper" : locked ? "border-line-strong bg-sunken text-muted" : styles.goalDot}`}>
-                      {goal.met ? <Check size={13} strokeWidth={3} aria-hidden /> : locked ? <Lock size={11} aria-hidden /> : <span className="h-1.5 w-1.5 rounded-full bg-ink" />}
-                    </span>
+                <li key={goal.id} className={`${styles.goal} ${styles.goalTone} py-3 pl-4 pr-3`} data-state={goalState}>
+                  <div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold uppercase tracking-wide">{goal.met ? "Done" : locked ? "Locked" : "Available now"}</p>
-                      <p className={`text-base font-semibold ${goal.met ? "line-through" : ""}`}>{goal.title}</p>
+                      <p className={styles.goalLabel}>{GOAL_STATE_LABEL[goalState]}</p>
+                      <p className={`text-base ${goalState === "available" ? "font-semibold" : ""} ${goal.met ? "line-through" : ""}`}>{goal.title}</p>
                       {locked ? <p className="mt-1 flex items-start gap-1 text-sm"><CornerDownRight size={14} className="mt-0.5 shrink-0" aria-hidden /> Finish first: {missing.join("; ")}</p> : null}
                       {!goal.met && !locked ? (
                         <>

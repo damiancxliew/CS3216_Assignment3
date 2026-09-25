@@ -32,7 +32,7 @@ import { StageCutscene } from "./stage-cutscene";
 import styles from "./adventure-chrome.module.css";
 import roomStyles from "./room-panel.module.css";
 import { RoomActions } from "./room-actions";
-import { CaseBoard, type BoardTab } from "./case-board";
+import { CaseBoard, goalStateOf, type BoardTab } from "./case-board";
 import { GameWalkthrough } from "./game-walkthrough";
 
 const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas), {
@@ -927,7 +927,7 @@ export function PlayClient({
             <p id="decide" className="text-sm text-ink">Open the case board to review the remaining goals and choices.</p>
           )}
           <div className={styles.progress} aria-hidden="true">
-            {state.stage.objectives.map((goal) => <span key={goal.id} data-complete={goal.met} />)}
+            {state.stage.objectives.map((goal) => <span key={goal.id} className={styles.goalTone} data-complete={goal.met} data-state={goalStateOf(goal, state.stage.objectives)} />)}
           </div>
           {offline ? (
             <p role="alert" className="rounded-control border border-signal bg-signal-wash px-3 py-2 text-sm text-ink">

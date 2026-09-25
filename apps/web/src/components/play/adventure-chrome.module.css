@@ -94,6 +94,27 @@
 .progress { display: flex; gap: 5px; margin-top: 8px; }
 .progress span { flex: 1; height: 5px; border-radius: 2px; background: var(--line); }
 .progress span[data-complete="true"] { background: var(--world); }
+/* Goals read as ledger entries: a quiet row with a coloured edge. The same
+ * three tones colour the progress segments and the swatches in the key, so
+ * the key needs no icons. Text never inherits a tone's background colour. */
+.goalTone { --goal-accent: var(--line-strong); }
+.goalTone[data-state="available"] { --goal-accent: #b27a12; --goal-label: #85570a; }
+.goalTone[data-state="done"] { --goal-accent: var(--world); --goal-label: var(--world); }
+.goalTone[data-state="locked"] { --goal-accent: var(--line-strong); --goal-label: var(--ink-muted); }
+:global([data-theme="dark"]) .goalTone[data-state="available"] { --goal-accent: #e2b451; --goal-label: #eec36a; }
+.progress span.goalTone { background: var(--goal-accent); }
+.progress span.goalTone[data-state="locked"] { background: color-mix(in srgb, var(--line-strong) 45%, transparent); }
+.goal { position: relative; border: 1px solid var(--line); border-radius: 3px 8px 8px 3px; background: var(--surface); color: var(--ink); }
+.goal::before { content: ""; position: absolute; inset: -1px auto -1px -1px; width: 4px; border-radius: 3px 0 0 3px; background: var(--goal-accent); }
+.goal[data-state="available"] { background: color-mix(in srgb, var(--goal-accent) 7%, var(--surface)); border-color: color-mix(in srgb, var(--goal-accent) 45%, var(--line)); }
+.goal[data-state="done"] { background: transparent; color: var(--ink-muted); }
+.goal[data-state="locked"] { background: transparent; border-style: dashed; color: var(--ink-muted); }
+.goal[data-state="locked"]::before { background: repeating-linear-gradient(180deg, var(--goal-accent) 0 4px, transparent 4px 7px); }
+.goalLabel { color: var(--goal-label); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.goalKey { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--ink-muted); font-size: 12px; letter-spacing: .04em; }
+.goalKey li { display: inline-flex; align-items: center; gap: 6px; }
+.goalKey li::before { content: ""; width: 14px; height: 5px; border-radius: 2px; background: var(--goal-accent); }
+.goalKey li[data-state="locked"]::before { background: color-mix(in srgb, var(--line-strong) 45%, transparent); }
 .resolution { border: 2px solid var(--line-strong); border-radius: 4px 4px 18px 4px; background: var(--paper); box-shadow: 5px 5px 0 #382b2240; }
 .resolution > p:first-child { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
 .tool { border: 1px solid #c5aa79; border-radius: 8px; background: #453a2e; color: #fff1d3; box-shadow: 0 3px 0 #211d18; }
