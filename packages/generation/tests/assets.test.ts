@@ -157,6 +157,28 @@ describe('D5 — cache and generation', () => {
 })
 
 describe('D5 — failure handling (FR-6a)', () => {
+  it('stores a rejected sprite for teacher review while play uses the fallback', async () => {
+    const spec = await loadI1Spec()
+    spec.assetEligibility = playableAssetEligibility(spec).filter((entry) => entry.kind === 'sprite').slice(0, 1)
+    const d = deps()
+    const images = {
+      model: 'test-image-model',
+      async generate() {
+        throw new ImageServiceError('failed', 'walking sprite frame 1,1 is empty', {
+          bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/webp', costUsd: 0.011,
+        })
+      },
+    }
+    const manifest = await generateAssets(spec, { ...d, images })
+    const record = manifest.records[0]!
+    expect(record.status).toBe('failed')
+    expect(record.url).toContain('-rejected.webp')
+    expect(record.error).toContain('frame 1,1')
+    expect(d.store.objects.size).toBe(1)
+    expect(manifest.totalCostUsd).toBe(0.011)
+    expect(resolveAssetUrl(manifest, record.entityId, 'sprite')).toBe(record.placeholderUrl)
+  })
+
   it('a failing image service yields placeholders for everything and never throws', async () => {
     const spec = await loadI1Spec()
     const manifest = await generateAssets(spec, deps('fail'))
