@@ -57,6 +57,7 @@ describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
     current.status = 'ready'
     current.model = 'fake-image-model'
     expect(isCurrentSpriteRecord(spec, current)).toBe(true)
+    expect(isCurrentSpriteRecord(spec, { ...current, url: 'https://example.com/asset-sprite-rejected.webp' })).toBe(false)
     expect(isCurrentSpriteRecord(spec, { ...current, promptHash: 'old-layout' })).toBe(false)
     const images = new FakeImageService()
     await generateAssets({ ...spec, assetEligibility: [sprite] }, { images, cache: new InMemoryAssetCache(), store: new InMemoryAssetStore(), quality: 'low' })
