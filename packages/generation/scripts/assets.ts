@@ -1,14 +1,17 @@
 /**
  * Generate the eligible assets of a spec for real and write them to disk.
  *
- *   OPENAI_API_KEY=... npx vite-node scripts/assets.ts fixtures/singapore-1819.spec.json [--quality medium] [--out dir]
+ *   OPENAI_API_KEY=... npx vite-node scripts/assets.ts fixtures/singapore-1819.spec.json [--quality medium] [--out dir] [--kind cutscene]
+ *
+ * `--kind` draws only that kind from the playable list (e.g. every stage opening, with its scene description).
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { InMemoryAssetCache } from '../src/assets/memory'
 import { OpenAiImageService } from '../src/assets/openai-images'
-import { generateAssets } from '../src/assets/service'
+import { OpenAiSceneAnnotator } from '../src/assets/scene'
+import { generateAssets, playableAssetEligibility } from '../src/assets/service'
 import type { AssetStore } from '../src/assets/types'
 import { validateAdventureSpec } from '../src/spec/v2'
 
@@ -18,7 +21,7 @@ const flag = (name: string) => {
   return i >= 0 ? args[i + 1] : undefined
 }
 const file = args.find((a) => !a.startsWith('--') && !args[args.indexOf(a) - 1]?.startsWith('--'))
-if (!file) throw new Error('usage: assets.ts <spec.json> [--quality low|medium|high] [--out dir]')
+if (!file) throw new Error('usage: assets.ts <spec.json> [--quality low|medium|high] [--out dir] [--kind cutscene]')
 const outDir = flag('out') ?? 'evals/results/manual/assets'
 await mkdir(outDir, { recursive: true })
 
@@ -33,9 +36,12 @@ const store: AssetStore = {
   },
 }
 const images = new OpenAiImageService()
+const kind = flag('kind')
+const spec = kind ? { ...validation.spec, assetEligibility: playableAssetEligibility(validation.spec).filter((asset) => asset.kind === kind) } : validation.spec
 const started = Date.now()
-const manifest = await generateAssets(validation.spec, {
+const manifest = await generateAssets(spec, {
   images,
+  annotator: new OpenAiSceneAnnotator(),
   cache: new InMemoryAssetCache(),
   store,
   quality: (flag('quality') ?? 'medium') as 'low' | 'medium' | 'high',

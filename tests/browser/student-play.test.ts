@@ -58,7 +58,15 @@ async function chooseSpeaker(page: import("playwright").Page, name: string) {
 
 async function dismissGameplayIntroduction(page: import("playwright").Page, role: string) {
   const briefing = page.getByRole("dialog", { name: role });
-  if (await briefing.isVisible()) await briefing.getByRole("button", { name: /Begin as/ }).click();
+  if (await briefing.isVisible()) {
+    const continueInWindow = briefing.getByRole("button", { name: "Continue in window" });
+    const start = briefing.getByRole("button", { name: "Start", exact: true });
+    if (await continueInWindow.isVisible()) await continueInWindow.click();
+    else if (await start.isVisible()) await start.click();
+    const begin = briefing.getByRole("button", { name: /Begin as/ });
+    if (!await begin.isVisible()) await briefing.getByRole("button", { name: "Skip", exact: true }).click();
+    await begin.click();
+  }
   const walkthrough = page.getByRole("dialog", { name: "Follow the story" });
   try {
     await walkthrough.waitFor({ state: "visible", timeout: 3_000 });

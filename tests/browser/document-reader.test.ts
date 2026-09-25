@@ -240,7 +240,9 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     }
     expect(await page.getByLabel("Scroll contents").count()).toBe(0);
     expect(await briefing.getByText(spec.stages[1]!.decision.prompt, { exact: true }).isVisible()).toBe(true);
-    await briefing.getByRole("button", { name: `Begin as ${spec.player.name}` }).click();
+    const begin = briefing.getByRole("button", { name: `Begin as ${spec.player.name}` });
+    if (!await begin.isVisible()) await briefing.getByRole("button", { name: "Skip", exact: true }).click();
+    await begin.click();
     await page.getByRole("button", { name: "Notes (2)" }).click();
     await page.getByLabel("Choose a collected scroll").selectOption(evidence.id);
     expect(await page.getByText(evidence.content.text, { exact: true }).isVisible()).toBe(true);

@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 
 import { describe, expect, it } from 'vitest'
 
-import { FakeImageService, InMemoryAssetCache, InMemoryAssetStore } from '../src/assets/memory'
+import { FAKE_SCENE, FakeImageService, FakeSceneAnnotator, InMemoryAssetCache, InMemoryAssetStore } from '../src/assets/memory'
+import { parseCutsceneScene } from '../src/assets/scene'
 import { OpenAiImageService } from '../src/assets/openai-images'
 import { assertGeneratable, buildImagePrompt, buildPortraitSafetyRetryPrompt, generateAssets, isCurrentSpriteRecord, pendingManifest, placeholderUrl, playableAssetEligibility, promptHash, resolveAssetUrl } from '../src/assets/service'
 import { ImageServiceError } from '../src/assets/types'
@@ -23,8 +24,9 @@ async function specWithAssets(n: number): Promise<AdventureSpec> {
 
 describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
   it('uses the precision model only for sprites and keys their cache separately', async () => {
-    const images = new OpenAiImageService({ apiKey: 'test-key', model: 'gpt-image-1-mini', spriteModel: 'gpt-image-2.5-sunburst' })
+    const images = new OpenAiImageService({ apiKey: 'test-key', model: 'gpt-image-1-mini', spriteModel: 'gpt-image-2.5-sunburst', cutsceneModel: 'gpt-image-2' })
     expect(images.modelForKind('sprite')).toBe('gpt-image-2.5-sunburst')
+    expect(images.modelForKind('cutscene')).toBe('gpt-image-2')
     for (const kind of ['portrait', 'landmark', 'prop', 'cover'] as const) expect(images.modelForKind(kind)).toBe('gpt-image-1-mini')
     const spec = await loadI1Spec()
     spec.assetEligibility = playableAssetEligibility(spec)
@@ -32,8 +34,9 @@ describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
     for (const entry of spec.assetEligibility) {
       const record = manifest.records.find((item) => item.assetId === entry.id)!
       const model = images.modelForKind(entry.kind)
-      const size = entry.kind === 'cover' ? '1536x1024' : '1024x1024'
-      expect(record.promptHash).toBe(promptHash({ kind: entry.kind, prompt: buildImagePrompt(entry, spec), size, quality: 'medium' }, model))
+      const size = entry.kind === 'cover' || entry.kind === 'cutscene' ? '1536x1024' : '1024x1024'
+      const quality = entry.kind === 'cutscene' ? 'high' : 'medium'
+      expect(record.promptHash).toBe(promptHash({ kind: entry.kind, prompt: buildImagePrompt(entry, spec), size, quality }, model))
     }
   })
 
@@ -74,7 +77,7 @@ describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
         expect((error as ImageServiceError).code).toBe('not-generatable')
       }
     }
-    for (const kind of ['portrait', 'landmark', 'prop', 'sprite', 'cover']) expect(() => assertGeneratable({ kind })).not.toThrow()
+    for (const kind of ['portrait', 'landmark', 'prop', 'sprite', 'cover', 'cutscene']) expect(() => assertGeneratable({ kind })).not.toThrow()
   })
 
   it('never lets an ineligible entry reach the image service even if the spec object was tampered with', async () => {
@@ -268,6 +271,60 @@ describe('D5 — failure handling (FR-6a)', () => {
     const withCover = playableAssetEligibility({ ...spec, assetEligibility: [cover, ...spec.assetEligibility] })
     expect(withCover.filter((asset) => asset.kind === 'cover')).toHaveLength(1)
     expect(withCover.findIndex((asset) => asset.kind === 'cover')).toBe(0)
+  })
+
+  it('derives one opening painting per stage, right after the cover', async () => {
+    const spec = await loadI1Spec()
+    const assets = playableAssetEligibility(spec)
+    const openings = assets.filter((asset) => asset.kind === 'cutscene')
+    expect(openings.map((asset) => asset.entityId)).toEqual(spec.stages.map((stage) => stage.id))
+    expect(assets.slice(1, 1 + openings.length)).toEqual(openings)
+    expect(openings.every((asset) => asset.id.length <= 48)).toBe(true)
+    // an authored entry for a stage replaces the derived one rather than adding a second
+    const authored = { ...openings[0]!, id: 'asset-authored-opening', prompt: 'A quiet harbour at dawn' }
+    const withAuthored = playableAssetEligibility({ ...spec, assetEligibility: [authored, ...spec.assetEligibility] })
+    expect(withAuthored.filter((asset) => asset.kind === 'cutscene' && asset.entityId === authored.entityId)).toEqual([authored])
+  })
+
+  it('paints openings wide at high quality from public framing only', async () => {
+    const spec = await loadI1Spec()
+    const opening = playableAssetEligibility(spec).find((asset) => asset.kind === 'cutscene')!
+    const stage = spec.stages.find((candidate) => candidate.id === opening.entityId)!
+    const prompt = buildImagePrompt(opening, spec)
+    expect(prompt).toContain(stage.sharedContext.text.slice(0, 40))
+    expect(prompt).toContain('Do not reveal hidden documents')
+    for (const agent of stage.agents) expect(prompt).not.toContain(agent.privateContext.hiddenInterests)
+    const images = new FakeImageService()
+    await generateAssets({ ...spec, assetEligibility: [opening] }, { images, cache: new InMemoryAssetCache(), store: new InMemoryAssetStore(), quality: 'low' })
+    expect(images.requests[0]?.size).toBe('1536x1024')
+    expect(images.requests[0]?.quality).toBe('high')
+  })
+
+  it('reads each new opening once, keeps the reading with the cached image, and plays on without one', async () => {
+    const spec = await loadI1Spec()
+    const opening = playableAssetEligibility(spec).find((asset) => asset.kind === 'cutscene')!
+    const annotator = new FakeSceneAnnotator()
+    const cache = new InMemoryAssetCache()
+    const first = await generateAssets({ ...spec, assetEligibility: [opening] }, { images: new FakeImageService(), cache, store: new InMemoryAssetStore(), annotator })
+    expect(first.records[0]).toMatchObject({ status: 'ready', scene: FAKE_SCENE })
+    expect(first.records[0]!.costUsd).toBeCloseTo(0.011 + 0.002)
+    expect(annotator.requests).toHaveLength(1)
+    expect(annotator.requests[0]!.framing).toContain(spec.stages.find((stage) => stage.id === opening.entityId)!.title)
+
+    const again = await generateAssets({ ...spec, assetEligibility: [opening] }, { images: new FakeImageService(), cache, store: new InMemoryAssetStore(), annotator })
+    expect(again.records[0]).toMatchObject({ status: 'cached', scene: FAKE_SCENE })
+    expect(annotator.requests).toHaveLength(1)
+
+    const unread = await generateAssets({ ...spec, assetEligibility: [opening] }, { images: new FakeImageService(), cache: new InMemoryAssetCache(), store: new InMemoryAssetStore(), annotator: new FakeSceneAnnotator('fail') })
+    expect(unread.records[0]).toMatchObject({ status: 'ready', scene: null })
+  })
+
+  it('accepts only well-formed scene readings', () => {
+    expect(parseCutsceneScene(FAKE_SCENE)).toEqual(FAKE_SCENE)
+    expect(parseCutsceneScene({ ...FAKE_SCENE, openAir: [{ x: 0, y: 0 }, { x: 1, y: 1 }] })!.openAir).toEqual([])
+    expect(parseCutsceneScene({ ...FAKE_SCENE, flames: [{ kind: 'candle', x: 0.9, y: 0.9, width: 0.3, height: 0.05 }] })!.flames).toEqual([])
+    expect(parseCutsceneScene({ ...FAKE_SCENE, mood: 'jolly' })).toBeNull()
+    expect(parseCutsceneScene(null)).toBeNull()
   })
 
   it('draws the cover wide at medium quality and drops the map-tile scale line', async () => {

@@ -10,11 +10,11 @@
  * and a case board link. The board holds the full goals, evidence and decision.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
-import { ArrowRight, Compass, DoorOpen, Flag, HelpCircle, MapPin, ScrollText, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight, Compass, DoorOpen, Flag, HelpCircle, MapPin, Maximize, Minimize, ScrollText, Timer, UserRound, Volume2, VolumeX, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { canHearSpeech, findPath, isInPhysicalInteractionRange, isWalkable, spaceAt, type DoorState, type Point, type StageMap } from "@adventure/game-core";
 import { playApi } from "./api";
@@ -23,6 +23,8 @@ import { stageMusicUrl, useSoundCues, useStageMusic } from "./sound";
 import { completeWalkthrough, restartAttempt } from "@/app/play/[attemptId]/actions";
 import { StageCountdown } from "@/components/stage-countdown";
 import { Pending, Spinner, Thinking } from "@/components/ui";
+import { cutsceneArt, cutsceneMusicUrl } from "@/lib/play/cutscene";
+import { useFullscreen } from "@/lib/play/fullscreen";
 import type { PlayState } from "@/lib/play/session";
 import { historicalPortraitFor } from "@/lib/play/historical-portraits";
 import { withSceneBreaks } from "@/lib/play/transcript";
@@ -200,6 +202,10 @@ export function PlayClient({
       return true;
     } catch { return false; }
   }, []);
+  // Full screen is offered once per visit: by the first opening, or by a nudge when play resumes mid-stage.
+  const firstOpening = useRef(cutsceneOpen);
+  const [fullscreenNudge, setFullscreenNudge] = useState(!cutsceneOpen && initialState.status === "active");
+  const fullscreen = useFullscreen();
   const [hintVisible, setHintVisible] = useState(true);
   const transcriptLog = useRef<HTMLDivElement>(null);
   const transcriptEnd = useRef<HTMLDivElement>(null);
@@ -211,7 +217,12 @@ export function PlayClient({
   const previousStageId = useRef(initialState.stage.id);
   const { muted, toggleMuted, cues } = useSoundCues(state, notice);
   // The map renderer is rebuilt on every stage; the soundtrack is not, so it crossfades instead of stacking.
-  useStageMusic(stageMusicUrl(state), muted);
+  // One track per stage: the opening's mood music carries on into play instead of cutting to another,
+  // and is chosen once so art that finishes mid-stage cannot switch it.
+  const musicKey = `${state.stage.id}:${state.status}`;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chosen once per stage, by design
+  const stageTrack = useMemo(() => (state.status === "active" ? cutsceneMusicUrl(cutsceneArt(state)?.scene ?? null) : null) ?? stageMusicUrl(state), [musicKey]);
+  useStageMusic(stageTrack, muted);
 
   useEffect(() => {
     const key = `${state.stage.id}:${state.status}`;
@@ -696,8 +707,31 @@ export function PlayClient({
 
   return (
     <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row`}>
-      {cutsceneOpen ? <StageCutscene state={state} onBegin={() => setCutsceneOpen(false)} /> : null}
+      {cutsceneOpen ? (
+        <StageCutscene
+          state={state}
+          onBegin={() => {
+            firstOpening.current = false;
+            setCutsceneOpen(false);
+          }}
+          muted={muted}
+          onToggleMuted={toggleMuted}
+          askFullscreen={firstOpening.current}
+        />
+      ) : null}
       {walkthroughOpen && !cutsceneOpen && layout ? <GameWalkthrough layout={layout} onClose={finishWalkthrough} /> : null}
+      {fullscreenNudge && fullscreen.supported && !fullscreen.active && !cutsceneOpen && !walkthroughOpen ? (
+        <div role="status" className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-md items-center gap-3 rounded-control border border-line-strong bg-surface p-3 text-ink shadow-lg">
+          <p className="flex-1 text-sm font-semibold">This adventure is best played in full screen.</p>
+          <button type="button" className={primary} onClick={() => { void fullscreen.enter(); setFullscreenNudge(false); }}>
+            <Maximize className="h-4 w-4" aria-hidden /> Full screen
+          </button>
+          <button type="button" className={`${subtle} min-h-11 min-w-11 px-2`} onClick={() => setFullscreenNudge(false)}>
+            <X className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Not now</span>
+          </button>
+        </div>
+      ) : null}
 
       <section data-walkthrough="map" className="relative h-[32dvh] min-h-[11rem] shrink-0 bg-sunken lg:h-auto lg:min-h-0 lg:flex-1" aria-label="Map">
         <MapCanvas
@@ -741,6 +775,17 @@ export function PlayClient({
               <HelpCircle className="h-5 w-5" aria-hidden />
               <span className="sm:hidden">Help</span><span className="hidden sm:inline">How to play</span>
             </button>
+            {fullscreen.supported ? (
+              <button
+                type="button"
+                onClick={fullscreen.toggle}
+                aria-pressed={fullscreen.active}
+                className={`${styles.tool} inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2`}
+              >
+                {fullscreen.active ? <Minimize className="h-5 w-5" aria-hidden /> : <Maximize className="h-5 w-5" aria-hidden />}
+                <span className="sr-only">{fullscreen.active ? "Exit full screen" : "Full screen"}</span>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={toggleMuted}

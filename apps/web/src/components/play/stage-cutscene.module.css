@@ -1,66 +1,120 @@
-/* The stage opening: letterboxed, slow, and readable. Beats are always in the DOM;
-   only their reveal is animated, so the whole briefing stays available to
-   assistive technology and to anyone who skips ahead. */
+/* A full-screen cinematic: the painting fills the screen, letterbox bars frame
+   it, and the briefing plays as captions over a scrim in a lower corner. Once
+   told, the captions settle into a column beside the art. */
 .scene {
+  --bar: clamp(14px, 5.5vh, 56px);
+  --gutter: clamp(20px, 5vw, 88px);
   position: fixed;
   inset: 0;
   z-index: 60;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  overflow-y: auto;
-  padding: clamp(44px, 9vh, 96px) clamp(18px, 6vw, 88px) clamp(28px, 6vh, 64px);
-  background: #120f0c;
+  overflow: hidden;
+  background: #0b0d0c;
   color: #f6ecd4;
 }
-.scene::before, .scene::after {
+.scene:focus { outline: none; }
+.art { position: absolute; inset: 0; cursor: pointer; }
+.scene[data-phase="told"] .art { cursor: default; }
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Dark only behind the captions, so light elsewhere in the painting stays bright. */
+  background:
+    radial-gradient(ellipse 88% 92% at 0% 100%, #0b0d0cf0 0%, #0b0d0cc7 38%, #0b0d0c59 62%, transparent 82%),
+    linear-gradient(0deg, #0b0d0c8c 0%, transparent 16%);
+}
+.scrim::after {
   content: "";
-  position: fixed;
-  left: 0;
-  right: 0;
-  height: clamp(28px, 6vh, 64px);
-  background: #0b0908;
-  z-index: 2;
-}
-.scene::before { top: 0; }
-.scene::after { bottom: 0; }
-
-.backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  background-position: center;
-  background-size: cover;
-  image-rendering: pixelated;
-  opacity: .55;
-  animation: drift 26s ease-out forwards;
+  opacity: 0;
+  background: linear-gradient(90deg, #0b0d0cf5 0%, #0b0d0ce0 30%, #0b0d0c8a 50%, transparent 70%);
+  transition: opacity .9s;
 }
-.wash {
-  position: fixed;
-  inset: 0;
-  background: linear-gradient(180deg, #120f0ccc 0%, #120f0c66 32%, #120f0ce8 78%, #120f0c 100%);
-}
+.scene[data-phase="told"] .scrim::after { opacity: 1; }
 
-.body { position: relative; z-index: 1; margin: 0 auto; display: flex; width: min(68ch, 100%); flex-direction: column; gap: clamp(18px, 3vh, 30px); }
-.beat { display: flex; flex-direction: column; gap: 8px; opacity: 0; animation: rise .9s cubic-bezier(.2, .7, .3, 1) forwards; }
-.kicker { margin: 0; color: #d6b778; font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; }
-.title { margin: 0; font: 600 clamp(1.9rem, 5.2vw, 3rem)/1.1 var(--font-record, Georgia), serif; text-wrap: balance; }
-.text { margin: 0; font-size: clamp(1rem, 2.2vw, 1.2rem); line-height: 1.65; color: #f0e6d0; }
+/* Captions move to the right when the painting's light is on the left. */
+.scene[data-side="right"] .scrim { background: radial-gradient(ellipse 88% 92% at 100% 100%, #0b0d0cf0 0%, #0b0d0cc7 38%, #0b0d0c59 62%, transparent 82%), linear-gradient(0deg, #0b0d0c8c 0%, transparent 16%); }
+.scene[data-side="right"] .scrim::after { background: linear-gradient(270deg, #0b0d0cf5 0%, #0b0d0ce0 30%, #0b0d0c8a 50%, transparent 70%); }
+.scene[data-side="right"] .captions { left: auto; right: var(--gutter); }
+
+.bar { position: absolute; left: 0; right: 0; z-index: 2; height: var(--bar); background: #050606; transform: scaleY(0); animation: bar 1.4s .15s cubic-bezier(.2, .7, .3, 1) forwards; pointer-events: none; }
+.barTop { top: 0; transform-origin: top; }
+.barBottom { bottom: 0; transform-origin: bottom; }
+
+.top { position: absolute; z-index: 3; top: calc(var(--bar) + 14px); left: var(--gutter); right: var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.chapter { margin: 0; min-width: 0; overflow: hidden; color: #e9d7ae; font-size: 11px; font-weight: 700; letter-spacing: .22em; text-overflow: ellipsis; text-shadow: 0 1px 10px #000c; text-transform: uppercase; white-space: nowrap; }
+.chapter span { margin: 0 .4em; opacity: .6; }
+.controls { display: flex; flex-shrink: 0; gap: 6px; }
+.control { display: inline-flex; min-height: 44px; min-width: 44px; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px; border: 1px solid #e4d1a640; border-radius: 4px; background: #0e1210a6; color: #f6ecd4; font-size: 12px; font-weight: 600; cursor: pointer; backdrop-filter: blur(6px); transition: border-color .2s, background-color .2s; }
+.control:hover { border-color: #d6b778; background: #0e1210d9; }
+
+.captions { position: absolute; z-index: 3; left: var(--gutter); bottom: calc(var(--bar) + 104px); width: min(46rem, calc(100% - 2 * var(--gutter))); pointer-events: none; }
+.beat { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 10px; opacity: 0; transform: translateY(14px); transition: opacity .7s ease, transform .9s cubic-bezier(.2, .7, .3, 1); text-shadow: 0 1px 14px #000d; }
+.beat[data-active="true"] { opacity: 1; transform: none; pointer-events: auto; }
+.kicker { margin: 0; color: #d6b778; font-size: 11px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; }
+.title { margin: 0; font: 500 clamp(1.9rem, 3.4vw, 3.1rem)/1.1 var(--font-record, Georgia), serif; text-wrap: balance; }
+.titleCard .title { font-size: clamp(2.7rem, 6.4vw, 5.6rem); letter-spacing: -.01em; }
+.titleCard .text { color: #e6d9bb; font-size: clamp(1rem, 1.6vw, 1.2rem); letter-spacing: .02em; }
+.text { margin: 0; max-width: 60ch; color: #efe7d4; font-size: clamp(1.05rem, 1.7vw, 1.3rem); line-height: 1.6; text-wrap: pretty; }
 .list { margin: 0; display: flex; flex-direction: column; gap: 6px; padding-left: 1.1em; }
-.list li { font-size: clamp(1rem, 2.2vw, 1.15rem); line-height: 1.6; color: #f0e6d0; }
+.list li { padding-left: 4px; color: #efe7d4; font-size: clamp(1rem, 1.5vw, 1.15rem); line-height: 1.55; }
+.list li::marker { color: #d6b778; }
 
-.actions { position: relative; z-index: 1; margin: clamp(22px, 4vh, 40px) auto 0; display: flex; width: min(68ch, 100%); flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.begin { display: inline-flex; min-height: 48px; align-items: center; gap: 10px; border: 1px solid #d6b778; border-radius: 4px; background: #d6b778; padding: 0 22px; color: #241c12; font-size: 1.05rem; font-weight: 700; transition: background-color .2s, color .2s; }
-.begin:hover { background: transparent; color: #f2dfae; }
-.skip { display: inline-flex; min-height: 44px; align-items: center; border: 1px solid #ffffff33; border-radius: 4px; background: transparent; padding: 0 16px; color: #e5d9bd; font-size: .95rem; font-weight: 600; }
-.skip:hover { border-color: #d6b778; color: #f6ecd4; }
+/* Told: every beat, as a readable column beside the art. It scrolls when the briefing is long; the fade says so. */
+.scene[data-phase="told"] .captions { top: calc(var(--bar) + 60px); bottom: calc(var(--bar) + 92px); width: min(38rem, 48vw); display: flex; flex-direction: column; justify-content: safe center; gap: 16px; overflow-y: auto; padding-bottom: 12px; pointer-events: auto; scrollbar-width: thin; mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent); }
+.scene[data-phase="told"] .beat { position: static; gap: 6px; opacity: 1; transform: none; transition: none; text-shadow: none; }
+.scene[data-phase="told"] .titleCard { padding-bottom: 14px; border-bottom: 1px solid #d6b77840; }
+.scene[data-phase="told"] .titleCard .title { font-size: clamp(1.9rem, 2.8vw, 2.6rem); }
+.scene[data-phase="told"] .title { font-size: clamp(1.3rem, 1.8vw, 1.6rem); }
+.scene[data-phase="told"] .text, .scene[data-phase="told"] .list li { font-size: .95rem; line-height: 1.5; }
+.scene[data-phase="told"] .list { gap: 3px; }
+
+.actions { position: absolute; z-index: 3; left: var(--gutter); right: var(--gutter); bottom: calc(var(--bar) + 22px); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.scene[data-phase="told"] .actions { right: auto; width: min(38rem, 48vw); }
+.scene[data-side="right"][data-phase="told"] .actions { left: auto; right: var(--gutter); }
+.progress { display: flex; gap: 4px; }
+.dot { position: relative; width: 30px; height: 44px; border: 0; background: none; cursor: pointer; }
+.dot::before { content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 3px; border-radius: 2px; background: #f6ecd440; transition: background-color .4s; }
+.dot[data-done="true"]::before { background: #d6b778b3; }
+.dot[data-current="true"]::before { background: #f2dfae; }
+.buttons { display: flex; gap: 10px; }
+.hint { margin: 0; color: #cdbf9f; font-size: 12px; }
+.begin, .next, .skip { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 9px; border-radius: 4px; padding: 10px 20px; font-size: 15px; font-weight: 700; cursor: pointer; transition: background-color .2s, border-color .2s, color .2s; }
+.begin { border: 1px solid #d6b778; background: #d6b778; color: #1f180f; }
+.begin:hover { background: #ecd29a; }
+.next { border: 1px solid #e4d1a680; background: #0e1210b3; color: #f6ecd4; backdrop-filter: blur(6px); }
+.next:hover { border-color: #d6b778; }
+.skip { border: 1px solid transparent; background: transparent; padding: 10px 14px; color: #e5d9bd; font-size: 14px; font-weight: 600; }
+.skip:hover { border-color: #ffffff33; color: #fff1d0; }
 .scene button:focus-visible { outline: 3px solid #f2dfae; outline-offset: 3px; }
 
-.told .beat, .told .backdrop { animation: none; opacity: 1; }
+.gate { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: var(--gutter); background: radial-gradient(ellipse at center, #0b0d0c8c 0%, #0b0d0ce0 72%); animation: fade .6s ease both; }
+.gateCard { display: flex; max-width: 34rem; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.gateTitle { margin: 0; font: 500 clamp(2.2rem, 5vw, 4rem)/1.08 var(--font-record, Georgia), serif; text-wrap: balance; text-shadow: 0 2px 20px #000; }
+.gateText { margin: 0; color: #e6dcc4; font-size: 1.05rem; line-height: 1.6; }
+.gateButtons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
+.scene[data-phase="gate"] .captions, .scene[data-phase="gate"] .actions { visibility: hidden; }
 
-@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-@keyframes drift { from { opacity: 0; transform: scale(1.14); } 12% { opacity: .55; } to { opacity: .55; transform: scale(1); } }
+@keyframes bar { to { transform: scaleY(1); } }
+@keyframes fade { from { opacity: 0; } }
 
+@media (max-width: 760px) {
+  .scene { --bar: 10px; --gutter: 18px; }
+  .controlLabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .control { padding: 8px; }
+  .captions, .scene[data-side="right"] .captions { left: var(--gutter); right: var(--gutter); bottom: calc(var(--bar) + 132px); width: auto; }
+  .scrim, .scene[data-side="right"] .scrim { background: linear-gradient(0deg, #0b0d0cf7 0%, #0b0d0cd0 34%, #0b0d0c40 60%, transparent 74%); }
+  .scene[data-phase="told"] .scrim::after { background: #0b0d0cd9; }
+  .scene[data-phase="told"] .captions { top: calc(var(--bar) + 68px); bottom: calc(var(--bar) + 88px); width: auto; justify-content: flex-start; }
+  .scene[data-phase="told"] .actions, .scene[data-side="right"][data-phase="told"] .actions { left: var(--gutter); right: var(--gutter); width: auto; }
+  .actions { flex-direction: column-reverse; align-items: stretch; gap: 8px; }
+  .progress { justify-content: center; }
+  .buttons > * { flex: 1; }
+  .hint { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .beat, .backdrop { animation: none !important; opacity: 1; }
-  .backdrop { opacity: .5; }
+  .bar { animation: none; transform: none; }
+  .beat, .scrim::after { transition: none; }
 }

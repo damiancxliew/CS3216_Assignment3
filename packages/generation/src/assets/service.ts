@@ -18,11 +18,14 @@ import { createHash, randomUUID } from 'node:crypto'
 import { CURATED_PLACEHOLDERS, GENERATABLE_ASSET_KINDS, GENERIC_PLACEHOLDER, type GeneratableAssetKind } from '../spec/catalogue'
 import type { AdventureSpec, AssetEligibility } from '../spec/v2'
 import { type AssetCache, type AssetManifest, type AssetRecord, type AssetStore, type ImageRequest, type ImageService, ImageServiceError } from './types'
+import { buildCutscenePrompt, cutsceneFraming, stageCutsceneEligibility } from './cutscene'
+import type { SceneAnnotator } from './scene'
 
 /** Version the style suffix: changing it changes every prompt hash, which is what you want. */
 export const ASSET_STYLE_VERSION = 'style-v4-playable-32px-landmark-tiles'
 
 const STYLE: Record<GeneratableAssetKind, string> = {
+  cutscene: '', // Complete, public-stage-only direction lives in buildCutscenePrompt.
   portrait: [
     'Serious, historically grounded head-and-shoulders character portrait for an educational game.',
     'Crisp hand-authored 16-bit pixel art with a limited muted period palette and a strong silhouette.',
@@ -36,7 +39,7 @@ const STYLE: Record<GeneratableAssetKind, string> = {
   sprite: 'Edit the attached grayscale walking sprite sheet into ONE new full-body character for a 16-bit top-down pixel-art game. Use the reference as a strict POSE AND GRID TEMPLATE, not as the character identity: colorize and change the hair, face, skin tone, clothing and accessories to match the described person. Preserve the exact four-by-four cell layout and the same pose silhouette in each corresponding cell. Do not redraw, rotate, shift, enlarge, or crop any pose silhouette. COLUMNS are facing directions: column 1 faces the viewer (down), column 2 shows the BACK OF THE HEAD and back of clothing (up), column 3 faces left in profile, column 4 faces right in profile. ROWS are walking phases: standing, left foot forward, standing, right foot forward. The four frames in each column must always face the same direction; only limbs move. Keep all sixteen cells aligned and equally sized, with transparent backgrounds and no grid lines. No portraits, photographs, scene, ground, shadow, text, or other characters. The sheet will be reduced to 64x64 pixels, giving each frame exactly 16x16 pixels.',
 }
 
-const SIZES: Record<GeneratableAssetKind, ImageRequest['size']> = { portrait: '1024x1024', landmark: '1024x1024', prop: '1024x1024', sprite: '1024x1024', cover: '1536x1024' }
+const SIZES: Record<GeneratableAssetKind, ImageRequest['size']> = { portrait: '1024x1024', landmark: '1024x1024', prop: '1024x1024', sprite: '1024x1024', cover: '1536x1024', cutscene: '1536x1024' }
 
 const THEME_PALETTES = {
   classic: 'warm grass green, dark brown wood, cream stone',
@@ -63,6 +66,7 @@ export function assertGeneratable(request: { kind: string }): asserts request is
  * (FR-20); the style and audience constraints are ours and come after it.
  */
 export function buildImagePrompt(entry: AssetEligibility, spec: AdventureSpec): string {
+  if (entry.kind === 'cutscene') return buildCutscenePrompt(entry, spec)
   const subject = entry.subject.replace(/\s+/g, ' ').trim()
   const brief = entry.prompt.replace(/\s+/g, ' ').trim()
   const stage = entry.kind === 'cover'
@@ -111,6 +115,7 @@ function imageModel(images: ImageService, kind: GeneratableAssetKind): string {
 
 /** Sprite frames and the wide cover need more detail than the default low quality used for larger artwork. */
 export function assetQuality(kind: GeneratableAssetKind, quality: ImageRequest['quality']): ImageRequest['quality'] {
+  if (kind === 'cutscene') return 'high'
   return (kind === 'sprite' || kind === 'cover') && quality === 'low' ? 'medium' : quality
 }
 
@@ -139,6 +144,8 @@ export interface GenerateAssetsOptions {
   ignoreCache?: boolean
   /** Called after every record settles, so a UI can show progress. */
   onRecord?: (record: AssetRecord) => void | Promise<void>
+  /** Reads each stage opening so the play view can animate and score it. Without one, openings only pan. */
+  annotator?: SceneAnnotator
 }
 
 /** Keep only gameplay-visible image requests and cover every physical fixture,
@@ -182,7 +189,11 @@ export function playableAssetEligibility(spec: AdventureSpec): AssetEligibility[
       prompt: `Wide view of ${spec.setting}.${places.length ? ` Places seen in this adventure: ${places.join(', ')}.` : ''} ${spec.description}`.slice(0, 600),
     })
   }
-  return eligible
+  const withoutCutscenes = eligible.filter((asset) => asset.kind !== 'cutscene')
+  // Start opening artwork early, alongside the cover, without delaying gameplay.
+  const insertAt = withoutCutscenes[0]?.kind === 'cover' ? 1 : 0
+  withoutCutscenes.splice(insertAt, 0, ...stageCutsceneEligibility(spec))
+  return withoutCutscenes
 }
 
 function initialRecord(entry: AssetEligibility, hash: string): AssetRecord {
@@ -238,6 +249,10 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
       if (cached) {
         Object.assign(record, { status: 'cached', url: cached.url, model: cached.model })
         currentManifest.cacheHits += 1
+        if (entry.kind === 'cutscene') {
+          record.scene = cached.scene ?? await describeScene(options, entry, spec, record, currentManifest, () => fetchImage(cached.url))
+          if (record.scene && !cached.scene) await options.cache.put(record.promptHash, { ...cached, scene: record.scene })
+        }
       } else {
         currentManifest.generatedCount += 1
         let result
@@ -251,9 +266,11 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
           result = await options.images.generate({ ...request, prompt: buildPortraitSafetyRetryPrompt(request.prompt) })
         }
         const url = await options.store.put(`${storageKey}.${result.mimeType.split('/')[1]}`, result.bytes, result.mimeType)
-        await options.cache.put(record.promptHash, { url, model: result.model })
         Object.assign(record, { status: 'ready', url, model: result.model, costUsd: result.costUsd })
         currentManifest.totalCostUsd += result.costUsd
+        const image = result
+        if (entry.kind === 'cutscene') record.scene = await describeScene(options, entry, spec, record, currentManifest, async () => image)
+        await options.cache.put(record.promptHash, { url, model: result.model, ...(record.scene ? { scene: record.scene } : {}) })
       }
     } catch (error) {
       const code = error instanceof ImageServiceError ? error.code : 'failed'
@@ -287,6 +304,26 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
   await Promise.all(workers)
   currentManifest.finishedAt = new Date().toISOString()
   return currentManifest
+}
+
+/** A painting that cannot be read still plays: it just pans, without effects or ambience. */
+async function describeScene(options: GenerateAssetsOptions, entry: AssetEligibility, spec: AdventureSpec, record: AssetRecord, manifest: AssetManifest, image: () => Promise<{ bytes: Uint8Array; mimeType: string }>) {
+  if (!options.annotator) return null
+  try {
+    const { scene, costUsd } = await options.annotator.describe(await image(), JSON.stringify(cutsceneFraming(entry, spec)))
+    record.costUsd += costUsd
+    manifest.totalCostUsd += costUsd
+    return scene
+  } catch (error) {
+    console.warn('stage opening could not be read', entry.id, error instanceof Error ? error.message : error)
+    return null
+  }
+}
+
+async function fetchImage(url: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`could not fetch ${url}: ${response.status}`)
+  return { bytes: new Uint8Array(await response.arrayBuffer()), mimeType: response.headers.get('content-type') ?? 'image/webp' }
 }
 
 /** What the client shows for an entity right now: generated if ready/cached, else the placeholder. */
