@@ -1,8 +1,10 @@
 /**
  * Seed a playable demo adventure so a grader can play without a teacher
- * account: publishes the I1 fixture (Singapore, 1819) under a demo teacher and
- * prints the share link. Idempotent — re-running reuses the demo teacher and
- * adds a new adventure.
+ * account: publishes the I1 fixture (Singapore, 1819) under the demo teacher
+ * provisioned by the `demo_teacher` migration and prints the share link.
+ * Idempotent — re-running reuses the demo teacher and adds a new adventure.
+ * The teacher account itself is NOT created here; it comes from migrations so
+ * it exists in every environment (`npx supabase db reset` / `db push`).
  *
  *   npm run db:seed                      # local stack (reads `supabase status`)
  *   SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… APP_URL=https://… npm run db:seed   # hosted
@@ -20,9 +22,12 @@ const DEMO_EMAIL = process.env.DEMO_TEACHER_EMAIL ?? "demo-teacher@adventure.loc
 it("seeds the demo adventure", async () => {
   const admin = serviceClient();
   const existing = (await admin.auth.admin.listUsers({ perPage: 1000 })).data.users.find((u) => u.email === DEMO_EMAIL);
-  const userId =
-    existing?.id ??
-    (await admin.auth.admin.createUser({ email: DEMO_EMAIL, password: crypto.randomUUID(), email_confirm: true, user_metadata: { full_name: "Demo teacher" } })).data.user!.id;
+  if (!existing) {
+    throw new Error(
+      `Demo teacher ${DEMO_EMAIL} not found. The account is provisioned by the demo_teacher migration — apply migrations first (npx supabase db reset locally, or supabase db push on the target project), then re-run this seed.`,
+    );
+  }
+  const userId = existing.id;
 
   const spec = (await loadFixtureJson(I1_FIXTURE.spec)) as { title: string; setting: string; studentRole?: string; player?: { role?: string }; readingLevel?: unknown; learningObjectives?: string[] };
   const { data: adventure, error } = await admin
