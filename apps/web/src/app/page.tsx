@@ -2,10 +2,11 @@
 
 import { ArrowRight, Clock3, Gamepad2, Map, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ThemeSelect } from "@/components/theme-provider";
 import { LandingCta } from "@/components/landing-cta";
+import { LandingLiveDemo } from "@/components/landing-live-demo";
 import { LandingQuestPreview } from "@/components/landing-quest-preview";
 import { Pricing } from "@/components/pricing";
 import { button, Wordmark } from "@/components/ui";
@@ -26,34 +27,8 @@ const beats = [
   { index: "04", icon: ShieldCheck, title: "Know fact from fiction", body: "Every ending separates documented history from the simulation’s assumptions.", tone: "bg-spark-wash" },
 ] as const;
 
-function Clip({ src, poster, label, className }: { src: string; poster: string; label: string; className?: string }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    const video = ref.current;
-    if (!video) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setReduced(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.intersectionRatio >= 0.25) void video.play().catch(() => {});
-          else video.pause();
-        }
-      },
-      { threshold: [0, 0.25] },
-    );
-    observer.observe(video);
-    return () => observer.disconnect();
-  }, []);
-
-  return <video ref={ref} muted loop playsInline preload="none" controls={reduced} poster={poster} aria-label={label} className={className} src={src} />;
-}
-
 export default function Home() {
+  const [stage, setStage] = useState<{ index: number; count: number } | null>(null);
   useEffect(() => {
     track(ANALYTICS_EVENTS.landingViewed);
   }, []);
@@ -106,12 +81,12 @@ export default function Home() {
               <span className="h-2.5 w-2.5 rounded-full bg-world" />
               <span className="ml-2 text-xs font-bold uppercase tracking-widest text-on-inverse/70">Live adventure</span>
             </div>
-            <Clip src="/media/dialogue.mp4" poster="/media/dialogue.jpg" label="Gameplay footage: a student questioning Sir Stamford Raffles at Singapore, 1819" className="aspect-video w-full rounded-[1.15rem] object-cover" />
+            <LandingLiveDemo onStage={setStage} />
           </figure>
           <div className="sticker absolute -bottom-2 left-8 flex max-w-56 items-center gap-3 rounded-2xl border-2 border-ink bg-surface px-4 py-3 font-bold text-ink sm:left-0">
-            <Sparkles className="h-6 w-6 shrink-0 text-signal" aria-hidden /> You’re the reporter. Who gets the headline?
+            <Sparkles className="h-6 w-6 shrink-0 text-signal" aria-hidden /> You’re Raffles’ interpreter. Who do you trust?
           </div>
-          <div className="absolute -right-1 top-2 rounded-2xl border-2 border-ink bg-record px-4 py-3 text-sm font-black text-on-accent shadow-[0_4px_0_var(--ink)] sm:right-1">Stage 2 of 3</div>
+          <div className="absolute -right-1 top-2 rounded-2xl border-2 border-ink bg-record px-4 py-3 text-sm font-black text-on-accent shadow-[0_4px_0_var(--ink)] sm:right-1">{stage ? `Stage ${stage.index + 1} of ${stage.count}` : "Singapore, 1819"}</div>
         </div>
       </section>
 

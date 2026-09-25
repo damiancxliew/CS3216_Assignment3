@@ -16,11 +16,15 @@ and inventing them is exactly the credibility problem the product exists to solv
 
 **Hero.** "Don't just teach history. Drop them into it.", one sentence of what the product
 does, and the only primary call to action — Google sign-in into the teacher console. Next
-to it, an autoplaying muted clip of real gameplay (a student questioning Raffles in
-Singapore, 1819). Earlier drafts of this page argued; this one shows, because the grounding
-claim is the whole product and a teacher can check it in four seconds of footage faster
-than in four paragraphs. The clip respects `prefers-reduced-motion` (it falls back to a
-poster frame with controls) and only plays while it is on screen.
+to it, the real game running the demo adventure (Singapore, 1819), not a recording of it:
+the same map renderer students play in, on the first stage's public state, served by
+`/api/landing-demo` through the same `publicJson` guard as the Turn API. A visitor can
+walk the beach and click Farquhar or Raffles to read their public position. Earlier drafts
+of this page argued; this one shows, because a teacher can check the claim in four seconds
+of play faster than in four paragraphs. It replaced a recorded clip that went stale with
+every UI change; a live render can't. Walking is accepted locally and nothing calls a
+model, so the demo costs nothing per visitor. Arrow keys only move the player while the
+map has focus, so the page still scrolls, and the renderer's reduced-motion mode applies.
 
 **Features — "Inside every adventure".** Four numbered beats (walk the world, question
 everyone, choose under pressure, know fact from fiction), each paired with a small
@@ -106,9 +110,9 @@ M19 can see whether student sharing is a real acquisition channel or a feature w
 
 ## Performance and instrumentation
 
-Fonts via `next/font` (self-hosted, no layout shift); the gameplay clips are
-`preload="none"` and play only while intersecting the viewport, so the hero costs one
-poster image on first paint. Vercel Speed Insights and Analytics run alongside PostHog,
+Fonts via `next/font` (self-hosted, no layout shift). The hero's game engine (Phaser,
+~317 KB gzipped) is a dynamic import that starts after the page is interactive, so it
+never blocks first paint; the frame holds its 16:9 box while it loads, so nothing shifts. Vercel Speed Insights and Analytics run alongside PostHog,
 and the page fires `landing_viewed` and `pricing_cta_clicked` — the first steps of the
 funnel measured in M19.
 
