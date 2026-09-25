@@ -81,8 +81,6 @@ function RegenerateButton({ adventureId, specVersionId, assetId }: { adventureId
     <div className="mt-auto pt-1">
       <AssetRegeneration
         action={regenerateAsset.bind(null, adventureId, specVersionId, assetId)}
-        specVersionId={specVersionId}
-        assetId={assetId}
       />
     </div>
   );

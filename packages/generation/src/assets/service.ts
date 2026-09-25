@@ -13,7 +13,7 @@
  * prompt-hash read so a record can be forced to re-draw, but still writes the
  * result back so the next identical subject stays free.
  */
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 import { CURATED_PLACEHOLDERS, GENERATABLE_ASSET_KINDS, GENERIC_PLACEHOLDER, type GeneratableAssetKind } from '../spec/catalogue'
 import type { AdventureSpec, AssetEligibility } from '../spec/v2'
@@ -198,6 +198,9 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
   const generateOne = async (index: number) => {
     const entry = spec.assetEligibility[index]!
     const record = currentManifest.records[index]!
+    // A redraw needs a new public URL: browsers and the storage CDN may cache
+    // the previous image even when an upload overwrites the same object key.
+    const storageKey = `adventures/${spec.id}/${entry.id}-${record.promptHash.slice(0, 12)}${options.ignoreCache ? `-${randomUUID()}` : ''}`
     try {
       assertGeneratable(entry)
       const request: ImageRequest = { kind: entry.kind, prompt: buildImagePrompt(entry, spec), size: SIZES[entry.kind], quality: assetQuality(entry.kind, quality) }
@@ -217,7 +220,7 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
           if (!(error instanceof ImageServiceError) || error.code !== 'content-filtered' || entry.kind !== 'portrait') throw error
           result = await options.images.generate({ ...request, prompt: buildPortraitSafetyRetryPrompt(request.prompt) })
         }
-        const url = await options.store.put(`adventures/${spec.id}/${entry.id}-${record.promptHash.slice(0, 12)}.${result.mimeType.split('/')[1]}`, result.bytes, result.mimeType)
+        const url = await options.store.put(`${storageKey}.${result.mimeType.split('/')[1]}`, result.bytes, result.mimeType)
         await options.cache.put(record.promptHash, { url, model: result.model })
         Object.assign(record, { status: 'ready', url, model: result.model, costUsd: result.costUsd })
         currentManifest.totalCostUsd += result.costUsd
@@ -231,7 +234,7 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
         record.costUsd = image.costUsd
         record.model = options.images.model
         try {
-          rejectedUrl = await options.store.put(`adventures/${spec.id}/${entry.id}-${record.promptHash.slice(0, 12)}-rejected.${image.mimeType.split('/')[1]}`, image.bytes, image.mimeType)
+          rejectedUrl = await options.store.put(`${storageKey}-rejected.${image.mimeType.split('/')[1]}`, image.bytes, image.mimeType)
         } catch (uploadError) {
           // Preserve the validation error even if the diagnostic upload fails.
           record.error = `Could not save rejected image: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`
