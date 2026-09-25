@@ -8,7 +8,7 @@
  * longer validates (older fixtures), so the page can fall back quietly.
  */
 import type { MapDoor, MapRoom } from "@adventure/game-core";
-import { placeholderUrl, playableAssetEligibility, type AssetManifest, type AssetRecord } from "@adventure/generation/assets";
+import { isCurrentSpriteRecord, placeholderUrl, playableAssetEligibility, type AssetManifest, type AssetRecord } from "@adventure/generation/assets";
 import { resolveStageSettings, validatePublishedSpec, type AdventureSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -193,6 +193,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
   const records = (manifest?.records ?? []).filter((record) => playableIds.has(record.assetId));
   const artwork = playable.map((entry) => {
     const ownRecord = records.find((record) => record.assetId === entry.id);
+    const outdatedSprite = entry.kind === "sprite" && ownRecord && (ownRecord.status === "ready" || ownRecord.status === "cached") && !isCurrentSpriteRecord(spec, ownRecord);
     const entity = entry.kind === "portrait"
       ? stakeholders.find((person) => person.id === entry.entityId)
       : entry.kind === "sprite"
@@ -205,7 +206,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
       kind: entry.kind,
       name: entity?.name ?? entry.subject,
       imageUrl: entry.kind === "sprite" ? (ownRecord && imageStatus(ownRecord) === "generated" ? ownRecord.url : placeholderUrl("sprite")) : entity?.imageUrl ?? placeholderUrl(entry.kind),
-      imageStatus: entry.kind === "sprite" ? imageStatus(ownRecord) : entity?.imageStatus ?? ("placeholder" as ImageStatus),
+      imageStatus: outdatedSprite ? ("failed" as ImageStatus) : entry.kind === "sprite" ? imageStatus(ownRecord) : entity?.imageStatus ?? ("placeholder" as ImageStatus),
       assetId: entry.kind === "sprite" ? ownRecord?.assetId ?? null : entity?.assetId ?? null,
     };
   });
@@ -224,9 +225,9 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
     assumptions: spec.assumptions.map((a) => ({ id: a.id, text: a.text, reason: a.rationale })),
     assets: {
       eligible: playable.length,
-      generated: records.filter((r) => r.status === "ready" || r.status === "cached").length,
+      generated: records.filter((r) => (r.status === "ready" || r.status === "cached") && (r.kind !== "sprite" || isCurrentSpriteRecord(spec, r))).length,
       pending: records.filter((r) => r.status === "pending").length,
-      failed: records.filter((r) => r.status === "failed" || r.status === "filtered" || r.status === "skipped-cap").length,
+      failed: records.filter((r) => r.status === "failed" || r.status === "filtered" || r.status === "skipped-cap" || (r.kind === "sprite" && (r.status === "ready" || r.status === "cached") && !isCurrentSpriteRecord(spec, r))).length,
       started: records.length > 0,
       costUsd: records.reduce((sum, r) => sum + r.costUsd, 0),
     },

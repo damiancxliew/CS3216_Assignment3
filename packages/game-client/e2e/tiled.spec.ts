@@ -46,6 +46,7 @@ test('newsroom captions, walking sprites and displaced click targets', async ({ 
     harness.view.render(structuredClone(harness.snapshot))
   })
   await expect.poll(async () => (await inspect()).stockSprites.filter((key: string) => key.startsWith('asset-')).length).toBe(1)
+  expect((await inspect()).generatedLeftFrames).toEqual([2, 6, 10, 14])
   expect((await inspect()).stockSprites).toContain('char-Princess')
   await page.screenshot({ path: testInfo.outputPath('newsroom.png') })
 

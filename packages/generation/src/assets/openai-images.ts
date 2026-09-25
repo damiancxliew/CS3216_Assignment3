@@ -1,7 +1,8 @@
 /** OpenAI image model adapter (PRD D14). Server-side only. */
-import OpenAI, { APIError } from 'openai'
+import OpenAI, { APIError, toFile } from 'openai'
 import sharp from 'sharp'
 
+import { WALKING_SHEET_REFERENCE } from './sprite-reference'
 import { type ImageRequest, type ImageResult, type ImageService, ImageServiceError } from './types'
 
 /** USD per image (developers.openai.com/api/docs/models/gpt-image-1-mini, read 20 Sep 2026). */
@@ -17,6 +18,9 @@ export const IMAGE_PRICING: Record<string, Record<ImageRequest['quality'], Recor
     high: { '1024x1024': 0.133, '1024x1536': 0.2, '1536x1024': 0.2 },
   },
 }
+
+const referenceSheet = sharp(Buffer.from(WALKING_SHEET_REFERENCE, 'base64'))
+  .greyscale().resize(1024, 1024, { kernel: 'nearest' }).png().toBuffer()
 
 /** The model draws all poses together. Crop each cell before reducing it so
  * no frame can borrow pixels from its neighbour. Reject unusable sheets. */
@@ -41,6 +45,27 @@ export async function normalizeWalkingSpriteSheet(bytes: Uint8Array): Promise<Ui
       if (occupied < 8 || occupied > 224) throw new Error(`walking sprite frame ${row + 1},${column + 1} is empty or has no transparent margin`)
     }
   }
+  // A correct sheet varies more across direction columns than down the walk
+  // cycle. The reported bad sheet had four direction rows; each animation
+  // column then turned the character as it walked.
+  let acrossDirections = 0
+  let acrossSteps = 0
+  for (let row = 0; row < 4; row += 1) for (let column = 0; column < 4; column += 1) {
+    for (let y = 0; y < 16; y += 1) for (let x = 0; x < 16; x += 1) {
+      const at = ((row * 16 + y) * 64 + column * 16 + x) * 4
+      if (column < 3) {
+        const next = at + 16 * 4
+        for (let channel = 0; channel < 4; channel += 1) acrossDirections += Math.abs(output[at + channel]! - output[next + channel]!)
+      }
+      if (row < 3) {
+        const next = at + 16 * 64 * 4
+        for (let channel = 0; channel < 4; channel += 1) acrossSteps += Math.abs(output[at + channel]! - output[next + channel]!)
+      }
+    }
+  }
+  if (acrossDirections < 10_000 || acrossDirections < acrossSteps * 0.6) {
+    throw new Error('walking sprite sheet appears to mix directions into the animation frames')
+  }
   return new Uint8Array(await sharp(output, { raw: { width: 64, height: 64, channels: 4 } }).png().toBuffer())
 }
 
@@ -58,15 +83,27 @@ export class OpenAiImageService implements ImageService {
   async generate(request: ImageRequest): Promise<ImageResult> {
     let response
     try {
-      response = await this.client.images.generate({
-        model: this.model,
-        prompt: request.prompt,
-        size: request.size,
-        quality: request.quality,
-        output_format: 'webp',
-        background: request.kind === 'portrait' ? 'opaque' : 'transparent',
-        n: 1,
-      })
+      response = request.kind === 'sprite'
+        ? await this.client.images.edit({
+          model: this.model,
+          image: await toFile(await referenceSheet, 'walking-sheet-reference.png', { type: 'image/png' }),
+          prompt: request.prompt,
+          size: request.size,
+          quality: request.quality,
+          output_format: 'webp',
+          background: 'transparent',
+          input_fidelity: 'high',
+          n: 1,
+        })
+        : await this.client.images.generate({
+          model: this.model,
+          prompt: request.prompt,
+          size: request.size,
+          quality: request.quality,
+          output_format: 'webp',
+          background: request.kind === 'portrait' ? 'opaque' : 'transparent',
+          n: 1,
+        })
     } catch (error) {
       if (error instanceof APIError && (error.code === 'moderation_blocked' || error.code === 'content_policy_violation' || /safety|moderation|content policy/i.test(error.message))) {
         throw new ImageServiceError('content-filtered', error.message)

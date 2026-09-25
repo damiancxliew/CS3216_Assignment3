@@ -59,10 +59,13 @@ export function captions() {
 export function inspect() {
   const scene = game.scene.getScene('tiled-map')
   const containers = scene.children.list.filter((child): child is Phaser.GameObjects.Container => child instanceof Phaser.GameObjects.Container)
+  const sprites = containers.flatMap((container) => container.list.filter((child): child is Phaser.GameObjects.Sprite => child instanceof Phaser.GameObjects.Sprite))
+  const generatedSprite = sprites.find((sprite) => sprite.texture.key.startsWith('asset-'))
   return {
     captions: captions(),
-    stockSprites: containers.flatMap((container) => container.list.filter((child): child is Phaser.GameObjects.Sprite => child instanceof Phaser.GameObjects.Sprite).map((sprite) => sprite.texture.key)),
+    stockSprites: sprites.map((sprite) => sprite.texture.key),
     images: containers.flatMap((container) => container.list.filter((child): child is Phaser.GameObjects.Image => child instanceof Phaser.GameObjects.Image).map((image) => image.texture.key)),
+    generatedLeftFrames: generatedSprite ? scene.anims.get(`${generatedSprite.texture.key}-left`)?.frames.map((frame) => Number(frame.textureFrame)) ?? [] : [],
     ground: (scene.children.list.find((child) => child instanceof Phaser.Tilemaps.TilemapLayer && child.layer.name === 'ground') as Phaser.Tilemaps.TilemapLayer).getTileAt(1, 1)?.index,
   }
 }

@@ -32,7 +32,7 @@ const STYLE: Record<GeneratableAssetKind, string> = {
   ].join(' '),
   landmark: 'A game-ready 32x32 pixel-art tile sheet of one solid physical landmark, occupying exactly two 16x16 map tiles in each direction. Draw one complete object centered in the square on a transparent background with a transparent margin of at most two pixels. Three-quarter top-down view matching hand-authored 16-bit game tiles: deliberate hard square pixel edges, strong readable silhouette, no antialiasing, no soft lighting, no gradients, and a limited muted palette of at most 16 colors. Show only the object, with no scene, ground plane, frame, placard, UI, text, characters, shadow outside the footprint, or painterly texture. The image will be reduced to 32x32 pixels and cut into four 16x16 terrain tiles.',
   prop: 'Single small physical object for a top-down 16px pixel-art game map. Three-quarter top-down view, crisp square pixels, simple readable silhouette, limited muted palette, transparent background. No scene, ground plane, frame, UI, text, characters, gradients or painterly texture.',
-  sprite: 'Create a precise 4-column by 4-row walking sprite sheet for ONE full-body character in a 16-bit top-down pixel-art game. Every cell shows the same person at the same size and position. Columns, left to right: facing down, up, left, right. Rows, top to bottom: standing, left-foot step, standing, right-foot step. Equal square cells with no gap or border. Transparent background in every cell. Keep clothing, hairstyle, skin tone, accessories and silhouette consistent across all sixteen cells. No portraits, photographs, scene, ground, shadow, text, grid lines or other characters. The sheet will be reduced to 64x64 pixels, giving each frame exactly 16x16 pixels.',
+  sprite: 'Edit the attached grayscale walking sprite sheet into ONE new full-body character for a 16-bit top-down pixel-art game. Use the reference as a strict POSE AND GRID TEMPLATE, not as the character identity: colorize and change the hair, face, skin tone, clothing and accessories to match the described person. Preserve the exact four-by-four cell layout and the same pose silhouette in each corresponding cell. COLUMNS are facing directions: column 1 faces the viewer (down), column 2 shows the BACK OF THE HEAD and back of clothing (up), column 3 faces left in profile, column 4 faces right in profile. ROWS are walking phases: standing, left foot forward, standing, right foot forward. The four frames in each column must always face the same direction; only limbs move. Keep all sixteen cells aligned and equally sized, with transparent backgrounds and no grid lines. No portraits, photographs, scene, ground, shadow, text, or other characters. The sheet will be reduced to 64x64 pixels, giving each frame exactly 16x16 pixels.',
 }
 
 const SIZES: Record<GeneratableAssetKind, ImageRequest['size']> = { portrait: '1024x1024', landmark: '1024x1024', prop: '1024x1024', sprite: '1024x1024' }
@@ -98,6 +98,20 @@ export function promptHash(request: Pick<ImageRequest, 'kind' | 'prompt' | 'size
   return createHash('sha256').update([ASSET_STYLE_VERSION, model, request.kind, request.size, request.quality, request.prompt].join('\n')).digest('hex')
 }
 
+/** Sprite frames need more detail than the default low quality used for larger artwork. */
+export function assetQuality(kind: GeneratableAssetKind, quality: ImageRequest['quality']): ImageRequest['quality'] {
+  return kind === 'sprite' && quality === 'low' ? 'medium' : quality
+}
+
+/** Older sprite prompts lacked a pose reference and produced mixed-facing walk cycles. */
+export function isCurrentSpriteRecord(spec: AdventureSpec, record: AssetRecord): boolean {
+  if (record.kind !== 'sprite' || !record.model) return false
+  const entry = playableAssetEligibility(spec).find((asset) => asset.id === record.assetId && asset.kind === 'sprite')
+  if (!entry) return false
+  const prompt = buildImagePrompt(entry, spec)
+  return (['medium', 'high'] as const).some((quality) => record.promptHash === promptHash({ kind: 'sprite', prompt, size: SIZES.sprite, quality }, record.model!))
+}
+
 export interface GenerateAssetsOptions {
   images: ImageService
   cache: AssetCache
@@ -161,7 +175,7 @@ export function pendingManifest(spec: AdventureSpec, images: ImageService, quali
   return {
     adventureId: spec.id,
     specVersion: spec.version,
-    records: spec.assetEligibility.map((entry) => initialRecord(entry, promptHash({ kind: entry.kind, prompt: buildImagePrompt(entry, spec), size: SIZES[entry.kind], quality }, images.model))),
+    records: spec.assetEligibility.map((entry) => initialRecord(entry, promptHash({ kind: entry.kind, prompt: buildImagePrompt(entry, spec), size: SIZES[entry.kind], quality: assetQuality(entry.kind, quality) }, images.model))),
     generatedCount: 0,
     cacheHits: 0,
     totalCostUsd: 0,
@@ -186,7 +200,7 @@ export async function generateAssets(spec: AdventureSpec, options: GenerateAsset
     const record = currentManifest.records[index]!
     try {
       assertGeneratable(entry)
-      const request: ImageRequest = { kind: entry.kind, prompt: buildImagePrompt(entry, spec), size: SIZES[entry.kind], quality }
+      const request: ImageRequest = { kind: entry.kind, prompt: buildImagePrompt(entry, spec), size: SIZES[entry.kind], quality: assetQuality(entry.kind, quality) }
       const cached = options.ignoreCache ? null : await options.cache.get(record.promptHash)
       if (cached) {
         Object.assign(record, { status: 'cached', url: cached.url, model: cached.model })

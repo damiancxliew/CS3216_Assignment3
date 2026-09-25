@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FakeImageService, InMemoryAssetCache, InMemoryAssetStore } from '../src/assets/memory'
-import { assertGeneratable, buildImagePrompt, buildPortraitSafetyRetryPrompt, generateAssets, placeholderUrl, playableAssetEligibility, promptHash, resolveAssetUrl } from '../src/assets/service'
+import { assertGeneratable, buildImagePrompt, buildPortraitSafetyRetryPrompt, generateAssets, isCurrentSpriteRecord, pendingManifest, placeholderUrl, playableAssetEligibility, promptHash, resolveAssetUrl } from '../src/assets/service'
 import { ImageServiceError } from '../src/assets/types'
 import { loadI1Spec } from '../src/fixtures'
 import type { AdventureSpec } from '../src/spec/v2'
@@ -29,6 +29,21 @@ describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
     expect(assets.some((asset) => asset.id === 'old-room-only-image')).toBe(false)
     expect(assets.filter((asset) => asset.kind === 'landmark').every((asset) => asset.id.length <= 48)).toBe(true)
     expect(assets.filter((asset) => asset.kind === 'sprite')).toHaveLength(spec.stakeholders.length)
+  })
+
+  it('uses medium quality for new walking sheets and rejects older sheet layouts', async () => {
+    const spec = await loadI1Spec()
+    spec.assetEligibility = playableAssetEligibility(spec)
+    const sprite = spec.assetEligibility.find((entry) => entry.kind === 'sprite')!
+    const current = pendingManifest(spec, new FakeImageService(), 'low').records.find((record) => record.assetId === sprite.id)!
+    current.status = 'ready'
+    current.model = 'fake-image-model'
+    expect(isCurrentSpriteRecord(spec, current)).toBe(true)
+    expect(isCurrentSpriteRecord(spec, { ...current, promptHash: 'old-layout' })).toBe(false)
+    const images = new FakeImageService()
+    await generateAssets({ ...spec, assetEligibility: [sprite] }, { images, cache: new InMemoryAssetCache(), store: new InMemoryAssetStore(), quality: 'low' })
+    expect(images.requests[0]?.quality).toBe('medium')
+    expect(images.requests[0]?.prompt).toContain('strict POSE AND GRID TEMPLATE')
   })
 
   it('rejects terrain, structural and UI requests', () => {
