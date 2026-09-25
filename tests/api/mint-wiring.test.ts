@@ -1,10 +1,11 @@
 import { loadI1Spec } from "@adventure/generation/fixtures";
 import { findPath, isWalkable } from "@adventure/game-core";
 import { applyAction, auditClientPayload, FakeLlmClient, moveActorStep, type LlmClient, type LlmRequest, type LlmResponse, type MintedOption } from "@adventure/orchestration";
+import { withGoalJudge } from "./goal-judge";
 import type { AdventureSpec } from "@adventure/generation/spec";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { getState, postAction, postDecision, postMessage, postMintOptions, type PlayServiceDeps } from "@/lib/play/service";
+import { getState, postAction, postDecision, postGoalCheck, postMessage, postMintOptions, type PlayServiceDeps } from "@/lib/play/service";
 import { MemoryPlayStore, PlayConflictError, type AttemptRecord } from "@/lib/play/store";
 import { PlaySession } from "@/lib/play/session";
 import { stateOf, walkTo, type PlayDriver } from "./play-driver";
@@ -260,7 +261,7 @@ describe("in-memory Resolver option minting", () => {
       JSON.stringify({ say, actions: [{ type: "goal_evidence", objectiveId: objective.id, quote: say }] }),
     ]);
     const requests = model.requests;
-    const d: PlayServiceDeps = { store, llm: model.client };
+    const d: PlayServiceDeps = { store, llm: withGoalJudge(model.client) };
     const afterMessages = await addPublicLines(d, store, attemptId);
     expect(afterMessages.ok).toBe(true);
     if (!afterMessages.ok) return;
@@ -287,7 +288,8 @@ describe("in-memory Resolver option minting", () => {
     const message = await postMessage(d, attemptId, STUDENT, { roomId: near.currentRoomId!, body, addresseeId: objective.targetId });
     expect(message.ok).toBe(true);
     if (!message.ok) return;
-    expect(message.state.stage.objectives.find((candidate) => candidate.id === objective.id)?.met).toBe(true);
+    const checked = await postGoalCheck(d, attemptId, STUDENT);
+    expect(checked.ok && checked.state.stage.objectives.find((candidate) => candidate.id === objective.id)?.met).toBe(true);
     expect(requests.filter((request) => request.schemaName === "character_agent_reply")).toHaveLength(2);
     expect(requests.filter((request) => request.schemaName === "option_minting")).toHaveLength(1);
     let snapshot = (await store.load(attemptId, STUDENT))!.snapshot!;

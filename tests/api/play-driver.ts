@@ -1,7 +1,7 @@
 import { findPath, type Point, type StageMap } from "@adventure/game-core";
 import { expect } from "vitest";
 
-import { getState, postAction, postMessage, type PlayServiceDeps } from "@/lib/play/service";
+import { getState, postAction, postGoalCheck, postMessage, type PlayServiceDeps } from "@/lib/play/service";
 import type { PlayState } from "@/lib/play/session";
 
 export class AdmissionRefusedError extends Error {
@@ -120,7 +120,13 @@ async function pacedMessage(driver: PlayDriver, input: Parameters<typeof postMes
   for (let retry = 0; retry <= 16; retry += 1) {
     const result = await postMessage(driver.deps, driver.attemptId, driver.userId, input);
     driver.capture?.("message", result);
-    if (result.ok) return result.state;
+    if (result.ok) {
+      // As the play client does: check any goal the reply claimed, after the reply has landed.
+      if (!result.state.goalCheckReady) return result.state;
+      const checked = await postGoalCheck(driver.deps, driver.attemptId, driver.userId);
+      driver.capture?.("goal-check", checked);
+      return checked.ok ? checked.state : result.state;
+    }
     if (result.error.code !== "rate_limited" || retry === 16) {
       throw new Error(`${label} failed: ${JSON.stringify(result.error)}`);
     }

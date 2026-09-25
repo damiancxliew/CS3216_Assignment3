@@ -106,6 +106,7 @@ export function buildSystemPrompt(input: TeacherInput, version: PromptVersion = 
       '- Enclosed locations have one door or gate and doorDefault must be "open" or "closed". Open locations have no door and doorDefault must be null. Do not fence an open street or field merely to provide a door.',
       '- Speech in an enclosed location reaches all occupants. Speech outdoors reaches only listeners within three outdoor walking steps, including across named outdoor-location boundaries. Do not assume a distant outdoor agent heard an exchange.',
       '- Objectives targeting an agent require an audible reply that conveys a substantive, stage-relevant position or fact. Phrase each goal as an observable exchange about something that character could plausibly share; a greeting, refusal, or vague reply must not satisfy it. Do not require an inaccessible secret or exact wording.',
+      '- Title an agent goal by WHAT the character must say, naming the topic: "Hear Farquhar judge whether the river mouth can be defended", "Hear the Temenggong\'s terms for a British post". Never title it by the meeting alone ("Be received by…", "Speak with…", "Meet…"): an independent check marks the goal only when the reply states a specific position or fact on that topic.',
     ] : []),
   ].join('\n')
 }

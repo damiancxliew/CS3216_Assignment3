@@ -8,9 +8,10 @@
 import { loadI1Spec } from "@adventure/generation/fixtures";
 import type { AdventureSpec } from "@adventure/generation/spec";
 import { auditClientPayload, FakeLlmClient } from "@adventure/orchestration";
+import { withGoalJudge } from "./goal-judge";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { getState, postDecision, postMessage, type PlayServiceDeps } from "@/lib/play/service";
+import { getState, postDecision, postGoalCheck, postMessage, type PlayServiceDeps } from "@/lib/play/service";
 import { enterRoom, inspectEvidence, stateOf, walkTo, type PlayDriver } from "./play-driver";
 import { MemoryPlayStore } from "@/lib/play/store";
 import { publicAttemptStateSchema } from "@/lib/turn-api/contract";
@@ -59,10 +60,10 @@ describe("K11 full-path client-payload audit", () => {
     const model = new FakeLlmClient({ replies: [opener] });
     const deps: PlayServiceDeps = {
       store,
-      llm: { complete: async (request) => {
+      llm: withGoalJudge({ complete: async (request) => {
         const response = await model.complete(request);
         return { ...response, usage: { promptTokens: 1, completionTokens: 1 } };
-      } },
+      } }),
     };
     const record = <T>(label: string, payload: T): T => {
       captures.push({ label, payload });
@@ -105,6 +106,7 @@ describe("K11 full-path client-payload audit", () => {
             roomId: near.currentRoomId!, body: "What makes you take that position?", addresseeId: agent.id,
           }));
           expect(followUp.ok, JSON.stringify(followUp)).toBe(true);
+          record(`goal-check:${room.id}`, await postGoalCheck(deps, ATTEMPT, STUDENT));
         }
       }
 
@@ -125,7 +127,7 @@ describe("K11 full-path client-payload audit", () => {
     expect(visitedStages.size).toBe(spec.stages.length);
     record("error:message-after-ending", await postMessage(deps, ATTEMPT, STUDENT, { roomId: "bazaar", body: "One final question." }));
 
-    expect(new Set(captures.map((c) => c.label.split(":")[0]))).toEqual(new Set(["state", "message", "action", "decision", "error"]));
+    expect(new Set(captures.map((c) => c.label.split(":")[0]))).toEqual(new Set(["state", "message", "goal-check", "action", "decision", "error"]));
     expect(captures.length).toBeGreaterThan(15);
     for (const entry of captures) {
       const audit = auditClientPayload(entry.payload, privateText);

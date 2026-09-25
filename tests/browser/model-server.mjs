@@ -60,8 +60,10 @@ const server = http.createServer(async (request, response) => {
       "obj-hear-farquhar": "The sheltered river mouth could support Company trade if local leaders consent.",
       "obj-meet-temenggong": "I will receive Raffles' interpreter, though any agreement must respect the Sultan's claim.",
     };
+    // The independent goal check approves every claim these scripted characters make.
+    const claims = payload?.text?.format?.name === "goal_check" ? JSON.parse(input).claims ?? [] : null;
     const say = goals.length > 0 ? goals.map((id) => answers[id] ?? "I will discuss that position with you.").join(" ") : "I will hear your proposal.";
-    const responseText = JSON.stringify({
+    const responseText = claims ? JSON.stringify({ verdicts: claims.map((claim) => ({ index: claim.index, met: true })) }) : JSON.stringify({
       say,
       actions: [
         ...(room ? [{ type: "open_door", roomId: room }] : []),

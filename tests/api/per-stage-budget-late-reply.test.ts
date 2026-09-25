@@ -1,9 +1,10 @@
 import { loadI1Spec } from "@adventure/generation/fixtures";
 import { findPath } from "@adventure/game-core";
 import { FakeLlmClient, moveActorStep } from "@adventure/orchestration";
+import { withGoalJudge } from "./goal-judge";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { postMessage, type PlayServiceDeps } from "@/lib/play/service";
+import { postGoalCheck, postMessage, type PlayServiceDeps } from "@/lib/play/service";
 import { PlaySession } from "@/lib/play/session";
 import { MemoryPlayStore, type AttemptRecord } from "@/lib/play/store";
 
@@ -72,7 +73,7 @@ describe("per-stage budgets and late replies", () => {
         return JSON.stringify({ say: "The sheltered river mouth could support a British trading post.", actions: [{ type: "goal_evidence", objectiveId: stageObjective().id, quote: "The sheltered river mouth could support a British trading post." }] });
       }],
     });
-    const deps: PlayServiceDeps = { store, llm };
+    const deps: PlayServiceDeps = { store, llm: withGoalJudge(llm) };
 
     const result = await postMessage(deps, "late-reply", STUDENT_ID, {
       roomId: initial.roomId,
@@ -87,7 +88,9 @@ describe("per-stage budgets and late replies", () => {
     expect(reply).toBeDefined();
     expect(reply?.replyToSeqs).toEqual([playerLine?.seq]);
     expect(snapshot.world.transcript).toContainEqual(expect.objectContaining({ body: "The sheltered river mouth could support a British trading post." }));
-    expect(result.ok && result.state.stage.objectives.find((objective) => objective.id === stageObjective().id)?.met).toBe(true);
+    expect(result.ok && result.state.goalCheckReady).toBe(true);
+    const checked = await postGoalCheck(deps, "late-reply", STUDENT_ID);
+    expect(checked.ok && checked.state.stage.objectives.find((objective) => objective.id === stageObjective().id)?.met).toBe(true);
   });
 
   it("announces when a superseded ticket is refused without a live replacement", () => {
