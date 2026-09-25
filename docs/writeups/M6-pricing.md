@@ -44,8 +44,8 @@ The landing page ships the free tier as Starter; the figures below are unchanged
 
 | Tier | Price | Included | Who it is for |
 | --- | --- | --- | --- |
-| **Free** | S$0 | 2 published adventures, 60 student attempts/month, our branding on the debrief | A teacher trying it on next week's lesson. This is the acquisition channel (M4), not a trial |
-| **Teacher** | S$12/month (S$120/year) | Unlimited adventures, 600 attempts/month (≈ 4 classes × 5 lessons), own source library, no branding | The individual adopter, paid personally or from a department budget |
+| **Free** | S$0 | 2 published adventures, 60 student attempts/month, curated art only, our branding on the debrief | A teacher trying it on next week's lesson. This is the acquisition channel (M4), not a trial |
+| **Teacher** | S$12/month (S$120/year) | Unlimited adventures, 600 attempts/month (≈ 4 classes × 5 lessons), own source library, custom asset generation, no branding | The individual adopter, paid personally or from a department budget |
 | **Department** | S$400/year per department (up to 10 teachers) | Pooled 8,000 attempts/year, shared adventure library, teacher-corrected forks across the department | The realistic purchase unit — adoption happens at a department meeting |
 | **School / district** | Quoted | SSO, LMS export, admin roster, pooled allowance | Follows a successful term-long pilot |
 
