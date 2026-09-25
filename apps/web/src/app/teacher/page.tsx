@@ -93,7 +93,7 @@ export default async function TeacherHome() {
                     className="group flex h-full flex-col overflow-hidden rounded-surface border-2 border-line bg-surface shadow-[0_4px_0_color-mix(in_srgb,var(--shadow)_8%,transparent)] transition-all duration-200 hover:border-ink hover:shadow-[0_7px_0_var(--ink)] motion-safe:hover:-translate-y-1"
                   >
                     <div className="relative aspect-[4/3] border-b-2 border-line">
-                      <AdventureCover src={art?.cover ?? null} />
+                      <AdventureCover src={art?.cover?.url ?? null} kind={art?.cover?.kind} />
                       <div className="absolute left-3 top-3 rounded-full bg-surface p-1 shadow-sm"><StatusBadge status={adventure.status} version={adventure.published_version} /></div>
                       {art?.portraits.length ? <div className="absolute bottom-3 left-3 flex -space-x-2" aria-hidden="true">
                         {art.portraits.map((portrait) => <span key={portrait} className="relative h-10 w-10 overflow-hidden rounded-full border-2 border-surface shadow-md"><AdventureCover src={portrait} /></span>)}
