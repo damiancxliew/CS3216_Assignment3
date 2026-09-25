@@ -161,7 +161,6 @@ export function PlayClient({
   const [intent, setIntent] = useState<MapIntent>(null);
   const [pendingTalk, setPendingTalk] = useState<string | null>(null);
   const [goalHintLevels, setGoalHintLevels] = useState<Record<string, number>>({});
-  const [waitingAtDoor, setWaitingAtDoor] = useState<string | null>(null);
   const [lastResolution, setLastResolution] = useState<string | null>(null);
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -310,7 +309,6 @@ export function PlayClient({
     setPendingRead(null);
     setPendingLandmark(null);
     setInspectingLandmark(null);
-    setWaitingAtDoor(null);
     setReading(null);
     setNotesOpen(false);
     setLoadingDocuments([]);
@@ -331,14 +329,13 @@ export function PlayClient({
   const effectiveAddressee = peopleHere.some((a) => a.id === addressee) ? addressee : peopleHere[0]?.id ?? null;
   const canSendToAddressee = effectiveAddressee !== null && state.hearingActorIds.includes(effectiveAddressee);
   const talkingTo = peopleHere.find((a) => a.id === effectiveAddressee) ?? null;
-  const waitingRoom = waitingAtDoor ? state.rooms.find((room) => room.id === waitingAtDoor) : null;
-  const waitingDoor = waitingAtDoor ? state.map?.doors.find((door) => door.roomId === waitingAtDoor) : null;
+  const waitingDoor = state.map?.doors.find((door) => state.playerPos?.x === door.outside.x && state.playerPos.y === door.outside.y && state.rooms.find((room) => room.id === door.roomId)?.doorOpen === false);
+  const waitingRoom = waitingDoor ? state.rooms.find((room) => room.id === waitingDoor.roomId) : null;
   const items = withSceneBreaks(state.transcript, {
     currentRoomId: state.currentRoomId,
     roomName: (roomId) => state.rooms.find((room) => room.id === roomId)?.name ?? "the open air",
     actorName: (actorId) => state.agents.find((agent) => agent.id === actorId)?.name ?? "someone else",
   });
-  const knockReady = waitingRoom?.doorOpen === false && waitingDoor !== null && waitingDoor !== undefined && state.playerPos !== null && state.playerPos.x === waitingDoor.outside.x && state.playerPos.y === waitingDoor.outside.y;
 
   async function act(label: string, run: () => Promise<{ ok: true; body: { state: PlayState; refused?: string | null } } | { ok: false; error: { message: string } }>) {
     setBusy(label);
@@ -690,7 +687,6 @@ export function PlayClient({
           intent={intent}
           onIntentDone={() => setIntent(null)}
           onSteps={onSteps}
-          onWaitingAtDoor={setWaitingAtDoor}
           onLocalPosition={(point) => setLocalPosition({ stageId: stateRef.current.stage.id, point })}
           onTalk={onTalk}
           onProp={onProp}
@@ -782,8 +778,8 @@ export function PlayClient({
             onDocument={onProp}
             onDoor={() => { if (here) void act(here.doorOpen ? "Closing…" : "Opening…", () => playApi.action(attemptId, { type: here.doorOpen ? "close_door" : "open_door", roomId: here.id })); }}
           />
-          {knockReady ? (
-            <button type="button" className={primary} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor! }))}>
+          {waitingDoor ? (
+            <button type="button" className={primary} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingDoor.roomId }))}>
               Knock on {waitingRoom?.name ?? "the door"}
             </button>
           ) : null}

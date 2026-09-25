@@ -193,13 +193,13 @@ describe("POST action", () => {
     expect(moved.playerPos).toEqual(door.inside);
   });
 
-  it("has the sole NPC open a required conversation room after a knock even if its reply refuses", async () => {
+  it("has an NPC open a closed room after a knock even when no goal requires entry and its reply refuses", async () => {
     const stage = spec.stages[0]!;
     const closed = stage.rooms.find((room) => room.doorDefault === "closed")!;
     const soleAgent = stage.agents.find((agent) => agent.startRoomId === closed.id)!;
-    const requiredSpec = structuredClone(spec);
-    requiredSpec.stages[0]!.objectives[0]!.targetId = soleAgent.id;
-    const { d, store } = deps(Array(8).fill(say("I cannot let you in.")), { spec: requiredSpec });
+    const optionalSpec = structuredClone(spec);
+    optionalSpec.stages[0]!.objectives[0]!.targetId = stage.agents.find((agent) => agent.id !== soleAgent.id)!.id;
+    const { d, store } = deps(Array(8).fill(say("I cannot let you in.")), { spec: optionalSpec });
     const driver = driverFor(d, store);
     const door = (await stateOf(driver)).map!.doors.find((candidate) => candidate.roomId === closed.id)!;
     await walkTo(driver, door.outside);

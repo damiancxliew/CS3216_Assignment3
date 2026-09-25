@@ -54,8 +54,6 @@ export interface MapCanvasProps {
   onSteps: (from: Point, path: Point[]) => Promise<{ position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number }>;
   /** The position shown by the map, including steps still awaiting server acknowledgement. */
   onLocalPosition: (position: Point | null) => void;
-  /** The player is standing outside a closed door. */
-  onWaitingAtDoor: (roomId: string | null) => void;
   /** The player clicked a character, or pressed Enter/E with someone in the room: start talking to them. */
   onTalk: (actorId: string) => void;
   /** The player clicked a document lying on the map: read it, or walk over to it first. */
@@ -97,10 +95,10 @@ function outdoorSeat(map: StageMap, index: number): Point | null {
   return road[Math.floor(((index * 7 + 3) % road.length))] ?? null;
 }
 
-export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark }: MapCanvasProps) {
+export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark }: MapCanvasProps) {
   const host = useRef<HTMLDivElement>(null);
-  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark });
-  latest.current = { state, audio, intent, onIntentDone, onSteps, onLocalPosition, onWaitingAtDoor, onTalk, onProp, onPickup, onLandmark };
+  const latest = useRef({ state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark });
+  latest.current = { state, audio, intent, onIntentDone, onSteps, onLocalPosition, onTalk, onProp, onPickup, onLandmark };
   const playerPos = useRef<Point | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
   const intentHandlerRef = useRef<((next: MapIntent) => void) | null>(null);
@@ -273,8 +271,6 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
         path = [];
         pathInputAt = undefined;
       }
-      const door = map.doors.find((candidate) => candidate.outside.x === acknowledgement.position?.x && candidate.outside.y === acknowledgement.position?.y && doorsOf(latest.current.state)[candidate.id] === "closed");
-      latest.current.onWaitingAtDoor(door?.roomId ?? null);
       render();
       logBatch(step, { ...acknowledgement, acknowledgedAt }, count, pending.length);
       if (path.length === 0) latest.current.onIntentDone();
@@ -289,9 +285,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       if (!from) return;
       const doors = doorsOf(s);
       if (!canStep(map as StageMap, doors, from, to)) {
-        // Walked into a closed door: stop and offer a knock.
-        const door = map.doors.find((d) => d.position.x === to.x && d.position.y === to.y);
-        if (door && doors[door.id] === "closed" && from.x === door.outside.x && from.y === door.outside.y) latest.current.onWaitingAtDoor(door.roomId);
+        // A closed door stops movement; the panel derives Knock from server position.
         path = [];
         pathInputAt = undefined;
         render();

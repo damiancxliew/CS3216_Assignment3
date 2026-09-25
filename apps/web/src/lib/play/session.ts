@@ -896,13 +896,11 @@ export class PlaySession {
         .filter(([actorId, roomId]) => roomId === action.roomId && actorId !== PLAYER_ID)
         .map(([actorId]) => actorId);
       if (inside.length > 0) await this.tick(client, AUTONOMOUS_TICKS_PER_MOVE, inside);
-      // A solitary character cannot strand the player behind a required goal's door
-      // when its model reply yields or omits open_door.
-      if (inside.length === 1 && world.actors[inside[0]!]?.kind === "agent" &&
-          this.stage.objectives.some((objective) => !this.objectiveMet(objective.id) &&
-            (objective.targetId === inside[0] || this.stage.evidence.some((item) => item.id === objective.targetId && item.roomId === action.roomId))) &&
-          world.location[inside[0]!] === action.roomId && world.rooms[action.roomId]?.doorOpen === false) {
-        applyAction(world, { actorKind: "agent", actorId: inside[0]!, action: { type: "open_door", roomId: action.roomId } });
+      // An occupant answers a valid knock even if the model omits open_door.
+      // The player outside still cannot operate the door.
+      const opener = inside.find((actorId) => world.actors[actorId]?.kind === "agent" && world.location[actorId] === action.roomId);
+      if (opener && world.rooms[action.roomId]?.doorOpen === false) {
+        applyAction(world, { actorKind: "agent", actorId: opener, action: { type: "open_door", roomId: action.roomId } });
         this.bump();
       }
     }

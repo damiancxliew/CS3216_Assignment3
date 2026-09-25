@@ -148,6 +148,8 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
       if (state.currentRoomId === roomId) return keyboardWalk(page, attemptId, state, goal);
       if (!room.doorOpen && door) {
         await keyboardWalk(page, attemptId, state, door.outside);
+        // A resumed player at the doorstep must still see the knock control.
+        await page.reload({ waitUntil: "networkidle" });
         await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(`Knock on ${room.name}`), 50);
         await page.keyboard.press("Enter");
         await expect.poll(async () => (await publicState(page, attemptId)).body.rooms.find((candidate: any) => candidate.id === roomId)?.doorOpen, { timeout: 30_000 }).toBe(true);
