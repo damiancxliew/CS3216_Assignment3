@@ -91,7 +91,6 @@ export class OpenAiImageService implements ImageService {
           quality: request.quality,
           output_format: 'webp',
           background: 'transparent',
-          ...(/^gpt-image-2(?:\.|-|$)/.test(this.model) ? {} : { input_fidelity: 'high' as const }),
           n: 1,
         })
         : await this.client.images.generate({
