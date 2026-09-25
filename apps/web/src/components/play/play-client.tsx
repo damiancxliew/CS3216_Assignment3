@@ -29,6 +29,7 @@ import { historicalPortraitFor } from "@/lib/play/historical-portraits";
 import { withSceneBreaks } from "@/lib/play/transcript";
 import { DocumentReader } from "./document-reader";
 import { AdventureDialog } from "./adventure-dialog";
+import { StageCutscene } from "./stage-cutscene";
 import styles from "./adventure-chrome.module.css";
 import roomStyles from "./room-panel.module.css";
 import { RoomActions } from "./room-actions";
@@ -171,7 +172,7 @@ export function PlayClient({
   const [inspectingLandmark, setInspectingLandmark] = useState<string | null>(null);
   const [pendingLandmark, setPendingLandmark] = useState<string | null>(null);
   const [pendingRead, setPendingRead] = useState<string | null>(null);
-  const [roleBriefOpen, setRoleBriefOpen] = useState(initialState.status === "active" && initialState.revision === 0);
+  const [cutsceneOpen, setCutsceneOpen] = useState(initialState.status === "active" && initialState.revision === 0);
   const [hintVisible, setHintVisible] = useState(true);
   const transcriptLog = useRef<HTMLDivElement>(null);
   const transcriptEnd = useRef<HTMLDivElement>(null);
@@ -317,7 +318,7 @@ export function PlayClient({
     setDocumentErrors({});
     setDraft("");
     setNotice(null);
-    setRoleBriefOpen(true);
+    setCutsceneOpen(true);
   }, [canDecide, state.stage.id]);
 
   const here = state.rooms.find((r) => r.id === state.currentRoomId) ?? null;
@@ -656,29 +657,7 @@ export function PlayClient({
 
   return (
     <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row`}>
-      {roleBriefOpen ? (
-        <AdventureDialog kind="character" titleId="role-brief-title" descriptionId="role-brief-description" onClose={() => setRoleBriefOpen(false)}>
-            <div className="flex flex-col gap-2">
-              <p className={styles.modalKicker}>You are {state.player.name}</p>
-              <h2 id="role-brief-title" className={styles.modalTitle}>
-                {state.player.role}
-              </h2>
-            </div>
-            <p id="role-brief-description" className="text-base leading-relaxed text-ink">
-              {state.player.brief}
-            </p>
-            <div className={styles.briefContext}>
-              <p className="text-sm font-semibold text-muted">Stage {state.stage.index + 1}: {state.stage.title}</p>
-              <p className="mt-2 text-base leading-relaxed text-ink">{state.stage.sharedContext}</p>
-              <p className="mt-3 text-sm font-semibold text-muted">The decision ahead</p>
-              <p className="text-base text-ink">{state.decisionPrompt}</p>
-              <p className="mt-2 text-base text-muted">Gather evidence and hear different perspectives. Use your notes to weigh the choices.</p>
-            </div>
-            <button type="button" className={`${primary} min-h-12 w-full text-lg sm:w-fit sm:self-end`} onClick={() => setRoleBriefOpen(false)}>
-              Begin as {state.player.name}
-            </button>
-        </AdventureDialog>
-      ) : null}
+      {cutsceneOpen ? <StageCutscene state={state} onBegin={() => setCutsceneOpen(false)} /> : null}
 
       <section className="relative h-[32dvh] min-h-[11rem] shrink-0 bg-sunken lg:h-auto lg:min-h-0 lg:flex-1" aria-label="Map">
         <MapCanvas
@@ -751,7 +730,7 @@ export function PlayClient({
         <section className={`${styles.where} flex shrink-0 flex-col gap-3 px-5 py-4`} aria-labelledby="where">
           <div className={roomStyles.roleLine}>
             <span>You are playing <strong className="text-ink">{state.player.role}</strong></span>
-            <button type="button" onClick={() => setRoleBriefOpen(true)} aria-label={`Open your role brief: ${state.player.role}`}>Read role brief</button>
+            <button type="button" onClick={() => setCutsceneOpen(true)} aria-label={`Open your role brief: ${state.player.role}`}>Read role brief</button>
           </div>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">

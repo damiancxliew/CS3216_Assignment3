@@ -1,0 +1,66 @@
+/* The stage opening: letterboxed, slow, and readable. Beats are always in the DOM;
+   only their reveal is animated, so the whole briefing stays available to
+   assistive technology and to anyone who skips ahead. */
+.scene {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow-y: auto;
+  padding: clamp(44px, 9vh, 96px) clamp(18px, 6vw, 88px) clamp(28px, 6vh, 64px);
+  background: #120f0c;
+  color: #f6ecd4;
+}
+.scene::before, .scene::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: clamp(28px, 6vh, 64px);
+  background: #0b0908;
+  z-index: 2;
+}
+.scene::before { top: 0; }
+.scene::after { bottom: 0; }
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  image-rendering: pixelated;
+  opacity: .55;
+  animation: drift 26s ease-out forwards;
+}
+.wash {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(180deg, #120f0ccc 0%, #120f0c66 32%, #120f0ce8 78%, #120f0c 100%);
+}
+
+.body { position: relative; z-index: 1; margin: 0 auto; display: flex; width: min(68ch, 100%); flex-direction: column; gap: clamp(18px, 3vh, 30px); }
+.beat { display: flex; flex-direction: column; gap: 8px; opacity: 0; animation: rise .9s cubic-bezier(.2, .7, .3, 1) forwards; }
+.kicker { margin: 0; color: #d6b778; font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; }
+.title { margin: 0; font: 600 clamp(1.9rem, 5.2vw, 3rem)/1.1 var(--font-record, Georgia), serif; text-wrap: balance; }
+.text { margin: 0; font-size: clamp(1rem, 2.2vw, 1.2rem); line-height: 1.65; color: #f0e6d0; }
+.list { margin: 0; display: flex; flex-direction: column; gap: 6px; padding-left: 1.1em; }
+.list li { font-size: clamp(1rem, 2.2vw, 1.15rem); line-height: 1.6; color: #f0e6d0; }
+
+.actions { position: relative; z-index: 1; margin: clamp(22px, 4vh, 40px) auto 0; display: flex; width: min(68ch, 100%); flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.begin { display: inline-flex; min-height: 48px; align-items: center; gap: 10px; border: 1px solid #d6b778; border-radius: 4px; background: #d6b778; padding: 0 22px; color: #241c12; font-size: 1.05rem; font-weight: 700; transition: background-color .2s, color .2s; }
+.begin:hover { background: transparent; color: #f2dfae; }
+.skip { display: inline-flex; min-height: 44px; align-items: center; border: 1px solid #ffffff33; border-radius: 4px; background: transparent; padding: 0 16px; color: #e5d9bd; font-size: .95rem; font-weight: 600; }
+.skip:hover { border-color: #d6b778; color: #f6ecd4; }
+.scene button:focus-visible { outline: 3px solid #f2dfae; outline-offset: 3px; }
+
+.told .beat, .told .backdrop { animation: none; opacity: 1; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes drift { from { opacity: 0; transform: scale(1.14); } 12% { opacity: .55; } to { opacity: .55; transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .beat, .backdrop { animation: none !important; opacity: 1; }
+  .backdrop { opacity: .5; }
+}
