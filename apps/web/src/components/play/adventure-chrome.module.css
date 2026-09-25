@@ -156,7 +156,8 @@
   .headerActions { gap: 8px; }
 }
 @media (max-width: 540px) {
-  .adventureTitle { font-size: 1.05rem; }
+  /* Beside the controls a long title breaks into a narrow column of words; give it the full row. */
+  .adventureTitle { flex-basis: 100%; font-size: 1.05rem; }
   .headerEmblem { width: 30px; height: 30px; }
   .modalPaper { padding: 24px 20px; }
   .modalHeader { gap: 8px; padding-inline: 4px; }

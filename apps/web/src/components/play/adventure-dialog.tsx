@@ -28,7 +28,10 @@ export function AdventureDialog({ kind, titleId, descriptionId, onClose, childre
 
   const Icon = kind === "landmark" ? Compass : kind === "accounts" ? ScrollText : kind === "board" ? Flag : UserRound;
   return (
-    <dialog ref={dialog} className={`${styles.dialog} ${styles[kind]}`} aria-labelledby={titleId} aria-describedby={descriptionId} onCancel={onClose} onKeyDown={(event) => {
+    <dialog ref={dialog} className={`${styles.dialog} ${styles[kind]}`} aria-labelledby={titleId} aria-describedby={descriptionId} onCancel={onClose} onClick={(event) => {
+      // The frame fills the dialog, so only a click on the backdrop lands on the dialog itself, as with the notes scroll.
+      if (event.target === event.currentTarget) onClose();
+    }} onKeyDown={(event) => {
       if (event.key !== "Tab") return;
       const targets = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')].filter((element) => element.getClientRects().length > 0);
       const first = targets[0];
