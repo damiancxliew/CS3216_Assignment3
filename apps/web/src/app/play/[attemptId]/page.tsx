@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { ThemeSelect } from "@/components/theme-provider";
+import { AdventureHeader } from "@/components/play/adventure-header";
+import styles from "@/components/play/adventure-chrome.module.css";
 import { PlayClient } from "@/components/play/play-client";
-import { button, Mark } from "@/components/ui";
+import { button } from "@/components/ui";
 import { loadResumeState } from "@/lib/attempts/resume";
 import { playDeps } from "@/lib/play/http";
 import { getState } from "@/lib/play/service";
@@ -43,42 +44,8 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   const active = initial.ok && initial.state.status === "active" ? initial.state : null;
 
   return (
-    <main className="flex h-dvh min-h-0 flex-col">
-      <header className="flex shrink-0 flex-col items-start gap-x-6 gap-y-2 border-b-2 border-ink bg-surface px-5 py-3 lg:flex-row lg:items-baseline">
-        <h1 className="inline-flex max-w-full break-words items-center gap-2.5 text-lg font-black tracking-tight text-ink sm:text-xl">
-          <span className="rounded-control bg-signal-wash p-1"><Mark /></span>
-          {resume.adventureTitle}
-        </h1>
-        {active ? (
-          <details className="group w-full min-w-0 text-base lg:w-auto lg:flex-1">
-            <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-3 gap-y-1 text-ink marker:content-none">
-              <span className="font-semibold">
-                Stage {active.stage.index + 1} of {active.stageCount}: {active.stage.title}
-              </span>
-              <span className={button.subtle}>
-                <span className="group-open:hidden">What is going on?</span>
-                <span className="hidden group-open:inline">Hide</span>
-              </span>
-            </summary>
-            <div className="mt-3 flex max-h-[40dvh] max-w-[64ch] flex-col gap-3 overflow-y-auto pb-1 text-base leading-relaxed text-ink lg:max-h-none lg:overflow-visible lg:text-lg">
-              <p>{active.stage.sharedContext}</p>
-              {resume.recap.length && active.revision > 0 ? (
-                <ul className="flex list-disc flex-col gap-1 pl-6 text-base text-muted">
-                  {resume.recap.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          </details>
-        ) : null}
-        <div className="flex shrink-0 items-center gap-3 lg:ml-auto">
-          <ThemeSelect />
-          <Link href="/" className={button.subtle}>
-            Leave
-          </Link>
-        </div>
-      </header>
+    <main className={`${styles.shell} flex h-dvh min-h-0 flex-col`}>
+      <AdventureHeader title={resume.adventureTitle} active={active} recap={resume.recap} />
 
       {initial.ok ? (
         <PlayClient attemptId={attemptId} initialState={initial.state} retriesAllowed={resume.retriesAllowed} />

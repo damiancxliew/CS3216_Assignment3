@@ -1,0 +1,40 @@
+.roomActions { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.actionGroup { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.actionGroup summary { display: flex; min-height: 44px; align-items: center; gap: 9px; padding: 9px 12px; cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; }
+.actionGroup summary::-webkit-details-marker { display: none; }
+.actionGroup summary svg:last-child { margin-left: auto; transition: transform .15s; }
+.actionGroup[open] summary svg:last-child { transform: rotate(180deg); }
+.actionGroup summary:hover { background: var(--world-wash); border-radius: 8px; }
+.actionGroup summary:focus-visible { outline: 3px solid var(--record); outline-offset: 2px; }
+.actionBody { position: absolute; z-index: 5; top: calc(100% + 8px); left: 0; right: 0; display: flex; flex-direction: column; gap: 8px; max-height: min(24rem, 50dvh); overflow-y: auto; padding: 16px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 8px 24px #0003; }
+.actionBody p { font-size: 13px; line-height: 1.5; color: var(--ink-muted); }
+.actionBody button { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 0; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; font-weight: 600; }
+.actionBody button span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.actionBody button svg { flex-shrink: 0; color: var(--world); }
+.actionBody button:hover:not(:disabled) { color: var(--world); }
+.actionBody button:disabled { opacity: .6; }
+.actionBody small { display: block; margin-top: 3px; color: var(--ink-muted); font-size: 12px; font-weight: 400; }
+.doorControl { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+.roleLine { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; color: var(--ink-muted); font-size: 13px; }
+.roleLine > span { flex: 1; }
+.roleLine button { min-height: 44px; text-decoration: underline; text-underline-offset: 3px; }
+.introduction { display: flex; align-items: flex-start; gap: 14px; padding: 20px 20px 12px; }
+.introduction > div { min-width: 0; }
+.eyebrow { margin-bottom: 4px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--world); }
+.personName { font-family: var(--font-record, Georgia), serif; font-size: 25px; line-height: 1.2; overflow-wrap: anywhere; }
+.personRole { margin-top: 4px; font-size: 14px; line-height: 1.4; color: var(--ink-muted); }
+.switchPerson { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 20px 10px; }
+.switchPerson > p { flex-basis: 100%; font-size: 12px; color: var(--ink-muted); }
+.switchPerson button { min-height: 44px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
+.switchPerson button[aria-checked="true"] { border-color: var(--world); background: var(--world-wash); }
+.conversation { min-height: 0; overflow: visible; background: var(--surface); }
+.conversationHint { padding: 0 20px 16px; font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
+.composer { display: flex; flex-direction: column; gap: 7px; padding: 0 20px 20px; }
+.composer label { font-size: 13px; font-weight: 600; }
+.composerRow { display: flex; gap: 8px; }
+@media (min-width: 1024px) {
+  .conversation { min-height: 230px; overflow-y: auto; }
+}
+@media (max-width: 420px) {
+  .roomActions { grid-template-columns: minmax(0, 1fr); }
+}
