@@ -146,6 +146,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
     let sendInFlight = false;
     let pending: PendingStep[] = [];
     let nextSendAt = 0;
+    let consecutiveRetryNoProgress = 0;
     let sendTimer: number | undefined;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const perfEnabled = (() => {
@@ -288,6 +289,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
       if (acknowledgement.retry) {
         const position = acknowledgement.position;
         if (position && (position.x !== step.from.x || position.y !== step.from.y)) {
+          consecutiveRetryNoProgress = 0;
           const destination = path.at(-1) ?? pending.at(-1)?.to;
           showPosition(position);
           pending = [];
@@ -298,12 +300,26 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
             if (!destroyed && latest.current.state.map?.id === mapId) goTo(destination);
           }, 0);
           else latest.current.onIntentDone();
+        } else {
+          consecutiveRetryNoProgress += 1;
+          if (consecutiveRetryNoProgress >= 3) {
+            pending = [];
+            path = [];
+            pathInputAt = undefined;
+            const fallbackPosition = acknowledgement.position ?? latest.current.state.playerPos;
+            if (fallbackPosition) showPosition(fallbackPosition);
+            render();
+            latest.current.onIntentDone();
+            nextSendAt = acknowledgedAt + 1000;
+            return;
+          }
         }
         nextSendAt = acknowledgedAt + 80;
         void drain();
         return;
       }
 
+      consecutiveRetryNoProgress = 0;
       pending = settleBatch(pending, acknowledgement.accepted ? "accepted" : "rollback", count);
       if (!acknowledgement.accepted) {
         pending = [];
