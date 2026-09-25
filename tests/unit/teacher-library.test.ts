@@ -10,16 +10,29 @@ const versions: LibraryVersion[] = [
 const asset = (version: string, kind: string, status = "ready"): LibraryAsset => ({ spec_version_id: version, asset_id: `${version}-${kind}`, kind, status, url: `/${version}-${kind}.png` });
 
 describe("adventure library artwork", () => {
-  it("uses the active draft's landmark before portraits, regardless of row order", () => {
-    expect(selectLibraryArtwork(adventure, versions, [asset("other", "landmark"), asset("published", "landmark"), asset("draft", "portrait"), asset("draft", "landmark", "cached")]))
-      .toEqual({ cover: "/draft-landmark.png", portraits: ["/draft-portrait.png"] });
+  it("prefers the generated cover art over every gameplay asset", () => {
+    expect(selectLibraryArtwork(adventure, versions, [asset("draft", "portrait"), asset("draft", "landmark"), asset("draft", "prop"), asset("draft", "cover", "cached")]))
+      .toEqual({ cover: { url: "/draft-cover.png", kind: "cover" }, portraits: ["/draft-portrait.png"] });
+  });
+  it("uses the active draft's portrait before landmarks, regardless of row order", () => {
+    expect(selectLibraryArtwork(adventure, versions, [asset("other", "portrait"), asset("published", "portrait"), asset("draft", "landmark", "cached"), asset("draft", "portrait")]))
+      .toEqual({ cover: { url: "/draft-portrait.png", kind: "portrait" }, portraits: [] });
+  });
+  it("falls back to landmark art when the draft has no portrait", () => {
+    expect(selectLibraryArtwork(adventure, versions, [asset("draft", "landmark")]))
+      .toEqual({ cover: { url: "/draft-landmark.png", kind: "landmark" }, portraits: [] });
+  });
+  it("falls back to prop art when the draft has only props", () => {
+    expect(selectLibraryArtwork(adventure, versions, [asset("draft", "prop")]))
+      .toEqual({ cover: { url: "/draft-prop.png", kind: "prop" }, portraits: [] });
   });
   it("does not show stale published artwork while an unillustrated draft is active", () => {
     expect(selectLibraryArtwork(adventure, versions, [asset("published", "landmark"), asset("draft", "landmark", "pending"), asset("draft", "portrait", "failed")]))
       .toEqual({ cover: null, portraits: [] });
   });
   it("uses the pinned published version when there is no draft", () => {
-    expect(selectLibraryArtwork(adventure, versions.filter((v) => v.id !== "draft"), [asset("published", "portrait", "cached"), asset("other", "landmark")]).cover).toBe("/published-portrait.png");
+    expect(selectLibraryArtwork(adventure, versions.filter((v) => v.id !== "draft"), [asset("published", "portrait", "cached"), asset("other", "landmark")]).cover)
+      .toEqual({ url: "/published-portrait.png", kind: "portrait" });
   });
   it("returns an empty projection when there is no version or usable artwork", () => {
     expect(selectLibraryArtwork(adventure, [], [asset("other", "landmark")])).toEqual({ cover: null, portraits: [] });
