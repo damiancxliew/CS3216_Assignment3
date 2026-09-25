@@ -7,9 +7,11 @@ import { useEffect, useRef, useState } from "react";
 import { ThemeSelect } from "@/components/theme-provider";
 import { LandingCta } from "@/components/landing-cta";
 import { LandingQuestPreview } from "@/components/landing-quest-preview";
+import { Pricing } from "@/components/pricing";
 import { button, Wordmark } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
+import { landingStructuredData } from "@/lib/seo/structured-data";
 
 const teacherSteps = [
   { number: "01", title: "Drop in your sources", body: "Use the handouts, treaties and textbook pages you already teach." },
@@ -56,12 +58,16 @@ export default function Home() {
     track(ANALYTICS_EVENTS.landingViewed);
   }, []);
 
+  const structuredDataJson = JSON.stringify(landingStructuredData()).replace(/</g, "\\u003c");
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-20 overflow-hidden px-5 py-6 sm:px-8 sm:py-8 lg:gap-28">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredDataJson }} />
       <nav className="flex flex-wrap items-center justify-between gap-4">
         <Wordmark />
         <div className="flex flex-wrap items-center gap-3">
           <ThemeSelect />
+          <a href="#pricing" className={button.subtle}>Pricing</a>
           <Link href="/teacher" className={button.quiet}>
             Teacher console <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
@@ -155,6 +161,8 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      <Pricing />
 
       <section aria-labelledby="cta-heading" className="game-grid flex flex-col items-start justify-between gap-8 rounded-[2rem] border-[3px] border-ink bg-signal-wash px-7 py-10 sm:flex-row sm:items-center sm:px-10">
         <div><p className="text-sm font-black uppercase tracking-[0.18em] text-signal">Ready, teacher?</p><h2 id="cta-heading" className="mt-2 max-w-xl text-4xl font-black tracking-[-0.04em] text-ink sm:text-5xl">Make the next lesson feel like an adventure.</h2></div>

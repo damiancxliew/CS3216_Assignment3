@@ -7,6 +7,7 @@ import { AuthListener } from "@/components/auth-listener";
 import { ThemeProvider } from "@/components/theme-provider";
 import { themeScript } from "@/lib/theme";
 import { Analytics } from "@/lib/analytics/posthog";
+import { SITE_DESCRIPTION } from "@/lib/seo/structured-data";
 import "./globals.css";
 
 // The interface voice. Chosen for the same reason the product has reading
@@ -27,8 +28,7 @@ const record = Literata({
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 const title = "Historical Adventures — history you can play";
-const description =
-  "Turn your own historical sources into a living world students can explore, question and change.";
+const description = SITE_DESCRIPTION;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
