@@ -1,8 +1,8 @@
 # M6 — Pricing and monetisation
 
-Unit economics below use the per-attempt and per-generation cost measured by M12. Where
-a number is still pending from M12 it is marked **[M12]** and the structure of the
-argument is given so only the figure changes.
+Unit economics below use the per-attempt cost measured in
+[`M12-play-metrics.md`](M12-play-metrics.md) and the per-generation cost in
+[`M12-generation-metrics.md`](M12-generation-metrics.md), in SGD at an assumed 1.29 per USD.
 
 ## What a unit costs us
 
@@ -17,9 +17,11 @@ Generation is a fixed cost per lesson; attempts are the variable cost. A class o
 one published adventure is therefore `1 × generation + 30 × attempt`, and the attempt
 term decides whether any per-seat price works.
 
-- Measured cost per attempt: **[M12]** (target: under S$0.15 at the tiering in D14).
-- Measured cost per generation: **[M12]** (target: under S$1.00 including images).
-- Implied cost of one 30-student lesson: **[M12]**.
+- Measured cost per attempt: **median S$0.042**, max S$0.060 over 7 simulated attempts
+  (quick S$0.002, typical S$0.04, chatty S$0.06; chatty real play estimated up to ~S$0.13).
+  Under the S$0.15 target. Three quarters of it is option minting on `gpt-6-sol`.
+- Measured cost per generation: **≈ S$0.59** including 8 images (target: under S$1.00).
+- Implied cost of one 30-student lesson: **≈ S$1.85** (1 generation + 30 attempts).
 
 The controls that keep this bounded are already in the design rather than in a future
 optimisation: model tiering per call (D14), the agent tick-rate budget (FR-12b), the ≤8
@@ -52,9 +54,19 @@ stop playing because an allowance ran out. Failing open and invoicing is the onl
 acceptable behaviour in a classroom.
 
 **Gross margin at the Teacher tier** = `12 − (attempts used × cost/attempt) − (generations × cost/generation)`.
-With the M12 targets above and a typical month of 4 classes, that lands near **[M12]**;
-the tier allowances were chosen so that a teacher at the *top* of their allowance is
-still positive, which is the only version of this arithmetic worth stating.
+
+| Teacher-tier month | Attempts | Generations | Cost | Margin at S$12 (S$10 annual) |
+| --- | --- | --- | --- | --- |
+| Typical: 4 classes × 30, one adventure each | 120 | 4 | S$7.40 | **+S$4.60** (+S$2.60) |
+| Top of allowance | 600 | 10 | S$31.10 | **−S$19.10** (−S$21.10) |
+| Top of allowance, minting moved to `gpt-6-luna` | 600 | 10 | S$12.50 | −S$0.50 (−S$2.50) |
+
+The allowances were meant to keep a teacher at the *top* of their allowance positive. At
+the measured S$0.042 per attempt they do not: 600 attempts only break even below
+S$0.02 per attempt (S$0.017 on annual billing). The typical month is positive; the
+allowance is not. The same arithmetic puts Starter at ≈ S$3.70 a month per active free
+teacher (60 attempts, 2 generations) and Department at ≈ S$336 of attempt cost against
+S$400 a year if the pool is used up.
 
 ## Why this is the right shape
 
@@ -71,6 +83,14 @@ still positive, which is the only version of this arithmetic worth stating.
 
 ## To finalise before submission
 
-Replace each **[M12]** with the measured figure and restate the margin line; if cost per
-attempt lands materially above the S$0.15 target, the lever is the agent tick rate
-(FR-12b), not the price.
+The cost figures are in. What is left is a decision on the allowance, since the
+measured cost makes the top-of-allowance month negative. The levers, cheapest first:
+
+1. **Move option minting to `gpt-6-luna`** — it is ~77% of a typical attempt, and this
+   takes an attempt to ≈ S$0.011. Needs an eval that proposal quality holds.
+2. **Lower the allowances** to what the typical month uses (e.g. Teacher 250, Starter 30).
+3. **Raise the price**, last, since the argument above is that S$12 is what a teacher can
+   expense without asking.
+
+The agent tick rate (FR-12b), which this section used to name as the lever, turned out
+not to be one: character replies are under a quarter of the cost.

@@ -1,0 +1,23 @@
+288 calls across 7 attempts
+
+sim-mugowljq-4-typical  38 calls over 1.6 min  in 64349 (cached 13942)  out 5509  S$0.0388
+    character_agent_reply          35 calls  gpt-6-luna  S$0.0087
+    option_minting                  3 calls  gpt-6-sol  S$0.0300
+sim-mugowljq-6-chatty  78 calls over 2.9 min  in 147564 (cached 15749)  out 11693  S$0.0596
+    character_agent_reply          75 calls  gpt-6-luna  S$0.0229
+    option_minting                  3 calls  gpt-6-sol  S$0.0367
+sim-mugowljq-7-chatty  67 calls over 2.4 min  in 124525 (cached 17949)  out 8950  S$0.0522
+    character_agent_reply          64 calls  gpt-6-luna  S$0.0180
+    option_minting                  3 calls  gpt-6-sol  S$0.0342
+sim-mugowljq-3-typical  42 calls over 1.6 min  in 72126 (cached 12411)  out 6508  S$0.0415
+    character_agent_reply          39 calls  gpt-6-luna  S$0.0105
+    option_minting                  3 calls  gpt-6-sol  S$0.0310
+sim-mugowljq-1-quick  12 calls over 0.3 min  in 19531 (cached 9329)  out 1437  S$0.0024
+    character_agent_reply          12 calls  gpt-6-luna  S$0.0024
+sim-mugowljq-5-typical  40 calls over 1.6 min  in 68330 (cached 13942)  out 6521  S$0.0439
+    character_agent_reply          37 calls  gpt-6-luna  S$0.0097
+    option_minting                  3 calls  gpt-6-sol  S$0.0342
+sim-mugowljq-2-quick  11 calls over 0.3 min  in 17344 (cached 11432)  out 1420  S$0.0018
+    character_agent_reply          11 calls  gpt-6-luna  S$0.0018
+
+Per attempt (n=7): median S$0.0415  mean S$0.0343  max S$0.0596
