@@ -21,7 +21,7 @@ import { canHearSpeech, findPath, isInPhysicalInteractionRange, isWalkable, spac
 import { playApi } from "./api";
 import type { MapIntent } from "./map-canvas";
 import { stageMusicUrl, useSoundCues, useStageMusic } from "./sound";
-import { restartAttempt } from "@/app/play/[attemptId]/actions";
+import { completeWalkthrough, restartAttempt } from "@/app/play/[attemptId]/actions";
 import { StageCountdown } from "@/components/stage-countdown";
 import { Pending, Spinner, Thinking } from "@/components/ui";
 import type { PlayState } from "@/lib/play/session";
@@ -33,6 +33,7 @@ import { StageCutscene } from "./stage-cutscene";
 import styles from "./adventure-chrome.module.css";
 import roomStyles from "./room-panel.module.css";
 import { RoomActions } from "./room-actions";
+import { GameWalkthrough } from "./game-walkthrough";
 
 const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas), {
   ssr: false,
@@ -140,10 +141,12 @@ export function PlayClient({
   attemptId,
   initialState,
   retriesAllowed,
+  walkthroughSeen,
 }: {
   attemptId: string;
   initialState: PlayState;
   retriesAllowed: boolean;
+  walkthroughSeen: { mobile: boolean; desktop: boolean };
 }) {
   const router = useRouter();
   const [state, setState] = useState<PlayState>(initialState);
@@ -173,6 +176,28 @@ export function PlayClient({
   const [pendingLandmark, setPendingLandmark] = useState<string | null>(null);
   const [pendingRead, setPendingRead] = useState<string | null>(null);
   const [cutsceneOpen, setCutsceneOpen] = useState(initialState.status === "active" && initialState.revision === 0);
+  const [layout, setLayout] = useState<"mobile" | "desktop" | null>(null);
+  const [seen, setSeen] = useState(walkthroughSeen);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 1023px)");
+    const update = () => setLayout(query.matches ? "mobile" : "desktop");
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    if (!cutsceneOpen && layout && !seen[layout] && state.status === "active") setWalkthroughOpen(true);
+  }, [cutsceneOpen, layout, seen, state.status]);
+  const finishWalkthrough = useCallback(async (completedLayout: "mobile" | "desktop") => {
+    try {
+      const result = await completeWalkthrough(completedLayout);
+      if (!result.ok) return false;
+      setSeen((current) => ({ ...current, [completedLayout]: true }));
+      setWalkthroughOpen(false);
+      return true;
+    } catch { return false; }
+  }, []);
   const [hintVisible, setHintVisible] = useState(true);
   const transcriptLog = useRef<HTMLDivElement>(null);
   const transcriptEnd = useRef<HTMLDivElement>(null);
@@ -658,8 +683,9 @@ export function PlayClient({
   return (
     <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row`}>
       {cutsceneOpen ? <StageCutscene state={state} onBegin={() => setCutsceneOpen(false)} /> : null}
+      {walkthroughOpen && !cutsceneOpen && layout ? <GameWalkthrough layout={layout} onClose={finishWalkthrough} /> : null}
 
-      <section className="relative h-[32dvh] min-h-[11rem] shrink-0 bg-sunken lg:h-auto lg:min-h-0 lg:flex-1" aria-label="Map">
+      <section data-walkthrough="map" className="relative h-[32dvh] min-h-[11rem] shrink-0 bg-sunken lg:h-auto lg:min-h-0 lg:flex-1" aria-label="Map">
         <MapCanvas
           state={state}
           audio={{ muted, cues }}
@@ -682,6 +708,7 @@ export function PlayClient({
         ) : null}
         <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2" role="group" aria-label="Adventure tools">
           <button
+            data-walkthrough="tools"
             type="button"
             onClick={() => setNotesOpen(true)}
             aria-haspopup="dialog"
@@ -693,12 +720,12 @@ export function PlayClient({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setHintVisible((shown) => !shown)}
-              aria-pressed={hintVisible}
-              className={`${styles.tool} inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2`}
+              onClick={() => setWalkthroughOpen(true)}
+              aria-label="How to play"
+              className={`${styles.tool} inline-flex min-h-11 items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold`}
             >
               <HelpCircle className="h-5 w-5" aria-hidden />
-              <span className="sr-only">How to move and talk</span>
+              <span className="sm:hidden">Help</span><span className="hidden sm:inline">How to play</span>
             </button>
             <button
               type="button"
@@ -748,15 +775,17 @@ export function PlayClient({
               <Timer className="h-5 w-5" aria-hidden /> <StageCountdown attemptId={attemptId} deadlineIso={state.timer.deadlineAt} serverNowIso={state.timer.serverNow} />
             </span>
           </div>
-          <RoomActions
-            key={`${state.stage.id}:${state.currentRoomId}`}
-            state={state}
-            busy={busy !== null}
-            onRoom={(roomId) => { setReading(null); setIntent({ kind: "room", roomId }); }}
-            onLandmark={onLandmark}
-            onDocument={onProp}
-            onDoor={() => { if (here) void act(here.doorOpen ? "Closing…" : "Opening…", () => playApi.action(attemptId, { type: here.doorOpen ? "close_door" : "open_door", roomId: here.id })); }}
-          />
+          <div data-walkthrough="rooms">
+            <RoomActions
+              key={`${state.stage.id}:${state.currentRoomId}`}
+              state={state}
+              busy={busy !== null}
+              onRoom={(roomId) => { setReading(null); setIntent({ kind: "room", roomId }); }}
+              onLandmark={onLandmark}
+              onDocument={onProp}
+              onDoor={() => { if (here) void act(here.doorOpen ? "Closing…" : "Opening…", () => playApi.action(attemptId, { type: here.doorOpen ? "close_door" : "open_door", roomId: here.id })); }}
+            />
+          </div>
           {waitingDoor ? (
             <button type="button" className={primary} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingDoor.roomId }))}>
               Knock on {waitingRoom?.name ?? "the door"}
@@ -825,6 +854,7 @@ export function PlayClient({
           </div>
 
           <form
+            data-walkthrough="conversation"
             className={roomStyles.composer}
             onSubmit={(e) => {
               e.preventDefault();
@@ -856,11 +886,14 @@ export function PlayClient({
             <p className={styles.questHeading}><Flag size={15} aria-hidden /> Your next chapter</p>
             <p className="text-base leading-snug text-ink">{state.decisionPrompt}</p>
           </div>
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="text-base text-ink">
-              <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>
-              <span className="ml-3 text-muted">Stage {state.stage.index + 1} of {state.stageCount}</span>
-            </p>
+          <div data-walkthrough="goals" className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-muted">Complete your goals, then make a decision to finish this stage.</p>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-base text-ink">
+                <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>
+                <span className="ml-3 text-muted">Stage {state.stage.index + 1} of {state.stageCount}</span>
+              </p>
+            </div>
           </div>
           <div className={styles.progress} aria-hidden="true">
             {state.stage.objectives.map((objective) => <span key={objective.id} data-complete={objective.met} />)}
@@ -906,7 +939,7 @@ export function PlayClient({
           </ul>
 
           {canDecide ? (
-            <div className="flex flex-col gap-2 rounded-surface border border-signal bg-signal-wash p-3">
+            <div data-walkthrough="decision" className="flex flex-col gap-2 rounded-surface border border-signal bg-signal-wash p-3">
               <button type="button" className="flex w-full flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-left" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
                 <span id="decide" className="font-serif text-xl text-ink">
                   You can decide now
@@ -955,7 +988,7 @@ export function PlayClient({
               ) : null}
             </div>
           ) : (
-            <button type="button" className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-control border border-dashed border-line-strong px-3 py-2.5 text-left hover:border-ink" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
+            <button data-walkthrough="decision" type="button" className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-control border border-dashed border-line-strong px-3 py-2.5 text-left hover:border-ink" onClick={() => setDecisionOpen((v) => !v)} aria-expanded={decisionOpen}>
               <span id="decide" className="inline-flex items-center gap-2 text-base font-semibold text-muted">
                 <Lock className="h-4 w-4" aria-hidden /> Decision locked. Finish your goals first.
               </span>

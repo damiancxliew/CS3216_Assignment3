@@ -17,7 +17,7 @@ export function AdventureHeader({ title, active, recap }: {
         <span className="break-words">{title}</span>
       </h1>
       {active ? (
-        <details className={`${styles.chapter} group`}>
+        <details data-walkthrough="story" className={`${styles.chapter} group`}>
           <summary>
             <span className={styles.chapterNumber}>Stage {active.stage.index + 1} of {active.stageCount}</span>
             <span className={styles.chapterTitle}>{active.stage.title}</span>
