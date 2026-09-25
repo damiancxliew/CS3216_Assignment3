@@ -25,7 +25,6 @@ import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
 import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, storyArt } from './story-art.js'
 import type { PlaygroundSnapshot, SoundCueId } from './model.js'
-import { MUSIC_TRACKS, selectMusicTrack } from './music.js'
 import { RoomWandering, ROOM_STEP_MS } from './room-wandering.js'
 import type { MapView } from './view.js'
 
@@ -41,7 +40,6 @@ const DOOR = { closed: H(2, 3), open: H(9, 3) }
 
 const AMBIENT_LOOP: Partial<Record<string, string>> = { rain: 'rain', thunderstorm: 'rain', haze: 'wind', dust: 'wind', clouds: 'wind', snow: 'wind' }
 const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert', 'refused', 'door', 'step']
-const MUSIC_VOLUME = 0.35
 
 const DIRECTIONS = ['down', 'up', 'left', 'right'] as const
 /** One tile takes exactly this long, so a walk of many tiles is one unbroken slide. */
@@ -125,8 +123,6 @@ class TiledScene extends Phaser.Scene {
   private roomShells: RoomShells | undefined
   private playedEffects = new Set<string>()
   private playedCues = new Set<string>()
-  private music: Phaser.Sound.BaseSound | null = null
-  private musicKey: string | null = null
   private ambientLoop: Phaser.Sound.BaseSound | null = null
   private ambientLoopKey: string | null = null
   private following = false
@@ -155,7 +151,6 @@ class TiledScene extends Phaser.Scene {
     for (const key of this.spriteKeys(this.current)) this.queueSprite(key)
     for (const url of this.spriteSheetUrls(this.current)) this.queueGeneratedSprite(url)
     for (const url of this.assetUrls(this.current)) this.queueAsset(url)
-    for (const track of MUSIC_TRACKS) this.load.audio(`music-${track}`, `${this.base}/audio/music/${track}.ogg`)
     for (const loop of new Set(Object.values(AMBIENT_LOOP))) if (loop) this.load.audio(`loop-${loop}`, `${this.base}/audio/sfx/${loop}.ogg`)
     for (const cue of SFX) this.load.audio(`sfx-${cue}`, `${this.base}/audio/sfx/${cue}.ogg`)
   }
@@ -214,7 +209,7 @@ class TiledScene extends Phaser.Scene {
     this.game.canvas.setAttribute('aria-label', 'Settlement map')
     this.scale.on('resize', () => this.fitCamera())
     // Browsers keep audio silent until the user has interacted; the sound manager unlocks itself on
-    // the first gesture, and the music starts then.
+    // the first gesture, and ambience starts then.
     if (this.sound.locked) this.sound.once(Phaser.Sound.Events.UNLOCKED, () => this.applyAudio(this.current))
     this.renderSnapshot(this.current, true)
     this.fitCamera()
@@ -959,20 +954,9 @@ class TiledScene extends Phaser.Scene {
     this.sound.mute = muted
     if (this.sound.locked) return
 
+    // Music is not played here: the renderer is rebuilt for every stage, so a track started here
+    // would restart over the one the previous renderer was still fading out. The play view owns it.
     const ambientId = snapshot.ambient?.id ?? 'clear'
-    const wantMusic = selectMusicTrack(ambientId, snapshot.seed || snapshot.map.id)
-    if (wantMusic !== this.musicKey && this.cache.audio.exists(`music-${wantMusic}`)) {
-      const previous = this.music
-      if (previous) {
-        this.tweens.add({ targets: previous, volume: 0, duration: 900, onComplete: () => previous.destroy() })
-      }
-      const next = this.sound.add(`music-${wantMusic}`, { loop: true, volume: 0 })
-      next.play()
-      this.tweens.add({ targets: next, volume: MUSIC_VOLUME, duration: 1200 })
-      this.music = next
-      this.musicKey = wantMusic
-    }
-
     const wantLoop = AMBIENT_LOOP[ambientId] ?? null
     if (wantLoop !== this.ambientLoopKey) {
       this.ambientLoop?.destroy()

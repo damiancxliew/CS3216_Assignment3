@@ -1,15 +1,20 @@
 "use client";
 
 /**
- * Sound for the play view. Music and ambience are chosen by the renderer from
- * the stage's atmosphere; this hook turns *changes* in state into one-shot cues
- * (a reply arrived, evidence found, a door moved, the clock is nearly out) and
- * keeps the mute preference across visits. Each cue has a stable key so the
- * renderer plays it exactly once, and the list is bounded so it never grows.
+ * Sound for the play view. Ambience is played by the renderer from the stage's
+ * atmosphere; music is played here, outside the renderer, so a new stage does
+ * not restart it on top of the previous one. `useSoundCues` turns *changes* in
+ * state into one-shot cues (a reply arrived, evidence found, a door moved, the
+ * clock is nearly out) and keeps the mute preference across visits. Each cue
+ * has a stable key so the renderer plays it exactly once, and the list is
+ * bounded so it never grows.
  */
 import type { SoundCueId } from "@adventure/game-client";
+import { selectMusicTrack } from "@adventure/game-client/music";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ASSET_BASE } from "@/lib/play/appearance";
+import { StageMusic } from "@/lib/play/stage-music";
 import type { PlayState } from "@/lib/play/session";
 
 const MUTE_KEY = "play.muted";
@@ -89,4 +94,43 @@ export function useSoundCues(state: PlayState, notice: string | null) {
   }, [state.timer.enabled, state.timer.secondsRemaining, state.stage.id, push]);
 
   return { muted, toggleMuted, cues };
+}
+
+/** The stage's soundtrack, chosen from its atmosphere and stable for the whole stage. */
+export function stageMusicUrl(state: PlayState): string | null {
+  if (state.status !== "active") return null;
+  return `${ASSET_BASE}/audio/music/${selectMusicTrack(state.stage.ambientOverlay, `${state.adventureId}:${state.stage.id}`)}.ogg`;
+}
+
+/** Play `url`, crossfading between stages; the player outlives the map renderer. */
+export function useStageMusic(url: string | null, muted: boolean) {
+  const player = useRef<StageMusic | null>(null);
+
+  useEffect(() => {
+    const music = new StageMusic({
+      createElement: (src) => {
+        const element = new Audio(src);
+        element.preload = "auto";
+        return element;
+      },
+    });
+    player.current = music;
+    const resume = () => music.resume();
+    document.addEventListener("pointerdown", resume);
+    document.addEventListener("keydown", resume);
+    return () => {
+      document.removeEventListener("pointerdown", resume);
+      document.removeEventListener("keydown", resume);
+      music.stop();
+      player.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    player.current?.play(url);
+  }, [url]);
+
+  useEffect(() => {
+    player.current?.setMuted(muted);
+  }, [muted]);
 }
