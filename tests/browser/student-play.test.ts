@@ -40,6 +40,22 @@ async function tabTo(page: import("playwright").Page, predicate: (text: string, 
   throw new Error("keyboard target not found");
 }
 
+async function openRoomControls(page: import("playwright").Page, name: "Go somewhere" | "Look around") {
+  const summary = page.locator("summary").filter({ hasText: name });
+  if (await summary.evaluate((element) => (element.parentElement as HTMLDetailsElement).open)) return;
+  await tabTo(page, (text, tag) => tag === "SUMMARY" && text.includes(name), 50);
+  await page.keyboard.press("Enter");
+}
+
+async function chooseSpeaker(page: import("playwright").Page, name: string) {
+  // A single nearby person is introduced directly; selection is only needed in a group.
+  if (await page.getByRole("radio").filter({ hasText: name }).count()) {
+    await tabTo(page, (text, tag, role) => tag === "BUTTON" && role === "radio" && text.includes(name), 50);
+    await page.keyboard.press("Space");
+  }
+  await page.getByRole("heading").filter({ hasText: name }).waitFor();
+}
+
 function publicSummary(body: any) {
   return { playerPos: body.playerPos, actors: body.actors?.map((actor: any) => ({ id: actor.id, position: actor.position })), hearingActorIds: body.hearingActorIds, currentRoomId: body.currentRoomId };
 }
@@ -137,6 +153,7 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
         await expect.poll(async () => (await publicState(page, attemptId)).body.rooms.find((candidate: any) => candidate.id === roomId)?.doorOpen, { timeout: 30_000 }).toBe(true);
       }
       state = (await publicState(page, attemptId)).body;
+      await openRoomControls(page, "Go somewhere");
       await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(room.name), 50);
       await page.keyboard.press("Enter");
       await expect.poll(async () => (await publicState(page, attemptId)).body.currentRoomId, { timeout: 30_000 }).toBe(roomId);
@@ -159,6 +176,7 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
     expect(refreshed.revision).toBe(saved.revision);
     const openRoom = refreshed.rooms.find((room: any) => room.id !== refreshed.currentRoomId && room.doorOpen === true);
     expect(openRoom).toBeDefined();
+    await openRoomControls(page, "Go somewhere");
     await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(openRoom.name), 40);
     expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
     await page.keyboard.press("Enter");
@@ -190,8 +208,7 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
     expect(farquhar?.position).toBeDefined();
     await keyboardWalk(page, attemptId, dialogueState, farquhar.position);
     const coLocated = (await publicState(page, attemptId)).body;
-    await tabTo(page, (text, tag, role) => tag === "BUTTON" && role === "radio" && text.includes("Farquhar"), 50);
-    await page.keyboard.press("Space");
+    await chooseSpeaker(page, "Farquhar");
     await tabTo(page, (_text, tag) => tag === "INPUT", 30);
     expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("INPUT");
     await page.keyboard.type("Wait while I walk");
@@ -220,14 +237,9 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
     for (const room of (await publicState(page, attemptId)).body.rooms) {
       let roomState = await navigateRoom(room.id);
       for (const item of roomState.evidenceHere) {
-        if (!item.canInspect) {
-          await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(`Walk to ${item.name}`), 50);
-          await page.keyboard.press("Enter");
-          await expect.poll(async () => (await publicState(page, attemptId)).body.playerPos, { timeout: 30_000 }).toEqual(item.position);
-          roomState = (await publicState(page, attemptId)).body;
-        }
         if (!await page.getByRole("dialog", { name: item.name }).isVisible()) {
-          await tabTo(page, (text, tag) => tag === "BUTTON" && text.trim().includes(item.name), 50);
+          await openRoomControls(page, "Look around");
+          await tabTo(page, (text, tag) => tag === "BUTTON" && text.includes(`Read ${item.name}`), 50);
           await page.keyboard.press("Enter");
         }
         await expect.poll(async () => (await publicState(page, attemptId)).body.journal.some((entry: any) => entry.id === item.id), { timeout: 30_000 }).toBe(true);
@@ -242,8 +254,7 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
     const farquharAgentAtBeach = farquharState.actors.find((actor: any) => actor.id === "agent-farquhar-s0");
     expect(farquharAgentAtBeach?.position).toBeDefined();
     await keyboardWalk(page, attemptId, farquharState, farquharAgentAtBeach.position!);
-    await tabTo(page, (text, tag, role) => tag === "BUTTON" && role === "radio" && text.includes("Farquhar"), 50);
-    await page.keyboard.press("Space");
+    await chooseSpeaker(page, "Farquhar");
     await tabTo(page, (_text, tag) => tag === "INPUT", 30);
     await page.keyboard.type("My notes mention the sheltered river mouth. What makes it a suitable place for the Company?");
     const farquharResponse = page.waitForResponse((response) => response.url().includes(`/api/attempt/${attemptId}/message`) && response.request().method() === "POST");
@@ -257,8 +268,7 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
     expect(temenggong?.position).toBeDefined();
     expect(temenggongAgent?.name).toBeDefined();
     temenggongState = await keyboardWalk(page, attemptId, temenggongState, temenggong.position);
-    await tabTo(page, (text, tag, role) => tag === "BUTTON" && role === "radio" && text.includes(temenggongAgent.name), 50);
-    await page.keyboard.press("Space");
+    await chooseSpeaker(page, temenggongAgent.name);
     await tabTo(page, (_text, tag) => tag === "INPUT", 50);
     await page.keyboard.type("What should I tell Raffles?");
     const temenggongResponse = page.waitForResponse((response) => response.url().includes(`/api/attempt/${attemptId}/message`) && response.request().method() === "POST");

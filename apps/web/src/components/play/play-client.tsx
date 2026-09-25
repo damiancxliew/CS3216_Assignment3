@@ -11,7 +11,7 @@
  * decision, which stays quiet until you can actually make it, then lights up.
  * Sized for a 13-year-old on a school laptop: 16px base, 44px targets.
  */
-import { ArrowRight, Check, CornerDownRight, DoorOpen, HelpCircle, Lock, ScrollText, Search, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight, Check, Compass, CornerDownRight, DoorOpen, Flag, HelpCircle, Lock, MapPin, ScrollText, Timer, UserRound, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -28,6 +28,10 @@ import type { PlayState } from "@/lib/play/session";
 import { historicalPortraitFor } from "@/lib/play/historical-portraits";
 import { withSceneBreaks } from "@/lib/play/transcript";
 import { DocumentReader } from "./document-reader";
+import { AdventureDialog } from "./adventure-dialog";
+import styles from "./adventure-chrome.module.css";
+import roomStyles from "./room-panel.module.css";
+import { RoomActions } from "./room-actions";
 
 const MapCanvas = dynamic(() => import("./map-canvas").then((m) => m.MapCanvas), {
   ssr: false,
@@ -124,9 +128,9 @@ function Portrait({ src, name, size = 40 }: { src: string | null; name: string; 
 }
 
 const chip =
-  "inline-flex min-h-11 items-center gap-1.5 rounded-control border border-line-strong bg-surface px-3.5 py-2 text-base font-semibold leading-tight text-ink transition-colors hover:border-ink disabled:opacity-60";
+  `${styles.chip} inline-flex min-h-11 items-center gap-1.5 rounded-control border border-line-strong bg-surface px-3.5 py-2 text-base font-semibold leading-tight text-ink transition-colors hover:border-ink disabled:opacity-60`;
 const primary =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-control bg-ink px-4 py-2 text-base font-semibold leading-snug text-paper transition-colors hover:bg-record disabled:opacity-60";
+  `${styles.primary} inline-flex min-h-11 items-center justify-center gap-2 rounded-control bg-ink px-4 py-2 text-base font-semibold leading-snug text-paper transition-colors hover:bg-record disabled:opacity-60`;
 const subtle =
   "inline-flex min-h-9 items-center justify-center gap-2 rounded-control border border-line-strong bg-transparent px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:opacity-60";
 const label = "text-sm font-semibold text-muted";
@@ -604,7 +608,7 @@ export function PlayClient({
 
   if (state.status === "completed") {
     return (
-      <section className="mx-auto my-10 flex w-full max-w-2xl flex-col gap-5 px-6">
+      <section className={`${styles.game} mx-auto my-10 flex w-full max-w-2xl flex-col gap-5 px-6`}>
         {/* The map (and its sound manager) is gone at the ending; the closing theme plays from here. */}
         {!muted ? <audio src="/game/ninja/audio/music/end-theme.ogg" autoPlay loop /> : null}
         <p className={label}>The end</p>
@@ -654,41 +658,29 @@ export function PlayClient({
   const lowTime = state.timer.enabled && state.timer.secondsRemaining !== null && state.timer.secondsRemaining <= 120;
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
+    <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row`}>
       {roleBriefOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-inverse/70 p-5" role="presentation">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="role-brief-title"
-            aria-describedby="role-brief-description"
-            className="flex max-h-[90dvh] w-full max-w-xl flex-col gap-5 overflow-y-auto rounded-surface border border-line bg-paper p-6 shadow-2xl sm:p-8"
-          >
-            <div className="flex items-center gap-2 text-world">
-              <UserRound className="h-6 w-6" aria-hidden />
-              <p className="text-base font-semibold uppercase tracking-wide">Your character</p>
-            </div>
+        <AdventureDialog kind="character" titleId="role-brief-title" descriptionId="role-brief-description" onClose={() => setRoleBriefOpen(false)}>
             <div className="flex flex-col gap-2">
-              <p className="text-lg capitalize text-muted">You are {state.player.name}</p>
-              <h2 id="role-brief-title" className="font-serif text-3xl leading-tight text-ink sm:text-4xl">
+              <p className={styles.modalKicker}>You are {state.player.name}</p>
+              <h2 id="role-brief-title" className={styles.modalTitle}>
                 {state.player.role}
               </h2>
             </div>
-            <p id="role-brief-description" className="text-lg leading-relaxed text-ink">
+            <p id="role-brief-description" className="text-base leading-relaxed text-ink">
               {state.player.brief}
             </p>
-            <div className="rounded-control border-l-[3px] border-world bg-surface px-4 py-3">
+            <div className={styles.briefContext}>
               <p className="text-sm font-semibold text-muted">Stage {state.stage.index + 1}: {state.stage.title}</p>
               <p className="mt-2 text-base leading-relaxed text-ink">{state.stage.sharedContext}</p>
               <p className="mt-3 text-sm font-semibold text-muted">The decision ahead</p>
               <p className="text-base text-ink">{state.decisionPrompt}</p>
               <p className="mt-2 text-base text-muted">Gather evidence and hear different perspectives. Use your notes to weigh the choices.</p>
             </div>
-            <button type="button" className={`${primary} min-h-12 w-full text-lg capitalize sm:w-fit sm:self-end`} autoFocus onClick={() => setRoleBriefOpen(false)}>
+            <button type="button" className={`${primary} min-h-12 w-full text-lg sm:w-fit sm:self-end`} onClick={() => setRoleBriefOpen(false)}>
               Begin as {state.player.name}
             </button>
-          </section>
-        </div>
+        </AdventureDialog>
       ) : null}
 
       <section className="relative h-[32dvh] min-h-[11rem] shrink-0 bg-sunken lg:h-auto lg:min-h-0 lg:flex-1" aria-label="Map">
@@ -718,7 +710,7 @@ export function PlayClient({
             type="button"
             onClick={() => setNotesOpen(true)}
             aria-haspopup="dialog"
-            className="inline-flex min-h-11 items-center gap-2 rounded-control border border-on-inverse/25 bg-inverse/95 px-3 py-2 text-base font-semibold text-on-inverse shadow-lg hover:bg-inverse"
+            className={`${styles.tool} inline-flex min-h-11 items-center gap-2 px-3 py-2 text-base font-semibold`}
           >
             <ScrollText className="h-5 w-5" aria-hidden />
             Notes ({collectedDocuments.length})
@@ -728,7 +720,7 @@ export function PlayClient({
               type="button"
               onClick={() => setHintVisible((shown) => !shown)}
               aria-pressed={hintVisible}
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control bg-inverse/85 px-3 py-2 text-on-inverse hover:bg-inverse"
+              className={`${styles.tool} inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2`}
             >
               <HelpCircle className="h-5 w-5" aria-hidden />
               <span className="sr-only">How to move and talk</span>
@@ -737,7 +729,7 @@ export function PlayClient({
               type="button"
               onClick={toggleMuted}
               aria-pressed={muted}
-              className="inline-flex min-h-11 items-center gap-2 rounded-control bg-inverse/85 px-3 py-2 text-base font-semibold text-on-inverse hover:bg-inverse lg:px-3.5"
+              className={`${styles.tool} inline-flex min-h-11 items-center gap-2 px-3 py-2 text-base font-semibold lg:px-3.5`}
             >
               {muted ? <VolumeX className="h-5 w-5" aria-hidden /> : <Volume2 className="h-5 w-5" aria-hidden />}
               <span className="sr-only sm:not-sr-only">{muted ? "Sound off" : "Sound on"}</span>
@@ -747,7 +739,7 @@ export function PlayClient({
         {lastResolution ? (
           <div
             role="status"
-            className="absolute inset-x-3 top-3 mx-auto max-h-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto rounded-surface border-l-[3px] border-world bg-surface p-4 text-ink shadow-xl sm:p-5"
+            className={`${styles.resolution} absolute inset-x-3 top-3 mx-auto max-h-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto p-4 text-ink sm:p-5`}
           >
             <p className="mb-2 text-base font-semibold text-world">What happened</p>
             <p className="leading-relaxed sm:text-lg">{lastResolution}</p>
@@ -758,25 +750,16 @@ export function PlayClient({
         ) : null}
       </section>
 
-      <aside className="flex min-h-0 w-full min-w-0 shrink-0 flex-col border-t border-line bg-paper text-base lg:w-[min(42rem,48vw)] lg:border-l lg:border-t-0">
+      <aside className={`${styles.panel} flex min-h-0 w-full min-w-0 shrink-0 flex-col text-base lg:w-[min(42rem,48vw)]`}>
         {/* ── Top: where you are, where you can go ─────────────────────────── */}
-        <section className="flex flex-col gap-3 border-b border-line px-5 py-4 lg:min-h-0 lg:max-h-[32%] lg:overflow-y-auto" aria-labelledby="where">
-          <button
-            type="button"
-            onClick={() => setRoleBriefOpen(true)}
-            className="flex min-h-11 w-full items-center gap-3 rounded-control border border-world/40 bg-world-wash px-3.5 py-2 text-left text-ink transition-colors hover:border-world"
-            aria-label={`Open your role brief: ${state.player.role}`}
-          >
-            <UserRound className="h-5 w-5 shrink-0 text-world" aria-hidden />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-muted">You are playing</span>
-              <span className="block truncate text-base font-semibold">{state.player.role}</span>
-            </span>
-            <span className="ml-auto shrink-0 text-sm font-semibold text-world underline underline-offset-4">Role brief</span>
-          </button>
+        <section className={`${styles.where} flex shrink-0 flex-col gap-3 px-5 py-4`} aria-labelledby="where">
+          <div className={roomStyles.roleLine}>
+            <span>You are playing <strong className="text-ink">{state.player.role}</strong></span>
+            <button type="button" onClick={() => setRoleBriefOpen(true)} aria-label={`Open your role brief: ${state.player.role}`}>Read role brief</button>
+          </div>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className={label}>You are in</p>
+              <p className={styles.locationLabel}><MapPin size={14} aria-hidden /> You are here</p>
               <h2 id="where" className="font-serif text-2xl leading-tight text-ink">
                 {here ? here.name : "the open air"}
               </h2>
@@ -790,102 +773,56 @@ export function PlayClient({
               <Timer className="h-5 w-5" aria-hidden /> <StageCountdown attemptId={attemptId} deadlineIso={state.timer.deadlineAt} serverNowIso={state.timer.serverNow} />
             </span>
           </div>
-          {state.landmarks.filter((landmark) => landmark.roomId === state.currentRoomId).map((landmark) => (
-            <button key={landmark.id} type="button" className={chip} onClick={() => onLandmark(landmark.id)}>
-              Inspect {landmark.name}
+          <RoomActions
+            key={`${state.stage.id}:${state.currentRoomId}`}
+            state={state}
+            busy={busy !== null}
+            onRoom={(roomId) => { setReading(null); setIntent({ kind: "room", roomId }); }}
+            onLandmark={onLandmark}
+            onDocument={onProp}
+            onDoor={() => { if (here) void act(here.doorOpen ? "Closing…" : "Opening…", () => playApi.action(attemptId, { type: here.doorOpen ? "close_door" : "open_door", roomId: here.id })); }}
+          />
+          {knockReady ? (
+            <button type="button" className={primary} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor! }))}>
+              Knock on {waitingRoom?.name ?? "the door"}
             </button>
-          ))}
-          <div className="flex flex-wrap gap-2">
-            {state.rooms
-              .filter((r) => r.id !== state.currentRoomId)
-              .map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  className={chip}
-                  disabled={busy !== null}
-                  onClick={() => {
-                    setReading(null);
-                    setIntent({ kind: "room", roomId: r.id });
-                  }}
-                >
-                  <ArrowRight className="h-4 w-4" aria-hidden /> {r.name}
-                  {!r.doorOpen ? <Lock className="h-4 w-4 text-muted" aria-label="door closed" /> : null}
-                </button>
-              ))}
-            {here?.enclosure === "enclosed" ? (
-              <button
-                type="button"
-                className={chip}
-                disabled={busy !== null}
-                onClick={() => act(here.doorOpen ? "Closing…" : "Opening…", () => playApi.action(attemptId, { type: here.doorOpen ? "close_door" : "open_door", roomId: here.id }))}
-              >
-                {here.doorOpen ? "Close door" : "Open door"}
-              </button>
-            ) : null}
-            {knockReady ? (
-              <button type="button" className={`${primary} min-h-10 py-1.5 text-sm`} disabled={busy !== null} onClick={() => act("Knocking…", () => playApi.action(attemptId, { type: "knock", roomId: waitingAtDoor! }))}>
-                Knock on {waitingRoom?.name ?? "the door"}
-              </button>
-            ) : null}
-          </div>
-          {state.evidenceHere.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2 border-l-[3px] border-world py-1 pl-3">
-              <span className="text-base font-semibold text-world">Documents here</span>
-              {state.evidenceHere.map((item) => item.canInspect || localCanInspect(state, visiblePosition, item.id) ? (
-                <button key={item.id} type="button" className={chip} disabled={busy !== null} onClick={() => onProp(item.id)}>
-                  <Search className="h-4 w-4" aria-hidden /> Read {item.name}
-                </button>
-              ) : (
-                <button key={item.id} type="button" className={chip} disabled={busy !== null || item.position === null} onClick={() => item.position && setIntent({ kind: "point", point: item.position })}>
-                  Walk to {item.name}
-                </button>
-              ))}
-            </div>
           ) : null}
         </section>
 
         {/* ── Middle: the conversation. This is the game; it gets the height. ── */}
-        <section className="flex min-h-80 flex-1 flex-col" aria-labelledby="talk">
-          {peopleHere.length ? (
-            <div className="flex gap-2 overflow-x-auto px-5 pt-4" role="radiogroup" aria-label="Who you are talking to" id="talk">
-              {peopleHere.map((a) => {
-                const active = a.id === effectiveAddressee;
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => setAddressee(a.id)}
-                    className={`flex min-w-0 shrink-0 items-center gap-2.5 rounded-control border px-2.5 py-2 text-left transition-colors ${
-                      active ? "border-ink bg-ink text-paper" : "border-line bg-surface text-ink hover:border-ink"
-                    }`}
-                  >
-                    <Portrait src={a.portraitUrl} name={a.name} size={40} />
-                    <span className="min-w-0 leading-tight">
-                      <span className="block text-base font-semibold">{a.name}</span>
-                      {a.role ? <span className={`block max-w-[14rem] truncate text-sm ${active ? "text-paper/85" : "text-muted"}`}>{a.role}</span> : null}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+        <section className={`${roomStyles.conversation} ${styles.conversation} flex flex-1 flex-col`} aria-labelledby="talk">
+          {talkingTo ? (
+            <>
+              <div className={roomStyles.introduction}>
+                <Portrait src={talkingTo.portraitUrl} name={talkingTo.name} size={64} />
+                <div>
+                  <p className={roomStyles.eyebrow}>Talk to</p>
+                  <h2 id="talk" className={roomStyles.personName}>{talkingTo.name}</h2>
+                  {talkingTo.role ? <p className={roomStyles.personRole}>{talkingTo.role}</p> : null}
+                </div>
+              </div>
+              {peopleHere.length > 1 ? (
+                <div className={roomStyles.switchPerson} role="radiogroup" aria-label="Choose who to talk to">
+                  <p>People within speaking distance</p>
+                  {peopleHere.map((person) => (
+                    <button key={person.id} type="button" role="radio" aria-checked={person.id === effectiveAddressee} onClick={() => { setAddressee(person.id); composer.current?.focus(); }}>
+                      Talk to {person.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {state.transcript.length === 0 && pendingSpeech === null ? (
+                <p className={roomStyles.conversationHint}>You’re within speaking distance. Type a question below to start the conversation.</p>
+              ) : null}
+            </>
           ) : (
-            <p id="talk" className="px-5 pt-4 text-base text-ink">
-              {here ? "No one is here. Try another building." : "Walk into a building to find someone to talk to."}
-            </p>
+            <div className="px-5 py-4">
+              <h2 id="talk" className="font-serif text-xl text-ink">No one is within speaking distance</h2>
+              <p className="mt-2 text-sm text-muted">Use “Go somewhere” to find someone, or walk closer to a person on the map.</p>
+            </div>
           )}
 
-          <div ref={transcriptLog} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-3 sm:py-4" role="log" aria-live="polite" aria-label="Conversation">
-            {state.transcript.length === 0 && pendingSpeech === null ? (
-              <div className="mx-auto flex max-w-sm flex-col items-center gap-2 text-center lg:m-auto">
-                <p className="font-serif text-lg text-ink sm:text-xl">Nothing has been said yet</p>
-                <p className="hidden text-base leading-relaxed text-muted sm:block">
-                  {talkingTo ? `Ask ${talkingTo.name} a question.` : "Find someone to talk to."}
-                </p>
-              </div>
-            ) : null}
+          <div ref={transcriptLog} className={`flex min-h-0 flex-col gap-3 overflow-y-auto px-5 ${state.transcript.length || pendingSpeech || speaking || state.pendingDialogue ? "flex-1 py-3 sm:py-4" : ""}`} role="log" aria-live="polite" aria-label="Conversation">
             {items.map((item) => {
               if (item.kind === "break") {
                 return (
@@ -905,7 +842,7 @@ export function PlayClient({
               return (
                 <div key={m.id} className={`flex items-start gap-2.5 ${mine ? "flex-row-reverse" : ""}`}>
                   {speaker ? <Portrait src={speaker.portraitUrl} name={speaker.name} size={36} /> : null}
-                  <div className={`min-w-0 max-w-[92%] rounded-surface px-4 py-2.5 leading-relaxed ${mine ? "rounded-tr-sm bg-ink text-paper" : "rounded-tl-sm bg-surface text-ink"}`}>
+                  <div className={`${styles.bubble} ${mine ? styles.myBubble : ""} min-w-0 max-w-[92%] px-4 py-2.5 leading-relaxed text-ink`}>
                     {!mine ? <p className="text-sm font-semibold text-muted">{m.authorName ?? "Someone"}</p> : null}
                     <p>{m.body}</p>
                   </div>
@@ -914,7 +851,7 @@ export function PlayClient({
             })}
             {pendingSpeech ? (
               <div key={pendingSpeech.id} className="flex flex-row-reverse items-start gap-2.5">
-                <div className="min-w-0 max-w-[85%] rounded-surface rounded-tr-sm bg-ink px-4 py-2.5 leading-relaxed text-paper">
+                <div className={`${styles.bubble} ${styles.myBubble} min-w-0 max-w-[85%] px-4 py-2.5 leading-relaxed`}>
                   <p>{pendingSpeech.body}</p>
                 </div>
               </div>
@@ -924,32 +861,35 @@ export function PlayClient({
           </div>
 
           <form
-            className="flex gap-2 px-5 pb-4"
+            className={roomStyles.composer}
             onSubmit={(e) => {
               e.preventDefault();
               void send();
             }}
           >
+            <label htmlFor="conversation-message">{talkingTo ? `Your message to ${talkingTo.name}` : "Your message"}</label>
+            <div className={roomStyles.composerRow}>
             <input
+              id="conversation-message"
               ref={composer}
-              aria-label="What you say"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               disabled={busy !== null || speaking || state.pendingDialogue || !peopleHere.length}
-              placeholder={talkingTo ? `Ask ${talkingTo.name.split(" ").at(-1)} something…` : "Find someone to talk to first"}
+              placeholder={talkingTo ? "Type your question…" : "Find someone to talk to first"}
               className="min-h-12 min-w-0 flex-1 rounded-control border border-line bg-surface px-4 py-2 text-base text-ink placeholder:text-muted focus:border-record focus:outline-none disabled:opacity-60"
               maxLength={2000}
             />
             <button type="submit" className={`${primary} min-h-11`} disabled={busy !== null || speaking || state.pendingDialogue || !draft.trim() || !canSendToAddressee}>
-              {speaking || state.pendingDialogue ? <Pending>Saying it</Pending> : canSendToAddressee ? "Say it" : "Coming closer…"}
+              {speaking || state.pendingDialogue ? <Pending>Sending</Pending> : "Send"}
             </button>
+            </div>
           </form>
         </section>
 
         {/* ── Bottom, always visible: goals + the decision ─────────────────── */}
-        <section className="flex flex-col gap-3 border-t border-line bg-sunken/60 px-5 py-4 lg:min-h-0 lg:max-h-[34%] lg:overflow-y-auto" aria-labelledby="decide">
+        <section className={`${styles.quests} flex flex-col gap-3 px-5 py-4 lg:min-h-0 lg:max-h-[34%] lg:overflow-y-auto`} aria-labelledby="decide">
           <div>
-            <p className="text-sm font-semibold text-muted">The decision ahead</p>
+            <p className={styles.questHeading}><Flag size={15} aria-hidden /> Your next chapter</p>
             <p className="text-base leading-snug text-ink">{state.decisionPrompt}</p>
           </div>
           <div className="flex items-baseline justify-between gap-3">
@@ -957,6 +897,9 @@ export function PlayClient({
               <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>
               <span className="ml-3 text-muted">Stage {state.stage.index + 1} of {state.stageCount}</span>
             </p>
+          </div>
+          <div className={styles.progress} aria-hidden="true">
+            {state.stage.objectives.map((objective) => <span key={objective.id} data-complete={objective.met} />)}
           </div>
           <ul className="flex flex-col gap-1.5">
             {state.stage.objectives.map((o) => {
@@ -1097,16 +1040,17 @@ export function PlayClient({
       ) : null}
 
       {openLandmark ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-inverse/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="landmark-title">
-          <div className="flex max-h-[80dvh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-surface border-l-[3px] border-world bg-paper p-5 shadow-xl sm:p-6">
+        <AdventureDialog kind="landmark" titleId="landmark-title" descriptionId="landmark-description" onClose={() => setInspectingLandmark(null)}>
             <div>
-              <p className={label}>You inspect</p>
-              <h2 id="landmark-title" className="font-serif text-2xl leading-tight text-ink">{openLandmark.name}</h2>
+              <p className={styles.modalKicker}><MapPin size={14} aria-hidden /> {state.rooms.find((room) => room.id === openLandmark.roomId)?.name ?? "Out in the world"}</p>
+              <h2 id="landmark-title" className={styles.modalTitle}>{openLandmark.name}</h2>
             </div>
-            <p className="whitespace-pre-line text-lg leading-relaxed text-ink">{openLandmark.description}</p>
-            <button type="button" className={`${primary} w-fit`} onClick={() => setInspectingLandmark(null)} autoFocus>Continue exploring</button>
-          </div>
-        </div>
+            <p id="landmark-description" className="whitespace-pre-line text-lg leading-relaxed text-ink">{openLandmark.description}</p>
+            <div className={styles.modalFooter}>
+              <span className={styles.fieldStamp}><Compass size={16} aria-hidden /> An explorer’s field note</span>
+              <button type="button" className={`${primary} w-fit`} onClick={() => setInspectingLandmark(null)} autoFocus>Continue exploring <ArrowRight size={18} aria-hidden /></button>
+            </div>
+        </AdventureDialog>
       ) : null}
     </div>
   );

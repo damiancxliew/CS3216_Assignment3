@@ -14,8 +14,12 @@ import { compileStageMap } from "@/lib/play/layout";
 // movement response. No database, sign-in, or model service is required.
 it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immediately on pickup and reopens pending Notes before the server responds", async () => {
   const spec = await loadI1Spec();
-  const session = PlaySession.start(spec, "reader-browser", 1);
   const evidence = spec.stages[0]!.evidence[0]!;
+  spec.stages[0]!.rooms.find((room) => room.id === evidence.roomId)!.landmark = {
+    name: "Ship's notice board",
+    description: "A wooden notice board pinned with sailing orders and public memoranda. A faded map curls at the edges, its corners held down with brass pins.",
+  };
+  const session = PlaySession.start(spec, "reader-browser", 1);
   const spatial = session.world.spatial!;
   const to = compileStageMap(spec.stages[0]!, "reader-browser").placements.find((item) => item.id === evidence.id)!.position;
   const from = [{ x: to.x - 1, y: to.y }, { x: to.x + 1, y: to.y }, { x: to.x, y: to.y - 1 }, { x: to.x, y: to.y + 1 }].find((point) => canStep(spatial.map, spatial.state.doors, point, to))!;
@@ -24,7 +28,8 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
   let includeArchivedScroll = false;
   const currentState = () => {
     const state = session.state({ enabled: false, deadlineAt: null });
-    return { ...state, journal: [...state.journal, ...(includeArchivedScroll ? [{ id: "earlier-stage-scroll", text: "Earlier discoveries: A record kept from a previous stage.", sourceSpan: "Archive, p. 2", collectedAt: new Date().toISOString() }] : [])] };
+    // Omit prepared text so this fixture exercises the network-pending reader.
+    return { ...state, evidenceHere: state.evidenceHere.map(({ content, ...item }) => item), journal: [...state.journal, ...(includeArchivedScroll ? [{ id: "earlier-stage-scroll", text: "Earlier discoveries: A record kept from a previous stage.", sourceSpan: "Archive, p. 2", collectedAt: new Date().toISOString() }] : [])] };
   };
   const initial = { ...currentState(), revision: 1, mintReady: false };
   const root = resolve("apps/web");
@@ -58,15 +63,18 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
           import React from 'react';
           import { createRoot } from 'react-dom/client';
           import { PlayClient } from '/src/components/play/play-client.tsx';
+          import { AdventureHeader } from '/src/components/play/adventure-header.tsx';
+          import { ThemeProvider } from '/src/components/theme-provider.tsx';
+          import styles from '/src/components/play/adventure-chrome.module.css';
           import '/src/app/globals.css';
-          createRoot(document.getElementById('root')).render(<PlayClient attemptId="reader-browser" initialState={${JSON.stringify(initial)}} retriesAllowed={false} />);
+          createRoot(document.getElementById('root')).render(<ThemeProvider><main className={styles.shell} style={{display:'flex', flexDirection:'column', height:'100dvh', width:'100%'}}><AdventureHeader title="A Post at the River Mouth" active={${JSON.stringify(initial)}} recap={[]} /><PlayClient attemptId="reader-browser" initialState={${JSON.stringify(initial)}} retriesAllowed={false} /></main></ThemeProvider>);
         `, "reader-test.tsx", { loader: "tsx", jsx: "automatic" })).code;
       },
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
           if (req.url !== "/") return next();
           res.setHeader("Content-Type", "text/html");
-          res.end('<html><body><div id="root" style="display:flex;height:100dvh"></div><script type="module" src="/@vite/client"></script><script type="module" src="/@id/__x00__virtual:reader-test"></script></body></html>');
+          res.end('<html style="--font-ui:Arial;--font-record:Georgia"><body><div id="root" style="display:flex;height:100dvh"></div><script type="module" src="/@vite/client"></script><script type="module" src="/@id/__x00__virtual:reader-test"></script></body></html>');
         });
       },
     }],
@@ -95,6 +103,23 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
     expect(await page.getByText(spec.stages[0]!.decision.prompt, { exact: true }).isVisible()).toBe(true);
     await mkdir(resolve("output/reader-check"), { recursive: true });
+    const roleButton = page.getByRole("button", { name: `Open your role brief: ${spec.player.role}` });
+    await roleButton.click();
+    const roleCard = page.getByRole("dialog", { name: spec.player.role });
+    await roleCard.waitFor();
+    await page.screenshot({ path: resolve("output/reader-check/character-card-desktop.png") });
+    for (let tab = 0; tab < 5; tab += 1) {
+      await page.keyboard.press("Tab");
+      expect(await roleCard.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+    }
+    await page.setViewportSize({ width: 390, height: 650 });
+    await page.screenshot({ path: resolve("output/reader-check/character-card-mobile.png") });
+    const roleBounds = await roleCard.boundingBox();
+    expect(roleBounds!.y).toBeGreaterThanOrEqual(0);
+    expect(roleBounds!.y + roleBounds!.height).toBeLessThanOrEqual(650);
+    await page.keyboard.press("Escape");
+    expect(await roleButton.evaluate((element) => element === document.activeElement)).toBe(true);
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.screenshot({ path: resolve("output/reader-check/notes-toolbar-desktop.png") });
     await page.getByRole("group", { name: "Adventure tools" }).getByRole("button", { name: "Notes (0)" }).click();
     expect(await page.getByText("No scrolls collected yet.", { exact: false }).isVisible()).toBe(true);
@@ -139,6 +164,7 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     expect(await modal.count()).toBe(0);
     expect(await page.getByRole("button", { name: "Notes (1)" }).evaluate((element) => element === document.activeElement)).toBe(true);
     await page.screenshot({ path: resolve("output/reader-check/notes-toolbar-mobile.png") });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     includeArchivedScroll = true;
     await page.getByRole("button", { name: "Notes (2)" }).waitFor({ timeout: 15_000 });
     await page.getByRole("button", { name: "Notes (2)" }).click();
@@ -160,6 +186,23 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     await page.screenshot({ path: resolve("output/reader-check/notes-dark-desktop.png") });
     await page.keyboard.press("Escape");
     expect(await page.getByRole("button", { name: "Notes (2)" }).evaluate((element) => element === document.activeElement)).toBe(true);
+    await page.screenshot({ path: resolve("output/reader-check/game-dark-desktop.png") });
+
+    // The secondary room controls use the same inspection and walking path as the map.
+    const landmark = currentState().landmarks.find((item) => item.roomId === evidence.roomId)!;
+    await page.getByText("Look around", { exact: true }).click();
+    await page.getByRole("button", { name: `Inspect ${landmark.name}` }).click();
+    const landmarkCard = page.getByRole("dialog", { name: landmark.name });
+    await landmarkCard.waitFor({ timeout: 20_000 });
+    await page.screenshot({ path: resolve("output/reader-check/landmark-dark-desktop.png") });
+    await page.evaluate(() => document.documentElement.dataset.theme = "light");
+    await page.screenshot({ path: resolve("output/reader-check/landmark-desktop.png") });
+    await page.setViewportSize({ width: 390, height: 650 });
+    await page.screenshot({ path: resolve("output/reader-check/landmark-mobile.png") });
+    const landmarkBounds = await landmarkCard.boundingBox();
+    expect(landmarkBounds!.y + landmarkBounds!.height).toBeLessThanOrEqual(650);
+    await landmarkCard.getByRole("button", { name: "Continue exploring" }).click();
+    await page.setViewportSize({ width: 1280, height: 900 });
 
     // A timer transition must dismiss an old open scroll and explain the new dilemma.
     await page.getByRole("button", { name: "Notes (2)" }).click();

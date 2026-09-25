@@ -1,0 +1,128 @@
+/* Physical game props: painted wood, brass edges, and a traveller's notebook. */
+.game, .shell, .dialog {
+  --paper: #f6ecd4;
+  --surface: #fff9e9;
+  --surface-sunken: #e9dcc0;
+  --ink: #382e24;
+  --ink-muted: #70604b;
+  --line: #d4c19c;
+  --line-strong: #9b825d;
+  --world: #35644e;
+  --world-wash: #e0ead7;
+  --record: #4c6596;
+  --record-wash: #e5eaf3;
+  --signal: #a44e32;
+  --signal-wash: #f5dfc4;
+  --wood: #65472f;
+  --wood-edge: #382b22;
+  --brass: #d6b778;
+  color: var(--ink);
+}
+:global([data-theme="dark"]) .game,
+:global([data-theme="dark"]) .shell,
+:global([data-theme="dark"]) .dialog {
+  --paper: #302c25;
+  --surface: #3c362d;
+  --surface-sunken: #26241f;
+  --ink: #f2e5cb;
+  --ink-muted: #c3b499;
+  --line: #574c3b;
+  --line-strong: #948065;
+  --world: #a0c6a2;
+  --world-wash: #303e32;
+  --record: #b2c6e9;
+  --record-wash: #323c4c;
+  --signal: #efb086;
+  --signal-wash: #513b2b;
+  --wood: #413226;
+  --wood-edge: #211d18;
+  --brass: #b99b66;
+}
+.shell { background: var(--paper); }
+.header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 14px 24px;
+  border-bottom: 4px solid var(--wood-edge);
+  background: repeating-linear-gradient(2deg, transparent 0 8px, #1c10070c 9px 10px), linear-gradient(#ffffff09, #00000012), var(--wood);
+  box-shadow: inset 0 2px #c8a47960, inset 0 -2px #c8a47950, 0 3px 0 #00000020;
+  color: #fff1d3;
+  /* Header controls inherit legible colours on painted wood in either theme. */
+  --ink: #fff1d3;
+  --ink-muted: #ead5ae;
+  --line-strong: #b2966c;
+  --surface: #59432f;
+}
+.header::before, .header::after { content: ""; position: absolute; top: 50%; width: 6px; height: 6px; border-radius: 50%; background: var(--brass); box-shadow: 0 1px 2px #0009; }
+.header::before { left: 8px; }
+.header::after { right: 8px; }
+.adventureTitle { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; font: 700 1.25rem/1.2 var(--font-record, Georgia), serif; }
+.headerEmblem { display: grid; place-items: center; width: 38px; height: 38px; flex-shrink: 0; border: 1px solid var(--brass); border-radius: 50%; color: #f5d58e; background: #302a2040; }
+.chapter { flex: 1; min-width: 220px; }
+.chapter summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; cursor: pointer; list-style: none; }
+.chapter summary::-webkit-details-marker { display: none; }
+.chapterNumber { padding: 3px 9px; border: 1px solid #e1c58b80; border-radius: 3px; color: #ffe0a2; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.chapterTitle { font-size: 15px; font-weight: 600; }
+.storyToggle { font-size: 13px; text-decoration: underline; text-underline-offset: 4px; color: #ead5ae; }
+.chapterStory { max-height: 35dvh; overflow-y: auto; max-width: 70ch; margin-top: 12px; padding: 12px 16px; border-left: 2px solid var(--brass); background: #211b1933; font-size: 16px; line-height: 1.6; }
+.headerActions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.panel { position: relative; border: 0; border-left: 9px solid var(--wood); background: var(--paper); box-shadow: inset 2px 0 var(--brass); }
+.where { background: linear-gradient(110deg, #a7792510, transparent 60%), var(--paper); border-bottom: 1px dashed var(--line-strong); }
+.locationLabel { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); }
+.chip { border-radius: 6px 10px 10px 6px; border-color: var(--line-strong); background: var(--surface); box-shadow: 0 2px 0 color-mix(in srgb, var(--line-strong) 35%, transparent); }
+.primary { border: 1px solid color-mix(in srgb, var(--world) 80%, black); border-radius: 8px; background: var(--world); color: var(--paper); box-shadow: 0 3px 0 color-mix(in srgb, var(--world) 70%, black); }
+.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--world) 88%, var(--ink)); }
+.chip:hover:not(:disabled) { background: var(--world-wash); }
+.chip:active:not(:disabled), .primary:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+.panel .conversation { background: repeating-linear-gradient(transparent 0 31px, color-mix(in srgb, var(--line) 23%, transparent) 31px 32px), var(--surface); }
+.bubble { border: 1px solid var(--line); box-shadow: 0 2px 0 #50381410; border-radius: 3px 16px 16px 16px; background: var(--paper); }
+.myBubble { border-radius: 16px 3px 16px 16px; background: var(--world-wash); color: var(--ink); }
+.quests { position: relative; border-top: 3px double var(--line-strong); background: linear-gradient(110deg, #b78d3410, transparent), var(--paper); }
+.questHeading { display: flex; align-items: center; gap: 7px; color: var(--world); font-weight: 700; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+.progress { display: flex; gap: 5px; margin-top: 8px; }
+.progress span { flex: 1; height: 5px; border-radius: 2px; background: var(--line); }
+.progress span[data-complete="true"] { background: var(--world); }
+.resolution { border: 2px solid var(--line-strong); border-radius: 4px 4px 18px 4px; background: var(--paper); box-shadow: 5px 5px 0 #382b2240; }
+.resolution > p:first-child { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
+.tool { border: 1px solid #c5aa79; border-radius: 8px; background: #453a2e; color: #fff1d3; box-shadow: 0 3px 0 #211d18; }
+.tool:hover { background: #64513b; }
+.dialog { position: fixed; inset: 0; width: min(38rem, calc(100vw - 2rem)); max-width: none; max-height: calc(100dvh - 2rem); margin: auto; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: var(--wood); box-shadow: 0 22px 70px #0008; color: var(--ink); }
+.dialog::backdrop { background: #151a16b8; backdrop-filter: blur(3px); }
+.modalFrame { display: flex; flex-direction: column; max-height: calc(100dvh - 2rem); padding: 10px; background: repeating-linear-gradient(3deg, #ffffff04 0 2px, transparent 2px 9px), var(--wood); }
+.modalHeader { display: flex; flex-shrink: 0; align-items: center; gap: 12px; padding: 4px 10px 14px; color: #fff1d3; }
+.modalHeader p { font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.modalEmblem { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--brass); border-radius: 50%; color: #f3d290; }
+.close { display: grid; place-items: center; width: 44px; height: 44px; margin-left: auto; flex-shrink: 0; border: 1px solid #c4a97c80; border-radius: 50%; background: #00000012; color: #fff1d3; }
+.close:hover { background: #ffffff18; }
+.modalPaper { position: relative; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overscroll-behavior: contain; gap: 20px; padding: 28px 32px; border-radius: 3px 3px 14px 3px; background: radial-gradient(ellipse at 0 0, #c29b3620, transparent 70%), repeating-linear-gradient(8deg, #92703804 0 1px, transparent 1px 4px), var(--paper); box-shadow: 0 2px 5px #0004; overflow-wrap: anywhere; }
+.modalPaper > * { flex-shrink: 0; }
+.landmark .modalPaper { padding-top: 40px; }
+.landmark .modalPaper::before { content: ""; position: absolute; top: 13px; left: calc(50% - 6px); width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #e2bd79, #997040 60%, #51351f); box-shadow: 1px 3px 2px #382b224a; }
+.modalTitle { font: 600 clamp(1.65rem, 4vw, 2.1rem)/1.2 var(--font-record, Georgia), serif; text-wrap: balance; color: var(--ink); }
+.modalKicker { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; color: var(--ink-muted); font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.modalFooter { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding-top: 18px; border-top: 1px dashed var(--line-strong); }
+.fieldStamp { display: flex; align-items: center; gap: 6px; color: var(--ink-muted); font-size: 12px; }
+.character { background: var(--world); }
+.character .modalFrame { background: linear-gradient(120deg, #174b3d, #2d6552); }
+.character .modalPaper { border-radius: 3px; border-top: 4px double var(--line-strong); }
+.briefContext { border: 1px dashed var(--line-strong); border-radius: 6px; background: var(--surface); padding: 16px; }
+.game :is(button, input):focus-visible, .shell :is(a, button, summary):focus-visible, .dialog :is(button, input):focus-visible { outline: 3px solid var(--record); outline-offset: 3px; }
+.header :is(a, button, summary):focus-visible, .close:focus-visible { outline-color: #ffe0a2; }
+@media (max-width: 1023px) {
+  .panel { border-left: 0; border-top: 8px solid var(--wood); box-shadow: inset 0 2px var(--brass); }
+  .header { gap: 10px 16px; padding: 12px 20px; }
+  .chapter { order: 3; flex-basis: 100%; }
+  .adventureTitle { flex: 1; }
+  .headerActions { gap: 8px; }
+}
+@media (max-width: 540px) {
+  .adventureTitle { font-size: 1.05rem; }
+  .headerEmblem { width: 30px; height: 30px; }
+  .modalPaper { padding: 24px 20px; }
+  .modalHeader { gap: 8px; padding-inline: 4px; }
+  .modalHeader p { font-size: 11px; }
+}
