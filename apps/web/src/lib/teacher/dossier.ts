@@ -9,7 +9,7 @@
  */
 import type { MapDoor, MapRoom } from "@adventure/game-core";
 import { isCurrentSpriteRecord, placeholderUrl, playableAssetEligibility, type AssetManifest, type AssetRecord } from "@adventure/generation/assets";
-import { resolveStageSettings, validatePublishedSpec, type AdventureSpec } from "@adventure/generation/spec";
+import { resolveStageSettings, validatePublishedSpec, type AdventureSpec, type MapStyleId } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { loadManifest } from "@/lib/assets/supabase";
@@ -51,6 +51,7 @@ export type DossierStage = {
   sharedContext: string;
   ambientOverlay: { id: string; intensity: number } | null;
   mapTheme: 'classic' | 'desert' | 'winter' | 'forest' | 'coast';
+  visualStyle?: MapStyleId;
   /** `null` when this version has no compiled map for the stage (e.g. an uncompiled draft). */
   plan: DossierPlan | null;
   /** `null` inherits the adventure default; `0` disables the timer (D12/FR-16). */
@@ -138,6 +139,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
     sharedContext: stage.sharedContext.text,
     ambientOverlay: resolveStageSettings(spec, stage).ambientOverlay,
     mapTheme: stage.mapTheme ?? 'classic',
+    visualStyle: stage.visualStyle ?? 'auto',
     timerSeconds: stage.timerSeconds,
     plan: (() => {
       const map = compiled?.[stage.index]?.map;

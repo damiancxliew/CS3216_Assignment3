@@ -15,10 +15,11 @@ import {
   type StageMap,
 } from '@adventure/game-core'
 import { actorNames, playgroundFixture } from './fixture.js'
+import type { StoryStyle, EnvironmentPlan } from './story-art.js'
 
 export type PlayerGoal = { kind: 'point'; point: Point } | { kind: 'room'; roomId: string } | null
 export type TravelStatus = 'idle' | 'moving' | 'arrived' | 'waiting_for_door' | 'unreachable'
-export type AmbientOverlayId = 'clear' | 'clouds' | 'rain' | 'fog' | 'night' | 'dust' | 'snow'
+export type AmbientOverlayId = 'clear' | 'clouds' | 'rain' | 'thunderstorm' | 'haze' | 'fog' | 'night' | 'dust' | 'snow'
 export type MapThemeId = 'classic' | 'desert' | 'winter' | 'forest' | 'coast'
 export type SceneEffectId = 'explosion' | 'fire' | 'smoke' | 'confetti' | 'flash' | 'rubble' | 'crowd_cheer' | 'crowd_flee'
 
@@ -35,8 +36,11 @@ export interface PlaygroundSnapshot {
     status: TravelStatus
     /** Character sheet key for a tiled renderer; ignored by the primitive one. */
     sprite?: string
-    /** Generated 4x4 walking sheet for this character. */
+    /** Generated 4x4 pixel walking sheet for this character. */
     spriteSheetUrl?: string | null
+    /** Identity art belongs to host UI; it never replaces a map walking body. */
+    portraitUrl?: string | null
+    portraitFallbackUrl?: string | null
     /** Whether the host considers this actor close enough to interact with now. */
     interactive?: boolean
     /** Which way the actor last moved, for a walk cycle. */
@@ -58,6 +62,10 @@ export interface PlaygroundSnapshot {
   /** Public room purposes used to choose materials and period-appropriate fixtures. */
   roomDescriptions?: Readonly<Record<string, string>>
   mapTheme?: MapThemeId
+  visualStyle?: StoryStyle
+  environment?: EnvironmentPlan | null
+  /** Public setting and stage context only; never private agent or unrevealed evidence text. */
+  storyContext?: string
   /** Physical, inspectable fixtures placed within named rooms. Ready art is a 32px tile sheet. */
   landmarks?: Array<{ id: string; roomId: string; name: string; description?: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string }>
   /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */

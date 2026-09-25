@@ -4,6 +4,8 @@ export const MUSIC_BY_AMBIENT: Readonly<Record<AmbientOverlayId, readonly string
   clear: ['calm-village', 'peaceful', 'road'],
   clouds: ['road', 'mystical', 'quiet'],
   rain: ['quiet', 'mystical', 'tension'],
+  thunderstorm: ['tension', 'mystical', 'quiet'],
+  haze: ['quiet', 'road', 'mystical'],
   fog: ['mystical', 'quiet', 'tension'],
   night: ['quiet', 'mystical', 'peaceful'],
   dust: ['tension', 'road', 'mystical'],

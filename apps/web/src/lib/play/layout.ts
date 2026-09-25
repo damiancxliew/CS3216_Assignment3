@@ -49,9 +49,10 @@ export function toStageLayout(stage: Stage): StageLayoutInput {
   return {
     stageId: stage.id,
     spawnRoomId: stage.spawnRoomId,
+    ...(stage.environment ? { landscape: { layout: stage.environment.layout, water: stage.environment.waterfront }, scenery: { palette: stage.environment.props, density: stage.environment.propDensity } } : {}),
     rooms: stage.rooms.map((room) => {
       if (room.enclosure === null) throw new Error(`Location "${room.id}" requires explicit enclosure; publish a new compatible adventure version.`);
-      return { id: room.id, size: room.size, enclosure: room.enclosure, doorDefault: room.doorDefault };
+      return { id: room.id, size: room.size, enclosure: room.enclosure, ...(room.shape && room.shape !== 'rectangle' ? { shape: room.shape } : {}), doorDefault: room.doorDefault };
     }),
     landmarks: stage.rooms.flatMap((room) => room.landmark ? [{ roomId: room.id, kind: landmarkKindFor(room.landmark.name, room.landmark.description, room.kind) }] : []),
     placements: [

@@ -1,3 +1,4 @@
+import { environmentSchema } from './environment'
 /**
  * I1 — Adventure Spec v2 (EXECUTION_SPEC §2, PRD FR-2/FR-3/FR-6b/FR-15a).
  *
@@ -24,6 +25,7 @@ import {
   DECISION_STANCES,
   GENERATABLE_ASSET_KINDS,
   MAP_THEMES,
+  MAP_STYLES,
   MODEL_TIERS,
   READING_BANDS,
   ROOM_KINDS,
@@ -175,6 +177,7 @@ export const roomSchema = z.object({
   purpose: text(400),
   kind: z.enum(ROOM_KINDS),
   enclosure: z.enum(['enclosed', 'open']).nullable().default(null),
+  shape: z.enum(['rectangle', 'rounded', 'octagonal', 'courtyard-wing']).default('rectangle'),
   size: z.enum(ROOM_SIZES),
   doorDefault: z.enum(['open', 'closed']).nullable(),
   /** A named, story-specific feature of the room (a gallows, a treaty table). Null for plain rooms. */
@@ -275,6 +278,9 @@ export const stageSchema = z.object({
   ambientOverlay: ambientOverlaySchema.nullable(),
   /** Planner chooses by historical setting and season; older specs parse as classic. */
   mapTheme: z.enum(MAP_THEMES).default('classic'),
+  /** Materials, architectural character and outdoor dressing selected from the actual location. */
+  visualStyle: z.enum(MAP_STYLES).default('auto'),
+  environment: environmentSchema.nullable().default(null),
   spawnRoomId: idSchema,
   rooms: z.array(roomSchema).min(MIN_ROOMS_PER_STAGE).max(MAX_ROOMS_PER_STAGE),
   agents: z.array(agentSchema).min(1).max(MAX_AGENTS_PER_STAGE),

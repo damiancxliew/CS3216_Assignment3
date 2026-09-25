@@ -142,38 +142,19 @@ export function DossierSections({
       <Section title="Stages">
         <ol className="flex flex-col gap-8">
           {dossier.stages.filter((stage) => stage.id === stageId).map((stage) => {
-            const banner = stage.rooms.find((r) => r.landmark) ?? stage.rooms[0];
             const roomNames = Object.fromEntries(stage.rooms.map((r) => [r.id, r.name]));
             return (
               <li key={stage.id} className="flex flex-col gap-6 overflow-hidden rounded-surface border border-line bg-surface">
-                {view === "stage-style" ? <div className="relative">
-                  {banner?.imageUrl ? (
-                    <ImageViewer src={banner.imageUrl} title={banner.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`} className="w-full">
-                      <img
-                        src={banner.imageUrl}
-                        alt={banner.landmark ? `Artwork of ${banner.landmark.name}` : `Stage ${stage.index + 1}`}
-                        width={1536}
-                        height={512}
-                        loading="lazy"
-                        className="w-full aspect-[3/1] object-cover"
-                      />
-                    </ImageViewer>
-                  ) : (
-                    // Defensive fallback for malformed legacy specs.
-                    <div role="img" aria-label={`Stage ${stage.index + 1}`} className="h-36 w-full bg-sunken" />
-                  )}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-baseline justify-between gap-2 bg-ink/60 px-5 py-3">
-                    <p className="font-serif text-xl text-paper">
-                      {stage.index + 1}. {stage.title}
-                    </p>
+                {view === "stage-style" ? (
+                  <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-line px-6 pt-6 pb-4">
+                    <h3 className="font-serif text-xl text-ink">{stage.index + 1}. {stage.title}</h3>
                     {stage.ambientOverlay ? (
-                      <span className="rounded-control border border-paper/40 px-2.5 py-1 text-sm font-semibold capitalize text-paper">
+                      <span className="rounded-control border border-line px-2.5 py-1 text-sm font-semibold capitalize text-muted">
                         {stage.ambientOverlay.id}, {INTENSITY_LABELS[stage.ambientOverlay.intensity] ?? stage.ambientOverlay.intensity}
                       </span>
                     ) : null}
-                    <span className="rounded-control border border-paper/40 px-2.5 py-1 text-sm font-semibold capitalize text-paper">{stage.mapTheme} map</span>
                   </div>
-                </div> : null}
+                ) : null}
 
                 <div className="flex flex-col gap-6 p-6">
                   {view === "stage-content" ? <>
@@ -181,7 +162,7 @@ export function DossierSections({
                     action={editStage.bind(null, adventureId, specVersionId, stage.id)}
                     label={`Edit stage ${stage.index + 1}`}
                     editable={isDraft}
-                    hiddenInputs={{ map_theme: [stage.mapTheme] }}
+                    hiddenInputs={{ map_theme: [stage.mapTheme], visual_style: [stage.visualStyle ?? 'auto'] }}
                     fields={[
                       { name: "title", label: "Title", defaultValue: stage.title },
                       { name: "shared_context", label: "Shared context", defaultValue: stage.sharedContext, multiline: true, rows: 6 },
@@ -205,9 +186,13 @@ export function DossierSections({
                       label={`Edit map theme for stage ${stage.index + 1}`}
                       editable={isDraft}
                       hiddenInputs={{ title: [stage.title], shared_context: [stage.sharedContext], timer_seconds: [stage.timerSeconds === null ? "" : String(stage.timerSeconds)] }}
-                      fields={[{ name: "map_theme", label: "Map theme", defaultValue: stage.mapTheme, options: [{ value: "classic", label: "Classic village" }, { value: "desert", label: "Desert" }, { value: "winter", label: "Winter" }, { value: "forest", label: "Forest" }, { value: "coast", label: "Coast" }] }]}
+                      fields={[
+                        { name: "visual_style", label: "Environment", defaultValue: stage.visualStyle ?? "auto", options: [{ value: "auto", label: "Automatic from the story and terrain" }, { value: "civic", label: "Civic district" }, { value: "harbor", label: "Trading harbour" }, { value: "village", label: "Rural village" }, { value: "jungle", label: "Rainforest camp" }, { value: "desert", label: "Desert settlement" }, { value: "industrial", label: "Industrial yard" }, { value: "winter", label: "Snowbound settlement" }, { value: "palace", label: "Palace compound" }, { value: "ruins", label: "Overgrown ruins" }, { value: "battlefield", label: "Military encampment" }] },
+                        { name: "map_theme", label: "Terrain for automatic environment", defaultValue: stage.mapTheme, options: [{ value: "classic", label: "Temperate" }, { value: "desert", label: "Desert" }, { value: "winter", label: "Winter" }, { value: "forest", label: "Forest" }, { value: "coast", label: "Coast" }] },
+                      ]}
                     >
                       <p className="text-base text-muted">Map theme: <span className="capitalize text-ink">{stage.mapTheme}</span></p>
+                      <p className="text-base text-muted">Environment: <span className="capitalize text-ink">{stage.visualStyle === 'auto' || !stage.visualStyle ? 'Automatic from the story' : stage.visualStyle}</span></p>
                     </InlineEdit>
                   ) : null}
 

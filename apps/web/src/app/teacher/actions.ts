@@ -14,6 +14,7 @@ import {
 } from "@adventure/generation";
 import { OpenAiImageService } from "@adventure/generation/assets";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
+import { MAP_STYLES } from "@adventure/generation/spec";
 
 import { type SourceRow, sourcesToDocuments } from "@/lib/adventures/generate-from-sources";
 import { advanceGenerationJob, startGenerationJob } from "@/lib/adventures/resumable-generation";
@@ -690,7 +691,9 @@ export async function editStage(adventureId: string, specVersionId: string, stag
   if (timer === "invalid") return { error: "Leave the timer empty to inherit, or give seconds (0 disables)" };
   const mapTheme = text(formData, "map_theme");
   if (mapTheme !== "classic" && mapTheme !== "desert" && mapTheme !== "winter" && mapTheme !== "forest" && mapTheme !== "coast") return { error: "Choose a listed map theme" };
-  return applyEdit(adventureId, specVersionId, { kind: "stage", stageId, title: text(formData, "title"), sharedContext: text(formData, "shared_context"), timerSeconds: timer, mapTheme });
+  const visualStyle = z.enum(MAP_STYLES).safeParse(text(formData, "visual_style") || "auto");
+  if (!visualStyle.success) return { error: "Choose a listed environment style" };
+  return applyEdit(adventureId, specVersionId, { kind: "stage", stageId, title: text(formData, "title"), sharedContext: text(formData, "shared_context"), timerSeconds: timer, mapTheme, visualStyle: visualStyle.data });
 }
 
 export async function editStakeholder(adventureId: string, specVersionId: string, stakeholderId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {

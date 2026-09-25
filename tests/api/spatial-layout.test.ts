@@ -24,6 +24,25 @@ describe("spatial layout artifacts", () => {
     }
   });
 
+  it("compiles each production stage's authored environment, independently of preview examples", () => {
+    const stage = structuredClone(spec.stages[0]!);
+    stage.environment = {
+      description: "A working river quay", ground: "earth", accent: "gravel", path: "decking",
+      pathStyle: "worn", roof: "timber", waterfront: "harbor", layout: "quayside",
+      population: "workers", fauna: ["cat"], wind: "breeze", vegetation: .1,
+      propDensity: "busy", props: ["crate", "barrel", "rope", "bollard"],
+    };
+    const quay = compileStageMap(stage, "story-environment");
+    expect(toStageLayout(stage).landscape).toEqual({ layout: "quayside", water: "harbor" });
+    expect(quay.map.waterBodies?.[0]?.kind).toBe("basin");
+    expect(quay.map.scenery?.every(p => stage.environment!.props.includes(p.kind))).toBe(true);
+    stage.environment = { ...stage.environment, layout: "meandering", waterfront: "oasis", props: ["palm", "pottery", "sacks"], fauna: ["camel"] };
+    const oasis = compileStageMap(stage, "story-environment");
+    expect(oasis.map.waterBodies?.[0]?.kind).toBe("oasis");
+    expect(oasis.map.tiles).not.toEqual(quay.map.tiles);
+    expect(oasis.map.id).not.toBe(quay.map.id);
+  });
+
   it("rejects a room with missing enclosure instead of guessing", () => {
     const cloned = structuredClone(spec);
     cloned.stages[0]!.rooms[0]!.enclosure = null;

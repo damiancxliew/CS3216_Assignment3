@@ -15,7 +15,8 @@ const wire = compiled.map.rooms.find((room) => room.id === 'wire')!
 const playerPosition = { x: city.x + 3, y: city.y + 5 }
 const person = (id: string, name: string, x: number, y: number) => ({
   id, name, position: { x, y }, space: spaceAt(compiled.map, { x, y }), targetRoomId: null, status: 'idle' as const,
-  sprite: id === 'player' ? 'Boy' : 'Princess', spriteSheetUrl: null as string | null,
+  sprite: id === 'player' ? 'Boy' : id === 'tojo' ? 'Inspector' : 'Noble', spriteSheetUrl: null as string | null, portraitUrl: null as string | null,
+  portraitFallbackUrl: id === 'hitler' ? '/game/portraits/adolf-hitler.jpg' : null,
 })
 export const snapshot: PlaygroundSnapshot = {
   seed: 'newsroom-labels', map: compiled.map, doors: compiled.initialDoors,
@@ -63,7 +64,7 @@ export function inspect() {
   const generatedSprite = sprites.find((sprite) => sprite.texture.key.startsWith('asset-'))
   return {
     captions: captions(),
-    stockSprites: sprites.map((sprite) => sprite.texture.key),
+    stockSprites: sprites.map(sprite => sprite.texture.key).sort(),
     images: containers.flatMap((container) => container.list.filter((child): child is Phaser.GameObjects.Image => child instanceof Phaser.GameObjects.Image).map((image) => image.texture.key)),
     generatedLeftFrames: generatedSprite ? scene.anims.get(`${generatedSprite.texture.key}-left`)?.frames.map((frame) => Number(frame.textureFrame)) ?? [] : [],
     ground: (scene.children.list.find((child) => child instanceof Phaser.Tilemaps.TilemapLayer && child.layer.name === 'ground') as Phaser.Tilemaps.TilemapLayer).getTileAt(1, 1)?.index,

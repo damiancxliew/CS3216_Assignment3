@@ -1,9 +1,13 @@
 export const MAP_SCHEMA_VERSION = 3 as const
 export const GENERATOR_VERSION = 'settlement-2' as const
+import type { LandscapePlan, WaterBody } from './landscape.js'
+import type { SceneryKind } from './scenery.js'
+import type { RoomShape } from './room-shapes.js'
+
 export type Enclosure = 'enclosed' | 'open'
 
 export type Point = { x: number; y: number }
-export type Tile = 'grass' | 'path' | 'wall' | 'floor' | 'door'
+export type Tile = 'grass' | 'path' | 'wall' | 'floor' | 'door' | 'water'
 export type LandmarkKind = 'table' | 'monument' | 'tree' | 'well' | 'stall' | 'dock' | 'hearth' | 'shelf'
 export type RoomSize = 'small' | 'medium' | 'large'
 export type DoorState = 'open' | 'closed'
@@ -26,9 +30,11 @@ export interface PublicActorPosition {
 }
 
 export interface StageLayoutInput {
+  landscape?: LandscapePlan
+  scenery?: { palette: readonly SceneryKind[]; density: 'sparse' | 'lived-in' | 'busy' }
   stageId: string
   spawnRoomId: string
-  rooms: readonly { id: string; size: RoomSize; enclosure?: Enclosure; doorDefault: DoorState | null }[]
+  rooms: readonly { id: string; size: RoomSize; shape?: RoomShape; enclosure?: Enclosure; doorDefault: DoorState | null }[]
   placements: readonly { id: string; kind: 'actor' | 'evidence' | 'decision'; roomId: string }[]
   /** Optional physical fixtures; omitted by older layout callers. */
   landmarks?: readonly { roomId: string; kind: LandmarkKind }[]
@@ -45,6 +51,7 @@ export interface MapLandmark {
 
 export interface MapRoom {
   id: string
+  shape?: RoomShape
   enclosure: Enclosure
   x: number
   y: number
@@ -61,6 +68,9 @@ export interface MapDoor {
 }
 
 export interface StageMap {
+  waterBodies?: WaterBody[]
+  /** Solid outdoor props, compiled around routes and reserved interaction spaces. */
+  scenery?: { kind: SceneryKind; x: number; y: number }[]
   schemaVersion: typeof MAP_SCHEMA_VERSION
   generatorVersion: typeof GENERATOR_VERSION
   id: string

@@ -332,6 +332,8 @@
             "clear",
             "clouds",
             "rain",
+            "thunderstorm",
+            "haze",
             "fog",
             "night",
             "dust",
@@ -464,6 +466,8 @@
                       "clear",
                       "clouds",
                       "rain",
+                      "thunderstorm",
+                      "haze",
                       "fog",
                       "night",
                       "dust",
@@ -507,6 +511,257 @@
               "winter",
               "forest",
               "coast"
+            ]
+          },
+          "visualStyle": {
+            "default": "auto",
+            "type": "string",
+            "enum": [
+              "auto",
+              "civic",
+              "harbor",
+              "village",
+              "jungle",
+              "desert",
+              "industrial",
+              "winter",
+              "palace",
+              "ruins",
+              "battlefield"
+            ]
+          },
+          "environment": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "ground": {
+                    "type": "string",
+                    "enum": [
+                      "cobble",
+                      "limestone",
+                      "checker",
+                      "timber",
+                      "flagstone",
+                      "slate",
+                      "grass",
+                      "earth",
+                      "sand",
+                      "sandstone",
+                      "brick",
+                      "gravel",
+                      "snow",
+                      "ice",
+                      "decking",
+                      "terracotta",
+                      "mosaic",
+                      "basalt",
+                      "mud",
+                      "leaves"
+                    ]
+                  },
+                  "accent": {
+                    "type": "string",
+                    "enum": [
+                      "cobble",
+                      "limestone",
+                      "checker",
+                      "timber",
+                      "flagstone",
+                      "slate",
+                      "grass",
+                      "earth",
+                      "sand",
+                      "sandstone",
+                      "brick",
+                      "gravel",
+                      "snow",
+                      "ice",
+                      "decking",
+                      "terracotta",
+                      "mosaic",
+                      "basalt",
+                      "mud",
+                      "leaves"
+                    ]
+                  },
+                  "path": {
+                    "type": "string",
+                    "enum": [
+                      "cobble",
+                      "limestone",
+                      "checker",
+                      "timber",
+                      "flagstone",
+                      "slate",
+                      "grass",
+                      "earth",
+                      "sand",
+                      "sandstone",
+                      "brick",
+                      "gravel",
+                      "snow",
+                      "ice",
+                      "decking",
+                      "terracotta",
+                      "mosaic",
+                      "basalt",
+                      "mud",
+                      "leaves"
+                    ]
+                  },
+                  "pathStyle": {
+                    "type": "string",
+                    "enum": [
+                      "formal",
+                      "winding",
+                      "worn"
+                    ]
+                  },
+                  "roof": {
+                    "type": "string",
+                    "enum": [
+                      "terracotta",
+                      "slate",
+                      "thatch",
+                      "canvas",
+                      "timber"
+                    ]
+                  },
+                  "waterfront": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "harbor",
+                      "river",
+                      "pond",
+                      "oasis"
+                    ]
+                  },
+                  "layout": {
+                    "default": "courtyard",
+                    "type": "string",
+                    "enum": [
+                      "courtyard",
+                      "garden-loop",
+                      "quayside",
+                      "meandering"
+                    ]
+                  },
+                  "population": {
+                    "default": "residents",
+                    "type": "string",
+                    "enum": [
+                      "quiet",
+                      "residents",
+                      "workers",
+                      "traders"
+                    ]
+                  },
+                  "wind": {
+                    "default": "breeze",
+                    "type": "string",
+                    "enum": [
+                      "calm",
+                      "breeze",
+                      "gusts"
+                    ]
+                  },
+                  "fauna": {
+                    "default": [],
+                    "maxItems": 4,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "camel",
+                        "goat",
+                        "chicken",
+                        "cat"
+                      ]
+                    }
+                  },
+                  "vegetation": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "propDensity": {
+                    "type": "string",
+                    "enum": [
+                      "sparse",
+                      "lived-in",
+                      "busy"
+                    ]
+                  },
+                  "props": {
+                    "minItems": 3,
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "planter",
+                        "bench",
+                        "lamp",
+                        "crate",
+                        "barrel",
+                        "rope",
+                        "pottery",
+                        "awning",
+                        "palm",
+                        "boulder",
+                        "log",
+                        "fern",
+                        "pipe",
+                        "sacks",
+                        "brazier",
+                        "column",
+                        "rubble",
+                        "sandbags",
+                        "bicycle",
+                        "noticeboard",
+                        "flowerbed",
+                        "cart",
+                        "fishing-net",
+                        "bollard",
+                        "canopy",
+                        "laundry",
+                        "urn",
+                        "cypress",
+                        "buoy",
+                        "anchor"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "description",
+                  "ground",
+                  "accent",
+                  "path",
+                  "pathStyle",
+                  "roof",
+                  "waterfront",
+                  "layout",
+                  "population",
+                  "wind",
+                  "fauna",
+                  "vegetation",
+                  "propDensity",
+                  "props"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "spawnRoomId": {
@@ -572,6 +827,16 @@
                     }
                   ]
                 },
+                "shape": {
+                  "default": "rectangle",
+                  "type": "string",
+                  "enum": [
+                    "rectangle",
+                    "rounded",
+                    "octagonal",
+                    "courtyard-wing"
+                  ]
+                },
                 "size": {
                   "type": "string",
                   "enum": [
@@ -628,6 +893,7 @@
                 "purpose",
                 "kind",
                 "enclosure",
+                "shape",
                 "size",
                 "doorDefault",
                 "landmark"
@@ -1097,6 +1363,8 @@
           "timerSeconds",
           "ambientOverlay",
           "mapTheme",
+          "visualStyle",
+          "environment",
           "spawnRoomId",
           "rooms",
           "agents",
