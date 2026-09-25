@@ -32,7 +32,16 @@ import {
  * state is mirrored onto the adventure row after every turn, so a brief left
  * half-done is offered again next visit.
  */
-export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; onComposingChange?: (composing: boolean) => void }) {
+export function BriefChat({
+  resume,
+  compact = false,
+  onComposingChange,
+}: {
+  resume?: BriefState;
+  /** The start controls sit in a slim banner beside a heading that already says what to bring. */
+  compact?: boolean;
+  onComposingChange?: (composing: boolean) => void;
+}) {
   const [state, setState] = useState<BriefState | null>(null);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +149,7 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
     return (
       <Start
         resume={resume}
+        compact={compact}
         pending={pending}
         error={error}
         onStart={() => run(startBrief)}
@@ -301,6 +311,7 @@ const STEP_LABELS: Record<string, string> = {
 /** Before the first question: one line and a button, or the brief left unfinished last time. */
 function Start({
   resume,
+  compact,
   pending,
   error,
   onStart,
@@ -308,6 +319,7 @@ function Start({
   onDiscard,
 }: {
   resume?: BriefState;
+  compact: boolean;
   pending: boolean;
   error: string | null;
   onStart: () => void;
@@ -318,7 +330,7 @@ function Start({
     const answered = Object.keys(resume.draft).length;
     const sources = resume.sources.length;
     return (
-      <div className="flex flex-col gap-4">
+      <div className={compact ? "flex flex-col gap-3 sm:items-end sm:text-right" : "flex flex-col gap-4"}>
         <p className="text-base text-ink">
           Your setup is unfinished ({sources} source{sources === 1 ? "" : "s"}, {answered} answer{answered === 1 ? "" : "s"}).
         </p>
@@ -335,8 +347,8 @@ function Start({
     );
   }
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-base text-muted">Bring the reading your students will play from. The rest is a few short questions.</p>
+    <div className={compact ? "flex flex-col gap-3 sm:items-end" : "flex flex-col gap-4"}>
+      {compact ? null : <p className="text-base text-muted">Bring the reading your students will play from. The rest is a few short questions.</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={onStart} disabled={pending} className={button.primary}>
           {pending ? <Pending>Starting…</Pending> : "Start the brief"}

@@ -72,8 +72,8 @@ export default async function TeacherHome() {
       width="wide"
     >
       <TeacherWorkspace
-        listed={adventures.length > 0}
         resume={resume.success ? resume.data : undefined}
+        hasAdventures={adventures.length > 0}
         adventures={
           adventures.length === 0 ? (
             <EmptyState title="No adventures yet">Start with the class you are teaching next.</EmptyState>
@@ -83,7 +83,7 @@ export default async function TeacherHome() {
               <h2 className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-[0.12em] text-muted"><BookOpen className="h-4 w-4" aria-hidden />Your worlds</h2>
               <span className="rounded-full border border-line bg-surface px-3 py-1 text-xs font-bold text-muted">{adventures.length} adventure{adventures.length === 1 ? "" : "s"}</span>
             </div>
-            <ul className="grid gap-6 sm:grid-cols-2">
+            <ul className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {adventures.map((adventure) => {
                 const art = artwork.get(adventure.id);
                 const stages = adventure.stage_outline?.length ?? 0;
