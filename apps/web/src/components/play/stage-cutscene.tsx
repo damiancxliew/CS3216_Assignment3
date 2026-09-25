@@ -21,6 +21,7 @@ export function StageCutscene({ state, onBegin }: { state: PlayState; onBegin: (
   const scene = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const previousFocus = document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     scene.current?.focus({ preventScroll: true });
@@ -28,6 +29,7 @@ export function StageCutscene({ state, onBegin }: { state: PlayState; onBegin: (
     return () => {
       window.clearTimeout(done);
       document.body.style.overflow = previousOverflow;
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
     };
   }, [beats.length]);
 
@@ -40,7 +42,18 @@ export function StageCutscene({ state, onBegin }: { state: PlayState; onBegin: (
       aria-label={state.player.role}
       tabIndex={-1}
       onKeyDown={(event) => {
-        if (event.key === "Escape") onBegin();
+        if (event.key === "Tab") {
+          const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
+          const first = buttons[0];
+          const last = buttons.at(-1);
+          if (event.shiftKey && (document.activeElement === first || document.activeElement === event.currentTarget)) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        } else if (event.key === "Escape") onBegin();
         else if (event.key === " " && !told) {
           event.preventDefault();
           setTold(true);

@@ -443,6 +443,14 @@ export class PlaySession {
           conversation: this.stage.agents.some((agent) => agent.id === o.targetId)
             ? { exchanges: this.conversationExchanges(o.targetId), required: GOAL_CONVERSATION_EXCHANGES }
             : null,
+          target: this.stage.agents.some((agent) => agent.id === o.targetId)
+            ? { kind: "agent" as const, id: o.targetId, name: this.agentName(o.targetId), roomId: this.roomOf(o.targetId) }
+            : {
+              kind: "evidence" as const,
+              id: o.targetId,
+              name: this.stage.evidence.find((item) => item.id === o.targetId)?.name ?? o.targetId,
+              roomId: this.stage.evidence.find((item) => item.id === o.targetId)?.roomId ?? null,
+            },
         })),
       },
       timer: { enabled: timer.enabled, deadlineAt: timer.deadlineAt, serverNow: now.toISOString(), secondsRemaining },
