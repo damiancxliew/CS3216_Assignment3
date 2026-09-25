@@ -933,7 +933,7 @@ export function PlayClient({
               maxLength={2000}
             />
             <button type="submit" className={`${primary} min-h-11`} disabled={busy !== null || speaking || state.pendingDialogue || !draft.trim() || !canSendToRoom}>
-              {speaking || state.pendingDialogue ? <Pending>Sending</Pending> : "Send"}
+              {speaking || state.pendingDialogue ? <Pending>Sending…</Pending> : "Send"}
             </button>
             </div>
           </form>

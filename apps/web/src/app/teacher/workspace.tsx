@@ -13,7 +13,12 @@ import type { BriefState } from "@/lib/brief/schema";
  * over the whole viewport as a full-screen focus surface until the brief is
  * discarded or finished.
  */
-export function TeacherWorkspace({ adventures, resume }: { adventures: React.ReactNode; resume?: BriefState }) {
+export function TeacherWorkspace({ adventures, listed, resume }: {
+  adventures: React.ReactNode;
+  /** The list opens with a "Your worlds" header row; the card drops to line up with the first adventure below it. */
+  listed: boolean;
+  resume?: BriefState;
+}) {
   const [composing, setComposing] = useState(false);
 
   return (
@@ -29,7 +34,7 @@ export function TeacherWorkspace({ adventures, resume }: { adventures: React.Rea
         className={
           composing
             ? "mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col px-6 py-5 sm:px-8"
-            : "game-shadow relative flex min-w-0 flex-col gap-5 overflow-hidden rounded-surface border-2 border-ink bg-signal-wash p-6 lg:sticky lg:top-8 lg:mt-[58px]"
+            : `game-shadow relative flex min-w-0 flex-col gap-5 overflow-hidden rounded-surface border-2 border-ink bg-signal-wash p-6 lg:sticky lg:top-8${listed ? " lg:mt-[58px]" : ""}`
         }
       >
         {composing ? null : (

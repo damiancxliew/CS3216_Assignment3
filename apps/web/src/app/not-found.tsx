@@ -11,7 +11,7 @@ export default function NotFound() {
         <ThemeSelect />
       </div>
       <div className="flex flex-1 flex-col justify-center gap-5 py-16">
-        <h1 className="font-serif text-4xl text-ink sm:text-5xl">This page doesn’t exist</h1>
+        <h1 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">This page doesn’t exist</h1>
         <p className="max-w-[50ch] text-lg text-muted">
           Ask your teacher for the latest link.
         </p>

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 
 import { joinAdventure } from "./actions";
+import { EnterButton } from "./enter-button";
 import { SignInButton } from "@/components/sign-in-button";
 import { ThemeSelect } from "@/components/theme-provider";
-import { button, ErrorText, Wordmark } from "@/components/ui";
+import { ErrorText, Wordmark } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 
 type Preview = {
@@ -71,9 +72,7 @@ export default async function JoinPage({
               await joinAdventure(token);
             }}
           >
-            <button type="submit" className={`${button.primary} min-h-12 px-6 text-base`}>
-              Enter the adventure
-            </button>
+            <EnterButton />
           </form>
         ) : (
           <div className="flex flex-col gap-3">

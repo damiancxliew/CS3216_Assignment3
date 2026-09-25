@@ -167,7 +167,7 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <header className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-4">
-          <h2 className="font-serif text-2xl text-ink">New adventure</h2>
+          <h2 className="text-2xl font-extrabold tracking-tight text-ink">New adventure</h2>
           <button type="button" onClick={discard} disabled={pending} className={button.subtle}>
             Discard this brief
           </button>
@@ -268,7 +268,7 @@ export function BriefChat({ resume, onComposingChange }: { resume?: BriefState; 
                 className={`${control} flex-1 resize-none`}
               />
               <button type="submit" disabled={pending || !text.trim()} className={button.primary}>
-                {pending ? <Pending>Sending</Pending> : "Send"}
+                {pending ? <Pending>Sending…</Pending> : "Send"}
               </button>
             </form>
           </>
@@ -327,7 +327,7 @@ function Start({
             Continue
           </button>
           <button type="button" onClick={onDiscard} disabled={pending} className={button.quiet}>
-            {pending ? <Pending>Discarding</Pending> : "Discard and start over"}
+            {pending ? <Pending>Discarding…</Pending> : "Discard and start over"}
           </button>
         </div>
         {error ? <ErrorText>{error}</ErrorText> : null}
@@ -339,7 +339,7 @@ function Start({
       <p className="text-base text-muted">Bring the reading your students will play from. The rest is a few short questions.</p>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={onStart} disabled={pending} className={button.primary}>
-          {pending ? <Pending>Starting</Pending> : "Start the brief"}
+          {pending ? <Pending>Starting…</Pending> : "Start the brief"}
         </button>
       </div>
       {error ? <ErrorText>{error}</ErrorText> : null}
@@ -425,11 +425,11 @@ function SourceStep({
         )}
         {pasting ? (
           <button type="submit" disabled={pending} className={button.primary}>
-            {pending ? <Pending>Reading</Pending> : "Add the passage"}
+            {pending ? <Pending>Reading…</Pending> : "Add the passage"}
           </button>
         ) : pending ? (
           <span className={button.quiet}>
-            <Pending>Reading</Pending>
+            <Pending>Reading…</Pending>
           </span>
         ) : null}
       </form>
@@ -557,7 +557,7 @@ function SummaryRows({
               onClick={() => onChange(row.key)}
               disabled={pending}
               aria-label={`Change ${row.label.toLowerCase()}`}
-              className="rounded-control p-1.5 text-muted transition-colors hover:bg-sunken hover:text-ink disabled:opacity-40"
+              className="-my-2 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-sunken hover:text-ink disabled:opacity-40"
             >
               <Pencil className="h-4 w-4" aria-hidden />
             </button>
@@ -586,7 +586,7 @@ function Chip({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex min-h-10 w-fit items-center gap-1.5 rounded-control px-3.5 py-1.5 text-base font-semibold transition-colors disabled:opacity-60 ${
+      className={`inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full px-3.5 py-1.5 text-base font-semibold transition-colors disabled:opacity-60 ${
         primary
           ? "bg-ink text-paper hover:bg-record"
           : "border border-line-strong text-ink hover:border-ink hover:bg-surface"
