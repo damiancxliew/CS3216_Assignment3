@@ -70,6 +70,14 @@ function errorCode(result: { error: { code?: string } | null }) {
   return result.error?.code ?? null;
 }
 
+function conflict(result: { data: unknown; error: unknown }, kind: string) {
+  return result.error === null
+    && result.data !== null
+    && typeof result.data === "object"
+    && "conflict" in result.data
+    && result.data.conflict === kind;
+}
+
 describe("save_play_turn", () => {
   it("allows exactly one concurrent revision-zero writer and persists its sole message", async () => {
     const seeded = await seed();
@@ -78,14 +86,14 @@ describe("save_play_turn", () => {
     const secondSnapshot = withRevision(base, 1);
     const args = (body: string, snap: Record<string, unknown>) => ({ p_attempt_id: seeded.attemptId, p_expected_revision: 0, p_stage_spec_id: "stage-landing", p_snapshot: snap, p_messages: [message(seeded.attemptId, seeded.roomId, body)], p_commitments: [], p_resolution: null, p_telemetry: null, p_opened_stage_id: null, p_ending_id: null });
     const results = await Promise.all([admin.rpc("save_play_turn", args("writer-a", firstSnapshot)), admin.rpc("save_play_turn", args("writer-b", secondSnapshot))]);
-    expect(results.filter((result) => result.error === null)).toHaveLength(1);
-    expect(results.filter((result) => errorCode(result) === "PT409")).toHaveLength(1);
-    const winner = results[0]!.error === null ? firstSnapshot : secondSnapshot;
+    expect(results.filter((result) => !conflict(result, "revision"))).toHaveLength(1);
+    expect(results.filter((result) => conflict(result, "revision"))).toHaveLength(1);
+    const winner = conflict(results[0]!, "revision") ? secondSnapshot : firstSnapshot;
     const runtime = (await admin.from("attempt_runtime").select("revision, snapshot").eq("attempt_id", seeded.attemptId).single()).data!;
     expect(runtime.revision).toBe(1);
     expect(runtime.snapshot).toEqual(winner);
     const rows = (await admin.from("message").select("body").eq("attempt_id", seeded.attemptId)).data!;
-    expect(rows).toEqual([{ body: results[0]!.error === null ? "writer-a" : "writer-b" }]);
+    expect(rows).toEqual([{ body: conflict(results[0]!, "revision") ? "writer-b" : "writer-a" }]);
   });
 
   it("rolls back all writes for invalid telemetry and invalid ending payloads", async () => {
@@ -247,7 +255,8 @@ describe("save_play_turn", () => {
     const counts = async () => ({ messages: (await admin.from("message").select("id").eq("attempt_id", seeded.attemptId)).data!.length, runtime: (await admin.from("attempt_runtime").select("attempt_id").eq("attempt_id", seeded.attemptId)).data!.length });
     const before = await counts();
     const repeated = await admin.rpc("save_play_turn", initialArgs);
-    expect(errorCode(repeated)).toBe("PT409");
+    expect(repeated.error).toBeNull();
+    expect(repeated.data).toEqual({ conflict: "revision" });
     expect(await counts()).toEqual(before);
     const denied = await student.client.rpc("save_play_turn", initialArgs);
     expect(denied.error).not.toBeNull();
