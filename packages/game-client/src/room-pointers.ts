@@ -5,7 +5,7 @@ export type Edge = 'left' | 'right' | 'top' | 'bottom'
 export interface PointerCandidate { id: string; target: { x: number; y: number }; width: number; height: number }
 export interface PlacedPointer { id: string; edge: Edge; angle: number; bounds: LabelRect; arrow: { x: number; y: number }; text: { x: number; y: number } }
 
-const ARROW = 8
+const ARROW = 6
 const GAP = 2
 const PAD = 2
 
@@ -106,16 +106,12 @@ export class RoomPointers {
       graphics.lineStyle(0.5, 0xf2d49b, 0.8).strokeRoundedRect(x, y, w, h, 2)
       const cos = Math.cos(pointer.angle)
       const sin = Math.sin(pointer.angle)
-      // A shaft plus a narrow head reads as a direction even at a few pixels across.
+      // A small notched dart, dimmer than the name, so it hints at the way without shouting.
       const { x: ax, y: ay } = pointer.arrow
-      const half = ARROW / 2
-      const neck = half - 3.5
-      graphics.lineStyle(1.5, 0xf2d49b, 1).lineBetween(ax - cos * half, ay - sin * half, ax + cos * neck, ay + sin * neck)
-      graphics.fillStyle(0xf2d49b, 1).fillTriangle(
-        ax + cos * half, ay + sin * half,
-        ax + cos * neck - sin * 2.6, ay + sin * neck + cos * 2.6,
-        ax + cos * neck + sin * 2.6, ay + sin * neck - cos * 2.6,
-      )
+      const at = (along: number, across: number) => ({ x: ax + cos * along - sin * across, y: ay + sin * along + cos * across })
+      graphics.fillStyle(0xf2d49b, 0.7).fillPoints([
+        at(ARROW / 2, 0), at(-ARROW / 2, ARROW * 0.4), at(-ARROW / 5, 0), at(-ARROW / 2, -ARROW * 0.4),
+      ], true)
     }
   }
 }
