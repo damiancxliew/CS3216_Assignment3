@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible_Next, Literata } from "next/font/google";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -34,14 +34,31 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: { default: title, template: "%s — Historical Adventures" },
   description,
+  keywords: [
+    "history education",
+    "AI learning games",
+    "classroom simulation",
+    "source-based history",
+    "secondary school history",
+    "interactive history lessons",
+  ],
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     url: siteUrl,
     title,
     description,
     siteName: "Historical Adventures",
+    locale: "en_SG",
   },
   twitter: { card: "summary_large_image", title, description },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fff8e9" },
+    { media: "(prefers-color-scheme: dark)", color: "#111722" },
+  ],
 };
 
 export default function RootLayout({

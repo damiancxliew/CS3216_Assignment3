@@ -68,12 +68,12 @@ export default function Home() {
         </div>
       </nav>
 
-      <section className="grid items-center gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+      <section aria-labelledby="hero-heading" className="grid items-center gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         <div className="relative z-10 flex flex-col items-start gap-7">
           <div className="sticker inline-flex items-center gap-2 rounded-full border-2 border-ink bg-sunshine px-4 py-2 text-sm font-black uppercase tracking-wider text-ink">
             <Gamepad2 className="h-5 w-5" aria-hidden /> History you can play
           </div>
-          <h1 className="max-w-[11ch] text-5xl font-black leading-[0.94] tracking-[-0.06em] text-ink sm:text-7xl lg:text-[5.4rem]">
+          <h1 id="hero-heading" className="max-w-[11ch] text-5xl font-black leading-[0.94] tracking-[-0.06em] text-ink sm:text-7xl lg:text-[5.4rem]">
             Don’t just teach history. <span className="text-signal">Drop them into it.</span>
           </h1>
           <p className="max-w-[54ch] text-lg font-medium leading-relaxed text-muted sm:text-xl">
@@ -109,11 +109,11 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="gameplay" className="flex scroll-mt-6 flex-col gap-10 rounded-[2rem] bg-inverse px-5 py-10 text-on-inverse sm:px-8 sm:py-14 lg:px-12">
+      <section id="gameplay" aria-labelledby="gameplay-heading" className="flex scroll-mt-6 flex-col gap-10 rounded-[2rem] bg-inverse px-5 py-10 text-on-inverse sm:px-8 sm:py-14 lg:px-12">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="mb-2 text-sm font-black uppercase tracking-[0.18em] text-[#ffe66d]">Inside every adventure</p>
-            <h2 className="max-w-[14ch] text-4xl font-black tracking-[-0.045em] sm:text-6xl">Read less. Do more. Remember it.</h2>
+            <h2 id="gameplay-heading" className="max-w-[14ch] text-4xl font-black tracking-[-0.045em] sm:text-6xl">Read less. Do more. Remember it.</h2>
           </div>
           <p className="max-w-md text-base text-on-inverse/70 sm:text-lg">Students learn the context because they need it to make the next move.</p>
         </div>
@@ -141,10 +141,10 @@ export default function Home() {
         <p className="-mt-5 text-sm text-on-inverse/70">Illustrative examples of play. Characters, evidence and choices come from each adventure.</p>
       </section>
 
-      <section className="flex flex-col gap-10">
+      <section aria-labelledby="teacher-steps-heading" className="flex flex-col gap-10">
         <div className="max-w-2xl">
           <p className="mb-2 text-sm font-black uppercase tracking-[0.18em] text-record">From PDF to playtime</p>
-          <h2 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">Your lesson. Now with a world inside.</h2>
+          <h2 id="teacher-steps-heading" className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">Your lesson. Now with a world inside.</h2>
         </div>
         <div className="grid gap-5 md:grid-cols-3">
           {teacherSteps.map((step, index) => (
@@ -156,8 +156,8 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="game-grid flex flex-col items-start justify-between gap-8 rounded-[2rem] border-[3px] border-ink bg-signal-wash px-7 py-10 sm:flex-row sm:items-center sm:px-10">
-        <div><p className="text-sm font-black uppercase tracking-[0.18em] text-signal">Ready, teacher?</p><h2 className="mt-2 max-w-xl text-4xl font-black tracking-[-0.04em] text-ink sm:text-5xl">Make the next lesson feel like an adventure.</h2></div>
+      <section aria-labelledby="cta-heading" className="game-grid flex flex-col items-start justify-between gap-8 rounded-[2rem] border-[3px] border-ink bg-signal-wash px-7 py-10 sm:flex-row sm:items-center sm:px-10">
+        <div><p className="text-sm font-black uppercase tracking-[0.18em] text-signal">Ready, teacher?</p><h2 id="cta-heading" className="mt-2 max-w-xl text-4xl font-black tracking-[-0.04em] text-ink sm:text-5xl">Make the next lesson feel like an adventure.</h2></div>
         <LandingCta label="Start building" />
       </section>
 
