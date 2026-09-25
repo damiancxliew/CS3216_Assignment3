@@ -111,7 +111,7 @@ the client only renders the countdown, so a refresh or a changed clock buys no t
 | Member | Matriculation no. | Email | Main contributions |
 | --- | --- | --- | --- |
 | Hon Yi Hao | A0301205A | e1355571@u.nus.edu | Adventure generation pipeline (`packages/generation`), the Phaser renderer and client (`packages/game-core`, `packages/game-client`), teacher console generation flows |
-| Damian Liew Cho Xiang | A0302976X | e1366515@u.nus.edu | Database schema, migrations and Row Level Security, the `tests/db` isolation suite, teacher console, platform and milestone write-ups |
+| Damian Liew Cho Xiang | A0302976X | e1366515@u.nus.edu | Setup Vercel, Google OAuth, Supabase, Database schema, migrations and Row Level Security, the `tests/db` isolation suite, teacher console, platform and milestone write-ups |
 | Zhang Li Kevin | A0309012W | e1406431@u.nus.edu | Turn loop and Resolver (`packages/orchestration`), character agents, the `tests/api` suite, play-side state projections |
 | Hoo Di Heng | A0306753A | e1384318@u.nus.edu | Play UI and rendering polish (`packages/game-client`, `components/play`), teacher console, landing page, SEO and share cards |
 
