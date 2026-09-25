@@ -285,7 +285,7 @@ export function PlayClient({
       if (document.visibilityState === "visible" && !busyRef.current) await refresh();
       if (failures.current >= GIVE_UP_AFTER) setOffline(true);
       if (cancelled || failures.current >= GIVE_UP_AFTER) return;
-      const interval = stateRef.current.pendingDialogue || stateRef.current.mintReady ? POLL_MS : IDLE_POLL_MS;
+      const interval = stateRef.current.pendingDialogue || stateRef.current.mintReady || stateRef.current.goalCheckReady ? POLL_MS : IDLE_POLL_MS;
       const delay = Math.min(interval * 2 ** failures.current, MAX_POLL_MS);
       const deadline = stateRef.current.timer.deadlineAt && failures.current === 0
         ? Math.max(1_000, new Date(stateRef.current.timer.deadlineAt).getTime() - Date.now() + 250)
@@ -295,6 +295,17 @@ export function PlayClient({
     timer = window.setTimeout(tick, POLL_MS);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [refresh]);
+
+  // A character claimed a goal: have it checked in the background. The reply is already on screen.
+  const goalCheckInFlight = useRef(false);
+  useEffect(() => {
+    if (!state.goalCheckReady || state.status !== "active" || goalCheckInFlight.current) return;
+    goalCheckInFlight.current = true;
+    void playApi.goalCheck(attemptId)
+      .then((result) => { if (result.ok) accept(result.body.state); })
+      .catch(() => undefined)
+      .finally(() => { goalCheckInFlight.current = false; });
+  }, [accept, attemptId, state.goalCheckReady, state.revision, state.status]);
 
   useEffect(() => {
     if (!state.mintReady || state.status !== "active" || mintInFlight.current) return;

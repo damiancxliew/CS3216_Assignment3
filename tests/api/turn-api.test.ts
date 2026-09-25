@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadI1Spec } from "@adventure/generation/fixtures";
 import { auditClientPayload, FakeLlmClient } from "@adventure/orchestration";
+import { withGoalJudge } from "./goal-judge";
 import type { AdventureSpec } from "@adventure/generation/spec";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -99,7 +100,7 @@ function record(overrides: Partial<AttemptRecord> = {}): AttemptRecord {
 
 function deps(replies: (string | ((request: { user: string }) => string))[] = Array(60).fill(say("The river mouth is ours to give or keep.")), overrides?: Partial<AttemptRecord>) {
   const store = new MemoryPlayStore([record(overrides)]);
-  const llm = new FakeLlmClient({ replies });
+  const llm = withGoalJudge(new FakeLlmClient({ replies }));
   const d: PlayServiceDeps = { store, llm };
   return { d, store };
 }

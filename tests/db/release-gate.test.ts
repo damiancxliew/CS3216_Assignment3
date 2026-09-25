@@ -24,6 +24,7 @@ import { loadDebrief } from "@/lib/attempts/debrief";
 import { loadResumeState } from "@/lib/attempts/resume";
 import { getState, postDecision, type PlayServiceDeps } from "@/lib/play/service";
 import { enterRoom, inspectEvidence, stateOf, talkToAgent, type PlayDriver } from "../api/play-driver";
+import { withGoalJudge } from "../api/goal-judge";
 import { SupabasePlayStore } from "@/lib/play/store";
 import { findForbiddenKeys } from "@/lib/turn-api/contract";
 
@@ -131,10 +132,10 @@ describe("release gate 1: upload -> generate -> publish -> play -> ending", () =
     const model = new FakeAgents({ replies: [opener] });
     const deps: PlayServiceDeps = {
       store: new SupabasePlayStore(admin),
-      llm: { complete: async (request) => {
+      llm: withGoalJudge({ complete: async (request) => {
         const response = await model.complete(request);
         return { ...response, usage: { promptTokens: 1, completionTokens: 1 } };
-      } },
+      } }),
     };
     const id = attemptId as string;
     const driver: PlayDriver = {

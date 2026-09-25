@@ -7,7 +7,7 @@
  */
 import type { LlmClient } from "@adventure/orchestration";
 
-import { PlaySession, type MessageBeginOutcome, type MintProduction, type PendingMint, type PlayState, type PlayerWorldAction, type ProducedReply, type SessionError, type SessionTimer } from "./session";
+import { PlaySession, type GoalCheckProduction, type MessageBeginOutcome, type MintProduction, type PendingGoalCheck, type PendingMint, type PlayState, type PlayerWorldAction, type ProducedReply, type SessionError, type SessionTimer } from "./session";
 import { SpatialCompatibilityError } from "./layout";
 import { RuntimeConflictError, type AttemptRecord, type PlayStore } from "./store";
 import type { PublicMessage } from "@/lib/turn-api/contract";
@@ -133,6 +133,36 @@ export async function postMintOptions(deps: PlayServiceDeps, attemptId: string, 
         return latest.ok ? { ok: true, value: null, state: latest.state } : latest;
       }
       return final;
+    }
+    return final;
+  }
+  return { ok: false, error: { code: "stale_state", message: "The attempt changed. Refresh and try again." } };
+}
+
+/** Check the goals characters have claimed, outside the attempt's write: the chat never waits on it. */
+export async function postGoalCheck(deps: PlayServiceDeps, attemptId: string, userId: string): Promise<ServiceResult<null>> {
+  const work: { ticket?: PendingGoalCheck; produce?: () => Promise<GoalCheckProduction> } = {};
+  const initial = await run(deps, attemptId, userId, async (session) => {
+    const ticket = session.beginGoalCheck();
+    if (ticket) {
+      work.ticket = ticket;
+      work.produce = () => session.produceGoalCheck(deps.llm, ticket);
+    }
+    return { ok: true, value: null };
+  });
+  if (!initial.ok || !work.ticket || !work.produce) return initial;
+
+  let output: GoalCheckProduction | null = null;
+  try { output = await work.produce(); } catch { output = null; }
+  for (let retry = 0; retry < 3; retry += 1) {
+    const final = await run(deps, attemptId, userId, async (session) => {
+      session.completeGoalCheck(work.ticket!, output);
+      return { ok: true, value: null };
+    });
+    if (!final.ok && final.error.code === "stale_state" && retry < 2) continue;
+    if (!final.ok && final.error.code === "stage_closed") {
+      const latest = await getState(deps, attemptId, userId);
+      return latest.ok ? { ok: true, value: null, state: latest.state } : latest;
     }
     return final;
   }

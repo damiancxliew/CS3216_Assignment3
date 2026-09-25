@@ -1,0 +1,16 @@
+import { errorResponse, playDeps, publicJson, requireUserId } from "@/lib/play/http";
+import { postGoalCheck } from "@/lib/play/service";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+/** Runs the independent check on goals a character claimed, after the reply has been shown. */
+export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const userId = await requireUserId();
+  if (typeof userId !== "string") return userId;
+
+  const result = await postGoalCheck(playDeps(id), id, userId);
+  if (!result.ok) return errorResponse(result.error);
+  return publicJson({ accepted: true, state: result.state });
+}

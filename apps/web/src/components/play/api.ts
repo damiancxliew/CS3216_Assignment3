@@ -54,6 +54,7 @@ async function call<T>(url: string, init?: RequestInit): Promise<{ ok: true; bod
 export const playApi = {
   state: (attemptId: string) => call<PlayState>(`/api/attempt/${attemptId}/state`, { cache: "no-store" }),
   mint: (attemptId: string) => call<{ accepted: true; state: PlayState }>(`/api/attempt/${attemptId}/mint`, { method: "POST" }),
+  goalCheck: (attemptId: string) => call<{ accepted: true; state: PlayState }>(`/api/attempt/${attemptId}/goal-check`, { method: "POST" }),
   message: (attemptId: string, input: { roomId: string; body: string; addresseeId?: string | null }) =>
     call<{ accepted: true; newMessages: PublicMessage[]; state: PlayState }>(`/api/attempt/${attemptId}/message`, { method: "POST", body: JSON.stringify(input) }),
   action: (attemptId: string, action: PlayerWorldAction) =>

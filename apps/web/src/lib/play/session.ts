@@ -58,6 +58,7 @@ import { isCurrentSpriteRecord, type AssetManifest, type CutsceneScene } from "@
 import { characterFor, PLAYER_CHARACTER, type Character } from "./appearance";
 import { historicalPortraitFor } from "./historical-portraits";
 import { chooseRoomResponder } from "./reply-router";
+import { judgeGoalClaims } from "./goal-judge";
 import { compileStageMap, publicMap, SpatialCompatibilityError, type PublicMap } from "./layout";
 import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PublicAttemptState, PublicMessage } from "@/lib/turn-api/contract";
@@ -81,6 +82,27 @@ export interface PendingMint {
   stageId: string;
   transcriptLength: number;
   expiresAt: number;
+}
+
+/** A goal a character claimed its reply met, waiting for the independent check. */
+export interface GoalCheck {
+  seq: number;
+  objectiveId: string;
+  /** Failed judge calls so far; the claim is dropped after `GOAL_CHECK_MAX_ATTEMPTS`. */
+  attempts: number;
+}
+
+export interface PendingGoalCheck {
+  id: string;
+  stageId: string;
+  checks: GoalCheck[];
+  expiresAt: number;
+}
+
+export interface GoalCheckProduction {
+  /** Per check, in ticket order; null when the judge call failed. */
+  met: boolean[] | null;
+  tokens: number;
 }
 
 export interface MintProduction {
@@ -123,6 +145,9 @@ export interface PlaySnapshot {
   pendingReply?: PendingReply | null;
   pendingMint?: PendingMint | null;
   replyRate?: { tokens: number; lastMs: number };
+  /** Goal claims awaiting the independent check. Stage-scoped. */
+  goalChecks?: GoalCheck[];
+  pendingGoalCheck?: PendingGoalCheck | null;
 }
 
 /** Additive to the frozen I3 projection: what the renderer needs on top of it. */
@@ -155,6 +180,8 @@ export interface PlayState extends PublicAttemptState {
   hearingActorIds: string[];
   pendingDialogue: boolean;
   mintReady: boolean;
+  /** A character claimed a goal; the client should ask the server to check it. */
+  goalCheckReady: boolean;
   /** Uncollected evidence. Prepared text is included only within server-validated reading range. */
   evidenceHere: { id: string; name: string; position: { x: number; y: number } | null; canInspect: boolean; content?: Pick<JournalEntry, "text" | "sourceSpan"> }[];
   /** Every placed document on this stage's map, so the renderer can draw it. Names only, like the room labels. */
@@ -244,6 +271,7 @@ const MINT_TRANSCRIPT_WINDOW = 120;
 const DECISION_TICKS = 2;
 /** Lines of the stage's public conversation the Resolver reads when it narrates the outcome. */
 const RESOLVER_TRANSCRIPT_WINDOW = 80;
+const GOAL_CHECK_MAX_ATTEMPTS = 2;
 
 /**
  * Walking speed is a long-run average, not a deadline per request: a request that
@@ -517,6 +545,7 @@ export class PlaySession {
       hearingActorIds: hearingActorIds(world, PLAYER_ID),
       pendingDialogue: this.snap.pendingReply?.expiresAt !== undefined && this.snap.pendingReply.expiresAt > now.getTime(),
       mintReady: this.mintReady(),
+      goalCheckReady: this.goalCheckReady(),
       actors: [
         { id: PLAYER_ID, name: "You", kind: "player", roomId: playerRoom, position: world.spatial?.state.actors[PLAYER_ID] ?? null, sprite: PLAYER_CHARACTER, portraitUrl: null, spriteSheetUrl: null },
         ...this.stage.agents.map((agent) => ({
@@ -930,10 +959,12 @@ export class PlaySession {
       }
       if (result.source === "model" && !result.turn.degraded) {
         const claims = (result.turn.goalClaims ?? []).filter((claim) => claimableGoalIds.get(agentId)?.has(claim.objectiveId));
+        // The speaker only proposes: each claim waits for an independent check (checkGoals), so the
+        // reply reaches the player now and the goal is marked a moment later, if it holds up.
         for (const line of this.snap.world.transcript) {
           if (line.seq <= beforeSeq || line.speakerId !== agentId || line.replyToSeqs?.includes(ticket.utteranceSeq) !== true || line.recipientIds?.includes(PLAYER_ID) !== true) continue;
           const goalIds = [...new Set(claims.filter((claim) => claim.quote === line.body.trim()).map((claim) => claim.objectiveId))];
-          if (goalIds.length > 0) line.goalIds = goalIds;
+          for (const objectiveId of goalIds) (this.snap.goalChecks ??= []).push({ seq: line.seq, objectiveId, attempts: 0 });
         }
       }
     }
@@ -1101,6 +1132,81 @@ export class PlaySession {
       text: `${item.name}: ${item.content.text}`,
       sourceSpan: item.content.spans.map((span) => `${span.sourceId}, p. ${span.page}: “${span.quote}”`).join("\n\n") || null,
     };
+  }
+
+  goalCheckReady(): boolean {
+    const pending = this.snap.pendingGoalCheck;
+    return this.snap.status === "active" &&
+      (this.snap.goalChecks ?? []).length > 0 &&
+      (pending === null || pending === undefined || pending.stageId !== this.stage.id || pending.expiresAt <= this.clock.now().getTime());
+  }
+
+  beginGoalCheck(): PendingGoalCheck | null {
+    if (!this.goalCheckReady()) return null;
+    const ticket: PendingGoalCheck = {
+      id: newId(),
+      stageId: this.stage.id,
+      checks: structuredClone(this.snap.goalChecks ?? []),
+      expiresAt: this.clock.now().getTime() + 60_000,
+    };
+    this.snap.pendingGoalCheck = ticket;
+    this.bump();
+    return ticket;
+  }
+
+  async produceGoalCheck(client: LlmClient, ticket: PendingGoalCheck): Promise<GoalCheckProduction> {
+    const transcript = this.snap.world.transcript;
+    const claims = ticket.checks.map((check) => {
+      const reply = transcript.find((line) => line.seq === check.seq);
+      const question = transcript.find((line) => line.seq === reply?.replyToSeqs?.[0]);
+      return {
+        goal: this.stage.objectives.find((objective) => objective.id === check.objectiveId)?.title ?? check.objectiveId,
+        speakerName: reply?.speakerName ?? "",
+        question: question?.body ?? "",
+        reply: reply?.body ?? "",
+      };
+    });
+    const { met, usage } = await judgeGoalClaims(client, claims);
+    return { met, tokens: usage.promptTokens + usage.completionTokens };
+  }
+
+  completeGoalCheck(ticket: PendingGoalCheck, output: GoalCheckProduction | null): boolean {
+    const pending = this.snap.pendingGoalCheck;
+    if (this.snap.status !== "active" || ticket.stageId !== this.stage.id || pending?.id !== ticket.id) return false;
+    this.snap.pendingGoalCheck = null;
+    const used = output?.tokens ?? 0;
+    this.snap.tokensSpent += used;
+    this.snap.stageStats.tokens += used;
+    const key = (check: GoalCheck) => `${check.seq}:${check.objectiveId}`;
+    const checked = new Set(ticket.checks.map(key));
+    const rest = (this.snap.goalChecks ?? []).filter((check) => !checked.has(key(check)));
+    const met = output?.met ?? null;
+    if (met === null) {
+      // The judge failed: try again later, but not forever.
+      const retry = ticket.checks.map((check) => ({ ...check, attempts: check.attempts + 1 })).filter((check) => check.attempts < GOAL_CHECK_MAX_ATTEMPTS);
+      this.snap.goalChecks = [...retry, ...rest];
+    } else {
+      // Oldest first, so a goal confirmed earlier in the conversation can unlock one it gates.
+      const confirmed = ticket.checks.map((check, index) => ({ check, met: met[index] === true })).sort((a, b) => a.check.seq - b.check.seq);
+      for (const { check, met: ok } of confirmed) {
+        const objective = this.stage.objectives.find((candidate) => candidate.id === check.objectiveId);
+        const line = this.snap.world.transcript.find((candidate) => candidate.seq === check.seq);
+        if (!ok || !objective || !line || this.objectiveMet(objective.id) || !objective.requires.every((id) => this.objectiveMet(id))) continue;
+        line.goalIds = [...new Set([...(line.goalIds ?? []), objective.id])];
+      }
+      this.snap.goalChecks = rest;
+    }
+    this.bump();
+    return true;
+  }
+
+  /** Begin, produce and complete in one call, for tests and callers without a store in between. */
+  async checkGoals(client: LlmClient): Promise<void> {
+    const ticket = this.beginGoalCheck();
+    if (!ticket) return;
+    let output: GoalCheckProduction | null = null;
+    try { output = await this.produceGoalCheck(client, ticket); } catch { output = null; }
+    this.completeGoalCheck(ticket, output);
   }
 
   mintReady(): boolean {
@@ -1350,6 +1456,8 @@ export class PlaySession {
     this.snap.stepRate = { tokens: 1, lastMs: this.clock.now().getTime() };
     this.snap.pendingReply = null;
     this.snap.pendingMint = null;
+    this.snap.goalChecks = [];
+    this.snap.pendingGoalCheck = null;
     this.stage = this.spec.stages[index]!;
     this.bundle = bundle;
     this.ledger = new StageDecisions(this.participants());
