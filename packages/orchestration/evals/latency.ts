@@ -32,6 +32,17 @@ export interface LatencyCandidate {
 
 export const LATENCY_CANDIDATES: readonly LatencyCandidate[] = [
   {
+    id: 'gpt-6-luna-fast',
+    model: 'gpt-6-luna',
+    reasoningEffort: 'none',
+    verbosity: 'low',
+    serviceTier: 'fast',
+    // Fast-tier price assumed at 2x standard (US$0.10 / $0.50), the ratio GPT-5.6 Luna has.
+    inputPerMillionUsd: 0.2,
+    outputPerMillionUsd: 1,
+    pricingSource: 'scripts/play-cost-prices.json standard tier x2 (fast tier assumed)',
+  },
+  {
     id: 'gpt-5.6-luna-fast',
     model: 'gpt-5.6-luna',
     reasoningEffort: 'none',
@@ -39,16 +50,6 @@ export const LATENCY_CANDIDATES: readonly LatencyCandidate[] = [
     serviceTier: 'fast',
     inputPerMillionUsd: 0.4,
     outputPerMillionUsd: 2.4,
-    pricingSource: 'https://developers.openai.com/api/docs/pricing?latest-pricing=fast',
-  },
-  {
-    id: 'gpt-4o-mini-fast',
-    model: 'gpt-4o-mini-2024-07-18',
-    reasoningEffort: null,
-    verbosity: null,
-    serviceTier: 'fast',
-    inputPerMillionUsd: 0.25,
-    outputPerMillionUsd: 1,
     pricingSource: 'https://developers.openai.com/api/docs/pricing?latest-pricing=fast',
   },
 ]
