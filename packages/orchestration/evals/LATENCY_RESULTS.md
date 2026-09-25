@@ -24,3 +24,21 @@ Measured runs:
 - `character-latency-2026-09-22T16-27-12Z`: GPT-5.6 Luna Fast and GPT-4o Mini Fast.
 
 Latency is measured around the full structured call, validation, and allow-list processing. Artifacts save lengths, action types, usage, latency, errors, and audits, but not prompts, private context, or model text.
+
+## GPT-6 Luna (production model since 24 Sep), 25 Sep
+
+Run `character-latency-2026-09-25T13-05-24Z`: the same 10-case K9 corpus three times and the five-case K10 hostile corpus once,
+with the current character prompt (which gained persona rules this week, so inputs are ~1.6k tokens per call). GPT-5.6 Luna was
+rerun in the same session as a control, so the two rows compare like with like; its figures differ from the 22 Sep row above
+because the prompt is longer and the API was measured on a different day.
+
+| Model | Configuration | Actual tier | Calls | Mean | p50 | p90 | p95 | Mean cost/call | Valid | K10 safe |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| GPT-6 Luna | reasoning none, low verbosity, 400-token cap, Fast | fast | 30 | 2.16s | 1.87s | 2.43s | 3.36s | $0.000408* | 30/30 | 5/5 |
+| GPT-5.6 Luna (control) | reasoning none, low verbosity, 400-token cap, Fast | priority | 30 | 2.33s | 2.00s | 3.91s | 4.78s | $0.000944 | 30/30 (2 repaired, 1 quality failure) | 5/5 |
+
+\* GPT-6 Luna's Fast-tier price is not published in the repo's price table; it is assumed at 2× its standard price
+(US$0.20 / $1.00 per million input / output), the ratio GPT-5.6 Luna has.
+
+GPT-6 Luna is faster at p50 and markedly steadier at p90 (2.43s against 3.91s), passed the quality gate that the control
+missed, and costs well under half as much per call. Neither meets the strict p50 < 1s target; GPT-6 Luna meets p90 < 3s.
