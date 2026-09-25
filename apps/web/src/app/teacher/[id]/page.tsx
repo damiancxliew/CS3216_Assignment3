@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { DossierSections } from "./dossier";
+import { BriefEditor } from "./brief-editor";
 import { SharePanel } from "./share-panel";
 import { StoryGeneration, type GenerationJob } from "./story-generation";
 import {
@@ -208,7 +209,7 @@ export default async function AdventurePage({
       {tab === "overview" ? <>
       <Section title="Brief">
         {adventure.reading_level ? (
-          <dl className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface px-4 text-base sm:px-5">
+          <><dl className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface px-4 text-base sm:px-5">
             <BriefRow label="Student plays">{adventure.student_role}</BriefRow>
             <BriefRow label="Objectives">
               <ul className="list-disc space-y-1 pl-5">
@@ -256,6 +257,17 @@ export default async function AdventurePage({
               </ul>
             </BriefRow>
           </dl>
+          <BriefEditor
+            adventureId={id}
+            brief={{
+              title: adventure.title,
+              setting: adventure.setting ?? "",
+              studentRole: adventure.student_role ?? "",
+              learningObjectives: adventure.learning_objectives ?? [],
+              readingLevel: adventure.reading_level,
+              stageOutline: adventure.stage_outline,
+            }}
+          /></>
         ) : (
           <p className="text-base text-muted">
             This adventure can’t be regenerated. Create a new adventure to use the guided setup.
