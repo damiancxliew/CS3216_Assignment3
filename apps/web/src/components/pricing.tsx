@@ -2,17 +2,23 @@
 
 import { Check } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
 import { button } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
 import { PRICING_TIERS } from "@/lib/pricing";
 
+type Period = "monthly" | "annual";
+
 /**
  * The landing page's pricing band. Cards reuse the same sticker / game-shadow
- * language as the rest of the page. Billing isn't live — the pilot note says so.
+ * language as the rest of the page; the only state is which billing period the
+ * cards quote. Billing isn't live — the pilot note says so.
  */
 export function Pricing() {
+  const [period, setPeriod] = useState<Period>("monthly");
+
   return (
     <section id="pricing" aria-labelledby="pricing-heading" className="flex scroll-mt-6 flex-col gap-10">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -25,10 +31,29 @@ export function Pricing() {
             Start free on a real lesson. Pay only when it becomes the way you teach.
           </p>
         </div>
+        <div role="group" aria-label="Billing period" className="inline-flex shrink-0 items-center gap-1 self-start rounded-full border-2 border-ink bg-surface p-1 shadow-[0_3px_0_var(--ink)] sm:self-end">
+          <button
+            type="button"
+            aria-pressed={period === "monthly"}
+            onClick={() => setPeriod("monthly")}
+            className={`rounded-full px-4 py-2 text-sm font-extrabold transition-colors ${period === "monthly" ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+          >
+            Monthly
+          </button>
+          <button
+            type="button"
+            aria-pressed={period === "annual"}
+            onClick={() => setPeriod("annual")}
+            className={`rounded-full px-4 py-2 text-sm font-extrabold transition-colors ${period === "annual" ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+          >
+            Annual
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         {PRICING_TIERS.map((tier) => {
+          const quote = period === "annual" && tier.annual ? tier.annual : tier;
           return (
             <article
               key={tier.id}
@@ -40,7 +65,7 @@ export function Pricing() {
             >
               {tier.featured ? (
                 <span className="sticker absolute -top-4 left-6 rounded-full border-2 border-ink bg-sunshine px-3 py-1 text-xs font-black uppercase tracking-wider text-ink">
-                  For teachers
+                  Popular
                 </span>
               ) : null}
               <div className="flex flex-col gap-1">
@@ -49,10 +74,10 @@ export function Pricing() {
               </div>
               <div className="mt-5 flex flex-col gap-1">
                 <p className="flex flex-wrap items-baseline gap-x-1 text-4xl font-black tracking-tight text-ink">
-                  <span>{tier.price === null ? "Quoted" : `S$${tier.price.toLocaleString("en-SG")}`}</span>
-                  {tier.period ? <span className="text-lg font-bold text-muted">/{tier.period}</span> : null}
+                  <span>{quote.price === null ? "Quoted" : `S$${quote.price.toLocaleString("en-SG")}`}</span>
+                  {quote.period ? <span className="text-lg font-bold text-muted">/{quote.period}</span> : null}
                 </p>
-                <p className="text-sm font-semibold text-muted">{tier.priceNote}</p>
+                <p className="text-sm font-semibold text-muted">{quote.priceNote}</p>
               </div>
               <ul className="mt-6 flex flex-1 flex-col gap-2.5">
                 {tier.features.map((feature) => (
@@ -65,7 +90,7 @@ export function Pricing() {
               <Link
                 href={tier.cta.href}
                 className={`mt-7 ${tier.featured ? button.primary : button.quiet}`}
-                onClick={() => track(ANALYTICS_EVENTS.pricingCtaClicked, { tier: tier.id, period: tier.period })}
+                onClick={() => track(ANALYTICS_EVENTS.pricingCtaClicked, { tier: tier.id, period })}
               >
                 {tier.cta.label}
               </Link>

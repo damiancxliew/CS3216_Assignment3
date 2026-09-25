@@ -10,6 +10,8 @@ export type PricingTier = {
   price: number | null;
   period: "month" | "year" | null;
   priceNote: string;
+  /** What the card quotes when the Annual switch is on; null when billing is the same either way. */
+  annual: { price: number; period: "year"; priceNote: string } | null;
   featured: boolean;
   cta: { label: string; href: string };
   /** Proposed plan terms; billing remains in pilot. */
@@ -24,6 +26,7 @@ export const PRICING_TIERS = [
     price: 0,
     period: null,
     priceNote: "One real lesson with your class",
+    annual: null,
     featured: false,
     cta: { label: "Start free", href: "/teacher" },
     features: [
@@ -37,7 +40,8 @@ export const PRICING_TIERS = [
     tagline: "For individual teachers or a department budget.",
     price: 15,
     period: "month",
-    priceNote: "S$180/year with annual billing",
+    priceNote: "Billed monthly",
+    annual: { price: 180, period: "year", priceNote: "S$15/month, billed yearly" },
     featured: true,
     cta: { label: "Start free, upgrade later", href: "/teacher" },
     features: [
@@ -50,9 +54,10 @@ export const PRICING_TIERS = [
     id: "department",
     name: "Department",
     tagline: "A whole history department.",
-    price: 1500,
-    period: "year",
-    priceNote: "For up to 10 teachers",
+    price: 125,
+    period: "month",
+    priceNote: "For up to 10 teachers, billed monthly",
+    annual: { price: 1500, period: "year", priceNote: "For up to 10 teachers, S$125/month billed yearly" },
     featured: false,
     cta: { label: "Talk to us", href: "/teacher" },
     features: [
@@ -67,6 +72,7 @@ export const PRICING_TIERS = [
     price: null,
     period: null,
     priceNote: "Tailored to your school or district",
+    annual: null,
     featured: false,
     cta: { label: "Talk to us", href: "/teacher" },
     features: ["SSO", "LMS export", "Admin roster", "Pooled allowance"],
