@@ -13,6 +13,7 @@ export function AdventureCover({ src, kind = "portrait" }: { src: string | null;
     if (src && imageRef.current?.complete && imageRef.current.naturalWidth === 0) setFailedSrc(src);
   }, [src]);
   const imageProps = { ref: imageRef, src: src ?? "", alt: "", loading: "lazy" as const, decoding: "async" as const, onError: () => setFailedSrc(src) };
+  const motion = "transition-transform duration-700 motion-safe:group-hover:scale-105";
   return (
     <div className="absolute inset-0 overflow-hidden bg-record-wash" aria-hidden="true">
       <svg viewBox="0 0 600 360" preserveAspectRatio="xMidYMid slice" className="h-full w-full text-record">
@@ -30,11 +31,11 @@ export function AdventureCover({ src, kind = "portrait" }: { src: string | null;
         // Dynamic public storage URLs are already generated assets; avoid a second image processing service.
         kind === "portrait" ? (
           // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
-          <img {...imageProps} className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 motion-safe:group-hover:scale-105" />
+          <img {...imageProps} className={`absolute inset-0 h-full w-full object-cover ${motion}`} />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center p-[15%]">
             {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
-            <img {...imageProps} className="h-full w-full object-contain [image-rendering:pixelated] drop-shadow-[0_4px_8px_color-mix(in_srgb,var(--shadow)_35%,transparent)] transition-transform duration-700 motion-safe:group-hover:scale-105" />
+            <img {...imageProps} className={`h-full w-full object-contain [image-rendering:pixelated] drop-shadow-[0_4px_8px_color-mix(in_srgb,var(--shadow)_35%,transparent)] ${motion}`} />
           </div>
         )
       ) : null}
