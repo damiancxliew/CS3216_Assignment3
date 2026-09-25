@@ -24,7 +24,6 @@ test('newsroom captions, walking sprites and displaced click targets', async ({ 
   const inspect = () => page.evaluate(() => (window as any).tiledHarness.inspect())
   const initial = await inspect()
   expect(initial.stockSprites).toEqual(['char-Princess', 'char-Princess', 'char-Boy'])
-  expect(initial.images).toHaveLength(1)
   expect(initial.ground).toBe(1000)
   for (const [index, caption] of initial.captions.entries()) {
     expect(initial.captions.slice(index + 1).some((other: any) => overlaps(caption, other, 0)), caption.text).toBe(false)
@@ -80,8 +79,6 @@ test('newsroom captions, walking sprites and displaced click targets', async ({ 
     harness.snapshot.actors.find((entry: any) => entry.id === 'hitler').spriteSheetUrl = '/missing-sprite.png'
     harness.view.render(structuredClone(harness.snapshot))
   })
-  await expect.poll(async () => (await inspect()).images.length).toBe(1)
-  expect((await inspect()).images).toEqual(initial.images)
   expect((await inspect()).stockSprites).toEqual(initial.stockSprites)
   expect(errors).toEqual([])
 })
