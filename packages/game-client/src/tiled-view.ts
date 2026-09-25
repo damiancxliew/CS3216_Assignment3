@@ -16,6 +16,7 @@ import { LANDMARK_KINDS, spaceAt, type Point, type StageMap } from '@adventure/g
 import { tileFromPointer } from './pointer.js'
 import { selectHitTargetId } from './prop-hint.js'
 import { layoutMapLabels, overlaps, type LabelRect } from './map-labels.js'
+import { RoomPointers } from './room-pointers.js'
 import { fixtureScenery, roomScenery, usesUrbanGround } from './scenery.js'
 import { matchMapPalette } from './pixel-art.js'
 import type { MapThemeId, PlaygroundSnapshot, SoundCueId } from './model.js'
@@ -130,6 +131,7 @@ class TiledScene extends Phaser.Scene {
   private captions = new Map<string, Phaser.GameObjects.Text>()
   private captionSizes = new Map<string, { content: string; width: number; height: number }>()
   private captionLines?: Phaser.GameObjects.Graphics
+  private readonly roomPointers = new RoomPointers(this)
   private hoveredTarget: string | null = null
   private markers = new Map<
     string,
@@ -682,7 +684,13 @@ class TiledScene extends Phaser.Scene {
       const hoveredId = this.hoveredTarget?.startsWith('actor:') ? this.hoveredTarget.slice(6) : undefined
       if (this.wandering.advance(this.current, delta, hoveredId)) this.renderActors(this.current)
     }
-    if (this.ready) this.layoutCaptions()
+    if (!this.ready) return
+    this.layoutCaptions()
+    // Room labels are built in map-room order; point toward any that scrolled out of view.
+    const roomBounds = this.labels.map((label) => label.getBounds())
+    this.roomPointers.update(this.cameras.main, this.current.map.rooms.flatMap((room, index) =>
+      roomBounds[index] ? [{ id: room.id, name: this.roomName(room.id), bounds: roomBounds[index] }] : []),
+    [...roomBounds, ...[...this.captions.values()].filter((caption) => caption.visible).map((caption) => caption.getBounds())])
   }
 
   private roomDescription(id: string): string {
