@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FakeImageService, InMemoryAssetCache, InMemoryAssetStore } from '../src/assets/memory'
+import { OpenAiImageService } from '../src/assets/openai-images'
 import { assertGeneratable, buildImagePrompt, buildPortraitSafetyRetryPrompt, generateAssets, isCurrentSpriteRecord, pendingManifest, placeholderUrl, playableAssetEligibility, promptHash, resolveAssetUrl } from '../src/assets/service'
 import { ImageServiceError } from '../src/assets/types'
 import { loadI1Spec } from '../src/fixtures'
@@ -19,6 +20,20 @@ async function specWithAssets(n: number): Promise<AdventureSpec> {
 }
 
 describe('D5 — asset eligibility at the service boundary (FR-6b)', () => {
+  it('uses the precision model only for sprites and keys their cache separately', async () => {
+    const images = new OpenAiImageService({ apiKey: 'test-key', model: 'gpt-image-1-mini', spriteModel: 'gpt-image-2.5-sunburst' })
+    expect(images.modelForKind('sprite')).toBe('gpt-image-2.5-sunburst')
+    for (const kind of ['portrait', 'landmark', 'prop'] as const) expect(images.modelForKind(kind)).toBe('gpt-image-1-mini')
+    const spec = await loadI1Spec()
+    spec.assetEligibility = playableAssetEligibility(spec)
+    const manifest = pendingManifest(spec, images)
+    for (const entry of spec.assetEligibility) {
+      const record = manifest.records.find((item) => item.assetId === entry.id)!
+      const model = images.modelForKind(entry.kind)
+      expect(record.promptHash).toBe(promptHash({ kind: entry.kind, prompt: buildImagePrompt(entry, spec), size: '1024x1024', quality: 'medium' }, model))
+    }
+  })
+
   it('generates art for every playable fixture and skips room-only images', async () => {
     const spec = await loadI1Spec()
     const physicalRooms = spec.stages.flatMap((stage) => stage.rooms.filter((room) => room.landmark).map((room) => room.id))

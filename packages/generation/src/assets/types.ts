@@ -56,6 +56,7 @@ export class ImageServiceError extends Error {
 
 export interface ImageService {
   readonly model: string
+  modelForKind?(kind: GeneratableAssetKind): string
   generate(request: ImageRequest): Promise<ImageResult>
 }
 
