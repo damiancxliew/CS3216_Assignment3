@@ -29,7 +29,7 @@ export function ProgressBar({
       role="progressbar"
       aria-label={label}
       {...(indeterminate ? {} : { "aria-valuemin": 0, "aria-valuemax": max, "aria-valuenow": value ?? 0 })}
-      className="relative h-3 w-full overflow-hidden rounded-full border-2 border-ink bg-sunken shadow-[inset_0_2px_0_color-mix(in_srgb,var(--ink)_12%,transparent)]"
+      className="relative h-4 w-full overflow-hidden rounded-full border-2 border-ink bg-sunken shadow-[inset_0_2px_0_color-mix(in_srgb,var(--ink)_12%,transparent)]"
     >
       {indeterminate ? (
         <div
@@ -43,7 +43,12 @@ export function ProgressBar({
         <div
           aria-hidden
           className="relative h-full rounded-full transition-[width] duration-700 ease-out"
-          style={{ width: `${pct}%`, background: "linear-gradient(90deg, var(--world), var(--signal))" }}
+          style={{
+            width: `${pct}%`,
+            // Anchored to the full track, so a given colour always means the same progress.
+            background: "linear-gradient(90deg, var(--world), var(--signal))",
+            backgroundSize: `${pct > 0 ? (100 / pct) * 100 : 100}% 100%`,
+          }}
         >
           {stripes}
           <div className="absolute right-0 top-0 h-full w-6 bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--paper)_70%,transparent))]" />
