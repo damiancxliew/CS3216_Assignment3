@@ -1,10 +1,9 @@
 import { storyFauna } from '../src/fauna.js'
 import { detailZoom } from '../src/camera.js'
 import { SCENERY_KINDS } from '@adventure/game-core'
-import { environmentSchema, ENVIRONMENT_MATERIALS, ENVIRONMENT_PROPS } from '../../generation/src/spec/environment.js'
+import { environmentSchema, ENVIRONMENT_MATERIALS, ENVIRONMENT_PROPS, MAP_STYLES } from '@adventure/generation/spec'
 import { describe, expect, it } from 'vitest'
 import { applyEnvironment, MATERIAL_NAMES, roomMaterial, storyArt, STORY_ART, STORY_STYLES } from '../src/story-art.js'
-import { MAP_STYLES } from '../../generation/src/spec/catalogue.js'
 
 describe('story art direction', () => {
   it('keeps detail readable on compact and desktop screens', () => {
