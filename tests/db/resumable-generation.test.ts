@@ -100,4 +100,60 @@ describe("advanceGenerationJob failure reporting", () => {
     expect(result.message).toContain("Sources changed during generation");
     expect((await jobRow(adventureId))!.message).toContain("Sources changed during generation");
   });
+
+  it("leaves the running job alone when a concurrent step holds the lease", async () => {
+    const adventureId = await startedJob();
+    const { data: claimed, error: claimError } = await admin.rpc("claim_generation_job_step", {
+      p_adventure_id: adventureId,
+      p_token: crypto.randomUUID(),
+    });
+    if (claimError) throw claimError;
+    expect(claimed).toHaveLength(1);
+
+    const result = await advanceGenerationJob(admin, adventureId);
+
+    expect(result).toEqual({ state: "running" });
+    const job = await jobRow(adventureId);
+    expect(job?.state).toBe("running");
+    expect(job?.message ?? "").not.toContain("22P02");
+    const { data: state, error: stateError } = await admin
+      .from("generation_job_state")
+      .select("adventure_id")
+      .eq("adventure_id", adventureId)
+      .maybeSingle();
+    if (stateError) throw stateError;
+    expect(state).toMatchObject({ adventure_id: adventureId });
+  });
+
+  it("replaces a stale private state row when starting again", async () => {
+    const adventureId = await startedJob();
+    const { data: sources, error: sourceError } = await admin
+      .from("source")
+      .select("id, title, kind, page_map, content_hash")
+      .eq("adventure_id", adventureId)
+      .order("created_at");
+    if (sourceError) throw sourceError;
+    const documents = sourcesToDocuments(sources ?? []).documents;
+    const { error: staleError } = await admin
+      .from("generation_job_state")
+      .update({ attempt: 1, lease_token: crypto.randomUUID(), lease_expires_at: new Date(Date.now() + 60_000).toISOString() })
+      .eq("adventure_id", adventureId);
+    if (staleError) throw staleError;
+
+    await startGenerationJob(admin, {
+      adventureId,
+      teacher: TEACHER,
+      documents,
+      warnings: ["stale state replaced"],
+      createdBy: teacherId,
+    });
+
+    const { data: state, error: stateError } = await admin
+      .from("generation_job_state")
+      .select("attempt, lease_token, lease_expires_at, warnings")
+      .eq("adventure_id", adventureId)
+      .single();
+    if (stateError) throw stateError;
+    expect(state).toMatchObject({ attempt: 0, lease_token: null, lease_expires_at: null, warnings: ["stale state replaced"] });
+  });
 });

@@ -71,7 +71,7 @@ export function buildSystemPrompt(input: TeacherInput, version: PromptVersion = 
     '- Rooms: a door can only be opened from inside, so a room with `doorDefault` "closed" must have an agent starting in it (or be the spawn room). Anything behind a closed empty door is unreachable for the whole stage.',
     '- When a room has a `landmark`, name a tangible fixture the player can approach and inspect, such as a table, memorial, tree, well, stall, dock, hearth, or shelf. Describe its period-specific details. Do not use an entire room, landscape, or framed illustration as the landmark; use null when there is no physical feature.',
     '- Objectives: `targetId` is an agent id or evidence id IN THE SAME STAGE; `requires` is acyclic; every objective must be transitively required by the stage decision (`decision.requires`).',
-    '- Decision options: `preconditions` are objective ids in the same stage. `branchTarget` moves FORWARD only: to a later stage, or to an ending. Options in the LAST stage must all target endings. Every stage after the first and every ending must be targeted by at least one option. Give the options genuinely different stances (cooperative / antagonistic / neutral / evasive) so different players reach different endings.',
+    '- Decision options: `preconditions` are objective ids in the same stage. `branchTarget` moves FORWARD only: to a later stage, or to an ending. Every `branchTarget.endingId` must be the id of an ending declared in `endings`; declare the ending instead of inventing an id in a branchTarget. Options in the LAST stage must all target endings. Every stage after the first and every ending must be targeted by at least one option. Give the options genuinely different stances (cooperative / antagonistic / neutral / evasive) so different players reach different endings.',
     '- Stakeholders: 3-4, each must appear as an agent in at least one stage. Agents carry a public position AND a private context (what they really want, what they hide, what they can and cannot know at that moment in time).',
     '- Endings: 1-4. `historicalOutcome` states what actually happened, with spans. `divergence` says how this ending differs from the record (or that it matches it). 2-4 reflection questions.',
     '- assetEligibility: kind in {portrait, landmark, prop}: portrait -> a stakeholder id, landmark -> a room id with a non-null physical landmark, prop -> an evidence id, one per entity. Include one portrait for EVERY stakeholder and images for physical landmarks and evidence props that players can encounter. Walking sprite sheets are generated automatically for stakeholders; do not list them here. There is no fixed image count limit. Portrait prompts must name concrete identity cues (age, hair, facial hair, period/culturally appropriate clothing and expression) rather than a generic role. Landmark and prop prompts must name the place- and period-specific materials and physical details that distinguish them. A generated landmark becomes a solid, interactive 2x2 tile fixture on the gameplay map; describe one object whose silhouette is readable at 32x32 pixels. Never request terrain, backgrounds, UI or framed pictures.',
@@ -169,14 +169,56 @@ export function buildUserPrompt(input: TeacherInput, documents: readonly Extract
 export function buildRepairPrompt(previousOutput: string, issues: readonly SpecIssue[], attempt: number, maxAttempts: number): string {
   const list = issues.slice(0, 60).map((i) => `- ${i.path}: ${i.message}`)
   if (issues.length > 60) list.push(`- ... and ${issues.length - 60} more`)
+  const hasUnknownReference = issues.some((issue) => /unknown (?:ending|stage) "[^"]+"/.test(issue.message))
+  const allowedIds = hasUnknownReference ? parseAllowedIds(previousOutput) : null
   return [
     `# Repair ${attempt} of ${maxAttempts}`,
     'Your previous output failed validation. Return the COMPLETE corrected JSON. Fix every issue listed; change nothing else. Paths are JSON paths into your output (`$.adventure...`). For "quote not found" issues, replace the quote with text copied verbatim from the cited page, or move the span to the page that actually contains it, or delete the span and add an assumptionId instead. Do not add new sources.',
     '',
     '## Issues',
     ...list,
+    ...(allowedIds ? [
+      '',
+      '## Allowed ids',
+      'Use only these declared ids for branch targets:',
+      'Endings:',
+      ...allowedIds.endings.map((ending) => `- ${ending.id} — ${ending.title}`),
+      'Stages:',
+      ...allowedIds.stages.map((stage) => `- ${stage.id} (stage ${stage.index}) — ${stage.title}`),
+      '',
+      'A `branchTarget` may only name an ending id that appears in `endings` or a later stage id that appears in `stages`. For each unknown-ending issue either repoint the option at one of the ending ids listed above, or declare the missing ending as a full ending object in `endings` (max 4 endings total, `historicalOutcome` needs verbatim spans, and every declared ending must be targeted by at least one option). For each unknown-stage issue, repoint the option at one of the later stage ids listed above.',
+    ] : []),
     '',
     '## Your previous output',
     previousOutput,
   ].join('\n')
+}
+
+type AllowedIds = {
+  endings: Array<{ id: string; title: string }>
+  stages: Array<{ id: string; index: number; title: string }>
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function parseAllowedIds(previousOutput: string): AllowedIds | null {
+  try {
+    const parsed: unknown = JSON.parse(previousOutput)
+    if (!isRecord(parsed) || !isRecord(parsed.adventure) || !Array.isArray(parsed.adventure.endings) || !Array.isArray(parsed.adventure.stages)) return null
+    const endings: Array<{ id: string; title: string }> = []
+    for (const ending of parsed.adventure.endings) {
+      if (!isRecord(ending) || typeof ending.id !== 'string' || typeof ending.title !== 'string') return null
+      endings.push({ id: ending.id, title: ending.title })
+    }
+    const stages: Array<{ id: string; index: number; title: string }> = []
+    for (const stage of parsed.adventure.stages) {
+      if (!isRecord(stage) || typeof stage.id !== 'string' || typeof stage.index !== 'number' || !Number.isInteger(stage.index) || typeof stage.title !== 'string') return null
+      stages.push({ id: stage.id, index: stage.index, title: stage.title })
+    }
+    return { endings, stages }
+  } catch {
+    return null
+  }
 }

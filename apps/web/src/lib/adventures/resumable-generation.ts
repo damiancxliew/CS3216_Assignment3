@@ -33,6 +33,8 @@ type PrivateJob = {
   lease_token: string | null;
 };
 
+type ClaimedJobRow = Omit<PrivateJob, "adventure_id"> & { adventure_id?: string | null };
+
 export type GenerationStepResult = { state: "running" | "completed" | "failed"; message?: string };
 
 async function updatePublicJob(admin: SupabaseClient, adventureId: string, state: "running" | "completed" | "failed", phase: string, message: string | null = null): Promise<void> {
@@ -89,7 +91,7 @@ export async function startGenerationJob(admin: SupabaseClient, input: {
   createdBy: string;
 }): Promise<void> {
   const now = new Date().toISOString();
-  const { error: privateError } = await admin.from("generation_job_state").insert({
+  const { error: privateError } = await admin.from("generation_job_state").upsert({
     adventure_id: input.adventureId,
     teacher: input.teacher,
     source_snapshot: input.documents.map((document) => ({ id: document.id, contentHash: document.contentHash })),
@@ -104,7 +106,7 @@ export async function startGenerationJob(admin: SupabaseClient, input: {
     warnings: input.warnings,
     lease_token: null,
     lease_expires_at: null,
-  });
+  }, { onConflict: "adventure_id" });
   if (privateError) throw privateError;
   const { error: publicError } = await admin.from("generation_job").upsert({
     adventure_id: input.adventureId,
@@ -135,10 +137,10 @@ async function existingSavedVersion(admin: SupabaseClient, job: PrivateJob): Pro
     : null;
 }
 
-async function loadSnapshotDocuments(admin: SupabaseClient, job: PrivateJob): Promise<ExtractedDocument[]> {
+async function loadSnapshotDocuments(admin: SupabaseClient, adventureId: string, job: PrivateJob): Promise<ExtractedDocument[]> {
   const { data, error } = await admin.from("source")
     .select("id, title, kind, page_map, content_hash")
-    .eq("adventure_id", job.adventure_id)
+    .eq("adventure_id", adventureId)
     .order("created_at")
     .returns<SourceRow[]>();
   if (error) throw error;
@@ -156,11 +158,11 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
   const { data: claimed, error: claimError } = await admin.rpc("claim_generation_job_step", {
     p_adventure_id: adventureId,
     p_token: leaseToken,
-  }).maybeSingle<PrivateJob>();
+  }).maybeSingle<ClaimedJobRow>();
   if (claimError) throw claimError;
-  if (!claimed) return { state: "running" };
+  if (!claimed || !claimed.adventure_id) return { state: "running" };
 
-  const job = claimed;
+  const job: PrivateJob = { ...claimed, adventure_id: claimed.adventure_id };
   try {
     if (job.spec) {
       await updatePublicJob(admin, adventureId, "running", "saving");
@@ -182,7 +184,7 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
     }
 
     await updatePublicJob(admin, adventureId, "running", job.attempt === 0 ? "planning" : "repairing");
-    const documents = await loadSnapshotDocuments(admin, job);
+    const documents = await loadSnapshotDocuments(admin, adventureId, job);
     const result = await generateAdventure({
       teacher: job.teacher,
       documents,
