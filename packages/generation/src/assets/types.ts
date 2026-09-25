@@ -1,4 +1,5 @@
 import type { GeneratableAssetKind } from '../spec/catalogue'
+import type { CutsceneScene } from './scene'
 
 export type AssetStatus = 'pending' | 'ready' | 'cached' | 'failed' | 'filtered' | 'skipped-cap'
 
@@ -15,6 +16,8 @@ export interface AssetRecord {
   model: string | null
   costUsd: number
   error: string | null
+  /** For a stage opening: what in the painting moves and sounds, once it has been read. */
+  scene?: CutsceneScene | null
 }
 
 export interface AssetManifest {
@@ -62,9 +65,11 @@ export interface ImageService {
 
 /** Prompt-hash cache (FR-6). Backed by Supabase later; in-memory in tests. */
 export interface AssetCache {
-  get(promptHash: string): Promise<{ url: string; model: string } | null>
-  put(promptHash: string, value: { url: string; model: string }): Promise<void>
+  get(promptHash: string): Promise<CachedAsset | null>
+  put(promptHash: string, value: CachedAsset): Promise<void>
 }
+
+export type CachedAsset = { url: string; model: string; scene?: CutsceneScene | null }
 
 /** Where image bytes go (object storage). */
 export interface AssetStore {

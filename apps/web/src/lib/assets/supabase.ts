@@ -4,7 +4,7 @@
  * live in `asset_cache` / `asset`. Everything here runs with the service role
  * after publish; clients only ever read `asset` rows through RLS.
  */
-import type { AssetCache, AssetManifest, AssetRecord, AssetStore } from "@adventure/generation/assets";
+import { parseCutsceneScene, type AssetCache, type AssetManifest, type AssetRecord, type AssetStore, type CachedAsset } from "@adventure/generation/assets";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BUCKET = "assets";
@@ -22,13 +22,13 @@ export class SupabaseAssetStore implements AssetStore {
 export class SupabaseAssetCache implements AssetCache {
   constructor(private readonly admin: SupabaseClient) {}
 
-  async get(promptHash: string): Promise<{ url: string; model: string } | null> {
-    const { data } = await this.admin.from("asset_cache").select("url, model").eq("prompt_hash", promptHash).maybeSingle<{ url: string; model: string }>();
-    return data ?? null;
+  async get(promptHash: string): Promise<CachedAsset | null> {
+    const { data } = await this.admin.from("asset_cache").select("url, model, scene").eq("prompt_hash", promptHash).maybeSingle<{ url: string; model: string; scene: unknown }>();
+    return data ? { url: data.url, model: data.model, scene: parseCutsceneScene(data.scene) } : null;
   }
 
-  async put(promptHash: string, value: { url: string; model: string }): Promise<void> {
-    const { error } = await this.admin.from("asset_cache").upsert({ prompt_hash: promptHash, ...value }, { onConflict: "prompt_hash" });
+  async put(promptHash: string, value: CachedAsset): Promise<void> {
+    const { error } = await this.admin.from("asset_cache").upsert({ prompt_hash: promptHash, url: value.url, model: value.model, scene: value.scene ?? null }, { onConflict: "prompt_hash" });
     if (error) throw new Error(`asset_cache: ${error.message}`);
   }
 }
@@ -44,6 +44,7 @@ type AssetRow = {
   model: string | null;
   cost_usd: number | string;
   error: string | null;
+  scene: unknown;
 };
 
 /** Write (or update) one record of a version's manifest. Called as each image settles, so progress is visible. */
@@ -65,6 +66,7 @@ function assetRow(specVersionId: string, record: AssetRecord) {
     model: record.model,
     cost_usd: record.costUsd,
     error: record.error,
+    scene: record.scene ?? null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -77,7 +79,7 @@ export async function saveManifest(admin: SupabaseClient, specVersionId: string,
 
 /** The manifest as stored; `null` when generation never ran for this version. */
 export async function loadManifest(admin: SupabaseClient, specVersionId: string, adventureId: string, specVersion: number): Promise<AssetManifest | null> {
-  const { data } = await admin.from("asset").select("asset_id, entity_id, kind, status, url, placeholder_url, prompt_hash, model, cost_usd, error").eq("spec_version_id", specVersionId).returns<AssetRow[]>();
+  const { data } = await admin.from("asset").select("asset_id, entity_id, kind, status, url, placeholder_url, prompt_hash, model, cost_usd, error, scene").eq("spec_version_id", specVersionId).returns<AssetRow[]>();
   if (!data || data.length === 0) return null;
   const records: AssetRecord[] = data.map((row) => ({
     assetId: row.asset_id,
@@ -90,6 +92,7 @@ export async function loadManifest(admin: SupabaseClient, specVersionId: string,
     model: row.model,
     costUsd: Number(row.cost_usd),
     error: row.error,
+    ...(row.kind === "cutscene" ? { scene: parseCutsceneScene(row.scene) } : {}),
   }));
   return {
     adventureId,

@@ -8,7 +8,7 @@
  * landmark is eligible, including fixtures omitted by older specs; rooms with
  * no landmark are skipped. No fixed adventure-wide count limit applies.
  */
-import { generateAssets, pendingManifest, playableAssetEligibility, type ImageService } from "@adventure/generation/assets";
+import { generateAssets, pendingManifest, playableAssetEligibility, type ImageService, type SceneAnnotator } from "@adventure/generation/assets";
 import { validatePublishedSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -17,6 +17,8 @@ import { saveAssetRecord, saveManifest, SupabaseAssetCache, SupabaseAssetStore }
 export interface GenerateForVersionOptions {
   admin: SupabaseClient;
   images: ImageService;
+  /** Reads each stage opening for its animation and soundscape. */
+  annotator?: SceneAnnotator;
   adventureId: string;
   version: number;
   quality?: "low" | "medium" | "high";
@@ -60,6 +62,7 @@ export async function generateAssetsForVersion(options: GenerateForVersionOption
       store: new SupabaseAssetStore(options.admin),
       quality,
       ignoreCache: options.ignoreCache,
+      annotator: options.annotator,
       onRecord: (record) => saveAssetRecord(options.admin, version.id, record).catch((error) => console.error("asset record not saved", error)),
     },
     manifest,

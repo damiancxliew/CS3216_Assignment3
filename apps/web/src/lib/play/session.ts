@@ -51,7 +51,7 @@ import { PLAYER_ID, toResolverInput, toStageRuntime, type StageRuntimeBundle } f
 import { orderObjectives } from "@adventure/generation/play";
 import { resolveStageSettings, type AdventureSpec, type Stage } from "@adventure/generation/spec";
 
-import { isCurrentSpriteRecord, type AssetManifest } from "@adventure/generation/assets";
+import { isCurrentSpriteRecord, type AssetManifest, type CutsceneScene } from "@adventure/generation/assets";
 
 import { characterFor, PLAYER_CHARACTER, type Character } from "./appearance";
 import { historicalPortraitFor } from "./historical-portraits";
@@ -132,6 +132,10 @@ export interface PlayState extends PublicAttemptState {
   landmarks: { id: string; roomId: string; name: string; description: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string }[];
   /** Generated prop image per evidence item, when one exists (D4). Keys are evidence ids. */
   evidenceImages: Record<string, string>;
+  /** This stage's generated opening painting, once it is ready. */
+  cutsceneImageUrl: string | null;
+  /** Where that painting's flames, open air and weather are, and its mood, when it has been read. */
+  cutsceneScene: CutsceneScene | null;
   /** Where every actor stands, by room. Tiles are the client's business except the player's own. */
   actors: { id: string; name: string; kind: "player" | "agent"; roomId: string | null; position: Point | null; sprite: Character; portraitUrl: string | null; spriteSheetUrl: string | null }[];
   hearingActorIds: string[];
@@ -515,6 +519,7 @@ export class PlaySession {
         }];
       }),
       evidenceImages: this.generatedImages("prop", this.stage.evidence.map((e) => e.id)),
+      ...this.cutscene(),
       optionsVersion: derived.version,
       stageCount: this.spec.stages.length,
       ending: ending ? { id: ending.id, title: ending.title, summary: ending.summary } : null,
@@ -666,6 +671,11 @@ export class PlaySession {
       if (record.kind === kind && entityIds.includes(record.entityId) && (record.status === "ready" || record.status === "cached")) out[record.entityId] = record.url;
     }
     return out;
+  }
+
+  private cutscene(): { cutsceneImageUrl: string | null; cutsceneScene: CutsceneScene | null } {
+    const record = this.assets?.records.find((r) => r.kind === "cutscene" && r.entityId === this.stage.id && (r.status === "ready" || r.status === "cached"));
+    return { cutsceneImageUrl: record?.url ?? null, cutsceneScene: record?.scene ?? null };
   }
 
   /** Prefer ready artwork; a bundled historical likeness also works for older or failed manifests. */

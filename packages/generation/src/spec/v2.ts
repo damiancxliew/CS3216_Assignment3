@@ -522,7 +522,7 @@ export function refineAdventureSpec(spec: AdventureSpecShape, ctx: z.RefinementC
   spec.assetEligibility.forEach((asset, i) => {
     const p = ['assetEligibility', i]
     const entity = ASSET_KIND_ENTITY[asset.kind]
-    const pool = entity === 'stakeholder' ? stakeholderIds : entity === 'room' ? roomIdsAll : entity === 'adventure' ? new Set([spec.id]) : evidenceIdsAll
+    const pool = entity === 'stage' ? new Set(spec.stages.map((stage) => stage.id)) : entity === 'stakeholder' ? stakeholderIds : entity === 'room' ? roomIdsAll : entity === 'adventure' ? new Set([spec.id]) : evidenceIdsAll
     if (!pool.has(asset.entityId)) {
       issue([...p, 'entityId'], entity === 'adventure'
         ? `${asset.kind} must reference the adventure id; "${asset.entityId}" is not it`

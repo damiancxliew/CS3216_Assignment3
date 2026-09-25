@@ -9,6 +9,7 @@ import { join } from "node:path";
 
 import { loadI1Spec } from "@adventure/generation/fixtures";
 import type { AssetManifest, AssetRecord } from "@adventure/generation/assets";
+import { FAKE_SCENE } from "@adventure/generation/assets";
 import { FakeLlmClient } from "@adventure/orchestration";
 import { describe, expect, it } from "vitest";
 
@@ -76,14 +77,14 @@ describe("curated characters", () => {
     spec.stages[0]!.mapTheme = "coast";
     const room = spec.stages[0]!.rooms.find((candidate) => candidate.landmark)!;
     const evidence = spec.stages[0]!.evidence[0]!;
-    const makeRecord = (kind: "portrait" | "landmark" | "prop", entityId: string): AssetRecord => ({
+    const makeRecord = (kind: "portrait" | "landmark" | "prop" | "cutscene", entityId: string): AssetRecord => ({
       assetId: `asset-${kind}`, entityId, kind, status: "ready", url: `https://example.test/${kind}.png`,
       placeholderUrl: "", promptHash: "test", model: "test", costUsd: 0, error: null,
     });
     const assets: AssetManifest = {
       adventureId: spec.id, specVersion: spec.version,
-      records: [makeRecord("portrait", spec.stakeholders[0]!.id), makeRecord("landmark", room.id), makeRecord("prop", evidence.id)],
-      generatedCount: 3, cacheHits: 0, totalCostUsd: 0, startedAt: "", finishedAt: "",
+      records: [makeRecord("portrait", spec.stakeholders[0]!.id), makeRecord("landmark", room.id), makeRecord("prop", evidence.id), { ...makeRecord("cutscene", spec.stages[0]!.id), scene: FAKE_SCENE }],
+      generatedCount: 4, cacheHits: 0, totalCostUsd: 0, startedAt: "", finishedAt: "",
     };
     const deps: PlayServiceDeps = {
       store: new MemoryPlayStore([{ attemptId: "theme-a", studentId: "s", adventureId: spec.id, publishedVersion: 1, status: "active", stageDeadlineAt: null, spec, snapshot: null, assets }]),
@@ -107,5 +108,7 @@ describe("curated characters", () => {
     }));
     expect(result.state.map?.landmarks).toContainEqual(expect.objectContaining({ roomId: room.id, width: 2, height: 2 }));
     expect(result.state.evidenceImages[evidence.id]).toBe("https://example.test/prop.png");
+    expect(result.state.cutsceneImageUrl).toBe("https://example.test/cutscene.png");
+    expect(result.state.cutsceneScene).toEqual(FAKE_SCENE);
   });
 });

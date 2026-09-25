@@ -85,18 +85,20 @@ export async function normalizeWalkingSpriteSheet(bytes: Uint8Array, options: { 
 export class OpenAiImageService implements ImageService {
   readonly model: string
   readonly spriteModel: string
+  readonly cutsceneModel: string
   private readonly client: OpenAI
 
-  constructor(options: { apiKey?: string; model?: string; spriteModel?: string; timeoutMs?: number } = {}) {
+  constructor(options: { apiKey?: string; model?: string; spriteModel?: string; cutsceneModel?: string; timeoutMs?: number } = {}) {
     const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY
     if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
     this.client = new OpenAI({ apiKey, timeout: options.timeoutMs ?? 120_000, maxRetries: 1 })
     this.model = options.model ?? process.env.LLM_MODEL_IMAGE ?? 'gpt-image-1-mini'
     this.spriteModel = options.spriteModel ?? process.env.LLM_MODEL_SPRITE ?? 'gpt-image-2.5-sunburst'
+    this.cutsceneModel = options.cutsceneModel ?? process.env.LLM_MODEL_CUTSCENE ?? 'gpt-image-2'
   }
 
   modelForKind(kind: ImageRequest['kind']): string {
-    return kind === 'sprite' ? this.spriteModel : this.model
+    return kind === 'sprite' ? this.spriteModel : kind === 'cutscene' ? this.cutsceneModel : this.model
   }
 
   async generate(request: ImageRequest): Promise<ImageResult> {
@@ -114,12 +116,12 @@ export class OpenAiImageService implements ImageService {
           n: 1,
         })
         : await this.client.images.generate({
-          model: this.model,
+          model: this.modelForKind(request.kind),
           prompt: request.prompt,
           size: request.size,
           quality: request.quality,
           output_format: 'webp',
-          background: request.kind === 'portrait' || request.kind === 'cover' ? 'opaque' : 'transparent',
+          background: request.kind === 'portrait' || request.kind === 'cover' || request.kind === 'cutscene' ? 'opaque' : 'transparent',
           n: 1,
         })
     } catch (error) {

@@ -1500,7 +1500,8 @@
               "landmark",
               "prop",
               "sprite",
-              "cover"
+              "cover",
+              "cutscene"
             ]
           },
           "entityId": {

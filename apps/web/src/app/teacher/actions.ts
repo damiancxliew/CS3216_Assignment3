@@ -13,7 +13,7 @@ import {
   slugify,
   type ExtractedDocument,
 } from "@adventure/generation";
-import { isCurrentSpriteRecord, isRawRejectedSpriteUrl, normalizeWalkingSpriteSheet, OpenAiImageService, playableAssetEligibility } from "@adventure/generation/assets";
+import { isCurrentSpriteRecord, isRawRejectedSpriteUrl, normalizeWalkingSpriteSheet, OpenAiImageService, OpenAiSceneAnnotator, playableAssetEligibility } from "@adventure/generation/assets";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
 import { MAP_STYLES, validatePublishedSpec } from "@adventure/generation/spec";
 
@@ -440,7 +440,7 @@ export async function publishAdventure(adventureId: string): Promise<ActionResul
 async function finishArtworkGeneration(adventureId: string, version: number): Promise<void> {
   try {
     const admin = createAdminClient();
-    const result = await generateAssetsForVersion({ admin, images: new OpenAiImageService(), adventureId, version });
+    const result = await generateAssetsForVersion({ admin, images: new OpenAiImageService(), annotator: new OpenAiSceneAnnotator(), adventureId, version });
     if (!result.ok) throw new Error(result.reason);
     const { error } = await admin.from("adventure")
       .update({ assets_ready: true })
@@ -505,6 +505,7 @@ export async function regenerateAsset(adventureId: string, specVersionId: string
     const result = await generateAssetsForVersion({
       admin,
       images: new OpenAiImageService(),
+      annotator: new OpenAiSceneAnnotator(),
       adventureId,
       version: version.version,
       onlyAssetIds: [assetId],
