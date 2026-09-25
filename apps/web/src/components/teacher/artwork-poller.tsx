@@ -44,15 +44,15 @@ export function ArtworkProgress({
     <div className="flex flex-col gap-3">
       <form action={formAction}>
         <button type="submit" disabled={working} onClick={() => { setSawPending(false); setRequestedAt(Date.now()); }} className={button.primary}>
-          {working ? <Pending>Generating artwork…</Pending> : label}
+          {working ? <Pending>Artwork pending…</Pending> : label}
         </button>
       </form>
       {assets.eligible > 0 && (assets.started || working) ? (
         <div role="status" aria-live="polite" className="flex max-w-xl flex-col gap-2 text-sm text-muted">
           {starting && assets.pending === 0 ? (
             <>
-              <p>Starting artwork generation…</p>
-              <ProgressBar indeterminate label="Starting artwork generation" />
+              <p>Waiting for artwork generation…</p>
+              <ProgressBar indeterminate label="Waiting for artwork generation" />
             </>
           ) : (
             <>
