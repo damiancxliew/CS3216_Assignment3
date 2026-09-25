@@ -6,6 +6,7 @@
  * buttons and the progress poller.
  */
 import {
+  acceptRejectedSprite,
   editAgentPosition,
   editAssumption,
   editDecision,
@@ -19,6 +20,7 @@ import {
   regenerateAsset,
 } from "../actions";
 import { AssetRegeneration } from "@/components/teacher/asset-regeneration";
+import { SpriteRejectionReview } from "@/components/teacher/sprite-rejection-review";
 import { ImageViewer } from "@/components/teacher/image-viewer";
 import { InlineEdit } from "@/components/teacher/inline-edit";
 import { StageMapPlan } from "@/components/teacher/stage-map";
@@ -449,14 +451,17 @@ export function DossierSections({
           {dossier.artwork.length > 0 ? (
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {dossier.artwork.map((item) => (
-                <li key={item.id} className="flex gap-3 rounded-surface border border-line bg-surface p-3">
-                  <Artwork kind={item.kind} alt={`Artwork of ${item.name}`} imageUrl={item.imageUrl} imageStatus={item.imageStatus} className="h-24 w-24 shrink-0" />
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <p className="font-semibold text-ink">{item.name}</p>
-                    <p className="text-sm text-muted">{item.kind === "prop" ? "Object" : item.kind === "landmark" ? "Place" : item.kind === "sprite" ? "Walking sprite" : "Portrait"} · {item.imageStatus === "generated" ? "Ready" : item.imageStatus === "pending" ? "Pending" : item.imageStatus === "failed" ? "Failed" : "Placeholder"}</p>
-                    {item.failureReason ? <p className="break-words text-sm text-muted">{item.failureReason}</p> : null}
-                    <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={item.assetId} />
+                <li key={item.id} className="flex flex-col gap-3 rounded-surface border border-line bg-surface p-3">
+                  <div className="flex gap-3">
+                    <Artwork kind={item.kind} alt={`Artwork of ${item.name}`} imageUrl={item.imageUrl} imageStatus={item.imageStatus} className="h-24 w-24 shrink-0" />
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <p className="font-semibold text-ink">{item.name}</p>
+                      <p className="text-sm text-muted">{item.kind === "prop" ? "Object" : item.kind === "landmark" ? "Place" : item.kind === "sprite" ? "Walking sprite" : "Portrait"} · {item.imageStatus === "generated" ? "Ready" : item.imageStatus === "pending" ? "Pending" : item.imageStatus === "failed" ? "Failed" : "Placeholder"}</p>
+                      {item.failureReason ? <p className="break-words text-sm text-muted">{item.failureReason}</p> : null}
+                      <RegenerateButton adventureId={adventureId} specVersionId={specVersionId} assetId={item.assetId} />
+                    </div>
                   </div>
+                  {item.canAcceptRejected && item.assetId ? <SpriteRejectionReview imageUrl={item.imageUrl} action={acceptRejectedSprite.bind(null, adventureId, specVersionId, item.assetId)} /> : null}
                 </li>
               ))}
             </ul>

@@ -74,7 +74,7 @@ export type DossierStage = {
 };
 
 export type Dossier = {
-  artwork: { id: string; kind: "portrait" | "landmark" | "prop" | "sprite"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null; failureReason: string | null }[];
+  artwork: { id: string; kind: "portrait" | "landmark" | "prop" | "sprite"; name: string; imageUrl: string; imageStatus: ImageStatus; assetId: string | null; failureReason: string | null; canAcceptRejected: boolean }[];
   stakeholders: DossierStakeholder[];
   stages: DossierStage[];
   endings: {
@@ -211,6 +211,7 @@ export function dossierFromSpec(spec: AdventureSpec, manifest: AssetManifest | n
       imageStatus: outdatedSprite ? ("failed" as ImageStatus) : entry.kind === "sprite" ? imageStatus(ownRecord) : entity?.imageStatus ?? ("placeholder" as ImageStatus),
       assetId: entry.kind === "sprite" ? ownRecord?.assetId ?? null : entity?.assetId ?? null,
       failureReason: outdatedSprite ? "Older walking sprite. Regenerate to use the current format." : ownRecord?.status === "failed" || ownRecord?.status === "filtered" || ownRecord?.status === "skipped-cap" ? ownRecord.error ?? "Generation failed. Try again." : null,
+      canAcceptRejected: entry.kind === "sprite" && ownRecord?.status === "failed" && ownRecord.url !== ownRecord.placeholderUrl && /pose template|mix directions/.test(ownRecord.error ?? "") && isCurrentSpriteRecord(spec, ownRecord),
     };
   });
   return {
