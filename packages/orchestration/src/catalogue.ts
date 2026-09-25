@@ -8,7 +8,7 @@
  */
 
 /** Ambient overlays, one per stage (FR-15a). */
-export const AMBIENT_OVERLAYS = ['clear', 'clouds', 'rain', 'fog', 'night', 'dust', 'snow'] as const
+export const AMBIENT_OVERLAYS = ['clear', 'clouds', 'rain', 'thunderstorm', 'haze', 'fog', 'night', 'dust', 'snow'] as const
 export type AmbientOverlayId = (typeof AMBIENT_OVERLAYS)[number]
 
 /** One-shot scene effects the Resolver may emit (FR-15b). Cosmetic only: they never change state. */

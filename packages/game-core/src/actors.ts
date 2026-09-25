@@ -1,3 +1,4 @@
+import { roomContains } from './room-shapes.js'
 import { canStep, findPath, isWalkable, spaceAt } from './spatial.js'
 import type { Point, PublicActorPosition, RoomWalkResult, SpatialState, StageMap } from './types.js'
 
@@ -28,10 +29,7 @@ export function walkActorTowardRoom(map: StageMap, state: SpatialState, actorId:
   const room = map.rooms.find((entry) => entry.id === roomId)
   if (!from || !room || !isWalkable(map, state.doors, from)) return { state, status: 'unreachable' }
   const insideRoom = (point: Point): boolean =>
-    point.x >= room.x &&
-    point.x < room.x + room.width &&
-    point.y >= room.y &&
-    point.y < room.y + room.height
+    roomContains(room, point)
   if (room.enclosure === 'open') {
     if (insideRoom(from)) return { state, status: 'arrived' }
     const target = { x: room.x + Math.floor(room.width / 2), y: room.y + Math.floor(room.height / 2) }

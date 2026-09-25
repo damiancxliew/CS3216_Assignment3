@@ -9,11 +9,11 @@
 import { compileAdventure } from "@adventure/game-integration";
 import { randomUUID } from "node:crypto";
 import { validateAdventureSpec, type AdventureSpec } from "@adventure/generation/spec";
-import type { MapThemeId } from "@adventure/generation/spec";
+import type { MapThemeId, MapStyleId } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type SpecEdit =
-  | { kind: "stage"; stageId: string; title: string; sharedContext: string; timerSeconds: number | null; mapTheme?: MapThemeId }
+  | { kind: "stage"; stageId: string; title: string; sharedContext: string; timerSeconds: number | null; mapTheme?: MapThemeId; visualStyle?: MapStyleId }
   | { kind: "stakeholder"; stakeholderId: string; name: string; role: string; summary: string }
   | { kind: "agentPosition"; stageId: string; agentId: string; publicPosition: string }
   | { kind: "room"; stageId: string; roomId: string; name: string; purpose: string }
@@ -51,6 +51,10 @@ export function applyEditToSpec(spec: AdventureSpec, edit: SpecEdit): EditResult
       stage.sharedContext.text = edit.sharedContext;
       stage.timerSeconds = edit.timerSeconds;
       if (edit.mapTheme) stage.mapTheme = edit.mapTheme;
+      if (edit.visualStyle && edit.visualStyle !== stage.visualStyle) {
+        stage.visualStyle = edit.visualStyle;
+        stage.environment = null; // A manual style change replaces the old generated palette.
+      }
       break;
     }
     case "stakeholder": {

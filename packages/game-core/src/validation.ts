@@ -1,3 +1,6 @@
+import { waterContains } from './landscape.js'
+import { sceneryAt, SCENERY_KINDS } from './scenery.js'
+import { ROOM_SHAPES, roomContains, roomInterior } from './room-shapes.js'
 import { identityForMap } from './identity.js'
 import { LANDMARK_KINDS, landmarkAt, landmarkCovers } from './landmarks.js'
 import {
@@ -17,7 +20,7 @@ import {
 
 const ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 const SEED_PATTERN = /^[A-Za-z0-9._-]{1,64}$/
-const TILE_VALUES = new Set<Tile>(['grass', 'path', 'wall', 'floor', 'door'])
+const TILE_VALUES = new Set<Tile>(['grass', 'path', 'wall', 'floor', 'door', 'water'])
 const SIZE_VALUES = new Set(['small', 'medium', 'large'])
 const ENCLOSURE_VALUES = new Set<Enclosure>(['enclosed', 'open'])
 const DOOR_STATE_VALUES = new Set<DoorState>(['open', 'closed'])
@@ -91,6 +94,8 @@ export function validateStageLayout(value: unknown): ValidationResult {
   }
   if (errors.length > 0) return result(errors)
 
+  if (value.scenery !== undefined && (!isRecord(value.scenery) || !Array.isArray(value.scenery.palette) || !hasOnlyIndexedKeys(value.scenery.palette) || value.scenery.palette.length < 1 || value.scenery.palette.length > 10 || value.scenery.palette.some(kind => !(SCENERY_KINDS as readonly unknown[]).includes(kind)) || !['sparse', 'lived-in', 'busy'].includes(String(value.scenery.density)))) return result(['scenery: invalid palette or density'])
+  if (value.landscape !== undefined && (!isRecord(value.landscape) || !['courtyard', 'garden-loop', 'quayside', 'meandering'].includes(String(value.landscape.layout)) || !['none', 'pond', 'harbor', 'river', 'oasis'].includes(String(value.landscape.water)))) return result(['landscape: invalid layout or water'])
   const rooms = value.rooms as unknown[]
   const placements = value.placements as unknown[]
   const landmarks = value.landmarks === undefined ? [] : value.landmarks
@@ -115,6 +120,7 @@ export function validateStageLayout(value: unknown): ValidationResult {
     if (typeof room.size !== 'string' || !SIZE_VALUES.has(room.size)) {
       errors.push(`rooms[${index}].size: expected small, medium, or large`)
     }
+    if (room.shape !== undefined && !(ROOM_SHAPES as readonly unknown[]).includes(room.shape)) errors.push(`rooms[${index}].shape: invalid shape`)
     if (Object.prototype.hasOwnProperty.call(room, 'enclosure')) {
       if (typeof room.enclosure !== 'string' || !ENCLOSURE_VALUES.has(room.enclosure as Enclosure)) {
         errors.push(`rooms[${index}].enclosure: expected enclosed or open`)
@@ -180,10 +186,6 @@ function rectanglesOverlap(left: MapRoom, right: MapRoom): boolean {
   return left.x < right.x + right.width && right.x < left.x + left.width && left.y < right.y + right.height && right.y < left.y + left.height
 }
 
-function roomContains(room: MapRoom, point: Point): boolean {
-  return point.x >= room.x && point.x < room.x + room.width && point.y >= room.y && point.y < room.y + room.height
-}
-
 function roomAt(map: StageMap, point: Point): MapRoom | undefined {
   return map.rooms.find((room) => roomContains(room, point))
 }
@@ -192,17 +194,14 @@ function enclosedInteriorAt(map: StageMap, point: Point): MapRoom | undefined {
   return map.rooms.find(
     (room) =>
       room.enclosure === 'enclosed' &&
-      point.x > room.x &&
-      point.x < room.x + room.width - 1 &&
-      point.y > room.y &&
-      point.y < room.y + room.height - 1,
+      roomInterior(room, point),
   )
 }
 
 function expectedRoomTile(room: MapRoom, point: Point, doorPositions: Set<string>): Tile | 'outdoor' {
   if (room.enclosure === 'open') return 'outdoor'
   if (doorPositions.has(`${point.x},${point.y}`)) return 'door'
-  const perimeter = point.x === room.x || point.x === room.x + room.width - 1 || point.y === room.y || point.y === room.y + room.height - 1
+  const perimeter = !roomInterior(room, point)
   return perimeter ? 'wall' : 'floor'
 }
 
@@ -254,7 +253,7 @@ function validateDoorGeometry(map: StageMap, room: MapRoom, door: MapDoor, error
 }
 
 function openWalkable(map: StageMap, doorIds: Set<string>, point: Point): boolean {
-  if (landmarkAt(map, point)) return false
+  if (landmarkAt(map, point) || sceneryAt(map, point)) return false
   const tile = tileAt(map, point)
   if (tile === 'grass' || tile === 'path' || tile === 'floor') return true
   if (tile !== 'door') return false
@@ -296,7 +295,7 @@ function reachablePoints(map: StageMap): Set<string> {
 }
 
 function validateMapShape(value: unknown, errors: string[]): value is StageMap {
-  if (!isRecord(value) || !(hasExactKeys(value, ['schemaVersion', 'generatorVersion', 'id', 'stageId', 'seed', 'width', 'height', 'tiles', 'rooms', 'doors']) || hasExactKeys(value, ['schemaVersion', 'generatorVersion', 'id', 'stageId', 'seed', 'width', 'height', 'tiles', 'rooms', 'doors', 'landmarks']))) {
+  if (!isRecord(value) || !hasExactKeys(value, ['schemaVersion', 'generatorVersion', 'id', 'stageId', 'seed', 'width', 'height', 'tiles', 'rooms', 'doors', ...(value.landmarks !== undefined ? ['landmarks'] : []), ...(value.scenery !== undefined ? ['scenery'] : []), ...(value.waterBodies !== undefined ? ['waterBodies'] : [])])) {
     errors.push('map: unexpected or missing fields')
     return false
   }
@@ -313,6 +312,8 @@ function validateMapShape(value: unknown, errors: string[]): value is StageMap {
   if (!Array.isArray(value.rooms)) errors.push('map.rooms: expected an array')
   else if (value.rooms.length < 2 || value.rooms.length > 5) errors.push('map.rooms: expected 2 to 5 rooms')
   if (!Array.isArray(value.doors)) errors.push('map.doors: expected an array')
+  if (value.waterBodies !== undefined && (!Array.isArray(value.waterBodies) || value.waterBodies.length > 3 || !hasOnlyIndexedKeys(value.waterBodies))) errors.push('map.waterBodies: invalid array')
+  if (value.scenery !== undefined && (!Array.isArray(value.scenery) || value.scenery.length > 40 || !hasOnlyIndexedKeys(value.scenery))) errors.push('map.scenery: invalid scenery array')
   if (value.landmarks !== undefined && (!Array.isArray(value.landmarks) || value.landmarks.length > 5 || !hasOnlyIndexedKeys(value.landmarks))) errors.push('map.landmarks: expected a dense array of at most 5 fixtures')
   if (errors.length > 0) return false
   const tiles = value.tiles as unknown[]
@@ -340,10 +341,11 @@ export function validateStageMap(value: unknown): ValidationResult {
   const roomIds = new Set<string>()
   for (let index = 0; index < map.rooms.length; index += 1) {
     const room = map.rooms[index]
-    if (!isRecord(room) || !hasExactKeys(room, ['id', 'enclosure', 'x', 'y', 'width', 'height'])) {
+    if (!isRecord(room) || !hasExactKeys(room, ['id', 'enclosure', 'x', 'y', 'width', 'height', ...(room.shape !== undefined ? ['shape'] : [])])) {
       errors.push(`rooms[${index}]: unexpected or missing fields`)
       continue
     }
+    if (room.shape !== undefined && !(ROOM_SHAPES as readonly unknown[]).includes(room.shape)) errors.push(`rooms[${index}].shape: invalid shape`)
     if (!isSlug(room.id)) errors.push(`rooms[${index}].id: invalid id`)
     if (typeof room.id === 'string' && roomIds.has(room.id)) errors.push(`rooms[${index}].id: duplicate id`)
     if (typeof room.id === 'string') roomIds.add(room.id)
@@ -419,6 +421,7 @@ export function validateStageMap(value: unknown): ValidationResult {
       errors.push(`landmarks[${index}]: fixture must sit inside its room`)
       continue
     }
+    if (room && ![0, 1].every(dy => [0, 1].every(dx => roomInterior(room, { x: landmark.x as number + dx, y: landmark.y as number + dy })))) errors.push(`landmarks[${index}]: fixture outside footprint`)
     for (const door of map.doors) if (landmarkCovers(landmark as MapLandmark, door.inside)) errors.push(`landmarks[${index}]: blocks a doorway`)
   }
   if (errors.length > 0) return result(errors)
@@ -435,12 +438,30 @@ export function validateStageMap(value: unknown): ValidationResult {
       const room = roomAt(map, point)
       if (room) {
         const expected = expectedRoomTile(room, point, doorPositions)
-        if (expected === 'outdoor' ? !['grass', 'path'].includes(tile ?? '') : tile !== expected) errors.push(`tiles[${y}][${x}]: room geometry mismatch`)
-      } else if (!['grass', 'path'].includes(tile ?? '')) {
+        if (expected === 'outdoor' ? !['grass', 'path', 'water'].includes(tile ?? '') : tile !== expected) errors.push(`tiles[${y}][${x}]: room geometry mismatch`)
+      } else if (!['grass', 'path', 'water'].includes(tile ?? '')) {
         errors.push(`tiles[${y}][${x}]: stray non-outdoor tile`)
       }
     }
   }
+  for (const body of map.waterBodies ?? []) {
+    if (!isRecord(body) || !hasExactKeys(body, ['x', 'y', 'width', 'height', 'kind']) || !['pond', 'basin', 'oasis'].includes(String(body.kind)) || ![body.x, body.y, body.width, body.height].every(isInteger)) { errors.push('water: invalid body'); continue }
+    if (body.width < 3 || body.height < 3 || body.x < 2 || body.y < 2 || body.x + body.width > map.width - 2 || body.y + body.height > map.height - 2) errors.push('water: invalid bounds')
+  }
+  if (errors.length) return result(errors)
+  for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) {
+    if ((map.tiles[y]![x] === 'water') !== Boolean(map.waterBodies?.some(body => waterContains(body, { x, y })))) errors.push('water: footprint mismatch')
+  }
+  const sceneryKeys = new Set<string>()
+  for (const item of map.scenery ?? []) {
+    if (!isRecord(item) || !hasExactKeys(item, ['kind', 'x', 'y']) || !(SCENERY_KINDS as readonly unknown[]).includes(item.kind) || !isInteger(item.x) || !isInteger(item.y)) {
+      errors.push('scenery: invalid solid prop'); continue
+    }
+    const point = { x: item.x, y: item.y }, key = pointKey(point)
+    if (tileAt(map, point) !== 'grass' || sceneryKeys.has(key) || landmarkAt(map, point) || map.rooms.some(r => r.enclosure === 'enclosed' && roomContains(r, point))) errors.push('scenery: invalid outdoor position')
+    sceneryKeys.add(key)
+  }
+  if (errors.length) return result(errors)
   const reachable = reachablePoints(map)
   for (const door of map.doors) {
     if (!reachable.has(pointKey(door.outside))) errors.push(`doors.${door.id}: outside approach unreachable`)
@@ -450,13 +471,13 @@ export function validateStageMap(value: unknown): ValidationResult {
     if (room.enclosure === 'enclosed') {
       for (let y = room.y + 1; y < room.y + room.height - 1; y += 1) {
         for (let x = room.x + 1; x < room.x + room.width - 1; x += 1) {
-          if (!landmarkAt(map, { x, y }) && !reachable.has(`${x},${y}`)) errors.push(`rooms.${room.id}: interior unreachable`)
+          if (roomInterior(room, { x, y }) && !sceneryAt(map, { x, y }) && !landmarkAt(map, { x, y }) && !reachable.has(`${x},${y}`)) errors.push(`rooms.${room.id}: interior unreachable`)
         }
       }
     } else {
       for (let y = room.y; y < room.y + room.height; y += 1) {
         for (let x = room.x; x < room.x + room.width; x += 1) {
-          if (!landmarkAt(map, { x, y }) && ['grass', 'path'].includes(tileAt(map, { x, y }) ?? '') && !reachable.has(`${x},${y}`)) errors.push(`rooms.${room.id}: outdoor location unreachable`)
+          if (!sceneryAt(map, { x, y }) && !landmarkAt(map, { x, y }) && ['grass', 'path'].includes(tileAt(map, { x, y }) ?? '') && !reachable.has(`${x},${y}`)) errors.push(`rooms.${room.id}: outdoor location unreachable`)
         }
       }
     }
@@ -493,7 +514,7 @@ export function validateCompiledStage(value: unknown): ValidationResult {
   const occupied = new Set<string>()
   const placementRoom = (point: Point, roomId: unknown): MapRoom | undefined => {
     const room = compiled.map.rooms.find((entry) => entry.id === roomId)
-    if (!room || !roomContains(room, point) || landmarkAt(compiled.map, point)) return undefined
+    if (!room || !roomContains(room, point) || sceneryAt(compiled.map, point) || landmarkAt(compiled.map, point)) return undefined
     if (room.enclosure === 'enclosed') {
       if (!enclosedInteriorAt(compiled.map, point) || tileAt(compiled.map, point) !== 'floor') return undefined
     } else if (

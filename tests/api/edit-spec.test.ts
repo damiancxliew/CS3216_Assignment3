@@ -39,6 +39,7 @@ describe("applyEditToSpec", () => {
       sharedContext: "A rewritten context.",
       timerSeconds: stage.timerSeconds,
       mapTheme: "forest",
+      visualStyle: "jungle",
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -47,6 +48,7 @@ describe("applyEditToSpec", () => {
     expect(edited.sharedContext.spans).toEqual(stage.sharedContext.spans);
     expect(edited.sharedContext.assumptionIds).toEqual(stage.sharedContext.assumptionIds);
     expect(edited.mapTheme).toBe("forest");
+    expect(edited.visualStyle).toBe("jungle");
   });
 
   it("rejects an over-long title with the issue's path, and leaves the input untouched", async () => {

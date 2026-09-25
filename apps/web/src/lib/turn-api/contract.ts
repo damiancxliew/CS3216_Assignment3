@@ -8,7 +8,7 @@
  * handler cannot leak them without changing this file.
  */
 import { z } from "zod";
-import { MAP_THEMES } from "@adventure/generation/spec";
+import { MAP_THEMES, MAP_STYLES, environmentSchema } from "@adventure/generation/spec";
 
 export { FORBIDDEN_RESPONSE_KEYS, findForbiddenKeys } from "@adventure/orchestration";
 
@@ -18,6 +18,8 @@ export const AMBIENT_OVERLAYS = [
   "clear",
   "clouds",
   "rain",
+  "thunderstorm",
+  "haze",
   "fog",
   "night",
   "dust",
@@ -118,6 +120,9 @@ export const publicStageSchema = z.object({
   sharedContext: z.string(),
   ambientOverlay: z.enum(AMBIENT_OVERLAYS),
   mapTheme: z.enum(MAP_THEMES),
+  visualStyle: z.enum(MAP_STYLES).optional(),
+  environment: environmentSchema.nullable().optional(),
+  setting: z.string().optional(),
   overlayIntensity: z.number(),
   objectives: z.array(
     z.object({ id: z.string(), title: z.string(), met: z.boolean() }),

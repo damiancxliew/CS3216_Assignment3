@@ -180,6 +180,9 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
         roomNames: Object.fromEntries(s.rooms.map((r) => [r.id, r.name])),
         roomDescriptions: Object.fromEntries(s.rooms.map((r) => [r.id, r.purpose ?? ""])),
         mapTheme: s.stage.mapTheme,
+        visualStyle: s.stage.visualStyle ?? 'auto',
+        environment: s.stage.environment ?? null,
+        storyContext: `${s.stage.setting ?? ''} ${s.stage.title} ${s.stage.sharedContext}`,
         ambient: { id: s.stage.ambientOverlay, intensity: Math.min(3, Math.max(1, s.stage.overlayIntensity)) as 1 | 2 | 3 },
         // One-shot effects are keyed by announcement so each plays once, in the room the player is in.
         effects: s.announcements.length

@@ -1,3 +1,5 @@
+import { arrangeScenery, layOutLandscape } from './landscape.js'
+import { roomContains, roomInterior, type RoomShape } from './room-shapes.js'
 import { identityForMap, randomGenerator } from './identity.js'
 import { landmarkCovers } from './landmarks.js'
 import { validateCompiledStage, validateStageLayout, isValidSeed } from './validation.js'
@@ -40,9 +42,10 @@ function stageInput(value: unknown): StageLayoutInput {
   const raw = value as Record<string, unknown>
   const rooms = (raw.rooms as readonly Record<string, unknown>[]).map((room) => {
     const enclosure = room.enclosure as 'enclosed' | 'open' | undefined
+    const shape = room.shape ? { shape: room.shape as RoomShape } : {}
     return enclosure === undefined
-      ? { id: room.id as string, size: room.size as RoomSize, doorDefault: room.doorDefault as DoorState | null }
-      : { id: room.id as string, size: room.size as RoomSize, enclosure, doorDefault: room.doorDefault as DoorState | null }
+      ? { ...shape, id: room.id as string, size: room.size as RoomSize, doorDefault: room.doorDefault as DoorState | null }
+      : { ...shape, id: room.id as string, size: room.size as RoomSize, enclosure, doorDefault: room.doorDefault as DoorState | null }
   })
   const placements = (raw.placements as readonly Record<string, unknown>[]).map((placement) => ({
     id: placement.id as string,
@@ -59,6 +62,8 @@ function stageInput(value: unknown): StageLayoutInput {
     rooms,
     placements,
     ...(landmarks.length ? { landmarks } : {}),
+    ...(raw.landscape ? { landscape: raw.landscape as NonNullable<StageLayoutInput["landscape"]> } : {}),
+    ...(raw.scenery ? { scenery: raw.scenery as NonNullable<StageLayoutInput["scenery"]> } : {}),
   }
 }
 
@@ -83,7 +88,7 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
   const layoutRandom = randomGenerator(JSON.stringify([LAYOUT_RANDOM_VERSION, input.stageId, seed, 'layout']))
   const slots = shuffle(Array.from({ length: sortedRooms.length }, (_, index) => index), layoutRandom)
   const width = 4 + Math.ceil(sortedRooms.length / 2) * 14
-  const height = 30
+  const height = input.landscape ? 40 : 30
   const tiles = tileGrid(width, height)
   const rooms: MapRoom[] = []
   const doors: MapDoor[] = []
@@ -97,7 +102,7 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
     const x = 2 + column * 14 + Math.floor(layoutRandom() * 2)
     const y = row === 0 ? 2 : height - 3 - roomHeight
     const enclosure = room.enclosure ?? 'enclosed'
-    const mapRoom = { id: room.id, enclosure, x, y, width: roomWidth, height: roomHeight }
+    const mapRoom: MapRoom = { id: room.id, enclosure, x, y, width: roomWidth, height: roomHeight, ...(room.shape ? { shape: room.shape } : {}) }
     rooms.push(mapRoom)
     const doorX = x + Math.floor(roomWidth / 2)
     const upper = row === 0
@@ -105,7 +110,8 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
     if (enclosure === 'enclosed') {
       for (let roomY = y; roomY < y + roomHeight; roomY += 1) {
         for (let roomX = x; roomX < x + roomWidth; roomX += 1) {
-          const perimeter = roomX === x || roomX === x + roomWidth - 1 || roomY === y || roomY === y + roomHeight - 1
+          if (!roomContains(mapRoom, { x: roomX, y: roomY })) continue
+          const perimeter = !roomInterior(mapRoom, { x: roomX, y: roomY })
           tiles[roomY]![roomX] = perimeter ? 'wall' : 'floor'
         }
       }
@@ -129,7 +135,15 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
 
   const landmarks: MapLandmark[] = (input.landmarks ?? []).map(({ roomId, kind }) => {
     const room = rooms.find((candidate) => candidate.id === roomId)!
-    return { roomId, kind, x: room.x + room.width - 4, y: room.y + 2, width: 2 as const, height: 2 as const }
+    let position = { x: room.x + room.width - 4, y: room.y + 2 }
+    const fits = (p: Point) => [0, 1].every(dy => [0, 1].every(dx => roomInterior(room, { x: p.x + dx, y: p.y + dy }))) && !doors.some(d => d.roomId === room.id && d.inside.x >= p.x && d.inside.x < p.x + 2 && d.inside.y >= p.y && d.inside.y < p.y + 2)
+    if (!fits(position)) {
+      const candidates: Point[] = []
+      for (let yy = room.y + 1; yy < room.y + room.height - 2; yy++) for (let xx = room.x + 1; xx < room.x + room.width - 2; xx++) if (fits({ x: xx, y: yy })) candidates.push({ x: xx, y: yy })
+      if (!candidates.length) throw new Error(`landmarks.${roomId}: no safe footprint`)
+      position = candidates[0]!
+    }
+    return { roomId, kind, ...position, width: 2 as const, height: 2 as const }
   }).sort((left, right) => left.roomId.localeCompare(right.roomId))
 
   const doorByRoom = new Map(doors.map((door) => [door.roomId, door]))
@@ -152,7 +166,7 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
     for (let y = room.y + 1; y < room.y + room.height - 1; y += 1) {
       for (let x = room.x + 1; x < room.x + room.width - 1; x += 1) {
         const point = { x, y }
-        if ((!door || pointKey(point) !== pointKey(door.inside)) && !landmarks.some((landmark) => landmarkCovers(landmark, point))) available.push(point)
+        if (roomInterior(room, point) && (!door || pointKey(point) !== pointKey(door.inside)) && !landmarks.some((landmark) => landmarkCovers(landmark, point))) available.push(point)
       }
     }
     shuffle(available, randomGenerator(JSON.stringify([LAYOUT_RANDOM_VERSION, input.stageId, seed, 'placements', room.id])))
@@ -178,6 +192,12 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
     rooms,
     doors,
     ...(landmarks.length ? { landmarks } : {}),
+  }
+  const reserved = [playerSpawn, ...placements.map(p => p.position), ...doors.flatMap(d => [d.position, d.inside, d.outside])]
+  if (input.landscape) layOutLandscape(mapWithoutId, input.landscape, reserved)
+  if (input.scenery) {
+    const scenery = arrangeScenery(mapWithoutId, input.scenery, reserved)
+    if (scenery.length) mapWithoutId.scenery = scenery
   }
   const map: StageMap = { ...mapWithoutId, id: identityForMap(mapWithoutId) }
   const compiled = { map, playerSpawn, initialDoors, placements }

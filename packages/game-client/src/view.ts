@@ -130,6 +130,11 @@ class PlaygroundScene extends Phaser.Scene {
             }
             break
           }
+          case 'water': {
+            g.fillStyle(0x427c84, 1).fillRect(px, py, TILE_SIZE, TILE_SIZE)
+            g.lineStyle(1, 0x99bfb4, .5).lineBetween(px + 4, py + 8, px + TILE_SIZE - 4, py + 8)
+            break
+          }
           case 'path': {
             g.fillStyle(PALETTE.path[Math.floor(v * 3)]!, 1)
             g.fillRect(px, py, TILE_SIZE, TILE_SIZE)

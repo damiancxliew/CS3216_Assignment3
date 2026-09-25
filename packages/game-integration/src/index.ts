@@ -27,7 +27,7 @@ export function toStageLayout(spec: AdventureSpec, stageIndex: number): StageLay
   const stage = stageAt(spec, stageIndex)
   const rooms = stage.rooms.map((room, roomIndex) => {
     if (room.enclosure === null) throw new Error(`${enclosureIssue(stageIndex, roomIndex).path}: ${enclosureIssue(stageIndex, roomIndex).message}`)
-    return { id: room.id, size: room.size, enclosure: room.enclosure, doorDefault: room.doorDefault }
+    return { id: room.id, size: room.size, enclosure: room.enclosure, ...(room.shape && room.shape !== 'rectangle' ? { shape: room.shape } : {}), doorDefault: room.doorDefault }
   })
   stage.agents.forEach((agent, agentIndex) => {
     if (agent.id === 'player') throw new Error(`$.stages.${stageIndex}.agents.${agentIndex}.id: reserved actor id "player"`)
@@ -35,6 +35,7 @@ export function toStageLayout(spec: AdventureSpec, stageIndex: number): StageLay
   return {
     stageId: stage.id,
     spawnRoomId: stage.spawnRoomId,
+    ...(stage.environment ? { landscape: { layout: stage.environment.layout, water: stage.environment.waterfront }, scenery: { palette: stage.environment.props, density: stage.environment.propDensity } } : {}),
     rooms,
     landmarks: stage.rooms.flatMap((room) => room.landmark ? [{ roomId: room.id, kind: landmarkKindFor(room.landmark.name, room.landmark.description, room.kind) }] : []),
     placements: [

@@ -1,0 +1,188 @@
+[
+  {
+    "id": "civic",
+    "title": "Civic Garden Quarter",
+    "context": "1955 Singapore civic buildings link a press office, assembly hall and records wing. Residents and clerks cross the pond gardens by bicycle in a warm clear afternoon.",
+    "visualStyle": "civic",
+    "environment": {
+      "description": "Rain-dark gravel courts ring a small ornamental pond and clipped lawns. Terracotta civic blocks sit bright under a clear tropical sky.",
+      "ground": "gravel",
+      "accent": "grass",
+      "path": "limestone",
+      "pathStyle": "winding",
+      "roof": "terracotta",
+      "waterfront": "pond",
+      "layout": "garden-loop",
+      "population": "residents",
+      "wind": "breeze",
+      "vegetation": 0.72,
+      "propDensity": "lived-in",
+      "props": [
+        "bench",
+        "lamp",
+        "bicycle",
+        "noticeboard",
+        "flowerbed",
+        "planter",
+        "cart"
+      ]
+    },
+    "ambient": {
+      "id": "clear",
+      "intensity": 1
+    },
+    "rooms": [
+      {
+        "name": "Press Office",
+        "size": "medium",
+        "enclosure": "enclosed",
+        "shape": "courtyard-wing",
+        "landmark": "table"
+      },
+      {
+        "name": "Assembly Hall",
+        "size": "large",
+        "enclosure": "enclosed",
+        "shape": "octagonal",
+        "landmark": "monument"
+      },
+      {
+        "name": "Records Wing",
+        "size": "small",
+        "enclosure": "enclosed",
+        "shape": "rectangle",
+        "landmark": "shelf"
+      }
+    ]
+  },
+  {
+    "id": "harbor",
+    "title": "Customs Basin Quay",
+    "context": "Singapore harbor in 1824 centers on an internal dock basin with open wharves and sailing craft. Workers haul cloth and ceramics between customs, warehouse and shaded merchants.",
+    "visualStyle": "harbor",
+    "environment": {
+      "description": "Earth yards and timber quays frame the basin where masts and sails rise in light haze. Cargo sits in grouped stacks beside open market shade and mooring posts.",
+      "ground": "earth",
+      "accent": "gravel",
+      "path": "decking",
+      "pathStyle": "worn",
+      "roof": "timber",
+      "waterfront": "harbor",
+      "layout": "quayside",
+      "population": "workers",
+      "wind": "breeze",
+      "vegetation": 0.18,
+      "propDensity": "busy",
+      "props": [
+        "anchor",
+        "bollard",
+        "fishing-net",
+        "rope",
+        "canopy",
+        "crate",
+        "barrel",
+        "sacks",
+        "cart"
+      ]
+    },
+    "ambient": {
+      "id": "haze",
+      "intensity": 1
+    },
+    "rooms": [
+      {
+        "name": "Basin Wharf",
+        "size": "large",
+        "enclosure": "open",
+        "shape": "rectangle",
+        "landmark": "dock"
+      },
+      {
+        "name": "Customs House",
+        "size": "medium",
+        "enclosure": "enclosed",
+        "shape": "courtyard-wing",
+        "landmark": "table"
+      },
+      {
+        "name": "Cargo Warehouse",
+        "size": "large",
+        "enclosure": "enclosed",
+        "shape": "rectangle",
+        "landmark": "shelf"
+      },
+      {
+        "name": "Merchants' Shade Market",
+        "size": "medium",
+        "enclosure": "open",
+        "shape": "rounded",
+        "landmark": "stall"
+      }
+    ]
+  },
+  {
+    "id": "desert",
+    "title": "Oasis Bargain Market",
+    "context": "A medieval caravan oasis circles a small pool where water rights and trade are bargained. Traders move between awnings, tents and a shaded pavilion in blowing dust.",
+    "visualStyle": "desert",
+    "environment": {
+      "description": "Sand courts and earth trails wind through palms and sandstone edges around the oasis pool. Canvas shade and market cover soften the dry warm glare of a passing sandstorm.",
+      "ground": "sand",
+      "accent": "sandstone",
+      "path": "earth",
+      "pathStyle": "winding",
+      "roof": "canvas",
+      "waterfront": "oasis",
+      "layout": "meandering",
+      "population": "traders",
+      "wind": "gusts",
+      "vegetation": 0.36,
+      "propDensity": "busy",
+      "props": [
+        "pottery",
+        "urn",
+        "awning",
+        "palm",
+        "brazier",
+        "boulder",
+        "crate",
+        "sacks",
+        "canopy"
+      ]
+    },
+    "ambient": {
+      "id": "dust",
+      "intensity": 2
+    },
+    "rooms": [
+      {
+        "name": "Oasis Market",
+        "size": "large",
+        "enclosure": "open",
+        "shape": "courtyard-wing",
+        "landmark": "stall"
+      },
+      {
+        "name": "Caravan Tent",
+        "size": "medium",
+        "enclosure": "enclosed",
+        "shape": "rounded",
+        "landmark": "hearth"
+      },
+      {
+        "name": "Water Access Court",
+        "size": "small",
+        "enclosure": "open",
+        "shape": "rectangle",
+        "landmark": "well"
+      },
+      {
+        "name": "Negotiation Pavilion",
+        "size": "medium",
+        "enclosure": "open",
+        "shape": "octagonal",
+        "landmark": "table"
+      }
+    ]
+  }
+]
