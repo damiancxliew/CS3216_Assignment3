@@ -38,7 +38,7 @@ export const resolverNarrationSchema = z.object({
     .array(
       z.object({
         id: z.string(),
-        intensity: z.union([z.literal(1), z.literal(2), z.literal(3)]).nullable().optional(),
+        intensity: z.union([z.literal(1), z.literal(2), z.literal(3)]).nullable(),
       }),
     )
     .max(4),
