@@ -21,6 +21,12 @@ export class FakeLlmClient implements LlmClient {
   }
 
   async complete(request: LlmRequest): Promise<LlmResponse> {
+    // OpenAI refuses a structured-output schema whose top level is not an object; so does the fake,
+    // or a call that can never succeed live passes every test (option minting did, until measured).
+    const topLevel = (request.jsonSchema as { type?: unknown } | null)?.type
+    if (topLevel !== 'object') {
+      throw new Error(`Invalid schema for response_format '${request.schemaName}': top level must be type "object", got ${JSON.stringify(topLevel)}`)
+    }
     this.requests.push(request)
     const index = Math.min(this.callIndex, this.options.replies.length - 1)
     this.callIndex += 1
