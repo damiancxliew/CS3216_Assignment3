@@ -165,6 +165,7 @@ export function PlayClient({
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [decidingOption, setDecidingOption] = useState<string | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
   const [loadingDocuments, setLoadingDocuments] = useState<string[]>([]);
   const [documentErrors, setDocumentErrors] = useState<Record<string, string>>({});
@@ -314,6 +315,7 @@ export function PlayClient({
     setInspectingLandmark(null);
     setReading(null);
     setNotesOpen(false);
+    setAccountsOpen(false);
     setLoadingDocuments([]);
     setDocumentErrors({});
     setDraft("");
@@ -861,6 +863,11 @@ export function PlayClient({
               <span className="font-semibold">Goals {goalsMet} of {goalsTotal}</span>
               <span className="ml-3 text-muted">Stage {state.stage.index + 1} of {state.stageCount}</span>
             </p>
+            {state.accountClues.length ? (
+              <button type="button" className="shrink-0 text-sm font-semibold text-world underline underline-offset-2" onClick={() => setAccountsOpen(true)}>
+                Compare accounts
+              </button>
+            ) : null}
           </div>
           <div className={styles.progress} aria-hidden="true">
             {state.stage.objectives.map((objective) => <span key={objective.id} data-complete={objective.met} />)}
@@ -1033,6 +1040,57 @@ export function PlayClient({
           onRetry={() => { if (activeDocumentId) void read(activeDocumentId); }}
           onClose={() => { setReading(null); setNotesOpen(false); }}
         />
+      ) : null}
+
+      {accountsOpen ? (
+        <AdventureDialog kind="accounts" titleId="accounts-title" onClose={() => setAccountsOpen(false)}>
+          <div>
+            <p className={styles.modalKicker}><ScrollText size={14} aria-hidden /> Follow the conflicting accounts</p>
+            <h2 id="accounts-title" className={styles.modalTitle}>What do the witnesses disagree about?</h2>
+            <p className="mt-2 text-base text-muted">Ask both people the same question, then check the document against what they told you.</p>
+          </div>
+          {state.accountClues.map((clue) => (
+            <section key={clue.id} className="flex flex-col gap-3 border-t border-line pt-4" aria-label={clue.question}>
+              <h3 className="font-serif text-xl text-ink">{clue.question}</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[clue.first, clue.second].map((account) => {
+                  const roomId = state.agents.find((agent) => agent.id === account.agentId)?.roomId ?? null;
+                  const roomName = state.rooms.find((room) => room.id === roomId)?.name ?? "the map";
+                  const nearby = peopleHere.some((person) => person.id === account.agentId);
+                  return (
+                    <div key={account.agentId} className="flex flex-col gap-2 rounded-control border border-line bg-surface p-3">
+                      <p className="font-semibold text-ink">{account.name}</p>
+                      {account.account ? (
+                        <>
+                          <p className="text-sm text-muted">Their account: {account.account}</p>
+                          {account.quote ? <blockquote className="border-l-2 border-world pl-2 text-sm text-ink">“{account.quote}”</blockquote> : null}
+                        </>
+                      ) : <p className="text-sm text-muted">Hear their answer to reveal this account.</p>}
+                      <button type="button" className={`${subtle} mt-auto text-sm`} disabled={!roomId} onClick={() => {
+                        setAccountsOpen(false);
+                        if (nearby) {
+                          setDraft(`${account.name}, ${clue.question}`);
+                          window.requestAnimationFrame(() => composer.current?.focus());
+                        } else if (roomId) setIntent({ kind: "room", roomId });
+                      }}>
+                        {nearby ? `Ask ${account.name}` : `Find ${account.name} in ${roomName}`}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="rounded-control border border-line bg-surface p-3 text-sm">
+                <p className="font-semibold text-ink">Check: {clue.evidence.name}</p>
+                {clue.evidence.found ? (
+                  <button type="button" className="mt-1 text-world underline underline-offset-2" onClick={() => { setAccountsOpen(false); setReading(clue.evidence.id); }}>
+                    Reopen this document
+                  </button>
+                ) : <p className="mt-1 text-muted">Find this document on the map to weigh both accounts.</p>}
+              </div>
+            </section>
+          ))}
+          <button type="button" className={`${primary} self-start`} onClick={() => setAccountsOpen(false)}>Continue exploring</button>
+        </AdventureDialog>
       ) : null}
 
       {openLandmark ? (

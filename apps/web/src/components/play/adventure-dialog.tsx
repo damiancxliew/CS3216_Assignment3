@@ -1,12 +1,12 @@
 "use client";
 
-import { Compass, UserRound, X } from "lucide-react";
+import { Compass, ScrollText, UserRound, X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import styles from "./adventure-chrome.module.css";
 
 /** The browser's modal layer keeps keyboard focus (and map input) inside the card. */
 export function AdventureDialog({ kind, titleId, descriptionId, onClose, children }: {
-  kind: "landmark" | "character";
+  kind: "landmark" | "character" | "accounts";
   titleId: string;
   descriptionId?: string;
   onClose: () => void;
@@ -26,7 +26,7 @@ export function AdventureDialog({ kind, titleId, descriptionId, onClose, childre
     };
   }, []);
 
-  const Icon = kind === "landmark" ? Compass : UserRound;
+  const Icon = kind === "landmark" ? Compass : kind === "accounts" ? ScrollText : UserRound;
   return (
     <dialog ref={dialog} className={`${styles.dialog} ${styles[kind]}`} aria-labelledby={titleId} aria-describedby={descriptionId} onCancel={onClose} onKeyDown={(event) => {
       if (event.key !== "Tab") return;
@@ -44,7 +44,7 @@ export function AdventureDialog({ kind, titleId, descriptionId, onClose, childre
       <div className={styles.modalFrame}>
         <header className={styles.modalHeader}>
           <span className={styles.modalEmblem}><Icon size={24} aria-hidden="true" /></span>
-          <p>{kind === "landmark" ? "A closer look" : "Meet your character"}</p>
+          <p>{kind === "landmark" ? "A closer look" : kind === "accounts" ? "Compare accounts" : "Meet your character"}</p>
           <button type="button" className={styles.close} onClick={onClose} aria-label="Close"><X size={20} aria-hidden="true" /></button>
         </header>
         <div className={styles.modalPaper}>{children}</div>
