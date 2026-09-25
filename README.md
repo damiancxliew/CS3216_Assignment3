@@ -108,12 +108,12 @@ the client only renders the countdown, so a refresh or a changed clock buys no t
 
 ## Group 9
 
-| Member | Email | Main contributions |
-| --- | --- | --- |
-| Hon Yi Hao | e1355571@u.nus.edu | Adventure generation pipeline (`packages/generation`), the Phaser renderer and client (`packages/game-core`, `packages/game-client`), teacher console generation flows |
-| Damian Liew Cho Xiang | e1365515@u.nus.edu | Database schema, migrations and Row Level Security, the `tests/db` isolation suite, teacher console, platform and milestone write-ups |
-| Zhang Li Kevin | e1406431@u.nus.edu | Turn loop and Resolver (`packages/orchestration`), character agents, the `tests/api` suite, play-side state projections |
-| Hoo Di Heng | e1384318@u.nus.edu | Play UI and rendering polish (`packages/game-client`, `components/play`), teacher console, landing page, SEO and share cards |
+| Member | Matriculation no. | Email | Main contributions |
+| --- | --- | --- | --- |
+| Hon Yi Hao | A0301205A | e1355571@u.nus.edu | Adventure generation pipeline (`packages/generation`), the Phaser renderer and client (`packages/game-core`, `packages/game-client`), teacher console generation flows |
+| Damian Liew Cho Xiang | A0302976X | e1366515@u.nus.edu | Database schema, migrations and Row Level Security, the `tests/db` isolation suite, teacher console, platform and milestone write-ups |
+| Zhang Li Kevin | A0309012W | e1406431@u.nus.edu | Turn loop and Resolver (`packages/orchestration`), character agents, the `tests/api` suite, play-side state projections |
+| Hoo Di Heng | A0306753A | e1384318@u.nus.edu | Play UI and rendering polish (`packages/game-client`, `components/play`), teacher console, landing page, SEO and share cards |
 
 Contributions are inferred from commit history; areas overlap because most features were
 paired on.
@@ -127,7 +127,14 @@ paired on.
 - **Vercel** for hosting, plus `next/og` for dynamic Open Graph images, and Vercel Analytics and Speed Insights
 - **PostHog** for product analytics
 - **Vitest** for the API, DB and unit suites
-- **Devin** for parts of the implementation and the launch-milestone polish
+- **Devin** and **Claude Code** for parts of the implementation and the launch-milestone polish
+
+Game art and media:
+
+- **[Ninja Adventure Asset Pack](https://pixel-boy.itch.io/ninja-adventure-asset-pack)** by Pixel-boy and AAA (CC0): characters, doors, effects, music and sound effects. `chatter.ogg` and `crowd.ogg` are synthesised by `scripts/make-street-audio.py`.
+- **Terrain tilesets** from OpenGameArt, all CC0: [SandDesertTileSet16x16](https://opengameart.org/content/sanddeserttileset16x16) (GrumpyDiamond), [The Field of the Floating Islands](https://opengameart.org/content/the-field-of-the-floating-islands) (Buch and contributors), [Puny World](https://opengameart.org/content/16x16-puny-world-tileset) (Shade) and [16x16 Overworld Tiles](https://opengameart.org/content/16x16-overworld-tiles-0) (ARoachIFoundOnMyPillow). See [`apps/web/public/game/themes/README.md`](apps/web/public/game/themes/README.md).
+- **Historical portrait** from the Library of Congress George Grantham Bain Collection (public domain); see [`apps/web/public/game/portraits/ATTRIBUTION.md`](apps/web/public/game/portraits/ATTRIBUTION.md).
+- Story-specific portraits, landmarks, props, sprites and cutscenes are generated per adventure with OpenAI image models.
 
 ## Documentation
 
