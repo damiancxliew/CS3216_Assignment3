@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { ActionResult } from "../actions";
 import { button, ErrorText, Pending } from "@/components/ui";
@@ -34,12 +34,16 @@ export function StoryGeneration({
   advance,
   label,
   initialJob,
+  disabled = false,
+  children,
 }: {
   adventureId: string;
-  action: () => Promise<ActionResult>;
+  action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   advance: () => Promise<ActionResult>;
   label: string;
   initialJob: GenerationJob | null;
+  disabled?: boolean;
+  children?: ReactNode;
 }) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
@@ -48,8 +52,8 @@ export function StoryGeneration({
   const refreshedRun = useRef<string | null>(null);
   const advancing = useRef(false);
   const previousRun = useRef<string | null>(initialJob?.started_at ?? null);
-  const [result, formAction, pending] = useActionState(async () => {
-    return action();
+  const [result, formAction, pending] = useActionState(async (prev: ActionResult, formData: FormData) => {
+    return action(prev, formData);
   }, {} as ActionResult);
   const running = job?.state === "running";
 
@@ -94,9 +98,10 @@ export function StoryGeneration({
 
   return (
     <div className="flex flex-col gap-3">
-      <form action={formAction} onSubmit={() => { previousRun.current = job?.started_at ?? null; setRequested(true); }}>
+      <form action={formAction} className="flex flex-col gap-4" onSubmit={() => { previousRun.current = job?.started_at ?? null; setRequested(true); }}>
+        {children}
         {/* Disabling in onClick cancels the button's native form submission. */}
-        <button type="submit" disabled={busy} className={button.primary}>
+        <button type="submit" disabled={busy || disabled} className={`${button.primary} w-fit`}>
           {busy ? <Pending>Generating…</Pending> : label}
         </button>
       </form>

@@ -29,8 +29,6 @@ import {
   completeBrief,
   currentSlot,
   initialBriefState,
-  readingLevelSchema,
-  stageOutlineSchema,
 } from "@/lib/brief/schema";
 import { runBriefTurn, type TurnResult } from "@/lib/brief/turn";
 import { parseBriefEdit } from "@/lib/brief/edit";
@@ -282,57 +280,20 @@ export async function discardBrief(adventureId: string): Promise<ActionResult> {
   return {};
 }
 
-/** The brief as stored on the adventure row; `null` for an adventure created before the brief was mandatory. */
-const storedBrief = z.object({
-  setting: z.string().min(1),
-  student_role: z.string().min(1),
-  learning_objectives: z.array(z.string()).min(1).max(6),
-  reading_level: readingLevelSchema,
-  stage_outline: z.array(stageOutlineSchema).max(3),
-});
-
-/** Save the next generation's brief without changing any existing spec version. */
-export async function updateBrief(adventureId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const { supabase } = await requireOwnership(adventureId);
+/** Save the edited brief and start a resumable generation job in one action. */
+export async function generateFromSources(adventureId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const { supabase, user } = await requireOwnership(adventureId);
   const brief = parseBriefEdit(formData);
   if (!brief) return { error: "Check the brief: fill every field, use 1–6 objectives, and keep ages in order." };
-
-  const { data: active, error: activeError } = await supabase.from("generation_job")
-    .select("state")
-    .eq("adventure_id", adventureId)
-    .eq("state", "running")
-    .maybeSingle();
-  if (activeError) return { error: "Couldn’t check generation status. Please try again." };
-  if (active) return { error: "Wait for generation to finish before editing the brief." };
-
-  const { error } = await supabase.from("adventure").update({
-    title: brief.title,
-    setting: brief.setting,
-    student_role: brief.studentRole,
-    learning_objectives: brief.learningObjectives,
-    reading_level: brief.readingLevel,
-    stage_outline: brief.stageOutline,
-  }).eq("id", adventureId);
-  if (error) {
-    console.error("could not update adventure brief", adventureId, error);
-    return { error: "Couldn’t save the brief. Please try again." };
-  }
-  revalidatePath("/teacher");
-  revalidatePath(`/teacher/${adventureId}`);
-  return { notice: "Brief saved. The next generated version will use these changes." };
-}
-
-/** Start a resumable adventure generation job without waiting for a model call. */
-export async function generateFromSources(adventureId: string): Promise<ActionResult> {
-  const { user } = await requireOwnership(adventureId);
   if (!process.env.OPENAI_API_KEY) return { error: "This feature is temporarily unavailable. Please try again later." };
   const admin = createAdminClient();
+  let briefSaved = false;
   try {
     const [adventureResult, sourcesResult, activeResult, draftResult] = await Promise.all([
       admin.from("adventure")
-        .select("title, default_timer_seconds, setting, student_role, learning_objectives, reading_level, stage_outline")
+        .select("default_timer_seconds")
         .eq("id", adventureId)
-        .single<{ title: string; default_timer_seconds: number } & Record<string, unknown>>(),
+        .single<{ default_timer_seconds: number }>(),
       admin.from("source")
         .select("id, title, kind, page_map, content_hash")
         .eq("adventure_id", adventureId)
@@ -345,33 +306,47 @@ export async function generateFromSources(adventureId: string): Promise<ActionRe
     if (sourcesResult.error) return { error: "Couldn’t load the sources. Please try again." };
     if (activeResult.error || draftResult.error) return { error: "Couldn’t check generation status. Please try again." };
     if ((draftResult.data ?? []).length > 0) return { error: "Publish or discard the current draft before generating another." };
-    if (activeResult.data) return { notice: "Story generation is already in progress." };
+    if (activeResult.data) return { error: "Story generation is already in progress. Your edits were not saved." };
 
-    const brief = storedBrief.safeParse(adventureResult.data);
-    if (!brief.success) return { error: "This adventure can’t be regenerated. Create a new adventure to use the guided setup." };
     const { documents, skipped } = sourcesToDocuments(sourcesResult.data ?? []);
     if (documents.length === 0) return { error: "Add at least one readable source before generating." };
-    const { setting, student_role, learning_objectives, reading_level, stage_outline } = brief.data;
+
+    const { error: saveError } = await supabase.from("adventure").update({
+      title: brief.title,
+      setting: brief.setting,
+      student_role: brief.studentRole,
+      learning_objectives: brief.learningObjectives,
+      reading_level: brief.readingLevel,
+      stage_outline: brief.stageOutline,
+    }).eq("id", adventureId);
+    if (saveError) {
+      console.error("could not update adventure brief", adventureId, saveError);
+      return { error: "Couldn’t save the brief. Please try again." };
+    }
+    briefSaved = true;
+
     await startGenerationJob(admin, {
       adventureId,
       createdBy: user.id,
       documents,
       warnings: skipped.map((source) => `Skipped source ${source}`),
       teacher: {
-        title: adventureResult.data.title,
+        title: brief.title,
         defaultTimerSeconds: adventureResult.data.default_timer_seconds,
-        setting,
-        studentRole: student_role,
-        learningObjectives: learning_objectives,
-        readingLevel: reading_level,
-        stageOutline: stage_outline,
-        stageCount: stage_outline.length === 0 ? 3 : (stage_outline.length as 1 | 2 | 3),
+        setting: brief.setting,
+        studentRole: brief.studentRole,
+        learningObjectives: brief.learningObjectives,
+        readingLevel: brief.readingLevel,
+        stageOutline: brief.stageOutline,
+        stageCount: brief.stageOutline.length as 1 | 2 | 3,
       },
     });
+    revalidatePath("/teacher");
+    revalidatePath(`/teacher/${adventureId}`);
     return { notice: "Story generation started. You can leave this page and return to continue it." };
   } catch (error) {
     console.error("could not start adventure generation", adventureId, error);
-    return { error: "Couldn’t start story generation. Please try again." };
+    return { error: briefSaved ? "Brief saved, but generation couldn’t start. Please try again." : "Couldn’t start story generation. Please try again." };
   }
 }
 

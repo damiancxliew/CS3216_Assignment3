@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 
-import { ActionForm } from "@/components/action-form";
 import { Field, READING_BAND_LABELS, control } from "@/components/ui";
 import type { ReadingLevel, StageOutline } from "@/lib/brief/schema";
-import { updateBrief } from "../actions";
+import { advanceGeneration, generateFromSources } from "../actions";
+import { StoryGeneration, type GenerationJob } from "./story-generation";
 
-export function BriefEditor({ adventureId, brief }: {
+export function BriefEditor({ adventureId, brief, hasVersions, initialJob, blockedReason }: {
   adventureId: string;
+  hasVersions: boolean;
+  initialJob: GenerationJob | null;
+  blockedReason: string | null;
   brief: {
     title: string;
     setting: string;
@@ -21,10 +24,19 @@ export function BriefEditor({ adventureId, brief }: {
   const [stageCount, setStageCount] = useState(brief.stageOutline.length || 1);
 
   return (
-    <details className="rounded-surface border border-line bg-surface px-4 py-3 sm:px-5">
-      <summary className="cursor-pointer font-semibold text-ink">Edit brief for the next version</summary>
-      <p className="mt-3 max-w-[60ch] text-base text-muted">Save your changes before generating. Published versions and student attempts keep their existing story.</p>
-      <ActionForm action={updateBrief.bind(null, adventureId)} submitLabel="Save brief" pendingLabel="Saving…" className="mt-5 flex max-w-2xl flex-col gap-4">
+    <details className="rounded-surface border border-line bg-surface px-4 py-3 sm:px-5" open>
+      <summary className="cursor-pointer font-semibold text-ink">Edit brief and generate {hasVersions ? "a new version" : "the adventure"}</summary>
+      <p className="mt-3 max-w-[60ch] text-base text-muted">Published versions and student attempts keep their existing story.</p>
+      {blockedReason ? <p className="mt-3 text-sm text-muted">{blockedReason}</p> : null}
+      <div className="mt-5 max-w-2xl">
+        <StoryGeneration
+          adventureId={adventureId}
+          action={generateFromSources.bind(null, adventureId)}
+          advance={advanceGeneration.bind(null, adventureId)}
+          label={hasVersions ? "Save brief and generate new version" : "Save brief and generate adventure"}
+          initialJob={initialJob}
+          disabled={Boolean(blockedReason)}
+        >
         <Field name="title" label="Title" defaultValue={brief.title} />
         <Field name="setting" label="Setting" defaultValue={brief.setting} />
         <Field name="student_role" label="Student plays" defaultValue={brief.studentRole} />
@@ -52,7 +64,8 @@ export function BriefEditor({ adventureId, brief }: {
             <Field name={`stage_${index}_focus`} label="Situation and decision" defaultValue={brief.stageOutline[index]?.focus ?? ""} multiline rows={3} />
           </fieldset>
         ))}
-      </ActionForm>
+        </StoryGeneration>
+      </div>
     </details>
   );
 }

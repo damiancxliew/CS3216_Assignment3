@@ -6,10 +6,8 @@ import { ArrowLeft } from "lucide-react";
 import { DossierSections } from "./dossier";
 import { BriefEditor } from "./brief-editor";
 import { SharePanel } from "./share-panel";
-import { StoryGeneration, type GenerationJob } from "./story-generation";
+import type { GenerationJob } from "./story-generation";
 import {
-  advanceGeneration,
-  generateFromSources,
   publishAdventure,
   startEdit,
   updateDefaultTimer,
@@ -259,6 +257,9 @@ export default async function AdventurePage({
           </dl>
           <BriefEditor
             adventureId={id}
+            hasVersions={versions.length > 0}
+            initialJob={generationJob}
+            blockedReason={draft ? "Publish or discard the current draft before generating another." : sourceRows.length === 0 ? "Add a readable source before generating." : null}
             brief={{
               title: adventure.title,
               setting: adventure.setting ?? "",
@@ -275,10 +276,10 @@ export default async function AdventurePage({
         )}
       </Section>
 
-      <Section title="Playable version" lede="We use your brief and sources to create stages, characters and evidence. You can edit each stage before publishing.">
+      <Section title="Playable version" lede="The brief above generates a draft from your sources. You can edit each stage before publishing.">
         {versions.length === 0 ? (
           <EmptyState title="Not generated yet">
-            Generating takes a minute or two. Nothing here is visible to students until you publish.
+            Use the brief form above to generate a draft. Nothing is visible to students until you publish.
           </EmptyState>
         ) : (
           <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-surface border border-line bg-surface px-4 text-base sm:px-5">
@@ -295,17 +296,7 @@ export default async function AdventurePage({
           </ul>
         )}
 
-        {draft ? (
-          <p className="text-base text-muted">Publish or discard this draft before generating another.</p>
-        ) : adventure.reading_level && sourceRows.length > 0 ? (
-          <StoryGeneration
-            adventureId={id}
-            action={generateFromSources.bind(null, id)}
-            advance={advanceGeneration.bind(null, id)}
-            label={versions.length === 0 ? "Generate the adventure" : "Generate a new version"}
-            initialJob={generationJob}
-          />
-        ) : null}
+        {draft ? <p className="text-base text-muted">Publish or discard this draft before generating another.</p> : null}
       </Section>
       </> : null}
 
