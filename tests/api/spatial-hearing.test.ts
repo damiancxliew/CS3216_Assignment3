@@ -58,6 +58,22 @@ function claimedReply(say: string, objectiveIds: readonly string[]): string {
 }
 
 describe("authoritative spatial hearing", () => {
+  it("credits a routed room reply to the objective of the NPC who answered", async () => {
+    const goal = goalFixture();
+    const { session, agentId, roomId } = sessionForGoal("hearing-routed-objective", goal);
+    const say = "The river mouth could support the post.";
+    const llm = new FakeLlmClient({ replies: [
+      (request) => request.schemaName === "room_reply_route"
+        ? JSON.stringify({ agentIds: [agentId] })
+        : claimedReply(say, [goal.objective.id]),
+    ] });
+    const outcome = await session.message(llm, { roomId, body: "What is your assessment?" });
+    expect(outcome.ok).toBe(true);
+    const line = session.world.transcript.find((candidate) => candidate.speakerId === agentId && candidate.body === say);
+    expect(line?.goalIds).toEqual([goal.objective.id]);
+    expect(session.state({ enabled: false, deadlineAt: null }).stage.objectives.find((candidate) => candidate.id === goal.objective.id)?.met).toBe(true);
+  });
+
   it("omits a four-tile outdoor line permanently until a new near line is spoken", () => {
     const session = PlaySession.start(spec, "hearing-outdoors", 1);
     const outdoor = outdoorPoint(session);

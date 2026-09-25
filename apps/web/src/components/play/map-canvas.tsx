@@ -54,7 +54,7 @@ export interface MapCanvasProps {
   onSteps: (from: Point, path: Point[]) => Promise<{ position: Point | null; accepted: boolean; retry: boolean; timings?: ServerTiming; requestSentAt?: number; acknowledgedAt?: number }>;
   /** The position shown by the map, including steps still awaiting server acknowledgement. */
   onLocalPosition: (position: Point | null) => void;
-  /** The player clicked a character, or pressed Enter/E with someone in the room: start talking to them. */
+  /** The player clicked a character, or pressed Enter/E: move into speaking range and focus conversation. */
   onTalk: (actorId: string) => void;
   /** The player clicked a document lying on the map: read it, or walk over to it first. */
   onProp: (propId: string) => void;

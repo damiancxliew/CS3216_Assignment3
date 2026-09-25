@@ -54,6 +54,7 @@ import { isCurrentSpriteRecord, type AssetManifest } from "@adventure/generation
 
 import { characterFor, PLAYER_CHARACTER, type Character } from "./appearance";
 import { historicalPortraitFor } from "./historical-portraits";
+import { chooseRoomResponder } from "./reply-router";
 import { compileStageMap, publicMap, SpatialCompatibilityError, type PublicMap } from "./layout";
 import { OUTDOORS_ROOM_ID } from "@/lib/turn-api/contract";
 import type { PublicAttemptState, PublicMessage } from "@/lib/turn-api/contract";
@@ -65,10 +66,12 @@ export type Announcement = { id: string; body: string; createdAt: string };
 export interface PendingReply {
   id: string;
   stageId: string;
-  agentId: string;
+  agentId: string | null;
   utteranceSeq: number;
   expiresAt: number;
 }
+
+export interface ProducedReply { responses: { agentId: string; reply: ReplyResult }[] }
 
 export interface PendingMint {
   id: string;
@@ -713,7 +716,7 @@ export class PlaySession {
     if (input.roomId !== here) return { ok: false, error: { code: "invalid_request", message: "You can only speak where you are standing." } };
     const addressee = input.addresseeId ?? null;
     if (addressee !== null && (world.actors[addressee]?.kind !== "agent" || !hearingActorIds(world, PLAYER_ID).includes(addressee))) return { ok: false, error: { code: "invalid_request", message: "That addressee cannot hear you." } };
-    if (addressee !== null && this.snap.pendingReply && this.snap.pendingReply.expiresAt > this.clock.now().getTime()) return { ok: false, error: { code: "rate_limited", message: "Wait for the pending reply or keep exploring." } };
+    if (this.snap.pendingReply && this.snap.pendingReply.expiresAt > this.clock.now().getTime()) return { ok: false, error: { code: "rate_limited", message: "Wait for the pending reply or keep exploring." } };
     const nowMs = this.clock.now().getTime();
     const elapsed = Math.max(0, nowMs - (this.snap.replyRate?.lastMs ?? 0));
     const tokens = Math.min(DEFAULT_REPLY_RATE_LIMIT.burst, (this.snap.replyRate?.tokens ?? DEFAULT_REPLY_RATE_LIMIT.burst) + elapsed / DEFAULT_REPLY_RATE_LIMIT.minIntervalMs);
@@ -723,29 +726,53 @@ export class PlaySession {
     if (!spoken.ok) return { ok: false, error: { code: "invalid_request", message: spoken.reason } };
     this.snap.stageStats.messages += 1;
     this.snap.replyRate = { tokens: tokens - 1, lastMs: Math.max(nowMs, this.snap.replyRate?.lastMs ?? 0) };
-    const ticket: PendingReply | null = addressee === null ? null : { id: newId(), stageId: this.stage.id, agentId: addressee, utteranceSeq: firstSeq, expiresAt: nowMs + 120_000 };
+    const listeners = hearingActorIds(world, PLAYER_ID).filter((id) => world.actors[id]?.kind === "agent");
+    const ticket: PendingReply | null = listeners.length === 0 ? null : { id: newId(), stageId: this.stage.id, agentId: addressee, utteranceSeq: firstSeq, expiresAt: nowMs + 120_000 };
     if (ticket) this.snap.pendingReply = ticket;
     this.bump();
     return { ok: true, ticket, newMessages: this.playerHeard().filter((line) => line.seq >= firstSeq).map((line) => this.toMessage(line)) };
   }
 
-  async produceReply(client: LlmClient, ticket: PendingReply): Promise<ReplyResult> {
+  async produceReply(client: LlmClient, ticket: PendingReply): Promise<ProducedReply> {
     const source = this.snap.world.transcript.find((line) => line.seq === ticket.utteranceSeq);
     if (!source) throw new Error("reply source missing");
     const detached = structuredClone(this.snap.world);
-    const goalCandidates = this.stage.objectives
-      .filter((objective) => objective.targetId === ticket.agentId && !this.objectiveMet(objective.id))
-      .map(({ id, title }) => ({ id, title }));
-    const turnInput = {
-      ...buildAgentTurnInput(detached, ticket.agentId, this.stageConfig(), 1),
-      playerMessage: source.body,
-      replyToSeqs: [ticket.utteranceSeq],
-      goalCandidates,
-    };
-    return replyToPlayer(client, detached, turnInput, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), speakerId: PLAYER_ID, nowMs: this.clock.now().getTime(), tokenBudget: STAGE_TOKEN_BUDGET, tokensSpent: this.snap.stageStats.tokens });
+    const listeners = (source.recipientIds ?? []).filter((id) => detached.actors[id]?.kind === "agent");
+    if (listeners.length === 0) throw new Error("reply has no listeners");
+    const routed = ticket.agentId === null
+      ? await chooseRoomResponder(client, source.body, listeners.map((id) => ({ id, name: detached.actors[id]!.name, role: detached.actors[id]!.publicRole })),
+        detached.transcript.filter((line) => line.seq < source.seq && line.roomId === source.roomId && line.recipientIds?.includes(PLAYER_ID)).slice(-8).map((line) => ({ speakerName: line.speakerName, body: line.body })))
+      : { agentIds: [ticket.agentId], usage: { promptTokens: 0, completionTokens: 0 } };
+    const responses: ProducedReply["responses"] = [];
+    let tokensSpent = this.snap.stageStats.tokens + routed.usage.promptTokens + routed.usage.completionTokens;
+    for (const agentId of routed.agentIds) {
+      const goalCandidates = this.stage.objectives
+        .filter((objective) => objective.targetId === agentId && !this.objectiveMet(objective.id))
+        .map(({ id, title }) => ({ id, title }));
+      const turnInput = {
+        ...buildAgentTurnInput(detached, agentId, this.stageConfig(), 1),
+        playerMessage: source.body,
+        replyToSeqs: [ticket.utteranceSeq],
+        goalCandidates,
+      };
+      let reply: ReplyResult;
+      try {
+        reply = await replyToPlayer(client, detached, turnInput, { limiter: new ReplyRateLimiter(), inbox: new ReplyInbox(), speakerId: PLAYER_ID, nowMs: this.clock.now().getTime(), tokenBudget: STAGE_TOKEN_BUDGET, tokensSpent });
+      } catch (error) {
+        if (responses.length === 0) throw error;
+        break;
+      }
+      tokensSpent += reply.turn.usage.promptTokens + reply.turn.usage.completionTokens;
+      responses.push({ agentId, reply });
+    }
+    if (responses.length) {
+      responses[0]!.reply.turn.usage.promptTokens += routed.usage.promptTokens;
+      responses[0]!.reply.turn.usage.completionTokens += routed.usage.completionTokens;
+    }
+    return { responses };
   }
 
-  completeReply(ticket: PendingReply, result: ReplyResult | null): MessageOutcome {
+  completeReply(ticket: PendingReply, produced: ProducedReply | null): MessageOutcome {
     if (this.snap.status !== "active" || this.snap.pendingReply?.id !== ticket.id || this.snap.pendingReply.stageId !== this.stage.id) {
       if (this.snap.pendingReply === null && this.snap.status === "active" && ticket.stageId === this.stage.id) {
         this.snap.announcements.push({ id: newId(), body: "The reply was interrupted. Please try again.", createdAt: this.clock.now().toISOString() });
@@ -755,27 +782,29 @@ export class PlaySession {
     }
     const beforeSeq = this.snap.world.seq;
     this.snap.pendingReply = null;
-    if (result === null) {
+    if (produced === null) {
       this.snap.announcements.push({ id: newId(), body: "The reply was interrupted. Please try again.", createdAt: this.clock.now().toISOString() });
       this.bump();
       return { ok: true, newMessages: [] };
     }
-    const used = result.turn.usage.promptTokens + result.turn.usage.completionTokens;
+    const used = produced.responses.reduce((total, { reply }) => total + reply.turn.usage.promptTokens + reply.turn.usage.completionTokens, 0);
     this.snap.tokensSpent += used;
     this.snap.stageStats.tokens += used;
-    if (result.source === "deflection") {
-      if (result.turn.say.trim()) applyAction(this.snap.world, { actorKind: "agent", actorId: ticket.agentId, action: { type: "speak", roomId: this.snap.world.location[ticket.agentId]!, body: result.turn.say, addresseeId: null } });
-    } else {
-      const context = result.source === "model" && !result.turn.degraded ? { replyToSeqs: [ticket.utteranceSeq] } : {};
-      for (const entry of result.turn.actions) if (entry.actorKind === "agent" && entry.actorId === ticket.agentId && entry.action.type !== "move_room") applyAction(this.snap.world, entry, entry.action.type === "speak" ? context : {});
-    }
-    if (result.source === "model" && !result.turn.degraded) {
-      const objectiveIds = new Set(this.stage.objectives.filter((objective) => objective.targetId === ticket.agentId).map((objective) => objective.id));
-      const claims = (result.turn.goalClaims ?? []).filter((claim) => objectiveIds.has(claim.objectiveId));
-      for (const line of this.snap.world.transcript) {
-        if (line.seq <= beforeSeq || line.speakerId !== ticket.agentId || line.replyToSeqs?.includes(ticket.utteranceSeq) !== true || line.recipientIds?.includes(PLAYER_ID) !== true) continue;
-        const goalIds = [...new Set(claims.filter((claim) => claim.quote === line.body.trim()).map((claim) => claim.objectiveId))];
-        if (goalIds.length > 0) line.goalIds = goalIds;
+    for (const { agentId, reply: result } of produced.responses) {
+      if (result.source === "deflection") {
+        if (result.turn.say.trim()) applyAction(this.snap.world, { actorKind: "agent", actorId: agentId, action: { type: "speak", roomId: this.snap.world.location[agentId]!, body: result.turn.say, addresseeId: null } });
+      } else {
+        const context = result.source === "model" && !result.turn.degraded ? { replyToSeqs: [ticket.utteranceSeq] } : {};
+        for (const entry of result.turn.actions) if (entry.actorKind === "agent" && entry.actorId === agentId && entry.action.type !== "move_room") applyAction(this.snap.world, entry, entry.action.type === "speak" ? context : {});
+      }
+      if (result.source === "model" && !result.turn.degraded) {
+        const objectiveIds = new Set(this.stage.objectives.filter((objective) => objective.targetId === agentId).map((objective) => objective.id));
+        const claims = (result.turn.goalClaims ?? []).filter((claim) => objectiveIds.has(claim.objectiveId));
+        for (const line of this.snap.world.transcript) {
+          if (line.seq <= beforeSeq || line.speakerId !== agentId || line.replyToSeqs?.includes(ticket.utteranceSeq) !== true || line.recipientIds?.includes(PLAYER_ID) !== true) continue;
+          const goalIds = [...new Set(claims.filter((claim) => claim.quote === line.body.trim()).map((claim) => claim.objectiveId))];
+          if (goalIds.length > 0) line.goalIds = goalIds;
+        }
       }
     }
     this.bump();
@@ -786,7 +815,7 @@ export class PlaySession {
     const begun = this.beginMessage(input);
     if (!begun.ok) return begun;
     if (!begun.ticket) return begun;
-    let reply: ReplyResult | null = null;
+    let reply: ProducedReply | null = null;
     try { reply = await this.produceReply(client, begun.ticket); } catch { reply = null; }
     const completed = this.completeReply(begun.ticket, reply);
     if (!completed.ok) return completed;

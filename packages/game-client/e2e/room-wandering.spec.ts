@@ -33,6 +33,22 @@ test('indoor characters wander visibly and remain clickable after a state refres
     const marker = scene.markers.get('tojo')
     return { x: marker.container.x, y: marker.container.y }
   })
+  const talking = await page.evaluate(() => {
+    const harness = (window as any).wanderingHarness
+    const scene = harness.game.scene.getScene('tiled-map')
+    for (let tick = 0; tick < 200; tick += 1) scene.update(0, 100)
+    return {
+      position: scene.wandering.position('tojo', harness.snapshot.actors.find((actor: any) => actor.id === 'tojo').position),
+      facing: scene.markers.get('tojo').facing,
+    }
+  })
+  expect(talking).toEqual({ position: initial, facing: 'left' })
+  // Move the player out of the room for the ambient-walking portion of this test.
+  await page.evaluate(() => {
+    const harness = (window as any).wanderingHarness
+    harness.snapshot.actors.find((actor: any) => actor.id === 'player').space = null
+    harness.view.render(structuredClone(harness.snapshot))
+  })
   // Drive the scene clock explicitly: headless CI can throttle animation frames
   // even when the page is visible. This still exercises the scene's update path.
   const moved = await page.evaluate(() => {

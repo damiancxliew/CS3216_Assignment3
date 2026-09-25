@@ -26,6 +26,33 @@ function colocateWithAgent(session: PlaySession) {
 }
 
 describe("session dialogue phases", () => {
+  it("routes room speech to two present characters and records both causal replies", async () => {
+    const session = PlaySession.start(spec, "room-replies", 1);
+    const { agentId, roomId } = colocateWithAgent(session);
+    const secondId = spec.stages[0]!.agents.find((agent) => agent.id !== agentId)!.id;
+    session.world.spatial!.state.actors[secondId] = { ...session.world.spatial!.state.actors[agentId]! };
+    session.world.location[secondId] = roomId;
+    const requests: string[] = [];
+    const llm: LlmClient = { complete: async (request): Promise<LlmResponse> => {
+      requests.push(request.schemaName);
+      const content = request.schemaName === "room_reply_route"
+        ? JSON.stringify({ agentIds: [secondId, agentId] })
+        : JSON.stringify({ say: `Reply ${requests.length - 1}`, actions: [] });
+      return { content, usage: { promptTokens: 1, completionTokens: 1 } };
+    } };
+    const result = await session.message(llm, { roomId, body: "What do you both think?" });
+    expect(result.ok).toBe(true);
+    expect(requests).toHaveLength(3);
+    expect(requests[0]).toBe("room_reply_route");
+    const source = session.world.transcript.find((line) => line.body === "What do you both think?")!;
+    expect(source.addresseeId).toBeNull();
+    expect(source.recipientIds).toEqual(expect.arrayContaining([agentId, secondId]));
+    const replies = session.world.transcript.filter((line) => line.replyToSeqs?.includes(source.seq));
+    expect(replies.map((line) => line.speakerId)).toEqual([secondId, agentId]);
+    expect(hasConversationExchange(session.world, "player", agentId)).toBe(true);
+    expect(hasConversationExchange(session.world, "player", secondId)).toBe(true);
+  });
+
   it("does not let a direct reply send the addressed NPC walking away", async () => {
     const session = PlaySession.start(spec, "dialogue-stay-put", 1);
     const { agentId, roomId } = colocateWithAgent(session);
@@ -46,7 +73,7 @@ describe("session dialogue phases", () => {
     if (!begun.ok || !begun.ticket) return;
     expect(session.snapshot().pendingReply?.id).toBe(begun.ticket.id);
     const broadcast = session.beginMessage({ roomId, body: "An ambient broadcast." });
-    expect(broadcast).toMatchObject({ ok: true, ticket: null });
+    expect(broadcast).toMatchObject({ ok: false, error: { code: "rate_limited" } });
     expect(session.snapshot().pendingReply?.id).toBe(begun.ticket.id);
     const reply = await session.produceReply(llm, begun.ticket);
     const completed = session.completeReply(begun.ticket, reply);

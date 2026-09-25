@@ -332,7 +332,7 @@ function spatialMessageSource(world: WorldState, agentId: string, message: Pendi
     line.speakerId === message.speakerId &&
     world.actors[line.speakerId]?.kind === 'player' &&
     line.body === message.body &&
-    line.addresseeId === agentId &&
+    (line.addresseeId === agentId || line.addresseeId === null) &&
     line.recipientIds?.includes(agentId) === true,
   )
   return source?.seq

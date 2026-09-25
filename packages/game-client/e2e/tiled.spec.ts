@@ -62,6 +62,7 @@ test('pixel actors animate, ignore portrait art and retain clickable captions', 
     const h = (window as any).tiledHarness
     h.view.setReducedMotion(false)
     const actor = h.snapshot.actors.find((a: any) => a.id === 'tojo')
+    h.snapshot.actors.find((a: any) => a.id === 'player').space = null
     h.snapshot.roomWandering = true
     actor.status = 'moving'
     const sprite = h.game.scene.getScene('tiled-map').markers.get('tojo').sprite
