@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { postAction, postMessage, getState, type PlayServiceDeps } from "@/lib/play/service";
 import { PlaySession } from "@/lib/play/session";
 import { MemoryPlayStore, PlayConflictError, type AttemptRecord } from "@/lib/play/store";
+import { talkToAgent } from "./play-driver";
 
 let spec: Awaited<ReturnType<typeof loadI1Spec>>;
 beforeAll(async () => { spec = await loadI1Spec(); });
@@ -71,6 +72,26 @@ async function walkAway(deps: PlayServiceDeps, store: MemoryPlayStore): Promise<
 }
 
 describe("service dialogue lifecycle", () => {
+  it("paces a two-reply NPC conversation after the speech burst is spent", async () => {
+    const llm = new CountingClient();
+    const { deps, store, roomId, agentId } = seededStore(llm);
+    let now = Date.now();
+    store.clock = () => new Date(now);
+    for (let message = 0; message < 3; message += 1) {
+      const result = await postMessage(deps, attemptId, studentId, { roomId, body: `Question ${message + 1}`, addresseeId: agentId });
+      expect(result.ok).toBe(true);
+    }
+
+    let waits = 0;
+    const state = await talkToAgent({
+      deps, attemptId, userId: studentId,
+      advanceTime: () => { now += 160; waits += 1; },
+    }, agentId);
+    expect(waits).toBeGreaterThan(0);
+    expect(llm.calls).toBe(5);
+    expect(state.transcript.filter((line) => line.authorType === "player")).toHaveLength(5);
+  });
+
   it("persists the ticket before deferred production and keeps movement while the provider waits", async () => {
     let release!: (response: LlmResponse) => void;
     let started!: () => void;

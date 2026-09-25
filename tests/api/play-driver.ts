@@ -106,15 +106,25 @@ export async function talkToAgent(driver: PlayDriver, agentId: string, body = "A
   if (!agent?.position) throw new Error(`agent ${agentId} has no authoritative position`);
   await walkTo(driver, agent.position);
   const current = await stateOf(driver);
-  const opening = await postMessage(driver.deps, driver.attemptId, driver.userId, { roomId: current.currentRoomId!, body, addresseeId: agentId });
-  driver.capture?.("message", opening);
-  if (!opening.ok) throw new Error(`message failed: ${JSON.stringify(opening.error)}`);
-  const followUp = await postMessage(driver.deps, driver.attemptId, driver.userId, {
-    roomId: opening.state.currentRoomId!,
+  const opening = await pacedMessage(driver, { roomId: current.currentRoomId!, body, addresseeId: agentId }, "message");
+  return pacedMessage(driver, {
+    roomId: opening.currentRoomId!,
     body: "Can you explain what leads you to that view?",
     addresseeId: agentId,
-  });
-  driver.capture?.("message", followUp);
-  if (!followUp.ok) throw new Error(`follow-up failed: ${JSON.stringify(followUp.error)}`);
-  return followUp.state;
+  }, "follow-up");
+}
+
+async function pacedMessage(driver: PlayDriver, input: Parameters<typeof postMessage>[3], label: string): Promise<PlayState> {
+  // Conversation goals require two replies. Fast tests can exhaust the same
+  // persisted speech bucket that paces real players, so wait for its refill.
+  for (let retry = 0; retry <= 16; retry += 1) {
+    const result = await postMessage(driver.deps, driver.attemptId, driver.userId, input);
+    driver.capture?.("message", result);
+    if (result.ok) return result.state;
+    if (result.error.code !== "rate_limited" || retry === 16) {
+      throw new Error(`${label} failed: ${JSON.stringify(result.error)}`);
+    }
+    await driver.advanceTime();
+  }
+  throw new Error(`${label} stayed rate limited after 16 waits`);
 }

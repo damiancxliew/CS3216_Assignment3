@@ -9,8 +9,8 @@ const steps = [
   { target: "tools", title: "Keep your notes", body: "Open Notes to review the documents and clues you collect as you explore." },
   { target: "rooms", title: "Move between rooms", body: "Use the room controls to go somewhere, inspect what is nearby, and open doors." },
   { target: "conversation", title: "Talk to people", body: "Get close to someone and type a question. Their replies can help you complete your goals." },
-  { target: "goals", title: "Complete your goals", body: "Clear the listed goals by exploring, talking, and using what you learn. Complete all your goals before you decide." },
-  { target: "decision", title: "Make a decision", body: "Finishing your goals unlocks a choice. Make a decision to finish this stage and continue the story." },
+  { target: "goals", title: "Follow your next step", body: "The yellow goal shows what you can do now. Use its action to reach the person or document, and open the case board to see what unlocks next." },
+  { target: "decision", title: "Make a decision", body: "Open the case board to review your evidence and choices. Finishing your goals unlocks a decision that ends this stage." },
 ] as const;
 
 type Layout = "mobile" | "desktop";

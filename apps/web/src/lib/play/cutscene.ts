@@ -36,6 +36,12 @@ export function cutsceneBeats(state: PlayState): CutsceneBeat[] {
     { id: "situation", kicker: "The situation", body: stage.sharedContext },
     { id: "role", kicker: `You are ${player.name}`, title: player.role, body: player.brief },
   ];
+  if (state.previousDecision) beats.splice(1, 0, {
+    id: "previous-decision",
+    kicker: "What you did last chapter",
+    title: state.previousDecision.choice ?? "Time ran out",
+    body: state.previousDecision.outcome,
+  });
   if (goals.length > 0) beats.push({ id: "goals", kicker: "Before you decide", items: goals });
   beats.push({ id: "decision", kicker: "The decision ahead", body: state.decisionPrompt });
   return beats;

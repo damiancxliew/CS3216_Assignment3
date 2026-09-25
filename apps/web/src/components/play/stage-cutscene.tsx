@@ -52,6 +52,7 @@ export function StageCutscene({ state, onBegin, muted, onToggleMuted, askFullscr
   const mutedRef = useRef(muted);
 
   useEffect(() => {
+    const previousFocus = document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     // With the full-screen question up, its first button holds focus instead.
@@ -62,6 +63,7 @@ export function StageCutscene({ state, onBegin, muted, onToggleMuted, askFullscr
     }
     return () => {
       document.body.style.overflow = previousOverflow;
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only the opening's first frame decides this
   }, []);
@@ -121,10 +123,11 @@ export function StageCutscene({ state, onBegin, muted, onToggleMuted, askFullscr
       tabIndex={-1}
       onKeyDown={(event) => {
         if (event.key === "Tab") {
-          const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])")];
+          const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>(gate ? `.${styles.gate} button:not(:disabled)` : "button:not(:disabled)")]
+            .filter((button) => button.getClientRects().length > 0);
           const first = buttons[0];
           const last = buttons.at(-1);
-          if (event.shiftKey && (document.activeElement === first || document.activeElement === scene.current)) {
+          if (event.shiftKey && (document.activeElement === first || document.activeElement === event.currentTarget)) {
             event.preventDefault();
             last?.focus();
           } else if (!event.shiftKey && document.activeElement === last) {

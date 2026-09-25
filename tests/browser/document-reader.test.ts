@@ -37,7 +37,7 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     "next/navigation": "export const useRouter = () => ({ refresh() {}, push() {} });",
     "next/link": "import React from 'react'; export default function Link(p) { return React.createElement('a', p); }",
     "next/dynamic": "import React from 'react'; export default function dynamic(load) { const C = React.lazy(() => load().then(defaultExport => ({default: defaultExport}))); return p => React.createElement(React.Suspense, {fallback: null}, React.createElement(C, p)); }",
-    "@/app/play/[attemptId]/actions": "export const restartAttempt = async () => ({ok:false});",
+    "@/app/play/[attemptId]/actions": "export const restartAttempt = async () => ({ok:false}); export const completeWalkthrough = async () => ({ok:true});",
     "@/components/stage-countdown": "export const StageCountdown = () => null;",
   };
   const vite = await createServer({
@@ -67,7 +67,7 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
           import { ThemeProvider } from '/src/components/theme-provider.tsx';
           import styles from '/src/components/play/adventure-chrome.module.css';
           import '/src/app/globals.css';
-          createRoot(document.getElementById('root')).render(<ThemeProvider><main className={styles.shell} style={{display:'flex', flexDirection:'column', height:'100dvh', width:'100%'}}><AdventureHeader title="A Post at the River Mouth" active={${JSON.stringify(initial)}} recap={[]} /><PlayClient attemptId="reader-browser" initialState={${JSON.stringify(initial)}} retriesAllowed={false} /></main></ThemeProvider>);
+          createRoot(document.getElementById('root')).render(<ThemeProvider><main className={styles.shell} style={{display:'flex', flexDirection:'column', height:'100dvh', width:'100%'}}><AdventureHeader title="A Post at the River Mouth" active={${JSON.stringify(initial)}} recap={[]} /><PlayClient attemptId="reader-browser" initialState={${JSON.stringify(initial)}} retriesAllowed={false} walkthroughSeen={{mobile:true,desktop:true}} /></main></ThemeProvider>);
         `, "reader-test.tsx", { loader: "tsx", jsx: "automatic" })).code;
       },
       configureServer(server) {
@@ -101,7 +101,29 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     });
     await page.goto(vite.resolvedUrls!.local[0]!);
     await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
-    expect(await page.getByText(spec.stages[0]!.decision.prompt, { exact: true }).isVisible()).toBe(true);
+    await page.getByRole("button", { name: "Open case board" }).click();
+    const board = page.getByRole("dialog", { name: spec.stages[0]!.title });
+    expect(await board.getByText(spec.stages[0]!.decision.prompt, { exact: true }).isVisible()).toBe(true);
+    expect(await board.getByRole("tab", { name: /Goals/ }).isVisible()).toBe(true);
+    expect(await board.getByText(/Finish first: Hear Farquhar's assessment of the island/).isVisible()).toBe(true);
+    await mkdir(resolve("output/reader-check"), { recursive: true });
+    await page.screenshot({ path: resolve("output/reader-check/case-board-desktop.png") });
+    await page.setViewportSize({ width: 390, height: 650 });
+    await page.screenshot({ path: resolve("output/reader-check/case-board-mobile.png") });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await board.getByRole("tab", { name: /Goals/ }).focus();
+    await page.keyboard.press("ArrowRight");
+    expect(await board.getByRole("tab", { name: /Evidence/ }).getAttribute("aria-selected")).toBe("true");
+    await board.getByRole("tab", { name: "Decision locked" }).click();
+    expect(await board.getByText("Finish the available goals and their prerequisites first.").isVisible()).toBe(true);
+    await page.keyboard.press("Escape");
+    expect(await page.getByRole("button", { name: "Open case board" }).evaluate((element) => element === document.activeElement)).toBe(true);
+    await page.getByRole("button", { name: "Open case board" }).click();
+    await board.getByRole("tab", { name: /Evidence/ }).click();
+    await board.getByRole("button", { name: /Compare witness accounts/ }).click();
+    const accounts = page.getByRole("dialog", { name: "What do the witnesses disagree about?" });
+    expect(await accounts.getByText(spec.stages[0]!.accountClues[0]!.question).isVisible()).toBe(true);
+    await page.keyboard.press("Escape");
     await mkdir(resolve("output/reader-check"), { recursive: true });
     const roleButton = page.getByRole("button", { name: `Open your role brief: ${spec.player.role}` });
     await roleButton.click();
@@ -218,7 +240,9 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     }
     expect(await page.getByLabel("Scroll contents").count()).toBe(0);
     expect(await briefing.getByText(spec.stages[1]!.decision.prompt, { exact: true }).isVisible()).toBe(true);
-    await briefing.getByRole("button", { name: `Begin as ${spec.player.name}` }).click();
+    const begin = briefing.getByRole("button", { name: `Begin as ${spec.player.name}` });
+    if (!await begin.isVisible()) await briefing.getByRole("button", { name: "Skip", exact: true }).click();
+    await begin.click();
     await page.getByRole("button", { name: "Notes (2)" }).click();
     await page.getByLabel("Choose a collected scroll").selectOption(evidence.id);
     expect(await page.getByText(evidence.content.text, { exact: true }).isVisible()).toBe(true);
