@@ -3,7 +3,7 @@ import { detailZoom } from '../src/camera.js'
 import { SCENERY_KINDS } from '@adventure/game-core'
 import { environmentSchema, ENVIRONMENT_MATERIALS, ENVIRONMENT_PROPS, MAP_STYLES } from '@adventure/generation/spec'
 import { describe, expect, it } from 'vitest'
-import { applyEnvironment, MATERIAL_NAMES, roomMaterial, storyArt, STORY_ART, STORY_STYLES } from '../src/story-art.js'
+import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, roomMaterial, storyArt, STORY_ART, STORY_STYLES } from '../src/story-art.js'
 
 describe('story art direction', () => {
   it('keeps detail readable on compact and desktop screens', () => {
@@ -51,5 +51,12 @@ describe('story art direction', () => {
     expect(roomMaterial('Council hall', STORY_ART.civic)).toBe(4)
     expect(roomMaterial('Warehouse', STORY_ART.harbor)).toBe(14)
     expect(roomMaterial('Caravan tent', STORY_ART.desert)).toBe(8)
+  })
+  it('uses curated floor materials for open location kinds', () => {
+    expect(openFloorForKind('courtyard')).toBe('cobble')
+    expect(openFloorForKind('market')).toBe('brick')
+    expect(openFloorForKind('dock')).toBe('decking')
+    expect(openFloorForKind('field')).toBe('earth')
+    expect(openFloorForKind()).toBe('cobble')
   })
 })

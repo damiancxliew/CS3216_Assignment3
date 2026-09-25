@@ -1,6 +1,6 @@
-# Map theme tile sources
+# Map terrain sources and floor defaults
 
-The map renderer uses the original Ninja Adventure tiles for `classic`. The terrain sheets below are 16×16 pixel, top-down art released under CC0 by their creators. They are bundled locally so gameplay does not depend on external image hosts.
+The legacy theme terrain sheets below are 16×16 pixel, top-down art released under CC0 by their creators. They remain bundled locally. The current map renderer paints its material atlas locally.
 
 | Theme | Creator | Source |
 | --- | --- | --- |
@@ -9,4 +9,17 @@ The map renderer uses the original Ninja Adventure tiles for `classic`. The terr
 | Forest | Shade | [Puny World 16x16 Overworld Tileset](https://opengameart.org/content/16x16-puny-world-tileset) |
 | Coast | ARoachIFoundOnMyPillow | [16x16 Overworld Tiles](https://opengameart.org/content/16x16-overworld-tiles-0) |
 
-Walls, doors, characters and audio are still from the bundled Ninja Adventure pack; the theme also tints walls and interior floors to suit its terrain.
+Doors, characters and audio still use the bundled Ninja Adventure pack.
+
+## Default floors for open locations
+
+Open locations use a rectangular floor area so their footprint is visible against the surrounding terrain. The renderer selects from its curated 16×16 material atlas using the authored location kind. Each material has eight deterministic tile variants.
+
+| Floor | Location kinds | Material |
+| --- | --- | --- |
+| Cobble | Courtyard and other open locations, including older maps without a kind | `cobble` |
+| Brick | Street, market | `brick` |
+| Boardwalk | Dock | `decking` |
+| Earth | Field, camp | `earth` |
+
+These four curated defaults can be evaluated in play before adding any new tile art.
