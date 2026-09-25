@@ -4,6 +4,7 @@ import { ArrowRight, Clock3, Gamepad2, Map, MessageCircle, ShieldCheck, Sparkles
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { SiteNavigation } from "@/components/site-navigation";
 import { ThemeSelect } from "@/components/theme-provider";
 import { LandingCta } from "@/components/landing-cta";
 import { LandingLiveDemo } from "@/components/landing-live-demo";
@@ -41,7 +42,7 @@ export default function Home() {
       <nav className="flex flex-wrap items-center justify-between gap-4">
         <Wordmark />
         <div className="flex flex-wrap items-center gap-3">
-          <ThemeSelect />
+          <div className="flex flex-wrap items-center gap-2"><SiteNavigation /><ThemeSelect /></div>
           <a href="#pricing" className={button.subtle}>Pricing</a>
           <Link href="/teacher" className={button.quiet}>
             Teacher console <ArrowRight className="h-4 w-4" aria-hidden />

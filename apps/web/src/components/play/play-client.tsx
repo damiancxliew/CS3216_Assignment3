@@ -223,7 +223,7 @@ export function PlayClient({
   const musicKey = `${state.stage.id}:${state.status}`;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- chosen once per stage, by design
   const stageTrack = useMemo(() => (state.status === "active" ? cutsceneMusicUrl(cutsceneArt(state)?.scene ?? null) : null) ?? stageMusicUrl(state), [musicKey]);
-  useStageMusic(stageTrack, muted);
+  useStageMusic(state.status === "completed" ? state.ending?.musicUrl ?? "/game/ninja/audio/music/peaceful.ogg" : stageTrack, muted, state.status === "completed" ? 0.22 : undefined);
 
   useEffect(() => {
     const key = `${state.stage.id}:${state.status}`;
@@ -658,10 +658,14 @@ export function PlayClient({
 
   if (state.status === "completed") {
     return (
-      <section className={`${styles.game} mx-auto my-10 flex w-full max-w-2xl flex-col gap-5 px-6`}>
-        {/* The map (and its sound manager) is gone at the ending; the closing theme plays from here. */}
-        {!muted ? <audio src="/game/ninja/audio/music/end-theme.ogg" autoPlay loop /> : null}
-        <p className={label}>The end</p>
+      <section className={`${styles.game} mx-auto my-6 flex w-[calc(100%-2rem)] max-w-3xl flex-col gap-5 rounded-lg border border-line-strong bg-surface p-6 shadow-lg sm:my-10 sm:p-9`}>
+        <div className="flex items-center justify-between gap-4">
+          <p className={label}>The end</p>
+          <button type="button" className={`${chip} inline-flex min-h-11 items-center gap-2 px-3`} onClick={toggleMuted} aria-label={muted ? "Unmute ending music" : "Mute ending music"} aria-pressed={!muted}>
+            {muted ? <VolumeX size={18} aria-hidden /> : <Volume2 size={18} aria-hidden />}
+            Sound {muted ? "off" : "on"}
+          </button>
+        </div>
         <h2 className="font-serif text-4xl text-ink">{state.ending?.title ?? "The adventure is over"}</h2>
         {lastResolution ? <p className="text-lg leading-relaxed text-ink">{lastResolution}</p> : null}
         {state.ending ? <p className="text-lg leading-relaxed text-muted">{state.ending.summary}</p> : null}

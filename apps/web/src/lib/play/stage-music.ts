@@ -46,9 +46,13 @@ export class StageMusic {
     };
   }
 
-  /** Play `src`, crossfading from whatever is playing. Asking for the current track does nothing. */
-  play(src: string | null): void {
-    if (src === this.track) return;
+  /** Play `src`, crossfading from whatever is playing. The current track can change volume without restarting. */
+  play(src: string | null, volume = MUSIC_VOLUME): void {
+    const targetVolume = Math.min(1, Math.max(0, volume));
+    if (src === this.track) {
+      if (this.current && this.current.target !== targetVolume) this.ramp(this.current, targetVolume);
+      return;
+    }
     this.track = src;
     const previous = this.current;
     this.current = null;
@@ -67,7 +71,7 @@ export class StageMusic {
       // Autoplay is refused until the page has been interacted with; the next
       // stage (or unmuting) tries again, and the game is playable without sound.
     });
-    this.ramp(next, MUSIC_VOLUME);
+    this.ramp(next, targetVolume);
   }
 
   /** Browsers refuse autoplay until the page is interacted with: try again after a gesture. */

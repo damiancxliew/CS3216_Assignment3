@@ -1,7 +1,6 @@
 import { Compass } from "lucide-react";
-import Link from "next/link";
+import { SiteNavigation } from "@/components/site-navigation";
 import { ThemeSelect } from "@/components/theme-provider";
-import { button } from "@/components/ui";
 import type { PlayState } from "@/lib/play/session";
 import styles from "./adventure-chrome.module.css";
 
@@ -37,8 +36,8 @@ export function AdventureHeader({ title, active, recap }: {
         </details>
       ) : null}
       <div className={styles.headerActions}>
+        <SiteNavigation />
         <ThemeSelect />
-        <Link href="/" className={button.subtle}>Leave</Link>
       </div>
     </header>
   );

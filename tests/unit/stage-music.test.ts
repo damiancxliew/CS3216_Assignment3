@@ -108,3 +108,17 @@ describe("stage music", () => {
     expect(timers).toHaveLength(0);
   });
 });
+
+it("softens an ending that reuses the stage track without starting a second player", () => {
+  const music = player();
+  music.play("/music/peaceful.ogg");
+  settle();
+  music.play("/music/peaceful.ogg", 0.22);
+  settle();
+  expect(created).toHaveLength(1);
+  expect(created[0].volume).toBeCloseTo(0.22);
+  music.setMuted(true);
+  expect(created[0].muted).toBe(true);
+  music.stop();
+  expect(audible()).toHaveLength(0);
+});

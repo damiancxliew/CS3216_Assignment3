@@ -8,6 +8,7 @@
  * evidence), because the runtime speaks slugs; the store maps them onto row
  * uuids where a foreign key demands it.
  */
+import { selectEndingMusic } from "./ending-music";
 import {
   DEFAULT_REPLY_RATE_LIMIT,
   advanceSpatialMovement,
@@ -161,7 +162,7 @@ export interface PlayState extends PublicAttemptState {
   /** Version of the option set shown; commits carry it back so a stale set is rejected (FR-14). */
   optionsVersion: string;
   stageCount: number;
-  ending: { id: string; title: string; summary: string } | null;
+  ending: { id: string; title: string; summary: string; musicUrl?: string } | null;
 }
 
 export type PlayerWorldAction =
@@ -563,7 +564,7 @@ export class PlaySession {
       ...this.cutscene(),
       optionsVersion: derived.version,
       stageCount: this.spec.stages.length,
-      ending: ending ? { id: ending.id, title: ending.title, summary: ending.summary } : null,
+      ending: ending ? { id: ending.id, title: ending.title, summary: ending.summary, musicUrl: selectEndingMusic(this.spec.endings, ending.id) } : null,
     };
   }
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteNavigation } from "@/components/site-navigation";
 
 import { button, Wordmark } from "@/components/ui";
 
@@ -49,9 +50,9 @@ export default async function SharePage({
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-10 px-6 py-8 sm:py-10">
-      <nav className="flex items-center justify-between">
-        <Wordmark />
-      </nav>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <Wordmark /><SiteNavigation />
+      </div>
 
       <section className="game-shadow flex flex-col gap-6 rounded-[2rem] border-[3px] border-ink bg-surface px-7 py-10 sm:px-10">
         <p className="text-sm font-black uppercase tracking-[0.18em] text-record">Shared ending</p>

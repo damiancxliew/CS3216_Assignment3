@@ -14,7 +14,7 @@ import { selectMusicTrack } from "@adventure/game-client/music";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ASSET_BASE } from "@/lib/play/appearance";
-import { StageMusic } from "@/lib/play/stage-music";
+import { MUSIC_VOLUME, StageMusic } from "@/lib/play/stage-music";
 import type { PlayState } from "@/lib/play/session";
 
 const MUTE_KEY = "play.muted";
@@ -24,7 +24,8 @@ const ALERT_AT_SECONDS = 60;
 export type SoundCue = { key: string; id: SoundCueId };
 
 export function useSoundCues(state: PlayState, notice: string | null) {
-  const [muted, setMuted] = useState(false);
+  // Stay silent until the saved preference is read on mount.
+  const [muted, setMuted] = useState(true);
   const [cues, setCues] = useState<SoundCue[]>([]);
   const previous = useRef<PlayState | null>(null);
   const alerted = useRef<string | null>(null);
@@ -33,7 +34,7 @@ export function useSoundCues(state: PlayState, notice: string | null) {
     try {
       setMuted(window.localStorage.getItem(MUTE_KEY) === "1");
     } catch {
-      /* private mode: default to sound on */
+      setMuted(false); // private mode: default to sound on
     }
   }, []);
 
@@ -103,7 +104,7 @@ export function stageMusicUrl(state: PlayState): string | null {
 }
 
 /** Play `url`, crossfading between stages; the player outlives the map renderer. */
-export function useStageMusic(url: string | null, muted: boolean) {
+export function useStageMusic(url: string | null, muted: boolean, volume = MUSIC_VOLUME) {
   const player = useRef<StageMusic | null>(null);
 
   useEffect(() => {
@@ -127,8 +128,8 @@ export function useStageMusic(url: string | null, muted: boolean) {
   }, []);
 
   useEffect(() => {
-    player.current?.play(url);
-  }, [url]);
+    player.current?.play(url, volume);
+  }, [url, volume]);
 
   useEffect(() => {
     player.current?.setMuted(muted);

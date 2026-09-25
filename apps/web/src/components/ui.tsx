@@ -5,6 +5,7 @@
  * and the three states every screen needs: waiting, empty, failed.
  */
 import Link from "next/link";
+import { SiteNavigation } from "@/components/site-navigation";
 import { ThemeSelect } from "@/components/theme-provider";
 import { Select } from "@/components/select";
 
@@ -248,7 +249,7 @@ export function Page({
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
         <Wordmark />
         <div className="flex flex-wrap items-center gap-3">
-          <ThemeSelect />
+          <div className="flex flex-wrap items-center gap-2"><SiteNavigation /><ThemeSelect /></div>
           {kicker ? <div className="shrink-0 text-base text-muted">{kicker}</div> : null}
         </div>
       </div>

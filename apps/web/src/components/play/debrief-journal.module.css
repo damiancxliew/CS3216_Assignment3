@@ -1,0 +1,29 @@
+.journal { border: 1px solid var(--line-strong); border-radius: 5px 5px 16px 5px; background: var(--surface); box-shadow: 5px 5px 0 color-mix(in srgb, var(--wood) 20%, transparent); overflow: hidden; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; padding: 7px 7px 0; background: var(--surface-sunken); border-bottom: 1px solid var(--line-strong); }
+.tabs button { min-height: 48px; padding: 10px 12px; border-radius: 5px 5px 0 0; border: 1px solid transparent; font-weight: 700; font-size: 15px; color: var(--ink-muted); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--surface); border-color: var(--line-strong); border-bottom-color: var(--surface); color: var(--ink); margin-bottom: -1px; }
+.tabs button:hover { color: var(--ink); background: var(--paper); }
+.paper { padding: clamp(20px, 3vw, 32px); overflow-wrap: anywhere; }
+.paper[hidden] { display: none; }
+.comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.comparison > div { padding-left: 18px; border-left: 3px solid; }
+.world { border-color: var(--world) !important; }
+.record { border-color: var(--record) !important; }
+.comparison h2, .takeaway h2 { font-size: 13px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; margin-bottom: 12px; }
+.world h2 { color: var(--world); }
+.record h2 { color: var(--record); }
+.comparison p, .takeaway p { font-size: 17px; line-height: 1.7; }
+.note { display: block; margin-top: 12px; font-size: 13px; color: var(--ink-muted); }
+.sourceLink { display: inline-block; min-height: 44px; margin-top: 6px; text-decoration: underline; text-underline-offset: 4px; color: var(--record); font-size: 14px; cursor: pointer; }
+.takeaway { margin-top: 24px; padding-top: 20px; border-top: 1px dashed var(--line-strong); }
+.sectionTitle { font: 600 1.4rem/1.3 var(--font-record, Georgia), serif; margin-bottom: 18px; }
+.entries { display: grid; gap: 22px; }
+.details { margin-top: 8px; color: var(--ink-muted); }
+.details summary, .scroll summary { padding-block: 8px; cursor: pointer; font-weight: 600; }
+.details p, .scroll p { margin-top: 10px; }
+.scroll { padding: 6px 16px; border: 1px solid var(--line); border-radius: 4px; background: var(--paper); margin-bottom: 10px; }
+.scroll[open] { padding-bottom: 16px; }
+.questions { display: grid; gap: 18px; }
+.questions li { display: flex; gap: 16px; align-items: baseline; }
+.questions span { font: 500 1.4rem var(--font-record, Georgia), serif; color: var(--line-strong); }
+@media (max-width: 640px) { .comparison { grid-template-columns: 1fr; gap: 24px; } .tabs { grid-template-columns: repeat(2, 1fr); padding-bottom: 7px; gap: 4px; } .tabs button, .tabs button[aria-selected="true"] { border-radius: 4px; margin: 0; border-bottom-color: var(--line-strong); } }
