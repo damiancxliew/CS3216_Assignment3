@@ -106,8 +106,15 @@ export async function talkToAgent(driver: PlayDriver, agentId: string, body = "A
   if (!agent?.position) throw new Error(`agent ${agentId} has no authoritative position`);
   await walkTo(driver, agent.position);
   const current = await stateOf(driver);
-  const result = await postMessage(driver.deps, driver.attemptId, driver.userId, { roomId: current.currentRoomId!, body, addresseeId: agentId });
-  driver.capture?.("message", result);
-  if (!result.ok) throw new Error(`message failed: ${JSON.stringify(result.error)}`);
-  return result.state;
+  const opening = await postMessage(driver.deps, driver.attemptId, driver.userId, { roomId: current.currentRoomId!, body, addresseeId: agentId });
+  driver.capture?.("message", opening);
+  if (!opening.ok) throw new Error(`message failed: ${JSON.stringify(opening.error)}`);
+  const followUp = await postMessage(driver.deps, driver.attemptId, driver.userId, {
+    roomId: opening.state.currentRoomId!,
+    body: "Can you explain what leads you to that view?",
+    addresseeId: agentId,
+  });
+  driver.capture?.("message", followUp);
+  if (!followUp.ok) throw new Error(`follow-up failed: ${JSON.stringify(followUp.error)}`);
+  return followUp.state;
 }

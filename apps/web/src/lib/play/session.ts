@@ -48,6 +48,7 @@ import { isInPhysicalInteractionRange } from "@adventure/game-core";
 import { landmarkCovers, landmarkKindFor, type CompiledStage, type LandmarkKind, type MapLandmark, type Point } from "@adventure/game-core";
 import { isDeepStrictEqual } from "node:util";
 import { PLAYER_ID, toResolverInput, toStageRuntime, type StageRuntimeBundle } from "@adventure/generation/runtime";
+import { orderObjectives } from "@adventure/generation/play";
 import { resolveStageSettings, type AdventureSpec, type Stage } from "@adventure/generation/spec";
 
 import { isCurrentSpriteRecord, type AssetManifest } from "@adventure/generation/assets";
@@ -219,6 +220,8 @@ function worldFor(spec: AdventureSpec, index: number, attemptId: string, compile
 
 /** Budget for autonomous agent activity per stage (FR-12b). Kept modest: this is money per attempt. */
 const STAGE_TOKEN_BUDGET = 60_000;
+/** An NPC goal needs an opening exchange and a substantive follow-up. */
+const GOAL_CONVERSATION_EXCHANGES = 2;
 const MINTED_OPTIONS_CAP = 2;
 const MINT_TRIGGER_TRANSCRIPT_LINES = 6;
 const MINT_TRANSCRIPT_WINDOW = 120;
@@ -414,7 +417,15 @@ export class PlaySession {
         environment: this.stage.environment ?? null,
         setting: this.spec.setting,
         overlayIntensity: ambientOverlay.intensity,
-        objectives: this.stage.objectives.map((o) => ({ id: o.id, title: o.title, met: this.objectiveMet(o.id) })),
+        objectives: orderObjectives(this.stage).map((o) => ({
+          id: o.id,
+          title: o.title,
+          met: this.objectiveMet(o.id),
+          requires: o.requires,
+          conversation: this.stage.agents.some((agent) => agent.id === o.targetId)
+            ? { exchanges: this.conversationExchanges(o.targetId), required: GOAL_CONVERSATION_EXCHANGES }
+            : null,
+        })),
       },
       timer: { enabled: timer.enabled, deadlineAt: timer.deadlineAt, serverNow: now.toISOString(), secondsRemaining },
       mapArtifactId: compiled?.map.id ?? null,
@@ -566,6 +577,26 @@ export class PlaySession {
     return hasConversationExchange(world, PLAYER_ID, objective.targetId, objective.id);
   }
 
+  /** Count player questions that received a causal reply both parties could hear. */
+  private conversationExchanges(agentId: string): number {
+    const requests = new Set(visibleTranscript(this.snap.world, agentId)
+      .filter((line) => line.speakerId === PLAYER_ID && (line.addresseeId === agentId || line.addresseeId === null))
+      .map((line) => line.seq));
+    const answered = new Set<number>();
+    for (const line of this.playerHeard()) {
+      if (line.speakerId !== agentId) continue;
+      for (const seq of line.replyToSeqs ?? []) if (requests.has(seq)) answered.add(seq);
+    }
+    return answered.size;
+  }
+
+  /** A reply may claim only goals available before that reply begins. */
+  private claimableGoals(agentId: string): Stage["objectives"] {
+    if (this.conversationExchanges(agentId) < GOAL_CONVERSATION_EXCHANGES - 1) return [];
+    return this.stage.objectives.filter((objective) => objective.targetId === agentId &&
+      !this.objectiveMet(objective.id) && objective.requires.every((id) => this.objectiveMet(id)));
+  }
+
   /**
    * Goals are authored as outcomes ("Hear Farquhar's assessment"); students need the verb. An
    * agent goal is met by hearing a substantive reply causally linked to the player's question and
@@ -578,7 +609,12 @@ export class PlaySession {
       const agent = this.stage.agents.find((a) => a.id === objective.targetId);
       if (agent) {
         const where = roomName(this.roomOf(agent.id));
-        out[objective.id] = `Talk to ${this.agentName(agent.id)}${where ? ` in ${where}` : ""}; a greeting or refusal will not complete this goal`;
+        const exchanges = this.conversationExchanges(agent.id);
+        out[objective.id] = exchanges === 0
+          ? `Ask ${this.agentName(agent.id)}${where ? ` in ${where}` : ""} about this, then follow up on the answer`
+          : exchanges < GOAL_CONVERSATION_EXCHANGES
+            ? `Ask ${this.agentName(agent.id)} a follow-up question about this`
+            : `Keep discussing this with ${this.agentName(agent.id)} until you hear a substantive answer`;
         continue;
       }
       const item = this.stage.evidence.find((e) => e.id === objective.targetId);
@@ -747,8 +783,7 @@ export class PlaySession {
     const responses: ProducedReply["responses"] = [];
     let tokensSpent = this.snap.stageStats.tokens + routed.usage.promptTokens + routed.usage.completionTokens;
     for (const agentId of routed.agentIds) {
-      const goalCandidates = this.stage.objectives
-        .filter((objective) => objective.targetId === agentId && !this.objectiveMet(objective.id))
+      const goalCandidates = this.claimableGoals(agentId)
         .map(({ id, title }) => ({ id, title }));
       const turnInput = {
         ...buildAgentTurnInput(detached, agentId, this.stageConfig(), 1),
@@ -788,6 +823,10 @@ export class PlaySession {
       this.bump();
       return { ok: true, newMessages: [] };
     }
+    const claimableGoalIds = new Map(produced.responses.map(({ agentId }) => [
+      agentId,
+      new Set(this.claimableGoals(agentId).map((objective) => objective.id)),
+    ]));
     const used = produced.responses.reduce((total, { reply }) => total + reply.turn.usage.promptTokens + reply.turn.usage.completionTokens, 0);
     this.snap.tokensSpent += used;
     this.snap.stageStats.tokens += used;
@@ -799,8 +838,7 @@ export class PlaySession {
         for (const entry of result.turn.actions) if (entry.actorKind === "agent" && entry.actorId === agentId && entry.action.type !== "move_room") applyAction(this.snap.world, entry, entry.action.type === "speak" ? context : {});
       }
       if (result.source === "model" && !result.turn.degraded) {
-        const objectiveIds = new Set(this.stage.objectives.filter((objective) => objective.targetId === agentId).map((objective) => objective.id));
-        const claims = (result.turn.goalClaims ?? []).filter((claim) => objectiveIds.has(claim.objectiveId));
+        const claims = (result.turn.goalClaims ?? []).filter((claim) => claimableGoalIds.get(agentId)?.has(claim.objectiveId));
         for (const line of this.snap.world.transcript) {
           if (line.seq <= beforeSeq || line.speakerId !== agentId || line.replyToSeqs?.includes(ticket.utteranceSeq) !== true || line.recipientIds?.includes(PLAYER_ID) !== true) continue;
           const goalIds = [...new Set(claims.filter((claim) => claim.quote === line.body.trim()).map((claim) => claim.objectiveId))];

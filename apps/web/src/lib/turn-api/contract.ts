@@ -126,7 +126,15 @@ export const publicStageSchema = z.object({
   setting: z.string().optional(),
   overlayIntensity: z.number(),
   objectives: z.array(
-    z.object({ id: z.string(), title: z.string(), met: z.boolean() }),
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      met: z.boolean(),
+      /** Public goal ids that must be complete before this goal becomes available. */
+      requires: z.array(z.string()),
+      /** Audible player/NPC exchanges so the follow-up requirement is visible. */
+      conversation: z.object({ exchanges: z.number(), required: z.number() }).nullable(),
+    }),
   ),
 });
 

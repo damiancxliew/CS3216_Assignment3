@@ -57,6 +57,11 @@ function stageObjective() {
 describe("per-stage budgets and late replies", () => {
   it("lands a reply produced after the ticket expiry and credits its objective", async () => {
     const initial = positionedSession("late-reply");
+    await initial.session.message(new FakeLlmClient({ replies: [JSON.stringify({ say: "What evidence have you found?", actions: [] })] }), {
+      roomId: initial.roomId,
+      body: "Can we discuss the trading post?",
+      addresseeId: initial.agentId,
+    });
     let now = Date.parse("2026-09-22T12:00:00.000Z");
     const store = new MemoryPlayStore([record(initial.session, "late-reply")]);
     store.clock = () => new Date(now);
