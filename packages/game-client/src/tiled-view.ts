@@ -792,7 +792,7 @@ class TiledScene extends Phaser.Scene {
       if (text.style.backgroundColor !== background) text.setBackgroundColor(background)
       // Reserve the action line even when inactive so hover cannot move captions
       // and cause the next pointer event to select a different nearby object.
-      return { id: target.id, anchor: target.bounds, width: size.width, height: size.height, priority: target.priority }
+      return { id: target.id, anchor: target.bounds, width: size.width, height: size.height, priority: target.priority, above: target.id.startsWith('actor:') }
     })
     const roomBounds = this.labels.map((label) => label.getBounds())
     const doorBounds = this.current.map.doors.map((door) => ({ x: door.position.x * T, y: door.position.y * T, width: T, height: T }))
@@ -804,7 +804,10 @@ class TiledScene extends Phaser.Scene {
       const rect = placed.get(target.id)
       text.setVisible(Boolean(rect))
       if (!rect) continue
-      text.setPosition(rect.x, rect.y)
+      // Character captions hug the head: bottom-align within the reserved box so the
+      // single-line name sits just above the sprite and the action line grows upward.
+      const pinned = target.id.startsWith('actor:')
+      text.setPosition(pinned ? Math.round(rect.x + (rect.width - text.width) / 2) : rect.x, pinned ? rect.y + rect.height - text.height : rect.y)
       const x = target.bounds.x + target.bounds.width / 2
       const y = target.bounds.y + target.bounds.height / 2
       const endX = Math.max(rect.x, Math.min(x, rect.x + rect.width))
