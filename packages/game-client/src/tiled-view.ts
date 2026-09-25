@@ -39,7 +39,10 @@ const H = at(33)
 const DOOR = { closed: H(2, 3), open: H(9, 3) }
 
 const AMBIENT_LOOP: Partial<Record<string, string>> = { rain: 'rain', thunderstorm: 'rain', haze: 'wind', dust: 'wind', clouds: 'wind', snow: 'wind' }
-const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert', 'refused', 'door', 'step']
+const SFX: readonly SoundCueId[] = ['accept', 'evidence', 'resolution', 'alert', 'refused', 'door', 'step', 'chatter']
+/** The street murmur swells with the number of passers-by around the player. */
+const CROWD_VOLUME = [0, 0.05, 0.09, 0.13, 0.16] as const
+const FOOTSTEP_MS = 190
 
 const DIRECTIONS = ['down', 'up', 'left', 'right'] as const
 /** One tile takes exactly this long, so a walk of many tiles is one unbroken slide. */
@@ -125,6 +128,8 @@ class TiledScene extends Phaser.Scene {
   private playedCues = new Set<string>()
   private ambientLoop: Phaser.Sound.BaseSound | null = null
   private ambientLoopKey: string | null = null
+  private crowdLoop: (Phaser.Sound.BaseSound & { volume: number }) | null = null
+  private lastFootstep = 0
   private following = false
   private readonly wandering = new RoomWandering()
 
@@ -151,7 +156,7 @@ class TiledScene extends Phaser.Scene {
     for (const key of this.spriteKeys(this.current)) this.queueSprite(key)
     for (const url of this.spriteSheetUrls(this.current)) this.queueGeneratedSprite(url)
     for (const url of this.assetUrls(this.current)) this.queueAsset(url)
-    for (const loop of new Set(Object.values(AMBIENT_LOOP))) if (loop) this.load.audio(`loop-${loop}`, `${this.base}/audio/sfx/${loop}.ogg`)
+    for (const loop of new Set([...Object.values(AMBIENT_LOOP), 'crowd'])) if (loop) this.load.audio(`loop-${loop}`, `${this.base}/audio/sfx/${loop}.ogg`)
     for (const cue of SFX) this.load.audio(`sfx-${cue}`, `${this.base}/audio/sfx/${cue}.ogg`)
   }
 
@@ -159,7 +164,11 @@ class TiledScene extends Phaser.Scene {
     this.ready = true
     const materials = this.textures.createCanvas('period-interiors', MATERIAL_COUNT * T, 16 * MATERIAL_VARIANTS)
     if (materials) { paintMaterials(materials.context); materials.refresh() }
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clearAmbient())
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.clearAmbient()
+      this.crowdLoop?.destroy()
+      this.crowdLoop = null
+    })
     for (const key of this.spriteKeys(this.current)) this.registerAnimations(key)
     for (const url of this.spriteSheetUrls(this.current)) this.registerAnimations(assetTextureKey(url), true)
     this.buildMap()
@@ -187,6 +196,12 @@ class TiledScene extends Phaser.Scene {
       })
       if (actor && this.onActor) {
         this.onActor(actor.id)
+        return
+      }
+      // Tapping a passer-by exchanges a word with them instead of walking onto them.
+      const passer = this.ambientLife?.personAt(point)
+      if (passer && this.greet(passer.id)) {
+        this.game.canvas.focus()
         return
       }
       // A document under the pointer means "go read it", not "walk here".
@@ -402,7 +417,9 @@ class TiledScene extends Phaser.Scene {
     this.renderLandmarkTiles(this.current)
     // Contact shadows and moss join adjacent tiles into surfaces with age and depth.
     this.environment = new EnvironmentArt(this, this.current, art)
-    this.ambientLife = new AmbientLife(this, this.current, art)
+    this.ambientLife = new AmbientLife(this, this.current, art, {
+      onRemark: () => this.playSfx('chatter', 0.3),
+    })
     this.roomShells = new RoomShells(this, this.current, art)
     const details = this.surfaceDetails = this.add.graphics().setDepth(1.6)
     for (let y = 1; y < source.height - 1; y++) for (let x = 1; x < source.width - 1; x++) {
@@ -571,6 +588,7 @@ class TiledScene extends Phaser.Scene {
       } else if (marker.idle === null && this.textures.exists(key)) {
         marker.sprite.setFrame(DIRECTIONS.indexOf(facing))
       }
+      if (actor.id === 'player' && moved && !snap && !this.reducedMotion) this.footstep()
       marker.container.setDepth(10 + actor.position.y / 1000 + (actor.id === 'player' ? 0.5 : 0))
       if (snap || this.reducedMotion || withPlayer) {
         this.tweens.killTweensOf(marker.container)
@@ -640,7 +658,9 @@ class TiledScene extends Phaser.Scene {
 
   /** Keep captions separated throughout walking tweens, including between snapshots. */
   override update(_time: number, delta: number): void {
-    this.ambientLife?.update(delta, this.reducedMotion, this.current.running)
+    const player = this.current.actors.find((actor) => actor.id === 'player')?.position
+    this.ambientLife?.update(delta, this.reducedMotion, this.current.running, player)
+    this.updateCrowd(player)
     this.weather?.update(delta)
     this.environment?.update(delta, this.reducedMotion)
     if (this.ready && this.current.roomWandering && this.current.running && !this.reducedMotion && !document.hidden) {
@@ -681,6 +701,12 @@ class TiledScene extends Phaser.Scene {
           near: !prop.found && playerRoom !== null && room?.kind === 'room' && room.roomId === playerRoom,
           bounds: { x: prop.position.x * T + 1, y: prop.position.y * T + 1, width: 14, height: 14 } }
       }),
+      // Passers-by are flavour: they are only offered once the player is beside them.
+      ...(player ? (this.ambientLife?.people() ?? []).map((person) => ({
+        id: `street:${person.id}`, name: person.name, action: 'Greet', priority: 12,
+        near: Math.abs(person.at.x - player.position.x) <= 1 && Math.abs(person.at.y - player.position.y) <= 1,
+        bounds: { x: person.at.x * T, y: person.at.y * T, width: T, height: T },
+      })) : []),
       ...(this.current.landmarks ?? []).filter(landmark => this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
         near: playerRoom !== null && landmark.roomId === playerRoom,
         bounds: { x: landmark.position.x * T, y: landmark.position.y * T, width: 32, height: 32 } })),
@@ -702,10 +728,29 @@ class TiledScene extends Phaser.Scene {
     const separator = target.indexOf(':')
     const kind = target.slice(0, separator)
     const id = target.slice(separator + 1)
+    if (kind === 'street') return this.greet(id)
     const callback = kind === 'actor' ? this.onActor : kind === 'prop' ? this.onProp : this.onLandmark
     if (!callback) return false
     callback(id)
     return true
+  }
+
+  /** Small talk with a cosmetic passer-by: local flavour, never a transcript message. */
+  private greet(id: string): boolean {
+    if (!this.ambientLife?.talk(id)) return false
+    this.playSfx('chatter', 0.36)
+    return true
+  }
+
+  /** Greet whoever the player is standing next to, for the host's talk key. */
+  greetNearby(): boolean {
+    const player = this.current.actors.find((actor) => actor.id === 'player')?.position
+    if (!player) return false
+    const near = (this.ambientLife?.people() ?? [])
+      .map((person) => ({ person, distance: Math.hypot(person.at.x - player.x, person.at.y - player.y) }))
+      .filter((entry) => entry.distance <= 1.5)
+      .sort((a, b) => a.distance - b.distance)[0]
+    return near ? this.greet(near.person.id) : false
   }
 
   private layoutCaptions(): void {
@@ -972,8 +1017,33 @@ class TiledScene extends Phaser.Scene {
     for (const cue of snapshot.audio?.cues ?? []) {
       if (this.playedCues.has(cue.key)) continue
       this.playedCues.add(cue.key)
-      if (this.cache.audio.exists(`sfx-${cue.id}`)) this.sound.play(`sfx-${cue.id}`, { volume: cue.id === 'step' ? 0.25 : 0.6 })
+      this.playSfx(cue.id, cue.id === 'step' ? 0.25 : 0.6)
     }
+  }
+
+  private playSfx(id: SoundCueId, volume: number, rate = 1): void {
+    if (this.sound.locked || this.sound.mute) return
+    if (this.cache.audio.exists(`sfx-${id}`)) this.sound.play(`sfx-${id}`, { volume, rate })
+  }
+
+  /** Footsteps while walking, pitched a little differently each stride. */
+  private footstep(): void {
+    if (this.time.now - this.lastFootstep < FOOTSTEP_MS) return
+    this.lastFootstep = this.time.now
+    this.playSfx('step', 0.16, 0.92 + jitter(Math.round(this.time.now), 3, 9) * 0.18)
+  }
+
+  /** A street with people on it murmurs; an empty one falls quiet. */
+  private updateCrowd(player?: Point): void {
+    if (!this.ready || this.sound.locked) return
+    const nearby = player && this.current.running ? this.ambientLife?.crowd(player) ?? 0 : 0
+    const want = CROWD_VOLUME[Math.min(nearby, CROWD_VOLUME.length - 1)]!
+    if (!this.crowdLoop) {
+      if (want <= 0 || !this.cache.audio.exists('loop-crowd')) return
+      this.crowdLoop = this.sound.add('loop-crowd', { loop: true, volume: 0 }) as Phaser.Sound.BaseSound & { volume: number }
+      this.crowdLoop.play()
+    }
+    this.crowdLoop.volume += (want - this.crowdLoop.volume) * 0.04
   }
 
   private roomName(id: string): string {
@@ -1020,6 +1090,9 @@ export function createTiledMapView(
         },
         setReducedMotion(enabled) {
           scene.setReducedMotion(enabled)
+        },
+        greetNearby() {
+          return scene.greetNearby()
         },
         destroy() {
           scene.tweens.killAll()
