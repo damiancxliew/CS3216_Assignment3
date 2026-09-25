@@ -56,6 +56,19 @@ async function chooseSpeaker(page: import("playwright").Page, name: string) {
   await page.getByRole("heading").filter({ hasText: name }).waitFor();
 }
 
+async function dismissGameplayIntroduction(page: import("playwright").Page, role: string) {
+  const briefing = page.getByRole("dialog", { name: role });
+  if (await briefing.isVisible()) await briefing.getByRole("button", { name: /Begin as/ }).click();
+  const walkthrough = page.getByRole("dialog", { name: "Follow the story" });
+  try {
+    await walkthrough.waitFor({ state: "visible", timeout: 3_000 });
+    await walkthrough.getByRole("button", { name: "Skip", exact: true }).click();
+    await walkthrough.waitFor({ state: "hidden", timeout: 5_000 });
+  } catch (error) {
+    if (await walkthrough.isVisible()) throw error;
+  }
+}
+
 function publicSummary(body: any) {
   return { playerPos: body.playerPos, actors: body.actors?.map((actor: any) => ({ id: actor.id, position: actor.position })), hearingActorIds: body.hearingActorIds, currentRoomId: body.currentRoomId };
 }
@@ -163,8 +176,9 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
       return (await publicState(page, attemptId)).body;
     };
     await page.locator('canvas[tabindex="0"]').waitFor({ state: "visible" });
-    await page.screenshot({ path: "/tmp/spatial-browser-start.png" });
     const initial = (await publicState(page, attemptId)).body;
+    await dismissGameplayIntroduction(page, initial.player.role);
+    await page.screenshot({ path: "/tmp/spatial-browser-start.png" });
     const agent = initial.actors.find((actor: any) => actor.kind === "agent" && actor.position);
     expect(agent).toBeDefined();
     await keyboardWalk(page, attemptId, initial, agent.position);
@@ -196,6 +210,7 @@ it.runIf(runBrowser)("plays a student stage by keyboard with pending dialogue, e
     });
     expect(desktopGeometry.composerBottom).toBeLessThanOrEqual(desktopGeometry.goalsTop + 1);
     await page.setViewportSize({ width: 384, height: 844 });
+    await dismissGameplayIntroduction(page, initial.player.role);
     const mobileGeometry = await page.evaluate(() => {
       const composer = document.querySelector('section[aria-labelledby="talk"] form')!.getBoundingClientRect();
       const goals = document.querySelector('section[aria-labelledby="decide"]')!.getBoundingClientRect();
