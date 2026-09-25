@@ -1,7 +1,7 @@
 # M18 — Landing page, SEO and OG
 
 **Live:** <https://historical-adventures-ten.vercel.app>
-Source: `apps/web/src/app/page.tsx`, `layout.tsx`, `opengraph-image.tsx`, `api/og/route.tsx`,
+Source: `apps/web/src/app/page.tsx`, `layout.tsx`, `opengraph-image.tsx`, `share/og/route.tsx`,
 `share/page.tsx`, `manifest.ts`, `robots.ts`, `sitemap.ts`, `icon.svg`,
 `components/pricing.tsx`, `components/share-buttons.tsx`, `lib/pricing.ts`,
 `lib/seo/structured-data.ts`.
@@ -88,7 +88,7 @@ mark also serves as the favicon via `icon.svg`.
 
 **The ending card** is the interesting one. A student who finishes an adventure can share
 their ending from the debrief (X, LinkedIn, WhatsApp, Telegram, or copy link). The link
-points at `/share`, whose OG image is generated per request by `api/og/route.tsx` from two
+points at `/share`, whose OG image is generated per request by `share/og/route.tsx` from two
 query parameters — the adventure title and the ending reached — so what appears in the
 group chat is *"Singapore, 1819 — The Merlion Compromise"* on a branded card, not a generic
 site preview. Three constraints shaped it:

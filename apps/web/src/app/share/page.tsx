@@ -10,7 +10,7 @@ function ogImagePath(title?: string, adventure?: string) {
   if (title) params.set("title", title);
   if (adventure) params.set("adventure", adventure);
   const query = params.toString();
-  return `/api/og${query ? `?${query}` : ""}`;
+  return `/share/og${query ? `?${query}` : ""}`;
 }
 
 export async function generateMetadata({
@@ -36,7 +36,7 @@ export async function generateMetadata({
 
 /**
  * The landing spot for a shared ending. The card the crawler renders lives at
- * /api/og; this page only has to tell a person what they are looking at and
+ * /share/og; this page only has to tell a person what they are looking at and
  * give them somewhere to go. The URL carries just the two public titles — no
  * attempt ids or share tokens.
  */
