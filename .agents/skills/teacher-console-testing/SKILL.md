@@ -71,10 +71,32 @@ description: Run teacher console UI tests against local Next.js and Supabase wit
 - Browser observers should select the app tab by URL, not page-array position.
   Log the observed URL and a document response to prove the observer is attached.
 
+## Student play and media checks
+
+- For editable I1 fixtures, load raw `loadFixtureJson(I1_FIXTURE.spec)` before
+  `persistSpecVersion`; normalized runtime specs may not validate as authoring input.
+  Keep decision prerequisite graphs valid when simplifying disposable goal targets.
+- Student decisions invoke agent ticks and require a working server OpenAI key.
+  If blocked, real timer expiry can independently cover stage transitions without
+  mocking a successful decision. Use positive `timerSeconds` on a disposable fixture;
+  inspect its neutral/evasive fallback option's branch target before starting.
+  Report successful decision coverage separately from timer coverage.
+- Stage music uses detached `Audio()` instances, so DOM audio counts alone miss it.
+  Install passive constructor/media observation before loading the play document;
+  Next.js client navigation alone does not run a newly added init script.
+  Track instance identity, source, currentTime, volume, muted and paused states.
+- Phaser WebAudio ambience schedules repeated buffers rather than necessarily setting
+  native `AudioBufferSourceNode.loop=true`. Inspect scheduled starts and identify
+  buffers by decoded asset duration; do not count every non-loop node as a one-shot SFX.
+- A source-changing crossfade may temporarily play two tracks. Check settled incoming
+  volume and that the outgoing element is actually paused, not merely volume zero.
+  Passive observers retaining element references cannot prove garbage collection.
+
 ## Devin Secrets Needed
 
-- `OPENAI_API_KEY` (repo-scoped): needed for real assistant brief turns and artwork
-  generation/polling completion, but not for source-fixture or missing-key tests.
+- `OPENAI_API_KEY` (repo-scoped): needed for real assistant brief turns, student
+  decision agent ticks, and artwork generation/polling completion, but not for
+  source-fixture, timer-expiry, or missing-key tests.
 - Local Supabase URL/keys must be configured in the gitignored `.env.local` or
   exported to the server process. `supabase status -o env` supplies local API URL,
   anon key, and service-role key; map these to `NEXT_PUBLIC_SUPABASE_URL`,
