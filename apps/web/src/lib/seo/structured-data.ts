@@ -33,11 +33,19 @@ export function landingStructuredData() {
         applicationCategory: "EducationalApplication",
         operatingSystem: "Web",
         description: SITE_DESCRIPTION,
-        offers: PRICING_TIERS.map((tier) => ({
+        offers: PRICING_TIERS.filter((tier) => tier.price !== null).map((tier) => ({
           "@type": "Offer",
           name: tier.name,
-          price: tier.monthly,
+          price: tier.price,
           priceCurrency: "SGD",
+          ...(tier.period ? {
+            priceSpecification: {
+              "@type": "UnitPriceSpecification",
+              price: tier.price,
+              priceCurrency: "SGD",
+              billingDuration: tier.period === "year" ? "P1Y" : "P1M",
+            },
+          } : {}),
           url: `${siteUrl}/#pricing`,
         })),
       },
