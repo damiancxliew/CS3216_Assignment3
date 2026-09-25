@@ -11,7 +11,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const userId = await timings.time("auth", requireUserId);
   if (typeof userId !== "string") return withPlayPerf(userId, timings, { route: "state", attemptId: id });
 
-  const result = await getState({ ...playDeps(), timings }, id, userId);
+  const result = await getState({ ...playDeps(id), timings }, id, userId);
   const response = result.ok ? publicJson(result.state) : errorResponse(result.error);
   return withPlayPerf(response, timings, { route: "state", attemptId: id });
 }

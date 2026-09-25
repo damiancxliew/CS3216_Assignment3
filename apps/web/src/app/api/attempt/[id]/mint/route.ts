@@ -9,7 +9,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const userId = await requireUserId();
   if (typeof userId !== "string") return userId;
 
-  const result = await postMintOptions(playDeps(), id, userId);
+  const result = await postMintOptions(playDeps(id), id, userId);
   if (!result.ok) return errorResponse(result.error);
   return publicJson({ accepted: true, state: result.state });
 }

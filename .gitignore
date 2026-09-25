@@ -12,3 +12,6 @@ supabase/.branches/
 supabase/.temp/
 .DS_Store
 *.log
+
+# Per-call play cost log (PLAY_COST_LOG=1)
+play-cost*.jsonl
