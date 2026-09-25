@@ -5,6 +5,8 @@ export interface MapLabelCandidate {
   width: number
   height: number
   priority: number
+  /** Only ever place directly above the anchor (walking characters), so the caption tracks it. */
+  above?: boolean
 }
 
 export function overlaps(left: LabelRect, right: LabelRect, gap = 2): boolean {
@@ -23,6 +25,10 @@ export function layoutMapLabels(candidates: readonly MapLabelCandidate[], bounds
     const center = anchor.x + anchor.width / 2
     const positions: LabelRect[] = []
     for (const distance of [3, 14, 26, 40, 56]) {
+      if (item.above) {
+        positions.push({ x: center - width / 2, y: anchor.y - height - distance, width, height })
+        continue
+      }
       positions.push(
         { x: center - width / 2, y: anchor.y + anchor.height + distance, width, height },
         { x: center - width / 2, y: anchor.y - height - distance, width, height },
@@ -35,7 +41,8 @@ export function layoutMapLabels(candidates: readonly MapLabelCandidate[], bounds
       position.y = Math.round(position.y)
       if (position.x < bounds.x || position.x + width > bounds.x + bounds.width
         || position.y < bounds.y || position.y + height > bounds.y + bounds.height) continue
-      if (occupied.some((rect) => overlaps(position, rect))) continue
+      // Pinned captions only dodge other captions; scenery must not bump them around mid-walk.
+      if ((item.above ? [...placed.values()] : occupied).some((rect) => overlaps(position, rect))) continue
       placed.set(item.id, position)
       occupied.push(position)
       break

@@ -51,6 +51,16 @@ describe('shared map caption layout', () => {
     }
   })
 
+  it('keeps a walking character caption centred directly above them as scenery passes by', () => {
+    for (let x = 60; x <= 200; x += 4) {
+      const walker = { ...candidate('actor', x, 100, 30), above: true }
+      const scenery = [{ x: 110, y: 70, width: 40, height: 16 }, { x: 150, y: 110, width: 16, height: 16 }]
+      const rect = layoutMapLabels([walker], bounds, [walker.anchor, ...scenery]).get('actor')!
+      expect(rect.x + rect.width / 2).toBe(x + 8)
+      expect(rect.y + rect.height).toBe(100 - 3)
+    }
+  })
+
   it('hides excess captions, then gives the focused object first choice', () => {
     const crowded = Array.from({ length: 12 }, (_, i) => candidate(`${i}`, 70, 70))
     const small = { x: 0, y: 0, width: 160, height: 160 }
