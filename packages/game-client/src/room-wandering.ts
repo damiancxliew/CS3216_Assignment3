@@ -41,6 +41,8 @@ export class RoomWandering {
   }
 
   advance(snapshot: PlaygroundSnapshot, delta: number, hoveredId?: string): boolean {
+    const player = snapshot.actors.find((actor) => actor.id === 'player')
+    const playerRoom = player?.space?.kind === 'room' ? player.space.roomId : null
     // Reserve both ends of this frame's steps to prevent crossing through another actor.
     const occupied = new Set([
       ...snapshot.actors.map((actor) => key(actor.position)),
@@ -50,6 +52,11 @@ export class RoomWandering {
     ])
     let changed = false
     for (const [id, actor] of this.actors) {
+      if (playerRoom === actor.roomId) {
+        actor.path = []
+        actor.wait = Math.max(actor.wait, 700)
+        continue
+      }
       // Let the user catch and click a character without chasing it.
       if (hoveredId === id) { actor.wait = Math.max(actor.wait, 700); continue }
       actor.wait -= Math.min(delta, 100)

@@ -18,7 +18,7 @@ function fixture(): PlaygroundSnapshot {
   return {
     seed: 'test', map: stage.map, doors: stage.initialDoors,
     actors: [
-      { id: 'player', position: stage.playerSpawn },
+      { id: 'player', position: { x: stage.map.rooms.find((room) => room.id === 'other')!.x + 2, y: stage.map.rooms.find((room) => room.id === 'other')!.y + 2 } },
       ...stage.placements.filter((item) => item.kind === 'actor'),
     ].map(({ id, position }) => ({ id, name: id, position, space: spaceAt(stage.map, position), status: 'idle', targetRoomId: null })),
     props: stage.placements.filter((item) => item.kind === 'evidence').map((item) => ({ ...item, name: item.id, found: false })),
@@ -27,6 +27,25 @@ function fixture(): PlaygroundSnapshot {
 }
 
 describe('ambient room wandering', () => {
+  it('holds everyone in the player room while they can talk, then resumes wandering', () => {
+    const snapshot = fixture()
+    const wandering = new RoomWandering(() => 0)
+    const player = snapshot.actors.find((actor) => actor.id === 'player')!
+    const alice = snapshot.actors.find((actor) => actor.id === 'alice')!
+    const bob = snapshot.actors.find((actor) => actor.id === 'bob')!
+    wandering.sync(snapshot, true)
+    player.position = { x: alice.position.x + 1, y: alice.position.y }
+    player.space = spaceAt(snapshot.map, player.position)
+    for (let tick = 0; tick < 100; tick += 1) wandering.advance(snapshot, 100)
+    expect(wandering.position('alice', alice.position)).toEqual(alice.position)
+    expect(wandering.position('bob', bob.position)).toEqual(bob.position)
+    const other = snapshot.map.rooms.find((room) => room.id === 'other')!
+    player.position = { x: other.x + 2, y: other.y + 2 }
+    player.space = spaceAt(snapshot.map, player.position)
+    for (let tick = 0; tick < 100; tick += 1) wandering.advance(snapshot, 100)
+    expect(wandering.position('alice', alice.position)).not.toEqual(alice.position)
+  })
+
   it('walks adjacent tiles with pauses, staying in the room and avoiding fixtures, people, props and doorways', () => {
     const snapshot = fixture()
     const original = structuredClone(snapshot)

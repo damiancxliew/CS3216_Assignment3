@@ -324,7 +324,7 @@ function validReplySeqs(world: WorldState, actorId: string, seqs: readonly numbe
   if (unique.some((seq) => !Number.isInteger(seq) || seq > world.seq)) return null
   for (const seq of unique) {
     const line = world.transcript.find((candidate) => candidate.seq === seq)
-    if (line === undefined || world.actors[line.speakerId]?.kind !== 'player' || line.addresseeId !== actorId || !lineHasRecipient(world, line, actorId)) return null
+    if (line === undefined || world.actors[line.speakerId]?.kind !== 'player' || (line.addresseeId !== actorId && line.addresseeId !== null) || !lineHasRecipient(world, line, actorId)) return null
   }
   return unique.sort((left, right) => left - right)
 }
@@ -578,7 +578,7 @@ export function visibleTranscript(world: WorldState, actorId: string): Utterance
 export function hasConversationExchange(world: WorldState, playerId: string, agentId: string, objectiveId?: string): boolean {
   if (world.actors[playerId]?.kind !== 'player' || world.actors[agentId]?.kind !== 'agent') return false
   return world.transcript.some((request) => {
-    if (request.speakerId !== playerId || request.addresseeId !== agentId || !lineHasRecipient(world, request, agentId)) return false
+    if (request.speakerId !== playerId || (request.addresseeId !== agentId && request.addresseeId !== null) || !lineHasRecipient(world, request, agentId)) return false
     return world.transcript.some((reply) => {
       const speaker = world.actors[reply.speakerId]
       return speaker?.kind === 'agent' && reply.speakerId === agentId && reply.seq > request.seq && reply.replyToSeqs?.includes(request.seq) === true && lineHasRecipient(world, reply, playerId) && (objectiveId === undefined || reply.goalIds?.includes(objectiveId) === true)

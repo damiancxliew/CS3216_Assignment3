@@ -157,7 +157,6 @@ export function PlayClient({
   const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [pendingSpeech, setPendingSpeech] = useState<{ id: string; roomId: string; body: string } | null>(null);
-  const [addressee, setAddressee] = useState<string | null>(null);
   const [intent, setIntent] = useState<MapIntent>(null);
   const [pendingTalk, setPendingTalk] = useState<string | null>(null);
   const [goalHintLevels, setGoalHintLevels] = useState<Record<string, number>>({});
@@ -314,7 +313,6 @@ export function PlayClient({
     setLoadingDocuments([]);
     setDocumentErrors({});
     setDraft("");
-    setAddressee(null);
     setNotice(null);
     setRoleBriefOpen(true);
   }, [canDecide, state.stage.id]);
@@ -326,9 +324,7 @@ export function PlayClient({
       ? canHearSpeech(state.map as StageMap, visiblePosition, actor.position)
       : state.hearingActorIds.includes(agent.id);
   });
-  const effectiveAddressee = peopleHere.some((a) => a.id === addressee) ? addressee : peopleHere[0]?.id ?? null;
-  const canSendToAddressee = effectiveAddressee !== null && state.hearingActorIds.includes(effectiveAddressee);
-  const talkingTo = peopleHere.find((a) => a.id === effectiveAddressee) ?? null;
+  const canSendToRoom = peopleHere.some((person) => state.hearingActorIds.includes(person.id));
   const waitingDoor = state.map?.doors.find((door) => state.playerPos?.x === door.outside.x && state.playerPos.y === door.outside.y && state.rooms.find((room) => room.id === door.roomId)?.doorOpen === false);
   const waitingRoom = waitingDoor ? state.rooms.find((room) => room.id === waitingDoor.roomId) : null;
   const items = withSceneBreaks(state.transcript, {
@@ -359,13 +355,13 @@ export function PlayClient({
     const current = stateRef.current;
     const body = draft.trim();
     const roomId = current.currentRoomId;
-    if (!body || !roomId || !canSendToAddressee || busy !== null || speaking || current.pendingDialogue) return;
+    if (!body || !roomId || !canSendToRoom || busy !== null || speaking || current.pendingDialogue) return;
     setDraft("");
     setPendingSpeech({ id: crypto.randomUUID(), roomId, body });
     setSpeaking(true);
     setNotice(null);
     try {
-      const result = await playApi.message(attemptId, { roomId, body, addresseeId: effectiveAddressee });
+      const result = await playApi.message(attemptId, { roomId, body, addresseeId: null });
       if (!result.ok) {
         setDraft((value) => (value === "" ? body : value));
         setNotice(result.error.message);
@@ -438,11 +434,10 @@ export function PlayClient({
     [attemptId, accept, refresh, busy, serialize],
   );
 
-  // From the map: pick who to talk to and put the cursor in the box, so "walk up and talk" works.
+  // From the map: walk into speaking range and focus the room composer.
   const onTalk = useCallback((actorId: string) => {
     setHintVisible(false);
     setReading(null);
-    setAddressee(actorId);
     const current = stateRef.current;
     const point = localPosition?.stageId === current.stage.id ? localPosition.point : current.playerPos;
     const target = current.actors.find((actor) => actor.id === actorId)?.position;
@@ -787,28 +782,17 @@ export function PlayClient({
 
         {/* ── Middle: the conversation. This is the game; it gets the height. ── */}
         <section className={`${roomStyles.conversation} ${styles.conversation} flex flex-1 flex-col`} aria-labelledby="talk">
-          {talkingTo ? (
+          {peopleHere.length > 0 ? (
             <>
               <div className={roomStyles.introduction}>
-                <Portrait src={talkingTo.portraitUrl} name={talkingTo.name} size={64} />
                 <div>
-                  <p className={roomStyles.eyebrow}>Talk to</p>
-                  <h2 id="talk" className={roomStyles.personName}>{talkingTo.name}</h2>
-                  {talkingTo.role ? <p className={roomStyles.personRole}>{talkingTo.role}</p> : null}
+                  <p className={roomStyles.eyebrow}>Room conversation</p>
+                  <h2 id="talk" className={roomStyles.personName}>People here</h2>
+                  <p className={roomStyles.personRole}>{peopleHere.map((person) => person.name).join(", ")}</p>
                 </div>
               </div>
-              {peopleHere.length > 1 ? (
-                <div className={roomStyles.switchPerson} role="radiogroup" aria-label="Choose who to talk to">
-                  <p>People within speaking distance</p>
-                  {peopleHere.map((person) => (
-                    <button key={person.id} type="button" role="radio" aria-checked={person.id === effectiveAddressee} onClick={() => { setAddressee(person.id); composer.current?.focus(); }}>
-                      Talk to {person.name}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
               {state.transcript.length === 0 && pendingSpeech === null ? (
-                <p className={roomStyles.conversationHint}>You’re within speaking distance. Type a question below to start the conversation.</p>
+                <p className={roomStyles.conversationHint}>Everyone here can hear you. Type a question below to start the conversation.</p>
               ) : null}
             </>
           ) : (
@@ -852,7 +836,7 @@ export function PlayClient({
                 </div>
               </div>
             ) : null}
-            {speaking || state.pendingDialogue ? <div className="px-2"><Thinking label={`${talkingTo?.name ?? "They"} is thinking`} /></div> : null}
+            {speaking || state.pendingDialogue ? <div className="px-2"><Thinking label="The room is thinking" /></div> : null}
             <div ref={transcriptEnd} />
           </div>
 
@@ -863,7 +847,7 @@ export function PlayClient({
               void send();
             }}
           >
-            <label htmlFor="conversation-message">{talkingTo ? `Your message to ${talkingTo.name}` : "Your message"}</label>
+            <label htmlFor="conversation-message">Your message to the room</label>
             <div className={roomStyles.composerRow}>
             <input
               id="conversation-message"
@@ -871,11 +855,11 @@ export function PlayClient({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               disabled={busy !== null || speaking || state.pendingDialogue || !peopleHere.length}
-              placeholder={talkingTo ? "Type your question…" : "Find someone to talk to first"}
+              placeholder={peopleHere.length ? "Type your question…" : "Find someone to talk to first"}
               className="min-h-12 min-w-0 flex-1 rounded-control border border-line bg-surface px-4 py-2 text-base text-ink placeholder:text-muted focus:border-record focus:outline-none disabled:opacity-60"
               maxLength={2000}
             />
-            <button type="submit" className={`${primary} min-h-11`} disabled={busy !== null || speaking || state.pendingDialogue || !draft.trim() || !canSendToAddressee}>
+            <button type="submit" className={`${primary} min-h-11`} disabled={busy !== null || speaking || state.pendingDialogue || !draft.trim() || !canSendToRoom}>
               {speaking || state.pendingDialogue ? <Pending>Sending</Pending> : "Send"}
             </button>
             </div>

@@ -564,6 +564,7 @@ class TiledScene extends Phaser.Scene {
 
   private renderActors(snapshot: PlaygroundSnapshot, snap = false): void {
     const occupied = new Map<string, number>()
+    const player = snapshot.actors.find((actor) => actor.id === 'player')
     for (const source of snapshot.actors) {
       const actor = { ...source, position: this.wandering.position(source.id, source.position) }
       const duration = snapshot.roomWandering && actor.id !== 'player' && actor.space?.kind === 'room' ? ROOM_STEP_MS : STEP_MS
@@ -590,11 +591,21 @@ class TiledScene extends Phaser.Scene {
       const dx = actor.position.x - marker.last.x
       const dy = actor.position.y - marker.last.y
       const moved = dx !== 0 || dy !== 0
-      const facing: Facing = actor.facing ?? (moved ? (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up') : marker.facing)
+      const withPlayer = actor.id !== 'player' && player !== undefined && (actor.interactive === true
+        || (player.space?.kind === 'room' && actor.space?.kind === 'room' && player.space.roomId === actor.space.roomId))
+      const towardPlayer = withPlayer ? { x: player.position.x - actor.position.x, y: player.position.y - actor.position.y } : null
+      const facing: Facing = towardPlayer && (towardPlayer.x !== 0 || towardPlayer.y !== 0)
+        ? Math.abs(towardPlayer.x) > Math.abs(towardPlayer.y) ? (towardPlayer.x > 0 ? 'right' : 'left') : towardPlayer.y > 0 ? 'down' : 'up'
+        : actor.facing ?? (moved ? (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up') : marker.facing)
       marker.facing = facing
       marker.last = { x: actor.position.x, y: actor.position.y }
       const animKey = `${key}-${facing}`
-      if (moved && !this.reducedMotion && this.anims.exists(animKey)) {
+      if (withPlayer) {
+        marker.idle?.remove()
+        marker.idle = null
+        marker.sprite.stop()
+        if (this.textures.exists(key)) marker.sprite.setFrame(DIRECTIONS.indexOf(facing))
+      } else if (moved && !this.reducedMotion && this.anims.exists(animKey)) {
         const walker = marker
         marker.sprite.play(animKey, true)
         marker.idle?.remove()
@@ -608,7 +619,7 @@ class TiledScene extends Phaser.Scene {
         marker.sprite.setFrame(DIRECTIONS.indexOf(facing))
       }
       marker.container.setDepth(10 + actor.position.y / 1000 + (actor.id === 'player' ? 0.5 : 0))
-      if (snap || this.reducedMotion) {
+      if (snap || this.reducedMotion || withPlayer) {
         this.tweens.killTweensOf(marker.container)
         marker.container.setPosition(x, y)
       } else if (moved || (!this.tweens.isTweening(marker.container) && (marker.container.x !== x || marker.container.y !== y))) {

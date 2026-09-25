@@ -111,7 +111,7 @@ describe("service dialogue lifecycle", () => {
     void originalSave;
   });
 
-  it("rejects a second addressed request, permits broadcast, and accepts late completion", async () => {
+  it("rejects another request while a reply is pending and accepts late completion", async () => {
     let release!: (response: LlmResponse) => void;
     let started!: () => void;
     const startedPromise = new Promise<void>((resolve) => { started = resolve; });
@@ -123,7 +123,7 @@ describe("service dialogue lifecycle", () => {
     const second = await postMessage(deps, attemptId, studentId, { roomId, body: "Second.", addresseeId: agentId });
     expect(second).toMatchObject({ ok: false, error: { code: "rate_limited" } });
     const broadcast = await postMessage(deps, attemptId, studentId, { roomId, body: "Ambient." });
-    expect(broadcast.ok).toBe(true);
+    expect(broadcast).toMatchObject({ ok: false, error: { code: "rate_limited" } });
     expect(calls).toBe(1);
     const pending = (await store.load(attemptId, studentId))!.snapshot!.pendingReply!;
     store.clock = () => new Date(pending.expiresAt + 1);

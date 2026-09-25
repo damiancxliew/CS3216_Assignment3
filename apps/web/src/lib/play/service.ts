@@ -5,9 +5,9 @@
  * Every entry point returns the full public state alongside its own result,
  * as the I3 contract requires, so the client never has to reconcile deltas.
  */
-import type { LlmClient, ReplyResult } from "@adventure/orchestration";
+import type { LlmClient } from "@adventure/orchestration";
 
-import { PlaySession, type MessageBeginOutcome, type MintProduction, type PendingMint, type PlayState, type PlayerWorldAction, type SessionError, type SessionTimer } from "./session";
+import { PlaySession, type MessageBeginOutcome, type MintProduction, type PendingMint, type PlayState, type PlayerWorldAction, type ProducedReply, type SessionError, type SessionTimer } from "./session";
 import { SpatialCompatibilityError } from "./layout";
 import { RuntimeConflictError, type AttemptRecord, type PlayStore } from "./store";
 import type { PublicMessage } from "@/lib/turn-api/contract";
@@ -141,9 +141,9 @@ export async function postMintOptions(deps: PlayServiceDeps, attemptId: string, 
 
 export async function postMessage(deps: PlayServiceDeps, attemptId: string, userId: string, input: { roomId: string; body: string; addresseeId?: string | null }): Promise<ServiceResult<PublicMessage[]>> {
   let initial: ServiceResult<Extract<MessageBeginOutcome, { ok: true }>> | null = null;
-  let produce: (() => Promise<ReplyResult>) | undefined;
+  let produce: (() => Promise<ProducedReply>) | undefined;
   for (let retry = 0; retry < 3; retry += 1) {
-    const work: { produce?: () => Promise<ReplyResult> } = {};
+    const work: { produce?: () => Promise<ProducedReply> } = {};
     const begun = await run(deps, attemptId, userId, async (session) => {
       const result = session.beginMessage(input);
       if (!result.ok) return result;
@@ -165,7 +165,7 @@ export async function postMessage(deps: PlayServiceDeps, attemptId: string, user
   if (!initial.ok) return initial;
   const ticket = initial.value.ticket;
   if (!ticket) return { ok: true, value: initial.value.newMessages, state: initial.state };
-  let reply: ReplyResult | null = null;
+  let reply: ProducedReply | null = null;
   try { reply = await produce!(); } catch { reply = null; }
   for (let retry = 0; retry < 3; retry += 1) {
     const final = await run(deps, attemptId, userId, async (session) => {
