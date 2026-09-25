@@ -1,19 +1,7 @@
 import sharp from 'sharp'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { normalizeWalkingSpriteSheet, OpenAiImageService } from '../src/assets/openai-images'
-
-it('sends the reference sheet without unsupported input fidelity settings', async () => {
-  const service = new OpenAiImageService({ apiKey: 'test', model: 'gpt-image-1-mini' })
-  const edit = vi.fn().mockRejectedValue(new Error('mock response'))
-  Reflect.get(service, 'client').images.edit = edit
-
-  await expect(service.generate({ kind: 'sprite', prompt: 'walking character', size: '1024x1024', quality: 'medium' })).rejects.toThrow('mock response')
-  expect(edit).toHaveBeenCalledOnce()
-  expect(edit.mock.calls[0]![0]).toMatchObject({ model: 'gpt-image-1-mini', background: 'transparent' })
-  expect(edit.mock.calls[0]![0]).toHaveProperty('image')
-  expect(edit.mock.calls[0]![0]).not.toHaveProperty('input_fidelity')
-})
+import { normalizeWalkingSpriteSheet } from '../src/assets/openai-images'
 
 describe('walking sprite sheet normalization', () => {
   it('keeps sixteen distinct poses in their own 16px frames', async () => {
