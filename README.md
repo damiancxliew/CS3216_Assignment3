@@ -106,6 +106,29 @@ Published versions are immutable, so editing after publish creates a new version
 leaves in-flight attempts on the one they started. Stage deadlines are held server-side;
 the client only renders the countdown, so a refresh or a changed clock buys no time.
 
+## Group 9
+
+| Member | Email | Main contributions |
+| --- | --- | --- |
+| Hon Yi Hao | e1355571@u.nus.edu | Adventure generation pipeline (`packages/generation`), the Phaser renderer and client (`packages/game-core`, `packages/game-client`), teacher console generation flows |
+| Damian Liew Cho Xiang | e1365515@u.nus.edu | Database schema, migrations and Row Level Security, the `tests/db` isolation suite, teacher console, platform and milestone write-ups |
+| Zhang Li Kevin | e1406431@u.nus.edu | Turn loop and Resolver (`packages/orchestration`), character agents, the `tests/api` suite, play-side state projections |
+| Hoo Di Heng | e1384318@u.nus.edu | Play UI and rendering polish (`packages/game-client`, `components/play`), teacher console, landing page, SEO and share cards |
+
+Contributions are inferred from commit history; areas overlap because most features were
+paired on.
+
+## Resources used significantly
+
+- **Next.js** (App Router) and **TypeScript** for the web app; **Tailwind CSS**, **Radix UI** primitives and **lucide-react** for the interface
+- **Supabase** — Postgres, Auth, Row Level Security and **pgvector** for source retrieval
+- **OpenAI API** for the planner, character agents and Resolver; **Zod** for schema validation at every model boundary
+- **Phaser 3** for the 2D world
+- **Vercel** for hosting, plus `next/og` for dynamic Open Graph images, and Vercel Analytics and Speed Insights
+- **PostHog** for product analytics
+- **Vitest** for the API, DB and unit suites
+- **Devin** for parts of the implementation and the launch-milestone polish
+
 ## Documentation
 
 - [`docs/PRD.md`](docs/PRD.md) — product requirements, schema and the public/private boundary
