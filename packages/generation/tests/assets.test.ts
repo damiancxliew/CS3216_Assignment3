@@ -327,14 +327,18 @@ describe('D5 — failure handling (FR-6a)', () => {
     expect(parseCutsceneScene(null)).toBeNull()
   })
 
-  it('draws the cover wide at medium quality and drops the map-tile scale line', async () => {
+  it('draws a smooth painterly cover wide at medium quality without map-tile styling', async () => {
     const spec = await loadI1Spec()
     spec.stages[0]!.mapTheme = 'winter'
     const cover = playableAssetEligibility(spec).find((asset) => asset.kind === 'cover')!
     const prompt = buildImagePrompt(cover, spec)
     expect(prompt).toContain('Wide establishing key-art illustration')
     expect(prompt).toContain('snow white, pale blue-gray, dark timber')
-    expect(prompt).toContain('map palette')
+    expect(prompt).toContain('High-resolution painterly historical illustration')
+    expect(prompt).toContain('antialiased edges')
+    expect(prompt).toContain('No pixel art')
+    expect(prompt).not.toContain('16-bit')
+    expect(prompt).not.toContain('map palette')
     expect(prompt).not.toContain('16x16 terrain tiles')
     const images = new FakeImageService()
     await generateAssets({ ...spec, assetEligibility: [cover] }, { images, cache: new InMemoryAssetCache(), store: new InMemoryAssetStore(), quality: 'low' })
