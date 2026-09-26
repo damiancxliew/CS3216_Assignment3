@@ -797,7 +797,7 @@ class TiledScene extends Phaser.Scene {
       // Character captions hug the head: bottom-align within the reserved box so the
       // single-line name sits just above the sprite and the action line grows upward.
       const pinned = target.id.startsWith('actor:')
-      text.setPosition(pinned ? Math.round(rect.x + (rect.width - text.width) / 2) : rect.x, pinned ? rect.y + rect.height - text.height : rect.y)
+      text.setPosition(pinned ? rect.x + (rect.width - text.width) / 2 : rect.x, pinned ? rect.y + rect.height - text.height : rect.y)
       const x = target.bounds.x + target.bounds.width / 2
       const y = target.bounds.y + target.bounds.height / 2
       const endX = Math.max(rect.x, Math.min(x, rect.x + rect.width))

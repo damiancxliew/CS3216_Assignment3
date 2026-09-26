@@ -24,7 +24,7 @@ export function layoutMapLabels(candidates: readonly MapLabelCandidate[], bounds
     const { anchor, width, height } = item
     const center = anchor.x + anchor.width / 2
     const positions: LabelRect[] = []
-    for (const distance of [3, 14, 26, 40, 56]) {
+    for (const distance of item.above ? [3] : [3, 14, 26, 40, 56]) {
       if (item.above) {
         positions.push({ x: center - width / 2, y: anchor.y - height - distance, width, height })
         continue
@@ -37,8 +37,12 @@ export function layoutMapLabels(candidates: readonly MapLabelCandidate[], bounds
       )
     }
     for (const position of positions) {
-      position.x = Math.round(Math.max(bounds.x, Math.min(position.x, bounds.x + bounds.width - width)))
-      position.y = Math.round(position.y)
+      // Walking captions keep their exact offset, including fractional animation
+      // coordinates. Hide a crowded or clipped name instead of detaching it.
+      if (!item.above) {
+        position.x = Math.round(Math.max(bounds.x, Math.min(position.x, bounds.x + bounds.width - width)))
+        position.y = Math.round(position.y)
+      }
       if (position.x < bounds.x || position.x + width > bounds.x + bounds.width
         || position.y < bounds.y || position.y + height > bounds.y + bounds.height) continue
       // Pinned captions only dodge other captions; scenery must not bump them around mid-walk.

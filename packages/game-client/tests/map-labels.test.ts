@@ -52,13 +52,24 @@ describe('shared map caption layout', () => {
   })
 
   it('keeps a walking character caption centred directly above them as scenery passes by', () => {
-    for (let x = 60; x <= 200; x += 4) {
+    for (let x = 60.25; x <= 200; x += 0.25) {
       const walker = { ...candidate('actor', x, 100, 30), above: true }
       const scenery = [{ x: 110, y: 70, width: 40, height: 16 }, { x: 150, y: 110, width: 16, height: 16 }]
       const rect = layoutMapLabels([walker], bounds, [walker.anchor, ...scenery]).get('actor')!
       expect(rect.x + rect.width / 2).toBe(x + 8)
       expect(rect.y + rect.height).toBe(100 - 3)
     }
+  })
+
+  it('hides crowded or clipped walking names instead of moving them away from the head', () => {
+    const first = { ...candidate('first', 100, 100, 40), above: true }
+    const second = { ...candidate('second', 108, 100, 30), above: true }
+    const edge = { ...candidate('edge', 16, 100), above: true }
+    const initial = layoutMapLabels([first, second, edge], bounds, [])
+    expect([...initial.keys()]).toEqual(['first'])
+    const focused = layoutMapLabels([first, second, edge], bounds, [], 'second')
+    expect([...focused.keys()]).toEqual(['second'])
+    expect(focused.get('second')).toEqual({ x: 77, y: 77, width: 78, height: 20 })
   })
 
   it('hides excess captions, then gives the focused object first choice', () => {
