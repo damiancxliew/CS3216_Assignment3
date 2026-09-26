@@ -65,8 +65,13 @@ export class AmbientLife {
     }
   }
   /** Everyone the player could greet right now, nearest first. */
-  people(): StreetPerson[] {
-    return this.residents.flatMap(r => r.person ? [{ id: r.person.id, name: r.person.talk.name, at: r.at }] : [])
+  people(): Array<StreetPerson & { bounds: LabelRect }> {
+    return this.residents.flatMap(r => r.person ? [{
+      id: r.person.id, name: r.person.talk.name, at: r.at,
+      // Captions and pointer targets follow the rendered sprite between tiles.
+      // Keep `at` as the logical tile for hearing and pathfinding.
+      bounds: { x: r.sprite.x - 8, y: r.sprite.y - 8, width: 16, height: 16 },
+    }] : [])
   }
 
   personAt(tile: Point): StreetPerson | null {
@@ -157,7 +162,7 @@ export class AmbientLife {
       const facing = dx ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up'
       person.sprite.play(`${person.sheet}-${facing}`, true)
       person.progress = Math.min(1, person.progress + dt / person.stepMs)
-      person.sprite.setPosition(Math.round((person.at.x + dx * person.progress) * 16 + 8), Math.round((person.at.y + dy * person.progress) * 16 + 6))
+      person.sprite.setPosition((person.at.x + dx * person.progress) * 16 + 8, (person.at.y + dy * person.progress) * 16 + 6)
       person.shadow.setPosition(person.sprite.x, person.sprite.y + 7)
       if (person.progress >= 1) {
         person.at = next; person.path.shift(); person.progress = 0

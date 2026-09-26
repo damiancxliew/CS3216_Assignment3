@@ -719,7 +719,7 @@ class TiledScene extends Phaser.Scene {
       ...(player ? (this.ambientLife?.people() ?? []).map((person) => ({
         id: `street:${person.id}`, name: person.name, action: 'Greet', priority: 12,
         near: Math.abs(person.at.x - player.position.x) <= 1 && Math.abs(person.at.y - player.position.y) <= 1,
-        bounds: { x: person.at.x * T, y: person.at.y * T, width: T, height: T },
+        bounds: person.bounds,
       })) : []),
       ...(this.current.landmarks ?? []).filter(landmark => this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
         near: playerRoom !== null && landmark.roomId === playerRoom,
@@ -806,7 +806,7 @@ class TiledScene extends Phaser.Scene {
       if (text.style.backgroundColor !== background) text.setBackgroundColor(background)
       // Reserve the action line even when inactive so hover cannot move captions
       // and cause the next pointer event to select a different nearby object.
-      return { id: target.id, anchor: target.bounds, width: size.width, height: size.height, priority: target.priority, above: target.id.startsWith('actor:') }
+      return { id: target.id, anchor: target.bounds, width: size.width, height: size.height, priority: target.priority, above: target.id.startsWith('actor:') || target.id.startsWith('street:') }
     })
     const roomBounds = this.labels.map((label) => label.getBounds())
     const doorBounds = this.current.map.doors.map((door) => ({ x: door.position.x * T, y: door.position.y * T, width: T, height: T }))
@@ -821,8 +821,8 @@ class TiledScene extends Phaser.Scene {
       if (!rect) continue
       // Character captions hug the head: bottom-align within the reserved box so the
       // single-line name sits just above the sprite and the action line grows upward.
-      const pinned = target.id.startsWith('actor:')
-      text.setPosition(pinned ? Math.round(rect.x + (rect.width - text.width) / 2) : rect.x, pinned ? rect.y + rect.height - text.height : rect.y)
+      const pinned = target.id.startsWith('actor:') || target.id.startsWith('street:')
+      text.setPosition(pinned ? rect.x + (rect.width - text.width) / 2 : rect.x, pinned ? rect.y + rect.height - text.height : rect.y)
       const x = target.bounds.x + target.bounds.width / 2
       const y = target.bounds.y + target.bounds.height / 2
       const endX = Math.max(rect.x, Math.min(x, rect.x + rect.width))

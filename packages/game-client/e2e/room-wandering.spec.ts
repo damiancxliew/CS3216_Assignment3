@@ -66,11 +66,21 @@ test('indoor characters wander visibly and remain clickable after a state refres
   })
   expect(moved).not.toEqual(initial)
   expect(await position()).toEqual({ x: moved.x * 16 + 8, y: moved.y * 16 + 8 })
-  const point = await page.evaluate(() => {
+  // A crowded or clipped name may be hidden; the character itself remains clickable.
+  const actorPoint = () => page.evaluate(() => {
+    const scene = (window as any).wanderingHarness.game.scene.getScene('tiled-map')
+    const marker = scene.markers.get('tojo').container
+    const camera = scene.cameras.main
+    return {
+      x: (marker.x - camera.scrollX - camera.width / 2) * camera.zoom + camera.width / 2,
+      y: (marker.y - camera.scrollY - camera.height / 2) * camera.zoom + camera.height / 2,
+    }
+  })
+  await page.evaluate(() => {
     const harness = (window as any).wanderingHarness
     harness.view.render(structuredClone(harness.snapshot))
-    return harness.pointFor('Hideki Tojo')
   })
+  const point = await actorPoint()
   await page.mouse.move(point.x, point.y)
   const paused = await position()
   await page.evaluate(() => {
@@ -78,7 +88,7 @@ test('indoor characters wander visibly and remain clickable after a state refres
     for (let tick = 0; tick < 40; tick += 1) scene.update(0, 100)
   })
   expect(await position()).toEqual(paused)
-  const target = await page.evaluate(() => (window as any).wanderingHarness.pointFor('Hideki Tojo'))
+  const target = await actorPoint()
   await page.mouse.click(target.x, target.y)
   expect(await page.evaluate(() => (window as any).wanderingHarness.clicks)).toContain('actor:tojo')
   await page.evaluate(() => (window as any).wanderingHarness.view.setReducedMotion(true))
