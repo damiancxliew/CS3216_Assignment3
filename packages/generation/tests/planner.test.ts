@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { loadFixtureJson, loadI1Documents } from '../src/fixtures'
 import { extractDocument } from '../src/ingest/extract'
 import { FakeLlmClient } from '../src/llm/client'
-import { toOpenAiStrictSchema } from '../src/llm/openai'
+import { PendingResponseError, toOpenAiStrictSchema } from '../src/llm/openai'
 import { MAX_REPAIRS, generateAdventure } from '../src/planner/pipeline'
 import { buildSystemPrompt, PROMPT_VERSION, PROMPT_VERSIONS } from '../src/planner/prompt'
 import { type TeacherInputRaw, plannerOutputJsonSchema, teacherInputSchema } from '../src/planner/schema'
@@ -197,6 +197,14 @@ describe('planner pipeline (D3/D4)', () => {
 
     const errored = await generateAdventure({ teacher: TEACHER, documents, llm: new FakeLlmClient([{ error: 'rate limited' }]) })
     expect(errored.status === 'failed' && errored.reason).toBe('llm-error')
+  })
+
+  it('rethrows a pending background response for the caller to resume', async () => {
+    const documents = [...(await loadI1Documents()).values()]
+    const pending = new PendingResponseError('resp_pending')
+    const llm = { completeJson: vi.fn().mockRejectedValue(pending) }
+
+    await expect(generateAdventure({ teacher: TEACHER, documents, llm })).rejects.toBe(pending)
   })
 })
 

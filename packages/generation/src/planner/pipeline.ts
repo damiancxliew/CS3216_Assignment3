@@ -12,6 +12,7 @@ import { slugify } from '../ingest/extract'
 import { verifyGrounding } from '../ingest/spans'
 import type { ExtractedDocument } from '../ingest/types'
 import { DEFAULT_MODELS, type LlmClient, type LlmJsonResponse, type LlmUsage, ZERO_USAGE, addUsage, estimateCostUsd } from '../llm/client'
+import { PendingResponseError } from '../llm/openai'
 import { SPEC_VERSION, type AdventureSpec, type SpecIssue, formatIssuePath, validateAdventureSpec } from '../spec/v2'
 import { PROMPT_VERSION, type PromptVersion, buildRepairPrompt, buildSystemPrompt, buildUserPrompt } from './prompt'
 import { type TeacherInput, type TeacherInputRaw, plannerOutputJsonSchema, plannerOutputSchema, teacherInputSchema } from './schema'
@@ -230,6 +231,7 @@ export async function generateAdventure(options: GenerateOptions): Promise<Gener
         reasoningEffort: config.reasoningEffort,
       })
     } catch (error) {
+      if (error instanceof PendingResponseError) throw error
       return finish({
         status: 'failed',
         reason: 'llm-error',

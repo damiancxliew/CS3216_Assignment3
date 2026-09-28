@@ -2,7 +2,7 @@
  * OpenAI Responses API adapter with strict structured outputs (PRD D14).
  * The API key stays server-side; this module is never imported by client code.
  */
-import OpenAI from 'openai'
+import OpenAI, { NotFoundError } from 'openai'
 
 import { type LlmClient, type LlmJsonRequest, type LlmJsonResponse, tryParseJson } from './client'
 
@@ -12,12 +12,28 @@ export interface OpenAiClientOptions {
   strict?: boolean
   timeoutMs?: number
   maxRetries?: number
+  /** Run the request as an OpenAI background response so it survives this invocation. */
+  background?: boolean
+  /** Poll this in-flight background response instead of creating a new one. */
+  resumeResponseId?: string | null
+  /** Called as soon as a background response id exists, before any polling. */
+  onResponseCreated?: (responseId: string) => void | Promise<void>
+  /** Wall-clock budget for polling inside one invocation (default 200_000). */
+  pollBudgetMs?: number
+  /** Default 2_000. */
+  pollIntervalMs?: number
   /**
    * Total wall-clock budget shared by every request made through this client.
    * This is useful when several planner/repair calls run inside one serverless
    * invocation and must leave time for persistence before the host deadline.
    */
   deadlineMs?: number
+}
+
+export class PendingResponseError extends Error {
+  constructor(readonly responseId: string) {
+    super(`Model response ${responseId} is still running`)
+  }
 }
 
 /**
@@ -45,6 +61,11 @@ export class OpenAiLlmClient implements LlmClient {
   private readonly timeoutMs: number
   private readonly maxRetries: number
   private readonly deadlineAt: number | null
+  private readonly background: boolean
+  private readonly resumeResponseId: string | null
+  private readonly onResponseCreated: OpenAiClientOptions['onResponseCreated']
+  private readonly pollBudgetMs: number
+  private readonly pollIntervalMs: number
 
   constructor(options: OpenAiClientOptions = {}) {
     const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY
@@ -54,6 +75,11 @@ export class OpenAiLlmClient implements LlmClient {
     this.deadlineAt = options.deadlineMs === undefined ? null : Date.now() + options.deadlineMs
     this.client = new OpenAI({ apiKey, timeout: this.timeoutMs, maxRetries: this.maxRetries })
     this.strict = options.strict ?? true
+    this.background = options.background ?? false
+    this.resumeResponseId = options.resumeResponseId ?? null
+    this.onResponseCreated = options.onResponseCreated
+    this.pollBudgetMs = options.pollBudgetMs ?? 200_000
+    this.pollIntervalMs = options.pollIntervalMs ?? 2_000
   }
 
   async completeJson(request: LlmJsonRequest): Promise<LlmJsonResponse> {
@@ -63,25 +89,75 @@ export class OpenAiLlmClient implements LlmClient {
     }
 
     const started = Date.now()
-    const response = await this.client.responses.create({
-      model: request.model,
-      instructions: request.system,
-      input: [{ role: 'user', content: request.user }],
-      text: {
-        format: {
-          type: 'json_schema',
-          name: request.schemaName,
-          schema: toOpenAiStrictSchema(request.jsonSchema),
-          strict: this.strict,
+    let response
+    if (this.background) {
+      if (this.resumeResponseId) {
+        try {
+          response = await this.client.responses.retrieve(this.resumeResponseId, undefined, {
+            timeout: Math.min(this.timeoutMs, remainingMs),
+            maxRetries: this.maxRetries,
+          })
+        } catch (error) {
+          if (!(error instanceof NotFoundError) && !(error && typeof error === 'object' && (error as { status?: unknown }).status === 404)) {
+            throw error
+          }
+        }
+      }
+      if (!response) {
+        response = await this.client.responses.create({
+          model: request.model,
+          instructions: request.system,
+          input: [{ role: 'user', content: request.user }],
+          text: {
+            format: {
+              type: 'json_schema',
+              name: request.schemaName,
+              schema: toOpenAiStrictSchema(request.jsonSchema),
+              strict: this.strict,
+            },
+          },
+          max_output_tokens: request.maxOutputTokens,
+          ...(request.reasoningEffort ? { reasoning: { effort: request.reasoningEffort } } : {}),
+          background: true,
+          store: false,
+        }, {
+          timeout: Math.min(this.timeoutMs, remainingMs),
+          maxRetries: this.maxRetries,
+        })
+        await this.onResponseCreated?.(response.id)
+      }
+      const pollDeadline = Date.now() + this.pollBudgetMs
+      while (response.status === 'queued' || response.status === 'in_progress') {
+        if (Date.now() >= pollDeadline) throw new PendingResponseError(response.id)
+        await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs))
+        response = await this.client.responses.retrieve(response.id, undefined, {
+          timeout: this.timeoutMs,
+          maxRetries: this.maxRetries,
+        })
+      }
+      if (response.status === 'failed') throw new Error(response.error?.message ?? 'model response failed')
+      if (response.status === 'cancelled') throw new Error('model response cancelled')
+    } else {
+      response = await this.client.responses.create({
+        model: request.model,
+        instructions: request.system,
+        input: [{ role: 'user', content: request.user }],
+        text: {
+          format: {
+            type: 'json_schema',
+            name: request.schemaName,
+            schema: toOpenAiStrictSchema(request.jsonSchema),
+            strict: this.strict,
+          },
         },
-      },
-      max_output_tokens: request.maxOutputTokens,
-      ...(request.reasoningEffort ? { reasoning: { effort: request.reasoningEffort } } : {}),
-      store: false,
-    }, {
-      timeout: Math.min(this.timeoutMs, remainingMs),
-      maxRetries: this.maxRetries,
-    })
+        max_output_tokens: request.maxOutputTokens,
+        ...(request.reasoningEffort ? { reasoning: { effort: request.reasoningEffort } } : {}),
+        store: false,
+      }, {
+        timeout: Math.min(this.timeoutMs, remainingMs),
+        maxRetries: this.maxRetries,
+      })
+    }
     const latencyMs = Date.now() - started
 
     let refusal: string | null = null
