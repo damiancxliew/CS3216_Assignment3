@@ -4,7 +4,8 @@
  */
 import OpenAI, { NotFoundError } from 'openai'
 
-import { type LlmClient, type LlmJsonRequest, type LlmJsonResponse, tryParseJson } from './client'
+import { PendingResponseError, type LlmClient, type LlmJsonRequest, type LlmJsonResponse, tryParseJson } from './client'
+export { PendingResponseError } from './client'
 
 export interface OpenAiClientOptions {
   apiKey?: string
@@ -28,12 +29,6 @@ export interface OpenAiClientOptions {
    * invocation and must leave time for persistence before the host deadline.
    */
   deadlineMs?: number
-}
-
-export class PendingResponseError extends Error {
-  constructor(readonly responseId: string) {
-    super(`Model response ${responseId} is still running`)
-  }
 }
 
 /**
@@ -89,7 +84,23 @@ export class OpenAiLlmClient implements LlmClient {
     }
 
     const started = Date.now()
-    let response
+    const body = {
+      model: request.model,
+      instructions: request.system,
+      input: [{ role: 'user' as const, content: request.user }],
+      text: {
+        format: {
+          type: 'json_schema' as const,
+          name: request.schemaName,
+          schema: toOpenAiStrictSchema(request.jsonSchema),
+          strict: this.strict,
+        },
+      },
+      max_output_tokens: request.maxOutputTokens,
+      ...(request.reasoningEffort ? { reasoning: { effort: request.reasoningEffort } } : {}),
+      store: false as const,
+    }
+    let response: OpenAI.Responses.Response | undefined
     if (this.background) {
       if (this.resumeResponseId) {
         try {
@@ -105,21 +116,8 @@ export class OpenAiLlmClient implements LlmClient {
       }
       if (!response) {
         response = await this.client.responses.create({
-          model: request.model,
-          instructions: request.system,
-          input: [{ role: 'user', content: request.user }],
-          text: {
-            format: {
-              type: 'json_schema',
-              name: request.schemaName,
-              schema: toOpenAiStrictSchema(request.jsonSchema),
-              strict: this.strict,
-            },
-          },
-          max_output_tokens: request.maxOutputTokens,
-          ...(request.reasoningEffort ? { reasoning: { effort: request.reasoningEffort } } : {}),
+          ...body,
           background: true,
-          store: false,
         }, {
           timeout: Math.min(this.timeoutMs, remainingMs),
           maxRetries: this.maxRetries,
@@ -138,22 +136,7 @@ export class OpenAiLlmClient implements LlmClient {
       if (response.status === 'failed') throw new Error(response.error?.message ?? 'model response failed')
       if (response.status === 'cancelled') throw new Error('model response cancelled')
     } else {
-      response = await this.client.responses.create({
-        model: request.model,
-        instructions: request.system,
-        input: [{ role: 'user', content: request.user }],
-        text: {
-          format: {
-            type: 'json_schema',
-            name: request.schemaName,
-            schema: toOpenAiStrictSchema(request.jsonSchema),
-            strict: this.strict,
-          },
-        },
-        max_output_tokens: request.maxOutputTokens,
-        ...(request.reasoningEffort ? { reasoning: { effort: request.reasoningEffort } } : {}),
-        store: false,
-      }, {
+      response = await this.client.responses.create(body, {
         timeout: Math.min(this.timeoutMs, remainingMs),
         maxRetries: this.maxRetries,
       })
