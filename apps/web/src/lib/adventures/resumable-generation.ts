@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
 import { compileAdventure, createSpatialStageWorld } from "@adventure/game-integration";
-import { OpenAiLlmClient } from "@adventure/generation/llm";
+import { OpenAiLlmClient, PendingResponseError } from "@adventure/generation/llm";
 import {
   DEFAULT_PLANNER_CONFIG,
   MAX_REPAIRS,
@@ -31,6 +31,7 @@ type PrivateJob = {
   missing_information: string[];
   warnings: string[];
   lease_token: string | null;
+  pending_response_id: string | null;
 };
 
 type ClaimedJobRow = Omit<PrivateJob, "adventure_id"> & { adventure_id?: string | null };
@@ -106,6 +107,7 @@ export async function startGenerationJob(admin: SupabaseClient, input: {
     warnings: input.warnings,
     lease_token: null,
     lease_expires_at: null,
+    pending_response_id: null,
   }, { onConflict: "adventure_id" });
   if (privateError) throw privateError;
   const { error: publicError } = await admin.from("generation_job").upsert({
@@ -188,7 +190,19 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
     const result = await generateAdventure({
       teacher: job.teacher,
       documents,
-      llm: new OpenAiLlmClient({ timeoutMs: 240_000, maxRetries: 0 }),
+      llm: new OpenAiLlmClient({
+        background: true,
+        maxRetries: 0,
+        timeoutMs: 60_000,
+        pollBudgetMs: 200_000,
+        resumeResponseId: job.pending_response_id,
+        onResponseCreated: async (responseId) => {
+          const { error } = await admin.from("generation_job_state")
+            .update({ pending_response_id: responseId })
+            .eq("adventure_id", adventureId).eq("lease_token", leaseToken);
+          if (error) console.error("could not persist pending response id", adventureId, error);
+        },
+      }),
       config: { ...job.planner_config, maxRepairs: 0 },
       validatePlayable: (spec) => validatePlayable(spec, job.layout_seed),
       ...(job.attempt > 0 && job.last_output !== null
@@ -202,6 +216,7 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
         spec: result.spec,
         missing_information: result.missingInformation,
         warnings: [...job.warnings, ...result.warnings],
+        pending_response_id: null,
         lease_token: null,
         lease_expires_at: null,
       }).eq("adventure_id", adventureId).eq("lease_token", leaseToken);
@@ -215,6 +230,7 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
         attempt: job.attempt + 1,
         last_output: result.lastOutput ?? "",
         issues: result.issues,
+        pending_response_id: null,
         lease_token: null,
         lease_expires_at: null,
       }).eq("adventure_id", adventureId).eq("lease_token", leaseToken);
@@ -233,6 +249,16 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
           : "Adventure generation did not finish. Please try again.";
     return failJob(admin, adventureId, message);
   } catch (error) {
+    if (error instanceof PendingResponseError) {
+      const { error: releaseError } = await admin.from("generation_job_state").update({
+        pending_response_id: error.responseId,
+        lease_token: null,
+        lease_expires_at: null,
+      }).eq("adventure_id", adventureId).eq("lease_token", leaseToken);
+      if (releaseError) console.error("could not release lease for a pending model response", adventureId, releaseError);
+      await updatePublicJob(admin, adventureId, "running", job.attempt === 0 ? "planning" : "repairing");
+      return { state: "running" };
+    }
     console.error("adventure generation step failed unexpectedly", adventureId, error);
     if (job.spec && !(error instanceof SpecPersistError)) {
       // A save or progress write may have succeeded just before the connection

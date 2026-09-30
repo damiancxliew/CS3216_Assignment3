@@ -41,6 +41,12 @@ export interface LlmClient {
   completeJson(request: LlmJsonRequest): Promise<LlmJsonResponse>
 }
 
+export class PendingResponseError extends Error {
+  constructor(readonly responseId: string) {
+    super(`Model response ${responseId} is still running`)
+  }
+}
+
 /** USD per 1M tokens (developers.openai.com/api/docs/pricing, read 20 Sep 2026). */
 export const PRICING: Record<string, { input: number; cachedInput: number; output: number }> = {
   'gpt-5.4': { input: 2.5, cachedInput: 0.25, output: 15 },
