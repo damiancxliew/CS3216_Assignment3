@@ -2,7 +2,7 @@ name: orchestration
 
 on:
   push:
-    branches: [main]
+    branches: [main, deployment]
     paths: ['packages/orchestration/**', '.github/workflows/orchestration.yml']
   pull_request:
     paths: ['packages/orchestration/**', '.github/workflows/orchestration.yml']
