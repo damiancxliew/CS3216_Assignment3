@@ -28,16 +28,16 @@ type JsonUsageContext = Pick<UsageRow, "adventureId" | "organizationId" | "userI
   purpose: "brief" | "generation";
 };
 
-export async function recordLlmUsage(admin: SupabaseClient, row: UsageRow): Promise<void> {
-  const usage: LlmUsage = {
-    inputTokens: row.inputTokens,
-    cachedInputTokens: row.cachedInputTokens,
-    outputTokens: row.outputTokens,
-    reasoningTokens: row.reasoningTokens,
-  };
-  const costUsd = row.model ? estimateCostUsd(row.model, usage) : null;
+export async function recordLlmUsage(getAdmin: () => SupabaseClient, row: UsageRow): Promise<void> {
   try {
-    const { error } = await admin.from("llm_usage").insert({
+    const usage: LlmUsage = {
+      inputTokens: row.inputTokens,
+      cachedInputTokens: row.cachedInputTokens,
+      outputTokens: row.outputTokens,
+      reasoningTokens: row.reasoningTokens,
+    };
+    const costUsd = row.model ? estimateCostUsd(row.model, usage) : null;
+    const { error } = await getAdmin().from("llm_usage").insert({
       purpose: row.purpose,
       call: row.call,
       model: row.model,
@@ -64,7 +64,7 @@ export function withJsonUsage(
   return {
     async completeJson(request) {
       const response = await client.completeJson(request);
-      await recordLlmUsage(createAdminClient(), {
+      await recordLlmUsage(createAdminClient, {
         ...context,
         call: request.schemaName,
         model: response.model,
@@ -82,7 +82,7 @@ export function withPlayUsage(client: PlayLlmClient, attemptId: string): PlayLlm
   return {
     async complete(request) {
       const response = await client.complete(request);
-      await recordLlmUsage(createAdminClient(), {
+      await recordLlmUsage(createAdminClient, {
         purpose: "play",
         call: request.schemaName,
         model: response.model ?? request.model ?? null,

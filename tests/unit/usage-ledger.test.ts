@@ -5,10 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { withJsonUsage, withPlayUsage } from "@/lib/usage/ledger";
 
-const { insert } = vi.hoisted(() => ({ insert: vi.fn() }));
+const { createAdminClient, insert } = vi.hoisted(() => ({
+  createAdminClient: vi.fn(),
+  insert: vi.fn(),
+}));
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: vi.fn(() => ({ insert })) }),
+  createAdminClient,
 }));
 
 const jsonRequest: LlmJsonRequest = {
@@ -47,6 +50,7 @@ const playResponse: LlmResponse = {
 
 beforeEach(() => {
   insert.mockReset().mockResolvedValue({ error: null });
+  createAdminClient.mockReset().mockImplementation(() => ({ from: vi.fn(() => ({ insert })) }));
 });
 
 describe("withJsonUsage", () => {
@@ -78,6 +82,21 @@ describe("withJsonUsage", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     await expect(wrapped.completeJson(jsonRequest)).resolves.toBe(jsonResponse);
+    expect(log).toHaveBeenCalledWith("could not record LLM usage", error);
+    log.mockRestore();
+  });
+
+  it("swallows an admin client construction failure", async () => {
+    const client: GenerationLlmClient = { completeJson: vi.fn().mockResolvedValue(jsonResponse) };
+    const wrapped = withJsonUsage(client, { purpose: "generation", adventureId: "adventure-1", userId: "user-1" });
+    const error = new Error("service key unavailable");
+    createAdminClient.mockImplementation(() => {
+      throw error;
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(wrapped.completeJson(jsonRequest)).resolves.toBe(jsonResponse);
+    expect(insert).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith("could not record LLM usage", error);
     log.mockRestore();
   });
