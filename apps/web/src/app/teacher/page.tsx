@@ -72,7 +72,12 @@ export default async function TeacherHome() {
     <Page
       title="Choose your next adventure"
       lede="Build a new historical world or jump back into one you already started."
-      kicker={<form action="/auth/signout" method="post"><button type="submit" className={button.subtle}>Sign out</button></form>}
+      kicker={
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/school/${encodeURIComponent(viewer.membership!.slug)}`} className={button.quiet}>School console</Link>
+          <form action="/auth/signout" method="post"><button type="submit" className={button.subtle}>Sign out</button></form>
+        </div>
+      }
       width="wide"
     >
       <TeacherWorkspace
