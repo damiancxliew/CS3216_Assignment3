@@ -135,9 +135,60 @@ as $$
   order by 1 desc, 2;
 $$;
 
+create or replace function platform_activity_daily(p_since timestamptz)
+returns table (
+  day date, attempts_started bigint, attempts_completed bigint,
+  active_students bigint, play_seconds bigint, new_members bigint
+)
+language sql stable security definer set search_path = public
+as $$
+  with days as (
+    select generate_series((p_since at time zone 'UTC')::date, (now() at time zone 'UTC')::date, interval '1 day')::date as day
+  ),
+  started as (
+    select (created_at at time zone 'UTC')::date as day, count(*) as n
+    from attempt where created_at >= p_since group by 1
+  ),
+  completed as (
+    select (updated_at at time zone 'UTC')::date as day, count(*) as n
+    from attempt where status = 'completed' and updated_at >= p_since group by 1
+  ),
+  activity as (
+    select (created_at at time zone 'UTC')::date as day, student_id from attempt where created_at >= p_since
+    union
+    select (updated_at at time zone 'UTC')::date, student_id from attempt where updated_at >= p_since
+    union
+    select (t.recorded_at at time zone 'UTC')::date, x.student_id
+    from attempt_telemetry t join attempt x on x.id = t.attempt_id
+    where t.recorded_at >= p_since
+  ),
+  active as (
+    select day, count(distinct student_id) as n from activity group by 1
+  ),
+  played as (
+    select (recorded_at at time zone 'UTC')::date as day, sum(duration_seconds)::bigint as n
+    from attempt_telemetry where recorded_at >= p_since group by 1
+  ),
+  joined as (
+    select (created_at at time zone 'UTC')::date as day, count(*) as n
+    from organization_member where created_at >= p_since group by 1
+  )
+  select d.day,
+         coalesce(s.n, 0), coalesce(c.n, 0), coalesce(a.n, 0), coalesce(p.n, 0), coalesce(j.n, 0)
+  from days d
+  left join started s on s.day = d.day
+  left join completed c on c.day = d.day
+  left join active a on a.day = d.day
+  left join played p on p.day = d.day
+  left join joined j on j.day = d.day
+  order by d.day;
+$$;
+
 revoke all on function platform_overview(timestamptz) from public, anon, authenticated;
 revoke all on function platform_school_stats(timestamptz) from public, anon, authenticated;
 revoke all on function platform_llm_daily(timestamptz) from public, anon, authenticated;
+revoke all on function platform_activity_daily(timestamptz) from public, anon, authenticated;
 grant execute on function platform_overview(timestamptz) to service_role;
 grant execute on function platform_school_stats(timestamptz) to service_role;
 grant execute on function platform_llm_daily(timestamptz) to service_role;
+grant execute on function platform_activity_daily(timestamptz) to service_role;

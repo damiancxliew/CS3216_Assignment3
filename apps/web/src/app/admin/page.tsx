@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CreateSchoolForm } from "./create-school-form";
+import { BarList, ChartCard, DonutChart, LineChart, StackedBarChart, type Point } from "@/components/admin/charts";
 import { SignInButton } from "@/components/sign-in-button";
 import { EmptyState, Page, Section } from "@/components/ui";
 import { getViewer } from "@/lib/auth/viewer";
@@ -35,6 +36,14 @@ type DailyRow = {
   cost_usd: number | string;
   unpriced_calls: number | string;
 };
+type ActivityRow = {
+  day: string;
+  attempts_started: number | string;
+  attempts_completed: number | string;
+  active_students: number | string;
+  play_seconds: number | string;
+  new_members: number | string;
+};
 type MembershipRow = {
   user_id: string;
   role: string;
@@ -56,11 +65,40 @@ function money(value: number | string | null | undefined): string {
   return `$${number(value).toFixed(4)}`;
 }
 
-function Metric({ label, value }: { label: string; value: string | number }) {
+const PURPOSES = [
+  { key: "play", label: "Play", color: "var(--world)" },
+  { key: "generation", label: "Generation", color: "var(--spark)" },
+  { key: "brief", label: "Brief chat", color: "var(--signal)" },
+];
+
+function compact(value: number): string {
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+function shortMoney(value: number): string {
+  return value >= 100 ? `$${compact(value)}` : `$${value.toFixed(value >= 1 || value === 0 ? 2 : 3)}`;
+}
+
+function minutes(seconds: number): string {
+  return seconds >= 3600 ? `${(seconds / 3600).toFixed(1)} h` : `${Math.round(seconds / 60)} min`;
+}
+
+function Metric({ label, value, hint, accent }: { label: string; value: string | number; hint?: string; accent?: string }) {
   return (
-    <div className="flex flex-col gap-2 rounded-surface border border-line bg-surface p-4">
+    <div className="relative flex flex-col gap-1 overflow-hidden rounded-surface border border-line bg-surface p-4 pl-5">
+      {accent ? <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ background: accent }} /> : null}
       <dt className="text-sm font-semibold text-muted">{label}</dt>
-      <dd className="text-2xl font-extrabold tracking-tight text-ink">{value}</dd>
+      <dd className="text-3xl font-extrabold tracking-tight text-ink tabular-nums">{value}</dd>
+      {hint ? <dd className="text-sm text-muted">{hint}</dd> : null}
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-b border-line py-2 last:border-b-0">
+      <dt className="text-sm text-muted">{label}</dt>
+      <dd className="font-bold text-ink tabular-nums">{value}</dd>
     </div>
   );
 }
@@ -107,6 +145,7 @@ export default async function AdminPage({
 
   let overview: MetricRow | null = null;
   let daily: DailyRow[] = [];
+  let activity: ActivityRow[] = [];
   let schools: SchoolRow[] = [];
   let users: Awaited<ReturnType<typeof admin.auth.admin.listUsers>>["data"]["users"] = [];
   const userMemberships = new Map<string, MembershipRow>();
@@ -115,14 +154,20 @@ export default async function AdminPage({
   let totalUsers = 0;
 
   if (tab === "overview") {
-    const [overviewResult, dailyResult] = await Promise.all([
+    const [overviewResult, dailyResult, activityResult, schoolsResult] = await Promise.all([
       admin.rpc("platform_overview", { p_since: since }),
       admin.rpc("platform_llm_daily", { p_since: since }),
+      admin.rpc("platform_activity_daily", { p_since: since }),
+      admin.rpc("platform_school_stats", { p_since: since }),
     ]);
     if (overviewResult.error) console.error("could not load platform overview", overviewResult.error);
     if (dailyResult.error) console.error("could not load platform LLM daily usage", dailyResult.error);
+    if (activityResult.error) console.error("could not load platform daily activity", activityResult.error);
+    if (schoolsResult.error) console.error("could not load platform school stats", schoolsResult.error);
     overview = ((overviewResult.data ?? []) as unknown as MetricRow[])[0] ?? null;
     daily = (dailyResult.data ?? []) as unknown as DailyRow[];
+    activity = (activityResult.data ?? []) as unknown as ActivityRow[];
+    schools = (schoolsResult.data ?? []) as unknown as SchoolRow[];
   } else if (tab === "schools") {
     const { data, error } = await admin.rpc("platform_school_stats", { p_since: since });
     if (error) console.error("could not load platform school stats", error);
@@ -153,6 +198,15 @@ export default async function AdminPage({
     }
   }
 
+  const llmDays: Point[] = activity.map((row) => ({
+    label: row.day,
+    values: Object.fromEntries(daily.filter((entry) => entry.day === row.day).map((entry) => [entry.purpose, number(entry.calls)])),
+  }));
+  const topSchools = (metric: (school: SchoolRow) => number) => [...schools]
+    .sort((left, right) => metric(right) - metric(left))
+    .slice(0, 6)
+    .map((school) => ({ label: school.name, value: metric(school), href: `/school/${encodeURIComponent(school.slug)}` }));
+
   const tabLinks = TABS.map((item) => (
     <Link
       key={item.id}
@@ -175,40 +229,97 @@ export default async function AdminPage({
           <Section title="Platform overview" lede={`Activity from the last ${days} days.`}>
             <DateWindow days={days} tab={tab} />
             {overview ? (
-              <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Metric label="Schools" value={number(overview.schools)} />
-                <Metric label="School admins" value={number(overview.admins)} />
-                <Metric label="Teachers" value={number(overview.teachers)} />
-                <Metric label="Active students" value={number(overview.students)} />
-                <Metric label="Removed students" value={number(overview.removed_students)} />
-                <Metric label="Sysadmins" value={number(overview.sysadmins)} />
-                <Metric label="Adventures" value={number(overview.adventures)} />
-                <Metric label="Published adventures" value={number(overview.published_adventures)} />
-                <Metric label="All attempts" value={number(overview.attempts)} />
-                <Metric label="Attempts in window" value={number(overview.attempts_since)} />
-                <Metric label="Completed in window" value={number(overview.completed_since)} />
-                <Metric label="Active students in window" value={number(overview.active_students_since)} />
-                <Metric label="Play time in window" value={`${Math.round(number(overview.play_seconds_since) / 60)} min`} />
-                <Metric label="LLM calls" value={number(overview.llm_calls_since)} />
-                <Metric label="LLM tokens" value={number(overview.llm_tokens_since)} />
-                <Metric label="LLM cost" value={money(overview.llm_cost_since)} />
-                <Metric label="Unpriced calls" value={number(overview.unpriced_calls_since)} />
-                <Metric label="Image cost" value={money(overview.image_cost_since)} />
-              </dl>
+              <>
+                <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Metric accent="var(--record)" label="Active students" value={compact(number(overview.active_students_since))} hint={`${compact(number(overview.students))} enrolled across ${number(overview.schools)} schools`} />
+                  <Metric accent="var(--world)" label="Attempts" value={compact(number(overview.attempts_since))} hint={`${number(overview.attempts_since) ? Math.round((number(overview.completed_since) / number(overview.attempts_since)) * 100) : 0}% completed · ${minutes(number(overview.play_seconds_since))} played`} />
+                  <Metric accent="var(--spark)" label="AI spend" value={shortMoney(number(overview.llm_cost_since) + number(overview.image_cost_since))} hint={`${money(overview.llm_cost_since)} LLM · ${money(overview.image_cost_since)} images`} />
+                  <Metric accent="var(--signal)" label="LLM calls" value={compact(number(overview.llm_calls_since))} hint={`${compact(number(overview.llm_tokens_since))} tokens · ${number(overview.unpriced_calls_since)} unpriced`} />
+                </dl>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <div className="lg:col-span-2">
+                    <ChartCard title="Daily activity" summary={`${compact(activity.reduce((sum, row) => sum + number(row.attempts_started), 0))} attempts started`}>
+                      <LineChart
+                        data={activity.map((row): Point => ({ label: row.day, values: { started: number(row.attempts_started), completed: number(row.attempts_completed), students: number(row.active_students) } }))}
+                        series={[
+                          { key: "started", label: "Attempts started", color: "var(--record)" },
+                          { key: "completed", label: "Completed", color: "var(--world)" },
+                          { key: "students", label: "Active students", color: "var(--signal)" },
+                        ]}
+                        format={compact}
+                      />
+                    </ChartCard>
+                  </div>
+                  <ChartCard title="People">
+                    <DonutChart
+                      center={compact(number(overview.admins) + number(overview.teachers) + number(overview.students))}
+                      format={compact}
+                      slices={[
+                        { label: "Students", value: number(overview.students), color: "var(--record)" },
+                        { label: "Teachers", value: number(overview.teachers), color: "var(--world)" },
+                        { label: "School admins", value: number(overview.admins), color: "var(--spark)" },
+                      ]}
+                    />
+                    <dl className="mt-2">
+                      <MiniStat label="Removed students" value={number(overview.removed_students)} />
+                      <MiniStat label="Sysadmins" value={number(overview.sysadmins)} />
+                      <MiniStat label="New memberships" value={activity.reduce((sum, row) => sum + number(row.new_members), 0)} />
+                    </dl>
+                  </ChartCard>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <div className="lg:col-span-2">
+                    <ChartCard title="LLM calls per day" summary={`${money(overview.llm_cost_since)} priced spend`}>
+                      <StackedBarChart data={llmDays} series={PURPOSES} format={compact} />
+                    </ChartCard>
+                  </div>
+                  <ChartCard title="Tokens by purpose">
+                    <DonutChart
+                      center={compact(number(overview.llm_tokens_since))}
+                      format={compact}
+                      slices={PURPOSES.map((purpose) => ({ label: purpose.label, value: daily.filter((row) => row.purpose === purpose.key).reduce((sum, row) => sum + number(row.tokens), 0), color: purpose.color }))}
+                    />
+                  </ChartCard>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <ChartCard title="Top schools by attempts" summary={`last ${days} days`}>
+                    {schools.length ? <BarList color="var(--record)" format={compact} rows={topSchools((school) => number(school.attempts_since))} /> : <p className="text-sm text-muted">No schools yet.</p>}
+                  </ChartCard>
+                  <ChartCard title="Top schools by students">
+                    {schools.length ? <BarList color="var(--signal)" format={compact} rows={topSchools((school) => number(school.students))} /> : <p className="text-sm text-muted">No schools yet.</p>}
+                  </ChartCard>
+                  <ChartCard title="Content">
+                    <DonutChart
+                      center={compact(number(overview.adventures))}
+                      format={compact}
+                      slices={[
+                        { label: "Published", value: number(overview.published_adventures), color: "var(--world)" },
+                        { label: "Draft or archived", value: Math.max(0, number(overview.adventures) - number(overview.published_adventures)), color: "var(--line-strong)" },
+                      ]}
+                    />
+                    <dl className="mt-2">
+                      <MiniStat label="All-time attempts" value={compact(number(overview.attempts))} />
+                    </dl>
+                  </ChartCard>
+                </div>
+              </>
             ) : <EmptyState title="Platform metrics are unavailable." />}
           </Section>
           <Section title="Daily LLM usage">
             {daily.length ? (
-              <div className="overflow-x-auto rounded-surface border border-line">
-                <table className="w-full min-w-[42rem] text-left text-sm">
-                  <thead className="bg-sunken text-muted"><tr>{["Day", "Purpose", "Calls", "Tokens", "Cost", "Unpriced"].map((label) => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
-                  <tbody>{daily.map((row) => <tr key={`${row.day}-${row.purpose}`} className="border-t border-line">
-                    <td className="px-4 py-3">{row.day}</td><td className="px-4 py-3 capitalize">{row.purpose}</td>
-                    <td className="px-4 py-3">{number(row.calls)}</td><td className="px-4 py-3">{number(row.tokens)}</td>
-                    <td className="px-4 py-3">{money(row.cost_usd)}</td><td className="px-4 py-3">{number(row.unpriced_calls)}</td>
-                  </tr>)}</tbody>
-                </table>
-              </div>
+              <details className="rounded-surface border border-line bg-surface">
+                <summary className="cursor-pointer px-4 py-3 font-semibold text-ink">Show the table ({daily.length} rows)</summary>
+                <div className="overflow-x-auto border-t border-line">
+                  <table className="w-full min-w-[42rem] text-left text-sm">
+                    <thead className="bg-sunken text-muted"><tr>{["Day", "Purpose", "Calls", "Tokens", "Cost", "Unpriced"].map((label) => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
+                    <tbody>{daily.map((row) => <tr key={`${row.day}-${row.purpose}`} className="border-t border-line">
+                      <td className="px-4 py-3">{row.day}</td><td className="px-4 py-3 capitalize">{row.purpose}</td>
+                      <td className="px-4 py-3">{number(row.calls)}</td><td className="px-4 py-3">{number(row.tokens)}</td>
+                      <td className="px-4 py-3">{money(row.cost_usd)}</td><td className="px-4 py-3">{number(row.unpriced_calls)}</td>
+                    </tr>)}</tbody>
+                  </table>
+                </div>
+              </details>
             ) : <EmptyState title="No LLM usage in this window." />}
           </Section>
         </div>

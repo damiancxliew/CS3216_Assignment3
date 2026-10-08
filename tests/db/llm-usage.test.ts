@@ -276,4 +276,23 @@ describe("LLM usage metrics", () => {
     const denied = await unauthorized.client.rpc("platform_overview", { p_since: since });
     expect(denied.error?.code).toBe("42501");
   });
+
+  it("returns one zero-filled row per UTC day for daily activity, to the service role only", async () => {
+    const since = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await admin.rpc("platform_activity_daily", { p_since: since });
+    expect(error).toBeNull();
+    const rows = (data ?? []) as Record<string, string | number>[];
+    expect(rows.length).toBeGreaterThanOrEqual(7);
+    expect(rows.length).toBeLessThanOrEqual(8);
+    expect(rows.at(-1)?.day).toBe(new Date().toISOString().slice(0, 10));
+    for (const row of rows) {
+      for (const key of ["attempts_started", "attempts_completed", "active_students", "play_seconds", "new_members"]) {
+        expect(Number(row[key])).toBeGreaterThanOrEqual(0);
+      }
+    }
+
+    const unauthorized: { client: SupabaseClient } = await createUserClient(uniqueEmail("llm-activity-denied"), PASSWORD);
+    const denied = await unauthorized.client.rpc("platform_activity_daily", { p_since: since });
+    expect(denied.error?.code).toBe("42501");
+  });
 });
