@@ -1,4 +1,4 @@
-import { estimateCostUsd, PendingResponseError } from "@adventure/generation/llm";
+import { PendingResponseError } from "@adventure/generation/llm";
 import type { LlmClient as GenerationLlmClient, LlmJsonRequest, LlmJsonResponse } from "@adventure/generation/llm";
 import type { LlmClient as PlayLlmClient, LlmRequest, LlmResponse } from "@adventure/orchestration";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -68,7 +68,6 @@ describe("withJsonUsage", () => {
       cached_input_tokens: 40,
       output_tokens: 20,
       reasoning_tokens: 5,
-      cost_usd: estimateCostUsd("gpt-5.4", jsonResponse.usage),
       adventure_id: "adventure-1",
       user_id: "user-1",
     }));
@@ -127,12 +126,6 @@ describe("withPlayUsage", () => {
       cached_input_tokens: 30,
       output_tokens: 15,
       reasoning_tokens: 4,
-      cost_usd: estimateCostUsd("gpt-5.4-mini", {
-        inputTokens: 80,
-        cachedInputTokens: 30,
-        outputTokens: 15,
-        reasoningTokens: 4,
-      }),
     }));
   });
 

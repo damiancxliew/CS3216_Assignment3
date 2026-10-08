@@ -17,6 +17,7 @@ export function ActionForm({
   submitLabel,
   pendingLabel,
   event,
+  id,
   className,
   children,
 }: {
@@ -24,6 +25,7 @@ export function ActionForm({
   submitLabel: string;
   pendingLabel?: string;
   event?: AnalyticsEvent;
+  id?: string;
   className?: string;
   children?: React.ReactNode;
 }) {
@@ -37,7 +39,7 @@ export function ActionForm({
   );
 
   return (
-    <form action={formAction} className={className ?? "flex flex-col gap-4"}>
+    <form id={id} action={formAction} className={className ?? "flex flex-col gap-4"}>
       {children}
       <button type="submit" disabled={pending} className={`${button.primary} w-fit`}>
         {pending ? <Pending>{pendingLabel ?? "Working…"}</Pending> : submitLabel}

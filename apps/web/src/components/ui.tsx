@@ -116,6 +116,9 @@ export function Field({
   type = "text",
   inputMode,
   min,
+  step,
+  required,
+  form,
   optional,
   multiline,
   rows = 4,
@@ -128,6 +131,9 @@ export function Field({
   type?: React.HTMLInputTypeAttribute;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   min?: number;
+  step?: React.InputHTMLAttributes<HTMLInputElement>["step"];
+  required?: boolean;
+  form?: string;
   optional?: boolean;
   multiline?: boolean;
   rows?: number;
@@ -144,6 +150,9 @@ export function Field({
           type={type}
           inputMode={inputMode}
           min={min}
+          step={step}
+          required={required}
+          form={form}
           placeholder={placeholder}
           defaultValue={defaultValue}
           className={control}

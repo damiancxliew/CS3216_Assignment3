@@ -2,17 +2,19 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { deleteModelPrice, saveModelPrice } from "./actions";
 import { CreateSchoolForm } from "./create-school-form";
 import { BarList, ChartCard, DonutChart, LineChart, StackedBarChart, type Point } from "@/components/admin/charts";
+import { ActionButton, ActionForm } from "@/components/action-form";
 import { SignInButton } from "@/components/sign-in-button";
-import { EmptyState, Page, Section } from "@/components/ui";
+import { EmptyState, Field, Page, Section } from "@/components/ui";
 import { getViewer } from "@/lib/auth/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Admin console", robots: { index: false } };
 
-type Tab = "overview" | "schools" | "users";
+type Tab = "overview" | "schools" | "users" | "pricing";
 type MetricRow = Record<string, number | string>;
 type SchoolRow = {
   organization_id: string;
@@ -44,6 +46,16 @@ type ActivityRow = {
   play_seconds: number | string;
   new_members: number | string;
 };
+type ModelPriceRow = {
+  model: string;
+  input_usd_per_mtok: number | string | null;
+  cached_input_usd_per_mtok: number | string | null;
+  output_usd_per_mtok: number | string | null;
+  updated_at: string | null;
+  calls: number | string;
+  tokens: number | string;
+  last_used: string | null;
+};
 type MembershipRow = {
   user_id: string;
   role: string;
@@ -55,6 +67,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "schools", label: "Schools" },
   { id: "users", label: "Users" },
+  { id: "pricing", label: "Pricing" },
 ];
 
 function number(value: number | string | null | undefined): number {
@@ -83,7 +96,7 @@ function minutes(seconds: number): string {
   return seconds >= 3600 ? `${(seconds / 3600).toFixed(1)} h` : `${Math.round(seconds / 60)} min`;
 }
 
-function Metric({ label, value, hint, accent }: { label: string; value: string | number; hint?: string; accent?: string }) {
+function Metric({ label, value, hint, accent }: { label: string; value: string | number; hint?: React.ReactNode; accent?: string }) {
   return (
     <div className="relative flex flex-col gap-1 overflow-hidden rounded-surface border border-line bg-surface p-4 pl-5">
       {accent ? <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ background: accent }} /> : null}
@@ -147,6 +160,7 @@ export default async function AdminPage({
   let daily: DailyRow[] = [];
   let activity: ActivityRow[] = [];
   let schools: SchoolRow[] = [];
+  let modelPrices: ModelPriceRow[] = [];
   let users: Awaited<ReturnType<typeof admin.auth.admin.listUsers>>["data"]["users"] = [];
   const userMemberships = new Map<string, MembershipRow>();
   let sysadmins = new Set<string>();
@@ -172,7 +186,7 @@ export default async function AdminPage({
     const { data, error } = await admin.rpc("platform_school_stats", { p_since: since });
     if (error) console.error("could not load platform school stats", error);
     schools = (data ?? []) as unknown as SchoolRow[];
-  } else {
+  } else if (tab === "users") {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 50 });
     if (error) console.error("could not load platform users", error);
     users = data?.users ?? [];
@@ -196,6 +210,10 @@ export default async function AdminPage({
       sysadmins = new Set((adminsResult.data ?? []).map((row) => row.user_id));
       profiles = new Map((profilesResult.data ?? []).map((row) => [row.id, row.display_name ?? ""]));
     }
+  } else {
+    const { data, error } = await admin.rpc("platform_model_prices");
+    if (error) console.error("could not load platform model prices", error);
+    modelPrices = (data ?? []) as unknown as ModelPriceRow[];
   }
 
   const llmDays: Point[] = activity.map((row) => ({
@@ -234,7 +252,12 @@ export default async function AdminPage({
                   <Metric accent="var(--record)" label="Active students" value={compact(number(overview.active_students_since))} hint={`${compact(number(overview.students))} enrolled across ${number(overview.schools)} schools`} />
                   <Metric accent="var(--world)" label="Attempts" value={compact(number(overview.attempts_since))} hint={`${number(overview.attempts_since) ? Math.round((number(overview.completed_since) / number(overview.attempts_since)) * 100) : 0}% completed · ${minutes(number(overview.play_seconds_since))} played`} />
                   <Metric accent="var(--spark)" label="AI spend" value={shortMoney(number(overview.llm_cost_since) + number(overview.image_cost_since))} hint={`${money(overview.llm_cost_since)} LLM · ${money(overview.image_cost_since)} images`} />
-                  <Metric accent="var(--signal)" label="LLM calls" value={compact(number(overview.llm_calls_since))} hint={`${compact(number(overview.llm_tokens_since))} tokens · ${number(overview.unpriced_calls_since)} unpriced`} />
+                  <Metric
+                    accent="var(--signal)"
+                    label="LLM calls"
+                    value={compact(number(overview.llm_calls_since))}
+                    hint={<>{compact(number(overview.llm_tokens_since))} tokens · <Link className="underline underline-offset-4 hover:text-ink" href="/admin?tab=pricing">{number(overview.unpriced_calls_since)} unpriced</Link></>}
+                  />
                 </dl>
                 <div className="grid gap-4 lg:grid-cols-3">
                   <div className="lg:col-span-2">
@@ -382,6 +405,116 @@ export default async function AdminPage({
             </>
           ) : <EmptyState title="No users found." />}
         </Section>
+      ) : null}
+
+      {tab === "pricing" ? (
+        <div className="flex flex-col gap-8">
+          <Section title="Add model price" lede="Prices are USD per 1 million tokens.">
+            <ActionForm
+              action={saveModelPrice}
+              submitLabel="Add model price"
+              pendingLabel="Saving…"
+              className="flex max-w-5xl flex-col gap-4 rounded-surface border border-line bg-surface p-5"
+            >
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Field name="model" label="Model" required />
+                <Field name="input_usd_per_mtok" label="Input" type="number" min={0} step="any" required />
+                <Field name="cached_input_usd_per_mtok" label="Cached input" type="number" min={0} step="any" required />
+                <Field name="output_usd_per_mtok" label="Output" type="number" min={0} step="any" required />
+              </div>
+            </ActionForm>
+          </Section>
+          <Section title="Model prices" lede="Prices are USD per 1 million tokens. Unpriced models are listed when they have recorded calls.">
+            {modelPrices.length ? (
+              <div className="overflow-x-auto rounded-surface border border-line">
+                <table className="w-full min-w-[74rem] border-collapse text-left text-sm">
+                  <thead className="bg-sunken text-muted">
+                    <tr>
+                      {["Model", "Input", "Cached input", "Output", "Calls", "Last used", "Actions"].map((label) => (
+                        <th key={label} className="px-3 py-3 font-semibold">{label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modelPrices.map((row, index) => {
+                      const formId = `model-price-${index}`;
+                      const priced = row.input_usd_per_mtok !== null &&
+                        row.cached_input_usd_per_mtok !== null &&
+                        row.output_usd_per_mtok !== null;
+                      return (
+                        <tr key={row.model} className="border-t border-line align-top">
+                          <td className="px-3 py-3 font-semibold text-ink">
+                            <span>{row.model}</span>
+                            {!priced ? <span className="ml-2 inline-flex rounded-full border border-line-strong px-2 py-0.5 text-xs font-bold text-muted">Unpriced</span> : null}
+                          </td>
+                          <td className="px-3 py-3">
+                            <Field
+                              form={formId}
+                              name="input_usd_per_mtok"
+                              label="Input"
+                              type="number"
+                              min={0}
+                              step="any"
+                              required
+                              defaultValue={row.input_usd_per_mtok == null ? "" : String(row.input_usd_per_mtok)}
+                            />
+                          </td>
+                          <td className="px-3 py-3">
+                            <Field
+                              form={formId}
+                              name="cached_input_usd_per_mtok"
+                              label="Cached input"
+                              type="number"
+                              min={0}
+                              step="any"
+                              required
+                              defaultValue={row.cached_input_usd_per_mtok == null ? "" : String(row.cached_input_usd_per_mtok)}
+                            />
+                          </td>
+                          <td className="px-3 py-3">
+                            <Field
+                              form={formId}
+                              name="output_usd_per_mtok"
+                              label="Output"
+                              type="number"
+                              min={0}
+                              step="any"
+                              required
+                              defaultValue={row.output_usd_per_mtok == null ? "" : String(row.output_usd_per_mtok)}
+                            />
+                          </td>
+                          <td className="px-3 py-3 tabular-nums">{number(row.calls)}</td>
+                          <td className="px-3 py-3 text-muted">{row.last_used ? new Date(row.last_used).toLocaleString() : "—"}</td>
+                          <td className="px-3 py-3">
+                            <div className="flex flex-col items-start gap-2">
+                              <ActionForm
+                                id={formId}
+                                action={saveModelPrice}
+                                submitLabel="Save"
+                                pendingLabel="Saving…"
+                                className="flex flex-col gap-2"
+                              >
+                                <input type="hidden" name="model" value={row.model} />
+                              </ActionForm>
+                              {priced ? (
+                                <ActionButton
+                                  action={deleteModelPrice.bind(null, row.model)}
+                                  label="Remove price"
+                                  pendingLabel="Removing…"
+                                  variant="quiet"
+                                />
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <EmptyState title="No model prices or usage found." />}
+          </Section>
+        </div>
       ) : null}
     </Page>
   );

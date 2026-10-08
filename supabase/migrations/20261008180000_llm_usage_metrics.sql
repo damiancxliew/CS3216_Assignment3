@@ -11,9 +11,7 @@ create table llm_usage (
   input_tokens integer not null default 0 check (input_tokens >= 0),
   cached_input_tokens integer not null default 0 check (cached_input_tokens >= 0),
   output_tokens integer not null default 0 check (output_tokens >= 0),
-  reasoning_tokens integer not null default 0 check (reasoning_tokens >= 0),
-  -- null when the model has no entry in the price table
-  cost_usd numeric(12, 6)
+  reasoning_tokens integer not null default 0 check (reasoning_tokens >= 0)
 );
 
 create index llm_usage_occurred_idx on llm_usage (occurred_at);
@@ -21,6 +19,42 @@ create index llm_usage_organization_idx on llm_usage (organization_id, occurred_
 
 alter table llm_usage enable row level security;
 -- no policies: written and read by the service role only
+
+create table model_price (
+  model text primary key check (length(model) between 1 and 100),
+  input_usd_per_mtok numeric(12, 6) not null check (input_usd_per_mtok >= 0),
+  cached_input_usd_per_mtok numeric(12, 6) not null check (cached_input_usd_per_mtok >= 0),
+  output_usd_per_mtok numeric(12, 6) not null check (output_usd_per_mtok >= 0),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users (id) on delete set null
+);
+
+alter table model_price enable row level security;
+
+insert into model_price (model, input_usd_per_mtok, cached_input_usd_per_mtok, output_usd_per_mtok)
+values
+  ('gpt-5.4', 2.5, 0.25, 15),
+  ('gpt-5.4-mini', 0.75, 0.075, 4.5),
+  ('gpt-5.6-sol', 4, 0.4, 20),
+  ('gpt-5.6-terra', 2, 0.2, 12),
+  ('gpt-5.6-luna', 0.2, 0.02, 1.2)
+on conflict (model) do nothing;
+
+create or replace function llm_call_cost(p_model text, p_input integer, p_cached integer, p_output integer)
+returns numeric
+language sql stable security definer set search_path = public
+as $$
+  select (greatest(p_input - p_cached, 0) * p.input_usd_per_mtok
+          + p_cached * p.cached_input_usd_per_mtok
+          + p_output * p.output_usd_per_mtok) / 1000000
+  from model_price p
+  where p.model in (p_model, regexp_replace(p_model, '-\d{4}-\d{2}-\d{2}$', ''))
+  order by (p.model = p_model) desc
+  limit 1;
+$$;
+
+revoke all on function llm_call_cost(text, integer, integer, integer) from public, anon, authenticated;
+grant execute on function llm_call_cost(text, integer, integer, integer) to service_role;
 
 create or replace function llm_usage_fill_context()
 returns trigger
@@ -73,8 +107,8 @@ as $$
     (select coalesce(sum(duration_seconds), 0)::bigint from attempt_telemetry where recorded_at >= p_since),
     (select count(*) from llm_usage where occurred_at >= p_since),
     (select coalesce(sum(input_tokens + output_tokens), 0)::bigint from llm_usage where occurred_at >= p_since),
-    (select coalesce(sum(cost_usd), 0) from llm_usage where occurred_at >= p_since),
-    (select count(*) from llm_usage where occurred_at >= p_since and cost_usd is null),
+    (select coalesce(sum(llm_call_cost(model, input_tokens, cached_input_tokens, output_tokens)), 0) from llm_usage where occurred_at >= p_since),
+    (select count(*) from llm_usage where occurred_at >= p_since and llm_call_cost(model, input_tokens, cached_input_tokens, output_tokens) is null),
     (select coalesce(sum(cost_usd), 0) from asset where updated_at >= p_since);
 $$;
 
@@ -108,7 +142,7 @@ as $$
     where ad.organization_id = o.id
   ) t
   cross join lateral (
-    select coalesce(sum(u.cost_usd), 0) as cost
+    select coalesce(sum(llm_call_cost(u.model, u.input_tokens, u.cached_input_tokens, u.output_tokens)), 0) as cost
     from llm_usage u where u.organization_id = o.id and u.occurred_at >= p_since
   ) l
   cross join lateral (
@@ -127,12 +161,38 @@ language sql stable security definer set search_path = public
 as $$
   select (occurred_at at time zone 'UTC')::date, purpose, count(*),
          coalesce(sum(input_tokens + output_tokens), 0)::bigint,
-         coalesce(sum(cost_usd), 0),
-         count(*) filter (where cost_usd is null)
+         coalesce(sum(llm_call_cost(model, input_tokens, cached_input_tokens, output_tokens)), 0),
+         count(*) filter (where llm_call_cost(model, input_tokens, cached_input_tokens, output_tokens) is null)
   from llm_usage
   where occurred_at >= p_since
   group by 1, 2
   order by 1 desc, 2;
+$$;
+
+create or replace function platform_model_prices()
+returns table (
+  model text, input_usd_per_mtok numeric, cached_input_usd_per_mtok numeric,
+  output_usd_per_mtok numeric, updated_at timestamptz,
+  calls bigint, tokens bigint, last_used timestamptz
+)
+language sql stable security definer set search_path = public
+as $$
+  with usage_totals as (
+    select u.model, count(*)::bigint as calls,
+           coalesce(sum(u.input_tokens + u.output_tokens), 0)::bigint as tokens,
+           max(u.occurred_at) as last_used
+    from llm_usage u
+    where u.model is not null
+    group by u.model
+  )
+  select coalesce(p.model, u.model),
+         p.input_usd_per_mtok, p.cached_input_usd_per_mtok, p.output_usd_per_mtok,
+         p.updated_at, coalesce(u.calls, 0)::bigint, coalesce(u.tokens, 0)::bigint, u.last_used
+  from model_price p
+  full outer join usage_totals u on u.model = p.model
+  order by (p.model is null and coalesce(u.calls, 0) > 0) desc,
+           coalesce(u.calls, 0) desc,
+           coalesce(p.model, u.model);
 $$;
 
 create or replace function platform_activity_daily(p_since timestamptz)
@@ -187,8 +247,10 @@ $$;
 revoke all on function platform_overview(timestamptz) from public, anon, authenticated;
 revoke all on function platform_school_stats(timestamptz) from public, anon, authenticated;
 revoke all on function platform_llm_daily(timestamptz) from public, anon, authenticated;
+revoke all on function platform_model_prices() from public, anon, authenticated;
 revoke all on function platform_activity_daily(timestamptz) from public, anon, authenticated;
 grant execute on function platform_overview(timestamptz) to service_role;
 grant execute on function platform_school_stats(timestamptz) to service_role;
 grant execute on function platform_llm_daily(timestamptz) to service_role;
+grant execute on function platform_model_prices() to service_role;
 grant execute on function platform_activity_daily(timestamptz) to service_role;

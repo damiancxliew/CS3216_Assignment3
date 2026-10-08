@@ -42,3 +42,59 @@ export async function createSchool(_previous: ActionResult, formData: FormData):
   revalidatePath("/admin");
   return { notice: `Created ${name} and invited its first admin.` };
 }
+
+export async function saveModelPrice(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || !(await getViewer(supabase)).isSysadmin) return { error: "You don’t have permission to manage model prices." };
+
+  const model = String(formData.get("model") ?? "").trim();
+  const modelLength = Array.from(model).length;
+  if (modelLength < 1 || modelLength > 100) return { error: "Model names must be between 1 and 100 characters." };
+
+  const readPrice = (name: string): number | null => {
+    const raw = formData.get(name);
+    if (typeof raw !== "string" || raw.trim() === "") return null;
+    const value = Number(raw);
+    return Number.isFinite(value) && value >= 0 && value <= 10000 ? value : null;
+  };
+  const input = readPrice("input_usd_per_mtok");
+  const cachedInput = readPrice("cached_input_usd_per_mtok");
+  const output = readPrice("output_usd_per_mtok");
+  if (input === null || cachedInput === null || output === null) {
+    return { error: "Enter each price as a number from 0 to 10000 USD per 1M tokens." };
+  }
+
+  const { error } = await createAdminClient().from("model_price").upsert({
+    model,
+    input_usd_per_mtok: input,
+    cached_input_usd_per_mtok: cachedInput,
+    output_usd_per_mtok: output,
+    updated_at: new Date().toISOString(),
+    updated_by: user.id,
+  }, { onConflict: "model" });
+  if (error) {
+    console.error("could not save model price", error);
+    return { error: "Could not save this model price. Please try again." };
+  }
+  revalidatePath("/admin");
+  return { notice: `Saved price for ${model}.` };
+}
+
+export async function deleteModelPrice(model: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || !(await getViewer(supabase)).isSysadmin) return { error: "You don’t have permission to manage model prices." };
+
+  const trimmedModel = model.trim();
+  const modelLength = Array.from(trimmedModel).length;
+  if (modelLength < 1 || modelLength > 100) return { error: "Invalid model name." };
+
+  const { error } = await createAdminClient().from("model_price").delete().eq("model", trimmedModel);
+  if (error) {
+    console.error("could not delete model price", error);
+    return { error: "Could not remove this model price. Please try again." };
+  }
+  revalidatePath("/admin");
+  return { notice: `Removed price for ${trimmedModel}.` };
+}

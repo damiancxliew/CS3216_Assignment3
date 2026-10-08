@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LlmClient as GenerationLlmClient } from "@adventure/generation/llm";
-import { estimateCostUsd, type LlmUsage } from "@adventure/generation/llm";
 import type { LlmClient as PlayLlmClient } from "@adventure/orchestration";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -30,13 +29,6 @@ type JsonUsageContext = Pick<UsageRow, "adventureId" | "organizationId" | "userI
 
 export async function recordLlmUsage(getAdmin: () => SupabaseClient, row: UsageRow): Promise<void> {
   try {
-    const usage: LlmUsage = {
-      inputTokens: row.inputTokens,
-      cachedInputTokens: row.cachedInputTokens,
-      outputTokens: row.outputTokens,
-      reasoningTokens: row.reasoningTokens,
-    };
-    const costUsd = row.model ? estimateCostUsd(row.model, usage) : null;
     const { error } = await getAdmin().from("llm_usage").insert({
       purpose: row.purpose,
       call: row.call,
@@ -45,7 +37,6 @@ export async function recordLlmUsage(getAdmin: () => SupabaseClient, row: UsageR
       cached_input_tokens: row.cachedInputTokens,
       output_tokens: row.outputTokens,
       reasoning_tokens: row.reasoningTokens,
-      cost_usd: costUsd,
       attempt_id: row.attemptId,
       adventure_id: row.adventureId,
       organization_id: row.organizationId,
