@@ -123,6 +123,7 @@ export function Field({
   multiline,
   rows = 4,
   hint,
+  hideLabel,
 }: {
   name: string;
   label: string;
@@ -138,10 +139,11 @@ export function Field({
   multiline?: boolean;
   rows?: number;
   hint?: string;
+  hideLabel?: boolean;
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <FieldLabel optional={optional}>{label}</FieldLabel>
+      {hideLabel ? <span className="sr-only">{label}</span> : <FieldLabel optional={optional}>{label}</FieldLabel>}
       {multiline ? (
         <textarea name={name} rows={rows} placeholder={placeholder} defaultValue={defaultValue} className={control} />
       ) : (

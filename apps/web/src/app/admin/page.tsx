@@ -427,7 +427,7 @@ export default async function AdminPage({
           <Section title="Model prices" lede="Prices are USD per 1 million tokens. Unpriced models are listed when they have recorded calls.">
             {modelPrices.length ? (
               <div className="overflow-x-auto rounded-surface border border-line">
-                <table className="w-full min-w-[74rem] border-collapse text-left text-sm">
+                <table className="w-full min-w-[56rem] border-collapse text-left text-sm">
                   <thead className="bg-sunken text-muted">
                     <tr>
                       {["Model", "Input", "Cached input", "Output", "Calls", "Last used", "Actions"].map((label) => (
@@ -450,6 +450,7 @@ export default async function AdminPage({
                           <td className="px-3 py-3">
                             <Field
                               form={formId}
+                              hideLabel
                               name="input_usd_per_mtok"
                               label="Input"
                               type="number"
@@ -462,6 +463,7 @@ export default async function AdminPage({
                           <td className="px-3 py-3">
                             <Field
                               form={formId}
+                              hideLabel
                               name="cached_input_usd_per_mtok"
                               label="Cached input"
                               type="number"
@@ -474,6 +476,7 @@ export default async function AdminPage({
                           <td className="px-3 py-3">
                             <Field
                               form={formId}
+                              hideLabel
                               name="output_usd_per_mtok"
                               label="Output"
                               type="number"
