@@ -135,6 +135,8 @@ create trigger adventure_default_organization
   before insert on adventure
   for each row execute function adventure_default_organization();
 
+revoke all on function adventure_default_organization() from public, anon, authenticated;
+
 create or replace function is_sysadmin()
 returns boolean
 language sql
@@ -982,22 +984,23 @@ as $$
   order by a.updated_at desc;
 $$;
 
-revoke all on function create_school_join_link(uuid, integer) from public;
-revoke all on function revoke_school_join_link(uuid) from public;
-revoke all on function school_link_preview(uuid) from public;
-revoke all on function enroll_with_school_token(uuid) from public;
-revoke all on function remove_student(uuid, uuid) from public;
-revoke all on function restore_student(uuid, uuid) from public;
-revoke all on function invite_staff(uuid, text, org_role) from public;
-revoke all on function set_member_role(uuid, uuid, org_role) from public;
-revoke all on function remove_staff_member(uuid, uuid) from public;
-revoke all on function _claim_staff_invites(uuid, text) from public;
-revoke all on function claim_staff_invites() from public;
-revoke all on function _admit_to_adventure(adventure, uuid) from public;
-revoke all on function join_adventure(uuid) from public;
-revoke all on function start_adventure(uuid) from public;
-revoke all on function restart_attempt(uuid) from public;
-revoke all on function list_library() from public;
+revoke all on function create_school_join_link(uuid, integer) from public, anon;
+revoke all on function revoke_school_join_link(uuid) from public, anon;
+revoke all on function school_link_preview(uuid) from public, anon;
+revoke all on function enroll_with_school_token(uuid) from public, anon;
+revoke all on function remove_student(uuid, uuid) from public, anon;
+revoke all on function restore_student(uuid, uuid) from public, anon;
+revoke all on function invite_staff(uuid, text, org_role) from public, anon;
+revoke all on function set_member_role(uuid, uuid, org_role) from public, anon;
+revoke all on function remove_staff_member(uuid, uuid) from public, anon;
+revoke all on function _claim_staff_invites(uuid, text) from public, anon, authenticated;
+revoke all on function claim_staff_invites() from public, anon;
+revoke all on function _admit_to_adventure(adventure, uuid) from public, anon, authenticated;
+revoke all on function join_adventure(uuid) from public, anon;
+revoke all on function start_adventure(uuid) from public, anon;
+revoke all on function restart_attempt(uuid) from public, anon;
+revoke all on function list_library() from public, anon;
+revoke all on function start_attempt(uuid, uuid) from public, anon, authenticated;
 
 grant execute on function create_school_join_link(uuid, integer) to authenticated;
 grant execute on function revoke_school_join_link(uuid) to authenticated;

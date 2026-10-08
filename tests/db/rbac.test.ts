@@ -379,4 +379,38 @@ describe("organization oversight and play access", () => {
     });
     expect(result.error).not.toBeNull();
   });
+
+  it("does not expose internal helpers or authenticated-only RPCs to anon", async () => {
+    const claim = await studentA.client.rpc("_claim_staff_invites", {
+      p_user: studentA.userId,
+      p_email: "someone-else@example.test",
+    });
+    expect(claim.error?.code).toBe("42501");
+
+    const admit = await studentA.client.rpc("_admit_to_adventure", {
+      p_adventure: {
+        id: "00000000-0000-4000-8000-000000000001",
+        allow_retries: true,
+      },
+      p_student: studentA.userId,
+    });
+    expect(admit.error?.code).toBe("42501");
+
+    const start = await studentA.client.rpc("start_attempt", {
+      p_adventure_id: "00000000-0000-4000-8000-000000000001",
+      p_student: studentA.userId,
+    });
+    expect(start.error?.code).toBe("42501");
+
+    const { data: linkRows, error: linkError } = await teacherA.client.rpc("create_school_join_link", {
+      p_org: orgA,
+      p_ttl_seconds: 3600,
+    });
+    expect(linkError).toBeNull();
+    const link = (linkRows as { token: string }[])[0]!;
+    const anonEnroll = await anonClient().rpc("enroll_with_school_token", {
+      p_token: link.token,
+    });
+    expect(anonEnroll.error?.code).toBe("42501");
+  });
 });
