@@ -130,16 +130,8 @@ export default async function SchoolPage({
   }
 
   return (
-<<<<<<< HEAD
     <Page kicker={school.name} title="School console" width="wide">
-      <nav aria-label="School console sections" className="flex gap-2 overflow-x-auto border-b border-line pb-2">
-||||||| 57a19bb
-    <Page kicker={membership.organizationName} title="School console" width="wide">
-      <nav aria-label="School console sections" className="flex gap-2 overflow-x-auto border-b border-line pb-2">
-=======
-    <Page kicker={membership.organizationName} title="School console" width="wide">
       <nav aria-label="School console sections" className="flex gap-2 overflow-x-auto">
->>>>>>> origin/devin/1791473581-rbac-school
         {tabs.map((item) => (
           <Link
             key={item.id}

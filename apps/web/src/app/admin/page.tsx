@@ -166,7 +166,7 @@ export default async function AdminPage({
 
   return (
     <Page title="Admin console" lede="Platform-wide schools, users, and usage." width="wide">
-      <nav aria-label="Admin console sections" className="flex gap-2 overflow-x-auto border-b border-line pb-2">
+      <nav aria-label="Admin console sections" className="flex gap-2 overflow-x-auto">
         {tabLinks}
       </nav>
 
