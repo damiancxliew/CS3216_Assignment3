@@ -174,30 +174,35 @@ export default async function SchoolPage({
 
       {tab === "links" ? (
         <Section title="Sign-up links" lede="Students can join immediately using any active link.">
-          <ActionForm
-            action={createSchoolLink.bind(null, slug)}
-            submitLabel="Create sign-up link"
-            pendingLabel="Creating link…"
-            className="flex max-w-xl flex-col gap-4 rounded-surface border border-line bg-surface p-5"
-          >
-            <SelectField name="ttl_seconds" label="Link duration" options={TTL_OPTIONS} defaultValue="604800" />
-          </ActionForm>
-          {links.length ? (
-            <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
-              {links.map((link) => (
-                <li key={link.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 flex-col gap-2">
-                    <SchoolLinkCopy token={link.token} />
-                    <time className="text-sm text-muted" dateTime={link.expires_at} title={new Date(link.expires_at).toLocaleString()}>
-                      Expires in {relativeTime(Date.parse(link.expires_at) - Date.now())}
-                    </time>
-                  </div>
-                  <ActionButton action={revokeSchoolLink.bind(null, slug, link.id)} label="Revoke" pendingLabel="Revoking…" variant="quiet" />
-                </li>
-              ))}
-            </ul>
-          ) : <EmptyState title="No active sign-up links.">Create a link for students to join your school.</EmptyState>}
-          <p className="text-sm text-muted">{closedLinkCount} expired or revoked sign-up link{closedLinkCount === 1 ? "" : "s"}.</p>
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+            <ActionForm
+              action={createSchoolLink.bind(null, slug)}
+              submitLabel="Create sign-up link"
+              pendingLabel="Creating link…"
+              className="flex flex-col gap-4 rounded-surface border border-line bg-surface p-5"
+            >
+              <h3 className="font-bold text-ink">New link</h3>
+              <SelectField name="ttl_seconds" label="Link duration" options={TTL_OPTIONS} defaultValue="604800" />
+            </ActionForm>
+            <div className="flex min-w-0 flex-col gap-3">
+              {links.length ? (
+                <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
+                  {links.map((link) => (
+                    <li key={link.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <SchoolLinkCopy token={link.token} />
+                        <time className="text-sm text-muted" dateTime={link.expires_at} title={new Date(link.expires_at).toLocaleString()}>
+                          Expires in {relativeTime(Date.parse(link.expires_at) - Date.now())}
+                        </time>
+                      </div>
+                      <ActionButton action={revokeSchoolLink.bind(null, slug, link.id)} label="Revoke" pendingLabel="Revoking…" variant="quiet" />
+                    </li>
+                  ))}
+                </ul>
+              ) : <EmptyState title="No active sign-up links.">Create a link for students to join your school.</EmptyState>}
+              <p className="text-sm text-muted">{closedLinkCount} expired or revoked sign-up link{closedLinkCount === 1 ? "" : "s"}.</p>
+            </div>
+          </div>
         </Section>
       ) : null}
 
