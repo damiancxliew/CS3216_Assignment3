@@ -18,13 +18,14 @@ beforeAll(async () => {
   if (!runBrowser) return;
   if (!SUPABASE_URL.startsWith("http://127.0.0.1:")) throw new Error("browser test requires local Supabase");
   const admin = serviceClient();
-  const teacher = await createUserClient(uniqueEmail("browser-teacher"));
+  const teacher = await createUserClient(uniqueEmail("browser-teacher"), PASSWORD, "teacher");
   const { data: adventure, error: adventureError } = await admin.from("adventure").insert({ owner_id: teacher.userId, title: "Local browser adventure", default_timer_seconds: 600 }).select("id, share_token").single();
   if (adventureError) throw adventureError;
   await persistSpecVersion(admin, adventure.id, await loadFixtureJson(I1_FIXTURE.spec), { generatorVersion: "browser-test", createdBy: teacher.userId });
   const { error: publishError } = await teacher.client.rpc("publish_adventure", { p_adventure_id: adventure.id });
   if (publishError) throw publishError;
   studentEmail = uniqueEmail("browser-student");
+  await createUserClient(studentEmail, PASSWORD, "student");
   joinUrl = `${BASE_URL}/join/${adventure.share_token}`;
 });
 

@@ -105,9 +105,9 @@ let student: SupabaseClient;
 let fixture: Fixture;
 
 beforeEach(async () => {
-  const t = await createUserClient(uniqueEmail("p4-teacher"));
-  const o = await createUserClient(uniqueEmail("p4-other"));
-  const s = await createUserClient(uniqueEmail("p4-student"));
+  const t = await createUserClient(uniqueEmail("p4-teacher"), "password123!", "teacher");
+  const o = await createUserClient(uniqueEmail("p4-other"), "password123!", "teacher");
+  const s = await createUserClient(uniqueEmail("p4-student"), "password123!", "student");
   teacher = t.client;
   teacherId = t.userId;
   otherTeacher = o.client;

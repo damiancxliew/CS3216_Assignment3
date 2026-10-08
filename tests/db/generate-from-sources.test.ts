@@ -77,7 +77,7 @@ async function versionCount(adventureId: string): Promise<number> {
 }
 
 beforeAll(async () => {
-  teacherId = (await createUserClient(uniqueEmail("gen-teacher"))).userId;
+  teacherId = (await createUserClient(uniqueEmail("gen-teacher"), "password123!", "teacher")).userId;
   handoutText = await readFile(join(FIXTURES_DIR, I1_FIXTURE.source.file), "utf8");
   // The fixture spec, re-shaped as what the planner returns (server-owned fields stripped).
   const spec = structuredClone(await loadFixtureJson(I1_FIXTURE.spec)) as Record<string, unknown>;

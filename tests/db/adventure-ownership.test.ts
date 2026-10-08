@@ -39,8 +39,8 @@ let a: Fixture;
 let b: Fixture;
 
 beforeAll(async () => {
-  const teacherA = await createUserClient(uniqueEmail("own-a"));
-  const teacherB = await createUserClient(uniqueEmail("own-b"));
+  const teacherA = await createUserClient(uniqueEmail("own-a"), "password123!", "teacher");
+  const teacherB = await createUserClient(uniqueEmail("own-b"), "password123!", "teacher");
   a = await seedAdventure(teacherA.userId, "Adventure A");
   b = await seedAdventure(teacherB.userId, "Adventure B");
 });

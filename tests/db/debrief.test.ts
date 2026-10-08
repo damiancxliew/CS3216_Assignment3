@@ -20,8 +20,8 @@ let teacher: { client: SupabaseClient; userId: string };
 let student: { client: SupabaseClient; userId: string };
 
 beforeAll(async () => {
-  teacher = await createUserClient(uniqueEmail("p8-teacher"));
-  student = await createUserClient(uniqueEmail("p8-student"));
+  teacher = await createUserClient(uniqueEmail("p8-teacher"), "password123!", "teacher");
+  student = await createUserClient(uniqueEmail("p8-student"), "password123!", "student");
 });
 
 function specJson(endingSummary: string) {

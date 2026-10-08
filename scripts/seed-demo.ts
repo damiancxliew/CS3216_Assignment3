@@ -54,5 +54,18 @@ it("seeds the demo adventure", async () => {
   }
 
   const appUrl = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
-  console.log(`\nDemo adventure published.\n  adventure: ${adventure.id}\n  teacher:   ${DEMO_EMAIL}\n  join link: ${appUrl}/join/${adventure.share_token}\n`);
+  const { data: schoolLink, error: schoolLinkError } = await admin
+    .from("organization_join_link")
+    .insert({
+      organization_id: "00000000-0000-4000-8000-000000005c01",
+      created_by: userId,
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+    .select("token")
+    .single<{ token: string }>();
+  if (schoolLinkError) throw schoolLinkError;
+
+  console.log(
+    `\nDemo adventure published.\n  adventure: ${adventure.id}\n  teacher:   ${DEMO_EMAIL}\n  join link: ${appUrl}/join/${adventure.share_token}\n  school link: ${appUrl}/s/${schoolLink.token} (the grader must open this first)\n`,
+  );
 });

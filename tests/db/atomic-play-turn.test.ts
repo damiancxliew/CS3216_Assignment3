@@ -15,8 +15,8 @@ let spec: Awaited<ReturnType<typeof loadI1Spec>>;
 type Seeded = { attemptId: string; adventureId: string; stageIds: string[]; roomId: string; optionId: string; mintedSpecId: string };
 
 beforeAll(async () => {
-  teacher = await createUserClient(uniqueEmail("atomic-turn-teacher"));
-  student = await createUserClient(uniqueEmail("atomic-turn-student"));
+  teacher = await createUserClient(uniqueEmail("atomic-turn-teacher"), "password123!", "teacher");
+  student = await createUserClient(uniqueEmail("atomic-turn-student"), "password123!", "student");
   spec = await loadI1Spec();
 });
 

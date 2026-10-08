@@ -67,8 +67,8 @@ let retriesOn: Seeded;
 let retriesOff: Seeded;
 
 beforeAll(async () => {
-  const t = await createUserClient(uniqueEmail("retries-teacher"));
-  const s = await createUserClient(uniqueEmail("retries-student"));
+  const t = await createUserClient(uniqueEmail("retries-teacher"), "password123!", "teacher");
+  const s = await createUserClient(uniqueEmail("retries-student"), "password123!", "student");
   const x = await createUserClient(uniqueEmail("retries-stranger"));
   student = s.client;
   studentId = s.userId;
