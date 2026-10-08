@@ -25,7 +25,9 @@ import {
   READING_BAND_LABELS,
 } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
+import { getViewer, isStaff } from "@/lib/auth/viewer";
 import type { ReadingLevel } from "@/lib/brief/schema";
+import { SchoolMembershipRequired } from "@/components/school-membership-required";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { buildDossier } from "@/lib/teacher/dossier";
@@ -96,11 +98,11 @@ export default async function AdventurePage({
   const tab = EDITOR_TABS.find((item) => item.id === query.tab)?.id ?? "overview";
   const stageView = query.view === "style" ? "style" : "content";
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer(supabase);
+  const { user } = viewer;
   if (!user) redirect("/teacher");
+  if (viewer.membership?.role === "student") redirect("/library");
+  if (!isStaff(viewer)) return <SchoolMembershipRequired />;
 
   // A student admitted to a published adventure can also select the row, so the
   // authoring view matches the owner rather than relying on visibility alone.

@@ -33,6 +33,7 @@ import {
 } from "@/lib/brief/schema";
 import { runBriefTurn, type TurnResult } from "@/lib/brief/turn";
 import { parseBriefEdit } from "@/lib/brief/edit";
+import { getViewer } from "@/lib/auth/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -51,6 +52,14 @@ async function requireUser() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/teacher");
   return { supabase, user };
+}
+
+async function requireAuthor() {
+  const { supabase, user } = await requireUser();
+  const viewer = await getViewer(supabase);
+  const membership = viewer.membership;
+  if (membership?.role !== "admin" && membership?.role !== "teacher") redirect("/teacher");
+  return { supabase, user, membership };
 }
 
 // `adventure_select` also admits a student with an attempt on a published
@@ -79,10 +88,10 @@ export type ActionResult = { error?: string; notice?: string };
  * mandatory (FR-1a) because the conversation will not finish without it.
  */
 export async function startBrief(): Promise<TurnResult> {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, membership } = await requireAuthor();
   const { data, error } = await supabase
     .from("adventure")
-    .insert({ owner_id: user.id, title: "Untitled adventure" })
+    .insert({ owner_id: user.id, organization_id: membership.organizationId, title: "Untitled adventure" })
     .select("id")
     .single<{ id: string }>();
   if (error) {
