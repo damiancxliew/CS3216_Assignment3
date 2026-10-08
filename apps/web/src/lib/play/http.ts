@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { findForbiddenKeys, type ApiError } from "@/lib/turn-api/contract";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { withPlayUsage } from "@/lib/usage/ledger";
 
 import { costMeterEnabled, meteredClient } from "./cost-meter";
 import type { PlayServiceDeps } from "./service";
@@ -48,7 +49,8 @@ let deps: PlayServiceDeps | null = null;
  */
 export function playDeps(attemptId: string): PlayServiceDeps {
   if (!deps) deps = { store: new SupabasePlayStore(createAdminClient()), llm: createOpenAiClient() };
-  return costMeterEnabled() ? { ...deps, llm: meteredClient(deps.llm, attemptId) } : deps;
+  const llm = withPlayUsage(deps.llm, attemptId);
+  return { ...deps, llm: costMeterEnabled() ? meteredClient(llm, attemptId) : llm };
 }
 
 /**

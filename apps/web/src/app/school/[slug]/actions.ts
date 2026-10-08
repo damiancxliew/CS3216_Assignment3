@@ -3,17 +3,20 @@
 import { revalidatePath } from "next/cache";
 
 import type { ActionResult } from "@/app/teacher/actions";
-import { getViewer, isStaff } from "@/lib/auth/viewer";
+import { getViewer } from "@/lib/auth/viewer";
+import { resolveSchoolContext } from "@/lib/school/context";
 import { createClient } from "@/lib/supabase/server";
 
-type SchoolContext = { supabase: Awaited<ReturnType<typeof createClient>>; organizationId: string };
+type SchoolActionContext = NonNullable<Awaited<ReturnType<typeof resolveSchoolContext>>> & {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+};
 
-async function schoolContext(slug: string, adminOnly = false): Promise<SchoolContext | null> {
+async function schoolContext(slug: string, adminOnly = false): Promise<SchoolActionContext | null> {
   const supabase = await createClient();
   const viewer = await getViewer(supabase);
-  if (!viewer.user || !isStaff(viewer) || viewer.membership?.slug !== slug) return null;
-  if (adminOnly && viewer.membership.role !== "admin") return null;
-  return { supabase, organizationId: viewer.membership.organizationId };
+  const context = await resolveSchoolContext(supabase, viewer, slug);
+  if (!context || (adminOnly && context.role !== "admin")) return null;
+  return { ...context, supabase };
 }
 
 function accessError(): ActionResult {
