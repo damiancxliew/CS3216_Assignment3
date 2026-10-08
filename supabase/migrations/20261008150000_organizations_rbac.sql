@@ -180,7 +180,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select org_role_of(p_org) in ('admin', 'teacher');
+  select coalesce(org_role_of(p_org) in ('admin', 'teacher'), false);
 $$;
 
 create or replace function is_org_admin(p_org uuid)
@@ -190,7 +190,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select org_role_of(p_org) = 'admin';
+  select coalesce(org_role_of(p_org) = 'admin', false);
 $$;
 
 create or replace function can_author_in(p_org uuid)
