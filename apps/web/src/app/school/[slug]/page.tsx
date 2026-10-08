@@ -280,7 +280,14 @@ function AdventureUsageTable({ slug, adventures }: { slug: string; adventures: U
             <tbody>
               {adventures.map((adventure) => (
                 <tr key={adventure.adventure_id} className="border-t border-line">
-                  <td className="px-3 py-3 font-semibold text-ink">{adventure.title}</td>
+                  <td className="px-3 py-3 font-semibold text-ink">
+                    <Link
+                      href={`/teacher/${adventure.adventure_id}?tab=attempts`}
+                      className="underline decoration-line-strong underline-offset-4 transition-colors hover:text-record"
+                    >
+                      {adventure.title}
+                    </Link>
+                  </td>
                   <td className="px-3 py-3 text-muted">{adventure.owner_name || "School staff"}</td>
                   <td className="px-3 py-3"><StatusBadge status={adventure.status} version={null} /></td>
                   <td className="px-3 py-3 tabular-nums">{adventure.attempts}</td>
