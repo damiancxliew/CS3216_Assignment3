@@ -14,13 +14,14 @@ import {
 const admin = serviceClient();
 const PASSWORD = "password123!";
 
-type User = { client: SupabaseClient; userId: string };
+type User = { client: SupabaseClient; userId: string; email: string };
 type Adventure = { id: string; shareToken: string };
 
 async function createMember(organizationId: string, role: "admin" | "teacher" | "student"): Promise<User> {
-  const user = await createUserClient(uniqueEmail(`rbac-${role}`), PASSWORD);
+  const email = uniqueEmail(`rbac-${role}`);
+  const user = await createUserClient(email, PASSWORD);
   await addMember(organizationId, user.userId, role);
-  return user;
+  return { ...user, email };
 }
 
 async function createPublishedAdventure(
@@ -69,6 +70,7 @@ let teacherA: User;
 let secondTeacherA: User;
 let studentA: User;
 let adminB: User;
+let teacherB: User;
 
 beforeAll(async () => {
   orgA = await createOrganization("RBAC School A");
@@ -78,6 +80,7 @@ beforeAll(async () => {
   secondTeacherA = await createMember(orgA, "teacher");
   studentA = await createMember(orgA, "student");
   adminB = await createMember(orgB, "admin");
+  teacherB = await createMember(orgB, "teacher");
 });
 
 describe("adventure authoring", () => {
@@ -109,6 +112,13 @@ describe("adventure authoring", () => {
     expect(error?.code).toBe("42501");
   });
 
+  it("denies an unaffiliated user from inserting into a school", async () => {
+    const outsider = await createUserClient(uniqueEmail("rbac-no-school"), PASSWORD);
+    const { error } = await outsider.client.from("adventure")
+      .insert({ owner_id: outsider.userId, organization_id: orgA, title: "Outsider adventure" });
+    expect(error?.code).toBe("42501");
+  });
+
   it("does not let students manage staff", async () => {
     expect((await studentA.client.rpc("invite_staff", {
       p_org: orgA,
@@ -120,6 +130,62 @@ describe("adventure authoring", () => {
       p_user: teacherA.userId,
       p_role: "admin",
     })).error?.code).toBe("42501");
+  });
+});
+
+describe("authorization fails closed without school membership", () => {
+  it("denies strangers and staff from another school across school-management RPCs", async () => {
+    const outsiderEmail = uniqueEmail("rbac-unaffiliated");
+    const outsider = await createUserClient(outsiderEmail, PASSWORD);
+    const { data: linkRows, error: linkError } = await teacherA.client.rpc("create_school_join_link", {
+      p_org: orgA,
+      p_ttl_seconds: 3600,
+    });
+    expect(linkError).toBeNull();
+    const link = (linkRows as { id: string }[])[0]!;
+    const callers = [
+      { user: outsider, email: outsiderEmail },
+      { user: teacherB, email: teacherB.email },
+      { user: adminB, email: adminB.email },
+    ];
+
+    for (const { user, email } of callers) {
+      expect((await user.client.rpc("create_school_join_link", {
+        p_org: orgA,
+        p_ttl_seconds: 3600,
+      })).error?.code).toBe("42501");
+      expect((await user.client.rpc("revoke_school_join_link", {
+        p_link_id: link.id,
+      })).error?.code).toBe("42501");
+      expect((await user.client.rpc("remove_student", {
+        p_org: orgA,
+        p_user: studentA.userId,
+      })).error?.code).toBe("42501");
+      expect((await user.client.rpc("restore_student", {
+        p_org: orgA,
+        p_user: studentA.userId,
+      })).error?.code).toBe("42501");
+      expect((await user.client.rpc("invite_staff", {
+        p_org: orgA,
+        p_email: email,
+        p_role: "admin",
+      })).error?.code).toBe("42501");
+      expect((await user.client.rpc("set_member_role", {
+        p_org: orgA,
+        p_user: studentA.userId,
+        p_role: "admin",
+      })).error?.code).toBe("42501");
+      expect((await user.client.rpc("remove_staff_member", {
+        p_org: orgA,
+        p_user: teacherA.userId,
+      })).error?.code).toBe("42501");
+    }
+
+    const { data: outsiderMemberships, error: membershipError } = await admin.from("organization_member")
+      .select("user_id")
+      .eq("user_id", outsider.userId);
+    expect(membershipError).toBeNull();
+    expect(outsiderMemberships).toEqual([]);
   });
 });
 
