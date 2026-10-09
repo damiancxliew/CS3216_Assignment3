@@ -27,8 +27,8 @@ let teacher: { client: SupabaseClient; userId: string };
 let student: { client: SupabaseClient; userId: string };
 
 beforeAll(async () => {
-  teacher = await createUserClient(uniqueEmail("p6-teacher"));
-  student = await createUserClient(uniqueEmail("p6-student"));
+  teacher = await createUserClient(uniqueEmail("p6-teacher"), "password123!", "teacher");
+  student = await createUserClient(uniqueEmail("p6-student"), "password123!", "student");
 });
 
 /** Two stages, published, so a student can join and the timers are live. */

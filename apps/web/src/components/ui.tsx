@@ -116,10 +116,14 @@ export function Field({
   type = "text",
   inputMode,
   min,
+  step,
+  required,
+  form,
   optional,
   multiline,
   rows = 4,
   hint,
+  hideLabel,
 }: {
   name: string;
   label: string;
@@ -128,14 +132,18 @@ export function Field({
   type?: React.HTMLInputTypeAttribute;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   min?: number;
+  step?: React.InputHTMLAttributes<HTMLInputElement>["step"];
+  required?: boolean;
+  form?: string;
   optional?: boolean;
   multiline?: boolean;
   rows?: number;
   hint?: string;
+  hideLabel?: boolean;
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <FieldLabel optional={optional}>{label}</FieldLabel>
+      {hideLabel ? <span className="sr-only">{label}</span> : <FieldLabel optional={optional}>{label}</FieldLabel>}
       {multiline ? (
         <textarea name={name} rows={rows} placeholder={placeholder} defaultValue={defaultValue} className={control} />
       ) : (
@@ -144,6 +152,9 @@ export function Field({
           type={type}
           inputMode={inputMode}
           min={min}
+          step={step}
+          required={required}
+          form={form}
           placeholder={placeholder}
           defaultValue={defaultValue}
           className={control}

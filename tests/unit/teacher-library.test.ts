@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectLibraryArtwork, type LibraryAsset, type LibraryVersion } from "@/lib/teacher/library";
+import { selectLibraryArtwork, selectPublishedLibraryArtwork, type LibraryAsset, type LibraryVersion } from "@/lib/teacher/library";
 
 const adventure = { id: "story", published_version: 1 };
 const versions: LibraryVersion[] = [
@@ -17,6 +17,10 @@ describe("adventure library artwork", () => {
   it("uses the active draft's portrait before landmarks, regardless of row order", () => {
     expect(selectLibraryArtwork(adventure, versions, [asset("other", "portrait"), asset("published", "portrait"), asset("draft", "landmark", "cached"), asset("draft", "portrait")]))
       .toEqual({ cover: { url: "/draft-portrait.png", kind: "portrait" }, portraits: [] });
+  });
+  it("uses only the published version for student artwork", () => {
+    expect(selectPublishedLibraryArtwork(adventure, versions, [asset("draft", "cover"), asset("published", "portrait")]))
+      .toEqual({ cover: { url: "/published-portrait.png", kind: "portrait" }, portraits: [] });
   });
   it("falls back to landmark art when the draft has no portrait", () => {
     expect(selectLibraryArtwork(adventure, versions, [asset("draft", "landmark")]))

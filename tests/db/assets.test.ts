@@ -47,8 +47,8 @@ let adventureId: string;
 let shareToken: string;
 
 beforeAll(async () => {
-  teacher = await createUserClient(uniqueEmail("d4-teacher"));
-  student = await createUserClient(uniqueEmail("d4-student"));
+  teacher = await createUserClient(uniqueEmail("d4-teacher"), "password123!", "teacher");
+  student = await createUserClient(uniqueEmail("d4-student"), "password123!", "student");
   const { data: adventure } = await admin.from("adventure").insert({ owner_id: teacher.userId, title: "Singapore, 1819" }).select("id, share_token").single();
   adventureId = adventure!.id as string;
   shareToken = adventure!.share_token as string;

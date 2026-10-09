@@ -12,7 +12,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { loadDebrief } from "@/lib/attempts/debrief";
 
-import { createUserClient, prepareVersionMaps, serviceClient, uniqueEmail } from "./helpers";
+import { createUserClient, prepareVersionMaps, serviceClient, TESTING_SCHOOL_ID, uniqueEmail } from "./helpers";
+import { SupabasePlayStore } from "@/lib/play/store";
 
 const admin = serviceClient();
 
@@ -20,8 +21,8 @@ let teacher: { client: SupabaseClient; userId: string };
 let student: { client: SupabaseClient; userId: string };
 
 beforeAll(async () => {
-  teacher = await createUserClient(uniqueEmail("p8-teacher"));
-  student = await createUserClient(uniqueEmail("p8-student"));
+  teacher = await createUserClient(uniqueEmail("p8-teacher"), "password123!", "teacher");
+  student = await createUserClient(uniqueEmail("p8-student"), "password123!", "student");
 });
 
 function specJson(endingSummary: string) {
@@ -210,5 +211,23 @@ describe("debrief", () => {
       p_ending_id: "treaty-signed",
     });
     expect(error).not.toBeNull();
+  });
+
+  it("keeps completed debriefs readable after school removal while refusing play-state loads", async () => {
+    const { attemptId } = await seedCompletedAttempt();
+    const { error: removeError } = await teacher.client.rpc("remove_student", {
+      p_org: TESTING_SCHOOL_ID,
+      p_user: student.userId,
+    });
+    expect(removeError).toBeNull();
+
+    await expect(new SupabasePlayStore(admin).load(attemptId, student.userId)).resolves.toBeNull();
+    expect(await loadDebrief(student.client, attemptId, admin)).not.toBeNull();
+
+    const { error: restoreError } = await teacher.client.rpc("restore_student", {
+      p_org: TESTING_SCHOOL_ID,
+      p_user: student.userId,
+    });
+    expect(restoreError).toBeNull();
   });
 });
