@@ -14,6 +14,8 @@ import type { ExtractedDocument } from "@adventure/generation/ingest";
 import type { AdventureSpec, SpecIssue } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { withJsonUsage } from "@/lib/usage/ledger";
+
 import { persistSpecVersion, SpecPersistError } from "./persist-spec";
 import { sourcesToDocuments, type SourceRow } from "./generate-from-sources";
 
@@ -190,7 +192,7 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
     const result = await generateAdventure({
       teacher: job.teacher,
       documents,
-      llm: new OpenAiLlmClient({
+      llm: withJsonUsage(new OpenAiLlmClient({
         background: true,
         maxRetries: 0,
         timeoutMs: 60_000,
@@ -202,6 +204,10 @@ export async function advanceGenerationJob(admin: SupabaseClient, adventureId: s
             .eq("adventure_id", adventureId).eq("lease_token", leaseToken);
           if (error) console.error("could not persist pending response id", adventureId, error);
         },
+      }), {
+        purpose: "generation",
+        adventureId,
+        userId: job.created_by,
       }),
       config: { ...job.planner_config, maxRepairs: 0 },
       validatePlayable: (spec) => validatePlayable(spec, job.layout_seed),

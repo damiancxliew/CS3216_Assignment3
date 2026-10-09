@@ -17,7 +17,8 @@ import { SchoolLinkCopy } from "./school-link-copy";
 import { ActionButton, ActionForm } from "@/components/action-form";
 import { SignInButton } from "@/components/sign-in-button";
 import { EmptyState, Field, Page, Section, SelectField, StatusBadge } from "@/components/ui";
-import { getViewer, isStaff } from "@/lib/auth/viewer";
+import { getViewer } from "@/lib/auth/viewer";
+import { resolveSchoolContext } from "@/lib/school/context";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "School console", robots: { index: false } };
@@ -81,13 +82,13 @@ export default async function SchoolPage({
     );
   }
   const viewerId = viewer.user.id;
-  const membership = viewer.membership;
-  if (!isStaff(viewer) || !membership || membership.slug !== slug) notFound();
+  const school = await resolveSchoolContext(supabase, viewer, slug);
+  if (!school) notFound();
 
-  const adminRole = membership.role === "admin";
+  const adminRole = school.role === "admin";
   const tabs = adminRole ? ADMIN_TABS : STAFF_TABS;
   const tab = tabs.find((item) => item.id === query.tab)?.id ?? "students";
-  const organizationId = membership.organizationId;
+  const organizationId = school.organizationId;
   const { data: rosterData, error: rosterError } = await supabase.rpc("school_roster", { p_org: organizationId });
   if (rosterError) console.error("could not load school roster", rosterError);
   const roster = (rosterData ?? []) as unknown as MemberRow[];
@@ -129,7 +130,7 @@ export default async function SchoolPage({
   }
 
   return (
-    <Page kicker={membership.organizationName} title="School console" width="wide">
+    <Page kicker={school.name} title="School console" width="wide">
       <nav aria-label="School console sections" className="flex gap-2 overflow-x-auto">
         {tabs.map((item) => (
           <Link

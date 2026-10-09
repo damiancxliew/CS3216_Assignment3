@@ -15,6 +15,7 @@ type MembershipNavigation = {
 export function SiteNavigation() {
   const pathname = usePathname();
   const [membership, setMembership] = useState<MembershipNavigation | null>(null);
+  const [isSysadmin, setIsSysadmin] = useState(false);
 
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return;
@@ -24,16 +25,29 @@ export function SiteNavigation() {
     const loadRole = async (userId: string | undefined, anonymous: boolean) => {
       const current = ++revision;
       if (!userId || anonymous) {
-        if (active) setMembership(null);
+        if (active) {
+          setMembership(null);
+          setIsSysadmin(false);
+        }
         return;
       }
-      const { data } = await supabase
-        .from("organization_member")
-        .select("role, organization(slug)")
-        .eq("user_id", userId)
-        .eq("status", "active")
-        .maybeSingle<MembershipNavigation>();
-      if (active && current === revision) setMembership(data ?? null);
+      const [membershipResult, adminResult] = await Promise.all([
+        supabase
+          .from("organization_member")
+          .select("role, organization(slug)")
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .maybeSingle<MembershipNavigation>(),
+        supabase
+          .from("platform_admin")
+          .select("user_id")
+          .eq("user_id", userId)
+          .maybeSingle<{ user_id: string }>(),
+      ]);
+      if (active && current === revision) {
+        setMembership(membershipResult.data ?? null);
+        setIsSysadmin(Boolean(adminResult.data));
+      }
     };
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       window.setTimeout(() => {
@@ -60,6 +74,9 @@ export function SiteNavigation() {
         </>
       ) : membership?.role === "student" ? (
         <Link href="/library" className={link} aria-current={pathname.startsWith("/library") ? "page" : undefined}><BookOpen size={16} aria-hidden />Library</Link>
+      ) : null}
+      {isSysadmin ? (
+        <Link href="/admin" className={link} aria-current={pathname.startsWith("/admin") ? "page" : undefined}>Admin</Link>
       ) : null}
     </nav>
   );
