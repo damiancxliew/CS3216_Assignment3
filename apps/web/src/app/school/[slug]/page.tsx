@@ -188,14 +188,17 @@ export default async function SchoolPage({
               {links.length ? (
                 <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
                   {links.map((link) => (
-                    <li key={link.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex min-w-0 flex-col gap-2">
-                        <SchoolLinkCopy token={link.token} />
+                    <li key={link.id} className="flex items-center gap-3 p-4">
+                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                        <code title={`/s/${link.token}`} className="block truncate rounded-control border border-line bg-paper px-3 py-2 text-sm text-ink">/s/{link.token}</code>
                         <time className="text-sm text-muted" dateTime={link.expires_at} title={new Date(link.expires_at).toLocaleString()}>
                           Expires in {relativeTime(Date.parse(link.expires_at) - Date.now())}
                         </time>
                       </div>
-                      <ActionButton action={revokeSchoolLink.bind(null, slug, link.id)} label="Revoke" pendingLabel="Revoking…" variant="quiet" />
+                      <div className="flex shrink-0 items-center gap-2">
+                        <SchoolLinkCopy token={link.token} />
+                        <ActionButton action={revokeSchoolLink.bind(null, slug, link.id)} label="Revoke" pendingLabel="Revoking…" variant="quiet" />
+                      </div>
                     </li>
                   ))}
                 </ul>
