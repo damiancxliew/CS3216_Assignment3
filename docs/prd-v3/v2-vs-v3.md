@@ -4,7 +4,81 @@
 > code at `9abd46f` (v2 as built, verified in the glossary of
 > [`../archive/gameplay-depth-plan.md`](../archive/gameplay-depth-plan.md)) and
 > [`../PRD-v3.md`](../PRD-v3.md) with [`../PRD-v3-rationale.md`](../PRD-v3-rationale.md) (v3, levels 0–6 agreed).
-> "V" numbers are v3 decisions; "D" and "FR" numbers are v2's.
+> "V" numbers are v3 decisions; "D" and "FR" numbers are v2's. The pitch summarises the case for the team; the
+> tables below it are the evidence.
+
+## The pitch: why v3
+v2 tried to be a general historical simulation: any document in, an open world of autonomous AI characters out,
+with an AI deciding what happens. It was impressive to demo, but it didn't teach well. Students chatted their way
+through a checklist, characters sounded alike, and the teacher couldn't trust or shape what students experienced.
+
+v3 gives up some of that generality to be **very good at one thing: a 45-minute history lesson in a Singapore
+school.** Every major choice follows from three sources: the MOE syllabus, how schools actually run lessons, and
+what the teacher and the NUS testers told us.
+
+### It teaches what the syllabus asks for
+MOE's History syllabuses name eight historical concepts (chronology, evidence, accounts, causation, change and
+continuity, significance, empathy, diversity). They aim for "confident, self-directed, critical and reflective
+thinkers" who can "reach substantiated judgements about the past".
+- **Understanding the episode comes first** (V21): who wanted what, what they feared, what happened and why. That
+  is the knowledge half of historical understanding, which v2 never guaranteed.
+- **Empathy and diversity:** characters with real voices, agendas and blind spots (V43). Students understand
+  positions because they have to in order to judge what people tell them.
+- **Evidence and accounts:** real excerpts with provenance, deliberately slanted sources, close reading, and
+  cross-checking with no answers handed out (V46–V48, V69).
+- **Causation and change across time:** stages that carry consequences forward and close off endings, predictions
+  checked against outcomes, and a reveal that shows where a run split from history (V53, V54).
+- **Substantiated judgement:** the Interview asks for a verdict backed by the student's own evidence, then pushes
+  back once (V40, V59). It is judged by no one.
+- **Exam-aligned, not exam-shaped:** the in-game verbs exercise the source-based skills of the O-level paper
+  (inference, purpose, comparison, reliability, usefulness, a final "how far" judgement) without turning play into a
+  worksheet (V14).
+
+### It fits how schools work
+- **One lesson:** the whole session, including the Interview and reveal, defaults to 45 minutes, leaving a buffer
+  for a late start and the teacher's own words (V12, V42). v2 assumed 15–30 minutes with no ending time.
+- **The teacher stays in control:** they review the structure before details are written, see a named source on
+  everything, edit in plain language, preview as a student, and add their own closing questions (V63–V66, V71,
+  V72).
+- **Trustworthy content:** core facts must be cited, quotes are checked word for word, outside sources come from an
+  allowlist (national archives, NLB, Roots.sg and similar), and invention is always labelled (V66).
+- **Safe for classrooms:** characters refuse slurs and attempts to break them, provocative messages are flagged to
+  the teacher, and nothing is ever graded or ranked (V16, V58).
+- **Feeds the class discussion:** a tabbed class summary shows where students got stuck, how verdicts split, which
+  perspectives they missed, and anonymised answers worth discussing (V60).
+- **Predictable cost:** the AI no longer decides outcomes or invents options, so spending goes to better
+  characters, with a simple abuse ceiling instead of throttling (V18, V67).
+
+### It answers the feedback
+| What we heard (6 Oct) | v3's answer |
+|---|---|
+| "AI responses feel generic" (main complaint) | Personas with real phrases, wants and slants; stances shown by portrait expression (V43, V49) |
+| Students unsure how to succeed; objectives unclear | An always-visible central question, plus automatic hints when stuck (V35, V52) |
+| Too easy: talk to X, done | Discoveries with reveal conditions, close reading, notes as the only proof of knowledge (V35, V36, V47) |
+| Layered reveals on good questions | Discoveries unlock on earlier discoveries and on a character's stance (V34, V35) |
+| Conflicting sources with provenance; some biased | Real excerpts, slanted documents, no verdict labels (V46, V48) |
+| A causal map in the debrief | The reveal shows where the run split from history and which choice closed which ending (V54) |
+| An evaluative final question with evidence | The Interview (V40, V59) |
+| Counterfactuals visibly speculative | Epilogue and alternative endings labelled as the student's simulation (V40, V55) |
+| Fit one lesson | 45-minute default (V12) |
+| More characters, such as the British | Minor characters (V44) |
+| Timed hints; hide the guide or minimap | Adaptive hints; no auto-walk to targets; minimap shows the layout only (V51, V52) |
+| Walking gives thinking time | The walkable map is kept (V51) |
+| Reflection | The Interview is a gamified reflection (V40) |
+
+Two asks are not fully met: the visible "3 of 5 concerns" tracker (v3 hides the count so it doesn't become
+collecting, but the teacher sees discoveries per character in the class summary), and flagging unsatisfying AI
+answers (v3's flags are for safeguarding only).
+
+### What we gave up
+| Lost | Why it's worth it |
+|---|---|
+| **Generality:** any document, any subject, any kind of scenario | v3 needs episodes with real figures making decisions under pressure, which history has in abundance. Literature and GP are out of scope for now |
+| **Emergent behaviour** from autonomous characters | It was half-built, costly and changed nothing. Written behaviour does change things (V45) |
+| **Surprise from dice** | Rules are explainable and teachable; contingency is taught in the reveal and secret endings instead (V38) |
+| **Free-text decisions and AI-invented options** | Written acts are reliable and checkable; free-text acts are a possible later addition (V67) |
+| **Quick, single-shot generation** | Generation in passes with a skeleton review takes the teacher's time, but gives them control and fewer errors (V62, V63) |
+| **Some replay variety** | Outcomes repeat for the same choices; minor details vary, and secret endings reward exploring (V38, V56) |
 
 ## In one paragraph
 v2 built a small world to *talk to history*: roam rooms, chat with characters, pick an option, and an AI resolver
