@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Pencil, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { deleteModelPrice, saveModelPrice } from "./actions";
@@ -7,7 +8,7 @@ import { CreateSchoolForm } from "./create-school-form";
 import { BarList, ChartCard, DonutChart, LineChart, StackedBarChart, type Point } from "@/components/admin/charts";
 import { ActionButton, ActionForm } from "@/components/action-form";
 import { SignInButton } from "@/components/sign-in-button";
-import { EmptyState, Field, Page, Section } from "@/components/ui";
+import { button, EmptyState, Field, Page, Section } from "@/components/ui";
 import { getViewer } from "@/lib/auth/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -92,6 +93,49 @@ function shortMoney(value: number): string {
   return value >= 100 ? `$${compact(value)}` : `$${value.toFixed(value >= 1 || value === 0 ? 2 : 3)}`;
 }
 
+const PRICE_FIELDS = [
+  { name: "input_usd_per_mtok", label: "Input" },
+  { name: "cached_input_usd_per_mtok", label: "Cached input" },
+  { name: "output_usd_per_mtok", label: "Output" },
+] as const;
+
+const iconButton =
+  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line-strong bg-surface text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-60";
+
+const compactPrimary =
+  "inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-full border-2 border-ink bg-signal px-4 py-1.5 text-sm font-extrabold text-on-signal shadow-[0_3px_0_var(--ink)] transition-all hover:-translate-y-0.5 hover:bg-ink hover:text-paper active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60";
+
+function perMtok(value: number | string): string {
+  return new Intl.NumberFormat("en", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(Number(value));
+}
+
+function PriceInput({ form, name, label, defaultValue, autoFocus }: {
+  form: string;
+  name: string;
+  label: string;
+  defaultValue: string;
+  autoFocus?: boolean;
+}) {
+  return (
+    <label className="relative block">
+      <span className="sr-only">{label}</span>
+      <span aria-hidden className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-muted">$</span>
+      <input
+        form={form}
+        name={name}
+        type="number"
+        min={0}
+        max={10000}
+        step="any"
+        required
+        autoFocus={autoFocus}
+        defaultValue={defaultValue}
+        className="w-full appearance-none rounded-control border-2 border-line bg-paper py-1.5 pl-6 pr-2 text-right [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none text-sm tabular-nums text-ink transition-all focus:border-record focus:shadow-[0_0_0_4px_var(--record-wash)] focus:outline-none"
+      />
+    </label>
+  );
+}
+
 function minutes(seconds: number): string {
   return seconds >= 3600 ? `${(seconds / 3600).toFixed(1)} h` : `${Math.round(seconds / 60)} min`;
 }
@@ -136,7 +180,7 @@ function DateWindow({ days, tab }: { days: number; tab: Tab }) {
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; days?: string; page?: string }>;
+  searchParams: Promise<{ tab?: string; days?: string; page?: string; edit?: string }>;
 }) {
   const query = await searchParams;
   const supabase = await createClient();
@@ -408,116 +452,112 @@ export default async function AdminPage({
       ) : null}
 
       {tab === "pricing" ? (
-        <div className="flex flex-col gap-8">
-          <Section title="Add model price" lede="Prices are USD per 1 million tokens.">
-            <ActionForm
-              action={saveModelPrice}
-              submitLabel="Add model price"
-              pendingLabel="Saving…"
-              className="flex max-w-5xl flex-col gap-4 rounded-surface border border-line bg-surface p-5"
-            >
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Field name="model" label="Model" required />
-                <Field name="input_usd_per_mtok" label="Input" type="number" min={0} step="any" required />
-                <Field name="cached_input_usd_per_mtok" label="Cached input" type="number" min={0} step="any" required />
-                <Field name="output_usd_per_mtok" label="Output" type="number" min={0} step="any" required />
-              </div>
-            </ActionForm>
-          </Section>
-          <Section title="Model prices" lede="Prices are USD per 1 million tokens. Unpriced models are listed when they have recorded calls.">
-            {modelPrices.length ? (
-              <div className="overflow-x-auto rounded-surface border border-line">
-                <table className="w-full min-w-[56rem] border-collapse text-left text-sm">
-                  <thead className="bg-sunken text-muted">
-                    <tr>
-                      {["Model", "Input", "Cached input", "Output", "Calls", "Last used", "Actions"].map((label) => (
-                        <th key={label} className="px-3 py-3 font-semibold">{label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modelPrices.map((row, index) => {
-                      const formId = `model-price-${index}`;
-                      const priced = row.input_usd_per_mtok !== null &&
-                        row.cached_input_usd_per_mtok !== null &&
-                        row.output_usd_per_mtok !== null;
-                      return (
-                        <tr key={row.model} className="border-t border-line align-top">
-                          <td className="px-3 py-3 font-semibold text-ink">
-                            <span>{row.model}</span>
-                            {!priced ? <span className="ml-2 inline-flex rounded-full border border-line-strong px-2 py-0.5 text-xs font-bold text-muted">Unpriced</span> : null}
-                          </td>
-                          <td className="px-3 py-3">
-                            <Field
-                              form={formId}
-                              hideLabel
-                              name="input_usd_per_mtok"
-                              label="Input"
-                              type="number"
-                              min={0}
-                              step="any"
-                              required
-                              defaultValue={row.input_usd_per_mtok == null ? "" : String(row.input_usd_per_mtok)}
-                            />
-                          </td>
-                          <td className="px-3 py-3">
-                            <Field
-                              form={formId}
-                              hideLabel
-                              name="cached_input_usd_per_mtok"
-                              label="Cached input"
-                              type="number"
-                              min={0}
-                              step="any"
-                              required
-                              defaultValue={row.cached_input_usd_per_mtok == null ? "" : String(row.cached_input_usd_per_mtok)}
-                            />
-                          </td>
-                          <td className="px-3 py-3">
-                            <Field
-                              form={formId}
-                              hideLabel
-                              name="output_usd_per_mtok"
-                              label="Output"
-                              type="number"
-                              min={0}
-                              step="any"
-                              required
-                              defaultValue={row.output_usd_per_mtok == null ? "" : String(row.output_usd_per_mtok)}
-                            />
-                          </td>
-                          <td className="px-3 py-3 tabular-nums">{number(row.calls)}</td>
-                          <td className="px-3 py-3 text-muted">{row.last_used ? new Date(row.last_used).toLocaleString() : "—"}</td>
-                          <td className="px-3 py-3">
-                            <div className="flex flex-col items-start gap-2">
-                              <ActionForm
-                                id={formId}
-                                action={saveModelPrice}
-                                submitLabel="Save"
-                                pendingLabel="Saving…"
-                                className="flex flex-col gap-2"
+        <Section title="Model prices" lede="USD per 1 million tokens. Costs are recalculated from these prices every time, so a change also applies to past calls.">
+          <ActionForm
+            action={saveModelPrice}
+            submitLabel="Add price"
+            pendingLabel="Saving…"
+            className="flex flex-wrap items-end gap-4 rounded-surface border border-line bg-surface p-5 [&>p]:basis-full"
+          >
+            <div className="grid min-w-0 flex-1 basis-[36rem] gap-4 sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
+              <Field name="model" label="Model" placeholder="gpt-5.4" required />
+              {PRICE_FIELDS.map((field) => (
+                <Field key={field.name} name={field.name} label={field.label} placeholder="0.00" type="number" min={0} step="any" required />
+              ))}
+            </div>
+          </ActionForm>
+          {modelPrices.length ? (
+            <div className="overflow-x-auto rounded-surface border border-line bg-surface">
+              <table className="w-full min-w-[48rem] border-collapse text-left text-sm">
+                <thead className="bg-sunken text-muted">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Model</th>
+                    {PRICE_FIELDS.map((field) => <th key={field.name} className="w-32 px-4 py-3 text-right font-semibold">{field.label}</th>)}
+                    <th className="px-4 py-3 text-right font-semibold">Calls</th>
+                    <th className="px-4 py-3 font-semibold">Last used</th>
+                    <th className="w-48 px-4 py-3"><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {modelPrices.map((row, index) => {
+                    const formId = `model-price-${index}`;
+                    const editing = query.edit === row.model;
+                    const priced = PRICE_FIELDS.every((field) => row[field.name] !== null);
+                    return (
+                      <tr key={row.model} className={`border-t border-line ${editing ? "bg-signal-wash/40" : ""}`}>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="break-all font-mono text-[0.8125rem] font-semibold text-ink">{row.model}</span>
+                            {!priced ? <span className="inline-flex rounded-full bg-signal-wash px-2 py-0.5 text-xs font-bold text-ink">Unpriced</span> : null}
+                          </div>
+                        </td>
+                        {PRICE_FIELDS.map((field, fieldIndex) => {
+                          const value = row[field.name];
+                          return (
+                            <td key={field.name} className={`text-right tabular-nums text-ink ${editing ? "px-2 py-2" : "px-4 py-3"}`}>
+                              {editing ? (
+                                <PriceInput
+                                  form={formId}
+                                  name={field.name}
+                                  label={`${field.label} price for ${row.model}`}
+                                  defaultValue={value === null ? "" : String(value)}
+                                  autoFocus={fieldIndex === 0}
+                                />
+                              ) : value === null ? <span className="text-muted">—</span> : perMtok(value)}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-3 text-right tabular-nums text-ink">{number(row.calls).toLocaleString("en")}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-muted">
+                          {row.last_used ? (
+                            <time dateTime={row.last_used} title={new Date(row.last_used).toLocaleString("en")}>
+                              {new Date(row.last_used).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}
+                            </time>
+                          ) : "Never"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {editing ? (
+                            <ActionForm
+                              id={formId}
+                              action={saveModelPrice}
+                              submitLabel="Save"
+                              pendingLabel="Saving…"
+                              submitClassName={compactPrimary}
+                              className="flex flex-wrap items-center justify-end gap-2 [&>p]:basis-full [&>p]:text-sm"
+                            >
+                              <input type="hidden" name="model" value={row.model} />
+                              <Link href="/admin?tab=pricing" className={button.subtle}>Cancel</Link>
+                            </ActionForm>
+                          ) : (
+                            <div className="flex items-center justify-end gap-2">
+                              <Link
+                                href={`/admin?tab=pricing&edit=${encodeURIComponent(row.model)}`}
+                                aria-label={`${priced ? "Edit" : "Set"} price for ${row.model}`}
+                                title={`${priced ? "Edit" : "Set"} price`}
+                                className={iconButton}
                               >
-                                <input type="hidden" name="model" value={row.model} />
-                              </ActionForm>
+                                <Pencil aria-hidden className="h-4 w-4" />
+                              </Link>
                               {priced ? (
                                 <ActionButton
                                   action={deleteModelPrice.bind(null, row.model)}
-                                  label="Remove price"
-                                  pendingLabel="Removing…"
-                                  variant="quiet"
+                                  label={<Trash2 aria-hidden className="h-4 w-4" />}
+                                  pendingLabel={<span className="sr-only">Removing…</span>}
+                                  ariaLabel={`Remove price for ${row.model}`}
+                                  className={`${iconButton} hover:border-danger hover:text-danger`}
                                 />
-                              ) : null}
+                              ) : <span aria-hidden className="h-9 w-9" />}
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : <EmptyState title="No model prices or usage found." />}
-          </Section>
-        </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : <EmptyState title="No model prices or usage found." />}
+        </Section>
       ) : null}
     </Page>
   );

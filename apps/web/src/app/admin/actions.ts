@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import type { ActionResult } from "@/app/teacher/actions";
 import { getViewer } from "@/lib/auth/viewer";
@@ -78,7 +79,7 @@ export async function saveModelPrice(_previous: ActionResult, formData: FormData
     return { error: "Could not save this model price. Please try again." };
   }
   revalidatePath("/admin");
-  return { notice: `Saved price for ${model}.` };
+  redirect("/admin?tab=pricing");
 }
 
 export async function deleteModelPrice(model: string): Promise<ActionResult> {
