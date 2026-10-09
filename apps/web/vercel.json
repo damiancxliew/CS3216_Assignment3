@@ -3,6 +3,7 @@
   "git": {
     "deploymentEnabled": {
       "production": true,
+      "main": true,
       "*": false,
       "**": false
     }
