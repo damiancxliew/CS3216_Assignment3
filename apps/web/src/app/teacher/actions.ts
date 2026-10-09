@@ -33,8 +33,10 @@ import {
 } from "@/lib/brief/schema";
 import { runBriefTurn, type TurnResult } from "@/lib/brief/turn";
 import { parseBriefEdit } from "@/lib/brief/edit";
+import { getViewer } from "@/lib/auth/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { withJsonUsage } from "@/lib/usage/ledger";
 
 /**
  * Every action here re-establishes who is asking from the session cookie and
@@ -51,6 +53,14 @@ async function requireUser() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/teacher");
   return { supabase, user };
+}
+
+async function requireAuthor() {
+  const { supabase, user } = await requireUser();
+  const viewer = await getViewer(supabase);
+  const membership = viewer.membership;
+  if (membership?.role !== "admin" && membership?.role !== "teacher") redirect("/teacher");
+  return { supabase, user, membership };
 }
 
 // `adventure_select` also admits a student with an attempt on a published
@@ -79,10 +89,10 @@ export type ActionResult = { error?: string; notice?: string };
  * mandatory (FR-1a) because the conversation will not finish without it.
  */
 export async function startBrief(): Promise<TurnResult> {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, membership } = await requireAuthor();
   const { data, error } = await supabase
     .from("adventure")
-    .insert({ owner_id: user.id, title: "Untitled adventure" })
+    .insert({ owner_id: user.id, organization_id: membership.organizationId, title: "Untitled adventure" })
     .select("id")
     .single<{ id: string }>();
   if (error) {
@@ -93,11 +103,11 @@ export async function startBrief(): Promise<TurnResult> {
 }
 
 /** Re-establishes ownership of the adventure the conversation belongs to and re-validates the state the client sent back. */
-async function requireBrief(state: BriefState): Promise<{ state: BriefState } | { error: string }> {
+async function requireBrief(state: BriefState): Promise<{ state: BriefState; userId: string } | { error: string }> {
   const parsed = briefStateSchema.safeParse(state);
   if (!parsed.success) return { error: "The conversation got out of step — reload to start again" };
-  await requireOwnership(parsed.data.adventureId);
-  return { state: parsed.data };
+  const { user } = await requireOwnership(parsed.data.adventureId);
+  return { state: parsed.data, userId: user.id };
 }
 
 /** The sources uploaded so far, both as the chat lists them and as the documents the assistant reads. */
@@ -132,7 +142,16 @@ export async function briefTurn(state: BriefState, input: BriefInput): Promise<T
     return { ok: false, error: "This feature is temporarily unavailable. Please try again later." };
   }
   const { list, documents } = await loadBriefSources(checked.state.adventureId);
-  const result = await runBriefTurn({ ...checked.state, sources: list }, input, new OpenAiLlmClient({ timeoutMs: 90_000 }), documents);
+  const result = await runBriefTurn(
+    { ...checked.state, sources: list },
+    input,
+    withJsonUsage(new OpenAiLlmClient({ timeoutMs: 90_000 }), {
+      purpose: "brief",
+      adventureId: checked.state.adventureId,
+      userId: checked.userId,
+    }),
+    documents,
+  );
   return result.ok ? saveBrief(result.state) : result;
 }
 

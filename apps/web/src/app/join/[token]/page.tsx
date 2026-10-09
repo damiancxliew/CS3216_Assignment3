@@ -13,6 +13,7 @@ type Preview = {
   title: string;
   setting: string | null;
   teacher_name: string | null;
+  organization_name?: string | null;
   assets_ready: boolean;
 };
 
@@ -83,7 +84,11 @@ export default async function JoinPage({
         )}
       </div>
 
-      {error ? <ErrorText>We couldn’t let you in. The adventure may have been unpublished.</ErrorText> : null}
+      {error === "school" ? (
+        <ErrorText>This adventure is only for students of {adventure.organization_name ?? "your school"}. Open your school&apos;s sign-up link first.</ErrorText>
+      ) : error ? (
+        <ErrorText>We couldn’t let you in. The adventure may have been unpublished.</ErrorText>
+      ) : null}
     </Shell>
   );
 }
