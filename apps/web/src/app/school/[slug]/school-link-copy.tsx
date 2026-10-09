@@ -1,35 +1,30 @@
 "use client";
 
+import { Check, Copy, X } from "lucide-react";
 import { useState } from "react";
 
-import { button } from "@/components/ui";
-
 export function SchoolLinkCopy({ token }: { token: string }) {
-  const [copied, setCopied] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const path = `/s/${token}`;
-  const url = `${typeof window === "undefined" ? "" : window.location.origin}${path}`;
+  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const label = status === "copied" ? "Copied" : status === "failed" ? "Couldn’t copy. Select the link and copy it." : "Copy link";
+  const Icon = status === "copied" ? Check : status === "failed" ? X : Copy;
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <code title={path} className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-control border border-line bg-paper px-3 py-2 text-sm text-ink">{path}</code>
-      <button
-        type="button"
-        className={button.quiet}
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(url);
-            setCopied(true);
-            setFailed(false);
-          } catch (error) {
-            console.error("could not copy school sign-up link", error);
-            setCopied(false);
-            setFailed(true);
-          }
-        }}
-      >
-        {copied ? "Copied" : "Copy link"}
-      </button>
-      {failed ? <span className="text-sm text-danger">Couldn’t copy. Select and copy the link above.</span> : null}
-    </div>
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-ink bg-surface text-ink shadow-[0_3px_0_var(--ink)] transition-all hover:-translate-y-0.5 hover:bg-signal-wash active:translate-y-0.5 active:shadow-none"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(`${window.location.origin}/s/${token}`);
+          setStatus("copied");
+        } catch (error) {
+          console.error("could not copy school sign-up link", error);
+          setStatus("failed");
+        }
+      }}
+    >
+      <Icon aria-hidden className={`h-5 w-5 ${status === "failed" ? "text-danger" : ""}`} />
+      <span aria-live="polite" className="sr-only">{status === "idle" ? "" : label}</span>
+    </button>
   );
 }
