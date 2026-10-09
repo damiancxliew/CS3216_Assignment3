@@ -1,7 +1,7 @@
 # PRD v3: Diagrams
 
 > **Derived view, do not edit.** Generated from [`../PRD-v3.md`](../PRD-v3.md) and
-> [`../PRD-v3-rationale.md`](../PRD-v3-rationale.md) as of level 5 (agreed). Mermaid diagrams render on GitHub.
+> [`../PRD-v3-rationale.md`](../PRD-v3-rationale.md) as of level 6 (agreed). Mermaid diagrams render on GitHub.
 
 ## Session
 ```mermaid
@@ -16,6 +16,24 @@ flowchart TD
     V --> R[Reveal]
     R --> T[Teacher's own questions]
 ```
+
+## Generation (Standard mode)
+```mermaid
+flowchart TD
+    SRC[Sources: teacher's materials + allowlisted outside sources] --> SK[Skeleton]
+    SK --> CK{Skeleton checks pass?}
+    CK -->|no| SK
+    CK -->|yes| TR[Teacher reviews and edits the skeleton]
+    TR --> ST[Stage details]
+    TR --> PE[Character personas]
+    ST --> EN[Endings and Interview]
+    PE --> EN
+    EN --> RV[Reveal material]
+    RV --> FC{Full checks pass?}
+    FC -->|no| RP[Repair only the failing part] --> FC
+    FC -->|yes| RS[Teacher review screen, preview, publish]
+```
+Quick mode skips the skeleton pause; Guided mode also pauses after sources and after each detail pass.
 
 ## Investigating (the moment loop)
 ```mermaid

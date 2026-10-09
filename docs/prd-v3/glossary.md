@@ -1,7 +1,7 @@
 # PRD v3: Glossary
 
 > **Derived view, do not edit.** Generated from [`../PRD-v3.md`](../PRD-v3.md) and
-> [`../PRD-v3-rationale.md`](../PRD-v3-rationale.md) as of level 5 (agreed). IDs refer to PRD requirements.
+> [`../PRD-v3-rationale.md`](../PRD-v3-rationale.md) as of level 6 (agreed). IDs refer to PRD requirements.
 
 ## Structure
 | Term | Meaning | IDs |
@@ -29,7 +29,7 @@
 | **Hidden top stance** | A stance reachable only through good play; can unlock a secret ending | G6.1.2 |
 | **Trigger** | A written rule: a student action → a stance change → what it unlocks or closes | G4.1, P6 |
 | **Trust trigger** | Every major character's built-in trigger: two challenged claims lower their stance by one | G4.3, P8.4 |
-| **Slant** | A written, deliberately one-sided claim a character makes; some documents contradict it | G10.4, P13.5 |
+| **Slant** | A written, deliberately one-sided claim by a major or minor character, catchable through a document or another character's account where history provides one. Confronting a major character fires a trigger; confronting a minor one unlocks a note | G10.4, P13.5, P13.6 |
 | **Summons** | A character sends for the student at a story event | P12 |
 
 ## Knowledge
@@ -47,7 +47,7 @@
 |---|---|---|
 | **Document** | A newspaper, letter, telegram, speech, minutes or memoir extract. Real excerpts where a source exists | G10, G10.1 |
 | **Provenance** | Who, when and where, shown in a form that fits the period (masthead and date, sender and recipient) | P4 |
-| **Source label** | From the teacher's materials, from other cited sources, or invented. Facts without a citation count as invented | G1.2, G1.2.1, E3.4, T3 |
+| **Source label** | The specific document's name where known (for example "Utusan Melayu, 12 August 1964"); otherwise the provenance (for example "from the teacher"); or "invented". Facts without a citation count as invented. The reveal groups them as teacher's materials, other sources and invented | G1.2, G1.2.1, E3.4, T3, T4.6 |
 | **Key passage** | A marked part of a document. Selecting a passage that overlaps it creates a note | G10.3, P13.2 |
 
 ## Pacing and help
@@ -79,8 +79,20 @@
 | **Push-back** | The interviewer's single counter-point, chosen by rule: the student's own contrary note, then a missed core discovery, then a general counter-argument | G6.6, E2.4–E2.4.2 |
 | **Reveal** | What actually happened, where the run split from history, corrections and missed core discoveries, with more on request | E3–E3.8 |
 
+## Generation
+| Term | Meaning | IDs |
+|---|---|---|
+| **Pass** | One step of generation: sources, skeleton, stage details and personas, endings, reveal, checks | G12 |
+| **Skeleton** | Every structural decision (role, characters, stages, core discoveries, defining moments, ending map, endings, arc), checked automatically and reviewable by the teacher | G12.3, G12.4, T6.2 |
+| **Generation mode** | Quick (review at the end), Standard (also pause after the skeleton; default) or Guided (pause after every pass) | T6 |
+| **Targeted repair** | Regenerating only the part that failed a check, or that depends on a teacher's edit | G12.2, T4.1 |
+| **Allowlist** | The outside sites generation may cite by default; the teacher can extend it or allow any credible cited source | G13.7, T7 |
+| **Reading level** | Sec or JC, chosen at creation. Real excerpts stay verbatim (shorter for Sec, with a glossary); everything else is written to level | G16–G16.2 |
+
 ## Teacher
 | Term | Meaning | IDs |
 |---|---|---|
+| **Review screen** | Where the teacher browses and edits everything, with labels, citations and conflicts shown | T4.2–T4.7 |
+| **Preview** | Playing the adventure as a student before publishing | T4.8 |
 | **Class summary** | A navigable overview of the class's thinking, as totals: where students got stuck, predictions, verdicts, discoveries missed, endings, anonymised answers | T2–T2.7 |
 | **Flagged message** | An abusive, hateful or provocative message, shown to the teacher per student for safeguarding | P16, T5, C9 |

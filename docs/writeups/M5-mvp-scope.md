@@ -1,6 +1,6 @@
 # M5 — MVP scope and future features
 
-Source: `docs/PRD.md` §8, with the delivered state as of submission.
+Source: `docs/archive/PRD-v2.md` §8, with the delivered state as of submission.
 
 ## The scoping rule we used
 

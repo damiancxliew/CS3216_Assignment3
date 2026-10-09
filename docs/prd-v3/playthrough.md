@@ -1,7 +1,7 @@
 # PRD v3: Example playthrough
 
 > **Derived view, do not edit.** Generated from [`../PRD-v3.md`](../PRD-v3.md) and
-> [`../PRD-v3-rationale.md`](../PRD-v3-rationale.md) as of level 5 (agreed). It shows how the requirements fit
+> [`../PRD-v3-rationale.md`](../PRD-v3-rationale.md) as of level 6 (agreed). It shows how the requirements fit
 > together in one run. **The history is illustrative**: the broad events are real, but the role, the dialogue and
 > the generated content are made up for the example. IDs in brackets refer to PRD requirements.
 
@@ -77,13 +77,13 @@ The situation has changed: the Tunku starts *wary* instead of *guarded*, and a n
 
 **Central question:** *Can the federation survive the bitterness?*
 
-1. **Story event: news.** *"Reports of fresh clashes in Geylang."* The Tunku's stance moves to *alarmed* [P14.1].
-2. **A slant.** An UMNO official tells Daniel the riots were entirely the PAP's fault. Daniel finds a police report
-   that contradicts this. There's no "contradicted" label [P13.4]; he notices the conflict himself and confronts
-   the official with the report. That fires a trigger: the official backs off and reveals that the Tunku is under
-   pressure from his own hardliners [P13.5, G10.4].
-3. **A guarded discovery.** Because the Tunku is alarmed and Daniel already knows about the pressure, the Tunku
-   opens up:
+1. **Story event: news.** *"Reports of fresh clashes in Geylang."* The mood in Kuala Lumpur darkens [P14.1].
+2. **A slant.** The Tunku insists the riots were entirely the PAP's doing. Daniel finds a police report that
+   contradicts this. There's no "contradicted" label [P13.4]; he notices the conflict himself and shows the Tunku
+   the report. That fires a trigger: the Tunku moves from *wary* to *alarmed*, admits his own hardliners are
+   pushing him, and that admission becomes a note [P13.5, G10.4, G4.1].
+3. **A guarded discovery.** Because the Tunku is now alarmed and Daniel knows about the pressure, the Tunku opens
+   up further:
    > 📝 *The Tunku fears communal violence more than he fears Lee.* (core) [G5, G5.3]
 4. **The secret ending stays hidden.** To unlock it, Daniel would need the Tunku at *confiding* and Lee's private
    confederation idea passed on to him [G6.1.2]. Daniel never finds Lee's idea, so the hidden act never appears
@@ -119,8 +119,8 @@ The situation has changed: the Tunku starts *wary* instead of *guarded*, and a n
   [E3.1].
 - **Your path compared with history:** *your run stayed on the historical path. In stage 1, passing Lee's message
   frankly closed off emergency rule* [E3.6.1].
-- **Key correction:** *the UMNO official's claim that the riots were entirely the PAP's fault was a slant; the
-  causes were more complex* [E3.5].
+- **Key correction:** *the Tunku's claim that the riots were entirely the PAP's doing was a slant; the causes were
+  more complex* [E3.5].
 
 **On request:**
 - How the episode has been read differently [E3.2].

@@ -1,6 +1,8 @@
-# PRD v3: Gameplay redesign
+# PRD v3
 
-Status: design in progress. The rationale for each requirement is in [`PRD-v3-rationale.md`](PRD-v3-rationale.md).
+Status: levels 0–6 agreed and frozen for team review; levels 7 (systems) and 8 (build plan) to come. The rationale
+for each requirement, the team decisions and the open items are in [`PRD-v3-rationale.md`](PRD-v3-rationale.md).
+Derived views (overview, glossary, diagrams, example playthrough) are in [`prd-v3/`](prd-v3/).
 
 ## Purpose
 
@@ -69,7 +71,7 @@ When each skill is practised:
 | | **G** | **Generation** | | |
 | ☐ | G1 | The system should generate an adventure focused on the teacher's materials. | | |
 | ☐ | G1.1 | The system should draw on sources beyond the teacher's materials for people, setting, context and primary material. | | |
-| ☐ | G1.2 | The system should label all content as from the teacher's materials, from other cited sources, or invented. | | |
+| ☐ | G1.2 | The system should label all content with its source: the specific document's name where known (for example "Utusan Melayu, 12 August 1964"); otherwise its provenance (for example "from the teacher"); or "invented". | | |
 | ☐ | G1.2.1 | The system should treat any fact without a citation as invented. | | |
 | ☐ | G2 | The system should generate one or more stages, with the number set by the episode. | | |
 | ☐ | G2.1 | The system should carry the student's choices forward into later stages. | | |
@@ -82,10 +84,10 @@ When each skill is practised:
 | ☐ | G3.5 | (Tentative, team to confirm) The system should make the role a fictional go-between trusted to different degrees by several sides. | | |
 | ☐ | G3.6 | (Tentative, team to confirm) The system should give every student in a class the same role. | | |
 | ☐ | G4 | The system should generate 3–5 character-specific stances for each major character (for example guarded, wary, alarmed, confiding). | | |
-| ☐ | G4.1 | The system should generate triggers for each character: a student action, the stance change it causes, and what that change unlocks or closes. | | |
+| ☐ | G4.1 | The system should generate triggers for each major character: a student action, the stance change it causes, and what that change unlocks or closes. | | |
 | ☐ | G4.2 | The system should generate a portrait expression for each stance of each major character. | | |
 | ☐ | G4.3 | The system should include a trust trigger for every major character: repeated challenged claims lower their stance (P8.4). | | |
-| ☐ | G5 | The system should generate grounded discoveries for each character, each with a reveal condition (prior discoveries and/or a stance). | | |
+| ☐ | G5 | The system should generate discoveries for each character, each with a reveal condition (prior discoveries and/or a stance), grounded as set out in G13. | | |
 | ☐ | G5.1 | The system should generate open questions linked to the discoveries that answer them. | | |
 | ☐ | G5.2 | The system should generate a central question for each stage. | | |
 | ☐ | G5.3 | The system should mark the discoveries in each stage that are core to understanding the episode, drawing them only from major characters or documents. | | |
@@ -106,7 +108,7 @@ When each skill is practised:
 | ☐ | G10.1 | The system should use real excerpts wherever a source exists, and invent documents only to fill gaps. | | |
 | ☐ | G10.2 | The system should include at least one slanted, incomplete or later-contradicted document per stage. | | |
 | ☐ | G10.3 | The system should mark the key passages in each document. | | |
-| ☐ | G10.4 | The system should generate written slants for characters, each catchable through a document or another character's account where history provides one; contradicting evidence is cited, never invented. | | |
+| ☐ | G10.4 | The system should generate written slants for major and minor characters, each catchable through a document or another character's account where history provides one; contradicting evidence is cited, never invented. | | |
 | ☐ | G11 | The system should generate 2–4 story events per stage, each with a trigger and an effect from a fixed list. | | |
 | ☐ | G12 | The system should generate an adventure in passes: sources, then a skeleton, then stage details and character personas (in parallel), then endings, then the reveal, then checks. | | |
 | ☐ | G12.1 | The system should check the skeleton's consistency (for example, reachable endings) before generating details. | | |
@@ -134,7 +136,7 @@ When each skill is practised:
 | | **P** | **Play** | | |
 | ☐ | P1 | The system should allow the teacher to turn the stage timer on or off and set its length. | | |
 | ☐ | P1.1 | The system should let the student end a stage by acting at its defining moment. | | |
-| ☐ | P1.2 | When the timer runs out, the system should force a final decision instead of skipping the student's choice. | | |
+| ☐ | P1.2 | When the timer runs out, the system should bring the defining moment to the student (a final call) instead of skipping their choice. | | |
 | ☐ | P1.3 | The system should require the teacher to set the timer when creating an adventure. | | |
 | ☐ | P1.4 | The system should default the timer to on, with the whole session (stages, epilogue, Interview and reveal) fitting into 45 minutes. | | |
 | ☐ | P1.5 | The system should default to about 2 minutes of briefing, 30 minutes of stages in total, 1 minute of epilogue, 4 minutes of Interview and 6 minutes of reveal. | | |
@@ -178,7 +180,7 @@ When each skill is practised:
 | ☐ | P8.2 | When the student asserts something they haven't discovered, whether helpful or harmful, the character should question how they know it and prompt them to find out properly. | | |
 | ☐ | P8.2.1 | The system should challenge only assertions of undiscovered facts, not questions. | | |
 | ☐ | P8.3 | The system should never create notes, unlock content, fire triggers or change outcomes from information the student hasn't discovered, including made-up claims. | | |
-| ☐ | P8.4 | The system should lower a character's stance by one after the student makes two claims to them that get challenged. | | |
+| ☐ | P8.4 | The system should lower a major character's stance by one after the student makes two claims to them that get challenged. | | |
 | ☐ | P8.5 | The system should treat notes from documents and notes from conversations the same everywhere: passing on, triggers and Interview evidence. | | |
 | ☐ | P9 | The system should build each stage to a defining moment where a real figure decides based on what the student advises, conveys or keeps back. | | |
 | ☐ | P9.1 | The system should offer 2–4 written go-between acts at the defining moment, phrased in the role's voice. | | |
@@ -200,7 +202,7 @@ When each skill is practised:
 | ☐ | P11.2 | Characters should want things from the student and ask for them (favours, messages to carry, secrecy). | | |
 | ☐ | P11.3 | Characters should remember what the student told them and how they were treated, across stages. | | |
 | ☐ | P11.4 | Characters should hedge and show emotion without contradicting written facts. | | |
-| ☐ | P12 | The system should let characters summon the student at story events or when conditions are met. | | |
+| ☐ | P12 | The system should let characters summon the student through story events. | | |
 | ☐ | P12.1 | The system should move characters between rooms only through story events. | | |
 | ☐ | P12.2 | The system should play written conversations between characters that the student can overhear when in earshot (only if easily viable). | Low | |
 | ☐ | P13 | The system should place documents in rooms, have characters hand them over as trigger rewards, or deliver them at story events. | | |
@@ -208,7 +210,8 @@ When each skill is practised:
 | ☐ | P13.2 | The system should create a note when the student selects a passage that overlaps a key passage. | | |
 | ☐ | P13.3 | The system should let hints point to the relevant paragraph of a document. | | |
 | ☐ | P13.4 | The system should not label claims or documents as true, false or contradicted during play. | | |
-| ☐ | P13.5 | The system should fire a trigger when the student confronts a character with a document that contradicts their slant. | | |
+| ☐ | P13.5 | The system should fire a trigger when the student confronts a major character with a document that contradicts their slant. | | |
+| ☐ | P13.6 | When the student confronts a minor character with a document that contradicts their slant, the system should unlock a note, without any stance change. | | |
 | ☐ | P14 | The system should fire story events on time, on a condition (discovery found, stance reached, document shown, note passed on), when the student is stuck, or when the timer runs out. | | |
 | ☐ | P14.1 | The system should limit story event effects to: summons, a character moving, a document delivered, news or an announcement (which may shift stances), and the defining moment beginning. | | |
 | ☐ | P14.2 | The system should make a story event fired because the student is stuck create an opportunity (for example, a character seeks them out), never hand over a discovery. | | |
@@ -220,6 +223,7 @@ When each skill is practised:
 | ☐ | P17 | The system should run characters on strong mid-tier models with low or no reasoning, optionally frontier for major characters at defining moments. | | |
 | ☐ | P17.1 | The system should combine the checks after each exchange (discovery conveyed, assertion or question, abusive) into one cheap model call, run off the chat path. | | |
 | ☐ | P17.2 | The system should run the interviewer on a mid-tier model, and narration of minor details on a cheap or mid-tier model. | | |
+| ☐ | P18 | The system should open each session with the role briefing: identity, relationships, stakes, private brief and the situation. | | |
 | | **E** | **End of game** | | |
 | ☐ | E1 | The system should show an epilogue: a short ending scene for the student's run, labelled as their simulation. | | |
 | ☐ | E2 | The system should hold the Interview after the epilogue: a short in-chat conversation in which a character asks the student a question that fits their ending. | | |
@@ -235,7 +239,7 @@ When each skill is practised:
 | ☐ | E3.1 | The system should show what actually happened. | | |
 | ☐ | E3.2 | The system should show how the episode has been interpreted differently. | | |
 | ☐ | E3.3 | The system should play back the student's own choices, predictions and Interview answers. | | |
-| ☐ | E3.4 | The system should show which content came from the teacher's materials, which from other sources, which was invented, and which was the student's own path. | | |
+| ☐ | E3.4 | The system should show the source of each piece of content by name (grouped as teacher's materials, other sources and invented), and which parts were the student's own path. | | |
 | ☐ | E3.5 | The system should correct anything the student was misled about during play. | | |
 | ☐ | E3.6 | The system should show how outcomes could have gone differently. | | |
 | ☐ | E3.6.1 | The system should show which earlier choice closed which ending, and where the run split from history. | | |
@@ -243,7 +247,7 @@ When each skill is practised:
 | ☐ | E3.7 | The system should cover any core discoveries the student missed. | | |
 | ☐ | E3.8 | The system should show by default only what actually happened, the student's path compared with history, and key corrections, with the rest available on request. | | |
 | | **T** | **Teacher** | | |
-| ☐ | T1 | The system should allow the teacher to add their own end-of-game questions. | | |
+| ☐ | T1 | The system should allow the teacher to add their own end-of-game questions, shown after the reveal (like a take-home or end-of-class question). | | |
 | ☐ | T2 | The system should show the teacher a summary of the class's thinking. | | |
 | ☐ | T2.1 | The system should show the teacher where students commonly got stuck, as class totals only. | | |
 | ☐ | T2.2 | The system should show the teacher how the class's predictions split, never who was right. | | |
