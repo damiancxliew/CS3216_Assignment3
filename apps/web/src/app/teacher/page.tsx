@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowUpRight, BookOpen, MapPin, Route } from "lucide-react";
 
 import { TeacherWorkspace } from "./workspace";
 import { SignInButton } from "@/components/sign-in-button";
 import { button, EmptyState, Page, StatusBadge } from "@/components/ui";
 import { briefStateSchema } from "@/lib/brief/schema";
+import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { loadLibraryArtwork } from "@/lib/teacher/library";
 import { AdventureCover } from "@/components/teacher/adventure-cover";
+import { SchoolMembershipRequired } from "@/components/school-membership-required";
 
 export const metadata: Metadata = {
   title: "Your adventures",
@@ -27,9 +30,8 @@ type AdventureRow = {
 
 export default async function TeacherHome() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer(supabase);
+  const { user } = viewer;
 
   if (!user) {
     return (
@@ -38,6 +40,8 @@ export default async function TeacherHome() {
       </Page>
     );
   }
+  if (viewer.membership?.role === "student") redirect("/library");
+  if (!isStaff(viewer)) return <SchoolMembershipRequired />;
 
   // `adventure_select` also admits students playing a published adventure, so
   // the authoring surface filters on ownership rather than leaning on RLS.

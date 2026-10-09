@@ -17,6 +17,9 @@ export async function joinAdventure(token: string) {
     p_token: token,
   });
 
+  if (error?.code === "42501") {
+    redirect(`/join/${token}?error=school`);
+  }
   if (error || !data) {
     redirect(`/join/${token}?error=join`);
   }

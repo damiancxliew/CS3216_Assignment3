@@ -143,7 +143,11 @@ export class SupabasePlayStore implements PlayStore {
   constructor(private readonly admin: SupabaseClient) {}
 
   async load(attemptId: string, userId: string, timings?: PlayTimings): Promise<AttemptRecord | null> {
-    const [{ data: attempt, error: attemptError }, { data: runtime, error: runtimeError }] = await Promise.all([
+    const [
+      { data: attempt, error: attemptError },
+      { data: runtime, error: runtimeError },
+      { data: canPlay, error: accessError },
+    ] = await Promise.all([
       timed(timings, "load.attempt", () => this.admin
         .from("attempt")
         .select("id, adventure_id, published_version, student_id, status, ending_id, current_stage_id, stage_deadline_at")
@@ -163,9 +167,14 @@ export class SupabasePlayStore implements PlayStore {
         .select("stage_spec_id, revision, snapshot")
         .eq("attempt_id", attemptId)
         .maybeSingle<{ stage_spec_id: string; revision: number; snapshot: unknown }>()),
+      timed(timings, "load.access", () => this.admin.rpc("can_play_attempt", {
+        p_attempt_id: attemptId,
+        p_user: userId,
+      })),
     ]);
     if (attemptError) throw new Error(`attempt: ${attemptError.message}`);
-    if (!attempt || attempt.student_id !== userId) return null;
+    if (accessError) throw new Error(`can_play_attempt: ${accessError.message}`);
+    if (!attempt || attempt.student_id !== userId || canPlay !== true) return null;
     // A failed read is not an absent runtime: treating it as one would start a
     // fresh session over saved state and then collide with it on save.
     if (runtimeError) throw new Error(`attempt_runtime: ${runtimeError.message}`);
