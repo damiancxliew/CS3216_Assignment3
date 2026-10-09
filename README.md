@@ -33,6 +33,8 @@ objectives → preview → correct or regenerate → publish and share → revie
 compare accounts, collect evidence → decide before the stage timer expires → observe
 persistent changes → reach an ending and reflect.
 
+`npm run db:seed` prints both the adventure share link and the school sign-up link; students should open the school link first.
+
 ## Quickstart
 
 Requires Node 22 and Docker (for the local Supabase stack).

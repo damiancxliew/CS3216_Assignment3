@@ -17,14 +17,18 @@ export function ActionForm({
   submitLabel,
   pendingLabel,
   event,
+  id,
   className,
+  submitClassName = `${button.primary} w-fit`,
   children,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   submitLabel: string;
   pendingLabel?: string;
   event?: AnalyticsEvent;
+  id?: string;
   className?: string;
+  submitClassName?: string;
   children?: React.ReactNode;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -37,9 +41,9 @@ export function ActionForm({
   );
 
   return (
-    <form action={formAction} className={className ?? "flex flex-col gap-4"}>
+    <form id={id} action={formAction} className={className ?? "flex flex-col gap-4"}>
       {children}
-      <button type="submit" disabled={pending} className={`${button.primary} w-fit`}>
+      <button type="submit" disabled={pending} className={submitClassName}>
         {pending ? <Pending>{pendingLabel ?? "Working…"}</Pending> : submitLabel}
       </button>
       {state.error ? (
@@ -58,12 +62,16 @@ export function ActionButton({
   pendingLabel,
   event,
   variant = "primary",
+  className,
+  ariaLabel,
 }: {
   action: () => Promise<ActionResult>;
-  label: string;
-  pendingLabel?: string;
+  label: React.ReactNode;
+  pendingLabel?: React.ReactNode;
   event?: AnalyticsEvent;
   variant?: "primary" | "quiet";
+  className?: string;
+  ariaLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState(async () => {
     const result = await action();
@@ -73,7 +81,7 @@ export function ActionButton({
 
   return (
     <form action={formAction} className="flex flex-col gap-2">
-      <button type="submit" disabled={pending} className={`${button[variant]} w-fit`}>
+      <button type="submit" disabled={pending} aria-label={ariaLabel} title={ariaLabel} className={className ?? `${button[variant]} w-fit`}>
         {pending ? <Pending>{pendingLabel ?? "Working…"}</Pending> : label}
       </button>
       {state.error ? (
