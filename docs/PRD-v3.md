@@ -106,8 +106,31 @@ When each skill is practised:
 | ☐ | G10.1 | The system should use real excerpts wherever a source exists, and invent documents only to fill gaps. | | |
 | ☐ | G10.2 | The system should include at least one slanted, incomplete or later-contradicted document per stage. | | |
 | ☐ | G10.3 | The system should mark the key passages in each document. | | |
-| ☐ | G10.4 | The system should generate written slants for characters, with documents that contradict them. | | |
+| ☐ | G10.4 | The system should generate written slants for characters, each catchable through a document or another character's account where history provides one; contradicting evidence is cited, never invented. | | |
 | ☐ | G11 | The system should generate 2–4 story events per stage, each with a trigger and an effect from a fixed list. | | |
+| ☐ | G12 | The system should generate an adventure in passes: sources, then a skeleton, then stage details and character personas (in parallel), then endings, then the reveal, then checks. | | |
+| ☐ | G12.1 | The system should check the skeleton's consistency (for example, reachable endings) before generating details. | | |
+| ☐ | G12.2 | The system should repair only the parts that fail a check, not regenerate the whole adventure. | | |
+| ☐ | G12.3 | The system should put every structural decision in the skeleton: the role (name, position, relationships, stakes, short brief); characters (name, real or fictional, major or minor, public position, private agenda); stages (title, time and place, central question, rooms, who is present); core discoveries per stage with their holder; defining moments (scene, deciding figure, acts, outcomes); the ending map; endings (type, summary, citations); and a short arc. | | |
+| ☐ | G12.4 | The system should check the skeleton automatically: the historical ending is reachable from the start, at least two endings stay reachable at the final defining moment, every stage has a core discovery, and every core discovery is held by a major character or a document. | | |
+| ☐ | G13 | The system should cite every core discovery (teacher's materials or another source); core discoveries are never invented. | | |
+| ☐ | G13.1 | The system should cite other discoveries where possible, and otherwise label them invented. | | |
+| ☐ | G13.2 | The system should quote documents marked as real word for word from their source. | | |
+| ☐ | G13.3 | The system should cite the real phrases used in character personas. | | |
+| ☐ | G13.4 | The system should cite the historical ending, what actually happened, and differing interpretations. | | |
+| ☐ | G13.5 | The system should check every quotation word for word against its source text, for both uploaded and outside sources. | | |
+| ☐ | G13.6 | When the teacher's materials and an outside source disagree, the system should follow the teacher's materials and show the conflict to the teacher at review. | | |
+| ☐ | G13.7 | The system should use outside sources only from an allowlist by default (for example national archives, the National Library Board, Roots.sg, university and museum sites, encyclopaedias). | | |
+| ☐ | G14 | The system should use frontier models with medium–high reasoning for the skeleton, and frontier models with medium reasoning for endings, the Interview and the reveal. | | |
+| ☐ | G14.1 | The system should use mid-tier models with search tools and low reasoning to find and extract sources. | | |
+| ☐ | G14.2 | The system should use frontier or strong mid-tier models with medium reasoning for stage details and personas. | | |
+| ☐ | G14.3 | The system should choose exact models through evaluations. | | |
+| ☐ | G15 | After the detail passes, the system should check that: every trigger, angle and counter-point refers to things that exist; every core discovery can be reached within its stage without secret-ending conditions; every reveal condition can be met; every open question and key passage links to a discovery; every slant used in a trigger or unlock is catchable and its contradicting evidence is cited; every slant is corrected in the reveal; the secret ending needs at least two met conditions; every combination of act and situation leads to an outcome; every citation is verified; and every item has a source label. | | |
+| ☐ | G16 | The system should let the teacher choose Sec or JC when creating an adventure. | | |
+| ☐ | G16.1 | The system should keep real excerpts word for word, but shorter for Sec (about 150 words) than for JC (about 300), with an optional glossary of hard words. | | |
+| ☐ | G16.2 | The system should write all other text (dialogue, notes, hints, epilogue, Interview, reveal) to the chosen level, keeping each character's voice. | | |
+| ☐ | G17 | The system should generate 5–8 discoveries per stage, 2–3 of them core. | | |
+| ☐ | G17.1 | The system should generate 3–5 documents per stage, each with 1–2 key passages. | | |
 | | **P** | **Play** | | |
 | ☐ | P1 | The system should allow the teacher to turn the stage timer on or off and set its length. | | |
 | ☐ | P1.1 | The system should let the student end a stage by acting at its defining moment. | | |
@@ -194,6 +217,9 @@ When each skill is practised:
 | ☐ | P15.2 | The system should not offer automatic walking to a person or object. | | |
 | ☐ | P15.3 | The system should show a minimap of the room layout only, never where characters or documents are. | | |
 | ☐ | P16 | The system should flag abusive, hateful or provocative messages. | | |
+| ☐ | P17 | The system should run characters on strong mid-tier models with low or no reasoning, optionally frontier for major characters at defining moments. | | |
+| ☐ | P17.1 | The system should combine the checks after each exchange (discovery conveyed, assertion or question, abusive) into one cheap model call, run off the chat path. | | |
+| ☐ | P17.2 | The system should run the interviewer on a mid-tier model, and narration of minor details on a cheap or mid-tier model. | | |
 | | **E** | **End of game** | | |
 | ☐ | E1 | The system should show an epilogue: a short ending scene for the student's run, labelled as their simulation. | | |
 | ☐ | E2 | The system should hold the Interview after the epilogue: a short in-chat conversation in which a character asks the student a question that fits their ending. | | |
@@ -228,7 +254,20 @@ When each skill is practised:
 | ☐ | T2.7 | The system should organise the class summary into easily navigable sections (for example, tabs) that the teacher can explore freely. | | |
 | ☐ | T3 | The system should show the teacher the source label of all content before publishing. | | |
 | ☐ | T4 | The system should allow the teacher to reshape the generated adventure extensively, including the number of stages. (Details to be designed.) | | |
+| ☐ | T4.1 | The system should regenerate only the parts that depend on a teacher's edit. | | |
+| ☐ | T4.2 | The system should give the teacher a review screen to browse by stage, character, document and ending, showing each item's source label and citation, and flagging conflicts. | | |
+| ☐ | T4.3 | The system should let the teacher edit everything: the skeleton, personas, discoveries, documents, stances, triggers, story events, hint angles, epilogues, Interview questions and verdicts, the reveal, the timer, the reading level and the allowlist. | | |
+| ☐ | T4.4 | The system should offer direct edits (text, and simple forms for rules such as triggers) and plain-language requests that regenerate just that part. | | |
+| ☐ | T4.5 | The system should not let real excerpts be rewritten; the teacher can pick another passage, swap the source, or turn it into an invented document labelled as such. | | |
+| ☐ | T4.6 | The system should label facts the teacher writes as from the teacher, and show them that way in the reveal's breakdown. | | |
+| ☐ | T4.7 | The system should re-run the checks affected by each edit; errors block publishing, warnings don't. | | |
+| ☐ | T4.8 | The system should let the teacher play the adventure as a student before publishing. | | |
+| ☐ | T4.9 | The system should create a new version when the teacher edits after publishing, keeping students already playing on their original version. | | |
 | ☐ | T5 | The system should show the teacher each student's flagged messages, for safeguarding, not grading. | | |
+| ☐ | T6 | The system should let the teacher choose a generation mode when creating an adventure: Quick (review at the end), Standard (also pause after the skeleton; the default), or Guided (pause after sources, the skeleton and each detail pass). | | |
+| ☐ | T6.1 | The system should run generation in the background, show progress, and notify the teacher when a review is waiting or the adventure is ready. | | |
+| ☐ | T6.2 | The system should let the teacher edit any part of the skeleton, add or remove characters, stages, acts and endings, and re-run the skeleton checks after every edit. | | |
+| ☐ | T7 | The system should let the teacher add sites to the source allowlist, or allow any credible cited source, for an adventure. | | |
 
 ### 2. Constraints
 
@@ -244,3 +283,5 @@ When each skill is practised:
 | ☐ | C8 | The system should not run free-roaming AI turns for characters between the student's actions. | | |
 | ☐ | C9 | Characters should never repeat slurs or hateful statements, and never break character on a student's instruction; they respond with period-appropriate dignity and steer back to the matter at hand. | | |
 | ☐ | C10 | The system should treat student messages as untrusted input, never as instructions. | | |
+| ☐ | C11 | The system should decide what is true, progress and consequences (which discoveries are available, stances, outcomes, endings) by rules, never by a model. | | |
+| ☐ | C12 | The system should not use a model to resolve stages or mint new options during play. | | |
