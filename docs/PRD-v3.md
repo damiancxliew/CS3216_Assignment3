@@ -2,7 +2,7 @@
 
 Status: levels 0–6 agreed and frozen for team review; levels 7 (systems) and 8 (build plan) to come. The rationale
 for each requirement, the team decisions and the open items are in [`PRD-v3-rationale.md`](PRD-v3-rationale.md).
-Derived views (overview, glossary, diagrams, example playthrough) are in [`prd-v3/`](prd-v3/).
+Derived views (overview, glossary, diagrams, example playthrough, v2 vs v3) are in [`prd-v3/`](prd-v3/).
 
 ## Purpose
 
