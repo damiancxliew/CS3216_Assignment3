@@ -32,7 +32,7 @@ When each skill is practised:
 | When | Student does | Skills |
 |---|---|---|
 | During a stage | Talks, reads, compares | Question claims, consider other perspectives, cross-check |
-| End of a stage | Decides, and predicts what happens next | Weigh and reach a judgement, reason about consequences |
+| End of a stage | Acts at the defining moment, and predicts what happens next | Weigh and reach a judgement, reason about consequences |
 | Start of the next stage (or the reveal, for a one-stage adventure) | Sees the consequences of their choice and prediction | Reason about consequences |
 | End of the game | The Interview: defends a verdict with evidence against push-back | Weigh and reach a judgement, drawing on all of the above |
 
@@ -88,14 +88,14 @@ When each skill is practised:
 | ☐ | G5 | The system should generate grounded discoveries for each character, each with a reveal condition (prior discoveries and/or a stance). | | |
 | ☐ | G5.1 | The system should generate open questions linked to the discoveries that answer them. | | |
 | ☐ | G5.2 | The system should generate a central question for each stage. | | |
-| ☐ | G5.3 | The system should mark the discoveries in each stage that are core to understanding the episode. | | |
+| ☐ | G5.3 | The system should mark the discoveries in each stage that are core to understanding the episode, drawing them only from major characters or documents. | | |
 | ☐ | G6 | The system should generate 3–4 outcomes for each defining moment, with rules that map the student's act, characters' stances and what each character knows to one outcome. | | |
 | ☐ | G6.1 | The system should allow hidden outcomes that only skilful play can reach (secret endings). | | |
 | ☐ | G6.1.1 | The system should generate at most one secret ending per adventure, at the final defining moment: a plausible path history didn't take, cited where possible. | | |
 | ☐ | G6.1.2 | The system should generate 2–3 unlock conditions for the secret ending from: a key figure at their hidden top stance, a guarded non-core discovery found, a slant confronted with a contradicting document, or the right note passed to the right person. | | |
-| ☐ | G6.4 | The system should generate endings for the final stage: 1 historical, 2–3 alternatives and 0–1 secret, with no "good" or "bad" labels. | | |
 | ☐ | G6.2 | The system should generate an Interview question and interviewer for each ending, fitting that ending. | | |
 | ☐ | G6.3 | The system should generate, for each earlier-stage outcome, the endings it closes. | | |
+| ☐ | G6.4 | The system should generate endings for the final stage: 1 historical, 2–3 alternatives and 0–1 secret, with no "good" or "bad" labels. | | |
 | ☐ | G6.5 | The system should generate 3 verdicts for each Interview question. | | |
 | ☐ | G6.6 | The system should generate, for each verdict, the discoveries and documents that cut against it, plus one general counter-argument. | | |
 | ☐ | G7 | The system should generate a persona for each major character: voice and real phrases from their documented words, what they knew at that moment, what they want from the student, and what they slant or withhold. | | |
@@ -120,7 +120,7 @@ When each skill is practised:
 | ☐ | P3 | The system should ask the student for a prediction at the end of each stage. | | |
 | ☐ | P3.1 | The system should reveal how each prediction turned out later in the game. | | |
 | ☐ | P3.2 | The system should ask the student to predict what the real figure will decide because of their act. | | |
-| ☐ | P3.3 | The system should offer the defining moment's written outcomes, rephrased as predictions, as one-tap choices, never listing secret outcomes. | | |
+| ☐ | P3.3 | The system should offer the defining moment's written outcomes, rephrased as predictions, as one-tap choices, never listing secret or already-closed outcomes. | | |
 | ☐ | P3.4 | The system should reveal the prediction when the next stage opens, or in the epilogue for the last stage. | | |
 | ☐ | P3.5 | The system should explain why the outcome happened, using the rule that produced it. | | |
 | ☐ | P3.6 | The system should never score predictions or show anyone a student's prediction accuracy. | | |
@@ -134,6 +134,7 @@ When each skill is practised:
 | ☐ | P5.1.3 | The system should pause the stuck clock while the student is reading a document or waiting for a reply. | | |
 | ☐ | P5.1.4 | The system should not use message counts to detect being stuck. | | |
 | ☐ | P5.2 | The system should start with an open question as the first hint, give more specific angles after that, and end with a story event. | | |
+| ☐ | P5.2.1 | The system should let angle hints point to a person to ask, a document or passage to read, a note to pass on, or a document to show. | | |
 | ☐ | P5.3 | The system should never complete progress on the student's behalf through a hint. | | |
 | ☐ | P5.4 | The system should steer hints towards core discoveries first. | | |
 | ☐ | P5.5 | The system should give hints automatically only, with no button to request them. | | |
@@ -155,6 +156,7 @@ When each skill is practised:
 | ☐ | P8.2.1 | The system should challenge only assertions of undiscovered facts, not questions. | | |
 | ☐ | P8.3 | The system should never create notes, unlock content, fire triggers or change outcomes from information the student hasn't discovered, including made-up claims. | | |
 | ☐ | P8.4 | The system should lower a character's stance by one after the student makes two claims to them that get challenged. | | |
+| ☐ | P8.5 | The system should treat notes from documents and notes from conversations the same everywhere: passing on, triggers and Interview evidence. | | |
 | ☐ | P9 | The system should build each stage to a defining moment where a real figure decides based on what the student advises, conveys or keeps back. | | |
 | ☐ | P9.1 | The system should offer 2–4 written go-between acts at the defining moment, phrased in the role's voice. | | |
 | ☐ | P9.2 | The system should make the historical outcome reachable from the start of the adventure, and offer an act leading to it at each defining moment while it is still reachable, without labelling it. Earlier choices may close it. | | |
