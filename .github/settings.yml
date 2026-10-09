@@ -16,7 +16,7 @@ branches:
       enforce_admins: false
       required_linear_history: false
       restrictions: null
-  - name: deployment
+  - name: production
     protection:
       required_pull_request_reviews: null
       required_status_checks:

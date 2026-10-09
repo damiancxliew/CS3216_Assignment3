@@ -91,14 +91,14 @@ See [`.env.example`](.env.example). Deployment (Vercel) needs
 `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_POSTHOG_KEY` and `OPENAI_API_KEY`, with the Vercel
 project's root directory set to `apps/web` and the Next.js preset.
 
-`main` is for development; only `deployment` deploys automatically
+`main` is for development; only `production` deploys automatically
 ([`apps/web/vercel.json`](apps/web/vercel.json), read from the project's root directory). The
 Hobby plan allows 100 deployments a day per account, and branch previews used it up. For a
 preview of a branch, run `npx vercel deploy` from `apps/web`.
 
-To release, open a PR from `main` into `deployment`; merging it deploys to Vercel and the CI
+To release, open a PR from `main` into `production`; merging it deploys to Vercel and the CI
 `migrate` job applies migrations to hosted Supabase. The Vercel project's Production Branch
-(Settings → Git) must be set to `deployment`.
+(Settings → Git) must be set to `production`.
 
 ## Security model in one paragraph
 

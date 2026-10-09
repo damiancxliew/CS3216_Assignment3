@@ -2,7 +2,7 @@ name: game-client
 
 on:
   push:
-    branches: [main, deployment]
+    branches: [main, production]
     paths: ['packages/game-client/**', 'packages/game-core/**', '.github/workflows/game-client.yml']
   pull_request:
     paths: ['packages/game-client/**', 'packages/game-core/**', '.github/workflows/game-client.yml']

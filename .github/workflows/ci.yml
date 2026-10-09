@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, deployment]
+    branches: [main, production]
   pull_request:
 
 jobs:
@@ -37,9 +37,9 @@ jobs:
   # Hosted Postgres only changed when someone remembered to run `supabase db
   # push`, so a merged migration left production serving code against a schema
   # that did not have its columns yet.
-  # Hosted Postgres follows the deployment branch, which is what production serves.
+  # Hosted Postgres follows the `production` branch, the one Vercel serves.
   migrate:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/deployment'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/production'
     needs: [web, database]
     runs-on: ubuntu-latest
     concurrency: migrate-hosted
