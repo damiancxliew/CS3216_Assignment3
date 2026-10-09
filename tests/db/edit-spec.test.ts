@@ -10,7 +10,7 @@ const admin = serviceClient();
 let teacher: { client: SupabaseClient; userId: string };
 
 beforeAll(async () => {
-  teacher = await createUserClient(uniqueEmail("editspec-teacher"));
+  teacher = await createUserClient(uniqueEmail("editspec-teacher"), "password123!", "teacher");
 });
 
 async function seedDraft(title: string) {

@@ -10,6 +10,8 @@ export const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
 
+export const TESTING_SCHOOL_ID = "00000000-0000-4000-8000-000000005c01";
+
 export function serviceClient(): SupabaseClient {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -17,7 +19,11 @@ export function serviceClient(): SupabaseClient {
 }
 
 /** Creates a confirmed user and returns a client authenticated as them. */
-export async function createUserClient(email: string, password = "password123!") {
+export async function createUserClient(
+  email: string,
+  password = "password123!",
+  role?: "admin" | "teacher" | "student",
+) {
   const admin = serviceClient();
   const { data, error } = await admin.auth.admin.createUser({
     email,
@@ -32,7 +38,39 @@ export async function createUserClient(email: string, password = "password123!")
   const signIn = await client.auth.signInWithPassword({ email, password });
   if (signIn.error) throw signIn.error;
 
+  if (role) await addMember(TESTING_SCHOOL_ID, data.user!.id, role);
   return { client, userId: data.user!.id };
+}
+
+export async function createOrganization(name = `Test School ${crypto.randomUUID().slice(0, 8)}`) {
+  const slug = `test-school-${crypto.randomUUID().replaceAll("-", "")}`;
+  const { data, error } = await serviceClient()
+    .from("organization")
+    .insert({ name, slug })
+    .select("id")
+    .single<{ id: string }>();
+  if (error) throw error;
+  return data.id;
+}
+
+export async function addMember(
+  organizationId: string,
+  userId: string,
+  role: "admin" | "teacher" | "student",
+  status: "active" | "removed" = "active",
+) {
+  const { error } = await serviceClient()
+    .from("organization_member")
+    .upsert({
+      organization_id: organizationId,
+      user_id: userId,
+      role,
+      status,
+      added_by: null,
+      removed_by: null,
+      removed_at: null,
+    });
+  if (error) throw error;
 }
 
 export function uniqueEmail(prefix: string) {

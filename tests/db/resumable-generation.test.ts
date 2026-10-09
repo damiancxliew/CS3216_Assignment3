@@ -68,7 +68,7 @@ async function jobRow(adventureId: string) {
 }
 
 beforeAll(async () => {
-  teacherId = (await createUserClient(uniqueEmail("resumable-teacher"))).userId;
+  teacherId = (await createUserClient(uniqueEmail("resumable-teacher"), "password123!", "teacher")).userId;
 });
 
 afterEach(() => {

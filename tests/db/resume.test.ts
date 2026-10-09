@@ -22,8 +22,8 @@ let student: { client: SupabaseClient; userId: string };
 type Seeded = { attemptId: string; stageIds: string[]; roomId: string };
 
 beforeAll(async () => {
-  teacher = await createUserClient(uniqueEmail("p7-teacher"));
-  student = await createUserClient(uniqueEmail("p7-student"));
+  teacher = await createUserClient(uniqueEmail("p7-teacher"), "password123!", "teacher");
+  student = await createUserClient(uniqueEmail("p7-student"), "password123!", "student");
 });
 
 /** A published two-stage adventure the student has already joined. */

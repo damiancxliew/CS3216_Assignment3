@@ -34,8 +34,8 @@ let teacher: { client: SupabaseClient; userId: string };
 let student: { client: SupabaseClient; userId: string };
 
 beforeAll(async () => {
-  teacher = await createUserClient(uniqueEmail("gate-teacher"));
-  student = await createUserClient(uniqueEmail("gate-student"));
+  teacher = await createUserClient(uniqueEmail("gate-teacher"), "password123!", "teacher");
+  student = await createUserClient(uniqueEmail("gate-student"), "password123!", "student");
 });
 
 function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {

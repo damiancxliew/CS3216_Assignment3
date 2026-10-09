@@ -90,9 +90,9 @@ let published: SeededAdventure;
 let draft: SeededAdventure;
 
 beforeAll(async () => {
-  const t = await createUserClient(uniqueEmail("p3-teacher"));
-  const o = await createUserClient(uniqueEmail("p3-other-teacher"));
-  const s = await createUserClient(uniqueEmail("p3-student"));
+  const t = await createUserClient(uniqueEmail("p3-teacher"), "password123!", "teacher");
+  const o = await createUserClient(uniqueEmail("p3-other-teacher"), "password123!", "teacher");
+  const s = await createUserClient(uniqueEmail("p3-student"), "password123!", "student");
   teacher = t.client;
   otherTeacher = o.client;
   student = s.client;
