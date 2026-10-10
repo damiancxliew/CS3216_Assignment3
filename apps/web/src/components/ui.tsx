@@ -256,20 +256,17 @@ export function Page({
   children: React.ReactNode;
 }) {
   return (
-    <main className={`mx-auto flex min-h-screen w-full flex-col gap-8 px-5 py-8 sm:gap-10 sm:px-6 sm:py-12 ${width === "wide" ? "max-w-6xl" : "max-w-3xl"}${fill ? " lg:h-dvh lg:min-h-0 lg:overflow-hidden" : ""}`}>
-      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
-        <Wordmark />
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap items-center gap-2"><SiteNavigation /><ThemeSelect /></div>
-          {kicker ? <div className="shrink-0 text-base text-muted">{kicker}</div> : null}
-        </div>
-      </div>
-      <header className="flex flex-col gap-3">
-        <h1 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">{title}</h1>
-        {lede ? <div className="max-w-[62ch] text-lg text-muted">{lede}</div> : null}
-      </header>
-      {children}
-    </main>
+    <div className={`flex min-h-screen flex-col${fill ? " lg:h-dvh lg:overflow-hidden" : ""}`}>
+      <SiteHeader />
+      <main className={`mx-auto flex w-full flex-1 flex-col gap-6 px-5 py-5 sm:gap-8 sm:px-6 sm:py-8 ${width === "wide" ? "max-w-6xl" : "max-w-3xl"}${fill ? " lg:min-h-0 lg:overflow-hidden" : ""}`}>
+        {kicker ? <div className="text-base text-muted">{kicker}</div> : null}
+        <header className="flex flex-col gap-3">
+          <h1 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">{title}</h1>
+          {lede ? <div className="max-w-[62ch] text-lg text-muted">{lede}</div> : null}
+        </header>
+        {children}
+      </main>
+    </div>
   );
 }
 
@@ -300,6 +297,19 @@ export function Wordmark({ className = "" }: { className?: string }) {
       <span className="rounded-control border-2 border-ink bg-signal-wash p-1 shadow-[0_2px_0_var(--ink)]"><Mark className="h-5 w-5" /></span>
       Historical Adventures
     </Link>
+  );
+}
+
+export function SiteHeader({ children }: { children?: React.ReactNode }) {
+  return (
+    <header className="flex w-full flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8">
+      <Wordmark />
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
+        <SiteNavigation />
+        {children}
+        <ThemeSelect />
+      </div>
+    </header>
   );
 }
 

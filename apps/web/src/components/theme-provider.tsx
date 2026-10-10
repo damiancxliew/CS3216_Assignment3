@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
-import { Select } from "@/components/select";
 
 import { parseTheme, THEME_STORAGE_KEY, type ThemePreference } from "@/lib/theme";
 
@@ -59,20 +58,25 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function ThemeSelect() {
   const theme = useContext(ThemeContext);
   if (!theme) return null;
-  const Icon = theme.preference === "dark" ? Moon : theme.preference === "light" ? Sun : Monitor;
+  const labels: Record<ThemePreference, string> = {
+    system: "System",
+    light: "Light",
+    dark: "Dark",
+  };
+  const current = theme.preference;
+  const next = current === "system" ? "light" : current === "light" ? "dark" : "system";
+  const Icon = current === "dark" ? Moon : current === "light" ? Sun : Monitor;
+  const label = `Theme: ${labels[current]}. Switch to ${labels[next]}`;
 
   return (
-    <Select
-      label="Color theme"
-      value={theme.preference}
-      onValueChange={(value) => theme.setPreference(parseTheme(value))}
-      options={[
-        { value: "system", label: "System" },
-        { value: "light", label: "Light" },
-        { value: "dark", label: "Dark" },
-      ]}
-      icon={<Icon className="h-4 w-4 shrink-0" aria-hidden />}
-      className="shrink-0 rounded-full border border-line-strong px-3 text-sm font-bold"
-    />
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={() => theme.setPreference(next)}
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line-strong text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-record"
+    >
+      <Icon className="h-4 w-4" aria-hidden />
+    </button>
   );
 }
