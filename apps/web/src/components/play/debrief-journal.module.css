@@ -26,4 +26,28 @@
 .questions { display: grid; gap: 18px; }
 .questions li { display: flex; gap: 16px; align-items: baseline; }
 .questions span { font: 500 1.4rem var(--font-record, Georgia), serif; color: var(--line-strong); }
+.reflectionProgress { margin-bottom: 18px; color: var(--ink-muted); font-size: 14px; font-weight: 700; }
+.reflectionList { display: grid; gap: 20px; }
+.reflectionCard { min-width: 0; padding: clamp(16px, 3vw, 24px); border: 1px solid var(--line); border-radius: 5px 5px 14px 5px; background: var(--surface); }
+.reflectionHeading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+.reflectionHeading h3 { min-width: 0; font: 600 1.15rem/1.4 var(--font-record, Georgia), serif; overflow-wrap: anywhere; }
+.reflectionNumber { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--record); font-weight: 700; }
+.reflectionForm { display: grid; gap: 18px; }
+.reflectionField { display: grid; min-width: 0; gap: 8px; margin: 0; border: 0; padding: 0; }
+.reflectionField label, .reflectionField legend { color: var(--ink); font-size: 14px; font-weight: 700; }
+.reflectionField input[type="text"], .reflectionField textarea { width: 100%; min-width: 0; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--paper); padding: 11px 12px; color: var(--ink); font: inherit; }
+.reflectionField textarea { resize: vertical; line-height: 1.55; }
+.reflectionField input:focus, .reflectionField textarea:focus, .reflectionOption input:focus-visible, .reflectionStance input:focus-visible { outline: 2px solid var(--record); outline-offset: 2px; }
+.reflectionGuidance, .reflectionHint { color: var(--ink-muted); font-size: 13px; line-height: 1.5; }
+.reflectionOptions { display: grid; gap: 8px; }
+.reflectionOption { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); font-size: 14px; font-weight: 500 !important; overflow-wrap: anywhere; }
+.reflectionOption input, .reflectionStance input { flex: 0 0 auto; margin-top: 3px; accent-color: var(--record); }
+.reflectionStances { display: flex; flex-wrap: wrap; gap: 8px; }
+.reflectionStance { display: flex; flex: 1 1 110px; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--paper); color: var(--ink); font-size: 13px !important; text-align: center; }
+.reflectionStance[data-selected="true"] { border-color: var(--record); background: var(--record-wash); }
+.reflectionActions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.reflectionSave { min-height: 44px; border: 1px solid var(--world); border-radius: 5px; background: var(--world); padding: 9px 16px; color: var(--paper); font-size: 14px; font-weight: 700; }
+.reflectionSave:disabled { cursor: wait; opacity: .65; }
+.reflectionSaved { color: var(--world); font-size: 14px; font-weight: 700; }
+.reflectionError { flex-basis: 100%; color: var(--signal); font-size: 14px; }
 @media (max-width: 640px) { .comparison { grid-template-columns: 1fr; gap: 24px; } .tabs { grid-template-columns: repeat(2, 1fr); padding-bottom: 7px; gap: 4px; } .tabs button, .tabs button[aria-selected="true"] { border-radius: 4px; margin: 0; border-bottom-color: var(--line-strong); } }

@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Debrief } from "@/lib/attempts/debrief";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
+import { track } from "@/lib/analytics/posthog";
+import { isReflectionAnswerComplete, isReflectionComplete, REFLECTION_PROMPT_KEYS } from "@/lib/attempts/reflection";
 import { RecordEntry, WorldEntry } from "@/components/ui";
+import { DebriefReflection } from "./debrief-reflection";
 import styles from "./debrief-journal.module.css";
 
 const SECTIONS = [
@@ -13,8 +17,41 @@ const SECTIONS = [
 ] as const;
 type Section = typeof SECTIONS[number]["id"];
 
-export function DebriefJournal({ debrief }: { debrief: Debrief }) {
+export function DebriefJournal({
+  debrief,
+  onCompleteChange,
+  focusReflectionRequest,
+}: {
+  debrief: Debrief;
+  onCompleteChange: (complete: boolean) => void;
+  focusReflectionRequest: number;
+}) {
   const [section, setSection] = useState<Section>("overview");
+  const [answers, setAnswers] = useState(debrief.reflections);
+  const complete = isReflectionComplete(answers, debrief);
+  const initiallyComplete = useRef(complete);
+  const completionTracked = useRef(false);
+
+  useEffect(() => {
+    onCompleteChange(complete);
+  }, [complete, onCompleteChange]);
+
+  useEffect(() => {
+    if (complete && !initiallyComplete.current && !completionTracked.current) {
+      track(ANALYTICS_EVENTS.reflectionCompleted, { band: debrief.readingBand });
+      completionTracked.current = true;
+    }
+  }, [complete, debrief.readingBand]);
+
+  useEffect(() => {
+    if (!focusReflectionRequest) return;
+    setSection("reflection");
+    document.getElementById("tab-reflection")?.focus();
+  }, [focusReflectionRequest]);
+
+  const answered = REFLECTION_PROMPT_KEYS.filter((key) =>
+    isReflectionAnswerComplete(key, answers.find((answer) => answer.promptKey === key), debrief),
+  ).length;
   return (
     <div className={styles.journal}>
       <div role="tablist" aria-label="Debrief journal" className={styles.tabs}>
@@ -90,8 +127,9 @@ export function DebriefJournal({ debrief }: { debrief: Debrief }) {
       </section>
 
       <section role="tabpanel" id="panel-reflection" aria-labelledby="tab-reflection" hidden={section !== "reflection"} tabIndex={0} className={styles.paper}>
-        <h2 className={styles.sectionTitle}>What would you do differently?</h2>
-        <p className="mb-5 text-muted">Use a detail from your evidence. Consider whose perspective might change your judgement.</p>
+        <p className={styles.reflectionProgress} aria-live="polite">{answered} of 4 answered</p>
+        <DebriefReflection debrief={debrief} answers={answers} onAnswersChange={setAnswers} />
+        <h2 className={`${styles.sectionTitle} mt-8`}>Questions to discuss in class</h2>
         {debrief.reflectionQuestions.length ? <ol className={styles.questions}>
           {debrief.reflectionQuestions.map((question, index) => <li key={question}><span aria-hidden>{index + 1}</span><p>{question}</p></li>)}
         </ol> : <p>How did your choices compare with the historical outcome?</p>}

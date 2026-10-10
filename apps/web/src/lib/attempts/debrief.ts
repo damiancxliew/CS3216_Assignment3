@@ -19,6 +19,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
+import { loadReflections, type ReadingBand, type ReflectionAnswer } from "@/lib/attempts/reflection";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Only the debrief-relevant slice of the spec, parsed defensively. */
@@ -58,6 +59,9 @@ const endingSchema = z.object({
 
 const specSchema = z.object({
   title: z.string().optional(),
+  readingLevel: z.object({
+    band: z.enum(["primary", "lower-secondary", "upper-secondary", "pre-university"]),
+  }).optional(),
   sources: z.array(sourceSchema).default([]),
   assumptions: z.array(assumptionSchema).default([]),
   endings: z.array(endingSchema).default([]),
@@ -108,6 +112,8 @@ export type Debrief = {
   assumptions: { id: string; text: string; rationale: string }[];
   divergence: string;
   reflectionQuestions: string[];
+  readingBand: ReadingBand;
+  reflections: ReflectionAnswer[];
   collectedEvidence: { id: string; name: string; text: string; sourceSpan: string | null; stageTitle: string | null }[];
 };
 
@@ -145,7 +151,7 @@ export async function loadDebrief(
   // The record of play, read server-side once the student's own client has proved the attempt is
   // theirs (the `attempt` read above goes through RLS). Resolutions hold the rolls, so only their
   // public half is projected; commitments are joined to their option labels.
-  const [{ data: resolutions }, { data: commitments }, { data: state }] = await Promise.all([
+  const [{ data: resolutions }, { data: commitments }, { data: state }, reflections] = await Promise.all([
     specReader
       .from("resolution")
       .select("stage_id, outcome, created_at, stage(index, title)")
@@ -159,6 +165,7 @@ export async function loadDebrief(
       .eq("actor_kind", "player")
       .returns<{ stage_id: string; option_id: string | null; minted_option_id: string | null; decision_option: { label: string } | null; minted_option: { label: string } | null }[]>(),
     specReader.from("attempt_state").select("journal").eq("attempt_id", attemptId).maybeSingle<{ journal: unknown }>(),
+    loadReflections(supabase, attemptId),
   ]);
   const choiceByStage = new Map((commitments ?? []).map((c) => [c.stage_id,
     c.option_id ? c.decision_option?.label ?? "an option"
@@ -203,6 +210,8 @@ export async function loadDebrief(
     }),
     divergence: ending.divergence,
     reflectionQuestions: ending.reflectionQuestions,
+    readingBand: spec.readingLevel?.band ?? "upper-secondary",
+    reflections,
     collectedEvidence: journal.map((entry) => {
       const stage = spec.stages.find((candidate) => candidate.evidence.some((item) => item.id === entry.id));
       const name = stage?.evidence.find((item) => item.id === entry.id)?.name ?? entry.text.split(": ")[0]!;

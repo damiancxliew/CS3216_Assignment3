@@ -23,6 +23,8 @@ export const ANALYTICS_EVENTS = {
   endingReached: "ending_reached",
   debriefViewed: "debrief_viewed",
   debriefShared: "debrief_shared",
+  reflectionSubmitted: "reflection_submitted",
+  reflectionCompleted: "reflection_completed",
   pricingCtaClicked: "pricing_cta_clicked",
 } as const;
 
