@@ -5,6 +5,7 @@ import { ArrowLeft, Check } from "lucide-react";
 
 import { DossierSections } from "./dossier";
 import { BriefEditor } from "./brief-editor";
+import { ReflectionsBoard } from "./reflections-board";
 import { SharePanel } from "./share-panel";
 import type { GenerationJob } from "./story-generation";
 import {
@@ -31,6 +32,7 @@ import { SchoolMembershipRequired } from "@/components/school-membership-require
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { buildDossier } from "@/lib/teacher/dossier";
+import { loadReflectionSummary } from "@/lib/attempts/reflection";
 
 export const metadata: Metadata = {
   title: "Adventure",
@@ -40,14 +42,16 @@ export const metadata: Metadata = {
 // Each planner attempt is a separate server action and may need several minutes.
 export const maxDuration = 300;
 
-type EditorTab = "overview" | "stages" | "story" | "publish" | "attempts";
+type EditorTab = "overview" | "stages" | "story" | "publish" | "attempts" | "reflections";
 const EDITOR_TABS: { id: EditorTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "stages", label: "Stages" },
   { id: "story", label: "Story" },
   { id: "publish", label: "Publish & share" },
   { id: "attempts", label: "Attempts" },
+  { id: "reflections", label: "Reflections" },
 ];
+const OVERSEER_TABS: EditorTab[] = ["attempts", "reflections"];
 
 type Adventure = {
   id: string;
@@ -141,7 +145,7 @@ export default async function AdventurePage({
     }
   }
   if (!adventure) notFound();
-  const tab = isOverseer ? "attempts" : requestedTab;
+  const tab = isOverseer && !OVERSEER_TABS.includes(requestedTab) ? "attempts" : requestedTab;
 
   const { data: versionRows } = isOverseer ? { data: null } : await supabase
       .from("spec_version")
@@ -188,7 +192,7 @@ export default async function AdventurePage({
     .maybeSingle<GenerationJob>() : { data: null };
 
   const attemptsReader = isOverseer ? adminClient ?? createAdminClient() : supabase;
-  const { data: attempts } = tab === "attempts" ? await attemptsReader
+  const { data: attempts } = tab === "attempts" || tab === "reflections" ? await attemptsReader
     .from("attempt")
     .select("id, student_id, status, published_version, updated_at, attempt_telemetry(stage_index, ended_by, duration_seconds, tokens, messages, evidence_found)")
     .eq("adventure_id", id)
@@ -212,6 +216,8 @@ export default async function AdventurePage({
       if (data.user?.email) studentEmails.set(studentId, data.user.email);
     }));
   }
+  const reflections = tab === "reflections" ? await loadReflectionSummary(attemptsReader, id) : null;
+  const reflectionNames = Object.fromEntries((attempts ?? []).map((attempt) => [attempt.id, studentEmails.get(attempt.student_id) ?? `Student ${attempt.student_id.slice(0, 8)}`]));
   // P11: what an attempt costs and how long it takes, summed from the per-stage rows.
   const totals = (attempts ?? []).map((a) => a.attempt_telemetry ?? []).flat();
   const finished = (attempts ?? []).filter((a) => a.status === "completed");
@@ -244,7 +250,7 @@ export default async function AdventurePage({
       width="wide"
     >
       <nav aria-label="Adventure sections" className="flex gap-2 overflow-x-auto border-b border-line pb-2">
-        {(isOverseer ? EDITOR_TABS.filter((item) => item.id === "attempts") : EDITOR_TABS).map((item) => (
+        {(isOverseer ? EDITOR_TABS.filter((item) => OVERSEER_TABS.includes(item.id)) : EDITOR_TABS).map((item) => (
           <Link
             key={item.id}
             href={`/teacher/${id}?tab=${item.id}`}
@@ -528,6 +534,18 @@ export default async function AdventurePage({
             {adventure.status === "published"
               ? "Copy the link from Publish & share and send it to your class. Each attempt appears here as soon as a student enters."
               : "Attempts appear here once the adventure is published and students open the link."}
+          </EmptyState>
+        )}
+      </Section>
+      ) : null}
+
+      {tab === "reflections" && reflections ? (
+      <Section title="Reflections" lede="What students concluded after the debrief. Answers are not graded; use them to start the class discussion.">
+        {reflections.respondents > 0 ? (
+          <ReflectionsBoard summary={reflections} studentNames={reflectionNames} />
+        ) : (
+          <EmptyState title="No reflections yet">
+            Students answer four judgement questions on their debrief before they can leave it. Their answers appear here as they finish.
           </EmptyState>
         )}
       </Section>

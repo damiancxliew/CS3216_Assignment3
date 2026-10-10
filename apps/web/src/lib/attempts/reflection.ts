@@ -222,7 +222,7 @@ const STOPWORDS = new Set([
   "them", "then", "there", "these", "they", "this", "those", "through", "to", "too", "under", "up", "us", "very",
   "was", "we", "were", "what", "when", "where", "which", "while", "who", "will", "with", "would", "you", "your",
   "think", "mattered", "evidence", "shows", "decision", "turning", "point", "reading", "thought", "changed", "view",
-  "outcome", "into", "been", "also", "just", "some", "then", "only",
+  "outcome", "only", "made", "still", "stage", "final", "another", "different", "showing", "likely", "possible", "remained",
 ]);
 
 function normalizeFactor(phrase: string): string {
