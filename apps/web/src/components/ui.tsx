@@ -302,13 +302,11 @@ export function Wordmark({ className = "" }: { className?: string }) {
 
 export function SiteHeader({ children }: { children?: React.ReactNode }) {
   return (
-    <header className="flex w-full flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8">
-      <Wordmark />
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
-        <SiteNavigation />
-        {children}
-        <ThemeSelect />
-      </div>
+    <header className="flex w-full flex-wrap items-center gap-2 px-5 py-4 sm:gap-3 sm:px-8 [&>nav]:max-sm:order-last [&>nav]:max-sm:w-full">
+      <Wordmark className="mr-auto" />
+      <SiteNavigation />
+      {children}
+      <ThemeSelect />
     </header>
   );
 }

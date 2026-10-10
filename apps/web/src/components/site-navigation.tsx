@@ -132,7 +132,7 @@ export function SiteNavigation() {
     : "bg-spark-wash text-ink";
   const link = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line-strong px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2";
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <>
       <nav aria-label="Main navigation" className="flex flex-wrap items-center gap-2">
         <Link href="/" className={link} aria-current={pathname === "/" ? "page" : undefined}><Home size={16} aria-hidden />Home</Link>
         {membership?.role === "admin" || membership?.role === "teacher" ? (
@@ -181,7 +181,7 @@ export function SiteNavigation() {
             >
               <div>
                 <p className="font-semibold text-ink">{identity?.name ?? identity?.email ?? "Account"}</p>
-                {identity.email ? <p className="break-all text-sm text-muted">{identity.email}</p> : null}
+                {identity.name && identity.email ? <p className="break-all text-sm text-muted">{identity.email}</p> : null}
               </div>
               <div className="mt-4 border-t border-line pt-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-muted">School</p>
@@ -201,7 +201,7 @@ export function SiteNavigation() {
                 <button
                   type="submit"
                   role="menuitem"
-                  className="w-full rounded-control px-3 py-2 text-left text-sm font-semibold text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-record"
+                  className="-mx-2 w-[calc(100%+1rem)] rounded-control px-2 py-2 text-left text-sm font-semibold text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-record"
                 >
                   Sign out
                 </button>
@@ -210,6 +210,6 @@ export function SiteNavigation() {
           ) : null}
         </div>
       ) : null}
-    </div>
+    </>
   );
 }
