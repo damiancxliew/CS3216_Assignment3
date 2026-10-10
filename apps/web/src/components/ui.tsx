@@ -302,10 +302,11 @@ export function Wordmark({ className = "" }: { className?: string }) {
 
 export function SiteHeader({ children }: { children?: React.ReactNode }) {
   return (
-    <header className="flex w-full flex-wrap items-center gap-2 px-5 py-4 sm:gap-3 sm:px-8 [&>nav]:max-sm:order-last [&>nav]:max-sm:w-full">
+    <header className="flex w-full flex-wrap items-center gap-2 px-5 py-4 sm:gap-3 sm:px-8 [&>nav]:max-sm:order-2">
       <Wordmark className="mr-auto" />
+      <span aria-hidden className="hidden max-sm:order-1 max-sm:block max-sm:h-0 max-sm:basis-full" />
       <SiteNavigation />
-      {children}
+      {children ? <div className="flex flex-wrap items-center gap-2 max-sm:order-2">{children}</div> : null}
       <ThemeSelect />
     </header>
   );

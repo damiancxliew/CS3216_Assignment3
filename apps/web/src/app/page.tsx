@@ -37,7 +37,7 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader>
-        <a href="#pricing" className={button.subtle}>Pricing</a>
+        <a href="#pricing" className={`${button.subtle} max-sm:hidden`}>Pricing</a>
         <Link href="/teacher" className={button.quiet}>
           Teacher console <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
