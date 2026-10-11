@@ -97,10 +97,9 @@ export const Close = () => (
   </TypeScene>
 );
 
-/** Claim cards: each previews the game beat that proves it. */
-export const CLAIM_FRAMES = 75;
-const claim = (chapter: string, label: string, lines: string[], tone: "ink" | "record" | "signal" | "world" | "paper", next: () => React.ReactElement) => () => (
-  <ClaimCard chapter={chapter} label={label} lines={lines} tone={tone} next={next} duration={CLAIM_FRAMES} size={84} />
+/** Claim cards: each previews the game beat that proves it, zooming in at the end of its (content-timed) length. */
+const claim = (chapter: string, label: string, lines: string[], tone: "ink" | "record" | "signal" | "world" | "paper", next: () => React.ReactElement) => ({ duration }: { duration: number }) => (
+  <ClaimCard chapter={chapter} label={label} lines={lines} tone={tone} next={next} duration={duration} size={84} />
 );
 
 /* ---------- game beats ---------- */
