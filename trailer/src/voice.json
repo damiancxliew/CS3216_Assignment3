@@ -1,0 +1,26 @@
+{
+  "voice": "sage",
+  "lengths": {
+    "context": 4.08,
+    "reading": 2.14,
+    "chatbots": 1.9,
+    "rarely": 2.5,
+    "here": 1.25,
+    "establish": 1.82,
+    "skill1": 2.69,
+    "skill2": 2.52,
+    "skill3": 2.16,
+    "skill4": 2.16,
+    "skill5": 2.81,
+    "skill6": 2.3,
+    "skill7": 2.5,
+    "anyLesson": 1.9,
+    "step1": 1.56,
+    "step2": 1.78,
+    "step3": 1.61,
+    "ask": 1.94,
+    "montage": 2.66,
+    "classView": 3.1,
+    "title": 3.77
+  }
+}

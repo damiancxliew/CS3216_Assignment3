@@ -88,7 +88,7 @@ def saw(freq, t, detune=0.0):
     return out * 0.6
 
 
-def upbeat_bed(seconds=90.0, bpm=120):
+def upbeat_bed(seconds=100.0, bpm=120):
     """
     Bright, driving placeholder: four-on-the-floor kick, claps on 2 and 4, offbeat hats, a pumping chord stab,
     an octave bassline and a pluck arpeggio. Bars 1-2 are an intro pad (the typewriter opening); from bar 3 the full

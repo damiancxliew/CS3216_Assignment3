@@ -93,7 +93,7 @@ export const Rapid = () => (
 );
 export const Close = () => (
   <TypeScene lines={[pitch.close]} start={4} cps={18}>
-    <TitleCard at={60} tagline={pitch.tagline} audience={pitch.audience} wip={pitch.wip} />
+    <TitleCard at={56} tagline={pitch.tagline} audience={pitch.audience} wip={pitch.wip} />
   </TypeScene>
 );
 

@@ -7,6 +7,7 @@ import {
 } from "./scenes";
 import { TRANSITIONS, TRANSITION_FRAMES, type TransitionName } from "./transitions";
 import { pitch } from "./episode";
+import voice from "./voice.json";
 
 /** 120 BPM: one beat is 15 frames, so every cut lands on the music. */
 const BEAT = 15;
@@ -58,11 +59,40 @@ const CUT_SPEC: { name: string; beats: number; into: Into; Scene: (props: { dura
   { name: "Close", beats: 12, into: "fade", Scene: Close },
 ];
 
+/** Voiceover: which line plays in which shot, and how many frames into the shot it starts (scripts/make_voice.mjs). */
+type VoiceId = keyof typeof voice.lengths;
+const VOICE_CUES: Record<string, { id: VoiceId; at: number }[]> = {
+  Context: [{ id: "context", at: 8 }],
+  Reading: [{ id: "reading", at: 6 }],
+  Chatbots: [{ id: "chatbots", at: 6 }],
+  Rarely: [{ id: "rarely", at: 6 }],
+  Here: [{ id: "here", at: 6 }],
+  Establish: [{ id: "establish", at: 12 }],
+  CPeople: [{ id: "skill1", at: 6 }],
+  CSources: [{ id: "skill2", at: 6 }],
+  CDisagree: [{ id: "skill3", at: 6 }],
+  CShare: [{ id: "skill4", at: 6 }],
+  CChoose: [{ id: "skill5", at: 6 }],
+  CDefend: [{ id: "skill6", at: 6 }],
+  CReal: [{ id: "skill7", at: 6 }],
+  AnyLesson: [{ id: "anyLesson", at: 6 }],
+  Easy: [{ id: "step1", at: 8 }, { id: "step2", at: 78 }, { id: "step3", at: 148 }],
+  Ask: [{ id: "ask", at: 6 }],
+  Montage: [{ id: "montage", at: 8 }],
+  ClassView: [{ id: "classView", at: 6 }],
+  Close: [{ id: "title", at: 58 }],
+};
+const voiceFrames = (id: VoiceId) => Math.ceil(voice.lengths[id] * 30);
+/** A shot lasts at least as long as its last line plus a short breath, rounded up to the beat. */
+const BREATH = 8;
+const voiceBeats = (name: string) => Math.max(0, ...(VOICE_CUES[name] ?? []).map((c) => Math.ceil((c.at + voiceFrames(c.id) + BREATH) / BEAT)));
+
 /** The close's typewriter, outro and final hit must start on a bar, so any spare beats go to the benefits shot. */
 export const CUT = (() => {
-  const beforeClose = CUT_SPEC.slice(0, -1).reduce((a, c) => a + c.beats, 0);
+  const timed = CUT_SPEC.map((c) => ({ ...c, beats: Math.max(c.beats, voiceBeats(c.name)) }));
+  const beforeClose = timed.slice(0, -1).reduce((a, c) => a + c.beats, 0);
   const pad = (4 - (beforeClose % 4)) % 4;
-  return CUT_SPEC.map((c) => (c.name === "Rapid" ? { ...c, beats: c.beats + pad } : c));
+  return timed.map((c) => (c.name === "Rapid" ? { ...c, beats: c.beats + pad } : c));
 })();
 
 const overlap = (into: Into) => (into === "cut" ? 0 : TRANSITION_FRAMES);
@@ -87,6 +117,21 @@ const Preload = () => (
   </AbsoluteFill>
 );
 
+/** Every voice clip at its absolute frame. */
+const VOICE_CLIPS = CUT.flatMap((c, i) => (VOICE_CUES[c.name] ?? []).map((cue) => ({ id: cue.id, from: gridStarts[i] + cue.at })));
+/** Music volume: full between lines, ducked under the voice with short ramps. */
+const MUSIC = (() => {
+  const duck = new Float32Array(TOTAL_FRAMES);
+  for (const clip of VOICE_CLIPS) for (let f = clip.from - 4; f < clip.from + voiceFrames(clip.id) + 6 && f < TOTAL_FRAMES; f++) if (f >= 0) duck[f] = 1;
+  const smooth = (f: number) => {
+    let sum = 0;
+    let n = 0;
+    for (let k = f - 6; k <= f + 6; k++) if (k >= 0 && k < TOTAL_FRAMES) { sum += duck[k]; n++; }
+    return sum / n;
+  };
+  return (f: number) => (0.8 - 0.58 * smooth(f)) * interpolate(f, [TOTAL_FRAMES - 40, TOTAL_FRAMES], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+})();
+
 export const Trailer = () => (
   <AbsoluteFill style={{ background: "#0b0d12" }}>
     <Preload />
@@ -107,6 +152,11 @@ export const Trailer = () => (
     <Sequence from={at("Establish")} durationInFrames={at("Close") - at("Establish")} layout="none">
       <WipTag />
     </Sequence>
-    <Audio src={staticFile("audio/upbeat.mp3")} volume={(f) => 0.8 * interpolate(f, [TOTAL_FRAMES - 40, TOTAL_FRAMES], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })} />
+    <Audio src={staticFile("audio/upbeat.mp3")} volume={MUSIC} />
+    {VOICE_CLIPS.map((clip) => (
+      <Sequence key={`${clip.id}-${clip.from}`} from={clip.from} layout="none">
+        <Audio src={staticFile(`voice/${clip.id}.mp3`)} volume={1} />
+      </Sequence>
+    ))}
   </AbsoluteFill>
 );
