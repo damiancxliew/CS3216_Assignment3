@@ -130,7 +130,7 @@ export default async function SchoolPage({
   }
 
   return (
-    <Page kicker={school.name} title="School console" width="wide">
+    <Page title="School console" width="wide">
       <nav aria-label="School console sections" className="flex gap-2 overflow-x-auto">
         {tabs.map((item) => (
           <Link

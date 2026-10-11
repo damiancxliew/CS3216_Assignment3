@@ -25,7 +25,7 @@ export const ANALYTICS_EVENTS = {
   debriefShared: "debrief_shared",
   reflectionSubmitted: "reflection_submitted",
   reflectionCompleted: "reflection_completed",
-  pricingCtaClicked: "pricing_cta_clicked",
+  demoCtaClicked: "demo_cta_clicked",
 } as const;
 
 export type AnalyticsEvent =

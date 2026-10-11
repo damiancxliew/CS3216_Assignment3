@@ -5,7 +5,7 @@ import { ArrowUpRight, BookOpen, MapPin, Route } from "lucide-react";
 
 import { TeacherWorkspace } from "./workspace";
 import { SignInButton } from "@/components/sign-in-button";
-import { button, EmptyState, Page, StatusBadge } from "@/components/ui";
+import { EmptyState, Page, StatusBadge } from "@/components/ui";
 import { briefStateSchema } from "@/lib/brief/schema";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
@@ -72,12 +72,6 @@ export default async function TeacherHome() {
     <Page
       title="Choose your next adventure"
       lede="Build a new historical world or jump back into one you already started."
-      kicker={
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href={`/school/${encodeURIComponent(viewer.membership!.slug)}`} className={button.quiet}>School console</Link>
-          <form action="/auth/signout" method="post"><button type="submit" className={button.subtle}>Sign out</button></form>
-        </div>
-      }
       width="wide"
     >
       <TeacherWorkspace
