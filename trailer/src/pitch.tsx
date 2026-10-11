@@ -1,4 +1,7 @@
 import { AbsoluteFill, Audio, Img, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+
+/** How long the slide into a pitch card takes (frames); its words start landing as it settles. */
+export const WIPE_FRAMES = 16;
 import { bold, color, sans, serif, typewriter } from "./theme";
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
@@ -26,10 +29,9 @@ export const PitchCard = ({ lines, tone = "ink", size = 150, align = "left" }: {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = TONES[tone];
-  const wipe = interpolate(frame, [0, 7], [100, 0], clamp);
   let wordIndex = 0;
   return (
-    <AbsoluteFill style={{ background: t.bg, clipPath: `inset(0 0 0 ${wipe}%)`, justifyContent: "center", padding: "0 150px" }}>
+    <AbsoluteFill style={{ background: t.bg, justifyContent: "center", padding: "0 150px" }}>
       <Sound src="whoosh" at={0} volume={0.5} />
       <div style={{ fontFamily: bold, fontWeight: 900, fontSize: size, lineHeight: 1.0, letterSpacing: -size * 0.03, color: t.fg, textAlign: align }}>
         {lines.map((line, li) => (
@@ -38,7 +40,7 @@ export const PitchCard = ({ lines, tone = "ink", size = 150, align = "left" }: {
               const accent = raw.startsWith("*");
               const word = raw.replace(/\*/g, "");
               const k = wordIndex++;
-              const p = spring({ frame: frame - 5 - k * 2.5, fps, config: { damping: 18, mass: 0.5, stiffness: 220 } });
+              const p = spring({ frame: frame - WIPE_FRAMES * 0.6 - k * 2.5, fps, config: { damping: 18, mass: 0.5, stiffness: 220 } });
               return (
                 <span key={`${li}-${k}`} style={{ display: "inline-block", marginRight: size * 0.24, color: accent ? t.accent : undefined, opacity: p, transform: `scale(${1.35 - p * 0.35}) translateY(${(1 - p) * 30}px)`, filter: `blur(${(1 - p) * 10}px)` }}>
                   {word}
