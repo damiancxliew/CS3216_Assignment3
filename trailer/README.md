@@ -31,9 +31,10 @@ historical record.
 - **Music:** "Optimistic Corporate Technology" by RomanSenykMusic, from Pixabay (Pixabay Content License: free for
   commercial use, no attribution required). 80 BPM. Every cut sits on its eighth-note grid (0.375 s); the track starts
   so its first downbeat meets the first pitch card, and `fit` in `src/Trailer.tsx` removes whole bars (the breakdown)
-  so the title card lands on the track's final downbeat. The music ducks under the voice.
-- **Voiceover:** OpenAI text-to-speech, read as one take and split per line (`scripts/make_voice.mjs`, see its header).
-  Line lengths in `src/voice.json` set the minimum length of each shot. A human recording can replace the clips.
+  so the title card lands on the track's final downbeat. When the voiceover is on, the music ducks under it.
+- **Voiceover:** currently **off** (`VOICEOVER` in `src/Trailer.tsx`). When on: OpenAI text-to-speech, read as one take
+  and split per line (`scripts/make_voice.mjs`, see its header); line lengths in `src/voice.json` set the minimum length
+  of each shot, and a human recording can replace the clips.
 - **Sound effects** (whoosh, impact, typewriter, pop, chime): synthesised by `scripts/make_audio.py` (needs numpy). The
   script can also make a placeholder music bed, which is no longer used.
 

@@ -65,9 +65,12 @@ const CUT_SPEC: { name: string; steps: number; into: Into; Scene: (props: { dura
   { name: "Close", steps: 16, into: "fade", Scene: Close },
 ];
 
+/** Voiceover on or off. When off, shots go back to their reading-time lengths and the music plays without ducking. */
+const VOICEOVER = false;
+
 /** Voiceover: which line plays in which shot, and how many frames into the shot it starts (scripts/make_voice.mjs). */
 type VoiceId = keyof typeof voice.lengths;
-const VOICE_CUES: Record<string, { id: VoiceId; at: number }[]> = {
+const VOICE_CUES: Record<string, { id: VoiceId; at: number }[]> = !VOICEOVER ? {} : {
   Context: [{ id: "context", at: 8 }],
   Reading: [{ id: "reading", at: 6 }],
   Chatbots: [{ id: "chatbots", at: 6 }],
@@ -149,7 +152,7 @@ const MUSIC = (() => {
     for (let k = f - 6; k <= f + 6; k++) if (k >= 0 && k < TOTAL_FRAMES) { sum += duck[k]; n++; }
     return sum / n;
   };
-  return (f: number) => (0.48 - 0.355 * smooth(f)) * interpolate(f, [TOTAL_FRAMES - 40, TOTAL_FRAMES], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (f: number) => (VOICEOVER ? 0.48 - 0.355 * smooth(f) : 0.6) * interpolate(f, [TOTAL_FRAMES - 40, TOTAL_FRAMES], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 })();
 
 /** The track in two pieces: up to the cut point, then from where the full section returns. */
