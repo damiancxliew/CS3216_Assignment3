@@ -290,13 +290,13 @@ export const ShapeScene = () => {
       <ConsoleWindow>
         <AbsoluteFill style={{ opacity: interpolate(local, [0, 6], [0, 1], clamp), justifyContent: "center" }}>
           <div style={{ height: i === 3 ? "100%" : undefined, position: "relative" }}>
-            <Sequence from={i * MOMENT} durationInFrames={MOMENT} layout="none">
+            <Sequence from={i * MOMENT} durationInFrames={i === 3 ? Infinity : MOMENT} layout="none">
               <Moment />
             </Sequence>
           </div>
         </AbsoluteFill>
       </ConsoleWindow>
-      <Sequence from={i * MOMENT} durationInFrames={MOMENT} layout="none">
+      <Sequence from={i * MOMENT} durationInFrames={i === 3 ? Infinity : MOMENT} layout="none">
         <Pointer path={pointer[i]} clicks={clicks[i]} />
       </Sequence>
     </Paper>
