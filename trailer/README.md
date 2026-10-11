@@ -1,9 +1,9 @@
 # Trailer
 
-Concept trailer for Historical Adventures v3 (Singapore, 1819), built with [Remotion](https://www.remotion.dev).
+Concept trailer for Historical Adventures v3 (a Pocket Adventures title; Singapore, 1819), built with [Remotion](https://www.remotion.dev).
 It is a standalone project, outside the npm workspaces, so it doesn't affect the app's builds or CI.
 
-A short motivation (what history asks of students, and why reading and chatbots fall short), then numbered skill claims alternating with gameplay proof, then creation (drop in sources, AI drafts, the teacher checks, any episode): each claim card previews its game beat in a tilted window that
+A short motivation (what history asks of students, and why reading and chatbots fall short), then numbered skill claims alternating with gameplay proof, then how easy creation is (drop in sources, we build it, press play; changes optional, in plain words), any episode, and the class summary: each claim card previews its game beat in a tilted window that
 zooms to full screen. Game beats use a pixel town, in-game interface, realistic period documents and callouts. Cuts sit
 on a 120 BPM beat grid (one beat = 15 frames), so they land on the music.
 
@@ -29,8 +29,8 @@ historical record.
 
 ## Audio
 The music and sound effects are a placeholder, synthesised in code by `scripts/make_audio.py` (needs Python with numpy;
-set `FFMPEG` to master to -14 LUFS). The track is 92 s at 120 BPM: an intro pad under the typewriter opening, the full
-groove from 4 s, a lighter bar that builds under the closing typewriter from 86 s, a final hit on the title card at 88 s, and a held chord to the end. To use a real track, replace
+set `FFMPEG` to master to -14 LUFS). The track is 90 s at 120 BPM: an intro pad under the typewriter opening, the full
+groove from 4 s, a lighter bar that builds under the closing typewriter from 84 s, a final hit on the title card at 86 s, and a held chord to the end. To use a real track, replace
 `public/audio/upbeat.mp3` with one at 120 BPM (or change `BEAT` in `src/Trailer.tsx` to match its tempo).
 
 ## Credits

@@ -3,7 +3,7 @@ import { AbsoluteFill, Audio, Img, Sequence, interpolate, staticFile } from "rem
 import { TransitionSeries } from "@remotion/transitions";
 import { SceneFade, WipTag } from "./components";
 import {
-  AnyLesson, CChoose, CDefend, CDisagree, CPeople, CReal, CShare, CSources, Chatbots, Choose, Close, Compare, Context, Establish, Explain, Here, Montage, Open, Question, Rapid, Rarely, Read, Reading, Reveal, Shape, ClassView, Share, Upload,
+  AnyLesson, CChoose, CDefend, CDisagree, CPeople, CReal, CShare, CSources, Chatbots, Choose, Close, Compare, Context, Establish, Explain, Here, Montage, Open, Question, Rapid, Rarely, Read, Reading, Reveal, Easy, Ask, ClassView, Share,
 } from "./scenes";
 import { TRANSITIONS, TRANSITION_FRAMES, type TransitionName } from "./transitions";
 import { pitch } from "./episode";
@@ -50,8 +50,8 @@ const CUT_SPEC: { name: string; beats: number; into: Into; Scene: (props: { dura
   { name: "CReal", beats: claimBeats(6), into: "wipe-left", Scene: CReal },
   { name: "Reveal", beats: 8, into: "cut", Scene: Reveal },
   { name: "AnyLesson", beats: read(pitch.anyLesson), into: "push", Scene: AnyLesson },
-  { name: "Upload", beats: 10, into: "blinds", Scene: Upload },
-  { name: "Shape", beats: 16, into: "slide-right", Scene: Shape },
+  { name: "Easy", beats: 14, into: "blinds", Scene: Easy },
+  { name: "Ask", beats: 8, into: "slide-right", Scene: Ask },
   { name: "Montage", beats: 8, into: "iris", Scene: Montage },
   { name: "ClassView", beats: 8, into: "blinds", Scene: ClassView },
   { name: "Rapid", beats: 6, into: "wipe-top-right", Scene: Rapid },

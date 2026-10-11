@@ -79,8 +79,8 @@ export const Reading = () => <IllustratedCard lines={pitch.reading} tone="ink" s
 export const Chatbots = () => <IllustratedCard lines={pitch.chatbots} tone="record" size={92} art={<ChatArt />} />;
 export const Rarely = () => <StatementCard lines={pitch.rarely} tone="ink" size={130} />;
 export const Here = () => <StatementCard lines={pitch.here} tone="signal" size={190} />;
-export const AnyLesson = () => <StatementCard lines={pitch.anyLesson} tone="record" size={150} />;
-export { ClassScene as ClassView, MontageScene as Montage, ShapeScene as Shape, UploadScene as Upload } from "./creation";
+export const AnyLesson = () => <StatementCard lines={pitch.anyLesson} tone="record" size={130} />;
+export { AskScene as Ask, ClassScene as ClassView, EasyScene as Easy, MontageScene as Montage } from "./creation";
 export const Rapid = () => (
   <RapidWords
     every={30}

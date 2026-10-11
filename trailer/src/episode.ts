@@ -38,42 +38,23 @@ export const pitch = {
     { chapter: "06", label: "REACHING A JUDGEMENT", lines: ["Reach a judgement", "and *defend* *it.*"] },
     { chapter: "07", label: "CHECKING THE RECORD", lines: ["Separate the story", "from *the* *record.*"] },
   ],
-  /** Creation: any topic, from the teacher's own sources. */
-  anyLesson: ["Now make one for", "*any* *lesson.*"],
+  /** Creation: any topic, from the teacher's own sources, in three simple steps. */
+  anyLesson: ["Making one is", "as easy as *1,* *2,* *3.*"],
   create: {
-    title: "New adventure",
     files: ["Source A \u2013 Raffles letter.pdf", "Source B \u2013 Hikayat extract.docx", "Textbook ch. 2.pdf"],
-    steps: ["Reading your sources", "Finding the people and what they want", "Building the world and the choices", "Checking every quote against your sources"],
-    drop: "Drop in your sources.",
-    drafted: "AI drafts the game.",
-    /** "Make it yours": four quick moments from the teacher's review (PRD T3, T4, T6.2). */
-    shape: {
-      headline: "Shape the story.",
-      stages: [
-        { title: "Stage 1: The landing", people: ["OldMan", "Inspector"], choice: "Advise Raffles" },
-        { title: "Stage 2: The treaty", people: ["Sultan"], choice: "Who signs?" },
-      ],
-      added: "Master",
-      newStage: "+ Add a stage",
-      endings: ["Historical", "Alternative", "Secret"],
-    },
+    steps: ["Drop in your sources", "We build the game", "Press play"],
+    noSkills: "No design or coding needed.",
+    building: "Building your adventure\u2026",
+    linked: "Every fact linked to your sources",
+    /** Editing is optional (PRD T4.4: plain-language requests that redo only that part). */
     ask: {
-      headline: "Change anything, in plain words.",
-      request: "Make the Temenggong warmer towards the British, but protective of his people.",
+      headline: "Want changes? Just ask.",
+      optional: "Optional",
+      request: "Make the Temenggong warmer towards the British.",
       before: "Distrusts the British and guards the river trade.",
       after: "Open to the British, as long as his people keep their trade.",
       scope: "Only this character was redone",
     },
-    sources: {
-      headline: "See the source of every fact.",
-      locked: "Real excerpts stay word for word",
-    },
-    preview: { headline: "Play it as your students will.", button: "Play as a student" },
-    facts: [
-      { text: "Raffles arrives on 28 January 1819", source: "Source A" },
-      { text: "The Temenggong governs the island for Johor", source: "Textbook p. 42" },
-      { text: "Tengku Hussein is living in Riau", source: "Source B" },
-    ],
     any: "Any episode. Any class.",
     /** Class summary after play (PRD T2), illustrative numbers. */
     classView: {

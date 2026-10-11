@@ -12,7 +12,7 @@ import { AbsoluteFill } from "remotion";
 /** One beat at 120 BPM; every transition takes exactly this long so cuts stay on the grid. */
 export const TRANSITION_FRAMES = 15;
 
-/** The next shot is revealed through diagonal stripes (matching the striped backgrounds). */
+/** The next shot is revealed through diagonal stripes. */
 const Blinds = ({ children, presentationDirection, presentationProgress }: TransitionPresentationComponentProps<Record<string, never>>) => {
   if (presentationDirection === "exiting") return <AbsoluteFill>{children}</AbsoluteFill>;
   const L = 140;

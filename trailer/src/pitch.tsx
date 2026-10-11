@@ -12,25 +12,18 @@ export const WORD_SPRING = { damping: 20, mass: 0.9, stiffness: 120 };
 const ease = { ...clamp, easing: Easing.inOut(Easing.cubic) };
 
 export type Tone = "ink" | "record" | "signal" | "world" | "paper";
-const TONES: Record<Tone, { bg: string; fg: string; accent: string; stripe: string }> = {
-  ink: { bg: color.ink, fg: "#fff8e9", accent: "#ffac86", stripe: "rgba(255,255,255,0.035)" },
-  record: { bg: color.record, fg: "#ffffff", accent: "#ffd166", stripe: "rgba(255,255,255,0.06)" },
-  signal: { bg: color.signal, fg: "#fff8e9", accent: color.ink, stripe: "rgba(0,0,0,0.06)" },
-  world: { bg: color.world, fg: "#ffffff", accent: "#ffd166", stripe: "rgba(255,255,255,0.06)" },
-  paper: { bg: "#fff8e9", fg: color.ink, accent: color.signal, stripe: "rgba(23,32,51,0.04)" },
+const TONES: Record<Tone, { bg: string; fg: string; accent: string }> = {
+  ink: { bg: color.ink, fg: "#fff8e9", accent: "#ffac86" },
+  record: { bg: color.record, fg: "#ffffff", accent: "#ffd166" },
+  signal: { bg: color.signal, fg: "#fff8e9", accent: color.ink },
+  world: { bg: color.world, fg: "#ffffff", accent: "#ffd166" },
+  paper: { bg: "#fff8e9", fg: color.ink, accent: color.signal },
 };
 
-/** Coloured ground with slowly travelling diagonal stripes. */
-const Ground = ({ tone, children }: { tone: Tone; children: ReactNode }) => {
-  const frame = useCurrentFrame();
-  const t = TONES[tone];
-  return (
-    <AbsoluteFill style={{ background: t.bg, overflow: "hidden" }}>
-      <AbsoluteFill style={{ backgroundImage: `repeating-linear-gradient(-55deg, ${t.stripe} 0 60px, transparent 60px 140px)`, backgroundPosition: `${frame * 2}px 0` }} />
-      {children}
-    </AbsoluteFill>
-  );
-};
+/** Plain coloured ground. */
+const Ground = ({ tone, children }: { tone: Tone; children: ReactNode }) => (
+  <AbsoluteFill style={{ background: TONES[tone].bg, overflow: "hidden" }}>{children}</AbsoluteFill>
+);
 
 /** Words slam in one by one; words wrapped in *asterisks* take the accent colour. */
 const Slam = ({ lines, size, start, fg, accent }: { lines: string[]; size: number; start: number; fg: string; accent: string }) => {
@@ -138,7 +131,7 @@ const BlandChat = () => (
   </div>
 );
 
-/** A single bold statement on a striped colour ground. */
+/** A single bold statement on a plain colour ground. */
 export const StatementCard = ({ lines, tone, size = 130 }: { lines: string[]; tone: Tone; size?: number }) => {
   const t = TONES[tone];
   return (
@@ -296,6 +289,7 @@ export const TitleCard = ({ at, tagline, audience, wip }: { at: number; tagline:
         <Img src={staticFile("logo.svg")} style={{ width: 150, height: 150 }} />
         <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 112, color: color.ink, letterSpacing: -1 }}>Historical Adventures</div>
       </div>
+      <div style={{ fontFamily: sans, fontWeight: 700, fontSize: 26, letterSpacing: 6, color: color.muted, marginTop: 14, opacity: interpolate(frame, [at + 8, at + 20], [0, 1], clamp) }}>BY POCKET ADVENTURES</div>
       <div style={{ fontFamily: serif, fontSize: 50, color: color.ink, marginTop: 36, opacity: interpolate(frame, [at + 14, at + 26], [0, 1], clamp) }}>{tagline}</div>
       <div style={{ fontFamily: sans, fontSize: 32, color: color.muted, marginTop: 22, opacity: interpolate(frame, [at + 24, at + 36], [0, 1], clamp) }}>{audience}</div>
       <div style={{ position: "absolute", bottom: 80, fontFamily: sans, fontWeight: 700, fontSize: 30, color: color.signal, opacity: interpolate(frame, [at + 34, at + 46], [0, 1], clamp) }}>{wip}</div>
