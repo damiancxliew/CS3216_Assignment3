@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { UserMinus } from "lucide-react";
 
 import {
   changeStaffRole,
@@ -14,6 +15,7 @@ import {
 } from "./actions";
 import { ConfirmActionButton } from "./confirm-action";
 import { SchoolLinkCopy } from "./school-link-copy";
+import { StaffRoleSelect } from "./staff-role-select";
 import { ActionButton, ActionForm } from "@/components/action-form";
 import { SignInButton } from "@/components/sign-in-button";
 import { EmptyState, Field, Page, Section, SelectField, StatusBadge } from "@/components/ui";
@@ -235,23 +237,34 @@ export default async function SchoolPage({
           <Section title="School staff">
             {staff.length ? (
               <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
-                {staff.map((member) => (
-                  <li key={member.user_id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                    <div>
-                      <p className="font-bold text-ink">{member.display_name || member.email || "Staff member"}</p>
-                      {member.display_name ? <p className="text-sm text-muted">{member.email}</p> : null}
-                      <p className="text-sm capitalize text-muted">{member.role}</p>
-                    </div>
-                    {adminRole && member.user_id !== viewerId ? (
-                      <div className="flex flex-wrap items-end gap-3">
-                        <ActionForm action={changeStaffRole.bind(null, slug, member.user_id)} submitLabel="Save role" pendingLabel="Saving…" className="flex flex-wrap items-end gap-2">
-                          <SelectField name="role" label={`Role for ${member.email ?? "staff member"}`} options={[{ value: "teacher", label: "Teacher" }, { value: "admin", label: "Admin" }]} defaultValue={member.role} />
-                        </ActionForm>
-                        <ActionButton action={removeStaffMember.bind(null, slug, member.user_id)} label="Remove from school" pendingLabel="Removing…" variant="quiet" />
+                {staff.map((member) => {
+                  const name = member.display_name || member.email || "Staff member";
+                  return (
+                    <li key={member.user_id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                      <div>
+                        <p className="font-bold text-ink">{name}</p>
+                        {member.display_name ? <p className="text-sm text-muted">{member.email}</p> : null}
+                        <p className="text-sm capitalize text-muted">{member.role}</p>
                       </div>
-                    ) : null}
-                  </li>
-                ))}
+                      {adminRole && member.user_id !== viewerId ? (
+                        <div className="flex items-center gap-2">
+                          <StaffRoleSelect
+                            action={changeStaffRole.bind(null, slug, member.user_id)}
+                            email={member.email}
+                            defaultValue={member.role === "admin" ? "admin" : "teacher"}
+                          />
+                          <ConfirmActionButton
+                            action={removeStaffMember.bind(null, slug, member.user_id)}
+                            label="Remove"
+                            icon={<UserMinus aria-hidden className="h-4 w-4" />}
+                            ariaLabel={`Remove ${name} from school`}
+                            confirmMessage={`Remove ${name} from the school?`}
+                          />
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             ) : <EmptyState title="No other staff members." />}
           </Section>
