@@ -1,6 +1,6 @@
 import type React from "react";
 import type { ReactNode } from "react";
-import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
+import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 import { ArchivalRecord, Letter, MemoirSpread, NewspaperClipping } from "./artefacts";
 import { cast, game, pitch } from "./episode";
 import { ChoiceMenu, DialogBox, NoteToast, PixelFrame } from "./hud";
@@ -113,10 +113,6 @@ export const Establish = () => {
       <TownShot camX={camX} camY={8}>
         <Walker sprite={cast.player.sprite} path={[{ f: 0, x: 12 * T, y: 9 * T + 8 }, { f: 90, x: 28 * T, y: 9 * T + 8 }]} />
       </TownShot>
-      {/* The painting dissolves into the playable town. */}
-      <AbsoluteFill style={{ opacity: interpolate(frame, [8, 34], [1, 0], clamp) }}>
-        <Img src={staticFile("art/cover-1819.webp")} style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${1.05 + frame * 0.004})` }} />
-      </AbsoluteFill>
       <div style={{ position: "absolute", left: 90, bottom: 80, opacity: tag, fontFamily: pixel, fontWeight: 700, fontSize: 64, color: "#fff8e9", textShadow: `5px 5px 0 ${color.ink}` }}>Singapore, 1819</div>
     </GameBeat>
   );
