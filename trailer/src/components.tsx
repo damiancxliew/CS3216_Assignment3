@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
+import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 import { color, sans } from "./theme";
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
@@ -11,12 +11,6 @@ export const SceneFade = ({ children, duration, fadeIn = 10, fadeOut = 10 }: { c
   const opacity = Math.min(ramp(frame, 0, fadeIn), 1 - ramp(frame, duration - fadeOut, fadeOut));
   return <AbsoluteFill style={{ opacity }}>{children}</AbsoluteFill>;
 };
-
-export const Sfx = ({ src, at, volume = 0.6 }: { src: string; at: number; volume?: number }) => (
-  <Sequence from={at} durationInFrames={90} layout="none">
-    <Audio src={staticFile(`audio/sfx-${src}.ogg`)} volume={volume} />
-  </Sequence>
-);
 
 /** Honest corner label shown throughout. */
 export const WipTag = () => (

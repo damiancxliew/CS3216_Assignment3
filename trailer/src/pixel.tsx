@@ -144,23 +144,18 @@ export const Emote = ({ x, y, text, at }: { x: number; y: number; text: string; 
   );
 };
 
-/** World container: pans a camera across a world drawn in native pixels. */
-export const World = ({ children, camX, camY = 0, width, height }: { children: ReactNode; camX: number; camY?: number; width: number; height: number }) => (
-  <AbsoluteFill style={{ background: "#1b2a1b", overflow: "hidden" }}>
-    <div
-      style={{
-        position: "absolute",
-        width,
-        height,
-        transformOrigin: "0 0",
-        transform: `scale(${SCALE}) translate(${-Math.round(camX)}px, ${-Math.round(camY)}px)`,
-        imageRendering: "pixelated",
-      }}
-    >
-      {children}
-    </div>
-  </AbsoluteFill>
-);
+/** World container: pans a camera across a world drawn in native pixels, never past its edges. */
+export const World = ({ children, camX, camY = 0, width, height }: { children: ReactNode; camX: number; camY?: number; width: number; height: number }) => {
+  const x = Math.round(Math.min(Math.max(camX, 0), width - VIEW_W));
+  const y = Math.round(Math.min(Math.max(camY, 0), height - VIEW_H));
+  return (
+    <AbsoluteFill style={{ background: "#1b2a1b", overflow: "hidden" }}>
+      <div style={{ position: "absolute", width, height, transformOrigin: "0 0", transform: `scale(${SCALE}) translate(${-x}px, ${-y}px)`, imageRendering: "pixelated" }}>
+        {children}
+      </div>
+    </AbsoluteFill>
+  );
+};
 
 /** Late-afternoon light, drifting fog and a vignette, drawn over the world in screen space. */
 export const Atmosphere = ({ fog = 0.18, warmth = 0.22 }: { fog?: number; warmth?: number }) => {

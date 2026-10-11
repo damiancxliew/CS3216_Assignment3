@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Img, Sequence, Audio, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { Sound } from "./sound";
 import { color, pixel, sans, serif } from "./theme";
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
@@ -95,9 +96,7 @@ export const ChoiceMenu = ({ title, options, start, pickAt, picked, closedIndex,
           })}
         </div>
       </Framed>
-      <Sequence from={pickAt} durationInFrames={60} layout="none">
-        <Audio src={staticFile("audio/sfx-pop.wav")} volume={0.55} />
-      </Sequence>
+      <Sound src="pop" at={pickAt} volume={0.55} />
     </div>
   );
 };
@@ -115,9 +114,7 @@ export const NoteToast = ({ text, start, style }: { text: string; start: number;
   const t = spring({ frame: frame - start, fps, config: { damping: 13, mass: 0.6 } });
   return (
     <div style={{ position: "absolute", right: 110, top: 110, width: 700, transform: `translateY(${(1 - t) * -40}px)`, opacity: Math.min(1, t * 1.5), ...style }}>
-      <Sequence from={start} durationInFrames={60} layout="none">
-        <Audio src={staticFile("audio/sfx-chime.wav")} volume={0.5} />
-      </Sequence>
+      <Sound src="chime" at={start} volume={0.5} />
       <Framed tone="paper">
         <div style={{ padding: "22px 30px 26px", borderLeft: `10px solid ${color.world}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, fontFamily: pixel, fontWeight: 700, fontSize: 30, color: color.world, letterSpacing: 2 }}>

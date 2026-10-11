@@ -2,11 +2,10 @@
 Placeholder soundtrack and sound effects for the trailer, synthesised in code (no samples, no licence needed).
 
   python3 scripts/make_audio.py            # needs numpy
-  FFMPEG=/path/to/ffmpeg python3 ...       # optional: master to -14 LUFS and make the muffled copy
+  FFMPEG=/path/to/ffmpeg python3 ...       # optional: master to -14 LUFS
 
 Writes into public/audio/:
-  lofi.wav          warm lo-fi bed (84 BPM, Fmaj7-Em7-Dm7-Cmaj7), for game beats
-  lofi-muffled.wav  the same bed low-passed, for pitch beats
+  upbeat.wav        bright 120 BPM bed (Am-F-C-G); bars 1-2 intro pad, last 3 bars outro with a final hit
   sfx-*.wav         whoosh, impact, typewriter key/bell, pop, chime
 """
 import os
@@ -70,19 +69,6 @@ def midi(n):
     return 440.0 * 2 ** ((n - 69) / 12)
 
 
-def rhodes(freq, seconds, vel=1.0):
-    t = t_axis(seconds)
-    env = np.exp(-t * 1.6) * (1 - np.exp(-t * 300))
-    bell = np.exp(-t * 9)
-    tone = (
-        np.sin(2 * np.pi * freq * t)
-        + 0.35 * np.sin(2 * np.pi * freq * 2 * t) * bell
-        + 0.12 * np.sin(2 * np.pi * freq * 3 * t) * bell
-        + 0.5 * np.sin(2 * np.pi * freq * 1.003 * t)
-    )
-    trem = 1 + 0.12 * np.sin(2 * np.pi * 4.8 * t)
-    return tone * env * trem * vel
-
 
 def reverb(x, mix=0.25, seconds=2.2):
     ir_t = t_axis(seconds)
@@ -93,65 +79,94 @@ def reverb(x, mix=0.25, seconds=2.2):
     return (1 - mix) * x + mix * wet * 0.6
 
 
-def lofi_bed(seconds=62.0, bpm=84):
+
+def saw(freq, t, detune=0.0):
+    """Band-limited-ish sawtooth via a handful of harmonics (keeps the top end clean)."""
+    out = np.zeros_like(t)
+    for k in range(1, 14):
+        out += ((-1) ** (k + 1)) * np.sin(2 * np.pi * k * freq * (1 + detune) * t) / k
+    return out * 0.6
+
+
+def upbeat_bed(seconds=58.0, bpm=120):
+    """
+    Bright, driving placeholder: four-on-the-floor kick, claps on 2 and 4, offbeat hats, a pumping chord stab,
+    an octave bassline and a pluck arpeggio. Bars 1-2 are an intro pad (the typewriter opening); from bar 3 the full
+    groove; the last 3 bars drop back to pad with a final hit on the downbeat of the last bar.
+    Chords: Am - F - C - G (one per bar).
+    """
     beat = 60 / bpm
+    bar = 4 * beat
     n = int(seconds * SR)
-    keys = np.zeros(n)
-    bass = np.zeros(n)
-    drums = np.zeros(n)
-    chords = [[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [48, 52, 55, 59]]  # Fmaj7 Em7 Dm7 Cmaj7
-    roots = [41, 40, 38, 36]
+    bars = int(seconds / bar)
+    chords = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]]
+    roots = [45, 41, 48, 43]
+    pad, stab, bass, pluck, drums = (np.zeros(n) for _ in range(5))
+    pump = np.ones(n)
 
     def add(buf, start, sig):
         i = int(start * SR)
-        if i >= len(buf):
-            return
-        j = min(len(buf), i + len(sig))
-        buf[i:j] += sig[: j - i]
+        if 0 <= i < len(buf):
+            j = min(len(buf), i + len(sig))
+            buf[i:j] += sig[: j - i]
 
-    bar = 4 * beat
-    bars = int(seconds / bar) + 1
+    full_from, outro_from = 2, bars - 3
     for b in range(bars):
-        chord = chords[b % 4]
         start = b * bar
-        # Chords: on the downbeat, and a softer push on the "and" of beat 3 (swung).
-        for k, note in enumerate(chord):
-            add(keys, start + k * 0.012, rhodes(midi(note), bar, 0.55))
-            add(keys, start + 2.66 * beat + k * 0.01, rhodes(midi(note + 12 if k == 3 else note), beat * 1.3, 0.22))
-        # Bass on 1 and the swung "and" of 2.
-        for pos, length in ((0, 1.5), (1.66, 1.2)):
-            t = t_axis(beat * length)
-            sig = np.tanh(1.6 * np.sin(2 * np.pi * midi(roots[b % 4]) * t)) * np.exp(-t * 2.2) * (1 - np.exp(-t * 200))
-            add(bass, start + pos * beat, sig * 0.8)
+        chord, root = chords[b % 4], roots[b % 4]
+        # Pad throughout (soft, detuned saws).
+        t = t_axis(bar)
+        env = np.minimum(1, t / 0.08) * np.minimum(1, (bar - t) / 0.08)
+        add(pad, start, sum(saw(midi(n_ + 12), t, d) for n_ in chord for d in (-0.004, 0.004)) * env * 0.12)
+        if b < full_from or b >= outro_from:
+            continue
         for q in range(4):
             bt = start + q * beat
-            if q in (0, 2):  # kick
-                t = t_axis(0.42)
-                f = 45 + 75 * np.exp(-t * 28)
-                kick = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 9)
-                add(drums, bt, kick * 0.9)
-            if q in (1, 3):  # soft snare: tone plus filtered noise
-                t = t_axis(0.25)
-                body = np.sin(2 * np.pi * 185 * t) * np.exp(-t * 26)
-                noise = lowpass_fft(highpass_fft(rng.standard_normal(len(t)), 900), 5200) * np.exp(-t * 20)
-                add(drums, bt, body * 0.35 + noise * 0.22)
-            for h, swing in ((0, 0), (1, 0.62)):  # swung hats, quiet and dark
-                t = t_axis(0.06)
-                hat = lowpass_fft(highpass_fft(rng.standard_normal(len(t)), 6500), 11000) * np.exp(-t * 70)
-                add(drums, bt + (h * swing * beat), hat * (0.07 if h else 0.1))
+            # Kick and sidechain pump.
+            t = t_axis(0.35)
+            f = 50 + 110 * np.exp(-t * 35)
+            add(drums, bt, np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 11) * 1.0)
+            i = int(bt * SR)
+            dip = 1 - 0.65 * np.exp(-t_axis(beat) * 9)
+            pump[i:i + len(dip)] = np.minimum(pump[i:i + len(dip)], dip[: max(0, min(len(dip), n - i))])
+            if q in (1, 3):  # clap
+                t = t_axis(0.22)
+                clap = lowpass_fft(highpass_fft(rng.standard_normal(len(t)), 1200), 7000) * (np.exp(-t * 30) + 0.4 * np.exp(-np.abs(t - 0.012) * 400))
+                add(drums, bt, clap * 0.45)
+            # Offbeat hat.
+            t = t_axis(0.08)
+            add(drums, bt + beat / 2, lowpass_fft(highpass_fft(rng.standard_normal(len(t)), 7000), 12000) * np.exp(-t * 45) * 0.16)
+            # Chord stab on the offbeat.
+            t = t_axis(beat * 0.45)
+            st = sum(saw(midi(n_ + 12), t, d) for n_ in chord for d in (-0.006, 0.006)) * np.exp(-t * 7)
+            add(stab, bt + beat / 2, lowpass_fft(st, 3200) * 0.22)
+            # Octave bass on eighths.
+            for e in range(2):
+                t = t_axis(beat * 0.45)
+                note = root + (12 if e else 0)
+                bs = lowpass_fft(saw(midi(note), t), 900) * np.exp(-t * 5) * (1 - np.exp(-t * 300))
+                add(bass, bt + e * beat / 2, bs * 0.7)
+        # Pluck arpeggio on sixteenths, up the chord.
+        arp = [chord[0] + 24, chord[1] + 24, chord[2] + 24, chord[1] + 24]
+        for k in range(16):
+            t = t_axis(beat / 4 * 0.9)
+            pl = lowpass_fft(saw(midi(arp[k % 4]), t), 4200) * np.exp(-t * 18)
+            add(pluck, start + k * beat / 4, pl * 0.12)
 
-    keys = reverb(lowpass_fft(keys, 2600), 0.35)
-    mix = keys * 0.5 + lowpass_fft(bass, 400) * 0.55 + drums * 0.42
-    mix = lowpass_fft(mix, 9000)
-    # Gentle fade in and out.
+    # Final hit on the last bar's downbeat.
+    t = t_axis(2.4)
+    f = 40 + 120 * np.exp(-t * 20)
+    hit = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 2.5) + sum(saw(midi(n_ + 12), t) for n_ in chords[0]) * np.exp(-t * 1.6) * 0.25
+    add(drums, (bars - 1) * bar, hit * 0.9)
+
+    mix = drums * 0.55 + (stab + pluck + bass * 0.9) * pump + reverb(pad, 0.3) * (0.6 + 0.4 * pump)
+    mix = lowpass_fft(highpass_fft(mix, 30), 14000)
     fade = np.ones(n)
-    fi, fo = int(1.5 * SR), int(3.0 * SR)
-    fade[:fi] = np.linspace(0, 1, fi)
+    fo = int(1.5 * SR)
     fade[-fo:] = np.linspace(1, 0, fo)
     mix *= fade
-    left = mix + 0.08 * np.roll(keys, 260)
-    right = mix + 0.08 * np.roll(keys, -260)
-    return np.stack([left, right], axis=1)
+    width = reverb(pluck + stab, 0.5, 1.0)
+    return np.stack([mix + 0.15 * np.roll(width, 300), mix + 0.15 * np.roll(width, -300)], axis=1)
 
 
 def whoosh():
@@ -208,12 +223,11 @@ def master(src, dst, extra=""):
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    raw = write("lofi-raw.wav", lofi_bed())
-    if master(raw, os.path.join(OUT, "lofi.wav")):
-        master(raw, os.path.join(OUT, "lofi-muffled.wav"), "lowpass=f=520,lowpass=f=520,volume=-4dB")
+    raw = write("upbeat-raw.wav", upbeat_bed())
+    if master(raw, os.path.join(OUT, "upbeat.wav")):
         os.remove(raw)
     else:
-        os.replace(raw, os.path.join(OUT, "lofi.wav"))
+        os.replace(raw, os.path.join(OUT, "upbeat.wav"))
     write("sfx-whoosh.wav", whoosh())
     write("sfx-impact.wav", impact())
     for i in range(4):

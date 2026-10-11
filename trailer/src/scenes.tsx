@@ -1,9 +1,10 @@
+import type React from "react";
 import type { ReactNode } from "react";
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 import { ArchivalRecord, Letter, MemoirSpread, NewspaperClipping } from "./artefacts";
 import { cast, game, pitch } from "./episode";
 import { ChoiceMenu, DialogBox, NoteToast, PixelFrame } from "./hud";
-import { PitchCard, RapidWords, TitleCard, TypeScene } from "./pitch";
+import { ClaimCard, ProblemCard, RapidWords, StatementCard, TitleCard, TypeScene } from "./pitch";
 import { Atmosphere, Emote, SPOTS, T, TOWN_H, TOWN_W, Town, Walker, World } from "./pixel";
 import { color, pixel, serif } from "./theme";
 
@@ -36,8 +37,30 @@ const TownShot = ({ camX, camY = 20, dim = 0, blur = 0, children }: { camX: numb
   </AbsoluteFill>
 );
 
-/** Every game beat: a quick punch-in and a big verb anchored bottom-left. */
-const GameBeat = ({ verb, children }: { verb?: string; children: ReactNode }) => {
+type Callout = { text: string; x: number; y: number; toX: number; toY: number; at: number };
+
+/** A sticker label with a drawn arrow pointing at a feature on screen. */
+const CalloutLabel = ({ c }: { c: Callout }) => {
+  const frame = useCurrentFrame();
+  const p = interpolate(frame, [c.at, c.at + 8], [0, 1], clamp);
+  const draw = interpolate(frame, [c.at + 4, c.at + 14], [0, 1], clamp);
+  const midX = (c.x + c.toX) / 2;
+  const path = `M ${c.x} ${c.y} Q ${midX} ${Math.min(c.y, c.toY) - 80} ${c.toX} ${c.toY}`;
+  return (
+    <>
+      <svg style={{ position: "absolute", inset: 0, width: 1920, height: 1080, overflow: "visible" }} aria-hidden>
+        <path d={path} fill="none" stroke="#ffd166" strokeWidth={7} strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - draw} style={{ filter: "drop-shadow(3px 3px 0 rgba(0,0,0,0.5))" }} />
+        <circle cx={c.toX} cy={c.toY} r={12 * draw} fill="#ffd166" />
+      </svg>
+      <div style={{ position: "absolute", left: c.x, top: c.y, transform: `translate(-50%, -100%) rotate(-3deg) scale(${0.8 + p * 0.2})`, opacity: p, background: "#ffd166", color: color.ink, fontFamily: pixel, fontWeight: 700, fontSize: 36, padding: "10px 20px", boxShadow: `5px 5px 0 ${color.ink}`, whiteSpace: "nowrap" }}>
+        {c.text}
+      </div>
+    </>
+  );
+};
+
+/** Every game beat: a quick punch-in, a big verb top-left and an optional callout. */
+const GameBeat = ({ verb, callout, children }: { verb?: string; callout?: Callout; children: ReactNode }) => {
   const frame = useCurrentFrame();
   const punch = interpolate(frame, [0, 8], [1.06, 1], clamp);
   const v = interpolate(frame, [3, 11], [0, 1], clamp);
@@ -50,6 +73,7 @@ const GameBeat = ({ verb, children }: { verb?: string; children: ReactNode }) =>
           <div style={{ fontFamily: pixel, fontWeight: 700, fontSize: 120, lineHeight: 1, color: "#fff8e9", textShadow: `6px 6px 0 ${color.ink}` }}>{verb}</div>
         </div>
       ) : null}
+      {callout ? <CalloutLabel c={callout} /> : null}
     </AbsoluteFill>
   );
 };
@@ -57,22 +81,29 @@ const GameBeat = ({ verb, children }: { verb?: string; children: ReactNode }) =>
 /* ---------- pitch beats ---------- */
 
 export const Open = () => <TypeScene lines={pitch.open} start={8} cps={15} gap={14} />;
-export const Problem = () => <PitchCard lines={pitch.problem} tone="ink" size={80} />;
-export const Neither = () => <PitchCard lines={pitch.neither} tone="signal" size={118} />;
-export const PPeople = () => <PitchCard lines={pitch.people} tone="record" size={170} />;
-export const PSources = () => <PitchCard lines={pitch.sources} tone="ink" size={170} />;
-export const PDisagree = () => <PitchCard lines={pitch.disagree} tone="signal" size={190} />;
-export const PShare = () => <PitchCard lines={pitch.share} tone="world" size={160} />;
-export const PChoose = () => <PitchCard lines={pitch.choose} tone="ink" size={160} />;
-export const PDefend = () => <PitchCard lines={pitch.defend} tone="record" size={160} />;
-export const PReal = () => <PitchCard lines={pitch.real} tone="paper" size={160} />;
+export const Problem = () => <ProblemCard lines={[pitch.problem[0], pitch.problem[1]]} secondAt={40} />;
+export const Neither = () => <StatementCard lines={pitch.neither} tone="signal" size={130} />;
 export const Rapid = () => (
-  <RapidWords every={24} items={[{ text: pitch.rapid[0], tone: "ink" }, { text: pitch.rapid[1], tone: "record" }, { text: pitch.rapid[2], tone: "signal" }, { text: pitch.rapid[3], tone: "world" }]} />
+  <RapidWords
+    every={30}
+    items={[
+      { text: pitch.rapid[0], tone: "ink", icon: "sources" },
+      { text: pitch.rapid[1], tone: "record", icon: "lesson" },
+      { text: pitch.rapid[2], tone: "signal", icon: "marks" },
+      { text: pitch.rapid[3], tone: "world", icon: "thinking" },
+    ]}
+  />
 );
 export const Close = () => (
   <TypeScene lines={[pitch.close]} start={6} cps={16}>
-    <TitleCard at={84} tagline={pitch.tagline} audience={pitch.audience} wip={pitch.wip} />
+    <TitleCard at={120} tagline={pitch.tagline} audience={pitch.audience} wip={pitch.wip} />
   </TypeScene>
+);
+
+/** Claim cards: each previews the game beat that proves it. */
+export const CLAIM_FRAMES = 60;
+const claim = (chapter: string, label: string, lines: string[], tone: "ink" | "record" | "signal" | "world" | "paper", next: () => React.ReactElement) => () => (
+  <ClaimCard chapter={chapter} label={label} lines={lines} tone={tone} next={next} duration={CLAIM_FRAMES} size={104} />
 );
 
 /* ---------- game beats ---------- */
@@ -94,7 +125,7 @@ export const Establish = () => {
 export const Question = () => {
   const frame = useCurrentFrame();
   return (
-    <GameBeat verb="QUESTION">
+    <GameBeat verb="QUESTION" callout={{ text: "Everyone has an agenda", x: 1250, y: 560, toX: 660, toY: 720, at: 30 }}>
       <TownShot camX={1 * T}>
         <Walker sprite={cast.player.sprite} path={[{ f: 0, x: 8 * T, y: 9 * T }, { f: 10, x: 8 * T, y: 8 * T + 4 }]} idle="up" />
         <Emote x={SPOTS.temenggong.x + 2} y={SPOTS.temenggong.y - 14} text="…" at={8} />
@@ -106,7 +137,7 @@ export const Question = () => {
 };
 
 export const Read = () => (
-  <GameBeat verb="READ">
+  <GameBeat verb="READ" callout={{ text: "Real-looking sources", x: 1420, y: 250, toX: 1150, toY: 420, at: 14 }}>
     <TownShot camX={14 * T} dim={0.35} blur={6} />
     <NewspaperClipping markAt={34} style={{ left: 250, top: 240, transform: "rotate(-2deg)" }} />
     <NoteToast text={game.read.note} start={66} style={{ top: 560, right: 70, width: 560 }} />
@@ -114,7 +145,7 @@ export const Read = () => (
 );
 
 export const Compare = () => (
-  <GameBeat verb="COMPARE">
+  <GameBeat verb="COMPARE" callout={{ text: "Two accounts, one island", x: 980, y: 300, toX: 1250, toY: 520, at: 26 }}>
     <TownShot camX={24 * T} dim={0.35} blur={6} />
     <MemoirSpread markAt={18} style={{ left: 70, top: 330, transform: "rotate(-2deg) scale(0.92)", transformOrigin: "top left" }} />
     <Letter markAt={42} style={{ right: 60, top: 340 }} />
@@ -125,7 +156,7 @@ export const Compare = () => (
 export const Share = () => {
   const frame = useCurrentFrame();
   return (
-    <GameBeat verb="SHARE">
+    <GameBeat verb="SHARE" callout={{ text: "Your notes are your proof", x: 1300, y: 420, toX: 900, toY: 860, at: 16 }}>
       <TownShot camX={34 * T}>
         <Walker sprite={cast.player.sprite} path={[{ f: 0, x: 47 * T, y: 9 * T }, { f: 8, x: 47 * T, y: 8 * T + 4 }]} idle="up" />
         <Emote x={SPOTS.raffles.x + 4} y={SPOTS.raffles.y - 14} text="!" at={44} />
@@ -144,7 +175,7 @@ export const Share = () => {
 };
 
 export const Choose = () => (
-  <GameBeat verb="CHOOSE">
+  <GameBeat verb="CHOOSE" callout={{ text: "This ending is now gone", x: 1500, y: 300, toX: 1300, toY: 560, at: 80 }}>
     <TownShot camX={38 * T} dim={0.45} />
     <ChoiceMenu title={game.choice.prompt} options={game.choice.options} start={4} pickAt={50} picked={game.choice.picked} closedIndex={2} closedAt={76} style={{ left: 440, top: 330 }} />
   </GameBeat>
@@ -154,7 +185,7 @@ export const Explain = () => {
   const frame = useCurrentFrame();
   const e = game.explain;
   return (
-    <GameBeat verb="EXPLAIN">
+    <GameBeat verb="EXPLAIN" callout={{ text: "It pushes back", x: 1400, y: 520, toX: 1100, toY: 800, at: 74 }}>
       <TownShot camX={4 * T} dim={0.45} />
       {frame < 66 ? (
         <>
@@ -192,3 +223,11 @@ export const Reveal = () => {
     </GameBeat>
   );
 };
+
+export const CPeople = claim("01", "QUESTION", pitch.people, "record", Question);
+export const CSources = claim("02", "READ", pitch.sources, "ink", Read);
+export const CDisagree = claim("03", "COMPARE", pitch.disagree, "signal", Compare);
+export const CShare = claim("04", "SHARE", pitch.share, "world", Share);
+export const CChoose = claim("05", "CHOOSE", pitch.choose, "ink", Choose);
+export const CDefend = claim("06", "EXPLAIN", pitch.defend, "record", Explain);
+export const CReal = claim("07", "REVEAL", pitch.real, "paper", Reveal);
