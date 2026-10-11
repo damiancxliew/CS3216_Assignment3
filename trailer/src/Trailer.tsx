@@ -129,7 +129,7 @@ const MUSIC = (() => {
     for (let k = f - 6; k <= f + 6; k++) if (k >= 0 && k < TOTAL_FRAMES) { sum += duck[k]; n++; }
     return sum / n;
   };
-  return (f: number) => (0.8 - 0.58 * smooth(f)) * interpolate(f, [TOTAL_FRAMES - 40, TOTAL_FRAMES], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (f: number) => (0.58 - 0.4 * smooth(f)) * interpolate(f, [TOTAL_FRAMES - 40, TOTAL_FRAMES], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 })();
 
 export const Trailer = () => (
