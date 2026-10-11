@@ -3,7 +3,7 @@ import { AbsoluteFill, Audio, Img, Sequence, interpolate, staticFile } from "rem
 import { TransitionSeries } from "@remotion/transitions";
 import { SceneFade, WipTag } from "./components";
 import {
-  AnyLesson, CChoose, CDefend, CDisagree, CPeople, CReal, CShare, CSources, Chatbots, Choose, Close, Compare, Context, Establish, Explain, Here, Montage, Open, Question, Rapid, Rarely, Read, Reading, Reveal, Review, Share, Upload,
+  AnyLesson, CChoose, CDefend, CDisagree, CPeople, CReal, CShare, CSources, Chatbots, Choose, Close, Compare, Context, Establish, Explain, Here, Montage, Open, Question, Rapid, Rarely, Read, Reading, Reveal, Shape, ClassView, Share, Upload,
 } from "./scenes";
 import { TRANSITIONS, TRANSITION_FRAMES, type TransitionName } from "./transitions";
 
@@ -36,8 +36,9 @@ export const CUT: { name: string; beats: number; into: Into; Scene: () => React.
   { name: "Reveal", beats: 8, into: "cut", Scene: Reveal },
   { name: "AnyLesson", beats: 4, into: "push", Scene: AnyLesson },
   { name: "Upload", beats: 12, into: "blinds", Scene: Upload },
-  { name: "Review", beats: 6, into: "slide-right", Scene: Review },
+  { name: "Shape", beats: 16, into: "slide-right", Scene: Shape },
   { name: "Montage", beats: 8, into: "iris", Scene: Montage },
+  { name: "ClassView", beats: 10, into: "blinds", Scene: ClassView },
   { name: "Rapid", beats: 6, into: "wipe-top-right", Scene: Rapid },
   { name: "Close", beats: 12, into: "fade", Scene: Close },
 ];
