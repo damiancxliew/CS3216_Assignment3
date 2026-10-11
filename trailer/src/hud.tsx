@@ -96,7 +96,7 @@ export const ChoiceMenu = ({ title, options, start, pickAt, picked, closedIndex,
         </div>
       </Framed>
       <Sequence from={pickAt} durationInFrames={60} layout="none">
-        <Audio src={staticFile("audio/sfx-accept.ogg")} volume={0.45} />
+        <Audio src={staticFile("audio/sfx-pop.wav")} volume={0.55} />
       </Sequence>
     </div>
   );
@@ -116,7 +116,7 @@ export const NoteToast = ({ text, start, style }: { text: string; start: number;
   return (
     <div style={{ position: "absolute", right: 110, top: 110, width: 700, transform: `translateY(${(1 - t) * -40}px)`, opacity: Math.min(1, t * 1.5), ...style }}>
       <Sequence from={start} durationInFrames={60} layout="none">
-        <Audio src={staticFile("audio/sfx-evidence.ogg")} volume={0.55} />
+        <Audio src={staticFile("audio/sfx-chime.wav")} volume={0.5} />
       </Sequence>
       <Framed tone="paper">
         <div style={{ padding: "22px 30px 26px", borderLeft: `10px solid ${color.world}` }}>
@@ -130,43 +130,3 @@ export const NoteToast = ({ text, start, style }: { text: string; start: number;
   );
 };
 
-/** A document laid on parchment, with an animated highlighter on one line. */
-export const Parchment = ({ masthead, date, lines, highlight, sweepAt, stamp, style }: {
-  masthead: string; date: string; lines: readonly string[]; highlight: number; sweepAt: number; stamp: string; style?: CSSProperties;
-}) => {
-  const frame = useCurrentFrame();
-  const sweep = interpolate(frame, [sweepAt, sweepAt + 26], [0, 1], clamp);
-  return (
-    <div style={{ position: "absolute", ...style }}>
-      <Framed tone="paper">
-        <div style={{ position: "relative", padding: "40px 54px 90px", width: 900, background: "linear-gradient(180deg, #fbf1d8 0%, #f3e3bd 100%)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: `4px double ${color.ink}`, paddingBottom: 12 }}>
-            <div style={{ fontFamily: serif, fontSize: 34, fontWeight: 700 }}>{masthead}</div>
-            <div style={{ fontFamily: sans, fontSize: 24, color: color.muted }}>{date}</div>
-          </div>
-          <div style={{ fontFamily: serif, fontSize: 40, lineHeight: 1.65, marginTop: 18 }}>
-            {lines.map((line, i) => (
-              <div key={line} style={{ position: "relative" }}>
-                {i === highlight ? <div style={{ position: "absolute", left: -10, top: 10, bottom: 8, width: `calc(${sweep} * (100% + 20px))`, background: "rgba(255,206,64,0.65)" }} /> : null}
-                <span style={{ position: "relative" }}>{line}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ position: "absolute", right: 36, bottom: 26, fontFamily: pixel, fontSize: 26, fontWeight: 700, color: color.signal, border: `3px solid ${color.signal}`, padding: "2px 12px", transform: "rotate(-5deg)" }}>{stamp}</div>
-        </div>
-      </Framed>
-    </div>
-  );
-};
-
-/** Lower-third line that labels what a story beat shows. */
-export const BeatTitle = ({ text, start = 4 }: { text: string; start?: number }) => {
-  const frame = useCurrentFrame();
-  const t = ramp(frame, start, 12);
-  return (
-    <div style={{ position: "absolute", left: 120, top: 92, opacity: t, transform: `translateX(${(1 - t) * -30}px)` }}>
-      <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 64, color: "#fffaf0", textShadow: "0 4px 0 rgba(0,0,0,0.35), 0 0 30px rgba(0,0,0,0.45)" }}>{text}</div>
-      <div style={{ height: 8, width: `${t * 220}px`, background: color.signal, marginTop: 10 }} />
-    </div>
-  );
-};
