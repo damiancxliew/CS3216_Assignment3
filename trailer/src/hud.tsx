@@ -40,15 +40,34 @@ export const Typed = ({ text, start, speed = 1.5 }: { text: string; start: numbe
   return <>{text.slice(0, Math.max(0, Math.floor((frame - start) * speed)))}</>;
 };
 
-export const PixelFace = ({ sprite, size = 190 }: { sprite: string; size?: number }) => (
-  <div style={{ width: size, height: size, background: "#141a14", boxShadow: `0 0 0 6px ${color.ink}`, flexShrink: 0 }}>
-    <Img src={staticFile(`characters/${sprite}/face.png`)} style={{ width: size, height: size, imageRendering: "pixelated" }} />
-  </div>
-);
+/** Generated portraits (public/art), keyed by walk sprite; moods are expression variants of the same face. */
+const PORTRAITS: Record<string, { base: string; moods?: Record<string, string> }> = {
+  Villager3: { base: "ahmad" },
+  OldMan: { base: "temenggong", moods: { guarded: "temenggong-guarded" } },
+  Inspector: { base: "raffles", moods: { intrigued: "raffles-intrigued" } },
+  Sultan: { base: "hussein" },
+  Master: { base: "farquhar" },
+  OldMan3: { base: "clerk", moods: { sceptical: "clerk-sceptical" } },
+};
+
+/** A portrait; if `mood` and `moodAt` are given, the expression changes at that frame with a small jolt. */
+export const PixelFace = ({ sprite, size = 190, mood, moodAt }: { sprite: string; size?: number; mood?: string; moodAt?: number }) => {
+  const frame = useCurrentFrame();
+  const art = PORTRAITS[sprite];
+  const swap = mood && moodAt !== undefined ? interpolate(frame, [moodAt, moodAt + 4], [0, 1], clamp) : 0;
+  const jolt = mood && moodAt !== undefined && frame >= moodAt && frame < moodAt + 6 ? Math.sin((frame - moodAt) * 2.4) * 4 : 0;
+  const src = (name: string) => staticFile(art ? `art/${name}.webp` : `characters/${sprite}/face.png`);
+  return (
+    <div style={{ position: "relative", width: size, height: size, background: "#141a14", boxShadow: `0 0 0 6px ${color.ink}`, flexShrink: 0, overflow: "hidden", transform: jolt ? `translateX(${jolt}px)` : undefined }}>
+      <Img src={src(art?.base ?? "")} style={{ position: "absolute", inset: 0, width: size, height: size, imageRendering: art ? "auto" : "pixelated" }} />
+      {art && mood && art.moods?.[mood] ? <Img src={src(art.moods[mood])} style={{ position: "absolute", inset: 0, width: size, height: size, opacity: swap }} /> : null}
+    </div>
+  );
+};
 
 /** RPG dialogue box across the bottom of the screen. */
-export const DialogBox = ({ sprite, name, text, start, speed = 1.5, children, mine = false }: {
-  sprite: string; name: string; text?: string; start: number; speed?: number; children?: ReactNode; mine?: boolean;
+export const DialogBox = ({ sprite, name, text, start, speed = 1.5, children, mine = false, mood, moodAt }: {
+  sprite: string; name: string; text?: string; start: number; speed?: number; children?: ReactNode; mine?: boolean; mood?: string; moodAt?: number;
 }) => {
   const frame = useCurrentFrame();
   const t = ramp(frame, start - 8, 8);
@@ -57,7 +76,7 @@ export const DialogBox = ({ sprite, name, text, start, speed = 1.5, children, mi
     <div style={{ position: "absolute", left: 120, right: 120, bottom: 56, opacity: t, transform: `translateY(${(1 - t) * 30}px)` }}>
       <Framed tone="paper">
         <div style={{ display: "flex", gap: 40, padding: "34px 40px", minHeight: 210 }}>
-          <PixelFace sprite={sprite} />
+          <PixelFace sprite={sprite} size={210} mood={mood} moodAt={moodAt} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "inline-block", fontFamily: pixel, fontWeight: 700, fontSize: 34, color: "#fff8e9", background: mine ? color.record : color.ink, padding: "4px 16px", marginBottom: 14 }}>{name}</div>
             <div style={{ fontFamily: pixel, fontSize: 46, lineHeight: 1.3 }}>

@@ -243,7 +243,7 @@ export const RapidWords = ({ items, every }: { items: { text: string; tone: Tone
 };
 
 /** Typewriter lines on black, with a key sound per character and a bell at each line's end. */
-export const TypeScene = ({ lines, start = 10, cps = 14, gap = 18, children }: { lines: string[]; start?: number; cps?: number; gap?: number; children?: ReactNode }) => {
+export const TypeScene = ({ lines, start = 10, cps = 14, gap = 18, background, children }: { lines: string[]; start?: number; cps?: number; gap?: number; background?: string; children?: ReactNode }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const perChar = fps / cps;
@@ -256,12 +256,18 @@ export const TypeScene = ({ lines, start = 10, cps = 14, gap = 18, children }: {
   const lastEnd = cursor - gap;
   return (
     <AbsoluteFill style={{ background: "#0b0d12", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 28 }}>
+      {background ? (
+        <AbsoluteFill>
+          <Img src={staticFile(background)} style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${1.08 + frame * 0.0009})`, opacity: interpolate(frame, [0, 30], [0, 0.42], clamp) }} />
+          <AbsoluteFill style={{ background: "radial-gradient(ellipse at 50% 50%, rgba(11,13,18,0.35) 0%, rgba(11,13,18,0.85) 75%)" }} />
+        </AbsoluteFill>
+      ) : null}
       {plan.map(({ line, begin }, li) => {
         const shown = Math.max(0, Math.min(line.length, Math.floor((frame - begin) / perChar)));
         const typing = frame >= begin && shown < line.length;
         const blink = li === plan.length - 1 && frame >= lastEnd && Math.floor(frame / 8) % 2 === 0;
         return (
-          <div key={li} style={{ fontFamily: typewriter, fontSize: li === 0 && lines.length > 1 ? 64 : 84, color: "#efe6d2", opacity: frame >= begin ? 1 : 0}}>
+          <div key={li} style={{ position: "relative", fontFamily: typewriter, fontSize: li === 0 && lines.length > 1 ? 64 : 84, color: "#efe6d2", opacity: frame >= begin ? 1 : 0 }}>
             {line.slice(0, shown)}
             <span style={{ opacity: typing || blink ? 1 : 0, color: color.signal }}>█</span>
             {Array.from({ length: line.length }, (_, c) => (line[c] === " " ? null : <Sound key={c} src={`key${c % 4}`} at={begin + c * perChar} volume={0.35} />))}

@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { cast, pitch } from "./episode";
 import { PixelFace } from "./hud";
-import { Atmosphere, Ground, Sprite, T, TOWN_H, TOWN_MAP, TOWN_W, Town, Walker, World, type Palette } from "./pixel";
+import { T, TOWN_H, TOWN_W, Town, World } from "./pixel";
 import { Sound } from "./sound";
 import { bold, color, pixel, sans, serif } from "./theme";
 
@@ -154,58 +154,27 @@ export const ReviewScene = () => {
   );
 };
 
-const THEMES: Record<string, { palette?: Palette; filter?: string; overlay?: string; props?: ReactNode }> = {
-  town: {},
-  winter: {
-    palette: { grass: "#dff1f7", path: "#c9dde6", shore: "#eef7fa" },
-    overlay: "rgba(220,240,255,0.15)",
-    props: (
-      <>
-        {[3, 13, 24, 33, 41].map((x) => <Sprite key={x} name={x % 2 ? "snowTree" : "pine"} x={x * T} y={1 * T} />)}
-      </>
-    ),
-  },
-  coast: {
-    palette: { grass: "coastGrass", water: "deepWater", shore: "sand" },
-    props: <>{[2, 18, 34].map((x) => <Sprite key={x} name="pine" x={x * T} y={1 * T} />)}</>,
-  },
-  desert: {
-    palette: { grass: "dune", path: "sand", shore: "dune", water: "dune" },
-    props: <>{[4, 9, 15, 22, 28, 36, 44].map((x, i) => <Sprite key={x} name="deadBush" x={x * T} y={(i % 2 ? 11 : 2) * T} />)}</>,
-  },
-  night: { filter: "brightness(0.55) saturate(0.6) hue-rotate(-12deg)", overlay: "rgba(160,40,20,0.22)" },
-};
-
-/** One adventure in the montage: the town redressed for another time and place. */
-const MiniWorld = ({ theme, title, at, camX }: { theme: string; title: string; at: number; camX: number }) => {
+/** One adventure in the library: its cover with a slow push-in, title and level. */
+const CoverCard = ({ cover, title, meta, at }: { cover: string; title: string; meta: string; at: number }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const p = spring({ frame: frame - at, fps, config: { damping: 14 } });
-  const th = THEMES[theme];
   const W = 540;
   const H = (W * 9) / 16;
   return (
-    <div style={{ width: W, opacity: Math.min(1, p * 1.5), transform: `scale(${0.85 + p * 0.15}) rotate(${(1 - p) * 4}deg)` }}>
+    <div style={{ width: W, opacity: Math.min(1, p * 1.5), transform: `translateY(${(1 - p) * 40}px) scale(${0.9 + p * 0.1})` }}>
       <Sound src="pop" at={at} volume={0.3} />
-      <div style={{ position: "relative", width: W, height: H, borderRadius: 16, overflow: "hidden", boxShadow: `0 0 0 6px ${color.ink}, 0 20px 40px rgba(0,0,0,0.35)`, background: theme === "new" ? "#fff8e9" : "#1b2a1b" }}>
-        {theme === "new" ? (
-          <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", border: `6px dashed ${color.signal}`, borderRadius: 16 }}>
-            <div style={{ fontFamily: bold, fontWeight: 900, fontSize: 140, color: color.signal, lineHeight: 1 }}>+</div>
-          </AbsoluteFill>
+      <div style={{ position: "relative", width: W, height: H, borderRadius: 18, overflow: "hidden", boxShadow: "0 24px 50px rgba(0,0,0,0.45)", background: cover ? "#1b2235" : "transparent", border: cover ? undefined : `5px dashed ${color.signal}` }}>
+        {cover ? (
+          <Img src={staticFile(`art/${cover}.webp`)} style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${1.04 + frame * 0.0012})` }} />
         ) : (
-          <div style={{ width: 1920, height: 1080, transform: `scale(${W / 1920})`, transformOrigin: "0 0", filter: th.filter }}>
-            <World camX={camX + frame * 0.6} width={TOWN_W} height={TOWN_H}>
-              {th.palette ? <Ground map={TOWN_MAP} palette={th.palette} /> : null}
-              <Town noGround={!!th.palette} />
-              {th.props}
-              <Walker sprite={cast.player.sprite} path={[{ f: 0, x: (camX / T + 2) * T, y: 9 * T + 8 }, { f: 240, x: (camX / T + 18) * T, y: 9 * T + 8 }]} />
-            </World>
-            <Atmosphere fog={0.08} warmth={theme === "town" ? 0.16 : 0.05} />
-            {th.overlay ? <AbsoluteFill style={{ background: th.overlay }} /> : null}
-          </div>
+          <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
+            <div style={{ fontFamily: bold, fontWeight: 900, fontSize: 150, color: color.signal, lineHeight: 1 }}>+</div>
+          </AbsoluteFill>
         )}
       </div>
-      <div style={{ fontFamily: pixel, fontWeight: 700, fontSize: 30, color: "#fff8e9", marginTop: 18, textShadow: `3px 3px 0 ${color.ink}` }}>{title}</div>
+      <div style={{ fontFamily: bold, fontWeight: 800, fontSize: 32, color: "#fff8e9", marginTop: 16 }}>{title}</div>
+      <div style={{ fontFamily: sans, fontSize: 22, color: "#b5bdcb", marginTop: 4 }}>{meta}</div>
     </div>
   );
 };
@@ -214,8 +183,8 @@ const MiniWorld = ({ theme, title, at, camX }: { theme: string; title: string; a
 export const MontageScene = () => (
   <AbsoluteFill style={{ background: `radial-gradient(ellipse at 50% 40%, #222b40 0%, ${color.night} 75%)` }}>
     <Headline text={c.any} at={4} top={60} light />
-    <AbsoluteFill style={{ top: 190, display: "grid", gridTemplateColumns: "repeat(3, 540px)", justifyContent: "center", alignContent: "start", columnGap: 70, rowGap: 34 }}>
-      {pitch.montage.map((m, i) => <MiniWorld key={m.title} theme={m.theme} title={m.title} at={8 + i * 7} camX={[2, 14, 6, 20, 10, 0][i] * T} />)}
+    <AbsoluteFill style={{ top: 190, display: "grid", gridTemplateColumns: "repeat(3, 540px)", justifyContent: "center", alignContent: "start", columnGap: 70, rowGap: 26 }}>
+      {pitch.montage.map((m, i) => <CoverCard key={m.title} cover={m.cover} title={m.title} meta={m.meta} at={8 + i * 7} />)}
     </AbsoluteFill>
   </AbsoluteFill>
 );
