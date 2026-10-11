@@ -3,6 +3,7 @@ Placeholder soundtrack and sound effects for the trailer, synthesised in code (n
 
   python3 scripts/make_audio.py            # needs numpy
   FFMPEG=/path/to/ffmpeg python3 ...       # optional: master to -14 LUFS
+  LENGTH=98 python3 ...                    # track length in seconds: must equal the cut (TOTAL_FRAMES / 30)
 
 Writes into public/audio/:
   upbeat.wav        bright 120 BPM bed (Am-F-C-G); intro pad, groove, a build into the title-card hit, a held final chord
@@ -88,7 +89,7 @@ def saw(freq, t, detune=0.0):
     return out * 0.6
 
 
-def upbeat_bed(seconds=100.0, bpm=120):
+def upbeat_bed(seconds=98.0, bpm=120):
     """
     Bright, driving placeholder: four-on-the-floor kick, claps on 2 and 4, offbeat hats, a pumping chord stab,
     an octave bassline and a pluck arpeggio. Bars 1-2 are an intro pad (the typewriter opening); from bar 3 the full
@@ -239,7 +240,7 @@ def master(src, dst, extra=""):
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    raw = write("upbeat-raw.wav", upbeat_bed())
+    raw = write("upbeat-raw.wav", upbeat_bed(float(os.environ.get("LENGTH", 98.0))))
     if master(raw, os.path.join(OUT, "upbeat.wav")):
         os.remove(raw)
     else:
