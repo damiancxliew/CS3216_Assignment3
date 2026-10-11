@@ -1,7 +1,7 @@
 /**
- * Voiceover lines for the trailer, generated with OpenAI text-to-speech in a calm, teacher-like read.
+ * Voiceover lines for the trailer, generated with OpenAI text-to-speech: an energetic, warm, teacher-like read.
  *
- *   FFMPEG=/path/to/ffmpeg node --env-file=../.env scripts/make_voice.mjs           # voice "sage"
+ *   FFMPEG=/path/to/ffmpeg node --env-file=../.env scripts/make_voice.mjs           # voice "cedar"
  *   VOICE=coral FFMPEG=... node --env-file=../.env scripts/make_voice.mjs --force   # another voice, regenerate all
  *   TEMPO=1 FFMPEG=... node scripts/make_voice.mjs --measure-only --trim-all         # after dropping in recordings
  *
@@ -16,14 +16,14 @@ import OpenAI from "openai";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "public", "voice");
-const VOICE = process.env.VOICE ?? "sage";
+const VOICE = process.env.VOICE ?? "cedar";
 /** Speed-up applied when trimming (pitch preserved): the model reads a little slower than natural speech. */
-const TEMPO = Number(process.env.TEMPO ?? 1.12);
+const TEMPO = Number(process.env.TEMPO ?? 1.1);
 const force = process.argv.includes("--force");
 const measureOnly = process.argv.includes("--measure-only");
 
 const INSTRUCTIONS =
-  "Calm and warm, like a thoughtful teacher speaking to colleagues, at a natural conversational pace: steady, not slow. Clear diction, brief pauses only, no hype, no sales voice.";
+  "Bright, energetic and confident, like an enthusiastic teacher introducing something they love to colleagues. Brisk, lively pace with forward momentum and a smile in the voice. Warm and genuine, not salesy, no long pauses.";
 
 /** One clip per line; ids match where the line plays (see VOICE_CUES in src/Trailer.tsx). */
 export const LINES = {
