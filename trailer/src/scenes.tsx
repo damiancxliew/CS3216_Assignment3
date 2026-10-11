@@ -79,14 +79,15 @@ export const Reading = () => <IllustratedCard lines={pitch.reading} tone="ink" s
 export const Chatbots = () => <IllustratedCard lines={pitch.chatbots} tone="record" size={92} art={<ChatArt />} />;
 export const Rarely = () => <StatementCard lines={pitch.rarely} tone="ink" size={130} />;
 export const Here = () => <StatementCard lines={pitch.here} tone="signal" size={190} />;
+export const AnyLesson = () => <StatementCard lines={pitch.anyLesson} tone="record" size={150} />;
+export { MontageScene as Montage, ReviewScene as Review, UploadScene as Upload } from "./creation";
 export const Rapid = () => (
   <RapidWords
     every={30}
     items={[
-      { text: pitch.rapid[0], tone: "ink", icon: "sources" },
-      { text: pitch.rapid[1], tone: "record", icon: "lesson" },
-      { text: pitch.rapid[2], tone: "signal", icon: "marks" },
-      { text: pitch.rapid[3], tone: "world", icon: "thinking" },
+      { text: pitch.rapid[0], tone: "ink", icon: "lesson" },
+      { text: pitch.rapid[1], tone: "signal", icon: "marks" },
+      { text: pitch.rapid[2], tone: "world", icon: "thinking" },
     ]}
   />
 );

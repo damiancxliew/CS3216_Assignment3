@@ -3,8 +3,6 @@ import { AbsoluteFill, Easing, Freeze, Img, interpolate, spring, staticFile, use
 import { PreviewContext, Sound } from "./sound";
 import { bold, color, sans, serif, typewriter } from "./theme";
 
-/** How long slides and fades between shots take (one beat at 120 BPM). */
-export const WIPE_FRAMES = 15;
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const ease = { ...clamp, easing: Easing.inOut(Easing.cubic) };
@@ -41,9 +39,10 @@ const Slam = ({ lines, size, start, fg, accent }: { lines: string[]; size: numbe
         <div key={li} style={{ marginBottom: size * 0.1 }}>
           {line.split(" ").map((raw) => {
             const i = k++;
-            const p = spring({ frame: frame - start - i * 2.5, fps, config: { damping: 18, mass: 0.5, stiffness: 220 } });
+            const p = Math.min(1, spring({ frame: frame - start - i * 2.5, fps, config: { damping: 18, mass: 0.5, stiffness: 220 } }));
+            const settled = p > 0.985;
             return (
-              <span key={i} style={{ display: "inline-block", marginRight: size * 0.24, color: raw.startsWith("*") ? accent : undefined, opacity: p, transform: `scale(${1.35 - p * 0.35}) translateY(${(1 - p) * 30}px)`, filter: `blur(${(1 - p) * 10}px)` }}>
+              <span key={i} style={{ display: "inline-block", marginRight: size * 0.24, color: raw.startsWith("*") ? accent : undefined, opacity: settled ? 1 : p, transform: settled ? undefined : `scale(${1.35 - p * 0.35}) translateY(${(1 - p) * 30}px)`, filter: settled ? undefined : `blur(${(1 - p) * 10}px)` }}>
                 {raw.replace(/\*/g, "")}
               </span>
             );
@@ -234,7 +233,7 @@ export const RapidWords = ({ items, every }: { items: { text: string; tone: Tone
       {items.map((_, k) => <Sound key={k} src="impact" at={k * every} volume={0.4} />)}
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 30 }}>
         <div style={{ transform: `scale(${0.6 + p * 0.4}) rotate(${(1 - p) * -12}deg)`, opacity: p }}>{ICONS[items[i].icon]}</div>
-        <div style={{ fontFamily: bold, fontWeight: 900, fontSize: 190, letterSpacing: -6, color: t.fg, transform: `scale(${1.2 - p * 0.2})`, opacity: p, filter: `blur(${(1 - p) * 8}px)` }}>{items[i].text}</div>
+        <div style={{ fontFamily: bold, fontWeight: 900, fontSize: 190, letterSpacing: -6, color: t.fg, transform: p < 1 ? `scale(${1.2 - p * 0.2})` : undefined, opacity: p, filter: p < 1 ? `blur(${(1 - p) * 8}px)` : undefined }}>{items[i].text}</div>
       </AbsoluteFill>
       <div style={{ position: "absolute", bottom: 70, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 16 }}>
         {items.map((_, k) => <div key={k} style={{ width: 70, height: 10, background: k <= i ? t.fg : "rgba(255,255,255,0.25)" }} />)}
@@ -262,7 +261,7 @@ export const TypeScene = ({ lines, start = 10, cps = 14, gap = 18, children }: {
         const typing = frame >= begin && shown < line.length;
         const blink = li === plan.length - 1 && frame >= lastEnd && Math.floor(frame / 8) % 2 === 0;
         return (
-          <div key={li} style={{ fontFamily: typewriter, fontSize: li === 0 && lines.length > 1 ? 64 : 84, color: "#efe6d2", opacity: frame >= begin ? 1 : 0, textShadow: "0 0 18px rgba(239,230,210,0.15)" }}>
+          <div key={li} style={{ fontFamily: typewriter, fontSize: li === 0 && lines.length > 1 ? 64 : 84, color: "#efe6d2", opacity: frame >= begin ? 1 : 0}}>
             {line.slice(0, shown)}
             <span style={{ opacity: typing || blink ? 1 : 0, color: color.signal }}>█</span>
             {Array.from({ length: line.length }, (_, c) => (line[c] === " " ? null : <Sound key={c} src={`key${c % 4}`} at={begin + c * perChar} volume={0.35} />))}

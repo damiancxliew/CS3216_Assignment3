@@ -8,7 +8,9 @@ export const T = 16;
 export const VIEW_W = 1920 / SCALE;
 export const VIEW_H = 1080 / SCALE;
 
-type Crop = { sheet: "house" | "floor"; x: number; y: number; w: number; h: number };
+type Sheet = "house" | "floor" | "winter" | "coast" | "desert";
+type Crop = { sheet: Sheet; x: number; y: number; w: number; h: number };
+const SHEET_PATH: Record<Sheet, string> = { house: "tiles/house.png", floor: "tiles/floor.png", winter: "themes/winter.png", coast: "themes/coast.png", desert: "themes/desert.png" };
 const tiles = (sheet: Crop["sheet"], x: number, y: number, w = 1, h = 1): Crop => ({ sheet, x: x * T, y: y * T, w: w * T, h: h * T });
 
 /** Hand-picked objects from the CC0 Ninja Adventure sheets (tile units on a 16 px grid). */
@@ -46,6 +48,13 @@ export const ATLAS = {
   bannerGreen: tiles("house", 25, 20, 1, 2),
   bannerGold: tiles("house", 28, 20, 1, 2),
   table: tiles("house", 29, 8, 2, 1),
+  // Other settings, from the CC0 theme sheets.
+  snowTree: tiles("winter", 16, 4, 2, 3),
+  pine: tiles("winter", 20, 4, 2, 3),
+  coastGrass: tiles("coast", 1, 1),
+  deepWater: tiles("coast", 4, 1),
+  dune: tiles("desert", 1, 1),
+  deadBush: tiles("desert", 5, 2),
 } satisfies Record<string, Crop>;
 export type AtlasKey = keyof typeof ATLAS;
 
@@ -59,7 +68,7 @@ export const Sprite = ({ name, x, y, flip = false, opacity = 1 }: { name: AtlasK
         top: y,
         width: c.w,
         height: c.h,
-        backgroundImage: `url(${staticFile(`tiles/${c.sheet}.png`)})`,
+        backgroundImage: `url(${staticFile(SHEET_PATH[c.sheet])})`,
         backgroundPosition: `-${c.x}px -${c.y}px`,
         imageRendering: "pixelated",
         transform: flip ? "scaleX(-1)" : undefined,
@@ -78,19 +87,25 @@ const hash = (x: number, y: number) => {
 /**
  * Ground from a character map: g grass, d dirt path, s sand, w water (foam on its top edge).
  */
-export const Ground = ({ map }: { map: string[] }) => {
+export type Palette = { grass?: AtlasKey | string; path?: AtlasKey | string; shore?: AtlasKey | string; water?: AtlasKey | string; tufts?: boolean };
+
+/** A flat colour tile, for palettes without a plain tile in the sheets (for example snow). */
+const Flat = ({ x, y, fill }: { x: number; y: number; fill: string }) => <div style={{ position: "absolute", left: x, top: y, width: T, height: T, background: fill }} />;
+
+export const Ground = ({ map, palette = {} }: { map: string[]; palette?: Palette }) => {
   const cells: ReactNode[] = [];
   map.forEach((row, y) => {
     [...row].forEach((ch, x) => {
-      let name: AtlasKey = "grass";
-      if (ch === "d") name = "dirt";
-      else if (ch === "s") name = "sand";
-      else if (ch === "w") name = map[y - 1]?.[x] !== "w" ? (hash(x, y) > 0.5 ? "foamA" : "foamB") : "water";
+      let name: AtlasKey | string = "grass";
+      if (ch === "d") name = palette.path ?? "dirt";
+      else if (ch === "s") name = palette.shore ?? "sand";
+      else if (ch === "w") name = palette.water ?? (map[y - 1]?.[x] !== "w" ? (hash(x, y) > 0.5 ? "foamA" : "foamB") : "water");
+      else if (palette.grass) name = palette.grass;
       else {
         const r = hash(x, y);
         name = r > 0.86 ? "tuftA" : r > 0.78 ? "tuftB" : r > 0.72 ? "tuftC" : "grass";
       }
-      cells.push(<Sprite key={`${x}-${y}`} name={name} x={x * T} y={y * T} />);
+      cells.push(name in ATLAS ? <Sprite key={`${x}-${y}`} name={name as AtlasKey} x={x * T} y={y * T} /> : <Flat key={`${x}-${y}`} x={x * T} y={y * T} fill={name} />);
     });
   });
   return <>{cells}</>;
@@ -195,9 +210,9 @@ export const TOWN_W = 64 * T;
 export const TOWN_H = 17 * T;
 
 /** Buildings and props of the town, in world pixels. */
-export const Town = () => (
+export const Town = ({ noGround = false }: { noGround?: boolean }) => (
   <>
-    <Ground map={TOWN_MAP} />
+    {noGround ? null : <Ground map={TOWN_MAP} />}
     {/* The Temenggong's house by the river */}
     <Sprite name="houseSand" x={6 * T} y={4 * T} />
     <Sprite name="fence" x={2 * T} y={6 * T + 4} />
