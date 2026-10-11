@@ -16,7 +16,7 @@ export const copy = {
     "Students read about history.",
     "But do they get to think it through?",
     'Chatting with an AI "historical figure" is fun.',
-    "But it rarely makes students think.",
+    "But it rarely makes them think.",
   ],
   blandReply: "Hello! I'm happy to answer any questions about my life and times.",
   bigIdea: ["History is people making hard choices…", "…without knowing how it will turn out."],
@@ -59,7 +59,7 @@ export const scenes = {
   },
   share: {
     noteInserted: "Tengku Hussein will sign if he is recognised as Sultan.",
-    reaction: "Raffles leans forward. This changes things.",
+    reaction: "Hussein, as Sultan? Then the treaty would stand. Tell me more.",
   },
   choice: {
     prompt: "Raffles asks: what should I do?",

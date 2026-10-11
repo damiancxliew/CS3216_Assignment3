@@ -1,20 +1,21 @@
 import { AbsoluteFill, Audio, Sequence, Series, interpolate, staticFile } from "remotion";
 import { SceneFade, WipTag } from "./components";
-import { BigIdea, Choice, EndCard, Explain, Outcomes, People, Problem, Schools, Share, Sources } from "./scenes";
+import { BigIdea, Choice, EndCard, Explain, Outcomes, People, Problem, Real, Schools, Share, Sources } from "./scenes";
 import { s } from "./theme";
 
 /** Scene order and lengths (seconds). Trim here to change the cut. */
 export const CUT = [
   { name: "Problem", seconds: 10, Scene: Problem },
   { name: "BigIdea", seconds: 8, Scene: BigIdea },
-  { name: "Outcomes", seconds: 6, Scene: Outcomes },
-  { name: "People", seconds: 6, Scene: People },
-  { name: "Sources", seconds: 6, Scene: Sources },
-  { name: "Share", seconds: 6, Scene: Share },
+  { name: "Outcomes", seconds: 5, Scene: Outcomes },
+  { name: "People", seconds: 7.5, Scene: People },
+  { name: "Sources", seconds: 6.5, Scene: Sources },
+  { name: "Share", seconds: 6.5, Scene: Share },
   { name: "Choice", seconds: 6, Scene: Choice },
-  { name: "Explain", seconds: 6, Scene: Explain },
-  { name: "Schools", seconds: 10, Scene: Schools },
-  { name: "EndCard", seconds: 11, Scene: EndCard },
+  { name: "Explain", seconds: 6.5, Scene: Explain },
+  { name: "Real", seconds: 5, Scene: Real },
+  { name: "Schools", seconds: 8, Scene: Schools },
+  { name: "EndCard", seconds: 7, Scene: EndCard },
 ] as const;
 
 export const TOTAL_FRAMES = CUT.reduce((sum, scene) => sum + s(scene.seconds), 0);
@@ -39,7 +40,7 @@ const Music = ({ src, from, to, volume, loop = false }: { src: string; from: num
 
 export const Trailer = () => {
   const tension = startOf("BigIdea");
-  const finale = startOf("Schools");
+  const finale = startOf("Real");
   return (
     <AbsoluteFill style={{ background: "#fff8e9" }}>
       <Series>

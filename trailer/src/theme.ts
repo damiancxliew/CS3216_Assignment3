@@ -1,8 +1,11 @@
 import { loadFont as loadSerif } from "@remotion/google-fonts/Literata";
 import { loadFont as loadSans } from "@remotion/google-fonts/AtkinsonHyperlegibleNext";
+import { loadFont as loadPixel } from "@remotion/google-fonts/PixelifySans";
 
 export const serif = loadSerif("normal", { weights: ["500", "700"], subsets: ["latin"] }).fontFamily;
 export const sans = loadSans("normal", { weights: ["400", "600", "700"], subsets: ["latin"] }).fontFamily;
+/** In-game text: names, dialogue, menus. */
+export const pixel = loadPixel("normal", { weights: ["400", "600", "700"], subsets: ["latin"] }).fontFamily;
 
 /** The product's own palette (apps/web/src/app/globals.css). */
 export const color = {

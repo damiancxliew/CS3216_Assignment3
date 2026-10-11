@@ -19,5 +19,5 @@ The dialogue, notes and the letter are illustrative, written for the trailer; th
 ## Credits
 - Characters, music and sound effects: [Ninja Adventure Asset Pack](https://pixel-boy.itch.io/ninja-adventure-asset-pack)
   by Pixel-boy and AAA (CC0).
-- Map footage: recorded from the game's current 1819 demo adventure.
-- Fonts: Literata and Atkinson Hyperlegible Next (SIL Open Font License), loaded from Google Fonts.
+- Tiles and buildings: the same pack's `house.png` and `floor.png` (CC0), drawn at an exact 4× scale.
+- Fonts: Literata, Atkinson Hyperlegible Next and Pixelify Sans (SIL Open Font License), loaded from Google Fonts.
