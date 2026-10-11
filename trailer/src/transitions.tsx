@@ -9,7 +9,7 @@ import { slide } from "@remotion/transitions/slide";
 import { wipe } from "@remotion/transitions/wipe";
 import { AbsoluteFill } from "remotion";
 
-/** One beat at 120 BPM; every transition takes exactly this long so cuts stay on the grid. */
+/** Every transition takes half a second; it starts on the grid, so the cut it reveals lands on the beat. */
 export const TRANSITION_FRAMES = 15;
 
 /** The next shot is revealed through diagonal stripes. */
