@@ -9,54 +9,60 @@ import { TRANSITIONS, TRANSITION_FRAMES, type TransitionName } from "./transitio
 import { pitch } from "./episode";
 import voice from "./voice.json";
 
-/** 120 BPM: one beat is 15 frames, so every cut lands on the music. */
-const BEAT = 15;
+/**
+ * The music: "Optimistic Corporate Technology" by RomanSenykMusic (Pixabay Content License), 80 BPM, 141 s.
+ * Measured from the file: the groove's first downbeat is at 3.0 s, a quieter breakdown runs from about 67 s, the full
+ * section returns on the downbeat at 99.0 s, and the last downbeat before the ending's decay is at 129.0 s.
+ * The breakdown (and, if needed, whole bars before it) is cut so the track's ending lands on the title card.
+ */
+const TRACK = { file: "audio/optimistic-corporate-technology.mp3", bpm: 80, groove: 3.0, resume: 99.0, finalDownbeat: 129.0, bar: 3.0 };
+/** The grid is the track's eighth notes (0.375 s), so every cut lands on its beat. */
+const STEP_SECONDS = 60 / TRACK.bpm / 2;
+const STEP = 30 * STEP_SECONDS;
+const toSteps = (seconds: number) => Math.max(4, Math.round(seconds / STEP_SECONDS));
 type Into = TransitionName | "cut";
 
 /**
- * How long a text card stays up, in beats: 0.6 s to register, 0.04 s per character (about 25 characters a second),
- * plus any extra seconds for something else to look at, rounded to the nearest beat.
+ * How long a text card stays up, in seconds: 0.6 s to register, 0.04 s per character (about 25 characters a second),
+ * plus any extra seconds for something else to look at.
  */
-const read = (lines: string[], extraSeconds = 0) => {
-  const chars = lines.join(" ").replace(/\*/g, "").length;
-  return Math.max(3, Math.round((0.6 + 0.04 * chars + extraSeconds) * 2));
-};
+const read = (lines: string[], extraSeconds = 0) => toSteps(0.6 + 0.04 * lines.join(" ").replace(/\*/g, "").length + extraSeconds);
 /** Claim cards also carry a label and end with a half-second zoom into the game. */
-const claimBeats = (i: number) => read(pitch.skills[i].lines, 0.3 + 0.55);
+const claimSteps = (i: number) => read(pitch.skills[i].lines, 0.3 + 0.55);
 
 /**
- * The cut, in beats. Each scene starts on the beat; `into` is how it arrives (see transitions.tsx).
- * Lengths are set by content: roughly 0.3 s per word on screen, plus time to take in the frame.
+ * The cut, in steps (eighth notes). Each scene starts on the grid; `into` is how it arrives (see transitions.tsx).
+ * Lengths are set by content (reading time or the voice line, whichever is longer).
  */
-const CUT_SPEC: { name: string; beats: number; into: Into; Scene: (props: { duration: number }) => React.ReactElement }[] = [
-  { name: "Open", beats: 8, into: "cut", Scene: Open },
-  { name: "Context", beats: read(pitch.context, 0.75), into: "iris", Scene: Context },
-  { name: "Reading", beats: read(pitch.reading), into: "push", Scene: Reading },
-  { name: "Chatbots", beats: read(pitch.chatbots), into: "wipe-top-right", Scene: Chatbots },
-  { name: "Rarely", beats: read(pitch.rarely), into: "blinds", Scene: Rarely },
-  { name: "Here", beats: read(pitch.here), into: "push", Scene: Here },
-  { name: "Establish", beats: 6, into: "iris", Scene: Establish },
-  { name: "CPeople", beats: claimBeats(0), into: "slide-right", Scene: CPeople },
-  { name: "Question", beats: 6, into: "cut", Scene: Question },
-  { name: "CSources", beats: claimBeats(1), into: "wipe-bottom-left", Scene: CSources },
-  { name: "Read", beats: 6, into: "cut", Scene: Read },
-  { name: "CDisagree", beats: claimBeats(2), into: "blinds", Scene: CDisagree },
-  { name: "Compare", beats: 6, into: "cut", Scene: Compare },
-  { name: "CShare", beats: claimBeats(3), into: "flip", Scene: CShare },
-  { name: "Share", beats: 6, into: "cut", Scene: Share },
-  { name: "CChoose", beats: claimBeats(4), into: "clock", Scene: CChoose },
-  { name: "Choose", beats: 6, into: "cut", Scene: Choose },
-  { name: "CDefend", beats: claimBeats(5), into: "slide-bottom", Scene: CDefend },
-  { name: "Explain", beats: 8, into: "cut", Scene: Explain },
-  { name: "CReal", beats: claimBeats(6), into: "wipe-left", Scene: CReal },
-  { name: "Reveal", beats: 8, into: "cut", Scene: Reveal },
-  { name: "AnyLesson", beats: read(pitch.anyLesson), into: "push", Scene: AnyLesson },
-  { name: "Easy", beats: 14, into: "blinds", Scene: Easy },
-  { name: "Ask", beats: 8, into: "slide-right", Scene: Ask },
-  { name: "Montage", beats: 8, into: "iris", Scene: Montage },
-  { name: "ClassView", beats: 8, into: "blinds", Scene: ClassView },
-  { name: "Rapid", beats: 6, into: "wipe-top-right", Scene: Rapid },
-  { name: "Close", beats: 12, into: "fade", Scene: Close },
+const CUT_SPEC: { name: string; steps: number; into: Into; Scene: (props: { duration: number }) => React.ReactElement }[] = [
+  { name: "Open", steps: 11, into: "cut", Scene: Open },
+  { name: "Context", steps: read(pitch.context, 0.75), into: "iris", Scene: Context },
+  { name: "Reading", steps: read(pitch.reading), into: "push", Scene: Reading },
+  { name: "Chatbots", steps: read(pitch.chatbots), into: "wipe-top-right", Scene: Chatbots },
+  { name: "Rarely", steps: read(pitch.rarely), into: "blinds", Scene: Rarely },
+  { name: "Here", steps: read(pitch.here), into: "push", Scene: Here },
+  { name: "Establish", steps: 8, into: "iris", Scene: Establish },
+  { name: "CPeople", steps: claimSteps(0), into: "slide-right", Scene: CPeople },
+  { name: "Question", steps: 8, into: "cut", Scene: Question },
+  { name: "CSources", steps: claimSteps(1), into: "wipe-bottom-left", Scene: CSources },
+  { name: "Read", steps: 8, into: "cut", Scene: Read },
+  { name: "CDisagree", steps: claimSteps(2), into: "blinds", Scene: CDisagree },
+  { name: "Compare", steps: 8, into: "cut", Scene: Compare },
+  { name: "CShare", steps: claimSteps(3), into: "flip", Scene: CShare },
+  { name: "Share", steps: 8, into: "cut", Scene: Share },
+  { name: "CChoose", steps: claimSteps(4), into: "clock", Scene: CChoose },
+  { name: "Choose", steps: 8, into: "cut", Scene: Choose },
+  { name: "CDefend", steps: claimSteps(5), into: "slide-bottom", Scene: CDefend },
+  { name: "Explain", steps: 11, into: "cut", Scene: Explain },
+  { name: "CReal", steps: claimSteps(6), into: "wipe-left", Scene: CReal },
+  { name: "Reveal", steps: 11, into: "cut", Scene: Reveal },
+  { name: "AnyLesson", steps: read(pitch.anyLesson), into: "push", Scene: AnyLesson },
+  { name: "Easy", steps: 19, into: "blinds", Scene: Easy },
+  { name: "Ask", steps: 11, into: "slide-right", Scene: Ask },
+  { name: "Montage", steps: 11, into: "iris", Scene: Montage },
+  { name: "ClassView", steps: 11, into: "blinds", Scene: ClassView },
+  { name: "Rapid", steps: 8, into: "wipe-top-right", Scene: Rapid },
+  { name: "Close", steps: 16, into: "fade", Scene: Close },
 ];
 
 /** Voiceover: which line plays in which shot, and how many frames into the shot it starts (scripts/make_voice.mjs). */
@@ -83,24 +89,38 @@ const VOICE_CUES: Record<string, { id: VoiceId; at: number }[]> = {
   Close: [{ id: "title", at: 58 }],
 };
 const voiceFrames = (id: VoiceId) => Math.ceil(voice.lengths[id] * 30);
-/** A shot lasts at least as long as its last line plus a short breath, rounded up to the beat. */
+/** A shot lasts at least as long as its last line plus a short breath, rounded up to the grid. */
 const BREATH = 8;
-const voiceBeats = (name: string) => Math.max(0, ...(VOICE_CUES[name] ?? []).map((c) => Math.ceil((c.at + voiceFrames(c.id) + BREATH) / BEAT)));
+const voiceSteps = (name: string) => Math.max(0, ...(VOICE_CUES[name] ?? []).map((c) => Math.ceil((c.at + voiceFrames(c.id) + BREATH) / STEP)));
 
-/** The close's typewriter, outro and final hit must start on a bar, so any spare beats go to the benefits shot. */
-export const CUT = (() => {
-  const timed = CUT_SPEC.map((c) => ({ ...c, beats: Math.max(c.beats, voiceBeats(c.name)) }));
-  const beforeClose = timed.slice(0, -1).reduce((a, c) => a + c.beats, 0);
-  const pad = (4 - (beforeClose % 4)) % 4;
-  return timed.map((c) => (c.name === "Rapid" ? { ...c, beats: c.beats + pad } : c));
+/** Frames into the close at which the title card lands (see scenes.tsx): five steps, on the track's final downbeat. */
+const TITLE_STEPS = 5;
+
+/**
+ * Fit the cut to the music. The track starts so that its groove's first downbeat meets the first pitch card; the
+ * benefits shot is padded so the title card lands on the final downbeat of the (shortened) track.
+ */
+const fit = (() => {
+  const timed = CUT_SPEC.map((c) => ({ ...c, steps: Math.max(c.steps, voiceSteps(c.name)) }));
+  const stepsBefore = (name: string) => timed.slice(0, timed.findIndex((c) => c.name === name)).reduce((a, c) => a + c.steps, 0);
+  const offset = stepsBefore("Context") * STEP_SECONDS - TRACK.groove;
+  const naturalClose = stepsBefore("Close") * STEP_SECONDS;
+  // Remove whole bars (the breakdown first) so the title card falls on the track's final downbeat, as early as possible.
+  const slack = TRACK.finalDownbeat + offset - TITLE_STEPS * STEP_SECONDS - naturalClose;
+  const removed = Math.floor(slack / TRACK.bar + 1e-9) * TRACK.bar;
+  const closeAt = TRACK.finalDownbeat - removed + offset - TITLE_STEPS * STEP_SECONDS;
+  const pad = Math.round((closeAt - naturalClose) / STEP_SECONDS);
+  const cut = timed.map((c) => (c.name === "Rapid" ? { ...c, steps: c.steps + pad } : c));
+  return { cut, offset, jumpFrom: TRACK.resume - removed };
 })();
+export const CUT = fit.cut;
 
 const overlap = (into: Into) => (into === "cut" ? 0 : TRANSITION_FRAMES);
-/** Grid start of each scene; the incoming transition begins exactly there. */
-const gridStarts = CUT.map((_, i) => CUT.slice(0, i).reduce((a, c) => a + c.beats * BEAT, 0));
+/** Grid start of each scene (frames, rounded from the eighth-note grid); the incoming transition begins exactly there. */
+const gridStarts = CUT.map((_, i) => Math.round(CUT.slice(0, i).reduce((a, c) => a + c.steps, 0) * STEP));
+export const TOTAL_FRAMES = Math.round(CUT.reduce((a, c) => a + c.steps, 0) * STEP);
 /** Sequence length = time on the grid + the overlap the next scene's transition eats. */
-const lengths = CUT.map((c, i) => c.beats * BEAT + (i + 1 < CUT.length ? overlap(CUT[i + 1].into) : 0));
-export const TOTAL_FRAMES = gridStarts[CUT.length - 1] + CUT[CUT.length - 1].beats * BEAT;
+const lengths = CUT.map((_, i) => (i + 1 < CUT.length ? gridStarts[i + 1] : TOTAL_FRAMES) - gridStarts[i] + (i + 1 < CUT.length ? overlap(CUT[i + 1].into) : 0));
 const at = (name: string) => gridStarts[CUT.findIndex((c) => c.name === name)];
 
 /**
@@ -119,7 +139,7 @@ const Preload = () => (
 
 /** Every voice clip at its absolute frame. */
 const VOICE_CLIPS = CUT.flatMap((c, i) => (VOICE_CUES[c.name] ?? []).map((cue) => ({ id: cue.id, from: gridStarts[i] + cue.at })));
-/** Music volume: full between lines, ducked under the voice with short ramps. */
+/** Music volume (the track is mastered at about -10 LUFS): about -16.5 LUFS between lines, about -28 under the voice. */
 const MUSIC = (() => {
   const duck = new Float32Array(TOTAL_FRAMES);
   for (const clip of VOICE_CLIPS) for (let f = clip.from - 4; f < clip.from + voiceFrames(clip.id) + 6 && f < TOTAL_FRAMES; f++) if (f >= 0) duck[f] = 1;
@@ -129,8 +149,26 @@ const MUSIC = (() => {
     for (let k = f - 6; k <= f + 6; k++) if (k >= 0 && k < TOTAL_FRAMES) { sum += duck[k]; n++; }
     return sum / n;
   };
-  return (f: number) => (0.58 - 0.4 * smooth(f)) * interpolate(f, [TOTAL_FRAMES - 40, TOTAL_FRAMES], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (f: number) => (0.48 - 0.355 * smooth(f)) * interpolate(f, [TOTAL_FRAMES - 40, TOTAL_FRAMES], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 })();
+
+/** The track in two pieces: up to the cut point, then from where the full section returns. */
+const MusicTrack = () => {
+  const startA = Math.round(fit.offset * 30);
+  const lenA = Math.round(fit.jumpFrom * 30);
+  const startB = startA + lenA;
+  const X = 4; // crossfade frames
+  return (
+    <>
+      <Sequence from={startA} durationInFrames={lenA + X} layout="none">
+        <Audio src={staticFile(TRACK.file)} trimAfter={lenA + X} volume={(f) => MUSIC(f + startA) * interpolate(f, [lenA - X, lenA + X], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })} />
+      </Sequence>
+      <Sequence from={startB - X} layout="none">
+        <Audio src={staticFile(TRACK.file)} trimBefore={Math.round(TRACK.resume * 30) - X} volume={(f) => MUSIC(f + startB - X) * interpolate(f, [0, 2 * X], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })} />
+      </Sequence>
+    </>
+  );
+};
 
 export const Trailer = () => (
   <AbsoluteFill style={{ background: "#0b0d12" }}>
@@ -140,7 +178,7 @@ export const Trailer = () => (
         const scene = (
           <TransitionSeries.Sequence key={name} name={name} durationInFrames={lengths[i]}>
             <SceneFade duration={lengths[i]} fadeIn={i === 0 ? 8 : 0} fadeOut={name === "Close" ? 20 : 0}>
-              <Scene duration={CUT[i].beats * BEAT} />
+              <Scene duration={(i + 1 < CUT.length ? gridStarts[i + 1] : TOTAL_FRAMES) - gridStarts[i]} />
             </SceneFade>
           </TransitionSeries.Sequence>
         );
@@ -152,7 +190,7 @@ export const Trailer = () => (
     <Sequence from={at("Establish")} durationInFrames={at("Close") - at("Establish")} layout="none">
       <WipTag />
     </Sequence>
-    <Audio src={staticFile("audio/upbeat.mp3")} volume={MUSIC} />
+    <MusicTrack />
     {VOICE_CLIPS.map((clip) => (
       <Sequence key={`${clip.id}-${clip.from}`} from={clip.from} layout="none">
         <Audio src={staticFile(`voice/${clip.id}.mp3`)} volume={1} />
