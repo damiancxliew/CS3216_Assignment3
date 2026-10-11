@@ -5,6 +5,10 @@ import { bold, color, sans, serif, typewriter } from "./theme";
 
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
+
+/** Frames between successive words landing, and the spring each word lands on (settles in about half a second). */
+export const WORD_GAP = 3.5;
+export const WORD_SPRING = { damping: 20, mass: 0.9, stiffness: 120 };
 const ease = { ...clamp, easing: Easing.inOut(Easing.cubic) };
 
 export type Tone = "ink" | "record" | "signal" | "world" | "paper";
@@ -39,10 +43,10 @@ const Slam = ({ lines, size, start, fg, accent }: { lines: string[]; size: numbe
         <div key={li} style={{ marginBottom: size * 0.1 }}>
           {line.split(" ").map((raw) => {
             const i = k++;
-            const p = Math.min(1, spring({ frame: frame - start - i * 2.5, fps, config: { damping: 18, mass: 0.5, stiffness: 220 } }));
+            const p = Math.min(1, spring({ frame: frame - start - i * WORD_GAP, fps, config: WORD_SPRING }));
             const settled = p > 0.985;
             return (
-              <span key={i} style={{ display: "inline-block", marginRight: size * 0.24, color: raw.startsWith("*") ? accent : undefined, opacity: settled ? 1 : p, transform: settled ? undefined : `scale(${1.35 - p * 0.35}) translateY(${(1 - p) * 30}px)`, filter: settled ? undefined : `blur(${(1 - p) * 10}px)` }}>
+              <span key={i} style={{ display: "inline-block", marginRight: size * 0.24, color: raw.startsWith("*") ? accent : undefined, opacity: settled ? 1 : p, transform: settled ? undefined : `scale(${1.18 - p * 0.18}) translateY(${(1 - p) * 24}px)`, filter: settled ? undefined : `blur(${(1 - p) * 6}px)` }}>
                 {raw.replace(/\*/g, "")}
               </span>
             );
@@ -227,7 +231,7 @@ export const RapidWords = ({ items, every }: { items: { text: string; tone: Tone
   const i = Math.min(items.length - 1, Math.floor(frame / every));
   const local = frame - i * every;
   const t = TONES[items[i].tone];
-  const p = interpolate(local, [0, 6], [0, 1], clamp);
+  const p = interpolate(local, [0, 10], [0, 1], { ...clamp, easing: Easing.out(Easing.cubic) });
   return (
     <Ground tone={items[i].tone}>
       {items.map((_, k) => <Sound key={k} src="impact" at={k * every} volume={0.4} />)}

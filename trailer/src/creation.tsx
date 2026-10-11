@@ -3,6 +3,7 @@ import { AbsoluteFill, Img, Sequence, interpolate, spring, staticFile, useCurren
 import { cast, pitch } from "./episode";
 import { PixelFace } from "./hud";
 import { T, TOWN_H, TOWN_W, Town, World } from "./pixel";
+import { WORD_SPRING } from "./pitch";
 import { Sound } from "./sound";
 import { bold, color, pixel, sans, serif } from "./theme";
 
@@ -13,10 +14,10 @@ const c = pitch.create;
 const Headline = ({ text, at, until, top = 80, light = false }: { text: string; at: number; until?: number; top?: number; light?: boolean }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const p = Math.min(1, spring({ frame: frame - at, fps, config: { damping: 18, mass: 0.5, stiffness: 220 } }));
+  const p = Math.min(1, spring({ frame: frame - at, fps, config: WORD_SPRING }));
   if (frame < at || (until !== undefined && frame >= until)) return null;
   return (
-    <div style={{ position: "absolute", left: 120, top, fontFamily: bold, fontWeight: 900, fontSize: 84, letterSpacing: -2, color: light ? "#fff8e9" : color.ink, opacity: p, transform: p < 0.985 ? `translateY(${(1 - p) * 30}px) scale(${1.2 - p * 0.2})` : undefined, transformOrigin: "left center" }}>
+    <div style={{ position: "absolute", left: 120, top, fontFamily: bold, fontWeight: 900, fontSize: 84, letterSpacing: -2, color: light ? "#fff8e9" : color.ink, opacity: p, transform: p < 0.985 ? `translateY(${(1 - p) * 24}px) scale(${1.1 - p * 0.1})` : undefined, transformOrigin: "left center" }}>
       {text}
     </div>
   );

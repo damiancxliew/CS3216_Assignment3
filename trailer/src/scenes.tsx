@@ -130,7 +130,7 @@ export const Question = () => {
         <Walker sprite={cast.player.sprite} path={[{ f: 0, x: 8 * T, y: 9 * T }, { f: 10, x: 8 * T, y: 8 * T + 4 }]} idle="up" />
         <Emote x={SPOTS.temenggong.x + 2} y={SPOTS.temenggong.y - 14} text="…" at={8} />
       </TownShot>
-      <DialogBox sprite={cast.temenggong.sprite} name={cast.temenggong.short} text={game.question.answer} start={8} speed={3} mood="guarded" moodAt={34} />
+      <DialogBox sprite={cast.temenggong.sprite} name={cast.temenggong.short} text={game.question.answer} start={8} speed={1.8} mood="guarded" moodAt={34} />
       <NoteToast text={game.question.note} start={48} style={{ top: 70 }} />
     </GameBeat>
   );
@@ -168,7 +168,7 @@ export const Share = () => {
           <span style={{ background: color.worldWash, padding: "2px 10px" }}>{game.share.noteInserted}</span>
         </DialogBox>
       ) : (
-        <DialogBox sprite={cast.raffles.sprite} name={cast.raffles.short} text={game.share.reaction} start={48} speed={3} mood="intrigued" moodAt={60} enter={false} />
+        <DialogBox sprite={cast.raffles.sprite} name={cast.raffles.short} text={game.share.reaction} start={48} speed={1.8} mood="intrigued" moodAt={60} enter={false} />
       )}
     </GameBeat>
   );
@@ -188,9 +188,9 @@ export const Explain = () => {
     <GameBeat callout={{ text: "It pushes back", x: 1400, y: 520, toX: 1100, toY: 800, at: 74 }}>
       <TownShot camX={4 * T} dim={0.45} />
       {frame < 66 ? (
-        <DialogBox sprite={cast.clerk.sprite} name={cast.clerk.name} text={e.question} start={4} speed={3} />
+        <DialogBox sprite={cast.clerk.sprite} name={cast.clerk.name} text={e.question} start={4} speed={2} />
       ) : (
-        <DialogBox sprite={cast.clerk.sprite} name={cast.clerk.name} text={e.pushBack} start={68} speed={3.2} mood="sceptical" moodAt={66} enter={false} />
+        <DialogBox sprite={cast.clerk.sprite} name={cast.clerk.name} text={e.pushBack} start={68} speed={1.8} mood="sceptical" moodAt={66} enter={false} />
       )}
       {frame < 74 ? (
         <div style={{ opacity: interpolate(frame, [64, 72], [1, 0], clamp) }}>
