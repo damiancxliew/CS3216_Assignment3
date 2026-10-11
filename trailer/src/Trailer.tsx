@@ -1,5 +1,5 @@
 import type React from "react";
-import { AbsoluteFill, Audio, Sequence, interpolate, staticFile } from "remotion";
+import { AbsoluteFill, Audio, Img, Sequence, interpolate, staticFile } from "remotion";
 import { TransitionSeries } from "@remotion/transitions";
 import { SceneFade, WipTag } from "./components";
 import {
@@ -50,13 +50,28 @@ const lengths = CUT.map((c, i) => c.beats * BEAT + (i + 1 < CUT.length ? overlap
 export const TOTAL_FRAMES = gridStarts[CUT.length - 1] + CUT[CUT.length - 1].beats * BEAT;
 const at = (name: string) => gridStarts[CUT.findIndex((c) => c.name === name)];
 
+/**
+ * Sheets drawn as CSS backgrounds (tiles, walk cycles, fog). Remotion waits for <Img> but not for CSS backgrounds, so
+ * rendering these invisibly on every frame stops a fresh render tab from capturing a half-drawn town.
+ */
+const PRELOAD = [
+  "tiles/house.png", "tiles/floor.png", "fx/fog.png",
+  ...["Villager", "Villager2", "Villager3", "Villager6", "Woman", "OldMan", "OldMan3", "Inspector", "Master", "Sultan"].map((c) => `characters/${c}/walk.png`),
+];
+const Preload = () => (
+  <AbsoluteFill style={{ opacity: 0, pointerEvents: "none" }}>
+    {PRELOAD.map((src) => <Img key={src} src={staticFile(src)} style={{ width: 1, height: 1 }} />)}
+  </AbsoluteFill>
+);
+
 export const Trailer = () => (
   <AbsoluteFill style={{ background: "#0b0d12" }}>
+    <Preload />
     <TransitionSeries>
       {CUT.flatMap(({ name, into, Scene }, i) => {
         const scene = (
           <TransitionSeries.Sequence key={name} name={name} durationInFrames={lengths[i]}>
-            <SceneFade duration={lengths[i]} fadeIn={i === 0 ? 8 : 0.001} fadeOut={name === "Close" ? 20 : 0.001}>
+            <SceneFade duration={lengths[i]} fadeIn={i === 0 ? 8 : 0} fadeOut={name === "Close" ? 20 : 0}>
               <Scene />
             </SceneFade>
           </TransitionSeries.Sequence>

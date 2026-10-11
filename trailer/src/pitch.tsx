@@ -63,7 +63,7 @@ export const ClaimCard = ({ chapter, label, lines, tone, size = 120, next: Next,
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = TONES[tone];
-  const zoomFrom = duration - 12;
+  const zoomFrom = duration - 16;
   const z = interpolate(frame, [zoomFrom, duration], [0, 1], ease);
   const enter = spring({ frame: frame - 6, fps, config: { damping: 16, mass: 0.7 } });
   const W = 820;

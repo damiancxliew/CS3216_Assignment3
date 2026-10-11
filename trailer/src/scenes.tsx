@@ -169,7 +169,7 @@ export const Share = () => {
           <span style={{ background: color.worldWash, padding: "2px 10px" }}>{game.share.noteInserted}</span>
         </DialogBox>
       ) : (
-        <DialogBox sprite={cast.raffles.sprite} name={cast.raffles.short} text={game.share.reaction} start={48} speed={3} mood="intrigued" moodAt={60} />
+        <DialogBox sprite={cast.raffles.sprite} name={cast.raffles.short} text={game.share.reaction} start={48} speed={3} mood="intrigued" moodAt={60} enter={false} />
       )}
     </GameBeat>
   );
@@ -189,13 +189,15 @@ export const Explain = () => {
     <GameBeat callout={{ text: "It pushes back", x: 1400, y: 520, toX: 1100, toY: 800, at: 74 }}>
       <TownShot camX={4 * T} dim={0.45} />
       {frame < 66 ? (
-        <>
-          <DialogBox sprite={cast.clerk.sprite} name={cast.clerk.name} text={e.question} start={4} speed={3} />
-          <ChoiceMenu title="Your answer" options={e.verdicts} start={22} pickAt={50} picked={e.picked} style={{ left: 460, top: 300 }} />
-        </>
+        <DialogBox sprite={cast.clerk.sprite} name={cast.clerk.name} text={e.question} start={4} speed={3} />
       ) : (
-        <DialogBox sprite={cast.clerk.sprite} name={cast.clerk.name} text={e.pushBack} start={68} speed={3.2} mood="sceptical" moodAt={66} />
+        <DialogBox sprite={cast.clerk.sprite} name={cast.clerk.name} text={e.pushBack} start={68} speed={3.2} mood="sceptical" moodAt={66} enter={false} />
       )}
+      {frame < 74 ? (
+        <div style={{ opacity: interpolate(frame, [64, 72], [1, 0], clamp) }}>
+          <ChoiceMenu title="Your answer" options={e.verdicts} start={22} pickAt={50} picked={e.picked} style={{ left: 460, top: 300 }} />
+        </div>
+      ) : null}
     </GameBeat>
   );
 };

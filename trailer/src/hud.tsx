@@ -66,11 +66,13 @@ export const PixelFace = ({ sprite, size = 190, mood, moodAt }: { sprite: string
 };
 
 /** RPG dialogue box across the bottom of the screen. */
-export const DialogBox = ({ sprite, name, text, start, speed = 1.5, children, mine = false, mood, moodAt }: {
+export const DialogBox = ({ sprite, name, text, start, speed = 1.5, children, mine = false, mood, moodAt, enter = true }: {
   sprite: string; name: string; text?: string; start: number; speed?: number; children?: ReactNode; mine?: boolean; mood?: string; moodAt?: number;
+  /** False when this box replaces another one: the frame stays put and only its contents change. */
+  enter?: boolean;
 }) => {
   const frame = useCurrentFrame();
-  const t = ramp(frame, start - 8, 8);
+  const t = enter ? ramp(frame, start - 8, 8) : 1;
   const done = text ? frame > start + text.length / speed : true;
   return (
     <div style={{ position: "absolute", left: 120, right: 120, bottom: 56, opacity: t, transform: `translateY(${(1 - t) * 30}px)` }}>
