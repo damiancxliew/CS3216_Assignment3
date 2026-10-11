@@ -5,7 +5,7 @@ Placeholder soundtrack and sound effects for the trailer, synthesised in code (n
   FFMPEG=/path/to/ffmpeg python3 ...       # optional: master to -14 LUFS
 
 Writes into public/audio/:
-  upbeat.wav        bright 120 BPM bed (Am-F-C-G); bars 1-2 intro pad, last 3 bars outro with a final hit
+  upbeat.wav        bright 120 BPM bed (Am-F-C-G); intro pad, groove, a build into the title-card hit, a held final chord
   sfx-*.wav         whoosh, impact, typewriter key/bell, pop, chime
 """
 import os
@@ -92,7 +92,8 @@ def upbeat_bed(seconds=92.0, bpm=120):
     """
     Bright, driving placeholder: four-on-the-floor kick, claps on 2 and 4, offbeat hats, a pumping chord stab,
     an octave bassline and a pluck arpeggio. Bars 1-2 are an intro pad (the typewriter opening); from bar 3 the full
-    groove; the last 3 bars drop back to pad with a final hit one bar into them (the title card).
+    groove; the bar of the closing typewriter thins out and builds into a final hit on the title card, then a held
+    chord rings out to the end.
     Chords: Am - F - C - G (one per bar).
     """
     beat = 60 / bpm
@@ -112,14 +113,17 @@ def upbeat_bed(seconds=92.0, bpm=120):
 
     full_from, outro_from = 2, bars - 3
     for b in range(bars):
+        if b > outro_from:
+            break  # after the hit only the held final chord plays
         start = b * bar
         chord, root = chords[b % 4], roots[b % 4]
-        # Pad throughout (soft, detuned saws).
+        # Pad up to the hit (soft, detuned saws).
         t = t_axis(bar)
         env = np.minimum(1, t / 0.08) * np.minimum(1, (bar - t) / 0.08)
         add(pad, start, sum(saw(midi(n_ + 12), t, d) for n_ in chord for d in (-0.004, 0.004)) * env * 0.12)
-        if b < full_from or b >= outro_from:
+        if b < full_from or b > outro_from:
             continue
+        lift = b == outro_from  # the closing typewriter: lighter groove that builds into the title-card hit
         for q in range(4):
             bt = start + q * beat
             # Kick and sidechain pump.
@@ -129,13 +133,15 @@ def upbeat_bed(seconds=92.0, bpm=120):
             i = int(bt * SR)
             dip = 1 - 0.65 * np.exp(-t_axis(beat) * 9)
             pump[i:i + len(dip)] = np.minimum(pump[i:i + len(dip)], dip[: max(0, min(len(dip), n - i))])
-            if q in (1, 3):  # clap
+            if q in (1, 3) and not lift:  # clap
                 t = t_axis(0.22)
                 clap = lowpass_fft(highpass_fft(rng.standard_normal(len(t)), 1200), 7000) * (np.exp(-t * 30) + 0.4 * np.exp(-np.abs(t - 0.012) * 400))
                 add(drums, bt, clap * 0.45)
             # Offbeat hat.
             t = t_axis(0.08)
             add(drums, bt + beat / 2, lowpass_fft(highpass_fft(rng.standard_normal(len(t)), 7000), 12000) * np.exp(-t * 45) * 0.16)
+            if lift:
+                continue
             # Chord stab on the offbeat.
             t = t_axis(beat * 0.45)
             st = sum(saw(midi(n_ + 12), t, d) for n_ in chord for d in (-0.006, 0.006)) * np.exp(-t * 7)
@@ -153,11 +159,21 @@ def upbeat_bed(seconds=92.0, bpm=120):
             pl = lowpass_fft(saw(midi(arp[k % 4]), t), 4200) * np.exp(-t * 18)
             add(pluck, start + k * beat / 4, pl * 0.12)
 
-    # Final hit one bar into the outro, when the title card lands.
+    # A rising build across the lift bar, ending exactly on the hit.
+    t = t_axis(bar)
+    rise = one_pole_lowpass(rng.standard_normal(len(t)), 300 + 7000 * (t / bar) ** 2) * (t / bar) ** 2
+    sweep = np.sin(2 * np.pi * np.cumsum(200 + 900 * (t / bar) ** 2) / SR) * (t / bar) ** 3
+    add(drums, outro_from * bar, rise * 0.35 + sweep * 0.12)
+
+    # Final hit when the title card lands, then a held chord that rings out to the end.
+    hit_at = (outro_from + 1) * bar
     t = t_axis(2.4)
     f = 40 + 120 * np.exp(-t * 20)
-    hit = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 2.5) + sum(saw(midi(n_ + 12), t) for n_ in chords[0]) * np.exp(-t * 1.6) * 0.25
-    add(drums, (outro_from + 1) * bar, hit * 0.9)
+    add(drums, hit_at, np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 2.5) * 0.9)
+    tail = t_axis(seconds - hit_at)
+    chord = sum(saw(midi(n_ + 12), tail, d) for n_ in chords[0] + [chords[0][0] + 12] for d in (-0.004, 0.004))
+    add(stab, hit_at, lowpass_fft(chord, 3500) * np.exp(-tail * 0.55) * 0.16)
+    add(pad, hit_at, sum(saw(midi(n_), tail) for n_ in chords[0]) * np.exp(-tail * 0.35) * 0.1)
 
     mix = drums * 0.55 + (stab + pluck + bass * 0.9) * pump + reverb(pad, 0.3) * (0.6 + 0.4 * pump)
     mix = lowpass_fft(highpass_fft(mix, 30), 14000)

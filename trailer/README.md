@@ -27,7 +27,7 @@ historical record.
 ## Audio
 The music and sound effects are a placeholder, synthesised in code by `scripts/make_audio.py` (needs Python with numpy;
 set `FFMPEG` to master to -14 LUFS). The track is 92 s at 120 BPM: an intro pad under the typewriter opening, the full
-groove from 4 s, and an outro from 86 s with a final hit on the title card at 90 s. To use a real track, replace
+groove from 4 s, a lighter bar that builds under the closing typewriter from 86 s, a final hit on the title card at 88 s, and a held chord to the end. To use a real track, replace
 `public/audio/upbeat.mp3` with one at 120 BPM (or change `BEAT` in `src/Trailer.tsx` to match its tempo).
 
 ## Credits
