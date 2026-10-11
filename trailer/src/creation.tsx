@@ -60,29 +60,29 @@ const FileCard = ({ name, at, index }: { name: string; at: number; index: number
 /** Drop in sources; the draft builds itself (steps tick, characters appear, the map assembles). */
 export const UploadScene = () => {
   const frame = useCurrentFrame();
-  const stepAt = (i: number) => 70 + i * 22;
-  const reveal = interpolate(frame, [110, 170], [0, 1], clamp);
+  const stepAt = (i: number) => 48 + i * 18;
+  const reveal = interpolate(frame, [76, 126], [0, 1], clamp);
   const people = [cast.temenggong, cast.raffles, cast.hussein, cast.farquhar, cast.player];
   return (
     <Paper>
-      <Headline text={c.drop} at={4} until={70} />
-      <Headline text={c.drafted} at={70} top={80} />
+      <Headline text={c.drop} at={4} until={48} />
+      <Headline text={c.drafted} at={48} top={80} />
       <ConsoleWindow>
         <div style={{ display: "flex", height: "100%" }}>
           <div style={{ width: 760, padding: "34px 40px", borderRight: "1px solid #eee6d3" }}>
             <div style={{ fontSize: 30, fontWeight: 700, marginBottom: 20 }}>{c.title}</div>
-            <div style={{ border: "3px dashed #c9bfa6", borderRadius: 18, padding: 22, minHeight: 300, background: frame > 10 && frame < 60 ? color.recordWash : "#fffdf7" }}>
-              {c.files.map((f, i) => <FileCard key={f} name={f} at={10 + i * 12} index={i} />)}
+            <div style={{ border: "3px dashed #c9bfa6", borderRadius: 18, padding: 22, minHeight: 300, background: frame > 8 && frame < 44 ? color.recordWash : "#fffdf7" }}>
+              {c.files.map((f, i) => <FileCard key={f} name={f} at={8 + i * 9} index={i} />)}
             </div>
             <div style={{ marginTop: 26 }}>
               {c.steps.map((step, i) => {
-                const done = frame >= stepAt(i) + 16;
+                const done = frame >= stepAt(i) + 12;
                 const active = frame >= stepAt(i);
                 return (
                   <div key={step} style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 25, margin: "10px 0", opacity: active ? 1 : 0.35 }}>
                     <div style={{ width: 30, height: 30, borderRadius: 999, background: done ? color.world : active ? color.recordWash : "#eee", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 20 }}>{done ? "✓" : ""}</div>
                     {step}
-                    {done ? <Sound src="key1" at={stepAt(i) + 16} volume={0.3} /> : null}
+                    {done ? <Sound src="key1" at={stepAt(i) + 12} volume={0.3} /> : null}
                   </div>
                 );
               })}
@@ -92,7 +92,7 @@ export const UploadScene = () => {
             <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 2, color: color.muted, marginBottom: 16 }}>CHARACTERS</div>
             <div style={{ display: "flex", gap: 18, marginBottom: 30 }}>
               {people.map((person, i) => {
-                const p = interpolate(frame, [92 + i * 6, 100 + i * 6], [0, 1], clamp);
+                const p = interpolate(frame, [64 + i * 5, 72 + i * 5], [0, 1], clamp);
                 return <div key={person.name} style={{ opacity: p, transform: `scale(${0.6 + p * 0.4})` }}><PixelFace sprite={person.sprite} size={96} /></div>;
               })}
             </div>

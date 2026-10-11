@@ -79,11 +79,13 @@ export const DialogBox = ({ sprite, name, text, start, speed = 1.5, children, mi
       <Framed tone="paper">
         <div style={{ display: "flex", gap: 40, padding: "34px 40px", minHeight: 210 }}>
           <PixelFace sprite={sprite} size={210} mood={mood} moodAt={moodAt} />
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, position: "relative" }}>
+            {/* The "more" arrow sits in the corner, outside the text flow, so it can never re-wrap a line. */}
+            <div style={{ position: "absolute", right: 0, bottom: -10, fontSize: 40, color: color.signal, opacity: done && Math.floor(frame / 12) % 2 === 0 ? 1 : 0 }}>▼</div>
             <div style={{ display: "inline-block", fontFamily: pixel, fontWeight: 700, fontSize: 34, color: "#fff8e9", background: mine ? color.record : color.ink, padding: "4px 16px", marginBottom: 14 }}>{name}</div>
             <div style={{ fontFamily: pixel, fontSize: 46, lineHeight: 1.3 }}>
               {text !== undefined ? <Typed text={text} start={start} speed={speed} /> : children}
-              {done && Math.floor(frame / 12) % 2 === 0 ? <span style={{ color: color.signal, marginLeft: 12 }}>▼</span> : null}
+
             </div>
           </div>
         </div>

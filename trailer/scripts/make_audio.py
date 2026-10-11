@@ -92,7 +92,7 @@ def upbeat_bed(seconds=92.0, bpm=120):
     """
     Bright, driving placeholder: four-on-the-floor kick, claps on 2 and 4, offbeat hats, a pumping chord stab,
     an octave bassline and a pluck arpeggio. Bars 1-2 are an intro pad (the typewriter opening); from bar 3 the full
-    groove; the last 3 bars drop back to pad with a final hit on the downbeat of the last bar.
+    groove; the last 3 bars drop back to pad with a final hit one bar into them (the title card).
     Chords: Am - F - C - G (one per bar).
     """
     beat = 60 / bpm
@@ -153,11 +153,11 @@ def upbeat_bed(seconds=92.0, bpm=120):
             pl = lowpass_fft(saw(midi(arp[k % 4]), t), 4200) * np.exp(-t * 18)
             add(pluck, start + k * beat / 4, pl * 0.12)
 
-    # Final hit on the last bar's downbeat.
+    # Final hit one bar into the outro, when the title card lands.
     t = t_axis(2.4)
     f = 40 + 120 * np.exp(-t * 20)
     hit = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 2.5) + sum(saw(midi(n_ + 12), t) for n_ in chords[0]) * np.exp(-t * 1.6) * 0.25
-    add(drums, (bars - 1) * bar, hit * 0.9)
+    add(drums, (outro_from + 1) * bar, hit * 0.9)
 
     mix = drums * 0.55 + (stab + pluck + bass * 0.9) * pump + reverb(pad, 0.3) * (0.6 + 0.4 * pump)
     mix = lowpass_fft(highpass_fft(mix, 30), 14000)

@@ -104,10 +104,10 @@ export const pitch = {
 export const game = {
   question: {
     answer: "My people keep their share of the trade. That is my price.",
-    note: "The Temenggong will only agree if he keeps his share of the trade.",
+    note: "His price: a share of the trade.",
   },
-  read: { note: "The Temenggong bargained hard for a share of the river's duties." },
-  compare: { note: "Raffles calls the island empty. The scribe's memoir says otherwise." },
+  read: { note: "He pushed hard for a share of the duties." },
+  compare: { note: "Raffles says empty. The memoir disagrees." },
   share: {
     noteInserted: "Tengku Hussein will sign if he is recognised as Sultan.",
     reaction: "Hussein, as Sultan? Then the treaty would stand.",

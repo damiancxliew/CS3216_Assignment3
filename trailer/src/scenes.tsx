@@ -92,13 +92,13 @@ export const Rapid = () => (
   />
 );
 export const Close = () => (
-  <TypeScene lines={[pitch.close]} start={6} cps={16}>
-    <TitleCard at={120} tagline={pitch.tagline} audience={pitch.audience} wip={pitch.wip} />
+  <TypeScene lines={[pitch.close]} start={4} cps={18}>
+    <TitleCard at={60} tagline={pitch.tagline} audience={pitch.audience} wip={pitch.wip} />
   </TypeScene>
 );
 
 /** Claim cards: each previews the game beat that proves it. */
-export const CLAIM_FRAMES = 60;
+export const CLAIM_FRAMES = 75;
 const claim = (chapter: string, label: string, lines: string[], tone: "ink" | "record" | "signal" | "world" | "paper", next: () => React.ReactElement) => () => (
   <ClaimCard chapter={chapter} label={label} lines={lines} tone={tone} next={next} duration={CLAIM_FRAMES} size={84} />
 );
@@ -132,7 +132,7 @@ export const Question = () => {
         <Emote x={SPOTS.temenggong.x + 2} y={SPOTS.temenggong.y - 14} text="…" at={8} />
       </TownShot>
       <DialogBox sprite={cast.temenggong.sprite} name={cast.temenggong.short} text={game.question.answer} start={8} speed={3} mood="guarded" moodAt={34} />
-      <NoteToast text={game.question.note} start={62} style={{ top: 70 }} />
+      <NoteToast text={game.question.note} start={48} style={{ top: 70 }} />
     </GameBeat>
   );
 };
@@ -141,7 +141,7 @@ export const Read = () => (
   <GameBeat callout={{ text: "Real-looking sources", x: 1420, y: 250, toX: 1150, toY: 420, at: 14 }}>
     <TownShot camX={14 * T} dim={0.35} blur={6} />
     <NewspaperClipping markAt={34} style={{ left: 250, top: 240, transform: "rotate(-2deg)" }} />
-    <NoteToast text={game.read.note} start={66} style={{ top: 560, right: 70, width: 560 }} />
+    <NoteToast text={game.read.note} start={52} style={{ top: 560, right: 70, width: 560 }} />
   </GameBeat>
 );
 
@@ -150,7 +150,7 @@ export const Compare = () => (
     <TownShot camX={24 * T} dim={0.35} blur={6} />
     <MemoirSpread markAt={18} style={{ left: 70, top: 330, transform: "rotate(-2deg) scale(0.92)", transformOrigin: "top left" }} />
     <Letter markAt={42} style={{ right: 60, top: 340 }} />
-    <NoteToast text={game.compare.note} start={72} style={{ top: 70, right: 90, width: 640 }} />
+    <NoteToast text={game.compare.note} start={56} style={{ top: 70, right: 90, width: 640 }} />
   </GameBeat>
 );
 
