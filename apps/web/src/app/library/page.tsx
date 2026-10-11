@@ -65,7 +65,6 @@ export default async function LibraryPage({
 
   return (
     <Page
-      kicker={viewer.membership.organizationName}
       title="Your school library"
       lede="Every published adventure your school has shared with students."
       width="wide"
