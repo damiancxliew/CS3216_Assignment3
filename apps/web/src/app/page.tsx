@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { LandingCta } from "@/components/landing-cta";
 import { LandingLiveDemo } from "@/components/landing-live-demo";
 import { LandingQuestPreview } from "@/components/landing-quest-preview";
-import { Pricing } from "@/components/pricing";
+import { BookDemo } from "@/components/book-demo";
 import { button, SiteHeader, Wordmark } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
@@ -37,7 +37,7 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader>
-        <a href="#pricing" className={`${button.subtle} max-sm:hidden`}>Pricing</a>
+        <a href="#demo" className={`${button.subtle} max-sm:hidden`}>Book a demo</a>
         <Link href="/teacher" className={button.quiet}>
           Teacher console <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
@@ -133,7 +133,7 @@ export default function Home() {
         </div>
       </section>
 
-      <Pricing />
+      <BookDemo />
 
       <section aria-labelledby="cta-heading" className="game-grid flex flex-col items-start justify-between gap-8 rounded-[2rem] border-[3px] border-ink bg-signal-wash px-7 py-10 sm:flex-row sm:items-center sm:px-10">
         <div><p className="text-sm font-black uppercase tracking-[0.18em] text-signal">Ready, teacher?</p><h2 id="cta-heading" className="mt-2 max-w-xl text-4xl font-black tracking-[-0.04em] text-ink sm:text-5xl">Make the next lesson feel like an adventure.</h2></div>
