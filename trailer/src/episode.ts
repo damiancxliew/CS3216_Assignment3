@@ -14,15 +14,30 @@ export const cast = {
 /** Pitch beats. Words in *asterisks* take the accent colour. */
 export const pitch = {
   open: ["Singapore, 1819.", "What would you have done?"],
-  problem: ["Textbooks tell students *what* *happened.*", "Chatbots tell them what they *want* *to* *hear.*"],
-  neither: ["Neither makes them think.", "*Here,* *they* *have* *to.*"],
-  people: ["Everyone *wants* *something.*"],
-  sources: ["Real sources.", "*Read* *closely.*"],
-  disagree: ["Accounts *disagree.*"],
-  share: ["What you share", "*changes* *minds.*"],
-  choose: ["Some paths", "*close* *for* *good.*"],
-  defend: ["Then they", "*defend* *their* *view.*"],
-  real: ["And see what", "*really* *happened.*"],
+  /** The motivation, one idea per beat. */
+  context: ["History asks students to", "*weigh* *evidence* and *judge* *the* *past.*"],
+  reading: ["But in class, they", "just *read* *about* *it.*"],
+  chatbots: ["And chatbots just", "*hand* *them* *answers.*"],
+  rarely: ["So they rarely", "*practise* *the* *thinking.*"],
+  here: ["Here, *they* *have* *to.*"],
+  /** Exam-style question shown beside the context line (illustrative). */
+  examQuestion: {
+    section: "Section A: Source-Based Case Study",
+    prompt: "Study Sources A and B.",
+    statement: "\u201cThe founding of Singapore was a fair deal for the people already living there.\u201d",
+    ask: "How far do Sources A and B support this view? Explain your answer.",
+    marks: "[8]",
+  },
+  /** Skills: the claim names what students practise; the gameplay that follows shows how. */
+  skills: [
+    { chapter: "01", label: "UNDERSTANDING PEOPLE", lines: ["See why people", "*acted* *as* *they* *did.*"] },
+    { chapter: "02", label: "USING EVIDENCE", lines: ["Find evidence in", "*real* *sources.*"] },
+    { chapter: "03", label: "COMPARING ACCOUNTS", lines: ["Compare accounts", "that *disagree.*"] },
+    { chapter: "04", label: "MAKING A CASE", lines: ["Use evidence to", "*make* *a* *case.*"] },
+    { chapter: "05", label: "WEIGHING CONSEQUENCES", lines: ["Weigh decisions and", "their *consequences.*"] },
+    { chapter: "06", label: "REACHING A JUDGEMENT", lines: ["Reach a judgement", "and *defend* *it.*"] },
+    { chapter: "07", label: "CHECKING THE RECORD", lines: ["Separate the story", "from *the* *record.*"] },
+  ],
   rapid: ["Your sources.", "One lesson.", "No marks.", "Just thinking."],
   close: "What would you have done?",
   tagline: "Turn your history sources into a game students can play.",

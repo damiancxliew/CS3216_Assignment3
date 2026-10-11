@@ -3,7 +3,7 @@
 Concept trailer for Historical Adventures v3 (Singapore, 1819), built with [Remotion](https://www.remotion.dev).
 It is a standalone project, outside the npm workspaces, so it doesn't affect the app's builds or CI.
 
-Numbered pitch claims alternate with gameplay proof: each claim card previews its game beat in a tilted window that
+A short motivation (what history asks of students, and why reading and chatbots fall short), then numbered skill claims alternating with gameplay proof: each claim card previews its game beat in a tilted window that
 zooms to full screen. Game beats use a pixel town, in-game interface, realistic period documents and callouts. Cuts sit
 on a 120 BPM beat grid (one beat = 15 frames), so they land on the music.
 
@@ -25,8 +25,8 @@ historical record.
 
 ## Audio
 The music and sound effects are a placeholder, synthesised in code by `scripts/make_audio.py` (needs Python with numpy;
-set `FFMPEG` to master to -14 LUFS). The track is 58 s at 120 BPM: an intro pad under the typewriter opening, the full
-groove from 4 s, and an outro from 52 s with a final hit on the title card at 56 s. To use a real track, replace
+set `FFMPEG` to master to -14 LUFS). The track is 68 s at 120 BPM: an intro pad under the typewriter opening, the full
+groove from 4 s, and an outro from 62 s with a final hit on the title card at 66 s. To use a real track, replace
 `public/audio/upbeat.mp3` with one at 120 BPM (or change `BEAT` in `src/Trailer.tsx` to match its tempo).
 
 ## Credits

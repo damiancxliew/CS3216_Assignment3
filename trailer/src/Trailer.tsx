@@ -6,7 +6,7 @@ import { slide } from "@remotion/transitions/slide";
 import { WIPE_FRAMES } from "./pitch";
 import { SceneFade, WipTag } from "./components";
 import {
-  CChoose, CDefend, CDisagree, CPeople, CReal, CShare, CSources, Choose, Close, Compare, Establish, Explain, Neither, Open, Problem, Question, Rapid, Read, Reveal, Share,
+  CChoose, CDefend, CDisagree, CPeople, CReal, CShare, CSources, Chatbots, Choose, Close, Compare, Context, Establish, Explain, Here, Open, Question, Rapid, Rarely, Read, Reading, Reveal, Share,
 } from "./scenes";
 
 /** 120 BPM: one beat is 15 frames, so every cut lands on the music. */
@@ -16,8 +16,11 @@ type Into = "slide" | "fade" | "cut";
 /** The cut, in beats. Each scene starts on the beat; `into` is how it arrives. */
 export const CUT: { name: string; beats: number; into: Into; Scene: () => React.ReactElement }[] = [
   { name: "Open", beats: 8, into: "cut", Scene: Open },
-  { name: "Problem", beats: 6, into: "slide", Scene: Problem },
-  { name: "Neither", beats: 4, into: "slide", Scene: Neither },
+  { name: "Context", beats: 8, into: "slide", Scene: Context },
+  { name: "Reading", beats: 6, into: "slide", Scene: Reading },
+  { name: "Chatbots", beats: 6, into: "slide", Scene: Chatbots },
+  { name: "Rarely", beats: 6, into: "slide", Scene: Rarely },
+  { name: "Here", beats: 4, into: "slide", Scene: Here },
   { name: "Establish", beats: 6, into: "fade", Scene: Establish },
   { name: "CPeople", beats: 4, into: "slide", Scene: CPeople },
   { name: "Question", beats: 6, into: "cut", Scene: Question },
@@ -65,7 +68,7 @@ export const Trailer = () => (
         return [<TransitionSeries.Transition key={`${name}-in`} presentation={t.presentation} timing={t.timing} />, scene];
       })}
     </TransitionSeries>
-    <Sequence from={gridStarts[3]} durationInFrames={gridStarts[CUT.length - 1] - gridStarts[3]} layout="none">
+    <Sequence from={gridStarts[CUT.findIndex((c) => c.name === "Establish")]} durationInFrames={gridStarts[CUT.length - 1] - gridStarts[CUT.findIndex((c) => c.name === "Establish")]} layout="none">
       <WipTag />
     </Sequence>
     <Audio src={staticFile("audio/upbeat.mp3")} volume={(f) => 0.8 * interpolate(f, [TOTAL_FRAMES - 40, TOTAL_FRAMES], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })} />

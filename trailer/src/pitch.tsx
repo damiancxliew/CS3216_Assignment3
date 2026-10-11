@@ -148,32 +148,51 @@ export const StatementCard = ({ lines, tone, size = 130 }: { lines: string[]; to
   );
 };
 
-/** Opening problem: each line arrives with its own illustration. */
-export const ProblemCard = ({ lines, secondAt }: { lines: [string, string]; secondAt: number }) => {
+/** A statement on the left with its own illustration on the right. */
+export const IllustratedCard = ({ lines, tone, art, size = 104 }: { lines: string[]; tone: Tone; art: ReactNode; size?: number }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const a = spring({ frame: frame - 6, fps, config: { damping: 15 } });
-  const b = spring({ frame: frame - secondAt, fps, config: { damping: 15 } });
-  const t = TONES.ink;
+  const a = spring({ frame: frame - 10, fps, config: { damping: 15 } });
+  const t = TONES[tone];
   return (
-    <Ground tone="ink">
+    <Ground tone={tone}>
       <Sound src="whoosh" at={0} volume={0.45} />
-      <Sound src="whoosh" at={secondAt} volume={0.35} />
-      <div style={{ position: "absolute", left: 130, top: 250, width: 1000 }}>
-        <Slam lines={[lines[0]]} size={92} start={8} fg={t.fg} accent={t.accent} />
-      </div>
-      <div style={{ position: "absolute", left: 130, top: 560, width: 1000 }}>
-        <Slam lines={[lines[1]]} size={92} start={secondAt + 2} fg={t.fg} accent={t.accent} />
-      </div>
-      <div style={{ position: "absolute", right: 170, top: 150, opacity: a, transform: `translateY(${(1 - a) * 60}px) rotate(-4deg)` }}>
-        <BookStack />
-      </div>
-      <div style={{ position: "absolute", right: 120, top: 560, opacity: b, transform: `translateY(${(1 - b) * 60}px) rotate(3deg)` }}>
-        <BlandChat />
-      </div>
+      <AbsoluteFill style={{ justifyContent: "center", paddingLeft: 140 }}>
+        <div style={{ width: 960 }}>
+          <Slam lines={lines} size={size} start={8} fg={t.fg} accent={t.accent} />
+        </div>
+      </AbsoluteFill>
+      <div style={{ position: "absolute", right: 130, top: "50%", opacity: a, transform: `translateY(calc(-50% + ${(1 - a) * 80}px))` }}>{art}</div>
     </Ground>
   );
 };
+
+/** An exam-style source question on paper (illustrative). */
+export const ExamPaper = ({ q }: { q: { section: string; prompt: string; statement: string; ask: string; marks: string } }) => (
+  <div style={{ width: 640, background: "#fbfaf6", padding: "40px 46px 34px", boxShadow: "0 30px 60px rgba(0,0,0,0.4)", transform: "rotate(3deg)", fontFamily: serif, color: "#1d2230" }}>
+    <div style={{ fontFamily: sans, fontWeight: 700, fontSize: 20, letterSpacing: 2, textTransform: "uppercase", borderBottom: "2px solid #1d2230", paddingBottom: 10, marginBottom: 18 }}>{q.section}</div>
+    <div style={{ fontSize: 26, marginBottom: 14 }}>{q.prompt}</div>
+    <div style={{ fontSize: 28, fontStyle: "italic", lineHeight: 1.35, marginBottom: 14 }}>{q.statement}</div>
+    <div style={{ fontSize: 26, lineHeight: 1.35 }}>
+      {q.ask} <span style={{ float: "right", fontWeight: 700 }}>{q.marks}</span>
+    </div>
+    <div style={{ marginTop: 26 }}>
+      {Array.from({ length: 4 }, (_, i) => <div key={i} style={{ height: 34, borderBottom: "1.5px solid #c9ccd6" }} />)}
+    </div>
+  </div>
+);
+
+export const BookArt = () => (
+  <div style={{ transform: "rotate(-4deg)" }}>
+    <BookStack />
+  </div>
+);
+
+export const ChatArt = () => (
+  <div style={{ transform: "rotate(3deg)" }}>
+    <BlandChat />
+  </div>
+);
 
 const ICONS: Record<string, ReactNode> = {
   sources: (
