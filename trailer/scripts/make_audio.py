@@ -89,7 +89,7 @@ def saw(freq, t, detune=0.0):
     return out * 0.6
 
 
-def upbeat_bed(seconds=96.0, bpm=120):
+def upbeat_bed(seconds=92.0, bpm=120):
     """
     Bright, driving placeholder: four-on-the-floor kick, claps on 2 and 4, offbeat hats, a pumping chord stab,
     an octave bassline and a pluck arpeggio. Bars 1-2 are an intro pad (the typewriter opening); from bar 3 the full
@@ -240,7 +240,7 @@ def master(src, dst, extra=""):
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    raw = write("upbeat-raw.wav", upbeat_bed(float(os.environ.get("LENGTH", 96.0))))
+    raw = write("upbeat-raw.wav", upbeat_bed(float(os.environ.get("LENGTH", 92.0))))
     if master(raw, os.path.join(OUT, "upbeat.wav")):
         os.remove(raw)
     else:
