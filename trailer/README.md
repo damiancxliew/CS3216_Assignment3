@@ -11,8 +11,11 @@ on a 120 BPM beat grid (one beat = 15 frames), so they land on the music.
 cd trailer
 npm install
 npm run studio   # preview in the browser
-npm run render   # writes out/trailer-v3.mp4
+npm run render   # writes renders/LATEST.mp4
 ```
+
+Rendered videos live in `renders/`, which git ignores (they are 15-50 MB each): `LATEST.mp4` is the current cut, and
+numbered files (`00-first-draft.mp4`, `01-draft.mp4`, ...) are earlier snapshots.
 
 - Wording and episode content: `src/episode.ts`
 - The cut (order, length in beats, transition): `CUT` in `src/Trailer.tsx`
