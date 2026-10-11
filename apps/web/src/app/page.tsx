@@ -1,13 +1,13 @@
 "use client";
 
-import { ArrowRight, Clock3, Gamepad2, Map, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Clock3, Gamepad2, Mail, Map, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { LandingCta } from "@/components/landing-cta";
 import { LandingLiveDemo } from "@/components/landing-live-demo";
 import { LandingQuestPreview } from "@/components/landing-quest-preview";
-import { BookDemo } from "@/components/book-demo";
+import { BookDemo, DEMO_CONTACT_EMAIL } from "@/components/book-demo";
 import { button, SiteHeader, Wordmark } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
@@ -142,7 +142,9 @@ export default function Home() {
 
       <footer className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-line py-7 text-sm font-semibold text-muted">
         <Wordmark />
-        <Link href="https://github.com/damiancxliew/CS3216_Assignment3" className={button.subtle}>Source on GitHub</Link>
+        <a href={`mailto:${DEMO_CONTACT_EMAIL}`} className={button.subtle}>
+          <Mail className="h-4 w-4" aria-hidden /> Contact us: {DEMO_CONTACT_EMAIL}
+        </a>
       </footer>
       </main>
     </div>
