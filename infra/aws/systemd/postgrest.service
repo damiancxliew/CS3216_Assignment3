@@ -16,6 +16,7 @@ Environment=PGRST_JWT_ROLE_CLAIM_KEY=.role
 Environment=PGRST_SERVER_HOST=127.0.0.1
 Environment=PGRST_SERVER_PORT=3001
 ExecStart=/bin/bash -c 'export PGRST_JWT_SECRET="$(< /etc/postgrest/jwt-secret.json)"; exec /usr/local/bin/postgrest'
+ExecStartPost=/bin/bash -c 'for ((attempt=0; attempt<30; attempt++)); do if /usr/bin/curl --fail --silent http://127.0.0.1:3001/ >/dev/null; then exit 0; fi; /usr/bin/sleep 1; done; echo "PostgREST did not become ready on 127.0.0.1:3001" >&2; exit 1'
 Restart=always
 RestartSec=5
 

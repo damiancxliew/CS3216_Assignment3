@@ -43,7 +43,7 @@ case "$(uname -m)" in
 esac
 
 dnf install -y awscli-2 gcc git gzip libcap make tar xz
-dnf install -y postgresql16 postgresql16-server postgresql16-server-devel
+dnf install -y postgresql16 postgresql16-server postgresql16-server-devel postgresql16-contrib
 
 PG_CONFIG="$(command -v pg_config || true)"
 if [[ -z "$PG_CONFIG" || "$("$PG_CONFIG" --version)" != *" 16."* ]]; then
@@ -159,7 +159,7 @@ if ! command -v caddy >/dev/null 2>&1 || [[ "$(caddy version | awk '{print $1}')
   curl -fsSL "https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_checksums.txt" -o "$download_dir/checksums.txt"
   caddy_sha="$(awk -v asset="$caddy_asset" '$2 == asset { print $1; exit }' "$download_dir/checksums.txt")"
   [[ -n "$caddy_sha" ]] || { echo "Caddy release checksum is missing for $caddy_asset." >&2; exit 1; }
-  printf '%s  %s\n' "$caddy_sha" "$download_dir/$caddy_asset" | sha256sum --check --status
+  printf '%s  %s\n' "$caddy_sha" "$download_dir/$caddy_asset" | sha512sum --check --status
   tar -xzf "$download_dir/$caddy_asset" -C "$download_dir"
   install -m 0755 "$download_dir/caddy" /usr/local/bin/caddy
   rm -rf "$download_dir"
