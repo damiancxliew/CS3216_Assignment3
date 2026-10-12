@@ -3,7 +3,7 @@ name: AWS staging deploy
 on:
   push:
     branches:
-      - aws-migration-branch
+      - main
   workflow_dispatch:
 
 permissions:
