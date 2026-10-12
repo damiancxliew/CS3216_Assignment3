@@ -1,6 +1,6 @@
 # PRD v3
 
-Status: levels 0–6 agreed and frozen for team review; levels 7 (systems) and 8 (build plan) to come. The rationale
+Status: levels 0–6 agreed and frozen for team review; level 7 (systems and architecture) drafted for team review; level 8 (build plan) to come. The rationale
 for each requirement, the team decisions and the open items are in [`PRD-v3-rationale.md`](PRD-v3-rationale.md).
 Derived views (overview, glossary, diagrams, example playthrough, v2 vs v3) are in [`prd-v3/`](prd-v3/).
 
@@ -289,3 +289,144 @@ When each skill is practised:
 | ☐ | C10 | The system should treat student messages as untrusted input, never as instructions. | | |
 | ☐ | C11 | The system should decide what is true, progress and consequences (which discoveries are available, stances, outcomes, endings) by rules, never by a model. | | |
 | ☐ | C12 | The system should not use a model to resolve stages or mint new options during play. | | |
+
+### 3. System requirements
+
+Level 7, draft for team review. The reasoning is in proposals A1–A14 in the rationale.
+
+| Status | ID | Requirement | Priority | Planned Week |
+|---|---|---|---|---|
+| | **S** | **System** | | |
+| ☐ | S1 | The system should run as containers on one EC2 instance in ap-southeast-1 (Singapore): a Postgres container and an app container, behind a TLS proxy. | | |
+| ☐ | S1.1 | The system should keep every database file on a separate encrypted EBS volume, so the instance can be replaced without losing data. | | |
+| ☐ | S1.2 | The system should store generated images and outside-source snapshots in S3, and store object keys rather than full URLs in the database. | | |
+| ☐ | S1.3 | The system should use Supabase only to sign users in (Google OAuth, and email and password for demo accounts), and keep no application data in Supabase. | | |
+| ☐ | S2 | The system should verify the sign-in token on the server for every request, and keep its own user table keyed by the Supabase user id. | | |
+| ☐ | S2.1 | The system should enforce who may read what in the database (row-level security), not only in the app, so that a missed check in the app fails closed. | | |
+| ☐ | S2.2 | The system should never send a student's client anything private: personas, slants, withheld discoveries, triggers, outcome rules or secret-ending conditions. | | |
+| ☐ | S3 | The system should run generation (G12) in a server-side worker, independent of any browser tab, running independent passes in parallel. | | |
+| ☐ | S3.1 | The system should make every generation pass resumable and safe to retry, so a restart or deploy resumes generation rather than losing it. | | |
+| ☐ | S3.2 | The system should notify the teacher in the app when a review is waiting or an adventure is ready, and optionally by email (T6.1). | | |
+| ☐ | S3.3 | The system should fetch and store the text of every outside source it cites, so quotations can be checked word for word against the stored text (G13.5) and the teacher can view it at review. | | |
+| ☐ | S4 | The system should stream character replies to the student as they are written. | | |
+| ☐ | S4.1 | The system should start showing a character's reply within about 2 seconds in normal conditions. | | |
+| ☐ | S4.2 | The system should apply the rules (C11) in one database transaction per student action, so two actions can never both use the same state. | | |
+| ☐ | S4.3 | The system should run the checks after each exchange (P17.1) after the reply has been sent, and show their results (new notes, stance changes) without the student refreshing. | | |
+| ☐ | S5 | The system should handle a class of 40 students playing at once on the single instance. | | |
+| ☐ | S6 | The system should back up the database at least daily to S3, keep backups for 30 days, and be restorable to a new instance within an hour. | | |
+| ☐ | S6.1 | The system should be deployed from CI, with database migrations applied before the new app starts. | | |
+| ☐ | S6.2 | The system should avoid interrupting lessons when deploying: deploys run outside school hours unless urgent. | | |
+| ☐ | S7 | The system should keep secrets in AWS (SSM Parameter Store) and give the instance an IAM role, with no long-lived AWS keys on the instance or in the repo. | | |
+| ☐ | S7.1 | The system should expose only HTTPS to the internet; the database and admin access are reachable only through AWS Session Manager. | | |
+| ☐ | S8 | The system should record token usage per model call and per attempt, so ceilings (C6) and the admin console use the same numbers. | | |
+| ☐ | S8.1 | The system should send logs to CloudWatch and alert the team when the app is down, the disk is nearly full, or errors spike. | | |
+| ☐ | S9 | The system should store students' data in Singapore, and send it to model providers only under terms that exclude training on it. | | |
+| ☐ | S9.1 | The system should let a school or sysadmin delete a student's play data on request. | | |
+
+## System architecture (level 7, draft)
+
+For team review. The decisions and their reasons are proposals A1–A14 in
+[`PRD-v3-rationale.md`](PRD-v3-rationale.md#level-7-proposals-for-team-review); the requirements are S1–S9.
+
+### Overview
+
+```mermaid
+flowchart LR
+    subgraph Browser
+        T[Teacher console]
+        S[Student play client]
+    end
+    subgraph AWS["AWS ap-southeast-1"]
+        subgraph EC2["EC2 instance (Docker Compose)"]
+            P[Caddy: TLS, reverse proxy]
+            subgraph APP["app container (one image)"]
+                W[Next.js: pages, Turn API, server actions]
+                R[Rules engine]
+                J[Generation worker]
+            end
+            DB[(Postgres container<br/>on encrypted EBS volume)]
+        end
+        S3[(S3: assets, source snapshots, backups)]
+        CF[CloudFront]
+        SSM[SSM Parameter Store]
+        CW[CloudWatch]
+    end
+    SB[Supabase Auth<br/>Google OAuth only]
+    LLM[Model providers<br/>text, images, search]
+    PH[PostHog]
+
+    T & S -->|HTTPS| P --> W
+    T & S -->|sign in| SB
+    W -->|verify token| SB
+    W --- R
+    W --> DB
+    J --> DB
+    J --> LLM
+    W --> LLM
+    J --> S3
+    T & S -->|images| CF --> S3
+    DB -.nightly dump.-> S3
+    EC2 -.secrets.-> SSM
+    EC2 -.logs, alarms.-> CW
+    T & S -.events.-> PH
+```
+
+### Components
+
+| Component | Runs | Responsibility |
+|---|---|---|
+| Caddy | Container on the instance | TLS certificates (Let's Encrypt), HTTP to HTTPS, proxying to the app, no buffering for streamed replies. |
+| Web | App container, Next.js standalone server | Pages, server actions, the Turn API, streamed character replies (S4), the teacher's review screen and class summary. |
+| Rules engine | Inside web, a TypeScript package with no I/O | Everything C11 assigns to rules: reveal conditions, triggers and stances, passing on notes, story events, hints, outcomes, closed endings, the Interview push-back choice. Deterministic, so it is tested by replaying attempts. |
+| Generation worker | Inside the app container, as a second process from the same image | The generation passes (G12), images (G4.2), post-exchange checks (P17.1), notifications (S3.2). Takes jobs from Postgres. Can move to its own container without code changes. |
+| Postgres | Container on the instance, data on its own EBS volume | All application data, row-level security, the job queue, the usage ledger. |
+| S3 + CloudFront | AWS | Generated images and outside-source snapshots (private bucket, served through CloudFront), and database backups (separate bucket). |
+| Supabase Auth | Supabase (kept) | Google sign-in and demo accounts. Issues the token the app verifies. Holds no application data. |
+| Model providers | External | Character replies, checks, interviewer, narration, generation passes, image generation, search for outside sources. |
+
+### Key flows
+
+**Sign-in.** The browser signs in with Supabase Auth as today. On each request the app verifies the token
+(signature against Supabase's published keys, expiry and audience) without calling Supabase, then upserts the user
+into its own `app_user` table by Supabase user id. Every database call runs in a transaction that sets the current
+user, which the row-level security policies read. Background and administrative work uses a separate database role
+that bypasses row-level security, as `service_role` does today.
+
+**Generation.** Creating an adventure enqueues a job graph in Postgres: sources, then the skeleton, then stage
+details and personas (one job per stage and per character, in parallel), then endings, the reveal, and the checks.
+A failing check enqueues a repair job for only the failing part (G12.2). In Standard and Guided modes the graph
+stops at a review point until the teacher continues (T6). The worker claims jobs with `FOR UPDATE SKIP LOCKED`,
+writes each pass's output before marking it done, and reclaims jobs whose lease expires, so a restart resumes
+generation (S3.1). Images (3–5 portraits per major character, G4.2) are separate jobs, cached by prompt hash as today.
+The teacher's page shows progress from the job rows.
+
+**Outside sources.** The source pass searches only allowlisted sites by default (G13.7), fetches each page it
+uses, and stores the text in S3 with a hash. Citations point at that snapshot, so quotations are checked word for
+word against it (G13.5), and the teacher sees exactly what was quoted even if the page later changes.
+
+**A student message.** `POST` to the Turn API → the rules engine decides what the character may reveal and in
+which stance (P7.1, P6.1) → the character model streams its reply → the exchange is saved → a check job is
+enqueued (P17.1) → when it finishes, the rules engine applies the result (new note, trigger, stance change) in one
+transaction (S4.2) → the client receives it through a server-sent event, or on its next state read. Timers keep
+using the database clock as today.
+
+**Deploy.** Pushing to `production` builds the image in GitHub Actions, pushes it to ECR, runs migrations as a
+one-off container, then restarts the app container through SSM Run Command (S6.1). The worker finishes or
+releases its current job on shutdown.
+
+### Moving off Vercel and Supabase
+
+| Today | After |
+|---|---|
+| Vercel hosting, `main` previews | App container on EC2. A staging stack (same compose file, separate database) on the same instance replaces previews if memory allows. |
+| Supabase Postgres, PostgREST through `supabase-js` (`.from()`, `.rpc()`) | Postgres container; a typed SQL client (for example Kysely) in a data-access layer, with the same row-level security policies and functions. |
+| `auth.uid()`, roles `anon` / `authenticated` / `service_role` | A small `auth` shim: `app.current_user_id()` read from a transaction setting, and app-owned roles with the same grants. |
+| `auth.users` foreign keys, the sign-up trigger on `auth.users` | `app_user` table, filled on first verified request. |
+| Supabase Storage `assets` bucket, full public URLs in `asset.url` | S3 + CloudFront; `asset.key` with the URL built from `ASSET_BASE_URL`. The existing `AssetStore` interface gets an S3 implementation. |
+| Generation driven by the teacher's tab (`advanceGeneration` polled every 5 seconds, one lease per adventure) | Postgres job queue and a worker (S3). |
+| `supabase db push` in CI | Plain SQL migrations applied by a migration container in the deploy job. |
+| `@vercel/analytics`, `@vercel/speed-insights` | Removed; PostHog stays. |
+| `*.vercel.app` domain | A custom domain; Google OAuth redirect URIs and Supabase's redirect allow-list updated to it. |
+
+Everything on the AWS side is described in Terraform (`infra/`): the instance, volume, security group, S3 buckets,
+CloudFront, ECR, IAM role, parameters and alarms.

@@ -19,7 +19,7 @@ parts of the code. The existing code is useful as infrastructure that is already
 | 4 | Core loop (moment, stage, session) | Agreed |
 | 5 | Mechanics | Agreed (teacher reshaping details moved to level 6) |
 | 6 | Content model | Agreed (full but focused, V64) |
-| 7 | Systems and architecture | Started (first survey in "Notes for level 7"); decisions open |
+| 7 | Systems and architecture | Drafted for team review (proposals A1–A14); not yet agreed |
 | 8 | Build plan | — |
 
 ## Decisions (approved)
@@ -114,6 +114,34 @@ row says so.
 
 Levels 4–6 are designed against the minimum role requirements (G3–G3.4), so they hold whichever way TD1 goes.
 
+## Level 7 proposals (for team review)
+
+Not yet approved. They implement the move off Vercel and Supabase to AWS: one EC2 instance running a Postgres
+container and an app container, S3 for assets, and Supabase kept for sign-in only. They are written to be easy to
+grow out of: each one says what changes when one instance is no longer enough.
+
+| # | Proposal | Rationale | Requirements |
+|---|---|---|---|
+| A1 | One EC2 instance in ap-southeast-1 running Docker Compose: Postgres, the app, and a small TLS proxy. Database files on their own encrypted EBS volume. Start at 2 vCPU / 4 GB (for example t4g.medium) and resize as needed. | The pilot is a few classes at a time, and play is bound by model latency, not CPU. One instance is the cheapest and simplest setup, and removes Vercel's request-duration limits (today's `maxDuration` up to 300 s) that a long-running worker and streamed replies run into. A separate volume means the instance can be replaced without losing data. Accepted risk: the instance is a single point of failure, covered by backups and a one-hour restore (A11). Growth path: Postgres to RDS, then several app instances behind a load balancer; nothing below assumes one instance except the in-process worker, which can move out (A6). | S1, S1.1, S5 |
+| A2 | Caddy as the TLS proxy, in a third small container. | Next.js does not terminate TLS. Caddy obtains and renews certificates automatically and passes streamed responses through. A load balancer does the same at a fixed monthly cost that isn't worth it for one instance. | S1, S7.1 |
+| A3 | Supabase Auth only. The app verifies the token itself (signature, expiry, audience) and keeps its own `app_user` table keyed by the Supabase user id. Nothing else touches Supabase. | Google sign-in, sessions and demo accounts already work and are the hardest part to rebuild. Verifying locally keeps Supabase off the request path except at sign-in and refresh. An app-owned user table replaces the `auth.users` foreign keys and sign-up trigger, so the database no longer depends on Supabase's schema, and swapping the auth provider later only changes token verification. | S1.3, S2 |
+| A4 | Keep authorisation in Postgres: row-level security policies and checked functions, as today. Each request runs in a transaction that sets the current user, read through an `app.current_user_id()` shim in place of `auth.uid()`. Background work uses a separate role that bypasses row-level security. | The current policies and their negative tests (`tests/db/rls.test.ts`) are the strongest guarantee that one teacher or student can't see another's data, and that private agent context never reaches a client (S2.2). Keeping them in the database means a missed check in the app fails closed. Policy helpers stay NULL-safe so a missing user denies rather than allows. | S2.1, S2.2 |
+| A5 | Replace `supabase-js` data calls (`.from()`, `.rpc()`; about 120 and 40 in the app today) with a typed SQL client (for example Kysely over `pg`) behind a small data-access layer. | Without Supabase there is no PostgREST for `supabase-js` to talk to. Running PostgREST as another container would keep the calls working but adds a moving part to a stack v3 rewrites anyway (the v3 tables are new). A typed client gives compile-time checks against the schema and real transactions, which the rules engine needs (A10). | S2, S4.2 |
+| A6 | A job queue in Postgres (a `job` table claimed with `FOR UPDATE SKIP LOCKED`, with leases and retries; or pg-boss) and a worker running as a second process in the app container. Each generation pass, image, post-exchange check and notification is a job. Review points in Standard and Guided modes are jobs waiting on the teacher. | Generation today is driven by the teacher's tab polling every 5 seconds with one lease per adventure, so steps run one at a time and only while a tab is open; G12 needs parallel passes that run on their own. Postgres is already there, so no Redis or SQS is needed at this scale, and job state sits in the same transactions as the content it writes. Writing each pass's output before marking it done makes restarts and deploys resume rather than restart. Same image, so the worker can become its own container when generation competes with play for CPU or memory. | S3, S3.1, S3.2, G12, T6.1 |
+| A7 | Outside sources: the source pass searches allowlisted sites (G13.7) with the model provider's search tool, then the server fetches each page it uses and stores the text in S3 with a hash. Citations point at the snapshot. | Word-for-word quotation checks (G13.5) need the text the quote came from, not a search result's summary, and the page may change or disappear after generation. The teacher reviews exactly what was quoted. Partly answers the open item "how outside sources are found"; the choice of search tool is left to evaluations (G14.3). | S3.3, G1.1, G13.5, G13.7, T4.2 |
+| A8 | Images and snapshots in a private S3 bucket served through CloudFront. The database stores object keys; URLs are built from `ASSET_BASE_URL`. The `AssetStore` interface gets an S3 implementation. | Storing keys rather than full URLs (today `asset.url` holds a Supabase public URL) means changing bucket, CDN or domain is a configuration change, not a data migration. CloudFront keeps the bucket private and serves portraits (3–5 per major character with G4.2) close to students. | S1.2, G4.2 |
+| A9 | Stream character replies over the Turn API. Run the post-exchange checks after the reply is sent, as a job, and push their results (new notes, stance changes) to the client with server-sent events, falling back to the next state read. | Students should see a reply start within seconds (V68). The checks (P17.1) are off the chat path by design, so the reply never waits for them. One instance with long-lived connections makes server-sent events simple; no WebSocket service is needed. | S4, S4.1, S4.3, P17.1 |
+| A10 | The rules engine is a TypeScript package with no I/O. The Turn API loads the attempt, asks the engine what follows from the action, and writes the result in one transaction. | C11 puts truth, progress and consequences in rules. A pure engine can be tested by replaying recorded attempts, and one transaction per action stops a double-click or two tabs from applying the same trigger twice. | S4.2, C11, C12 |
+| A11 | Nightly `pg_dump` to a versioned S3 bucket kept for 30 days, plus daily EBS snapshots. A written restore procedure, tried once before the pilot. | A single instance makes backups the availability plan. A day's loss is acceptable for a pilot; continuous WAL archiving (for example wal-g) can cut it to minutes later. | S6 |
+| A12 | Infrastructure in Terraform. GitHub Actions on `production`: build the image, push to ECR, run migrations as a one-off container, restart the app through SSM Run Command. Plain SQL migrations replace `supabase db push`. Deploys outside school hours unless urgent. | Reproducible infrastructure means a lost instance is rebuilt by command, not by memory. Keeps today's "push to `production` deploys and migrates" habit. Restarting the app drops streamed replies in progress, so lessons should not be interrupted by routine deploys. | S6.1, S6.2 |
+| A13 | Secrets in SSM Parameter Store, loaded at container start. An IAM instance role for S3, SSM, ECR and CloudWatch. Only ports 80 and 443 open; no SSH, admin through Session Manager. Logs to CloudWatch with alarms for downtime, disk space and error rate. | No long-lived keys to leak. A closed instance with audited access is the right default for a system holding minors' data. Without Vercel's dashboard, alarms are how the team learns the app is down. | S7, S7.1, S8, S8.1 |
+| A14 | Data stays in Singapore. Model providers are used only under terms that exclude training on submitted data. Schools or sysadmins can delete a student's play data. | Students are minors in Singapore schools (PDPA), and schools will ask where data goes. Today's Supabase project region and provider terms should be checked against this too. | S9, S9.1 |
+
+Lean, for the team's open level 7 item on rewrite strategy: build v3 on the new stack as a clean break. v2 keeps
+running on Vercel and Supabase until v3 ships, then is retired. Users, schools, memberships, model prices and the
+usage ledger are moved across; v2 adventures and attempts are not (they don't fit the v3 content model). This
+avoids porting v2's data layer only to rewrite it.
+
 ## Notes for level 7
 
 - With "franker in private" dropped, doors no longer matter for gameplay. Consider simplifying the map (rooms without
@@ -123,14 +151,18 @@ Levels 4–6 are designed against the minimum role requirements (G3–G3.4), so 
 - Generation takes ~10 minutes in practice (planning was ~200 seconds in the metrics). First survey: the background
   job is driven by the teacher's browser tab, with one lease per adventure, so steps run one at a time and only
   while a tab polls (`resumable_generation` migration). Passes (G12) need a server-side worker that can run steps
-  in parallel.
+  in parallel. Proposed: a Postgres job queue and worker (A6).
 - First reuse/rebuild survey: keep the platform (app shell, auth, ingest, LLM client, map compiler, renderer, asset
   generation, save pattern); rebuild the spec, generation pipeline and worker, play-time orchestration, play session,
   play UI, debrief/reveal, teacher review, and the v3 database tables.
+- The move to AWS changes some of the "keep" list: auth stays (Supabase Auth only, A3), but the data layer
+  (`supabase-js` queries), asset storage and deploy pipeline are replaced (A5, A8, A12). The asset generation code
+  stays behind its `AssetStore` interface.
 
 ## Open
 
 - Teacher outcomes TO1–TO4 are provisional and the section is still open.
-- Level 7 decisions: rewrite strategy (alongside v2, or a clean break); old v2 adventures (regenerate and drop, or
-  keep playable); doors (remove or keep as decoration); how outside sources are found.
+- Level 7: team review of proposals A1–A14. Still open within them: rewrite strategy and old v2 adventures (lean:
+  clean break on the new stack, v2 adventures not migrated); doors (remove or keep as decoration); the search tool
+  for outside sources (A7 settles how they are stored and checked).
 - Level 8 (build plan): priorities, phases, schedule.
