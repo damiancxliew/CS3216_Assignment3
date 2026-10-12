@@ -18,11 +18,13 @@ export function SharePanel({
   token,
   published,
   ready,
+  canReplace = true,
 }: {
   adventureId: string;
   token: string;
   published: boolean;
   ready: boolean;
+  canReplace?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
@@ -74,12 +76,14 @@ export function SharePanel({
           <p className="text-sm text-muted">Students can’t use this link until the adventure is published.</p>
         )}
       </div>
-      <div className="flex flex-col items-start gap-2 border-t border-line pt-4">
-        <ActionButton action={rotateShareToken.bind(null, adventureId)} label="Replace the link" pendingLabel="Replacing…" variant="quiet" />
-        <p className="max-w-[56ch] text-sm text-muted">
-          The old link stops working immediately. Students already playing keep their attempts.
-        </p>
-      </div>
+      {canReplace ? (
+        <div className="flex flex-col items-start gap-2 border-t border-line pt-4">
+          <ActionButton action={rotateShareToken.bind(null, adventureId)} label="Replace the link" pendingLabel="Replacing…" variant="quiet" />
+          <p className="max-w-[56ch] text-sm text-muted">
+            The old link stops working immediately. Students already playing keep their attempts.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
