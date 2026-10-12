@@ -559,7 +559,7 @@ sequenceDiagram
 - **Time.** Timers, story events on time, and the stuck clock (P5.1) are engine inputs (`tick(now)`), run on every
   request and every few seconds while the student's event stream is open. The client reports when it starts and
   stops reading a document or waiting for a reply, which pauses the stuck clock (P5.1.3). With no client
-  connected, nothing needs to fire. Deadlines use the database clock, as today.
+  connected, nothing needs to fire. Deadlines use the server's clock, never the browser's (S4).
 - **Defining moments.** The engine lists the acts available now (written acts, closed outcomes removed, the hidden
   act shown only when its unlock conditions hold, P9.11), resolves the chosen act by the outcome rules (P9.3), and
   emits the effects. The characters' immediate reaction (P9.7) and minor details (P9.4) are narrated by a model
