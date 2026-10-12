@@ -17,6 +17,25 @@ export class SupabaseAssetStore implements AssetStore {
     if (error) throw new Error(`asset upload failed: ${error.message}`);
     return this.admin.storage.from(BUCKET).getPublicUrl(key).data.publicUrl;
   }
+
+  async download(url: string): Promise<Uint8Array | null> {
+    const bucket = this.admin.storage.from(BUCKET);
+    let sourceUrl: URL;
+    let bucketUrl: URL;
+    try {
+      sourceUrl = new URL(url);
+      bucketUrl = new URL(bucket.getPublicUrl("").data.publicUrl);
+    } catch {
+      return null;
+    }
+    const bucketPath = `${bucketUrl.pathname.replace(/\/$/, "")}/`;
+    if (sourceUrl.origin !== bucketUrl.origin || !sourceUrl.pathname.startsWith(bucketPath)) return null;
+
+    const sourcePath = decodeURIComponent(sourceUrl.pathname.slice(bucketPath.length));
+    const { data, error } = await bucket.download(sourcePath);
+    if (error || !data) throw new Error(`asset download failed: ${error?.message ?? "object not found"}`);
+    return new Uint8Array(await data.arrayBuffer());
+  }
 }
 
 export class SupabaseAssetCache implements AssetCache {

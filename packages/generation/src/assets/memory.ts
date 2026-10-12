@@ -44,6 +44,10 @@ export class InMemoryAssetStore implements AssetStore {
     this.objects.set(key, { bytes, mimeType })
     return `${this.baseUrl}${key}`
   }
+  async download(url: string) {
+    if (!url.startsWith(this.baseUrl)) return null
+    return this.objects.get(url.slice(this.baseUrl.length))?.bytes ?? null
+  }
 }
 
 export type FakeImageMode = 'ok' | 'fail' | 'filter' | 'hang'
