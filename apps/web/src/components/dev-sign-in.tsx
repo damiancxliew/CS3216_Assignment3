@@ -7,17 +7,15 @@ import { button, control, ErrorText, Pending } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 
 /**
- * Email/password sign-in for local development only, where Google is not
- * enabled in the Supabase stack (`[auth.external.google] enabled = false`).
- * Local auth has confirmations off, so an unknown email is simply signed up.
- * `NODE_ENV` is inlined at build time, so this never reaches a production bundle.
+ * Email/password sign-in for local testing, where Google is not enabled.
+ * Standalone builds can expose it with NEXT_PUBLIC_DEV_SIGN_IN=true.
  */
 export function DevSignIn({ next = "/" }: { next?: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (process.env.NODE_ENV !== "development") return null;
+  if (process.env.NODE_ENV !== "development" && process.env.NEXT_PUBLIC_DEV_SIGN_IN !== "true") return null;
 
   async function submit(formData: FormData) {
     setPending(true);
