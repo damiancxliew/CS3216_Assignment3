@@ -34,10 +34,14 @@ provider; the application database and generated images live on EC2 and S3.
 6. Apply schema migrations with
    `DATABASE_URL=... AUTHENTICATOR_PASSWORD=... bash infra/aws/migrate.sh supabase/migrations`.
    The first run applies `compat.sql` and then each migration in a transaction.
-7. Configure the `aws-staging` GitHub environment with `AWS_DEPLOY_ROLE_ARN`,
+7. Create a console-less IAM user limited to `s3:PutObject` on
+   `backups-cs3216/deploys/*`, `ssm:SendCommand` on this instance and the
+   `AWS-RunShellScript` document, and `ssm:GetCommandInvocation`. Store its
+   access key as the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` secrets of
+   the `aws-staging` GitHub environment, set `AWS_DEPLOY_ENABLED=true`,
    `AWS_INSTANCE_ID`, and the `NEXT_PUBLIC_*` build values, then push to
    `aws-migration-branch` or run the workflow manually. If
-   `AWS_DEPLOY_ROLE_ARN` is empty, the workflow exits successfully with a
+   `AWS_DEPLOY_ENABLED` is not `true`, the workflow exits successfully with a
    notice instead of attempting AWS access.
 
 `bootstrap.sh` pins PostgREST v12.2.12, Caddy v2.9.1, Node.js 22, and pgvector
@@ -57,7 +61,7 @@ uses a 300-second response-header timeout for both upstreams.
 | `/etc/db-admin.env` | `POSTGRES_SUPERUSER_PASSWORD`, `DATABASE_URL`, `AUTHENTICATOR_PASSWORD`; set `SUPABASE_DB_URL` here only during an approved rehearsal/cutover |
 | `/etc/postgrest.env` | `PGRST_DB_URI` |
 | generated `/etc/data-api.env` | `NEXT_PUBLIC_DATA_ANON_KEY`, `DATA_SERVICE_ROLE_KEY` |
-| GitHub `aws-staging` environment | `AWS_DEPLOY_ROLE_ARN`, `AWS_INSTANCE_ID`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_DATA_URL`, `NEXT_PUBLIC_DATA_ANON_KEY` |
+| GitHub `aws-staging` environment | variables `AWS_DEPLOY_ENABLED`, `AWS_INSTANCE_ID`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_DATA_URL`, `NEXT_PUBLIC_DATA_ANON_KEY`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`; secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
 
 The S3 client uses the AWS SDK default credential provider chain, so EC2
 credentials come from the instance role. `AWS_ENDPOINT_URL_S3` is optional and
