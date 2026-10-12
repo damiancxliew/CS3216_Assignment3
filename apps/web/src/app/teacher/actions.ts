@@ -20,6 +20,7 @@ import { MAP_STYLES, validatePublishedSpec } from "@adventure/generation/spec";
 import { type SourceRow, sourcesToDocuments } from "@/lib/adventures/generate-from-sources";
 import { advanceGenerationJob, startGenerationJob } from "@/lib/adventures/resumable-generation";
 import { generateAssetsForVersion } from "@/lib/assets/generate";
+import { createAssetStore } from "@/lib/assets/store";
 import { applySpecEdit, type SpecEdit } from "@/lib/teacher/edit-spec";
 import { persistSpecVersion, SpecPersistError } from "@/lib/adventures/persist-spec";
 import {
@@ -588,26 +589,27 @@ export async function acceptRejectedSprite(adventureId: string, specVersionId: s
 
   // The rejected image is the model's full-size output. Phaser needs a 64x64
   // sheet with sixteen 16px frames even when the teacher accepts its poses.
-  const bucket = admin.storage.from("assets");
-  const sourceUrl = new URL(record.url);
-  const bucketUrl = new URL(bucket.getPublicUrl("").data.publicUrl);
-  const bucketPath = `${bucketUrl.pathname.replace(/\/$/, "")}/`;
-  if (sourceUrl.origin !== bucketUrl.origin || !sourceUrl.pathname.startsWith(bucketPath)) {
-    return { error: "The rejected sprite is outside adventure storage." };
+  const assetStore = createAssetStore(admin);
+  let original: Uint8Array | null;
+  try {
+    original = await assetStore.download(record.url);
+  } catch {
+    return { error: "Couldn’t load the rejected sprite. Please regenerate it." };
   }
-  const sourcePath = decodeURIComponent(sourceUrl.pathname.slice(bucketPath.length));
-  const { data: original, error: downloadError } = await bucket.download(sourcePath);
-  if (downloadError || !original) return { error: "Couldn’t load the rejected sprite. Please regenerate it." };
+  if (!original) return { error: "The rejected sprite is outside adventure storage." };
   let playable: Uint8Array;
   try {
-    playable = await normalizeWalkingSpriteSheet(new Uint8Array(await original.arrayBuffer()), { allowPoseMismatch: true });
+    playable = await normalizeWalkingSpriteSheet(original, { allowPoseMismatch: true });
   } catch {
     return { error: "This image cannot be turned into a playable walking sprite. Please regenerate it." };
   }
   const acceptedPath = `adventures/${validated.spec.id}/${assetId}-${randomUUID()}-accepted.png`;
-  const { error: uploadError } = await bucket.upload(acceptedPath, playable, { contentType: "image/png" });
-  if (uploadError) return { error: "Couldn’t save the accepted sprite. Please try again." };
-  const acceptedUrl = bucket.getPublicUrl(acceptedPath).data.publicUrl;
+  let acceptedUrl: string;
+  try {
+    acceptedUrl = await assetStore.put(acceptedPath, playable, "image/png");
+  } catch {
+    return { error: "Couldn’t save the accepted sprite. Please try again." };
+  }
   const { data: accepted, error } = await admin.from("asset")
     .update({ status: "ready", url: acceptedUrl, error: null, updated_at: new Date().toISOString() })
     .eq("spec_version_id", specVersionId)
