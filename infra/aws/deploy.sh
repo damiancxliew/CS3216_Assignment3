@@ -15,12 +15,14 @@ readonly RELEASE_INFRA="$RELEASE/infra/aws"
 archive="$(mktemp)"
 trap 'rm -f "$archive"' EXIT
 
+set -a
 # shellcheck disable=SC1091
 source /etc/db-admin.env
+set +a
 : "${DATABASE_URL:?DATABASE_URL is not configured in /etc/db-admin.env}"
 : "${AUTHENTICATOR_PASSWORD:?AUTHENTICATOR_PASSWORD is not configured in /etc/db-admin.env}"
 
-aws s3 cp "s3://backups-cs3216/deploys/${SHA}.tgz" "$archive"
+aws s3 cp --only-show-errors "s3://backups-cs3216/deploys/${SHA}.tgz" "$archive"
 mkdir -p "$RELEASE"
 tar -xzf "$archive" -C "$RELEASE"
 [[ -d "$RELEASE/supabase/migrations" ]] || { echo "Release has no bundled migrations." >&2; exit 1; }
@@ -59,7 +61,7 @@ if [[ "$caddyfile_changed" == 1 ]]; then
 fi
 systemctl enable --now backup.timer
 
-"$RELEASE_INFRA/migrate.sh" "$RELEASE/supabase/migrations"
+bash "$RELEASE_INFRA/migrate.sh" "$RELEASE/supabase/migrations"
 systemctl restart postgrest.service
 
 previous=""

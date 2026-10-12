@@ -82,7 +82,7 @@ jobs:
           cp -a infra/aws "$bundle/infra/aws"
           test -f "$bundle/apps/web/server.js"
           tar -czf "$RUNNER_TEMP/${GITHUB_SHA}.tgz" -C "$bundle" .
-          aws s3 cp "$RUNNER_TEMP/${GITHUB_SHA}.tgz" "s3://backups-cs3216/deploys/${GITHUB_SHA}.tgz" --region ap-southeast-2
+          aws s3 cp --only-show-errors "$RUNNER_TEMP/${GITHUB_SHA}.tgz" "s3://backups-cs3216/deploys/${GITHUB_SHA}.tgz" --region ap-southeast-2
 
       - name: Deploy through Systems Manager
         if: ${{ vars.AWS_DEPLOY_ENABLED == 'true' }}
