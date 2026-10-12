@@ -19,6 +19,21 @@ jobs:
         if: ${{ vars.AWS_DEPLOY_ROLE_ARN == '' }}
         run: echo "::notice::AWS staging deployment skipped because vars.AWS_DEPLOY_ROLE_ARN is empty."
 
+      - name: Require EC2 data API configuration
+        if: ${{ vars.AWS_DEPLOY_ROLE_ARN != '' }}
+        env:
+          NEXT_PUBLIC_DATA_URL: ${{ vars.NEXT_PUBLIC_DATA_URL }}
+          NEXT_PUBLIC_DATA_ANON_KEY: ${{ vars.NEXT_PUBLIC_DATA_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "${NEXT_PUBLIC_DATA_URL:-}" ]] || missing+=(NEXT_PUBLIC_DATA_URL)
+          [[ -n "${NEXT_PUBLIC_DATA_ANON_KEY:-}" ]] || missing+=(NEXT_PUBLIC_DATA_ANON_KEY)
+          if ((${#missing[@]})); then
+            printf 'AWS deployment requires non-empty %s; refusing to build.\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
       - name: Check out the release
         if: ${{ vars.AWS_DEPLOY_ROLE_ARN != '' }}
         uses: actions/checkout@v4

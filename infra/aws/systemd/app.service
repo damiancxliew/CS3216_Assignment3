@@ -12,6 +12,7 @@ EnvironmentFile=/etc/app.env
 EnvironmentFile=/etc/data-api.env
 Environment=PORT=3000
 Environment=HOSTNAME=127.0.0.1
+ExecStartPre=/opt/app/bin/check-isolation.sh
 ExecStart=/usr/local/bin/node /opt/app/current/apps/web/server.js
 Restart=always
 RestartSec=5

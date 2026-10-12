@@ -27,8 +27,19 @@ tar -xzf "$archive" -C "$RELEASE"
 [[ -d "$RELEASE_INFRA/systemd" ]] || { echo "Release has no bundled AWS service configuration." >&2; exit 1; }
 chown -R app:app "$RELEASE"
 
-install -m 0755 "$RELEASE_INFRA/migrate.sh" "$RELEASE_INFRA/deploy.sh" "$RELEASE_INFRA/backup.sh" "$RELEASE_INFRA/copy-data.sh" "$APP_ROOT/bin/"
+install -m 0755 "$RELEASE_INFRA/migrate.sh" "$RELEASE_INFRA/deploy.sh" "$RELEASE_INFRA/backup.sh" "$RELEASE_INFRA/copy-data.sh" "$RELEASE_INFRA/check-isolation.sh" "$APP_ROOT/bin/"
 install -m 0644 "$RELEASE_INFRA/compat.sql" "$RELEASE_INFRA/gen-keys.mjs" "$RELEASE_INFRA/copy-storage.mjs" "$APP_ROOT/bin/"
+
+(
+  unset NEXT_PUBLIC_DATA_URL ASSET_BUCKET ASSET_PUBLIC_BASE_URL DATA_SERVICE_ROLE_KEY
+  set -a
+  # shellcheck disable=SC1091
+  source /etc/app.env
+  # shellcheck disable=SC1091
+  source /etc/data-api.env
+  "$APP_ROOT/bin/check-isolation.sh"
+)
+
 for unit in app.service postgrest.service caddy.service backup.service backup.timer; do
   install -m 0644 "$RELEASE_INFRA/systemd/$unit" "/etc/systemd/system/$unit"
 done
