@@ -23,6 +23,14 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/?error=auth", url.origin));
   }
 
+  if (process.env.NEXT_PUBLIC_DATA_URL) {
+    const { error: syncError } = await supabase.rpc("sync_auth_user");
+    if (syncError) {
+      console.error("could not sync auth user after sign-in", syncError);
+      return NextResponse.redirect(new URL("/?error=auth", url.origin));
+    }
+  }
+
   const { error: claimError } = await supabase.rpc("claim_staff_invites");
   if (claimError) console.error("could not claim staff invitations after sign-in", claimError);
 

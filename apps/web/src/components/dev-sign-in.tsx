@@ -36,6 +36,15 @@ export function DevSignIn({ next = "/" }: { next?: string }) {
       setPending(false);
       return;
     }
+    if (process.env.NEXT_PUBLIC_DATA_URL) {
+      const { error: syncError } = await supabase.rpc("sync_auth_user");
+      if (syncError) {
+        console.error("Local auth user sync failed:", syncError);
+        setError("Could not sign in. Check the details and try again.");
+        setPending(false);
+        return;
+      }
+    }
     router.push(next);
     router.refresh();
   }
