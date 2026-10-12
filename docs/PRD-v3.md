@@ -292,7 +292,7 @@ When each skill is practised:
 
 ### 3. System requirements
 
-Level 7, draft for team review. The reasoning is in proposals A1–A24 in the rationale.
+Level 7, draft for team review. The reasoning is in proposals A1–A25 in the rationale.
 
 | Status | ID | Requirement | Priority | Planned Week |
 |---|---|---|---|---|
@@ -330,6 +330,9 @@ Level 7, draft for team review. The reasoning is in proposals A1–A24 in the ra
 | ☐ | S13 | The system should give a character model only what that character knows and may reveal at that moment; withheld discoveries, slants' corrections and outcome rules are left out of the prompt, not marked as secret. | | |
 | ☐ | S13.1 | The system should give model outputs during play no direct effect: a check may only confirm discoveries the character was allowed to reveal, and the rules engine decides everything that follows. | | |
 | ☐ | S14 | The system should run teacher preview (T4.8) through the same runtime as students, kept out of the class summary. | | |
+| ☐ | S15 | The system should keep an adventure's world (written content, the same for every student) separate from each attempt's state, and change what a student meets in a later stage only through story flags and conditions in the written content, never by generating a separate stage per path (P9.8). | | |
+| ☐ | S15.1 | The system should declare an adventure's story flags in the skeleton (at most 6), each with the outcomes that set it and the stage where it first shows. | | |
+| ☐ | S15.2 | The system should treat as a check error any story flag that is never set, or that changes nothing the student sees at the start of the stage where it first shows, and should check every reachable combination of flags for a valid stage and at least two open endings (P9.10). | | |
 
 ## System architecture (level 7, draft)
 
@@ -437,7 +440,7 @@ CloudFront, ECR, IAM role, parameters and alarms.
 
 ## Generation and gameplay architecture (level 7, draft)
 
-For team review. The reasons are proposals A15–A24 in the rationale; the requirements are S10–S14.
+For team review. The reasons are proposals A15–A25 in the rationale; the requirements are S10–S15.
 
 ### Principles
 
@@ -448,18 +451,49 @@ For team review. The reasons are proposals A15–A24 in the rationale; the requi
 3. **Content is data with dependencies.** An adventure is a set of parts with recorded dependencies, so repairs and
    teacher edits regenerate only what depends on them (S10).
 4. **Attempts are logs.** State, the reveal playback and the class summary are all derived from one event log (S12).
+5. **World and state are separate.** Written content is the same for every student; an attempt's choices only set
+   state, and the engine resolves the content against that state (S15).
 
 ### Packages
 
 | Package | Kind | Responsibility | From today |
 |---|---|---|---|
-| `content` | Schemas | Adventure spec v3 (skeleton, stage details, personas, endings, reveal) as Zod schemas, the part and dependency model, and the public projection of a part for the client. | New; replaces `generation/spec` v2 |
-| `engine` | Pure | The rules: reveal conditions, triggers and stances, notes and passing on, challenged claims (P8.4), story events, stuck clock and hints, defining moments, outcomes, closed endings, the secret-ending unlock, the Interview push-back choice. Also the static checks built on the same rules (reachability, G12.4, G15). | New; replaces `orchestration` resolver, minting, agent actions |
+| `content` | Schemas | Adventure spec v3 (skeleton, stage details, personas, endings, reveal) as Zod schemas, story flags and the conditions on content, the part and dependency model, and the public projection of a part for the client. | New; replaces `generation/spec` v2 |
+| `engine` | Pure | The rules: resolving a stage's content against the attempt's flags, reveal conditions, triggers and stances, notes and passing on, challenged claims (P8.4), story events, stuck clock and hints, defining moments, outcomes, closed endings, the secret-ending unlock, the Interview push-back choice. Also the static checks built on the same rules (reachability, G12.4, G15). | New; replaces `orchestration` resolver, minting, agent actions |
 | `generation` | Server | The passes, their prompts and schemas, targeted repair, ingest, quotation checks, the asset service. | Keeps `ingest`, span checks, `llm`, `assets`; rebuilds `planner` |
 | `play-ai` | Server | Prompts and schemas for the play-time model calls: character reply, post-exchange check, interviewer, narration, moderation. | Rebuilt from `orchestration/agent` |
 | `game-core` | Pure | Map compiler and spatial model (rooms, walking, auto-walk to a room). | Kept; doors removed or decorative (open) |
 | `game-client` | Browser | Phaser renderer and map view. | Kept |
 | `apps/web` | Server and browser | Turn API, play UI (chat, notes, documents, minimap), teacher console and review screen, class summary, the worker entry point. | Play UI and console rebuilt on v3 |
+
+### World and state
+
+v2 mixed the two: a branch was a separate stage with its own map, characters and documents, so every path meant
+generating more world. v3 keeps them apart, so the generation work grows with the number of stages, not paths.
+
+- **World** is written at generation and frozen at publish: stages, rooms, characters and personas, documents,
+  discoveries, defining moments, endings. Every student plays the same world.
+- **State** belongs to one attempt and only the engine changes it: notes, each character's stance, who is present,
+  which documents are available, which endings are closed, and the adventure's story flags.
+- **Story flags** are declared in the skeleton, each with a name, the outcomes that set it, and the stage where it
+  first shows, for example `sultan_distrusts_you`, set by stage 1's "press the Sultan" outcome and shown in stage 2.
+  An adventure has at most 6 (S15.1).
+- **Conditional content.** Written content can carry a condition on flags: a character's starting stance, whether a
+  character or document is present, a story event, a version of the opening narration. Conditions are simple
+  (a flag is set or not set, joined with "and"). A stage is written once, with its variants inside it, rather than
+  once per path.
+- **Resolving.** When a stage starts, the engine resolves its conditions against the attempt's state. The character
+  prompts (S13) and the public projection for the client are built from the result, so the client never sees variants
+  that didn't apply.
+- **Visible consequences.** Every flag must change the opening narration and at least one of stance, presence, a
+  document or a story event in the stage where it first shows, so earlier choices never feel cosmetic (S15.2).
+  The reveal then shows which choice set which flag and closed which endings (E3).
+- **Checks.** Because flags are few, the engine checks every combination that can occur: each must give a valid
+  stage (every core discovery has a holder who is present) and leave at least two endings open at the final defining
+  moment (P9.10). A flag that is never set or changes nothing is an error.
+- **Eval.** The v2 planner eval measured whether early decisions forked to different targets
+  (`docs/writeups/M11-evals.md`: 2/11 non-final stages before the prompt fix, 11/11 after). The v3 equivalent measures,
+  per earlier outcome, the flags it sets, how much the next stage differs, and how many endings it closes.
 
 ### Generation
 
@@ -482,7 +516,8 @@ flowchart TD
     AS --> REV[Teacher review screen]
 ```
 
-- **Parts.** Each pass writes one or more parts (`skeleton`, `stage/<id>`, `persona/<id>`, `endings`, `reveal`). A
+- **Parts.** Each pass writes one or more parts (`skeleton`, `stage/<id>`, `persona/<id>`, `endings`, `reveal`).
+  The skeleton declares the story flags; each stage part holds its conditional variants (World and state). A
   part records its schema version, content hash, the ids it references, and the hashes of the parts it was generated
   from. Draft parts are editable; publishing freezes the set as one version, as `publish_adventure` does today.
 - **One pass, one job.** Each pass is a job in the queue (A6). A job loads the parts it depends on, calls the model
@@ -495,7 +530,7 @@ flowchart TD
   - Reachability uses the engine: it explores the stage's reveal conditions and triggers to show every core
     discovery is reachable without secret-ending conditions, and walks the outcome rules across stages to show
     the historical ending is reachable from the start and at least two endings stay open at the final defining
-    moment.
+    moment, for every reachable combination of story flags (S15.2).
   - Model-judged checks are warnings: reading level, whether a slant really is contradicted by its evidence, tone.
 - **Edits.** A direct edit replaces fields in a part; a plain-language request runs that part's pass again with
   the instruction (T4.4). Either way, parts whose recorded input hashes no longer match are marked stale and
