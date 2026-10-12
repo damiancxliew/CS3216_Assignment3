@@ -42,8 +42,8 @@ case "$(uname -m)" in
     ;;
 esac
 
-dnf install -y awscli-2 curl gcc git gzip libcap make tar xz
-dnf install -y postgresql16 postgresql16-devel postgresql16-server
+dnf install -y awscli-2 gcc git gzip libcap make tar xz
+dnf install -y postgresql16 postgresql16-server postgresql16-server-devel
 
 PG_CONFIG="$(command -v pg_config || true)"
 if [[ -z "$PG_CONFIG" || "$("$PG_CONFIG" --version)" != *" 16."* ]]; then
