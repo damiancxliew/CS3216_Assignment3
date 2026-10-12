@@ -19,7 +19,7 @@ parts of the code. The existing code is useful as infrastructure that is already
 | 4 | Core loop (moment, stage, session) | Agreed |
 | 5 | Mechanics | Agreed (teacher reshaping details moved to level 6) |
 | 6 | Content model | Agreed (full but focused, V64) |
-| 7 | Systems and architecture | Drafted for team review (proposals A1–A25); not yet agreed |
+| 7 | Systems and architecture | Drafted for team review (proposals A1–A24); not yet agreed |
 | 8 | Build plan | — |
 
 ## Decisions (approved)
@@ -118,7 +118,7 @@ Levels 4–6 are designed against the minimum role requirements (G3–G3.4), so 
 
 Not yet approved. A1–A14 cover infrastructure: the move off Vercel and Supabase to AWS, with one EC2 instance running a Postgres
 container and an app container, S3 for assets, and Supabase kept for sign-in only. They are written to be easy to
-grow out of: each one says what changes when one instance is no longer enough. A15–A25 cover generation and gameplay on top of
+grow out of: each one says what changes when one instance is no longer enough. A15–A24 cover generation and gameplay on top of
 it.
 
 | # | Proposal | Rationale | Requirements |
@@ -147,7 +147,6 @@ it.
 | A22 | Model outputs in play have no direct effect. The post-exchange check returns ids from a list the engine gave it, and the engine applies them. The reply is plain streamed text, with no actions or tool calls. | v2's agents proposed actions that then had to be filtered and budgeted. In v3 the rules own consequences, so the reply only needs to be good dialogue, and the checker only needs to confirm against a short list (V35), which cheap models do reliably. Ids outside the list are ignored, which enforces P8.3. | S13.1, P8.3, P17.1, C11, C12 |
 | A23 | Time is an engine input. Ticks run on requests and while the student's event stream is open. The client reports reading and waiting so the stuck clock can pause. | Timers, story events and hints only matter while a student is playing, so no background sweep is needed. Taking time as an input keeps the engine pure and lets tests jump the clock. | P1, P5.1, P5.1.3, P14 |
 | A24 | The epilogue and reveal are assembled from written content and the event log, with no model at play time. Teacher preview uses the same runtime and is excluded from the class summary. | The teacher reviews the reveal before publishing (T3, T4.2), so it should be exactly what students see. Corrections (E3.5) are reliable because the log records which slanted content each student actually met. Previewing through the same runtime means the teacher tests what students will play. | S14, E1, E3, T4.8 |
-| A25 | Keep the world (written content, the same for every student) separate from the attempt's state. Choices set a few story flags (at most 6) declared in the skeleton; stages are written once, with content conditioned on those flags, and the engine resolves them when a stage starts. Every flag must visibly change the stage where it first shows. | v2 mixed world and state: a branch was a separate stage with its own map, characters and documents, so more paths meant more world to generate and check, much of which most students never saw. Flags make P9.8 and P9.9 concrete: generation grows with stages, not paths; few flags mean the engine can check every combination (P9.10); and the reveal can show exactly what each choice changed. The visibility rule answers the risk that state-based consequences feel cosmetic, which is what the v2 planner eval found for early decisions before its prompt fix (M11: 2/11 non-final stages forked). The cap of 6 is a starting guess to be checked in evaluations. | S15, S15.1, S15.2, P9.8, P9.9, P9.10, G12.3 |
 
 Lean, for the team's open level 7 item on rewrite strategy: build v3 on the new stack as a clean break. v2 keeps
 running on Vercel and Supabase until v3 ships, then is retired. Users, schools, memberships, model prices and the
@@ -164,7 +163,7 @@ avoids porting v2's data layer only to rewrite it.
   job is driven by the teacher's browser tab, with one lease per adventure, so steps run one at a time and only
   while a tab polls (`resumable_generation` migration). Passes (G12) need a server-side worker that can run steps
   in parallel. Proposed: a Postgres job queue and worker (A6).
-- First reuse/rebuild survey (refined in A15–A25 and the PRD's package table): keep the platform (app shell, auth, ingest, LLM client, map compiler, renderer, asset
+- First reuse/rebuild survey (refined in A15–A24 and the PRD's package table): keep the platform (app shell, auth, ingest, LLM client, map compiler, renderer, asset
   generation, save pattern); rebuild the spec, generation pipeline and worker, play-time orchestration, play session,
   play UI, debrief/reveal, teacher review, and the v3 database tables.
 - The move to AWS changes some of the "keep" list: auth stays (Supabase Auth only, A3), but the data layer
@@ -174,7 +173,7 @@ avoids porting v2's data layer only to rewrite it.
 ## Open
 
 - Teacher outcomes TO1–TO4 are provisional and the section is still open.
-- Level 7: team review of proposals A1–A25. Still open within them: rewrite strategy and old v2 adventures (lean:
+- Level 7: team review of proposals A1–A24. Still open within them: rewrite strategy and old v2 adventures (lean:
   clean break on the new stack, v2 adventures not migrated); doors (remove or keep as decoration); the search tool
   for outside sources (A7 settles how they are stored and checked).
 - Level 8 (build plan): priorities, phases, schedule.
