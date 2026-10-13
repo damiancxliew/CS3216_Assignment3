@@ -35,6 +35,33 @@ export function Pending({ children }: { children: React.ReactNode }) {
   );
 }
 
+export function StableLabel({
+  label,
+  pending,
+  pendingLabel,
+}: {
+  label: React.ReactNode;
+  pending: boolean;
+  pendingLabel: React.ReactNode;
+}) {
+  return (
+    <span className="inline-grid place-items-center">
+      <span
+        aria-hidden={pending}
+        className={`col-start-1 row-start-1 inline-flex items-center justify-center ${pending ? "invisible" : ""}`}
+      >
+        {label}
+      </span>
+      <span
+        aria-hidden={!pending}
+        className={`col-start-1 row-start-1 inline-flex items-center justify-center gap-2 ${pending ? "" : "invisible"}`}
+      >
+        {pendingLabel}
+      </span>
+    </span>
+  );
+}
+
 export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg className={`${className} shrink-0 animate-spin`} viewBox="0 0 24 24" fill="none" aria-hidden>

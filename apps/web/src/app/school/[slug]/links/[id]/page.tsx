@@ -150,6 +150,7 @@ export default async function SchoolLinkDetailPage({
               <ConfirmActionButton
                 action={revokeSchoolLink.bind(null, slug, link.id)}
                 label="Revoke"
+                align="start"
                 confirmMessage={link.name
                   ? `Revoke "${link.name}"? Students won't be able to join with it.`
                   : "Revoke this sign-up link? Students won't be able to join with it."}

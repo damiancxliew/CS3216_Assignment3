@@ -18,7 +18,7 @@ import { SchoolLinkCopy } from "./school-link-copy";
 import { StaffRoleSelect } from "./staff-role-select";
 import { ActionButton, ActionForm } from "@/components/action-form";
 import { SignInButton } from "@/components/sign-in-button";
-import { EmptyState, Field, Page, Section, SelectField, StatusBadge } from "@/components/ui";
+import { button, EmptyState, Field, Page, Section, SelectField, StatusBadge } from "@/components/ui";
 import { getViewer } from "@/lib/auth/viewer";
 import { resolveSchoolContext } from "@/lib/school/context";
 import { createClient } from "@/lib/supabase/server";
@@ -191,9 +191,16 @@ export default async function SchoolPage({
                       action={removeStudent.bind(null, slug, student.user_id)}
                       label="Remove"
                       confirmMessage={`Remove ${student.display_name || student.email || "this student"} from your school?`}
+                      triggerClassName={`${button.quiet} w-fit min-w-28`}
                     />
                   ) : (
-                    <ActionButton action={restoreStudent.bind(null, slug, student.user_id)} label="Restore" pendingLabel="Restoring…" variant="quiet" />
+                    <ActionButton
+                      action={restoreStudent.bind(null, slug, student.user_id)}
+                      label="Restore"
+                      pendingLabel={<span className="sr-only">Restoring…</span>}
+                      variant="quiet"
+                      className={`${button.quiet} w-fit min-w-28`}
+                    />
                   )}
                 </li>
               ))}
