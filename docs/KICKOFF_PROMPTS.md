@@ -11,7 +11,7 @@ How to use them:
 
 1. Start a session on `github.com/damiancxliew/CS3216_Assignment3`.
 2. Paste your prompt verbatim — they are complete as written, nothing to fill in.
-3. Let it read `docs/PRD.md`, `docs/TEAM_PLAN.md` and `docs/EXECUTION_SPEC.md` **before** it writes
+3. Let it read `docs/archive/PRD-v2.md`, `docs/TEAM_PLAN.md` and `docs/EXECUTION_SPEC.md` **before** it writes
    code — the prompts already instruct this.
 4. One PR per task group, not one giant PR. Small PRs are how four people stay unblocked.
 
@@ -24,7 +24,7 @@ How to use them:
 
 ```text
 You are working on github.com/damiancxliew/CS3216_Assignment3, a CS3216 Assignment 3 project due
-Fri 25 Sep 2026 23:59. Read docs/PRD.md, docs/TEAM_PLAN.md and docs/EXECUTION_SPEC.md first; they
+Fri 25 Sep 2026 23:59. Read docs/archive/PRD-v2.md, docs/TEAM_PLAN.md and docs/EXECUTION_SPEC.md first; they
 are the source of truth and I do not want them re-litigated. Also read AGENTS.md and src/core.ts on
 the PoC branch to understand the existing pure-core design.
 
@@ -68,7 +68,7 @@ before changing any of the four frozen contracts — everyone else is already bu
 
 ```text
 You are working on github.com/damiancxliew/CS3216_Assignment3, a CS3216 Assignment 3 project due
-Fri 25 Sep 2026 23:59. Read docs/PRD.md (especially §7.1), docs/TEAM_PLAN.md and
+Fri 25 Sep 2026 23:59. Read docs/archive/PRD-v2.md (especially §7.1), docs/TEAM_PLAN.md and
 docs/EXECUTION_SPEC.md first; they are the source of truth. I wrote the PoC on the PoC branch —
 read AGENTS.md, MAP_GENERATION_PLAN.md, src/core.ts and src/render.ts there before changing
 anything.
@@ -116,7 +116,7 @@ Work on a branch off main, open a PR per task group, keep CI green.
 
 ```text
 You are working on github.com/damiancxliew/CS3216_Assignment3, a CS3216 Assignment 3 project due
-Fri 25 Sep 2026 23:59. Read docs/PRD.md, docs/TEAM_PLAN.md and docs/EXECUTION_SPEC.md first; they
+Fri 25 Sep 2026 23:59. Read docs/archive/PRD-v2.md, docs/TEAM_PLAN.md and docs/EXECUTION_SPEC.md first; they
 are the source of truth. Also read MAP_GENERATION_PLAN.md on the PoC branch — it already describes
 the ingest-to-publish pipeline this slice implements.
 
@@ -171,7 +171,7 @@ Work on a branch off main, open a PR per task group, keep CI green.
 
 ```text
 You are working on github.com/damiancxliew/CS3216_Assignment3, a CS3216 Assignment 3 project due
-Fri 25 Sep 2026 23:59. Read docs/PRD.md (especially §6 and §7), docs/TEAM_PLAN.md and
+Fri 25 Sep 2026 23:59. Read docs/archive/PRD-v2.md (especially §6 and §7), docs/TEAM_PLAN.md and
 docs/EXECUTION_SPEC.md first; they are the source of truth.
 
 I own the platform, the teacher/student product surface and the launch materials. My tasks are
@@ -217,7 +217,7 @@ M18-M20 write-ups; draft each one the day the corresponding feature lands rather
 
 ```text
 You are working on github.com/damiancxliew/CS3216_Assignment3, due Fri 25 Sep 2026 23:59. Read
-docs/PRD.md, docs/TEAM_PLAN.md and docs/EXECUTION_SPEC.md.
+docs/archive/PRD-v2.md, docs/TEAM_PLAN.md and docs/EXECUTION_SPEC.md.
 
 Do not implement feature slices — four people own those. Your job is the integration seam nobody
 owns:

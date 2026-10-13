@@ -144,7 +144,7 @@ Game art and media:
 
 ## Documentation
 
-- [`docs/PRD.md`](docs/PRD.md) — product requirements, schema and the public/private boundary
+- [`docs/archive/PRD-v2.md`](docs/archive/PRD-v2.md) — v2 product requirements (superseded by [`docs/PRD-v3.md`](docs/PRD-v3.md)), schema and the public/private boundary
 - [`docs/PLATFORM.md`](docs/PLATFORM.md) — how auth, versioning, timers, resume and the debrief work
 - [`docs/EXECUTION_SPEC.md`](docs/EXECUTION_SPEC.md) — task breakdown and per-task validation
 - [`docs/launch/`](docs/launch) — Product Hunt kit and submission checklist

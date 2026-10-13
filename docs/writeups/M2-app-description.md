@@ -1,6 +1,6 @@
 # M2 — App description, objectives and user stories
 
-Source: `docs/PRD.md` §1/§3, `docs/specs.md` §1/§3.
+Source: `docs/archive/PRD-v2.md` §1/§3, `docs/specs.md` §1/§3.
 
 ## In one line
 
