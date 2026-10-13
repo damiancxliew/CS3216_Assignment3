@@ -117,6 +117,7 @@ export function Field({
   inputMode,
   min,
   step,
+  maxLength,
   required,
   form,
   optional,
@@ -133,6 +134,7 @@ export function Field({
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   min?: number;
   step?: React.InputHTMLAttributes<HTMLInputElement>["step"];
+  maxLength?: React.InputHTMLAttributes<HTMLInputElement>["maxLength"];
   required?: boolean;
   form?: string;
   optional?: boolean;
@@ -153,6 +155,7 @@ export function Field({
           inputMode={inputMode}
           min={min}
           step={step}
+          maxLength={maxLength}
           required={required}
           form={form}
           placeholder={placeholder}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { UserMinus } from "lucide-react";
+import { Pencil, UserMinus } from "lucide-react";
 
 import {
   changeStaffRole,
@@ -9,6 +9,7 @@ import {
   inviteStaff,
   removeStaffMember,
   removeStudent,
+  renameSchoolLink,
   restoreStudent,
   revokeSchoolLink,
   setAdventureArchived,
@@ -18,7 +19,7 @@ import { SchoolLinkCopy } from "./school-link-copy";
 import { StaffRoleSelect } from "./staff-role-select";
 import { ActionButton, ActionForm } from "@/components/action-form";
 import { SignInButton } from "@/components/sign-in-button";
-import { EmptyState, Field, Page, Section, SelectField, StatusBadge } from "@/components/ui";
+import { button, EmptyState, Field, Page, Section, SelectField, StatusBadge } from "@/components/ui";
 import { getViewer } from "@/lib/auth/viewer";
 import { resolveSchoolContext } from "@/lib/school/context";
 import { createClient } from "@/lib/supabase/server";
@@ -48,7 +49,7 @@ type MemberRow = {
   joined_at: string;
   removed_at: string | null;
 };
-type JoinLinkRow = { id: string; token: string; expires_at: string; revoked_at: string | null };
+type JoinLinkRow = { id: string; token: string; expires_at: string; revoked_at: string | null; name: string | null };
 type InviteRow = { id: string; email: string; role: "admin" | "teacher"; created_at: string };
 type UsageRow = {
   adventure_id: string;
@@ -70,7 +71,7 @@ export default async function SchoolPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; edit?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
@@ -101,7 +102,7 @@ export default async function SchoolPage({
   let closedLinkCount = 0;
   if (tab === "links") {
     const { data, error } = await supabase.from("organization_join_link")
-      .select("id, token, expires_at, revoked_at")
+      .select("id, token, expires_at, revoked_at, name")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .returns<JoinLinkRow[]>();
@@ -185,25 +186,53 @@ export default async function SchoolPage({
               className="flex flex-col gap-4 rounded-surface border border-line bg-surface p-5"
             >
               <h3 className="font-bold text-ink">New link</h3>
+              <Field name="name" label="Name" optional placeholder="e.g. 3B History" maxLength={80} />
               <SelectField name="ttl_seconds" label="Link duration" options={TTL_OPTIONS} defaultValue="604800" />
             </ActionForm>
             <div className="flex min-w-0 flex-col gap-3">
               {links.length ? (
                 <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
-                  {links.map((link) => (
-                    <li key={link.id} className="flex items-center gap-3 p-4">
-                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                        <code title={`/s/${link.token}`} className="block truncate rounded-control border border-line bg-paper px-3 py-2 text-sm text-ink">/s/{link.token}</code>
-                        <time className="text-sm text-muted" dateTime={link.expires_at} title={new Date(link.expires_at).toLocaleString()}>
-                          Expires in {relativeTime(Date.parse(link.expires_at) - Date.now())}
-                        </time>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <SchoolLinkCopy token={link.token} />
-                        <ActionButton action={revokeSchoolLink.bind(null, slug, link.id)} label="Revoke" pendingLabel="Revoking…" variant="quiet" />
-                      </div>
-                    </li>
-                  ))}
+                  {links.map((link) => {
+                    const editing = query.edit === link.id;
+                    return (
+                      <li key={link.id} className="flex items-center gap-3 p-4">
+                        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                          {editing ? (
+                            <ActionForm
+                              action={renameSchoolLink.bind(null, slug, link.id)}
+                              submitLabel="Save"
+                              pendingLabel="Saving…"
+                              submitClassName={button.subtle}
+                              className="flex flex-wrap items-center gap-2 [&>p]:basis-full [&>p]:text-sm"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <Field name="name" label="Link name" hideLabel defaultValue={link.name ?? ""} maxLength={80} />
+                              </div>
+                              <Link href={`/school/${encodeURIComponent(slug)}?tab=links`} className={button.subtle}>Cancel</Link>
+                            </ActionForm>
+                          ) : link.name ? <p className="font-semibold text-ink">{link.name}</p> : null}
+                          <code title={`/s/${link.token}`} className="block truncate rounded-control border border-line bg-paper px-3 py-2 text-sm text-ink">/s/{link.token}</code>
+                          <time className="text-sm text-muted" dateTime={link.expires_at} title={new Date(link.expires_at).toLocaleString()}>
+                            Expires in {relativeTime(Date.parse(link.expires_at) - Date.now())}
+                          </time>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {!editing ? (
+                            <Link
+                              href={`/school/${encodeURIComponent(slug)}?tab=links&edit=${encodeURIComponent(link.id)}`}
+                              aria-label="Rename link"
+                              title="Rename link"
+                              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line-strong bg-surface text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Pencil aria-hidden className="h-4 w-4" />
+                            </Link>
+                          ) : null}
+                          <SchoolLinkCopy token={link.token} />
+                          <ActionButton action={revokeSchoolLink.bind(null, slug, link.id)} label="Revoke" pendingLabel="Revoking…" variant="quiet" />
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : <EmptyState title="No active sign-up links.">Create a link for students to join your school.</EmptyState>}
               <p className="text-sm text-muted">{closedLinkCount} expired or revoked sign-up link{closedLinkCount === 1 ? "" : "s"}.</p>

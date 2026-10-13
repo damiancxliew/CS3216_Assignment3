@@ -218,6 +218,76 @@ describe("school links and enrollment", () => {
     expect(preview).toMatchObject({ organization_id: orgA, name: "RBAC School A" });
   });
 
+  it("normalizes, renames, and clears staff-only link names", async () => {
+    const { data: namedRows, error: namedError } = await teacherA.client.rpc("create_school_join_link", {
+      p_org: orgA,
+      p_ttl_seconds: 3600,
+      p_name: "  3B History  ",
+    });
+    expect(namedError).toBeNull();
+    const named = (namedRows as { id: string; name: string }[])[0]!;
+    expect(named.name).toBe("3B History");
+
+    const { data: unnamedRows, error: unnamedError } = await teacherA.client.rpc("create_school_join_link", {
+      p_org: orgA,
+      p_ttl_seconds: 3600,
+    });
+    expect(unnamedError).toBeNull();
+    expect((unnamedRows as { name: string | null }[])[0]!.name).toBeNull();
+
+    const { data: blankRows, error: blankError } = await teacherA.client.rpc("create_school_join_link", {
+      p_org: orgA,
+      p_ttl_seconds: 3600,
+      p_name: "   ",
+    });
+    expect(blankError).toBeNull();
+    expect((blankRows as { name: string | null }[])[0]!.name).toBeNull();
+
+    const renamed = await teacherA.client.rpc("rename_school_join_link", {
+      p_link_id: named.id,
+      p_name: "  World History  ",
+    });
+    expect(renamed.error).toBeNull();
+    const { data: renamedRow, error: renamedReadError } = await teacherA.client.from("organization_join_link")
+      .select("name")
+      .eq("id", named.id)
+      .single();
+    expect(renamedReadError).toBeNull();
+    expect(renamedRow?.name).toBe("World History");
+
+    const cleared = await teacherA.client.rpc("rename_school_join_link", {
+      p_link_id: named.id,
+      p_name: "   ",
+    });
+    expect(cleared.error).toBeNull();
+    const { data: clearedRow, error: clearedReadError } = await teacherA.client.from("organization_join_link")
+      .select("name")
+      .eq("id", named.id)
+      .single();
+    expect(clearedReadError).toBeNull();
+    expect(clearedRow?.name).toBeNull();
+
+    const tooLong = "x".repeat(81);
+    expect((await teacherA.client.rpc("create_school_join_link", {
+      p_org: orgA,
+      p_ttl_seconds: 3600,
+      p_name: tooLong,
+    })).error?.code).toBe("22023");
+    expect((await teacherA.client.rpc("rename_school_join_link", {
+      p_link_id: named.id,
+      p_name: tooLong,
+    })).error?.code).toBe("22023");
+
+    expect((await studentA.client.rpc("rename_school_join_link", {
+      p_link_id: named.id,
+      p_name: "Student edit",
+    })).error?.code).toBe("42501");
+    expect((await adminB.client.rpc("rename_school_join_link", {
+      p_link_id: named.id,
+      p_name: "Other school edit",
+    })).error?.code).toBe("42501");
+  });
+
   it("enrolls from a valid link, treats re-enrollment as a no-op, and rejects expired or revoked links", async () => {
     const { data: linkRows } = await teacherA.client.rpc("create_school_join_link", {
       p_org: orgA,
