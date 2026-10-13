@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, UserMinus } from "lucide-react";
+import { UserMinus, Users } from "lucide-react";
 
 import {
   changeStaffRole,
@@ -9,7 +9,6 @@ import {
   inviteStaff,
   removeStaffMember,
   removeStudent,
-  renameSchoolLink,
   restoreStudent,
   revokeSchoolLink,
   setAdventureArchived,
@@ -19,7 +18,7 @@ import { SchoolLinkCopy } from "./school-link-copy";
 import { StaffRoleSelect } from "./staff-role-select";
 import { ActionButton, ActionForm } from "@/components/action-form";
 import { SignInButton } from "@/components/sign-in-button";
-import { button, EmptyState, Field, Page, Section, SelectField, StatusBadge } from "@/components/ui";
+import { EmptyState, Field, Page, Section, SelectField, StatusBadge } from "@/components/ui";
 import { getViewer } from "@/lib/auth/viewer";
 import { resolveSchoolContext } from "@/lib/school/context";
 import { createClient } from "@/lib/supabase/server";
@@ -49,7 +48,17 @@ type MemberRow = {
   joined_at: string;
   removed_at: string | null;
 };
-type JoinLinkRow = { id: string; token: string; expires_at: string; revoked_at: string | null; name: string | null };
+type JoinLinkRow = {
+  id: string;
+  token: string;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  name: string | null;
+};
+type JoinerRow = { user_id: string; joined_via_link: string | null; status: "active" | "removed" };
+type LinkJoiner = { user_id: string; name: string; removed: boolean };
 type InviteRow = { id: string; email: string; role: "admin" | "teacher"; created_at: string };
 type UsageRow = {
   adventure_id: string;
@@ -71,7 +80,7 @@ export default async function SchoolPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string; edit?: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
@@ -97,12 +106,14 @@ export default async function SchoolPage({
   const roster = (rosterData ?? []) as unknown as MemberRow[];
   const students = roster.filter((member) => member.role === "student");
   const staff = roster.filter((member) => member.role === "admin" || member.role === "teacher");
+  const rosterById = new Map(roster.map((member) => [member.user_id, member]));
 
   let links: JoinLinkRow[] = [];
-  let closedLinkCount = 0;
+  let closedLinks: JoinLinkRow[] = [];
+  const joinersByLink = new Map<string, LinkJoiner[]>();
   if (tab === "links") {
     const { data, error } = await supabase.from("organization_join_link")
-      .select("id, token, expires_at, revoked_at, name")
+      .select("id, token, created_at, expires_at, revoked_at, revoked_by, name")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .returns<JoinLinkRow[]>();
@@ -110,7 +121,27 @@ export default async function SchoolPage({
     const allLinks = data ?? [];
     const now = Date.now();
     links = allLinks.filter((link) => !link.revoked_at && Date.parse(link.expires_at) > now);
-    closedLinkCount = allLinks.length - links.length;
+    closedLinks = allLinks
+      .filter((link) => Boolean(link.revoked_at) || Date.parse(link.expires_at) <= now)
+      .sort((a, b) => Date.parse(b.revoked_at ?? b.expires_at) - Date.parse(a.revoked_at ?? a.expires_at));
+
+    const { data: joinerData, error: joinerError } = await supabase.from("organization_member")
+      .select("user_id, joined_via_link, status")
+      .eq("organization_id", organizationId)
+      .not("joined_via_link", "is", null)
+      .returns<JoinerRow[]>();
+    if (joinerError) console.error("could not load sign-up link joiners", joinerError);
+    for (const joiner of joinerData ?? []) {
+      if (!joiner.joined_via_link) continue;
+      const member = rosterById.get(joiner.user_id);
+      const group = joinersByLink.get(joiner.joined_via_link) ?? [];
+      group.push({
+        user_id: joiner.user_id,
+        name: member?.display_name || member?.email || "Student",
+        removed: joiner.status === "removed",
+      });
+      joinersByLink.set(joiner.joined_via_link, group);
+    }
   }
 
   let invitations: InviteRow[] = [];
@@ -192,50 +223,64 @@ export default async function SchoolPage({
             <div className="flex min-w-0 flex-col gap-3">
               {links.length ? (
                 <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
-                  {links.map((link) => {
-                    const editing = query.edit === link.id;
-                    return (
-                      <li key={link.id} className="flex items-center gap-3 p-4">
-                        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                          {editing ? (
-                            <ActionForm
-                              action={renameSchoolLink.bind(null, slug, link.id)}
-                              submitLabel="Save"
-                              pendingLabel="Saving…"
-                              submitClassName={button.subtle}
-                              className="flex flex-wrap items-center gap-2 [&>p]:basis-full [&>p]:text-sm"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <Field name="name" label="Link name" hideLabel defaultValue={link.name ?? ""} maxLength={80} />
-                              </div>
-                              <Link href={`/school/${encodeURIComponent(slug)}?tab=links`} className={button.subtle}>Cancel</Link>
-                            </ActionForm>
-                          ) : link.name ? <p className="font-semibold text-ink">{link.name}</p> : null}
-                          <code title={`/s/${link.token}`} className="block truncate rounded-control border border-line bg-paper px-3 py-2 text-sm text-ink">/s/{link.token}</code>
-                          <time className="text-sm text-muted" dateTime={link.expires_at} title={new Date(link.expires_at).toLocaleString()}>
-                            Expires in {relativeTime(Date.parse(link.expires_at) - Date.now())}
-                          </time>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          {!editing ? (
-                            <Link
-                              href={`/school/${encodeURIComponent(slug)}?tab=links&edit=${encodeURIComponent(link.id)}`}
-                              aria-label="Rename link"
-                              title="Rename link"
-                              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line-strong bg-surface text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <Pencil aria-hidden className="h-4 w-4" />
-                            </Link>
-                          ) : null}
-                          <SchoolLinkCopy token={link.token} />
-                          <ActionButton action={revokeSchoolLink.bind(null, slug, link.id)} label="Revoke" pendingLabel="Revoking…" variant="quiet" />
-                        </div>
-                      </li>
-                    );
-                  })}
+                  {links.map((link) => (
+                    <li key={link.id} className="flex items-center gap-3 p-4">
+                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                        {link.name ? <p className="font-semibold text-ink">{link.name}</p> : null}
+                        <code title={`/s/${link.token}`} className="block truncate rounded-control border border-line bg-paper px-3 py-2 text-sm text-ink">/s/{link.token}</code>
+                        <time className="text-sm text-muted" dateTime={link.expires_at} title={new Date(link.expires_at).toLocaleString()}>
+                          Expires in {relativeTime(Date.parse(link.expires_at) - Date.now())}
+                        </time>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <LinkJoiners joiners={joinersByLink.get(link.id) ?? []} />
+                        <SchoolLinkCopy token={link.token} />
+                        <ActionButton action={revokeSchoolLink.bind(null, slug, link.id)} label="Revoke" pendingLabel="Revoking…" variant="quiet" />
+                      </div>
+                    </li>
+                  ))}
                 </ul>
               ) : <EmptyState title="No active sign-up links.">Create a link for students to join your school.</EmptyState>}
-              <p className="text-sm text-muted">{closedLinkCount} expired or revoked sign-up link{closedLinkCount === 1 ? "" : "s"}.</p>
+              {closedLinks.length ? (
+                <details className="rounded-surface border border-line bg-surface">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm text-muted [&::-webkit-details-marker]:hidden">
+                    {closedLinks.length} expired or revoked sign-up link{closedLinks.length === 1 ? "" : "s"}
+                  </summary>
+                  <ul className="flex flex-col divide-y divide-line">
+                    {closedLinks.map((link) => {
+                      const closedAt = link.revoked_at ?? link.expires_at;
+                      const revoker = link.revoked_by ? rosterById.get(link.revoked_by) : null;
+                      const revokerName = link.revoked_by
+                        ? revoker
+                          ? revoker.display_name || revoker.email || "school staff"
+                          : "a platform admin"
+                        : null;
+                      const status = link.revoked_at
+                        ? revokerName ? `Revoked by ${revokerName}` : "Revoked"
+                        : "Expired";
+                      return (
+                        <li key={link.id} className="flex items-center gap-3 px-4 py-3">
+                          <div className="flex min-w-0 flex-1 flex-col gap-1">
+                            {link.name ? <p className="font-semibold text-ink">{link.name}</p> : null}
+                            <code title={`/s/${link.token}`} className="block truncate text-sm text-muted">/s/{link.token}</code>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+                              <p>
+                                {status} ·{" "}
+                                <time dateTime={closedAt} title={new Date(closedAt).toLocaleString()}>
+                                  {timeAgo(Date.now() - Date.parse(closedAt))}
+                                </time>
+                              </p>
+                              <LinkJoiners joiners={joinersByLink.get(link.id) ?? []} />
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
+              ) : (
+                <p className="text-sm text-muted">0 expired or revoked sign-up links.</p>
+              )}
             </div>
           </div>
         </Section>
@@ -380,6 +425,38 @@ function relativeTime(milliseconds: number) {
   if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
   const days = Math.ceil(hours / 24);
   return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+function timeAgo(milliseconds: number) {
+  const minutes = Math.max(1, Math.floor(milliseconds / 60_000));
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function LinkJoiners({ joiners }: { joiners: LinkJoiner[] }) {
+  if (!joiners.length) return null;
+  return (
+    <details className="relative shrink-0">
+      <summary
+        title="Students who joined with this link"
+        className="flex cursor-pointer list-none items-center gap-1 text-sm text-muted hover:text-ink [&::-webkit-details-marker]:hidden"
+      >
+        <Users aria-hidden className="h-4 w-4" />
+        <span>{joiners.length}</span>
+      </summary>
+      <ul className="absolute right-0 top-full z-20 mt-2 flex min-w-max flex-col gap-2 rounded-surface border border-line bg-surface p-3 text-sm text-ink shadow-lg">
+        {joiners.map((joiner) => (
+          <li key={joiner.user_id} className="flex items-center gap-2">
+            <span>{joiner.name}</span>
+            {joiner.removed ? <span className="rounded-full bg-paper px-1.5 py-0.5 text-xs text-muted">removed</span> : null}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 function playTime(seconds: number) {

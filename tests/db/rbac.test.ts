@@ -243,49 +243,12 @@ describe("school links and enrollment", () => {
     expect(blankError).toBeNull();
     expect((blankRows as { name: string | null }[])[0]!.name).toBeNull();
 
-    const renamed = await teacherA.client.rpc("rename_school_join_link", {
-      p_link_id: named.id,
-      p_name: "  World History  ",
-    });
-    expect(renamed.error).toBeNull();
-    const { data: renamedRow, error: renamedReadError } = await teacherA.client.from("organization_join_link")
-      .select("name")
-      .eq("id", named.id)
-      .single();
-    expect(renamedReadError).toBeNull();
-    expect(renamedRow?.name).toBe("World History");
-
-    const cleared = await teacherA.client.rpc("rename_school_join_link", {
-      p_link_id: named.id,
-      p_name: "   ",
-    });
-    expect(cleared.error).toBeNull();
-    const { data: clearedRow, error: clearedReadError } = await teacherA.client.from("organization_join_link")
-      .select("name")
-      .eq("id", named.id)
-      .single();
-    expect(clearedReadError).toBeNull();
-    expect(clearedRow?.name).toBeNull();
-
     const tooLong = "x".repeat(81);
     expect((await teacherA.client.rpc("create_school_join_link", {
       p_org: orgA,
       p_ttl_seconds: 3600,
       p_name: tooLong,
     })).error?.code).toBe("22023");
-    expect((await teacherA.client.rpc("rename_school_join_link", {
-      p_link_id: named.id,
-      p_name: tooLong,
-    })).error?.code).toBe("22023");
-
-    expect((await studentA.client.rpc("rename_school_join_link", {
-      p_link_id: named.id,
-      p_name: "Student edit",
-    })).error?.code).toBe("42501");
-    expect((await adminB.client.rpc("rename_school_join_link", {
-      p_link_id: named.id,
-      p_name: "Other school edit",
-    })).error?.code).toBe("42501");
   });
 
   it("enrolls from a valid link, treats re-enrollment as a no-op, and rejects expired or revoked links", async () => {
@@ -296,13 +259,18 @@ describe("school links and enrollment", () => {
     const link = (linkRows as { id: string; token: string }[])[0]!;
     const enrolling = await createUserClient(uniqueEmail("rbac-enroll"), PASSWORD);
     expect((await enrolling.client.rpc("enroll_with_school_token", { p_token: link.token })).data).toBe(orgA);
-    expect((await enrolling.client.rpc("enroll_with_school_token", { p_token: link.token })).data).toBe(orgA);
+    const { data: secondLinkRows } = await teacherA.client.rpc("create_school_join_link", {
+      p_org: orgA,
+      p_ttl_seconds: 3600,
+    });
+    const secondLink = (secondLinkRows as { id: string; token: string }[])[0]!;
+    expect((await enrolling.client.rpc("enroll_with_school_token", { p_token: secondLink.token })).data).toBe(orgA);
     const { data: membership } = await admin.from("organization_member")
-      .select("role, status")
+      .select("role, status, joined_via_link")
       .eq("organization_id", orgA)
       .eq("user_id", enrolling.userId)
       .single();
-    expect(membership).toEqual({ role: "student", status: "active" });
+    expect(membership).toEqual({ role: "student", status: "active", joined_via_link: link.id });
 
     const { data: expiredRows } = await teacherA.client.rpc("create_school_join_link", {
       p_org: orgA,
@@ -325,6 +293,18 @@ describe("school links and enrollment", () => {
     });
     const revoked = (revokedRows as { id: string; token: string }[])[0]!;
     expect((await teacherA.client.rpc("revoke_school_join_link", { p_link_id: revoked.id })).error).toBeNull();
+    const { data: firstRevocation } = await admin.from("organization_join_link")
+      .select("revoked_by, revoked_at")
+      .eq("id", revoked.id)
+      .single();
+    expect(firstRevocation?.revoked_by).toBe(teacherA.userId);
+    expect(firstRevocation?.revoked_at).toBeTruthy();
+    expect((await secondTeacherA.client.rpc("revoke_school_join_link", { p_link_id: revoked.id })).error).toBeNull();
+    const { data: repeatedRevocation } = await admin.from("organization_join_link")
+      .select("revoked_by, revoked_at")
+      .eq("id", revoked.id)
+      .single();
+    expect(repeatedRevocation).toEqual(firstRevocation);
     expect((await enrolling.client.rpc("enroll_with_school_token", { p_token: revoked.token })).error?.code).toBe("P0002");
   });
 

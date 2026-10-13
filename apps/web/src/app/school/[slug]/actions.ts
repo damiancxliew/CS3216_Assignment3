@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import type { ActionResult } from "@/app/teacher/actions";
 import { getViewer } from "@/lib/auth/viewer";
@@ -76,25 +75,6 @@ export async function createSchoolLink(slug: string, _previous: ActionResult, fo
   if (error) return rpcError(error, "Could not create a sign-up link. Please try again.");
   revalidateSchool(slug);
   return { notice: "Sign-up link created." };
-}
-
-export async function renameSchoolLink(
-  slug: string,
-  linkId: string,
-  _previous: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  const context = await schoolContext(slug);
-  if (!context) return accessError();
-  const name = String(formData.get("name") ?? "").trim();
-  if (Array.from(name).length > 80) return { error: "Link names must be 80 characters or fewer." };
-  const { error } = await context.supabase.rpc("rename_school_join_link", {
-    p_link_id: linkId,
-    p_name: name || null,
-  });
-  if (error) return rpcError(error, "Could not rename this sign-up link. Please try again.");
-  revalidateSchool(slug);
-  redirect(`/school/${encodeURIComponent(slug)}?tab=links`);
 }
 
 export async function revokeSchoolLink(slug: string, linkId: string): Promise<ActionResult> {
