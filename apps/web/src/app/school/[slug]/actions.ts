@@ -83,6 +83,7 @@ export async function revokeSchoolLink(slug: string, linkId: string): Promise<Ac
   const { error } = await context.supabase.rpc("revoke_school_join_link", { p_link_id: linkId });
   if (error) return rpcError(error, "Could not revoke this sign-up link. Please try again.");
   revalidateSchool(slug);
+  revalidatePath(`/school/${slug}/links/${linkId}`);
   return { notice: "Sign-up link revoked." };
 }
 

@@ -90,15 +90,21 @@ export function StatusBadge({
   version: number | null;
 }) {
   const label =
-    status === "published" && version !== null
-      ? `Published, version ${version}`
-      : status === "published"
-        ? "Published"
-        : status === "archived"
-          ? "Archived"
-          : "Draft";
+    status === "active"
+      ? "Active"
+      : status === "expired"
+        ? "Expired"
+        : status === "revoked"
+          ? "Revoked"
+          : status === "published" && version !== null
+            ? `Published, version ${version}`
+            : status === "published"
+              ? "Published"
+              : status === "archived"
+                ? "Archived"
+                : "Draft";
   const tone =
-    status === "published"
+    status === "published" || status === "active"
       ? "border-world/40 bg-world-wash text-world"
       : "border-line-strong text-muted";
   return (

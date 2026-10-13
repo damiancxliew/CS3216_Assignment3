@@ -57,8 +57,7 @@ type JoinLinkRow = {
   revoked_by: string | null;
   name: string | null;
 };
-type JoinerRow = { user_id: string; joined_via_link: string | null; status: "active" | "removed" };
-type LinkJoiner = { user_id: string; name: string; removed: boolean };
+type JoinerRow = { joined_via_link: string | null };
 type InviteRow = { id: string; email: string; role: "admin" | "teacher"; created_at: string };
 type UsageRow = {
   adventure_id: string;
@@ -110,7 +109,7 @@ export default async function SchoolPage({
 
   let links: JoinLinkRow[] = [];
   let closedLinks: JoinLinkRow[] = [];
-  const joinersByLink = new Map<string, LinkJoiner[]>();
+  const joinerCountsByLink = new Map<string, number>();
   if (tab === "links") {
     const { data, error } = await supabase.from("organization_join_link")
       .select("id, token, created_at, expires_at, revoked_at, revoked_by, name")
@@ -126,21 +125,17 @@ export default async function SchoolPage({
       .sort((a, b) => Date.parse(b.revoked_at ?? b.expires_at) - Date.parse(a.revoked_at ?? a.expires_at));
 
     const { data: joinerData, error: joinerError } = await supabase.from("organization_member")
-      .select("user_id, joined_via_link, status")
+      .select("joined_via_link")
       .eq("organization_id", organizationId)
       .not("joined_via_link", "is", null)
       .returns<JoinerRow[]>();
     if (joinerError) console.error("could not load sign-up link joiners", joinerError);
     for (const joiner of joinerData ?? []) {
       if (!joiner.joined_via_link) continue;
-      const member = rosterById.get(joiner.user_id);
-      const group = joinersByLink.get(joiner.joined_via_link) ?? [];
-      group.push({
-        user_id: joiner.user_id,
-        name: member?.display_name || member?.email || "Student",
-        removed: joiner.status === "removed",
-      });
-      joinersByLink.set(joiner.joined_via_link, group);
+      joinerCountsByLink.set(
+        joiner.joined_via_link,
+        (joinerCountsByLink.get(joiner.joined_via_link) ?? 0) + 1,
+      );
     }
   }
 
@@ -224,7 +219,7 @@ export default async function SchoolPage({
               {links.length ? (
                 <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
                   {links.map((link) => (
-                    <li key={link.id} className="flex items-center gap-3 p-4">
+                    <li key={link.id} className="flex flex-wrap items-center gap-3 p-4">
                       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                         {link.name ? <p className="font-semibold text-ink">{link.name}</p> : null}
                         <code title={`/s/${link.token}`} className="block truncate rounded-control border border-line bg-paper px-3 py-2 text-sm text-ink">/s/{link.token}</code>
@@ -232,10 +227,16 @@ export default async function SchoolPage({
                           Expires in {relativeTime(Date.parse(link.expires_at) - Date.now())}
                         </time>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <LinkJoiners joiners={joinersByLink.get(link.id) ?? []} />
+                      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                        <LinkDetailsLink slug={slug} linkId={link.id} count={joinerCountsByLink.get(link.id) ?? 0} />
                         <SchoolLinkCopy token={link.token} />
-                        <ActionButton action={revokeSchoolLink.bind(null, slug, link.id)} label="Revoke" pendingLabel="Revoking…" variant="quiet" />
+                        <ConfirmActionButton
+                          action={revokeSchoolLink.bind(null, slug, link.id)}
+                          label="Revoke"
+                          confirmMessage={link.name
+                            ? `Revoke "${link.name}"? Students won't be able to join with it.`
+                            : "Revoke this sign-up link? Students won't be able to join with it."}
+                        />
                       </div>
                     </li>
                   ))}
@@ -270,7 +271,7 @@ export default async function SchoolPage({
                                   {timeAgo(Date.now() - Date.parse(closedAt))}
                                 </time>
                               </p>
-                              <LinkJoiners joiners={joinersByLink.get(link.id) ?? []} />
+                              <LinkDetailsLink slug={slug} linkId={link.id} count={joinerCountsByLink.get(link.id) ?? 0} />
                             </div>
                           </div>
                         </li>
@@ -436,26 +437,17 @@ function timeAgo(milliseconds: number) {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-function LinkJoiners({ joiners }: { joiners: LinkJoiner[] }) {
-  if (!joiners.length) return null;
+function LinkDetailsLink({ slug, linkId, count }: { slug: string; linkId: string; count: number }) {
   return (
-    <details className="relative shrink-0">
-      <summary
-        title="Students who joined with this link"
-        className="flex cursor-pointer list-none items-center gap-1 text-sm text-muted hover:text-ink [&::-webkit-details-marker]:hidden"
-      >
-        <Users aria-hidden className="h-4 w-4" />
-        <span>{joiners.length}</span>
-      </summary>
-      <ul className="absolute right-0 top-full z-20 mt-2 flex min-w-max flex-col gap-2 rounded-surface border border-line bg-surface p-3 text-sm text-ink shadow-lg">
-        {joiners.map((joiner) => (
-          <li key={joiner.user_id} className="flex items-center gap-2">
-            <span>{joiner.name}</span>
-            {joiner.removed ? <span className="rounded-full bg-paper px-1.5 py-0.5 text-xs text-muted">removed</span> : null}
-          </li>
-        ))}
-      </ul>
-    </details>
+    <Link
+      href={`/school/${encodeURIComponent(slug)}/links/${encodeURIComponent(linkId)}`}
+      aria-label="Link details and sign-ups"
+      title="Link details and sign-ups"
+      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-2.5 text-sm font-semibold text-muted transition-colors hover:border-ink hover:text-ink"
+    >
+      <Users aria-hidden className="h-4 w-4" />
+      <span>{count}</span>
+    </Link>
   );
 }
 
