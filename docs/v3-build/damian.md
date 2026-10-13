@@ -11,7 +11,7 @@ jobs and outside sources.
 `packages/generation/src/sources`, `apps/web/src/app/api/v3`, `apps/web/src/lib/play` (v3 parts), `apps/web/src/app/v3/play`,
 `apps/web/src/app/v3/teacher/{preview,summary}`, `components/play` (v3 parts), and the v3 options in `packages/game-client`
 and `packages/game-core`.
-**You depend on:** `play-contract` and `@engine/mock` from Kevin (D1 11:00); `engine.step` (Checkpoint 1); `ClassSummary`
+**You depend on:** `play-contract` and `@adventure/engine/mock` from Kevin (D1 11:00); `engine.step` (Checkpoint 1); `ClassSummary`
 (Checkpoint 2).
 **Others depend on you:** the `packages/jobs` interface (Yi Hao, D1 11:00) and a working runner (Checkpoint 1); the
 sources step (Yi Hao, Checkpoint 1); the session API (Checkpoint 1).
@@ -50,7 +50,7 @@ the route. It must not depend on the teacher's browser tab.
 - [ ] **H** Screen: document reader with passage selection [P11]
 - [ ] **L** Portraits by stance id [G4.2]
 - [ ] **L** Play route picks v2 or v3 by the adventure's version (v2 attempts keep working)
-- [ ] **L** Switch from `@engine/mock` to `@engine`
+- [ ] **L** Switch from `@adventure/engine/mock` to `@adventure/engine`
 
 **By Checkpoint 2 (D2 13:00)**
 - [ ] **M** Hints that escalate with time left [P10]
@@ -88,7 +88,7 @@ and [`../prd-v3/glossary.md`](../prd-v3/glossary.md) first. Requirement IDs in b
 - **v2 behaviour must not change.** Shared packages (`game-core`, `game-client`, `orchestration`, `generation`) get v3 options or modules added; v2 code paths are never altered or removed.
 - v3 maps have **no doors** (a map option); v2 maps keep theirs.
 - Outside sources: an allowlist by default, which teachers can extend [G13, T7]. The mechanism is the model's built-in web search with an allowed-domains filter (Damian may change this).
-- We stay on **Vercel and Supabase**. Only `main` deploys, to production, and Vercel functions are capped at 300 s (`maxDuration`).
+- We stay on **Vercel and Supabase**. `main` deploys previews; `production` deploys to prod and applies the hosted Supabase migrations (`apps/web/vercel.json`, the `migrate` job in `ci.yml`). Vercel functions are capped at 300 s (`maxDuration`), which every plan allows with Fluid compute on.
 
 **Rules:**
 - All v3 code sits behind the `V3_ENABLED` flag plus a test-school allowlist.
@@ -101,15 +101,17 @@ and [`../prd-v3/glossary.md`](../prd-v3/glossary.md) first. Requirement IDs in b
 **Contract packages (the only code everyone imports):**
 - `packages/spec-v3` (owner: Yi Hao): `AdventureSpec` zod schema and types; `validateSpec(spec)`; `checkSpec(spec)` (consistency checks [G12.4, G15]). It covers role, stages, rooms, characters (persona, stances, triggers, slants), discoveries (conditions, `core`, source label), documents (key passages, provenance), story events, defining moments (acts, outcome rules), endings (historical, alternative, secret), reveal and source labels [G1–G17].
 - `packages/play-contract` (owner: Kevin): zod types for
-  - `Action` = `message | insertNote | selectPassage | act | predict | interviewAnswer | endStage`
+  - `Action` = `message | insertNote | selectPassage | enterRoom | openDocument | closeDocument | endStage | act | predict | interviewAnswer | continue | tick`. `continue` moves past screens with no choice; `tick` (sent every ~15 s and on load) runs time rules. Slants are confronted by inserting the note from the contradicting passage or account; there is no "show document" action.
   - `PlayerView`: phase (`briefing | stage | epilogue | interview | reveal`), messages, notes, visible characters with their stance id, open documents, available acts, timer
-  - `GameEvent`: discovery, stanceChange, act, prediction, verdict, hint, flag
+  - `GameEvent`: discovery, stanceChange, challenge, act, outcome, prediction, verdict, hint, storyEvent, flag, phase
   - `ClassSummary` [T2.1–T2.7]
-- Engine interface (owner: Kevin), `packages/engine`:
+- Engine interface (owner: Kevin), `packages/engine` (`@adventure/engine`):
   - `createState(spec, seed)`
   - `step({ spec, state, action }, { llm, now, rng }) → { state, view, events }`
   - `project(spec, state) → PlayerView`, which never exposes undiscovered or hidden content
-  - `@engine/mock` returns scripted views for UI work.
+  - `runPostTurnCheck(spec, state, messageId, { llm })`: the post-turn check runs off the chat path. The API returns the reply first, then in `after()` runs the check and applies it with the internal `postTurn` action (exported by the engine, never accepted from a client), retrying on a revision conflict.
+  - `summarise(spec, attempts: { attemptId, events }[]) → ClassSummary`
+  - `@adventure/engine/mock` returns scripted views for UI work.
 - Job runner interface (owner: Damian), `packages/jobs`: `defineStep(name, run)`, `enqueue(jobId, steps, deps)`, `getProgress(jobId)`.
 - **Golden fixture:** `fixtures/golden-1819.json`, a hand-checked Singapore 1819 adventure valid against `spec-v3`. CI validates it on every PR.
 
