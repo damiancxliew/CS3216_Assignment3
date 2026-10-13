@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import type { ActionResult } from "@/app/teacher/actions";
 import { getViewer } from "@/lib/auth/viewer";
@@ -93,7 +94,7 @@ export async function renameSchoolLink(
   });
   if (error) return rpcError(error, "Could not rename this sign-up link. Please try again.");
   revalidateSchool(slug);
-  return { notice: "Sign-up link renamed." };
+  redirect(`/school/${encodeURIComponent(slug)}?tab=links`);
 }
 
 export async function revokeSchoolLink(slug: string, linkId: string): Promise<ActionResult> {
