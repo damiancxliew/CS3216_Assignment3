@@ -1,0 +1,12 @@
+[Unit]
+Description=Upload a compressed PostgreSQL backup to S3
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=app
+Group=app
+EnvironmentFile=/etc/app.env
+EnvironmentFile=/etc/db-admin.env
+ExecStart=/opt/app/bin/backup.sh

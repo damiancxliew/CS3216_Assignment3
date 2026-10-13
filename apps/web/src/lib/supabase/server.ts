@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+import { createDataApiProxy } from "./data-api";
+
 /**
  * Request-scoped Supabase client. Every query it makes runs as the signed-in
  * user, so RLS — not application code — decides what comes back.
@@ -8,7 +10,7 @@ import { cookies } from "next/headers";
 export async function createClient() {
   const cookieStore = await cookies();
 
-  return createServerClient(
+  const authClient = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -29,4 +31,11 @@ export async function createClient() {
       },
     },
   );
+
+  return createDataApiProxy(authClient, {
+    url: process.env.NEXT_PUBLIC_DATA_URL,
+    key: process.env.NEXT_PUBLIC_DATA_ANON_KEY,
+    keyName: "NEXT_PUBLIC_DATA_ANON_KEY",
+    accessToken: async () => (await authClient.auth.getSession()).data.session?.access_token ?? null,
+  });
 }

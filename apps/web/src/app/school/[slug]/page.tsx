@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { UserMinus, Users } from "lucide-react";
 
 import {
   changeStaffRole,
@@ -14,9 +15,10 @@ import {
 } from "./actions";
 import { ConfirmActionButton } from "./confirm-action";
 import { SchoolLinkCopy } from "./school-link-copy";
+import { StaffRoleSelect } from "./staff-role-select";
 import { ActionButton, ActionForm } from "@/components/action-form";
 import { SignInButton } from "@/components/sign-in-button";
-import { EmptyState, Field, Page, Section, SelectField, StatusBadge } from "@/components/ui";
+import { button, EmptyState, Field, Page, Section, SelectField, StatusBadge } from "@/components/ui";
 import { getViewer } from "@/lib/auth/viewer";
 import { resolveSchoolContext } from "@/lib/school/context";
 import { createClient } from "@/lib/supabase/server";
@@ -46,10 +48,21 @@ type MemberRow = {
   joined_at: string;
   removed_at: string | null;
 };
-type JoinLinkRow = { id: string; token: string; expires_at: string; revoked_at: string | null };
+type JoinLinkRow = {
+  id: string;
+  token: string;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  name: string | null;
+};
+type JoinerRow = { joined_via_link: string | null };
 type InviteRow = { id: string; email: string; role: "admin" | "teacher"; created_at: string };
 type UsageRow = {
   adventure_id: string;
+  share_token: string;
+  shareable: boolean;
   title: string;
   owner_id: string;
   owner_name: string | null;
@@ -94,12 +107,14 @@ export default async function SchoolPage({
   const roster = (rosterData ?? []) as unknown as MemberRow[];
   const students = roster.filter((member) => member.role === "student");
   const staff = roster.filter((member) => member.role === "admin" || member.role === "teacher");
+  const rosterById = new Map(roster.map((member) => [member.user_id, member]));
 
   let links: JoinLinkRow[] = [];
-  let closedLinkCount = 0;
+  let closedLinks: JoinLinkRow[] = [];
+  const joinerCountsByLink = new Map<string, number>();
   if (tab === "links") {
     const { data, error } = await supabase.from("organization_join_link")
-      .select("id, token, expires_at, revoked_at")
+      .select("id, token, created_at, expires_at, revoked_at, revoked_by, name")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .returns<JoinLinkRow[]>();
@@ -107,7 +122,23 @@ export default async function SchoolPage({
     const allLinks = data ?? [];
     const now = Date.now();
     links = allLinks.filter((link) => !link.revoked_at && Date.parse(link.expires_at) > now);
-    closedLinkCount = allLinks.length - links.length;
+    closedLinks = allLinks
+      .filter((link) => Boolean(link.revoked_at) || Date.parse(link.expires_at) <= now)
+      .sort((a, b) => Date.parse(b.revoked_at ?? b.expires_at) - Date.parse(a.revoked_at ?? a.expires_at));
+
+    const { data: joinerData, error: joinerError } = await supabase.from("organization_member")
+      .select("joined_via_link")
+      .eq("organization_id", organizationId)
+      .not("joined_via_link", "is", null)
+      .returns<JoinerRow[]>();
+    if (joinerError) console.error("could not load sign-up link joiners", joinerError);
+    for (const joiner of joinerData ?? []) {
+      if (!joiner.joined_via_link) continue;
+      joinerCountsByLink.set(
+        joiner.joined_via_link,
+        (joinerCountsByLink.get(joiner.joined_via_link) ?? 0) + 1,
+      );
+    }
   }
 
   let invitations: InviteRow[] = [];
@@ -162,9 +193,16 @@ export default async function SchoolPage({
                       action={removeStudent.bind(null, slug, student.user_id)}
                       label="Remove"
                       confirmMessage={`Remove ${student.display_name || student.email || "this student"} from your school?`}
+                      triggerClassName={`${button.quiet} w-fit min-w-28`}
                     />
                   ) : (
-                    <ActionButton action={restoreStudent.bind(null, slug, student.user_id)} label="Restore" pendingLabel="Restoring…" variant="quiet" />
+                    <ActionButton
+                      action={restoreStudent.bind(null, slug, student.user_id)}
+                      label="Restore"
+                      pendingLabel={<span className="sr-only">Restoring…</span>}
+                      variant="quiet"
+                      className={`${button.quiet} w-fit min-w-28`}
+                    />
                   )}
                 </li>
               ))}
@@ -183,28 +221,76 @@ export default async function SchoolPage({
               className="flex flex-col gap-4 rounded-surface border border-line bg-surface p-5"
             >
               <h3 className="font-bold text-ink">New link</h3>
+              <Field name="name" label="Name" optional placeholder="e.g. 3B History" maxLength={80} />
               <SelectField name="ttl_seconds" label="Link duration" options={TTL_OPTIONS} defaultValue="604800" />
             </ActionForm>
             <div className="flex min-w-0 flex-col gap-3">
               {links.length ? (
                 <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
                   {links.map((link) => (
-                    <li key={link.id} className="flex items-center gap-3 p-4">
+                    <li key={link.id} className="flex flex-wrap items-center gap-3 p-4">
                       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                        {link.name ? <p className="font-semibold text-ink">{link.name}</p> : null}
                         <code title={`/s/${link.token}`} className="block truncate rounded-control border border-line bg-paper px-3 py-2 text-sm text-ink">/s/{link.token}</code>
                         <time className="text-sm text-muted" dateTime={link.expires_at} title={new Date(link.expires_at).toLocaleString()}>
                           Expires in {relativeTime(Date.parse(link.expires_at) - Date.now())}
                         </time>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <SchoolLinkCopy token={link.token} />
-                        <ActionButton action={revokeSchoolLink.bind(null, slug, link.id)} label="Revoke" pendingLabel="Revoking…" variant="quiet" />
+                      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                        <LinkDetailsLink slug={slug} linkId={link.id} count={joinerCountsByLink.get(link.id) ?? 0} />
+                        <SchoolLinkCopy path={`/s/${link.token}`} />
+                        <ConfirmActionButton
+                          action={revokeSchoolLink.bind(null, slug, link.id)}
+                          label="Revoke"
+                          confirmMessage={link.name
+                            ? `Revoke "${link.name}"? Students won't be able to join with it.`
+                            : "Revoke this sign-up link? Students won't be able to join with it."}
+                        />
                       </div>
                     </li>
                   ))}
                 </ul>
               ) : <EmptyState title="No active sign-up links.">Create a link for students to join your school.</EmptyState>}
-              <p className="text-sm text-muted">{closedLinkCount} expired or revoked sign-up link{closedLinkCount === 1 ? "" : "s"}.</p>
+              {closedLinks.length ? (
+                <details className="rounded-surface border border-line bg-surface">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm text-muted [&::-webkit-details-marker]:hidden">
+                    {closedLinks.length} expired or revoked sign-up link{closedLinks.length === 1 ? "" : "s"}
+                  </summary>
+                  <ul className="flex flex-col divide-y divide-line">
+                    {closedLinks.map((link) => {
+                      const closedAt = link.revoked_at ?? link.expires_at;
+                      const revoker = link.revoked_by ? rosterById.get(link.revoked_by) : null;
+                      const revokerName = link.revoked_by
+                        ? revoker
+                          ? revoker.display_name || revoker.email || "school staff"
+                          : "a platform admin"
+                        : null;
+                      const status = link.revoked_at
+                        ? revokerName ? `Revoked by ${revokerName}` : "Revoked"
+                        : "Expired";
+                      return (
+                        <li key={link.id} className="flex items-center gap-3 px-4 py-3">
+                          <div className="flex min-w-0 flex-1 flex-col gap-1">
+                            {link.name ? <p className="font-semibold text-ink">{link.name}</p> : null}
+                            <code title={`/s/${link.token}`} className="block truncate text-sm text-muted">/s/{link.token}</code>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+                              <p>
+                                {status} ·{" "}
+                                <time dateTime={closedAt} title={new Date(closedAt).toLocaleString()}>
+                                  {timeAgo(Date.now() - Date.parse(closedAt))}
+                                </time>
+                              </p>
+                              <LinkDetailsLink slug={slug} linkId={link.id} count={joinerCountsByLink.get(link.id) ?? 0} />
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
+              ) : (
+                <p className="text-sm text-muted">0 expired or revoked sign-up links.</p>
+              )}
             </div>
           </div>
         </Section>
@@ -235,23 +321,34 @@ export default async function SchoolPage({
           <Section title="School staff">
             {staff.length ? (
               <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
-                {staff.map((member) => (
-                  <li key={member.user_id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                    <div>
-                      <p className="font-bold text-ink">{member.display_name || member.email || "Staff member"}</p>
-                      {member.display_name ? <p className="text-sm text-muted">{member.email}</p> : null}
-                      <p className="text-sm capitalize text-muted">{member.role}</p>
-                    </div>
-                    {adminRole && member.user_id !== viewerId ? (
-                      <div className="flex flex-wrap items-end gap-3">
-                        <ActionForm action={changeStaffRole.bind(null, slug, member.user_id)} submitLabel="Save role" pendingLabel="Saving…" className="flex flex-wrap items-end gap-2">
-                          <SelectField name="role" label={`Role for ${member.email ?? "staff member"}`} options={[{ value: "teacher", label: "Teacher" }, { value: "admin", label: "Admin" }]} defaultValue={member.role} />
-                        </ActionForm>
-                        <ActionButton action={removeStaffMember.bind(null, slug, member.user_id)} label="Remove from school" pendingLabel="Removing…" variant="quiet" />
+                {staff.map((member) => {
+                  const name = member.display_name || member.email || "Staff member";
+                  return (
+                    <li key={member.user_id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                      <div>
+                        <p className="font-bold text-ink">{name}</p>
+                        {member.display_name ? <p className="text-sm text-muted">{member.email}</p> : null}
+                        <p className="text-sm capitalize text-muted">{member.role}</p>
                       </div>
-                    ) : null}
-                  </li>
-                ))}
+                      {adminRole && member.user_id !== viewerId ? (
+                        <div className="flex items-center gap-2">
+                          <StaffRoleSelect
+                            action={changeStaffRole.bind(null, slug, member.user_id)}
+                            email={member.email}
+                            defaultValue={member.role === "admin" ? "admin" : "teacher"}
+                          />
+                          <ConfirmActionButton
+                            action={removeStaffMember.bind(null, slug, member.user_id)}
+                            label="Remove"
+                            icon={<UserMinus aria-hidden className="h-4 w-4" />}
+                            ariaLabel={`Remove ${name} from school`}
+                            confirmMessage={`Remove ${name} from the school?`}
+                          />
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             ) : <EmptyState title="No other staff members." />}
           </Section>
@@ -300,12 +397,27 @@ function AdventureUsageTable({ slug, adventures }: { slug: string; adventures: U
                   <td className="px-3 py-3 tabular-nums">{adventure.play_tokens.toLocaleString()}</td>
                   <td className="px-3 py-3 tabular-nums">{currency(Number(adventure.image_cost_usd))}</td>
                   <td className="px-3 py-3">
-                    <ActionButton
-                      action={setAdventureArchived.bind(null, slug, adventure.adventure_id, adventure.status !== "archived")}
-                      label={adventure.status === "archived" ? "Unarchive" : "Archive"}
-                      pendingLabel="Updating…"
-                      variant="quiet"
-                    />
+                    <div className="flex items-center gap-2">
+                      <SchoolLinkCopy
+                        path={`/join/${adventure.share_token}`}
+                        label={`Copy share link for ${adventure.title}`}
+                        disabledReason={
+                          adventure.shareable
+                            ? undefined
+                            : adventure.status === "archived"
+                              ? "Archived adventures can't be shared"
+                              : adventure.status !== "published"
+                                ? "Publish this adventure to share it"
+                                : "Artwork is still being prepared"
+                        }
+                      />
+                      <ActionButton
+                        action={setAdventureArchived.bind(null, slug, adventure.adventure_id, adventure.status !== "archived")}
+                        label={adventure.status === "archived" ? "Unarchive" : "Archive"}
+                        pendingLabel="Updating…"
+                        variant="quiet"
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -338,6 +450,29 @@ function relativeTime(milliseconds: number) {
   if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
   const days = Math.ceil(hours / 24);
   return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+function timeAgo(milliseconds: number) {
+  const minutes = Math.max(1, Math.floor(milliseconds / 60_000));
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function LinkDetailsLink({ slug, linkId, count }: { slug: string; linkId: string; count: number }) {
+  return (
+    <Link
+      href={`/school/${encodeURIComponent(slug)}/links/${encodeURIComponent(linkId)}`}
+      aria-label="Link details and sign-ups"
+      title="Link details and sign-ups"
+      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-2.5 text-sm font-semibold text-muted transition-colors hover:border-ink hover:text-ink"
+    >
+      <Users aria-hidden className="h-4 w-4" />
+      <span>{count}</span>
+    </Link>
+  );
 }
 
 function playTime(seconds: number) {

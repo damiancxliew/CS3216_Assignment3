@@ -51,7 +51,7 @@ const EDITOR_TABS: { id: EditorTab; label: string }[] = [
   { id: "attempts", label: "Attempts" },
   { id: "reflections", label: "Reflections" },
 ];
-const OVERSEER_TABS: EditorTab[] = ["attempts", "reflections"];
+const OVERSEER_TABS: EditorTab[] = ["attempts", "publish", "reflections"];
 
 type Adventure = {
   id: string;
@@ -257,7 +257,7 @@ export default async function AdventurePage({
             aria-current={tab === item.id ? "page" : undefined}
             className={`inline-flex min-h-11 shrink-0 items-center rounded-control px-4 text-base font-semibold transition-colors ${tab === item.id ? "bg-ink text-paper" : "text-muted hover:bg-surface hover:text-ink"}`}
           >
-            {item.label}
+            {isOverseer && item.id === "publish" ? "Share" : item.label}
           </Link>
         ))}
       </nav>
@@ -374,6 +374,7 @@ export default async function AdventurePage({
       ) : null}
 
       {tab === "publish" ? <>
+      {isOverseer ? null : <>
       <Section title="Release">
         <ul className="flex flex-col gap-1.5 text-base">
           {releaseChecklist.map((row) => (
@@ -411,6 +412,7 @@ export default async function AdventurePage({
       </Section>
 
       {dossier && dossierFor ? <DossierSections dossier={dossier} adventureId={id} specVersionId={dossierFor.id} isDraft={dossierFor === draft} view="artwork" watchForArtwork={dossierFor === published && !adventure.assets_ready && Boolean(process.env.OPENAI_API_KEY) && published.published_at !== null && Date.now() - Date.parse(published.published_at) < 600_000} /> : null}
+      </>}
 
       <Section title="Share with students">
         <SharePanel
@@ -418,6 +420,7 @@ export default async function AdventurePage({
           token={adventure.share_token}
           published={adventure.status === "published"}
           ready={adventure.assets_ready}
+          canReplace={!isOverseer}
         />
         {adventure.status === "published" ? (
           <Link href={`/join/${adventure.share_token}`} className={`${button.quiet} w-fit`}>
@@ -426,6 +429,7 @@ export default async function AdventurePage({
         ) : null}
       </Section>
 
+      {isOverseer ? null : (
       <details className="rounded-surface border border-line bg-surface px-4 py-3 sm:px-5">
         <summary className="cursor-pointer text-xl font-extrabold tracking-tight text-ink">Playing settings</summary>
         <div className="mt-4 flex flex-col gap-6">
@@ -473,6 +477,7 @@ export default async function AdventurePage({
           </Section>
         </div>
       </details>
+      )}
       </> : null}
 
       {tab === "attempts" ? (

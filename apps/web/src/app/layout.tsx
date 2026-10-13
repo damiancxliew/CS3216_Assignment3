@@ -80,8 +80,12 @@ export default function RootLayout({
             {children}
           </Analytics>
         </ThemeProvider>
-        <VercelAnalytics />
-        <SpeedInsights />
+        {process.env.VERCEL ? (
+          <>
+            <VercelAnalytics />
+            <SpeedInsights />
+          </>
+        ) : null}
       </body>
     </html>
   );

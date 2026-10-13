@@ -442,8 +442,12 @@ export default async function AdminPage({
               <nav aria-label="User pages" className="flex items-center justify-between">
                 <span className="text-sm text-muted">Page {page} of {Math.max(1, Math.ceil(totalUsers / 50))}</span>
                 <div className="flex gap-3">
-                  {page > 1 ? <Link className="underline underline-offset-4" href={`/admin?tab=users&page=${page - 1}`}>Previous</Link> : null}
-                  {page * 50 < totalUsers ? <Link className="underline underline-offset-4" href={`/admin?tab=users&page=${page + 1}`}>Next</Link> : null}
+                  {page > 1
+                    ? <Link className="underline underline-offset-4" href={`/admin?tab=users&page=${page - 1}`}>Previous</Link>
+                    : <span aria-disabled="true" className="cursor-not-allowed text-muted opacity-50">Previous</span>}
+                  {page * 50 < totalUsers
+                    ? <Link className="underline underline-offset-4" href={`/admin?tab=users&page=${page + 1}`}>Next</Link>
+                    : <span aria-disabled="true" className="cursor-not-allowed text-muted opacity-50">Next</span>}
                 </div>
               </nav>
             </>
