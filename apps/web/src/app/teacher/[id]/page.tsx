@@ -141,7 +141,7 @@ export default async function AdventurePage({
     }
   }
   if (!adventure) notFound();
-  const tab = isOverseer ? "attempts" : requestedTab;
+  const tab = isOverseer ? (requestedTab === "publish" ? "publish" : "attempts") : requestedTab;
 
   const { data: versionRows } = isOverseer ? { data: null } : await supabase
       .from("spec_version")
@@ -244,14 +244,14 @@ export default async function AdventurePage({
       width="wide"
     >
       <nav aria-label="Adventure sections" className="flex gap-2 overflow-x-auto border-b border-line pb-2">
-        {(isOverseer ? EDITOR_TABS.filter((item) => item.id === "attempts") : EDITOR_TABS).map((item) => (
+        {(isOverseer ? EDITOR_TABS.filter((item) => item.id === "attempts" || item.id === "publish") : EDITOR_TABS).map((item) => (
           <Link
             key={item.id}
             href={`/teacher/${id}?tab=${item.id}`}
             aria-current={tab === item.id ? "page" : undefined}
             className={`inline-flex min-h-11 shrink-0 items-center rounded-control px-4 text-base font-semibold transition-colors ${tab === item.id ? "bg-ink text-paper" : "text-muted hover:bg-surface hover:text-ink"}`}
           >
-            {item.label}
+            {isOverseer && item.id === "publish" ? "Share" : item.label}
           </Link>
         ))}
       </nav>
@@ -368,6 +368,7 @@ export default async function AdventurePage({
       ) : null}
 
       {tab === "publish" ? <>
+      {isOverseer ? null : <>
       <Section title="Release">
         <ul className="flex flex-col gap-1.5 text-base">
           {releaseChecklist.map((row) => (
@@ -405,6 +406,7 @@ export default async function AdventurePage({
       </Section>
 
       {dossier && dossierFor ? <DossierSections dossier={dossier} adventureId={id} specVersionId={dossierFor.id} isDraft={dossierFor === draft} view="artwork" watchForArtwork={dossierFor === published && !adventure.assets_ready && Boolean(process.env.OPENAI_API_KEY) && published.published_at !== null && Date.now() - Date.parse(published.published_at) < 600_000} /> : null}
+      </>}
 
       <Section title="Share with students">
         <SharePanel
@@ -412,6 +414,7 @@ export default async function AdventurePage({
           token={adventure.share_token}
           published={adventure.status === "published"}
           ready={adventure.assets_ready}
+          canReplace={!isOverseer}
         />
         {adventure.status === "published" ? (
           <Link href={`/join/${adventure.share_token}`} className={`${button.quiet} w-fit`}>
@@ -420,6 +423,7 @@ export default async function AdventurePage({
         ) : null}
       </Section>
 
+      {isOverseer ? null : (
       <details className="rounded-surface border border-line bg-surface px-4 py-3 sm:px-5">
         <summary className="cursor-pointer text-xl font-extrabold tracking-tight text-ink">Playing settings</summary>
         <div className="mt-4 flex flex-col gap-6">
@@ -467,6 +471,7 @@ export default async function AdventurePage({
           </Section>
         </div>
       </details>
+      )}
       </> : null}
 
       {tab === "attempts" ? (

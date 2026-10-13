@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { rotateShareToken } from "../actions";
 import { ActionButton } from "@/components/action-form";
-import { button } from "@/components/ui";
+import { button, StableLabel } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
 
@@ -18,11 +18,13 @@ export function SharePanel({
   token,
   published,
   ready,
+  canReplace = true,
 }: {
   adventureId: string;
   token: string;
   published: boolean;
   ready: boolean;
+  canReplace?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
@@ -62,7 +64,7 @@ export function SharePanel({
           disabled={!published || !ready}
           className={`${button.quiet} sm:shrink-0`}
         >
-          {copied ? "Copied" : "Copy link"}
+          <StableLabel label="Copy link" pending={copied} pendingLabel="Copied" />
         </button>
       </div>
       <div aria-live="polite">
@@ -74,12 +76,14 @@ export function SharePanel({
           <p className="text-sm text-muted">Students can’t use this link until the adventure is published.</p>
         )}
       </div>
-      <div className="flex flex-col items-start gap-2 border-t border-line pt-4">
-        <ActionButton action={rotateShareToken.bind(null, adventureId)} label="Replace the link" pendingLabel="Replacing…" variant="quiet" />
-        <p className="max-w-[56ch] text-sm text-muted">
-          The old link stops working immediately. Students already playing keep their attempts.
-        </p>
-      </div>
+      {canReplace ? (
+        <div className="flex flex-col items-start gap-2 border-t border-line pt-4">
+          <ActionButton action={rotateShareToken.bind(null, adventureId)} label="Replace the link" pendingLabel="Replacing…" variant="quiet" />
+          <p className="max-w-[56ch] text-sm text-muted">
+            The old link stops working immediately. Students already playing keep their attempts.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
