@@ -90,15 +90,21 @@ export function StatusBadge({
   version: number | null;
 }) {
   const label =
-    status === "published" && version !== null
-      ? `Published, version ${version}`
-      : status === "published"
-        ? "Published"
-        : status === "archived"
-          ? "Archived"
-          : "Draft";
+    status === "active"
+      ? "Active"
+      : status === "expired"
+        ? "Expired"
+        : status === "revoked"
+          ? "Revoked"
+          : status === "published" && version !== null
+            ? `Published, version ${version}`
+            : status === "published"
+              ? "Published"
+              : status === "archived"
+                ? "Archived"
+                : "Draft";
   const tone =
-    status === "published"
+    status === "published" || status === "active"
       ? "border-world/40 bg-world-wash text-world"
       : "border-line-strong text-muted";
   return (
@@ -117,6 +123,7 @@ export function Field({
   inputMode,
   min,
   step,
+  maxLength,
   required,
   form,
   optional,
@@ -133,6 +140,7 @@ export function Field({
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   min?: number;
   step?: React.InputHTMLAttributes<HTMLInputElement>["step"];
+  maxLength?: React.InputHTMLAttributes<HTMLInputElement>["maxLength"];
   required?: boolean;
   form?: string;
   optional?: boolean;
@@ -153,6 +161,7 @@ export function Field({
           inputMode={inputMode}
           min={min}
           step={step}
+          maxLength={maxLength}
           required={required}
           form={form}
           placeholder={placeholder}
