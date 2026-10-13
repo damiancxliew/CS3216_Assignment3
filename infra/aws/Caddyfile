@@ -1,0 +1,14 @@
+{$SITE_DOMAIN} {
+	handle_path /rest/v1/* {
+		reverse_proxy 127.0.0.1:3001 {
+			transport http {
+				response_header_timeout 300s
+			}
+		}
+	}
+	reverse_proxy 127.0.0.1:3000 {
+		transport http {
+			response_header_timeout 300s
+		}
+	}
+}

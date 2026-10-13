@@ -12,7 +12,8 @@ import { generateAssets, pendingManifest, playableAssetEligibility, type ImageSe
 import { validatePublishedSpec } from "@adventure/generation/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { saveAssetRecord, saveManifest, SupabaseAssetCache, SupabaseAssetStore } from "./supabase";
+import { createAssetStore } from "./store";
+import { saveAssetRecord, saveManifest, SupabaseAssetCache } from "./supabase";
 
 export interface GenerateForVersionOptions {
   admin: SupabaseClient;
@@ -59,7 +60,7 @@ export async function generateAssetsForVersion(options: GenerateForVersionOption
     {
       images: options.images,
       cache: new SupabaseAssetCache(options.admin),
-      store: new SupabaseAssetStore(options.admin),
+      store: createAssetStore(options.admin),
       quality,
       ignoreCache: options.ignoreCache,
       annotator: options.annotator,

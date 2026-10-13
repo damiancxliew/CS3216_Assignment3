@@ -35,6 +35,33 @@ export function Pending({ children }: { children: React.ReactNode }) {
   );
 }
 
+export function StableLabel({
+  label,
+  pending,
+  pendingLabel,
+}: {
+  label: React.ReactNode;
+  pending: boolean;
+  pendingLabel: React.ReactNode;
+}) {
+  return (
+    <span className="inline-grid place-items-center">
+      <span
+        aria-hidden={pending}
+        className={`col-start-1 row-start-1 inline-flex items-center justify-center ${pending ? "invisible" : ""}`}
+      >
+        {label}
+      </span>
+      <span
+        aria-hidden={!pending}
+        className={`col-start-1 row-start-1 inline-flex items-center justify-center gap-2 ${pending ? "" : "invisible"}`}
+      >
+        {pendingLabel}
+      </span>
+    </span>
+  );
+}
+
 export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg className={`${className} shrink-0 animate-spin`} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -90,15 +117,21 @@ export function StatusBadge({
   version: number | null;
 }) {
   const label =
-    status === "published" && version !== null
-      ? `Published, version ${version}`
-      : status === "published"
-        ? "Published"
-        : status === "archived"
-          ? "Archived"
-          : "Draft";
+    status === "active"
+      ? "Active"
+      : status === "expired"
+        ? "Expired"
+        : status === "revoked"
+          ? "Revoked"
+          : status === "published" && version !== null
+            ? `Published, version ${version}`
+            : status === "published"
+              ? "Published"
+              : status === "archived"
+                ? "Archived"
+                : "Draft";
   const tone =
-    status === "published"
+    status === "published" || status === "active"
       ? "border-world/40 bg-world-wash text-world"
       : "border-line-strong text-muted";
   return (
@@ -117,6 +150,7 @@ export function Field({
   inputMode,
   min,
   step,
+  maxLength,
   required,
   form,
   optional,
@@ -133,6 +167,7 @@ export function Field({
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   min?: number;
   step?: React.InputHTMLAttributes<HTMLInputElement>["step"];
+  maxLength?: React.InputHTMLAttributes<HTMLInputElement>["maxLength"];
   required?: boolean;
   form?: string;
   optional?: boolean;
@@ -153,6 +188,7 @@ export function Field({
           inputMode={inputMode}
           min={min}
           step={step}
+          maxLength={maxLength}
           required={required}
           form={form}
           placeholder={placeholder}
