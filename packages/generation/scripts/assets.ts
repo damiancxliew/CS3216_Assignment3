@@ -6,7 +6,7 @@
  * `--kind` draws only that kind from the playable list (e.g. every stage opening, with its scene description).
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 
 import { InMemoryAssetCache } from '../src/assets/memory'
 import { OpenAiImageService } from '../src/assets/openai-images'
@@ -33,6 +33,16 @@ const store: AssetStore = {
     const path = join(outDir, key.replace(/[\\/]/g, '_'))
     await writeFile(path, bytes)
     return path
+  },
+  async download(url) {
+    const path = resolve(url)
+    const outputRoot = resolve(outDir)
+    if (path !== outputRoot && !path.startsWith(`${outputRoot}${sep}`)) return null
+    try {
+      return new Uint8Array(await readFile(path))
+    } catch {
+      return null
+    }
   },
 }
 const images = new OpenAiImageService()

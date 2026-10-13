@@ -1,0 +1,19 @@
+[Unit]
+Description=Caddy reverse proxy
+After=network-online.target app.service postgrest.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=caddy
+Group=caddy
+EnvironmentFile=/etc/app.env
+ExecStartPre=/usr/local/bin/caddy validate --config /etc/caddy/Caddyfile
+ExecStart=/usr/local/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target

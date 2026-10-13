@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
+  ...(process.env.NEXT_OUTPUT === "standalone" ? {
+    output: "standalone",
+    outputFileTracingRoot: path.resolve(__dirname, "../.."),
+  } : {}),
   // The workspace packages ship TypeScript source, not a build artifact.
   transpilePackages: [
     "@adventure/generation",

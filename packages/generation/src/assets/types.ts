@@ -74,4 +74,5 @@ export type CachedAsset = { url: string; model: string; scene?: CutsceneScene | 
 /** Where image bytes go (object storage). */
 export interface AssetStore {
   put(key: string, bytes: Uint8Array, mimeType: string): Promise<string>
+  download(url: string): Promise<Uint8Array | null>
 }
