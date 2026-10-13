@@ -391,9 +391,19 @@ function AdventureUsageTable({ slug, adventures }: { slug: string; adventures: U
                   <td className="px-3 py-3 tabular-nums">{currency(Number(adventure.image_cost_usd))}</td>
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-2">
-                      {adventure.shareable ? (
-                        <SchoolLinkCopy path={`/join/${adventure.share_token}`} label={`Copy share link for ${adventure.title}`} />
-                      ) : null}
+                      <SchoolLinkCopy
+                        path={`/join/${adventure.share_token}`}
+                        label={`Copy share link for ${adventure.title}`}
+                        disabledReason={
+                          adventure.shareable
+                            ? undefined
+                            : adventure.status === "archived"
+                              ? "Archived adventures can't be shared"
+                              : adventure.status !== "published"
+                                ? "Publish this adventure to share it"
+                                : "Artwork is still being prepared"
+                        }
+                      />
                       <ActionButton
                         action={setAdventureArchived.bind(null, slug, adventure.adventure_id, adventure.status !== "archived")}
                         label={adventure.status === "archived" ? "Unarchive" : "Archive"}
