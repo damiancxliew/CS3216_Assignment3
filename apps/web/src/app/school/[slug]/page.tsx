@@ -61,6 +61,8 @@ type JoinerRow = { joined_via_link: string | null };
 type InviteRow = { id: string; email: string; role: "admin" | "teacher"; created_at: string };
 type UsageRow = {
   adventure_id: string;
+  share_token: string;
+  shareable: boolean;
   title: string;
   owner_id: string;
   owner_name: string | null;
@@ -229,7 +231,7 @@ export default async function SchoolPage({
                       </div>
                       <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                         <LinkDetailsLink slug={slug} linkId={link.id} count={joinerCountsByLink.get(link.id) ?? 0} />
-                        <SchoolLinkCopy token={link.token} />
+                        <SchoolLinkCopy path={`/s/${link.token}`} />
                         <ConfirmActionButton
                           action={revokeSchoolLink.bind(null, slug, link.id)}
                           label="Revoke"
@@ -388,12 +390,27 @@ function AdventureUsageTable({ slug, adventures }: { slug: string; adventures: U
                   <td className="px-3 py-3 tabular-nums">{adventure.play_tokens.toLocaleString()}</td>
                   <td className="px-3 py-3 tabular-nums">{currency(Number(adventure.image_cost_usd))}</td>
                   <td className="px-3 py-3">
-                    <ActionButton
-                      action={setAdventureArchived.bind(null, slug, adventure.adventure_id, adventure.status !== "archived")}
-                      label={adventure.status === "archived" ? "Unarchive" : "Archive"}
-                      pendingLabel="Updating…"
-                      variant="quiet"
-                    />
+                    <div className="flex items-center gap-2">
+                      <SchoolLinkCopy
+                        path={`/join/${adventure.share_token}`}
+                        label={`Copy share link for ${adventure.title}`}
+                        disabledReason={
+                          adventure.shareable
+                            ? undefined
+                            : adventure.status === "archived"
+                              ? "Archived adventures can't be shared"
+                              : adventure.status !== "published"
+                                ? "Publish this adventure to share it"
+                                : "Artwork is still being prepared"
+                        }
+                      />
+                      <ActionButton
+                        action={setAdventureArchived.bind(null, slug, adventure.adventure_id, adventure.status !== "archived")}
+                        label={adventure.status === "archived" ? "Unarchive" : "Archive"}
+                        pendingLabel="Updating…"
+                        variant="quiet"
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}

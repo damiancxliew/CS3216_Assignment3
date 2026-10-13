@@ -11,6 +11,8 @@ type Adventure = { id: string; shareToken: string; versionId: string };
 type RosterRow = { user_id: string; role: string; status: string; email: string; joined_at: string; removed_at: string | null };
 type UsageRow = {
   adventure_id: string;
+  share_token: string;
+  shareable: boolean;
   attempts: number;
   students: number;
   completed: number;
@@ -100,6 +102,15 @@ describe("school_usage", () => {
   it("returns exact activity totals, zeroes for idle adventures, and denies teachers", async () => {
     const adventure = await createPublishedAdventure(teacher.userId, schoolId, "Usage adventure");
     const idle = await createPublishedAdventure(teacher.userId, schoolId, "Idle adventure");
+    const { error: readyError } = await admin.from("adventure")
+      .update({ status: "published", published_version: 1, assets_ready: true })
+      .eq("id", adventure.id);
+    expect(readyError).toBeNull();
+    const { data: draft, error: draftError } = await admin.from("adventure")
+      .insert({ owner_id: teacher.userId, organization_id: schoolId, title: "Draft usage adventure", status: "draft", assets_ready: true })
+      .select("id")
+      .single();
+    expect(draftError).toBeNull();
     const { data: attemptOne, error: joinOneError } = await studentOne.client.rpc("join_adventure", { p_token: adventure.shareToken });
     const { data: attemptTwo, error: joinTwoError } = await studentTwo.client.rpc("join_adventure", { p_token: adventure.shareToken });
     expect(joinOneError).toBeNull();
@@ -121,12 +132,14 @@ describe("school_usage", () => {
     expect(error).toBeNull();
     const rows = data as UsageRow[];
     expect(rows.find((row) => row.adventure_id === adventure.id)).toMatchObject({
+      share_token: adventure.shareToken, shareable: true,
       attempts: 2, students: 2, completed: 1, play_seconds: 75, play_tokens: 350,
     });
     expect(Number(rows.find((row) => row.adventure_id === adventure.id)?.image_cost_usd)).toBeCloseTo(0.03, 5);
     expect(rows.find((row) => row.adventure_id === idle.id)).toMatchObject({
       attempts: 0, students: 0, completed: 0, play_seconds: 0, play_tokens: 0, image_cost_usd: 0,
     });
+    expect(rows.find((row) => row.adventure_id === draft!.id)).toMatchObject({ shareable: false });
     expect((await teacher.client.rpc("school_usage", { p_org: schoolId })).error?.code).toBe("42501");
     expect((await otherAdmin.client.rpc("school_usage", { p_org: schoolId })).error?.code).toBe("42501");
   });

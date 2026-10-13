@@ -106,7 +106,7 @@ export default async function SchoolLinkDetailPage({
             >
               /s/{link.token}
             </code>
-            <SchoolLinkCopy token={link.token} />
+            <SchoolLinkCopy path={`/s/${link.token}`} />
             <StatusBadge status={status} version={null} />
           </div>
 
