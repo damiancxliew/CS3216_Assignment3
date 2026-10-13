@@ -1,0 +1,23 @@
+{
+  "name": "trailer",
+  "private": true,
+  "description": "Concept trailer for Historical Adventures v3, built with Remotion.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Trailer renders/LATEST.mp4 --codec=h264 --crf=18",
+    "still": "remotion still src/index.ts Trailer out/still.png --frame=60",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.532",
+    "@remotion/google-fonts": "4.0.532",
+    "@remotion/transitions": "4.0.532",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.532"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.8",
+    "typescript": "5.9.3"
+  }
+}
