@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { rotateShareToken } from "../actions";
 import { ActionButton } from "@/components/action-form";
-import { button } from "@/components/ui";
+import { button, StableLabel } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
 
@@ -64,7 +64,7 @@ export function SharePanel({
           disabled={!published || !ready}
           className={`${button.quiet} sm:shrink-0`}
         >
-          {copied ? "Copied" : "Copy link"}
+          <StableLabel label="Copy link" pending={copied} pendingLabel="Copied" />
         </button>
       </div>
       <div aria-live="polite">
