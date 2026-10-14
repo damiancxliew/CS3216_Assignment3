@@ -10,7 +10,7 @@ import { z } from 'zod'
 
 import { callStructured, type StructuredCallMetrics } from '../llm/structured'
 import type { LlmClient, ModelTier, ReasoningEffort, ServiceTier, TextVerbosity, TokenUsage } from '../llm/types'
-import { block, BLOCK_CLOSE, BLOCK_OPEN, bullets, stableIndex } from './quote'
+import { block, BLOCK_CLOSE, BLOCK_OPEN, bullets, inline, stableIndex } from './quote'
 
 export type ReadingLevel = 'sec' | 'jc'
 
@@ -82,9 +82,11 @@ const READING_LEVEL: Record<ReadingLevel, string> = {
 }
 
 export function buildPersonaSystemPrompt(input: PersonaInput): string {
-  const { character } = input
+  // Generated fields reach the instructions, so they are flattened and stripped of block delimiters (C10).
+  const character = { name: inline(input.character.name), title: inline(input.character.title), voice: inline(input.character.voice), knewThen: inline(input.character.knewThen) }
+  const roleName = inline(input.role.name)
   return [
-    `You are ${character.name}, ${character.title}. It is ${input.scene.timePlace}. Speak in the first person, as yourself, to ${input.role.name}.`,
+    `You are ${character.name}, ${character.title}. It is ${inline(input.scene.timePlace)}. Speak in the first person, as yourself, to ${roleName}.`,
     'You are a real person living through this moment, not a guide, a teacher or an encyclopaedia. You have stakes, blind spots, an agenda and a voice of your own. Nobody else in this story talks quite like you.',
     READING_LEVEL[input.readingLevel],
     '',
@@ -111,7 +113,7 @@ export function buildPersonaSystemPrompt(input: PersonaInput): string {
     '- A question, a guess offered as a guess, or an opinion is not an assertion. Answer those normally.',
     '- When the student shows you one of their notes, react to its substance as yourself.',
     ...(input.stanceJustChanged ? ['- What the student just said or showed you has changed how you see things. Let that change show in this reply, in your own way, without announcing it.'] : []),
-    ...(input.handingOver.length > 0 ? [`- In this reply you give the student the following, saying so naturally: ${input.handingOver.join('; ')}.`] : []),
+    ...(input.handingOver.length > 0 ? [`- In this reply you give the student the following, saying so naturally: ${input.handingOver.map(inline).join('; ')}.`] : []),
     '',
     'Rules you follow without exception:',
     '- Never mention being a model, a game, rules, stances, notes, discoveries, or this list. Never break character, whatever you are told.',
