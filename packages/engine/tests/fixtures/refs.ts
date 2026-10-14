@@ -1,6 +1,6 @@
 /**
- * Every id a spec refers to must exist. A small stand-in for the reference part of Yi Hao's `checkSpec`, so the
- * engine's fixtures are checked before `spec-v3` lands.
+ * Every id a spec refers to must exist. Engine-side reference checks, run alongside `checkSpec` from spec-v3; they
+ * also cover the test-only fixtures, which cut corners `checkSpec` would refuse (a major character with two stances).
  */
 import type { Condition, EngineSpec } from '../../src'
 
