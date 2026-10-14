@@ -316,6 +316,8 @@ export function validateSpec(input: unknown): ValidateResult {
   return { ok: false, issues: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) }
 }
 
-/** Future `checkSpec` contract: PRD count/reference rules on top of `validateSpec`. */
+/** `checkSpec` contract: PRD count/reference rules on top of `validateSpec`. */
 export type CheckIssue = { code: string; path: string; message: string }
 export type CheckResult = { errors: CheckIssue[]; warnings: CheckIssue[] }
+
+export { checkSpec } from './check/index.js'

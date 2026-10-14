@@ -15,7 +15,8 @@ export const MAX_INTERVIEW_TEXT_LENGTH = 1500
 export const MAX_EVIDENCE_NOTES = 5
 
 const text = (max: number) => z.string().trim().min(1).max(max)
-const offset = z.number().int().nonnegative()
+/** Documents are at most a few thousand characters; the bound keeps a hostile offset from reaching the engine. */
+const offset = z.number().int().nonnegative().max(100_000)
 
 /** Free conversation with a character in the student's room. */
 export const MessageAction = z.strictObject({
