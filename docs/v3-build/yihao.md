@@ -71,7 +71,7 @@ and [`../prd-v3/glossary.md`](../prd-v3/glossary.md) first. Requirement IDs in b
 - **v2 behaviour must not change.** Shared packages (`game-core`, `game-client`, `orchestration`, `generation`) get v3 options or modules added; v2 code paths are never altered or removed.
 - v3 maps have **no doors** (a map option); v2 maps keep theirs.
 - Outside sources: an allowlist by default, which teachers can extend [G13, T7]. The mechanism is the model's built-in web search with an allowed-domains filter (Damian may change this).
-- We stay on **Vercel and Supabase**. `main` deploys previews; `production` deploys to prod and applies the hosted Supabase migrations (`apps/web/vercel.json`, the `migrate` job in `ci.yml`). Vercel functions are capped at 300 s (`maxDuration`), which every plan allows with Fluid compute on.
+- We stay on **Vercel and Supabase**. `main` deploys previews; `production` deploys to prod and applies the hosted Supabase migrations (`apps/web/vercel.json`, the `migrate` job in `ci.yml`). Vercel functions are capped at 300 s (`maxDuration`); Fluid compute is on, so every step may use the full 300 s.
 
 **Rules:**
 - All v3 code sits behind the `V3_ENABLED` flag plus a test-school allowlist.

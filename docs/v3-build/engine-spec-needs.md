@@ -15,7 +15,7 @@
 ## Top level
 | Field | Type | Used for |
 |---|---|---|
-| `id` | string | Seeding the anonymised-answer pick in the class summary |
+| `id`, `title` | string | Seeding the anonymised-answer pick in the class summary |
 | `readingLevel` | `'sec' \| 'jc'` | Persona and check prompts (G16.2) |
 | `timer` | `{ enabled: boolean, stageMinutes: number[] }` (one entry per stage) | Timer and final call (P1) |
 | `role` | see below | Briefing, the persona prompt ("how they see you"), note voice |
@@ -26,6 +26,8 @@
 | `triggers[]` | see below | Stance changes |
 | `definingMoments[]` | see below | Acts, outcomes, endings closed |
 | `endings[]` | see below | Epilogue, Interview |
+| `reveal` | `{ whatHappened, interpretations[], corrections[], couldHaveGone[] }` | Reveal assembly (Damian) [E3] |
+| `teacherQuestions` | `string[]` | Shown after the reveal [T1] |
 
 ## `role` [G3]
 `name`, `position`, `relationships: string[]`, `reputation`, `stakes`,
@@ -54,6 +56,7 @@ opening situation shown in the briefing).
 | `initialStanceId` | string \| null | Null for minors |
 | `slants[]` | `{ id, claim, contradictedBy: discoveryId[] }` | Majors and minors. `claim` is what the character pushes; `contradictedBy` lists discoveries whose notes, when inserted, count as confronting the slant (P13.5, P13.6) |
 | `slants[].unlocksDiscoveryId` | string? | Minors only: the discovery unlocked when the slant is confronted (P13.6) |
+| `trustNotice` | string? | The subtle notice when two challenged claims cost a stance. Default: "{name} seems to trust you a little less." |
 
 ## `discoveries[]` [G5, G5.3, P7, P8]
 | Field | Type | Notes |
@@ -62,6 +65,7 @@ opening situation shown in the briefing).
 | `holder` | `{ characterId } \| { documentId, keyPassageId }` | Core discoveries: majors or documents only |
 | `text` | string | Canonical statement, used by the post-turn check to decide whether a reply conveyed it |
 | `note` | string | The note the student gets, in the role's voice (P7.2) |
+| `topic` | string? | A short topic phrase ("his fears about Riau") the character is told to hold back while the condition isn't met. Never the content. Omitted: the character isn't told about it at all |
 | `core` | boolean | |
 | `condition` | `Condition?` | Reveal condition (earlier discoveries and/or a stance). Omitted: always revealable |
 | `sourceLabel` | string | Shown in the reveal breakdown |
@@ -92,13 +96,13 @@ G4.3) is built into the engine and needs no data.
 | `nudge` | string | What a character says if core discoveries are missing (P9.6) |
 | `finalCallNarration` | string | Shown when the timer brings the moment to the student (P1.2) |
 | `acts[]` | `{ id, text, deception?: true, reaction, secret?: { unlock: Condition[], minMet: number } }` | 2–4 visible acts. `reaction` is the characters' immediate reaction (P9.7). A secret act appears only when at least `minMet` (≥ 2) of its `unlock` conditions hold (P9.11) |
-| `outcomes[]` | `{ id, summary, predictionText, because, closesEndingIds: endingId[], endingId?, secret?: true }` | 3–4 per moment. `predictionText` is the one-tap prediction (P3.3); `because` explains the rule (P3.5). Final moment: every outcome has an `endingId` |
+| `outcomes[]` | `{ id, summary, predictionText, because, closesEndingIds: endingId[], endingId?, secret?: true, historical?: true }` | 3–4 per moment. `predictionText` is the one-tap prediction (P3.3); `because` explains the rule (P3.5). Final moment: every outcome has an `endingId`. `historical` marks what actually happened at this moment, for the reveal's "your path vs history" |
 | `rules[]` | `{ actId, when?: Condition, outcomeId }` | Ordered; the first match wins. Every act needs one rule without `when` as its fallback, so every act and situation leads to an outcome (G15) |
 
 An act is offered only while at least one outcome its rules can produce is not a closed ending (P9.2, P9.10).
 
 ## `endings[]` [G6.4, E1, E2]
-`id`, `type: 'historical' | 'alternative' | 'secret'`, `summary`, `epilogue`,
+`id`, `type: 'historical' | 'alternative' | 'secret'`, `title`, `summary`, `epilogue`,
 `interview: { interviewer, question, verdicts: { id, text, counterPoints: (discoveryId | documentId)[] }[], generalCounter }`,
 `sourceLabel`.
 
