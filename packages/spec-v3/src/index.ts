@@ -321,3 +321,6 @@ export type CheckIssue = { code: string; path: string; message: string }
 export type CheckResult = { errors: CheckIssue[]; warnings: CheckIssue[] }
 
 export { checkSpec } from './check/index.js'
+export { checkSkeleton } from './check/skeleton.js'
+export { SkeletonSpec, validateSkeleton } from './skeleton.js'
+export type { SkeletonShape, ValidateSkeletonResult } from './skeleton.js'

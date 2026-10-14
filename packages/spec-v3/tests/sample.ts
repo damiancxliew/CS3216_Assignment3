@@ -75,6 +75,7 @@ export const sampleSpec = {
       slants: [{ id: 'slant-2', claim: 'Everyone welcomed the British', contradictedBy: ['disc-2'], unlocksDiscoveryId: 'disc-3' }],
     },
   ],
+  sources: [{ id: 'src-1', title: 'Treaty of 6 February 1819', origin: 'teacher' }],
   discoveries: [
     {
       id: 'disc-1',
@@ -84,6 +85,7 @@ export const sampleSpec = {
       note: 'Raffles signed first — Farquhar built after.',
       core: true,
       sourceLabel: 'Treaty of 6 Feb 1819',
+      citations: [{ sourceId: 'src-1', quote: 'a preliminary treaty was this day signed' }],
     },
     {
       id: 'disc-2',
@@ -141,10 +143,12 @@ export const sampleSpec = {
       outcomes: [
         { id: 'out-1', summary: 'The flag stays; the Dutch protest in writing only.', predictionText: 'The port holds.', because: 'You backed him.', endingId: 'end-1', historical: true },
         { id: 'out-2', summary: 'The flag comes down; the settlement wavers.', predictionText: 'The port falters.', because: 'You backed down.', closesEndingIds: ['end-1'], endingId: 'end-2' },
+        { id: 'out-3', summary: 'Farquhar stalls and writes to Riau for support.', predictionText: 'The answer is postponed.', because: 'You hesitated.', endingId: 'end-3' },
       ],
       rules: [
         { actId: 'act-1', outcomeId: 'out-1' },
         { actId: 'act-2', outcomeId: 'out-2' },
+        { actId: 'act-2', outcomeId: 'out-3' },
       ],
     },
   ],
@@ -166,6 +170,7 @@ export const sampleSpec = {
         generalCounter: 'All three mattered.',
       },
       sourceLabel: 'Historical record',
+      citations: [{ sourceId: 'src-1', quote: 'the Dutch protested but did not land' }],
     },
     {
       id: 'end-2',
@@ -184,6 +189,24 @@ export const sampleSpec = {
         generalCounter: 'The flag was one factor among many.',
       },
       sourceLabel: 'Counterfactual',
+    },
+    {
+      id: 'end-3',
+      type: 'alternative',
+      title: 'The Long Negotiation',
+      summary: 'The decision is deferred while Farquhar writes to Riau.',
+      epilogue: 'Months of letters follow; the settlement drifts until Raffles returns.',
+      interview: {
+        interviewer: 'A historian',
+        question: 'Was delay ever an option?',
+        verdicts: [
+          { id: 'v-7', text: 'Always', counterPoints: ['disc-1'] },
+          { id: 'v-8', text: 'Never', counterPoints: ['disc-2'] },
+          { id: 'v-9', text: 'Only briefly', counterPoints: ['disc-3'] },
+        ],
+        generalCounter: 'Delay chose itself.',
+      },
+      sourceLabel: 'invented',
     },
   ],
   storyEvents: [
