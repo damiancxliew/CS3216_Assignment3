@@ -40,10 +40,10 @@ depend on the teacher's browser tab.
 - [x] **M** `claim_job_step()`, using `FOR UPDATE SKIP LOCKED`
 - [x] **M** `POST /api/v3/jobs/tick`
 - [ ] **L** On AWS, `jobs-tick.timer` calls the route every minute; use `pg_cron`/`pg_net` only for hosted Supabase if ever needed
-- [ ] **L** `POST /api/v3/attempts`
-- [ ] **L** `GET /api/v3/attempts/:id` → `PlayerView`
-- [ ] **M** `POST /api/v3/attempts/:id/actions`: optimistic revision, `engine.step`, save `state` and `events`
-- [ ] **L** Rate limit and per-attempt cost ceiling [C5–C7]
+- [x] **L** `POST /api/v3/attempts`
+- [x] **L** `GET /api/v3/attempts/:id` → `PlayerView`
+- [x] **M** `POST /api/v3/attempts/:id/actions`: optimistic revision, `engine.step`, save `state` and `events`
+- [x] **L** Rate limit and per-attempt cost ceiling [C5–C7]
 - [ ] **M** Sources step: allowlisted web search and excerpt extraction [G13, T7]
 - [ ] **M** Sources step: word-for-word quote check and source labels [G13.2, G1.2]
 - [ ] **L** Screen: role briefing [P18]
