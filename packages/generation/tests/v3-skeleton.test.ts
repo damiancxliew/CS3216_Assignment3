@@ -175,6 +175,16 @@ describe('generateSkeleton', () => {
     expect(result.issues.length).toBeGreaterThan(0)
   })
 
+  it('flags quote-not-in-source for an invented citation quote', async () => {
+    const broken = JSON.parse(JSON.stringify(llmOutput))
+    broken.discoveries[0].citations[0].quote = 'the harbour was crowded with ships'
+    const llm = new FakeLlmClient([{ json: broken }, { json: llmOutput }])
+    const result = await generateSkeleton(input, { llm })
+    expect(result.ok).toBe(true)
+    expect(result.metrics.calls).toHaveLength(2)
+    expect(llm.requests[1]!.user).toContain('quote-not-in-source')
+  })
+
   it('counts a refusal as an llm-output failure', async () => {
     const llm = new FakeLlmClient([{ refusal: 'cannot help' }, { refusal: 'cannot help' }, { refusal: 'cannot help' }])
     const result = await generateSkeleton(input, { llm })

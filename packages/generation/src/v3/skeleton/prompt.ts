@@ -68,13 +68,18 @@ export interface SkeletonPromptInput {
 export function skeletonUserMessage(input: SkeletonPromptInput): string {
   const lines = [`Episode: ${input.episode}`, `Reading level: ${input.readingLevel}`]
   if (input.teacherNotes !== undefined) lines.push(`Teacher's notes: ${input.teacherNotes}`)
-  const sources = input.documents
+  return `${lines.join('\n')}\n\n${sourcesBlock(input.documents)}`
+}
+
+/** The "Teacher's sources (cite them by id):" block, shared with the v3 detail passes. */
+export function sourcesBlock(documents: ExtractedDocument[]): string {
+  const sources = documents
     .map((doc) => {
       const pages = doc.pages.map((page) => `[page ${page.page}]\n${page.text}`).join('\n')
       return `<source id="${doc.id}" title="${doc.title}">\n${pages}\n</source>`
     })
     .join('\n')
-  return `${lines.join('\n')}\n\nTeacher's sources (cite them by id):\n${sources}`
+  return `Teacher's sources (cite them by id):\n${sources}`
 }
 
 export function skeletonRepairMessage(issues: CheckIssue[]): string {

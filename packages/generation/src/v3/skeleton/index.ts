@@ -5,6 +5,6 @@ export type {
   SkeletonGenerationOptions,
   SkeletonGenerationResult,
 } from './generate'
-export { SKELETON_SYSTEM_PROMPT, skeletonRepairMessage, skeletonSystemPrompt, skeletonUserMessage } from './prompt'
+export { SKELETON_SYSTEM_PROMPT, skeletonRepairMessage, skeletonSystemPrompt, skeletonUserMessage, sourcesBlock } from './prompt'
 export type { SkeletonPromptInput } from './prompt'
 export { SkeletonLlmOutput, skeletonOutputJsonSchema, toSkeleton } from './schema'
