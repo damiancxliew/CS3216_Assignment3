@@ -13,6 +13,7 @@ export { PostTurnActionSchema, pendingCheckIds, runPostTurnCheck } from './postT
 export * from './spec'
 export type { EngineState, PostTurnAction, PendingCheck } from './state'
 export { createState, step } from './step'
+export { summarise, MAX_ANSWERS, type AttemptEvents } from './summary'
 export * from './types'
 
 /** The real engine behind the same interface as `@adventure/engine/mock`. */
