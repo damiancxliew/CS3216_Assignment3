@@ -19,3 +19,5 @@ await jobs.drain({ jobId });
 ```
 
 For a review pause, enqueue the first phase, wait for teacher review, then enqueue later steps on the same job with dependencies on the already-completed steps.
+
+Steps run at least once: an expired lease or lost completion can cause a step to run again, so make each step safe to repeat (for example, upsert its writes).
