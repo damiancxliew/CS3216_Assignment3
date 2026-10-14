@@ -53,7 +53,7 @@ the route. It must not depend on the teacher's browser tab.
 - [ ] **L** Switch from `@adventure/engine/mock` to `@adventure/engine`
 
 **By Checkpoint 2 (D2 13:00)**
-- [ ] **M** Hints that escalate with time left [P10]
+- [ ] **M** Hints that escalate with time left [P5, P5.1.1]
 - [ ] **M** Story events [P12]
 - [ ] **H** Interview: push-back prompt and logic [E2]
 - [ ] **M** Reveal assembly, including source labels [E3]
