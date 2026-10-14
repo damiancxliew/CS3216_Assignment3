@@ -548,6 +548,24 @@ describe('generateDetails', () => {
     }
   })
 
+  it('drops a slant contradicted only by its own holder, trigger included, with no duplicates', async () => {
+    const farq = JSON.parse(JSON.stringify(farquharOutput))
+    farq.slants[0].contradictedBy = ['farquhar-d1'] // held by farquhar himself
+    farq.triggers.push({ id: 'farquhar-t2', on: { kind: 'slantConfronted', id: 'farquhar-slant' }, requires: null, effect: { kind: 'stanceDelta', stance: null, delta: -1 }, handsOver: [], notice: 'n' })
+    const link: LinkLlmOutput = { slantLinks: [], noteTriggers: [], duplicates: [] }
+    const llm = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: farq }], link: [{ json: link }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.ok).toBe(true)
+    const farquhar = result.draft!.characters.find((c) => c.id === 'farquhar')!
+    expect(farquhar.slants).toEqual([])
+    expect(result.draft!.triggers.find((t) => t.id === 'farquhar-t2')).toBeUndefined()
+    expect(result.warnings.filter((w) => w.code === 'slant-dropped')).toHaveLength(2)
+    expect(result.warnings[0]!.message).toBe("slant 'farquhar-slant' has no contradicting discovery held by a document or another character")
+    // the link user message must flag it
+    const linkRequest = llm.requests.find((r) => r.key === 'link')!.request.user
+    expect(linkRequest).toContain('needs evidence from a document or another character, or it will be dropped')
+  })
+
   it('warns slant-reactions-uniform when ≥3 slant triggers all move the same direction', async () => {
     const farq = JSON.parse(JSON.stringify(farquharOutput))
     const raf = JSON.parse(JSON.stringify(rafflesOutput))

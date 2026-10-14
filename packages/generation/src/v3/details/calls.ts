@@ -194,7 +194,15 @@ export function linkDetails(context: LinkContext, shared: DetailsShared, opts: D
       tier: c.tier,
       stageIds: c.stageIds,
       stances: c.stances.map((id) => ({ id, label: id })),
-      slants: c.slants.map((s) => ({ id: s.id, claim: s.claim, contradictedBy: s.contradictedBy })),
+      slants: c.slants.map((s) => {
+        const external = s.contradictedBy.filter((id) => context.discoveries.find((d) => d.id === id)?.holder !== `character:${c.id}`)
+        return {
+          id: s.id,
+          claim: s.claim,
+          contradictedBy: s.contradictedBy,
+          ...(external.length === 0 ? { note: 'needs evidence from a document or another character, or it will be dropped' } : {}),
+        }
+      }),
       triggers: context.triggers.filter((t) => t.characterId === c.id).map((t) => ({ on: { kind: t.on.kind, id: t.on.id } })),
     })),
     discoveries: context.discoveries.map((d) => ({ id: d.id, stageId: d.stageId, holder: d.holder, text: d.text })),

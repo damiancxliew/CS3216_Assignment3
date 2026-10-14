@@ -182,15 +182,10 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
       privateAgenda: character.persona.privateAgenda,
     }
 
-    const buildSlants = (raw: { id: string; claim: string; contradictedBy: string[]; unlocksDiscoveryId?: string | null }[], ownerPath: string) => {
+    const buildSlants = (raw: { id: string; claim: string; contradictedBy: string[]; unlocksDiscoveryId?: string | null }[]) => {
       const slants: SpecCharacter['slants'] = []
-      raw.forEach((slant, i) => {
+      raw.forEach((slant) => {
         const contradictedBy = [...new Set([...slant.contradictedBy, ...(linkContradictions.get(slant.id) ?? [])])]
-        if (contradictedBy.length === 0) {
-          droppedSlants.add(slant.id)
-          warn('slant-dropped', `${ownerPath}.slants.${i}`, `slant '${slant.id}' still has no contradicting discovery after linking`)
-          return
-        }
         const unlocks = slant.unlocksDiscoveryId
         slants.push({
           id: slant.id,
@@ -241,7 +236,7 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
         },
         stances,
         initialStanceId: `s${output.initialStance}`,
-        slants: buildSlants(output.slants, `characters.${skeleton.characters.indexOf(character)}`),
+        slants: buildSlants(output.slants),
         trustNotice: output.trustNotice,
       }
     }
@@ -263,7 +258,7 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
       },
       stances: [],
       initialStanceId: null,
-      slants: buildSlants(minor.slants, `characters.${skeleton.characters.indexOf(character)}`),
+      slants: buildSlants(minor.slants),
     }
   })
 
@@ -297,19 +292,23 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
     }
     for (const event of storyEvents) if ('condition' in event.when) event.when = { condition: remapCondition(event.when.condition) }
     for (const question of openQuestions) question.discoveryIds = dedupe(question.discoveryIds.map(remapId))
-    for (const character of characters) {
-      const heldIds = new Set(discoveries.filter((d) => 'characterId' in d.holder && d.holder.characterId === character.id).map((d) => d.id))
-      character.slants = character.slants.map((slant) => ({ ...slant, contradictedBy: dedupe(slant.contradictedBy.map(remapId)).filter((id) => !heldIds.has(id)) }))
-      character.slants = character.slants.filter((slant) => {
-        if (slant.contradictedBy.length === 0) {
-          droppedSlants.add(slant.id)
-          warn('slant-dropped', `characters.${characters.indexOf(character)}.slants`, `slant '${slant.id}' has no contradicting discovery after duplicate merging`)
-          return false
-        }
-        return true
-      })
-    }
+    for (const character of characters)
+      character.slants = character.slants.map((slant) => ({ ...slant, contradictedBy: dedupe(slant.contradictedBy.map(remapId)) }))
     for (let i = discoveries.length - 1; i >= 0; i--) if (dropToKeep.has(discoveries[i]!.id)) discoveries.splice(i, 1)
+  }
+
+  // one drop path: a slant needs a contradiction held by a document or another character (glossary)
+  for (const character of characters) {
+    const heldIds = new Set(discoveries.filter((d) => 'characterId' in d.holder && d.holder.characterId === character.id).map((d) => d.id))
+    character.slants = character.slants.map((slant) => ({ ...slant, contradictedBy: slant.contradictedBy.filter((id) => !heldIds.has(id)) }))
+    character.slants = character.slants.filter((slant) => {
+      if (slant.contradictedBy.length === 0) {
+        droppedSlants.add(slant.id)
+        warn('slant-dropped', `characters.${characters.indexOf(character)}.slants`, `slant '${slant.id}' has no contradicting discovery held by a document or another character`)
+        return false
+      }
+      return true
+    })
   }
 
   // after remapping, two triggers may share (characterId, on) — keep the first (persona before link)
