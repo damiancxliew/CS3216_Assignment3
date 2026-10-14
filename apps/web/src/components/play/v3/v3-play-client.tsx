@@ -6,6 +6,7 @@ import { BriefingScreen } from "@/components/play/v3/briefing-screen";
 import { StageIntroScreen } from "@/components/play/v3/stage-intro-screen";
 import { StagePlayScreen } from "@/components/play/v3/stage-play-screen";
 import { useV3Play } from "@/components/play/v3/use-v3-play";
+import styles from "@/components/play/adventure-chrome.module.css";
 
 export function V3PlayClient({
   attemptId,
@@ -16,19 +17,16 @@ export function V3PlayClient({
   initialView: PlayerView;
   initialRevision: number;
 }) {
-  const { view, revision, busy, banner, send, clearBanner } = useV3Play(attemptId, initialView, initialRevision);
+  const { view, busy, banner, send, clearBanner } = useV3Play(attemptId, initialView, initialRevision);
 
   return (
     <div className="min-h-screen bg-paper text-ink">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b-4 border-ink bg-wood px-4 py-4 text-white sm:px-8">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">Historical adventure</p>
-          <p className="text-xl font-black">{view.stage?.title ?? view.briefing.name}</p>
+      <header className={`${styles.header} shrink-0`}>
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#ead5ae]">Historical adventure</p>
+          <h1 className={`${styles.adventureTitle} mt-1 break-words`}>{view.stage?.title ?? view.briefing.name}</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="rounded-full border border-white/30 px-3 py-1 text-xs font-bold">Revision {revision}</span>
-          {busy ? <span role="status" className="text-sm font-semibold">Saving…</span> : null}
-        </div>
+        {busy ? <span role="status" className="text-sm font-semibold">Saving…</span> : null}
       </header>
       {banner ? (
         <div role="alert" className="mx-auto mt-4 flex max-w-4xl items-center justify-between gap-3 rounded-xl border border-signal bg-signal-wash px-4 py-3 text-sm font-semibold text-ink">

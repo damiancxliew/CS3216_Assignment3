@@ -19,8 +19,10 @@ export function StagePlayScreen({ view, busy, send }: {
 }) {
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [documentId, setDocumentId] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [documentId, setDocumentId] = useState<string | null>(
+    () => view.documents.find((document) => document.open)?.id ?? null,
+  );
+  const [now, setNow] = useState<number | null>(null);
   const currentCharacter = view.characters.find((character) => character.id === characterId) ?? null;
   const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
   const stage = view.stage;
@@ -39,12 +41,16 @@ export function StagePlayScreen({ view, busy, send }: {
   }, [view.characters]);
 
   useEffect(() => {
+    setNow(Date.now());
+  }, []);
+
+  useEffect(() => {
     if (!view.timer) return;
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
   }, [view.timer]);
 
-  const remaining = view.timer ? new Date(view.timer.endsAt).getTime() - now : null;
+  const remaining = view.timer && now !== null ? new Date(view.timer.endsAt).getTime() - now : null;
   const characterName = (id: string | null) =>
     id === null ? "Story" : view.characters.find((character) => character.id === id)?.name ?? "Character";
 
@@ -66,9 +72,9 @@ export function StagePlayScreen({ view, busy, send }: {
           <p className="text-sm font-semibold text-muted">{stage?.timePlace}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {remaining !== null ? (
+          {view.timer ? (
             <span aria-label="Time remaining" className="rounded-full bg-signal-wash px-4 py-2 font-mono text-lg font-black text-signal">
-              {formatTime(remaining)}
+              {remaining === null ? "--:--" : formatTime(remaining)}
             </span>
           ) : null}
           <span className="rounded-full bg-record-wash px-4 py-2 text-sm font-black text-record">
@@ -186,10 +192,6 @@ export function StagePlayScreen({ view, busy, send }: {
               </div>
             </form>
           </section>
-          <button type="button" disabled={busy} onClick={() => send({ type: "endStage" })}
-            className="min-h-11 justify-self-start rounded-xl border border-line-strong bg-surface px-4 font-bold text-ink hover:bg-signal-wash disabled:opacity-50">
-            Call for a decision
-          </button>
         </section>
 
         <aside className="grid min-w-0 gap-4">
