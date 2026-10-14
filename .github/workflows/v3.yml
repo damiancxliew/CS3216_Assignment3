@@ -1,0 +1,21 @@
+name: v3
+
+# Runs on every pull request with no path filter, so a change anywhere that breaks the v3 contract, the
+# engine or the golden fixture is caught before merge.
+on:
+  push:
+    branches: [main, production]
+  pull_request:
+
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check --workspace @adventure/play-contract
+      - run: npm run check --workspace @adventure/engine

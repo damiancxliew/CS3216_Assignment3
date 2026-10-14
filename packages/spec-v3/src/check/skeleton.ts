@@ -6,7 +6,7 @@
  * Skeleton codes: `ref`, `duplicate-id`, `core-missing`, `core-holder`, `core-holder-absent`,
  * `decider-absent`, `core-uncited`, `historical-uncited`, `room-count`, `outcome-count`,
  * `ending-mix`, `historical-outcome`, `rule-coverage`, `source-label`, `core-invented`,
- * plus everything in `endings.ts`.
+ * plus everything in `endings.ts`. Warnings (guidance, never blocking): `stage-count`, `act-count`, `core-count`.
  */
 import type { CheckResult, CheckIssue } from '../index.js'
 import type { SkeletonShape } from '../skeleton.js'
@@ -73,6 +73,10 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
     spec.sources.forEach((s, i) => collect(s.id, `sources.${i}.id`))
   }
 
+  const warnings: CheckIssue[] = []
+  const warn = (code: string, path: string, message: string) => warnings.push({ code, path, message })
+  /** G13: a citation that grounds a core claim must quote its source; a bare source id proves nothing. */
+  const quoted = (items: { sourceId: string; quote?: string | undefined }[] | undefined) => (items ?? []).some((c) => (c.quote ?? '').trim().length > 0)
   const citations = (items: { sourceId: string }[] | undefined, at: string) => {
     for (const c of items ?? []) ref(sources.has(c.sourceId), at, `source '${c.sourceId}' does not exist`)
   }
@@ -118,8 +122,8 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
           add('core-holder-absent', `${at}.holder`, `core discovery '${discovery.id}' is held by '${holder.characterId}', who is not placed in stage '${discovery.stageId}'`)
       }
     } else ref(documents.has(holder.documentId), `${at}.holder`, `holder document '${holder.documentId}' does not exist`)
-    if (discovery.core && (discovery.citations === undefined || discovery.citations.length === 0))
-      add('core-uncited', `${at}.citations`, `core discovery '${discovery.id}' has no citations (G13)`)
+    if (discovery.core && !quoted(discovery.citations))
+      add('core-uncited', `${at}.citations`, `core discovery '${discovery.id}' has no citation with a quote (G13)`)
     if (discovery.sourceLabel.trim().length === 0) add('source-label', `${at}.sourceLabel`, `discovery '${discovery.id}' has an empty sourceLabel`)
     if (discovery.core && discovery.sourceLabel.trim().toLowerCase() === 'invented')
       add('core-invented', `${at}.sourceLabel`, `core discovery '${discovery.id}' is labelled 'invented'`)
@@ -161,8 +165,8 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
   // --- endings ---------------------------------------------------------------------
   spec.endings.forEach((ending, i) => {
     const at = `endings.${i}`
-    if (ending.type === 'historical' && (ending.citations === undefined || ending.citations.length === 0))
-      add('historical-uncited', `${at}.citations`, `historical ending '${ending.id}' has no citations (G13.4)`)
+    if (ending.type === 'historical' && !quoted(ending.citations))
+      add('historical-uncited', `${at}.citations`, `historical ending '${ending.id}' has no citation with a quote (G13.4)`)
     if (ending.sourceLabel.trim().length === 0) add('source-label', `${at}.sourceLabel`, `ending '${ending.id}' has an empty sourceLabel`)
     citations(ending.citations, `${at}.citations`)
   })
@@ -188,6 +192,17 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
       )
   }
 
+  // --- size guidance (warnings: they shape play, but don't make the spec unplayable) ----
+  if (spec.stages.length > 3) warn('stage-count', 'stages', `${spec.stages.length} stages (at most 3 fit a 45-minute session, G2.2)`)
+  spec.definingMoments.forEach((moment, i) => {
+    const visible = moment.acts.filter((act) => !('secret' in act && act.secret !== undefined)).length
+    if (visible < 2 || visible > 4) warn('act-count', `definingMoments.${i}.acts`, `moment '${moment.id}' offers ${visible} acts (2–4, P9.1)`)
+  })
+  spec.stages.forEach((stage, i) => {
+    const core = spec.discoveries.filter((d) => d.stageId === stage.id && d.core).length
+    if (core > 3) warn('core-count', `stages.${i}.id`, `stage '${stage.id}' has ${core} core discoveries (2–3, G17)`)
+  })
+
   issues.push(...endingIssues(spec))
-  return { errors: issues, warnings: [] }
+  return { errors: issues, warnings }
 }

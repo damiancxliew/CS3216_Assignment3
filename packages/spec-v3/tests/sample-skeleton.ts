@@ -74,7 +74,7 @@ export const sampleSkeleton = {
       note: 'Not everyone welcomed the new flag.',
       core: true,
       sourceLabel: 'Port register',
-      citations: [{ sourceId: 'src-1' }],
+      citations: [{ sourceId: 'src-1', quote: 'dues were levied on every vessel' }],
     },
   ],
   documents: [{ id: 'doc-1', kind: 'report', title: 'Port Register, February 1819', real: true }],

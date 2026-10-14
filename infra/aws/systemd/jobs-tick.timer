@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the v3 jobs tick every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=5s
+Unit=jobs-tick.service
+
+[Install]
+WantedBy=timers.target
