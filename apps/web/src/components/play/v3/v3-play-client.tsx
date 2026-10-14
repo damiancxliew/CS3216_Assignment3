@@ -20,7 +20,7 @@ export function V3PlayClient({
   const { view, busy, banner, send, clearBanner } = useV3Play(attemptId, initialView, initialRevision);
 
   return (
-    <div className="min-h-screen bg-paper text-ink">
+    <div className={`${styles.shell} min-h-screen`}>
       <header className={`${styles.header} shrink-0`}>
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-[#ead5ae]">Historical adventure</p>
