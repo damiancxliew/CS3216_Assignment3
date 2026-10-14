@@ -28,12 +28,12 @@ the route. It must not depend on the teacher's browser tab.
 
 ## To-do
 **By D1 11:00**
-- [ ] **M** `packages/jobs` interface: `defineStep`, `enqueue`, `getProgress`
-- [ ] **M** Migration: `adventures_v3` (id, school_id, status, spec jsonb, spec_version)
-- [ ] **M** Migration: `job_steps`
-- [ ] **M** Migration: `attempts_v3` (id, adventure_id, spec_version, student_id, state jsonb, revision)
-- [ ] **L** Migration: `attempt_events_v3` (attempt_id, seq, type, payload jsonb)
-- [ ] **L** Migration: `flags_v3`
+- [x] **M** `packages/jobs` interface: `defineStep`, `enqueue`, `getProgress`
+- [x] **M** Migration: `adventures_v3` (id, school_id, status, spec jsonb, spec_version)
+- [x] **M** Migration: `job_steps`
+- [x] **M** Migration: `attempts_v3` (id, adventure_id, spec_version, student_id, state jsonb, revision)
+- [x] **L** Migration: `attempt_events_v3` (attempt_id, seq, type, payload jsonb)
+- [x] **L** Migration: `flags_v3`
 
 **By Checkpoint 1 (D1 19:00)**
 - [ ] **M** `claim_job_step()`, using `FOR UPDATE SKIP LOCKED`
