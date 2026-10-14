@@ -66,6 +66,34 @@ describe('checkSpec', () => {
       expect(result.errors).toContainEqual(expect.objectContaining({ code: 'duplicate-id', path: 'discoveries.1.id' }))
     })
 
+    it('duplicate-id for a room repeated within one stage', () => {
+      const result = checked((s) => (s.stages[0].rooms[1].id = 'room-dock'))
+      expect(result.errors).toContainEqual(expect.objectContaining({ code: 'duplicate-id', path: 'stages.0.rooms.1.id' }))
+    })
+
+    it('no duplicate-id for the same room id in two stages', () => {
+      const result = checked((s) => {
+        s.stages.push({
+          id: 'stage-2',
+          title: 'Epilogue',
+          timePlace: 'Singapore, 1820',
+          centralQuestion: '?',
+          openingNarration: '.',
+          rooms: [
+            { id: 'room-dock', name: 'Dock', description: 'Same place, a year on.' },
+            { id: 'room-hill', name: 'Hill', description: 'h' },
+          ],
+          startRoomId: 'room-dock',
+          placement: { 'char-farquhar': 'room-dock' },
+          documentPlacement: {},
+          situations: [],
+          definingMomentId: 'moment-1',
+        })
+        s.timer.stageMinutes = [20, 15]
+      })
+      expect(result.errors.filter((e) => e.code === 'duplicate-id')).toEqual([])
+    })
+
     it('timer-stages', () => {
       expect(codes((s) => (s.timer.stageMinutes = [20, 20]))).toContain('timer-stages')
     })

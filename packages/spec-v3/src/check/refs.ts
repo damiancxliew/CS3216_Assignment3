@@ -1,5 +1,6 @@
 /**
- * Rule 1: every id a spec refers to must exist, ids are unique adventure-wide, and the structural
+ * Rule 1: every id a spec refers to must exist, ids are unique adventure-wide (except rooms,
+ * which are per-stage, and stances, which are per-character), and the structural
  * invariants zod can't express hold (stance counts, fallback rules, passage offsets, timer length).
  *
  * Codes: `ref`, `duplicate-id`, `timer-stages`, `stance-count`, `initial-stance`, `hidden-stance`,
@@ -28,13 +29,11 @@ export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
   const outcomes = new Map(spec.definingMoments.map((m) => [m.id, new Set(m.outcomes.map((o) => o.id))]))
   const acts = new Map(spec.definingMoments.map((m) => [m.id, new Set(m.acts.map((a) => a.id))]))
 
-  // --- duplicate-id: unique across the whole adventure (stance ids are per-character) ---
+  // --- duplicate-id: unique across the whole adventure (room ids are per-stage, stance ids
+  // per-character, so neither is collected here) ---
   const allIds: { id: string; path: string }[] = []
   const collect = (id: string, path: string) => allIds.push({ id, path })
-  spec.stages.forEach((s, i) => {
-    collect(s.id, `stages.${i}.id`)
-    s.rooms.forEach((r, j) => collect(r.id, `stages.${i}.rooms.${j}.id`))
-  })
+  spec.stages.forEach((s, i) => collect(s.id, `stages.${i}.id`))
   spec.characters.forEach((c, i) => {
     collect(c.id, `characters.${i}.id`)
     c.slants.forEach((s, j) => collect(s.id, `characters.${i}.slants.${j}.id`))
@@ -102,7 +101,11 @@ export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
   // --- stages -----------------------------------------------------------------
   spec.stages.forEach((stage, i) => {
     const at = `stages.${i}`
-    const stageRooms = new Set(stage.rooms.map((r) => r.id))
+    const stageRooms = new Set<string>()
+    stage.rooms.forEach((room, j) => {
+      if (stageRooms.has(room.id)) add('duplicate-id', `${at}.rooms.${j}.id`, `room id '${room.id}' is used twice in stage '${stage.id}'`)
+      else stageRooms.add(room.id)
+    })
     ref(stageRooms.has(stage.startRoomId), `${at}.startRoomId`, `start room '${stage.startRoomId}' is not a room of stage '${stage.id}'`)
     const moment = spec.definingMoments.find((m) => m.id === stage.definingMomentId)
     ref(moment !== undefined, `${at}.definingMomentId`, `defining moment '${stage.definingMomentId}' does not exist`)
