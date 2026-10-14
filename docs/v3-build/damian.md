@@ -37,6 +37,7 @@ depend on the teacher's browser tab.
 - [x] **L** Migration: `flags_v3`
 
 **By Checkpoint 1 (D1 19:00)**
+- Local golden play seed: `npx vitest run --config scripts/vitest.v3-seed.config.ts` (student: `v3-student@local.test` / `password123!`).
 - [x] **M** `claim_job_step()`, using `FOR UPDATE SKIP LOCKED`
 - [x] **M** `POST /api/v3/jobs/tick`
 - [x] **L** On AWS, `jobs-tick.timer` calls the route every minute; use `pg_cron`/`pg_net` only for hosted Supabase if ever needed
@@ -46,12 +47,14 @@ depend on the teacher's browser tab.
 - [x] **L** Rate limit and per-attempt cost ceiling [C5–C7]
 - [ ] **M** Sources step: allowlisted web search and excerpt extraction [G13, T7]
 - [ ] **M** Sources step: word-for-word quote check and source labels [G13.2, G1.2]
-- [ ] **L** Screen: role briefing [P18]
-- [ ] **H** Screens: chat, notes panel, inserting a note into chat [P8, P13]
-- [ ] **H** Screen: document reader with passage selection [P11]
-- [ ] **L** Portraits by stance id [G4.2]
-- [ ] **L** Play route picks v2 or v3 by the adventure's version (v2 attempts keep working)
+- [x] **L** Screen: role briefing [P18]
+- [x] **H** Screens: chat, notes panel, inserting a note into chat [P8, P13]
+- [x] **H** Screen: document reader with passage selection [P11]
+- [x] **L** Portraits by stance id [G4.2]
+- [x] **L** Play route picks v2 or v3 by the adventure's version (v2 attempts keep working)
 - [x] **L** Switch from `@adventure/engine/mock` to `@adventure/engine`
+
+Portrait URLs are wired to `NEXT_PUBLIC_V3_PORTRAIT_BASE`; initials remain the fallback until stance portrait generation lands.
 
 **By Checkpoint 2 (D2 13:00)**
 - [ ] **M** Hints that escalate with time left [P5, P5.1.1]
