@@ -249,6 +249,7 @@ export function advanceMock(previous: MockState, action: Action, now: number): {
       if (state.moment?.status !== 'predicting') fail('illegal_phase', 'no prediction to make now')
       const stage = stageAt(state)
       const predicted = stage.outcomes.find((outcome) => outcome.id === action.outcomeId) ?? fail('unknown_id', `no outcome ${action.outcomeId}`)
+      // The script lists each stage's outcomes in the same order as its acts: act i leads to outcome i.
       const actual = stage.outcomes[stage.acts.findIndex((act) => act.id === state.moment?.actId)] ?? (stage.outcomes[0] as (typeof stage.outcomes)[number])
       const momentId = `moment-${state.stageIndex}`
       const final = state.stageIndex === stages.length - 1

@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { PlayerView } from '@adventure/play-contract'
 import { describe, expect, it } from 'vitest'
 
-import { EngineSpec } from '../src'
+import { EngineSpec, checkSpec, validateSpec } from '../src'
 import { explore, leakIssues, minOpenAtFinal } from './fixtures/explorer'
 import { Harness } from './fixtures/harness'
 import { mini } from './fixtures/mini'
@@ -30,7 +30,9 @@ const SOURCES: Record<string, string> = {
 }
 
 describe('golden-1819: content', () => {
-  it('is a valid spec whose every reference resolves', () => {
+  it('passes spec-v3: validateSpec and checkSpec with no errors, and every reference resolves', () => {
+    expect(validateSpec(JSON.parse(readFileSync(resolve(ROOT, 'fixtures/golden-1819.json'), 'utf8'))).ok).toBe(true)
+    expect(checkSpec(golden)).toEqual({ errors: [], warnings: [] })
     expect(referenceIssues(golden)).toEqual([])
   })
 

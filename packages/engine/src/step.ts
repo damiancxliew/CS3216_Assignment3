@@ -31,6 +31,10 @@ import type { StepDeps, StepInput, StepResult } from './types'
 
 export const MAX_RULE_ROUNDS = 10
 
+/**
+ * `step` accepts the server-only `postTurn` as well as client actions. The API must parse request bodies with
+ * `Action` from play-contract before calling `step`, so a client can never send `postTurn` itself.
+ */
 const EngineActionSchema = z.union([Action, PostTurnActionSchema])
 
 export function createState(spec: EngineSpec, seed: string): EngineState {
@@ -80,8 +84,10 @@ function setPhase(ctx: StepContext, to: EngineState['phase']): void {
   ctx.touch()
 }
 
+/** Investigation ends when the defining moment begins: no walking, picking up or close reading after that. */
 function requirePlaying(ctx: StepContext, what: string): void {
   if (ctx.state.phase !== 'stage' || ctx.state.stageIntroPending) fail('illegal_phase', `${what} needs an open stage`)
+  if (ctx.state.moment !== null) fail('illegal_phase', `${what} is over: the defining moment has begun`)
 }
 
 async function handle(ctx: StepContext, action: EngineAction): Promise<void> {
@@ -117,8 +123,14 @@ async function handle(ctx: StepContext, action: EngineAction): Promise<void> {
       return
     }
     case 'openDocument': {
-      requirePlaying(ctx, 'reading')
       const document = lookup.document(spec, action.documentId)
+      // Re-reading a held document stays possible while deciding; picking up a new one does not.
+      if (state.heldDocuments.includes(document.id) && state.phase === 'stage' && state.moment !== null) {
+        state.openDocumentId = document.id
+        ctx.touch()
+        return
+      }
+      requirePlaying(ctx, 'reading')
       if (!state.heldDocuments.includes(document.id)) {
         if (state.documentRooms[document.id] !== state.playerRoomId) fail('not_present', `${document.title} is not here`)
         state.heldDocuments.push(document.id)
@@ -162,7 +174,6 @@ async function handle(ctx: StepContext, action: EngineAction): Promise<void> {
     }
     case 'endStage': {
       requirePlaying(ctx, 'the defining moment')
-      if (state.moment !== null) fail('illegal_phase', 'the defining moment has already begun')
       return openMoment(ctx, 'student')
     }
     case 'act':
@@ -174,7 +185,6 @@ async function handle(ctx: StepContext, action: EngineAction): Promise<void> {
       } else {
         state.stageIndex += 1
         enterStage(ctx)
-        ctx.emit({ type: 'phase', to: 'stage' })
       }
       return
     }
