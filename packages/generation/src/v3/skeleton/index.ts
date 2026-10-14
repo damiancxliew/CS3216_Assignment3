@@ -1,4 +1,4 @@
-export { MAX_REPAIRS, generateSkeleton } from './generate'
+export { MAX_REPAIRS, generateSkeleton, SKELETON_MODEL } from './generate'
 export type {
   SkeletonCallMetrics,
   SkeletonGenerationInput,

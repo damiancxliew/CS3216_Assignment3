@@ -31,7 +31,7 @@ const teacherNotes = flag('notes')
 const outDir = flag('out') ?? 'evals/results/v3-manual'
 
 if (sources.length === 0 || episode === undefined || (readingLevel !== 'sec' && readingLevel !== 'jc')) {
-  console.error('usage: generate-v3.ts --source <file>... --episode "..." --level sec|jc [--notes "..."] [--out dir]')
+  console.error('usage: generate-v3.ts --source <file>... --episode "..." --level sec|jc [--notes "..."] [--model m] [--out dir]')
   process.exit(2)
 }
 
@@ -49,9 +49,10 @@ for (const file of sources) {
   console.log(`extracted ${doc.id}: ${doc.pageCount} pages, ${doc.charCount} chars${doc.warnings.length ? ` (${doc.warnings.join('; ')})` : ''}`)
 }
 
+const model = flag('model')
 const llm = new OpenAiLlmClient({ timeoutMs: 600_000 })
 const input = { episode, readingLevel, documents, ...(teacherNotes !== undefined ? { teacherNotes } : {}) }
-const result = await generateSkeleton(input, { llm })
+const result = await generateSkeleton(input, { llm, ...(model !== undefined ? { model } : {}) })
 
 await mkdir(outDir, { recursive: true })
 await writeFile(join(outDir, 'issues.json'), `${JSON.stringify(result.issues, null, 2)}\n`)

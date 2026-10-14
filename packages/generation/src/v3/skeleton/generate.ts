@@ -7,12 +7,15 @@ import type { CheckIssue, SkeletonSpec } from '@adventure/spec-v3'
 
 import type { ExtractedDocument } from '../../ingest/types'
 import type { LlmClient, LlmUsage } from '../../llm/client'
-import { DEFAULT_MODELS, estimateCostUsd, ZERO_USAGE } from '../../llm/client'
+import { estimateCostUsd, ZERO_USAGE } from '../../llm/client'
 import { skeletonRepairMessage, skeletonSystemPrompt, skeletonUserMessage } from './prompt'
 import type { SkeletonPromptInput } from './prompt'
 import { SkeletonLlmOutput, skeletonOutputJsonSchema, toSkeleton } from './schema'
 
 export const MAX_REPAIRS = 2
+
+/** v3 skeleton pass runs on gpt-6-sol (v2 stays on DEFAULT_MODELS.frontier). */
+export const SKELETON_MODEL = 'gpt-6-sol'
 
 export interface SkeletonGenerationInput {
   episode: string
@@ -44,7 +47,7 @@ export interface SkeletonGenerationResult {
 }
 
 export async function generateSkeleton(input: SkeletonGenerationInput, opts: SkeletonGenerationOptions): Promise<SkeletonGenerationResult> {
-  const model = opts.model ?? DEFAULT_MODELS.frontier
+  const model = opts.model ?? SKELETON_MODEL
   const reasoningEffort = opts.reasoningEffort === undefined ? 'high' : opts.reasoningEffort
   const maxOutputTokens = opts.maxOutputTokens ?? 24_000
 

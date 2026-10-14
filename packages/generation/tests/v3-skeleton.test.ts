@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { ExtractedDocument } from '../src/ingest/types'
 import { FakeLlmClient } from '../src/llm/client'
-import { generateSkeleton, MAX_REPAIRS, toSkeleton } from '../src/v3/index'
+import { generateSkeleton, MAX_REPAIRS, SKELETON_MODEL, toSkeleton } from '../src/v3/index'
 import type { SkeletonLlmOutput } from '../src/v3/index'
 
 const doc: ExtractedDocument = {
@@ -137,6 +137,21 @@ describe('generateSkeleton', () => {
     expect(result.issues).toEqual([])
     expect(result.metrics.calls).toHaveLength(1)
     expect(llm.requests).toHaveLength(1)
+  })
+
+  it('defaults to the gpt-6-sol skeleton model and prices its calls', async () => {
+    const llm = new FakeLlmClient([{ json: llmOutput }])
+    const result = await generateSkeleton(input, { llm })
+    expect(llm.requests[0]!.model).toBe(SKELETON_MODEL)
+    expect(result.metrics.calls[0]!.model).toBe(SKELETON_MODEL)
+    expect(result.metrics.calls[0]!.costUsd).toBeCloseTo(0.007, 3)
+    expect(result.metrics.totalCostUsd).toBeCloseTo(0.007, 3)
+  })
+
+  it('honours an explicit model override', async () => {
+    const llm = new FakeLlmClient([{ json: llmOutput }])
+    await generateSkeleton(input, { llm, model: 'gpt-5.4' })
+    expect(llm.requests[0]!.model).toBe('gpt-5.4')
   })
 
   it('repairs a broken reply and succeeds in two calls', async () => {
