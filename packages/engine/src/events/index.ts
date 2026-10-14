@@ -1,12 +1,63 @@
-/**
- * Story events [G11, P12, P14]. **Owner: Damian.** This is the seam only: the engine calls
- * `evaluateStoryEvents` in its rule loop on every step. Fire each event once (record it in
- * `ctx.state.firedStoryEvents`), emit `{ type: 'storyEvent', eventId }`, and call `ctx.touch()` when anything
- * changes so the loop re-runs. Effects stay within the fixed list (P14.1). Use `evaluate` from
- * `../conditions` for conditions, `openMoment` from `../rules/moment` for "the defining moment begins", and
- * move characters by setting `ctx.state.characters[id].roomId`. The final call on timer expiry is already
- * handled by the engine (`rules/stages.ts`).
- */
-import type { StepContext } from '../context'
+/** Story events [P12, P14]. Each event fires once, in spec order, with one of the fixed effects. */
+import { evaluate } from '../conditions'
+import { currentStage, type StepContext } from '../context'
+import { openMoment } from '../rules/moment'
+import { stageDurationMs } from '../rules/stages'
+import type { SpecStoryEvent } from '../spec'
 
-export function evaluateStoryEvents(_ctx: StepContext): void {}
+export function fireStoryEvent(ctx: StepContext, event: SpecStoryEvent): void {
+  const { state } = ctx
+  if (state.firedStoryEvents.includes(event.id)) return
+
+  const characterId = 'characterId' in event ? (event.characterId ?? null) : null
+  ctx.say('narration', event.text, { characterId })
+  state.firedStoryEvents.push(event.id)
+  ctx.emit({ type: 'storyEvent', eventId: event.id })
+
+  switch (event.effect) {
+    case 'summons':
+    case 'news':
+      break
+    case 'move': {
+      const character = state.characters[event.characterId]
+      if (character !== undefined && currentStage(ctx).rooms.some((room) => room.id === event.toRoomId)) {
+        character.roomId = event.toRoomId
+      }
+      break
+    }
+    case 'deliverDocument':
+      if (!state.heldDocuments.includes(event.documentId)) {
+        state.heldDocuments.push(event.documentId)
+        delete state.documentRooms[event.documentId]
+      }
+      break
+    case 'beginMoment':
+      if (state.moment === null) openMoment(ctx, 'student')
+      break
+  }
+
+  ctx.touch()
+}
+
+function shouldFire(ctx: StepContext, event: SpecStoryEvent, elapsed: number): boolean {
+  const { state } = ctx
+  if ('atSeconds' in event.when) return state.moment === null && elapsed >= event.when.atSeconds * 1000
+  if ('condition' in event.when) return state.moment === null && evaluate(event.when.condition, { spec: ctx.spec, state, now: ctx.now })
+  if ('stuck' in event.when) return false
+
+  // A timerOut event may still fire while choosing if the student opened the moment early.
+  const duration = stageDurationMs(ctx)
+  return duration !== null && elapsed >= duration && (state.moment === null || state.moment.status === 'choosing')
+}
+
+export function evaluateStoryEvents(ctx: StepContext): void {
+  const { state } = ctx
+  if (state.phase !== 'stage' || state.stageIntroPending || state.stageStartedAt === null) return
+
+  const stageId = currentStage(ctx).id
+  const elapsed = ctx.now - state.stageStartedAt
+  for (const event of ctx.spec.storyEvents) {
+    if (event.stageId !== stageId || state.firedStoryEvents.includes(event.id) || !shouldFire(ctx, event, elapsed)) continue
+    fireStoryEvent(ctx, event)
+  }
+}

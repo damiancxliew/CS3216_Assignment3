@@ -71,6 +71,9 @@ export interface HintState {
   level: number
   /** When the student opened a document or started waiting for a reply (P5.1.3), or null. */
   pausedSince: number | null
+  stuckFrom?: number | null
+  progressSeen?: number | null
+  pauseFrom?: number | null
 }
 
 export interface EngineState {
