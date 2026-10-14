@@ -21,9 +21,9 @@ in `packages/game-core/src/compiler.ts`; the renderer in `packages/game-client/s
 `packages/generation/src/assets`; the quote verification in `packages/generation/src/ingest`. Next's `after()` is already
 used for background work (`apps/web/src/app/teacher/actions.ts`).
 
-**Job runner design:** a `job_steps` table; `claim_job_step()` using `FOR UPDATE SKIP LOCKED`; a Vercel route
+**Job runner design:** a `job_steps` table; `claim_job_step()` using `FOR UPDATE SKIP LOCKED`; a route
 `POST /api/v3/jobs/tick` (`maxDuration` 300) that runs one step, marks its dependants ready and re-triggers itself once
-per ready step; `pg_cron` plus `pg_net` call the tick route every minute as a safety net; a shared-secret header guards
+per ready step; a `jobs-tick` systemd timer on the EC2 host calls the tick route every minute as a safety net (we are moving to AWS); a shared-secret header guards
 the route. It must not depend on the teacher's browser tab.
 
 ## To-do
@@ -38,7 +38,7 @@ the route. It must not depend on the teacher's browser tab.
 **By Checkpoint 1 (D1 19:00)**
 - [ ] **M** `claim_job_step()`, using `FOR UPDATE SKIP LOCKED`
 - [ ] **M** `POST /api/v3/jobs/tick`
-- [ ] **L** `pg_cron` + `pg_net` call the tick route every minute (check both are available on our Supabase plan)
+- [ ] **L** `jobs-tick` systemd timer calls the tick route every minute on EC2 (replaces `pg_cron` + `pg_net`; we are moving to AWS)
 - [ ] **L** `POST /api/v3/attempts`
 - [ ] **L** `GET /api/v3/attempts/:id` → `PlayerView`
 - [ ] **M** `POST /api/v3/attempts/:id/actions`: optimistic revision, `engine.step`, save `state` and `events`
@@ -88,7 +88,7 @@ and [`../prd-v3/glossary.md`](../prd-v3/glossary.md) first. Requirement IDs in b
 - **v2 behaviour must not change.** Shared packages (`game-core`, `game-client`, `orchestration`, `generation`) get v3 options or modules added; v2 code paths are never altered or removed.
 - v3 maps have **no doors** (a map option); v2 maps keep theirs.
 - Outside sources: an allowlist by default, which teachers can extend [G13, T7]. The mechanism is the model's built-in web search with an allowed-domains filter (Damian may change this).
-- We stay on **Vercel and Supabase**. `main` deploys previews; `production` deploys to prod and applies the hosted Supabase migrations (`apps/web/vercel.json`, the `migrate` job in `ci.yml`). Vercel functions are capped at 300 s (`maxDuration`); Fluid compute is on, so every step may use the full 300 s.
+- **Hosting is moving to AWS** (the EC2 host in `infra/aws`) once we are off the current Vercel production. Until then, `main` deploys Vercel previews and the AWS staging host (`aws-deploy.yml`), and `production` deploys prod on Vercel and applies the hosted Supabase migrations (the `migrate` job in `ci.yml`). Build for both: keep every request and job step under 300 s (Vercel's `maxDuration`; Fluid compute is on), and don't depend on anything only one host has. The job runner's every-minute safety net is the `jobs-tick` systemd timer on EC2, not `pg_cron`.
 
 **Rules:**
 - All v3 code sits behind the `V3_ENABLED` flag plus a test-school allowlist.
