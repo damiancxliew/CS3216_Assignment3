@@ -116,10 +116,24 @@ describe('Reveal assembly', () => {
     const reveal = await finish(game)
     expect(reveal.reveal?.pathVsHistory[0]?.closedEndings).not.toContain('Hidden')
     expect(reveal.reveal?.corrections).toEqual([
-      'A told you that The island is mine. That was one-sided: The letter says the key line.',
+      'A told you: "The island is mine." That was one-sided: The letter says the key line.',
       'A slanted.',
     ])
     expect(PlayerView.parse(reveal)).toBeDefined()
+  })
+
+  it('skips a slant correction when its contradictory discovery is missing', async () => {
+    const cloned = structuredClone(mini)
+    const slant = cloned.characters.find((character) => character.id === 'a')?.slants[0]
+    if (slant === undefined) throw new Error('mini fixture has no slant for A')
+    slant.contradictedBy = ['missing-discovery']
+    const spec = EngineSpec.parse(cloned)
+    const game = new Harness(spec)
+    await game.start()
+    await game.say('a', 'Hello')
+
+    const reveal = await finish(game)
+    expect(reveal.reveal?.corrections).toEqual(['A slanted.'])
   })
 
   it('does not add a correction for a slant the student confronted', async () => {

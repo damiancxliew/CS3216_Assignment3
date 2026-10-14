@@ -25,10 +25,11 @@ function slantCorrections(spec: EngineSpec, state: EngineState): string[] {
     return character.slants
       .filter((slant) => !state.confrontedSlants.includes(slant.id))
       .map((slant) => {
-        const claim = slant.claim.replace(/\.$/, '')
         const contradictedBy = spec.discoveries.find((discovery) => discovery.id === slant.contradictedBy[0])?.text
-        return `${character.name} told you that ${claim}. That was one-sided: ${contradictedBy}`
+        if (contradictedBy === undefined) return null
+        return `${character.name} told you: "${slant.claim}" That was one-sided: ${contradictedBy}`
       })
+      .filter((correction): correction is string => correction !== null)
   })
 }
 

@@ -376,7 +376,7 @@ describe('end of game', () => {
       ended: true,
       reveal: {
         whatHappened: 'It happened.',
-        corrections: ['A told you that The island is mine. That was one-sided: The letter says the key line.', 'A slanted.'],
+        corrections: ['A told you: "The island is mine." That was one-sided: The letter says the key line.', 'A slanted.'],
       },
     })
     expect(reveal.reveal?.missedCore).toEqual(['A fears Riau.', 'B will decide alone.'])
