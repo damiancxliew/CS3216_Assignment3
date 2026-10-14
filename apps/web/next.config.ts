@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
     "@adventure/orchestration",
     "@adventure/game-core",
     "@adventure/game-client",
+    "@adventure/jobs",
     "@adventure/play-contract",
     "@adventure/engine",
   ],

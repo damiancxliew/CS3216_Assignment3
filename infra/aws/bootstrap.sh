@@ -234,6 +234,8 @@ install -m 0644 "$SCRIPT_DIR/systemd/app.service" /etc/systemd/system/app.servic
 install -m 0644 "$SCRIPT_DIR/systemd/caddy.service" /etc/systemd/system/caddy.service
 install -m 0644 "$SCRIPT_DIR/systemd/backup.service" /etc/systemd/system/backup.service
 install -m 0644 "$SCRIPT_DIR/systemd/backup.timer" /etc/systemd/system/backup.timer
+install -m 0644 "$SCRIPT_DIR/systemd/jobs-tick.service" /etc/systemd/system/jobs-tick.service
+install -m 0644 "$SCRIPT_DIR/systemd/jobs-tick.timer" /etc/systemd/system/jobs-tick.timer
 install -m 0755 "$SCRIPT_DIR/migrate.sh" "$SCRIPT_DIR/deploy.sh" "$SCRIPT_DIR/backup.sh" "$SCRIPT_DIR/copy-data.sh" "$SCRIPT_DIR/check-isolation.sh" "$APP_ROOT/bin/"
 install -m 0644 "$SCRIPT_DIR/compat.sql" "$APP_ROOT/bin/compat.sql"
 install -m 0644 "$SCRIPT_DIR/gen-keys.mjs" "$APP_ROOT/bin/gen-keys.mjs"
@@ -242,7 +244,8 @@ chown -R root:root "$APP_ROOT/bin"
 chmod 0755 "$APP_ROOT/bin"
 
 systemctl daemon-reload
-systemctl enable postgrest.service app.service caddy.service backup.timer
+systemctl enable postgrest.service app.service caddy.service backup.timer jobs-tick.timer
 systemctl enable --now backup.timer
+systemctl enable --now jobs-tick.timer
 systemctl enable --now caddy.service
 echo "AWS application host bootstrap complete. Deploy a release to start the application."

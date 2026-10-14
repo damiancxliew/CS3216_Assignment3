@@ -23,34 +23,38 @@ used for background work (`apps/web/src/app/teacher/actions.ts`).
 
 **Job runner design:** a `job_steps` table; `claim_job_step()` using `FOR UPDATE SKIP LOCKED`; a route
 `POST /api/v3/jobs/tick` (`maxDuration` 300) that runs one step, marks its dependants ready and re-triggers itself once
-per ready step; a `jobs-tick` systemd timer on the EC2 host calls the tick route every minute as a safety net (we are moving to AWS); a shared-secret header guards
-the route. It must not depend on the teacher's browser tab.
+per ready step; on AWS, the `jobs-tick.timer` systemd timer calls the route every minute as a safety net.
+`pg_cron`/`pg_net` are only for hosted Supabase if ever needed; a shared-secret header guards the route. It must not
+depend on the teacher's browser tab.
 
 ## To-do
 **By D1 11:00**
-- [ ] **M** `packages/jobs` interface: `defineStep`, `enqueue`, `getProgress`
-- [ ] **M** Migration: `adventures_v3` (id, school_id, status, spec jsonb, spec_version)
-- [ ] **M** Migration: `job_steps`
-- [ ] **M** Migration: `attempts_v3` (id, adventure_id, spec_version, student_id, state jsonb, revision)
-- [ ] **L** Migration: `attempt_events_v3` (attempt_id, seq, type, payload jsonb)
-- [ ] **L** Migration: `flags_v3`
+- [x] **M** `packages/jobs` interface: `defineStep`, `enqueue`, `getProgress`
+- [x] **M** Migration: `adventures_v3` (id, school_id, status, spec jsonb, spec_version)
+- [x] **M** Migration: `job_steps`
+- [x] **M** Migration: `attempts_v3` (id, adventure_id, spec_version, student_id, state jsonb, revision)
+- [x] **L** Migration: `attempt_events_v3` (attempt_id, seq, type, payload jsonb)
+- [x] **L** Migration: `flags_v3`
 
 **By Checkpoint 1 (D1 19:00)**
-- [ ] **M** `claim_job_step()`, using `FOR UPDATE SKIP LOCKED`
-- [ ] **M** `POST /api/v3/jobs/tick`
-- [ ] **L** `jobs-tick` systemd timer calls the tick route every minute on EC2 (replaces `pg_cron` + `pg_net`; we are moving to AWS)
-- [ ] **L** `POST /api/v3/attempts`
-- [ ] **L** `GET /api/v3/attempts/:id` → `PlayerView`
-- [ ] **M** `POST /api/v3/attempts/:id/actions`: optimistic revision, `engine.step`, save `state` and `events`
-- [ ] **L** Rate limit and per-attempt cost ceiling [C5–C7]
+- Local golden play seed: `npx vitest run --config scripts/vitest.v3-seed.config.ts` (student: `v3-student@local.test` / `password123!`).
+- [x] **M** `claim_job_step()`, using `FOR UPDATE SKIP LOCKED`
+- [x] **M** `POST /api/v3/jobs/tick`
+- [x] **L** On AWS, `jobs-tick.timer` calls the route every minute; use `pg_cron`/`pg_net` only for hosted Supabase if ever needed
+- [x] **L** `POST /api/v3/attempts`
+- [x] **L** `GET /api/v3/attempts/:id` → `PlayerView`
+- [x] **M** `POST /api/v3/attempts/:id/actions`: optimistic revision, `engine.step`, save `state` and `events`
+- [x] **L** Rate limit and per-attempt cost ceiling [C5–C7]
 - [ ] **M** Sources step: allowlisted web search and excerpt extraction [G13, T7]
 - [ ] **M** Sources step: word-for-word quote check and source labels [G13.2, G1.2]
-- [ ] **L** Screen: role briefing [P18]
-- [ ] **H** Screens: chat, notes panel, inserting a note into chat [P8, P13]
-- [ ] **H** Screen: document reader with passage selection [P11]
-- [ ] **L** Portraits by stance id [G4.2]
-- [ ] **L** Play route picks v2 or v3 by the adventure's version (v2 attempts keep working)
-- [ ] **L** Switch from `@adventure/engine/mock` to `@adventure/engine`
+- [x] **L** Screen: role briefing [P18]
+- [x] **H** Screens: chat, notes panel, inserting a note into chat [P8, P13]
+- [x] **H** Screen: document reader with passage selection [P11]
+- [x] **L** Portraits by stance id [G4.2]
+- [x] **L** Play route picks v2 or v3 by the adventure's version (v2 attempts keep working)
+- [x] **L** Switch from `@adventure/engine/mock` to `@adventure/engine`
+
+Portrait URLs are wired to `NEXT_PUBLIC_V3_PORTRAIT_BASE`; initials remain the fallback until stance portrait generation lands.
 
 **By Checkpoint 2 (D2 13:00)**
 - [ ] **M** Hints that escalate with time left [P5, P5.1.1]
