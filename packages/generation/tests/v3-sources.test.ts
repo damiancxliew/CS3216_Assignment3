@@ -166,6 +166,7 @@ describe('HTML extraction', () => {
 })
 
 const LONG_TEXT = 'A preserved source records that merchants arrived at the settlement in 1819. '.repeat(12)
+const publicLookup = async (_hostname: string) => [{ address: '93.184.216.34', family: 4 }]
 
 function textResponse(body: string, status = 200): Response {
   return new Response(body, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } })
@@ -186,7 +187,7 @@ describe('runSources', () => {
       })
     }
 
-    const result = await runSources({ episode: 'Singapore in 1819' }, { search, fetch: fetcher })
+    const result = await runSources({ episode: 'Singapore in 1819' }, { search, fetch: fetcher, lookup: publicLookup })
 
     expect(search.requests).toHaveLength(1)
     expect(search.requests[0]).toMatchObject({
@@ -224,7 +225,7 @@ describe('runSources', () => {
       return textResponse('too short')
     }
 
-    const result = await runSources({ episode: 'Singapore in 1819' }, { search, fetch: fetcher })
+    const result = await runSources({ episode: 'Singapore in 1819' }, { search, fetch: fetcher, lookup: publicLookup })
 
     expect(calls).toHaveLength(3)
     expect(calls).not.toContain('https://example.com/private')
@@ -245,7 +246,7 @@ describe('runSources', () => {
     }
 
     const input = { episode: 'Singapore in 1819', maxSources: 20 }
-    const deps = { search, fetch: fetcher, now: () => 0 }
+    const deps = { search, fetch: fetcher, lookup: publicLookup, now: () => 0 }
     const first = await runSources(input, deps)
     const second = await runSources(input, deps)
 
@@ -253,6 +254,103 @@ describe('runSources', () => {
     expect(first).toEqual(second)
     expect(first.sources).toHaveLength(1)
     expect(search.requests[0]?.maxResults).toBe(8)
+  })
+
+  it('rejects allowAny hosts with a private DNS answer before fetching', async () => {
+    const url = 'https://teacher-source.example/record'
+    const search = new FakeWebSearch([{ url, title: 'Record', snippet: '' }])
+    let fetches = 0
+    let lookedUpHost = ''
+    const fetcher: typeof fetch = async () => {
+      fetches += 1
+      return textResponse(LONG_TEXT)
+    }
+    const lookup = async (hostname: string) => {
+      lookedUpHost = hostname
+      return [
+        { address: '93.184.216.34', family: 4 },
+        { address: '169.254.169.254', family: 4 },
+      ]
+    }
+
+    const result = await runSources({
+      episode: 'A source',
+      policy: { allowAny: true },
+    }, { search, fetch: fetcher, lookup })
+
+    expect(lookedUpHost).toBe('teacher-source.example')
+    expect(fetches).toBe(0)
+    expect(result.rejected).toEqual([{ url, reason: 'private_address' }])
+  })
+
+  it('resolves and rejects private redirect targets before requesting them', async () => {
+    const search = new FakeWebSearch([{
+      url: 'https://start.example/redirect',
+      title: 'Redirect',
+      snippet: '',
+    }])
+    const requests: string[] = []
+    const fetcher: typeof fetch = async (input) => {
+      requests.push(String(input))
+      return new Response(null, {
+        status: 302,
+        headers: { location: 'https://internal.example/record' },
+      })
+    }
+    const lookup = async (hostname: string) => hostname === 'start.example'
+      ? [{ address: '93.184.216.34', family: 4 }]
+      : [{ address: '10.0.0.5', family: 4 }]
+
+    const result = await runSources({
+      episode: 'A source',
+      policy: { allowAny: true },
+    }, { search, fetch: fetcher, lookup })
+
+    expect(requests).toEqual(['https://start.example/redirect'])
+    expect(result.rejected).toEqual([{
+      url: 'https://start.example/redirect',
+      reason: 'private_address',
+    }])
+  })
+
+  it('fetches when all resolved addresses are public', async () => {
+    const search = new FakeWebSearch([{
+      url: 'https://public.example/record',
+      title: 'Public record',
+      snippet: '',
+    }])
+    const fetcher: typeof fetch = async () => textResponse(LONG_TEXT)
+    const lookup = async () => [
+      { address: '93.184.216.34', family: 4 },
+      { address: '2606:4700:4700::1111', family: 6 },
+    ]
+
+    const result = await runSources({
+      episode: 'A source',
+      policy: { allowAny: true },
+    }, { search, fetch: fetcher, lookup })
+
+    expect(result.sources).toHaveLength(1)
+    expect(result.rejected).toEqual([])
+  })
+
+  it('rejects IPv4-mapped IPv6 loopback resolutions', async () => {
+    const url = 'https://mapped.example/record'
+    const search = new FakeWebSearch([{ url, title: 'Mapped', snippet: '' }])
+    let fetches = 0
+    const fetcher: typeof fetch = async () => {
+      fetches += 1
+      return textResponse(LONG_TEXT)
+    }
+    const lookup = async () => [{ address: '::ffff:127.0.0.1', family: 6 }]
+
+    const result = await runSources({
+      episode: 'A source',
+      policy: { allowAny: true },
+    }, { search, fetch: fetcher, lookup })
+
+    expect(fetches).toBe(0)
+    expect(result.rejected).toEqual([{ url, reason: 'private_address' }])
   })
 })
 
