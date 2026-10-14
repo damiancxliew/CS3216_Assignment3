@@ -42,6 +42,7 @@ describe('Action', () => {
   it('rejects an empty or backwards passage selection', () => {
     expect(Action.safeParse({ type: 'selectPassage', documentId: 'd', start: 5, end: 5 }).success).toBe(false)
     expect(Action.safeParse({ type: 'selectPassage', documentId: 'd', start: 9, end: 2 }).success).toBe(false)
+    expect(Action.safeParse({ type: 'selectPassage', documentId: 'd', start: 0, end: 1e9 }).success).toBe(false)
   })
 
   it('caps the evidence notes in an Interview answer', () => {
