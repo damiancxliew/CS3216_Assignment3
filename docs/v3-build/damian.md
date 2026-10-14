@@ -23,8 +23,9 @@ used for background work (`apps/web/src/app/teacher/actions.ts`).
 
 **Job runner design:** a `job_steps` table; `claim_job_step()` using `FOR UPDATE SKIP LOCKED`; a route
 `POST /api/v3/jobs/tick` (`maxDuration` 300) that runs one step, marks its dependants ready and re-triggers itself once
-per ready step; a `jobs-tick` systemd timer on the EC2 host calls the tick route every minute as a safety net (we are moving to AWS); a shared-secret header guards
-the route. It must not depend on the teacher's browser tab.
+per ready step; on AWS, the `jobs-tick.timer` systemd timer calls the route every minute as a safety net.
+`pg_cron`/`pg_net` are only for hosted Supabase if ever needed; a shared-secret header guards the route. It must not
+depend on the teacher's browser tab.
 
 ## To-do
 **By D1 11:00**
@@ -36,9 +37,9 @@ the route. It must not depend on the teacher's browser tab.
 - [x] **L** Migration: `flags_v3`
 
 **By Checkpoint 1 (D1 19:00)**
-- [ ] **M** `claim_job_step()`, using `FOR UPDATE SKIP LOCKED`
-- [ ] **M** `POST /api/v3/jobs/tick`
-- [ ] **L** `jobs-tick` systemd timer calls the tick route every minute on EC2 (replaces `pg_cron` + `pg_net`; we are moving to AWS)
+- [x] **M** `claim_job_step()`, using `FOR UPDATE SKIP LOCKED`
+- [x] **M** `POST /api/v3/jobs/tick`
+- [x] **L** On AWS, `jobs-tick.timer` calls the route every minute; use `pg_cron`/`pg_net` only for hosted Supabase if ever needed
 - [ ] **L** `POST /api/v3/attempts`
 - [ ] **L** `GET /api/v3/attempts/:id` → `PlayerView`
 - [ ] **M** `POST /api/v3/attempts/:id/actions`: optimistic revision, `engine.step`, save `state` and `events`
