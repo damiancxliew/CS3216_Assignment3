@@ -77,6 +77,20 @@ describe('discoveries become notes', () => {
     expect(game.state.discovered).toEqual(['d-a1'])
   })
 
+  it('keeps holding back an earlier stage\'s undiscovered topics, and stops offering them', async () => {
+    const game = new Harness(mini)
+    await game.start()
+    await game.act({ type: 'endStage' })
+    await game.act({ type: 'act', actId: 'frank' })
+    await game.act({ type: 'predict', outcomeId: 'o-delay' })
+    await game.act({ type: 'continue' })
+    await game.act({ type: 'message', characterId: 'a', text: 'What do you fear?' })
+    const user = game.llm.lastRequest?.user ?? ''
+    expect(user.slice(user.indexOf('<<<NOT YET'))).toContain('his fears')
+    expect(user).not.toContain('A wants a share.')
+    expect(game.state.pendingChecks[0]?.revealable).toEqual([])
+  })
+
   it('applies a post-turn check at most once', async () => {
     const game = new Harness(mini)
     await game.start()
