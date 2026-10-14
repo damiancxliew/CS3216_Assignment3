@@ -59,8 +59,8 @@ Portrait URLs are wired to `NEXT_PUBLIC_V3_PORTRAIT_BASE`; initials remain the f
 **By Checkpoint 2 (D2 13:00)**
 - [ ] **M** Hints that escalate with time left [P5, P5.1.1]
 - [ ] **M** Story events [P12]
-- [ ] **H** Interview: push-back prompt and logic [E2]
-- [ ] **M** Reveal assembly, including source labels [E3]
+- [x] **H** Interview: push-back prompt and logic [E2]
+- [x] **M** Reveal assembly, including source labels [E3]
 - [ ] **H** Screens: defining moment, acts and one-tap prediction [P9, P3]
 - [ ] **L** Screen: epilogue [E1]
 - [ ] **M** Screen: Interview

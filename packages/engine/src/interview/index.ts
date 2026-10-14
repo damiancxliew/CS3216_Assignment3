@@ -1,13 +1,13 @@
 /**
- * The Interview [E2]. **Owner: Damian.** A minimal working version so the game plays to the reveal: the
- * push-back is chosen by the rule order in E2.4.1 and shown as written; replacing it with the interviewer's
- * own wording (E2.4.2) and the full logic is Damian's.
+ * The Interview [E2]. **Owner: Damian.** E2.4.1 chooses the counterpoint, E2.4.2 and E2.6 let the
+ * interviewer put it in their own voice, with the rule text as the fallback.
  */
 import type { InterviewView } from '@adventure/play-contract'
 
 import { fail, type StepContext } from '../context'
 import type { EngineSpec, SpecEnding } from '../spec'
 import type { EngineState, InterviewAnswerState } from '../state'
+import { interviewerLine } from './voice'
 
 export const INTERVIEW_CLOSING = 'Thank you. I will set that down as you said it.'
 
@@ -31,25 +31,27 @@ function pushBackFor(ctx: StepContext, ending: SpecEnding, verdictId: string): s
   return ending.interview.generalCounter
 }
 
-export function handleInterviewAnswer(ctx: StepContext, action: { verdictId: string; evidenceNoteIds: string[]; text?: string | undefined }): void {
+export async function handleInterviewAnswer(ctx: StepContext, action: { verdictId: string; evidenceNoteIds: string[]; text?: string | undefined }): Promise<void> {
   const { state } = ctx
   if (state.phase !== 'interview' || state.interview.closed) fail('illegal_phase', 'no Interview question is open')
   const ending = endingOf(ctx.spec, state) ?? fail('illegal_phase', 'no ending reached')
   const verdict = ending.interview.verdicts.find((candidate) => candidate.id === action.verdictId) ?? fail('unknown_id', `no verdict ${action.verdictId}`)
   for (const noteId of action.evidenceNoteIds) if (!state.notes.some((note) => note.id === noteId)) fail('not_held', `no note ${noteId}`)
   const answer: InterviewAnswerState = { verdictId: verdict.id, evidenceNoteIds: [...new Set(action.evidenceNoteIds)], text: action.text ?? null }
+  const answerForInterviewer = action.text ? `${verdict.text} — ${action.text.replace(/[<>]/g, '')}` : verdict.text
   const first = state.interview.answer === null
   ctx.emit({ type: 'verdict', endingId: ending.id, verdictId: verdict.id, evidenceNoteIds: answer.evidenceNoteIds, stage: first ? 'initial' : 'final', text: answer.text })
   ctx.say('player', answer.text ?? verdict.text)
   if (first) {
     state.interview.answer = answer
-    state.interview.pushBack = pushBackFor(ctx, ending, verdict.id)
+    const point = pushBackFor(ctx, ending, verdict.id)
+    state.interview.pushBack = (await interviewerLine(ctx, ending, 'pushBack', { answer: answerForInterviewer, counterpoint: point })) ?? point
     ctx.say('character', state.interview.pushBack)
   } else {
     state.interview.response = answer
-    state.interview.closing = INTERVIEW_CLOSING
+    state.interview.closing = (await interviewerLine(ctx, ending, 'closing', { answer: answerForInterviewer })) ?? INTERVIEW_CLOSING
     state.interview.closed = true
-    ctx.say('character', INTERVIEW_CLOSING)
+    ctx.say('character', state.interview.closing)
   }
   ctx.touch()
 }

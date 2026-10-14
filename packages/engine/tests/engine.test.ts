@@ -371,7 +371,14 @@ describe('end of game', () => {
     const closed = await game.act({ type: 'interviewAnswer', verdictId: 'partly', evidenceNoteIds: [], text: 'Only partly.' })
     expect(closed.interview?.closed).toBe(true)
     const reveal = await game.act({ type: 'continue' })
-    expect(reveal).toMatchObject({ phase: 'reveal', ended: true, reveal: { whatHappened: 'It happened.', corrections: ['A slanted.'] } })
+    expect(reveal).toMatchObject({
+      phase: 'reveal',
+      ended: true,
+      reveal: {
+        whatHappened: 'It happened.',
+        corrections: ['A told you that The island is mine. That was one-sided: The letter says the key line.', 'A slanted.'],
+      },
+    })
     expect(reveal.reveal?.missedCore).toEqual(['A fears Riau.', 'B will decide alone.'])
     expect(reveal.reveal?.pathVsHistory[0]).toMatchObject({ yours: 'A delayed.', history: 'A agreed.', matched: false })
     expect(game.eventsOf('verdict').map((event) => event.stage)).toEqual(['initial', 'final'])
