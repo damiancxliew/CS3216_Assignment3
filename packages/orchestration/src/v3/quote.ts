@@ -10,8 +10,13 @@ export function neutralise(text: string): string {
   return text.replaceAll(BLOCK_OPEN, '<<').replaceAll(BLOCK_CLOSE, '>>')
 }
 
+/** A single-line, delimiter-free version of generated text that must sit outside a block (labels, instructions). */
+export function inline(text: string): string {
+  return neutralise(text).replace(/\s+/g, ' ').trim()
+}
+
 export function block(label: string, body: string): string {
-  return `${BLOCK_OPEN}${label}\n${neutralise(body)}\n${BLOCK_CLOSE}`
+  return `${BLOCK_OPEN}${inline(label)}\n${neutralise(body)}\n${BLOCK_CLOSE}`
 }
 
 export function bullets(items: readonly string[], empty = 'None.'): string {
