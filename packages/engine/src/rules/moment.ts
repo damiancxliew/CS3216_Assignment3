@@ -56,6 +56,8 @@ export function openMoment(ctx: StepContext, reason: 'student' | 'finalCall'): v
   if (reason === 'finalCall') ctx.say('narration', moment.finalCallNarration)
   state.openDocumentId = null
   state.hints.pausedSince = null
+  // The countdown has done its job once the moment is here.
+  state.stageEndsAt = null
   const nudge = missingCore(ctx).length > 0 ? moment.nudge : null
   state.moment = { momentId: moment.id, status: 'choosing', availableActIds: [], actId: null, outcomeId: null, nudge }
   refreshActs(ctx)

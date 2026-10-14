@@ -304,6 +304,21 @@ describe('defining moments, outcomes and endings', () => {
     expect(game.state.endingId).toBe('e-secret')
   })
 
+  it('ends investigation when the moment begins: no walking, picking up or selecting, but held documents can be re-read', async () => {
+    const game = new Harness(mini)
+    await game.start()
+    await game.act({ type: 'enterRoom', roomId: 'r2' })
+    await game.act({ type: 'openDocument', documentId: 'letter' })
+    await game.act({ type: 'closeDocument', documentId: 'letter' })
+    const moment = await game.act({ type: 'endStage' })
+    expect(moment.timer).toBeNull()
+    await expect(game.act({ type: 'selectPassage', documentId: 'letter', ...LETTER_KEY })).rejects.toMatchObject({ code: 'illegal_phase' })
+    await expect(game.act({ type: 'enterRoom', roomId: 'r1' })).rejects.toMatchObject({ code: 'illegal_phase' })
+    await expect(game.act({ type: 'endStage' })).rejects.toMatchObject({ code: 'illegal_phase' })
+    expect((await game.act({ type: 'openDocument', documentId: 'letter' })).documents.find((document) => document.id === 'letter')?.open).toBe(true)
+    expect(game.state.discovered).toEqual([])
+  })
+
   it('refuses an act that is not on offer', async () => {
     const game = new Harness(mini)
     await game.start()
@@ -323,7 +338,7 @@ describe('timer and final call', () => {
     expect(late.definingMoment).toMatchObject({ status: 'choosing' })
     expect(late.messages.map((message) => message.text)).toContain('Time is up: A will answer now.')
     expect(late.messages.map((message) => message.text)).not.toContain('One more thing')
-    expect(late.timer).toEqual(expect.objectContaining({ endsAt: expect.any(Number) }))
+    expect(late.timer).toBeNull()
   })
 
   it('has no timer when the teacher turns it off', async () => {
