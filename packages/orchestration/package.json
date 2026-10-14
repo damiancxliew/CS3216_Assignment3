@@ -10,7 +10,8 @@
     ".": "./src/index.ts",
     "./actions": "./src/actions.ts",
     "./resolution": "./src/resolution.ts",
-    "./resolver": "./src/resolver/index.ts"
+    "./resolver": "./src/resolver/index.ts",
+    "./v3": "./src/v3/index.ts"
   },
   "scripts": {
     "test": "vitest run",
