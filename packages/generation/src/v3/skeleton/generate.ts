@@ -14,6 +14,12 @@ import { SkeletonLlmOutput, skeletonOutputJsonSchema, toSkeleton } from './schem
 
 export const MAX_REPAIRS = 2
 
+/**
+ * Wall-clock budget for the whole pass, first call and repairs together. A job step must finish within the host's
+ * 300 s limit with time left to save, so a repair only starts if the last call's duration still fits.
+ */
+export const SKELETON_BUDGET_MS = 270_000
+
 /** v3 skeleton pass runs on gpt-6-sol (v2 stays on DEFAULT_MODELS.frontier). */
 export const SKELETON_MODEL = 'gpt-6-sol'
 
@@ -29,6 +35,10 @@ export interface SkeletonGenerationOptions {
   model?: string
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high' | null
   maxOutputTokens?: number
+  /** Defaults to `SKELETON_BUDGET_MS`. */
+  budgetMs?: number
+  /** Injected for tests. */
+  now?: () => number
 }
 
 export interface SkeletonCallMetrics {
@@ -66,7 +76,14 @@ export async function generateSkeleton(input: SkeletonGenerationInput, opts: Ske
   let skeleton: SkeletonSpec | undefined
   let previousRaw: string | null = null
 
+  const now = opts.now ?? Date.now
+  const deadline = now() + (opts.budgetMs ?? SKELETON_BUDGET_MS)
   for (let attempt = 0; attempt <= MAX_REPAIRS; attempt++) {
+    const lastLatency = calls.at(-1)?.latencyMs ?? 0
+    if (attempt > 0 && now() + lastLatency > deadline) {
+      issues = [...issues, { code: 'time-budget', path: '', message: `no time left for repair ${attempt} within ${Math.round((opts.budgetMs ?? SKELETON_BUDGET_MS) / 1000)} s` }]
+      break
+    }
     const userTurn =
       attempt === 0 ? user : `${user}\n\nYour previous skeleton:\n\`\`\`json\n${previousRaw ?? ''}\n\`\`\`\n\n${skeletonRepairMessage(issues)}`
     const response = await opts.llm.completeJson({
