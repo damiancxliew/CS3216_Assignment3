@@ -141,6 +141,58 @@ describe("adventures_v3 and pinned versions", () => {
   });
 });
 
+describe("v3 LLM usage accounting", () => {
+  it("links usage rows to attempts, sums tokens, and restricts the RPC", async () => {
+    const adventure = await createAdventure();
+    const { data: attempt, error: attemptError } = await admin
+      .from("attempts_v3")
+      .insert({
+        adventure_id: adventure.id,
+        spec_version: adventure.spec_version,
+        student_id: student.userId,
+        state: {},
+      })
+      .select("id")
+      .single();
+    expect(attemptError).toBeNull();
+
+    const { error: usageError } = await admin.from("llm_usage").insert([
+      {
+        attempt_v3_id: attempt.id,
+        organization_id: schoolId,
+        user_id: student.userId,
+        purpose: "play",
+        call: "v3_character",
+        input_tokens: 120,
+        output_tokens: 30,
+      },
+      {
+        attempt_v3_id: attempt.id,
+        organization_id: schoolId,
+        user_id: student.userId,
+        purpose: "play",
+        call: "v3_post_turn",
+        input_tokens: 200,
+        output_tokens: 50,
+      },
+    ]);
+    expect(usageError).toBeNull();
+
+    const { data: tokens, error: tokenError } = await admin.rpc("attempt_v3_tokens", {
+      p_attempt_id: attempt.id,
+    });
+    expect(tokenError).toBeNull();
+    expect(Number(tokens)).toBe(400);
+
+    const anonResult = await anon().rpc("attempt_v3_tokens", { p_attempt_id: attempt.id });
+    expect(anonResult.error?.code).toBe("42501");
+    const authenticatedResult = await student.client.rpc("attempt_v3_tokens", {
+      p_attempt_id: attempt.id,
+    });
+    expect(authenticatedResult.error?.code).toBe("42501");
+  });
+});
+
 describe("v3 attempts, events, and moderation flags", () => {
   it("keeps raw state, events, and flags server-only while allowing staff reads", async () => {
     const adventure = await createAdventure();
