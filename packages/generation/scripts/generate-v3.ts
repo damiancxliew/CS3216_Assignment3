@@ -176,6 +176,7 @@ if (details.draft !== undefined) {
 } else {
   lines.push(`details pass failed with ${details.issues.length} issues`)
 }
+for (const dup of details.mergedDuplicates) lines.push(`merged duplicates: kept ${dup.keep}, dropped ${dup.drop.join(', ')}`)
 for (const issue of [...details.issues.map((i) => ({ ...i, kind: 'issue' })), ...details.warnings.map((w) => ({ ...w, kind: 'warning' }))])
   lines.push(`  ${issue.kind} ${issue.code} at ${issue.path}: ${issue.message}`)
 

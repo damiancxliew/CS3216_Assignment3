@@ -76,7 +76,7 @@ export const StageDetailsLlmOutput = z.object({
     z.object({
       id: Id,
       when: z.object({
-        kind: z.enum(['atSeconds', 'discovered', 'stuck', 'timerOut']),
+        kind: z.enum(['atSeconds', 'discovered', 'allCore', 'stuck', 'timerOut']),
         seconds: z.number().nullable(),
         discoveryId: Id.nullable(),
       }),
@@ -127,6 +127,7 @@ export type MinorsLlmOutput = z.infer<typeof MinorsLlmOutput>
 export const LinkLlmOutput = z.object({
   slantLinks: z.array(z.object({ slantId: Id, contradictedBy: z.array(Id) })),
   noteTriggers: z.array(z.object({ id: Id, characterId: Id, discoveryId: Id, effect: Effect, notice: Text })),
+  duplicates: z.array(z.object({ keep: Id, drop: z.array(Id) })),
 })
 export type LinkLlmOutput = z.infer<typeof LinkLlmOutput>
 
@@ -156,12 +157,19 @@ export function toEffect(effect: { kind: 'toStance' | 'stanceDelta'; stance: str
   return effect.kind === 'toStance' ? { toStance: effect.stance! } : { stanceDelta: effect.delta! as 1 | -1 }
 }
 
-export function toWhen(when: { kind: 'atSeconds' | 'discovered' | 'stuck' | 'timerOut'; seconds: number | null; discoveryId: string | null }) {
+export function toWhen(
+  when: { kind: 'atSeconds' | 'discovered' | 'allCore' | 'stuck' | 'timerOut'; seconds: number | null; discoveryId: string | null },
+  coreIds: string[] = [],
+) {
   switch (when.kind) {
     case 'atSeconds':
       return { atSeconds: when.seconds! }
     case 'discovered':
       return { condition: { discovered: when.discoveryId! } as Condition }
+    case 'allCore': {
+      const conditions: Condition[] = coreIds.map((id) => ({ discovered: id }))
+      return { condition: conditions.length === 1 ? conditions[0]! : ({ all: conditions } as Condition) }
+    }
     case 'stuck':
       return { stuck: true as const }
     case 'timerOut':

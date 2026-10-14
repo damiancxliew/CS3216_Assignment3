@@ -29,6 +29,7 @@ export interface DetailsResult {
   issues: CheckIssue[]
   warnings: CheckIssue[]
   slantedDocuments: { stageId: string; documentId: string; note: string }[]
+  mergedDuplicates: { keep: string; drop: string[] }[]
   pendingPasses: string[]
   metrics: { calls: DetailCallMetrics[]; totalCostUsd: number }
 }
@@ -58,6 +59,7 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
     issues.push(...result.issues)
   }
   const totalCost = () => calls.reduce((sum, c) => sum + (c.costUsd ?? 0), 0)
+  const uniq = (xs: CheckIssue[]) => xs.filter((x, i) => xs.findIndex((y) => y.code === x.code && y.path === x.path && y.message === x.message) === i)
 
   // --- stages + personas + minors concurrently -------------------------------------------------
   const majors = skeleton.characters.filter((c) => c.tier === 'major')
@@ -77,9 +79,10 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
     minors: minorsResult,
     link: null,
   }
+  const mergedDups = () => bag.link?.output?.duplicates ?? []
   const missingOutput = [...bag.stage.values(), ...bag.persona.values(), ...(bag.minors !== null ? [bag.minors] : [])].some((r) => r.output === undefined)
   if (issues.length > 0 || missingOutput)
-    return { ok: false, issues, warnings, slantedDocuments: [], pendingPasses: [], metrics: { calls, totalCostUsd: totalCost() } }
+    return { ok: false, issues, warnings: uniq(warnings), slantedDocuments: [], mergedDuplicates: [], pendingPasses: [], metrics: { calls, totalCostUsd: totalCost() } }
 
   // --- link -------------------------------------------------------------------------------------
   const linkModel = opts.linkModel ?? opts.model
@@ -93,7 +96,7 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
   bag.link = await linkDetails(buildLinkContext(skeleton, bag), shared, linkOpts)
   collect(bag.link)
   if (bag.link.output === undefined || bag.link.issues.length > 0)
-    return { ok: false, issues, warnings, slantedDocuments: [], pendingPasses: [], metrics: { calls, totalCostUsd: totalCost() } }
+    return { ok: false, issues, warnings: uniq(warnings), slantedDocuments: [], mergedDuplicates: mergedDups(), pendingPasses: [], metrics: { calls, totalCostUsd: totalCost() } }
 
   // --- merge + check ----------------------------------------------------------------------------
   const merged = mergeAndCheck(skeleton, bag)
@@ -127,14 +130,14 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
         warnings.push(...remerged.warnings)
         issues.push(...remerged.errors)
         if (issues.length === 0)
-          return { ok: true, draft: remerged.draft, issues, warnings, slantedDocuments: remerged.slantedDocuments, pendingPasses: ['endings', 'reveal'], metrics: { calls, totalCostUsd: totalCost() } }
-        return { ok: false, draft: remerged.draft, issues, warnings, slantedDocuments: remerged.slantedDocuments, pendingPasses: [], metrics: { calls, totalCostUsd: totalCost() } }
+          return { ok: true, draft: remerged.draft, issues, warnings: uniq(warnings), slantedDocuments: remerged.slantedDocuments, mergedDuplicates: mergedDups(), pendingPasses: ['endings', 'reveal'], metrics: { calls, totalCostUsd: totalCost() } }
+        return { ok: false, draft: remerged.draft, issues, warnings: uniq(warnings), slantedDocuments: remerged.slantedDocuments, mergedDuplicates: mergedDups(), pendingPasses: [], metrics: { calls, totalCostUsd: totalCost() } }
       }
     }
-    return { ok: false, draft: merged.draft, issues, warnings, slantedDocuments: merged.slantedDocuments, pendingPasses: [], metrics: { calls, totalCostUsd: totalCost() } }
+    return { ok: false, draft: merged.draft, issues, warnings: uniq(warnings), slantedDocuments: merged.slantedDocuments, mergedDuplicates: mergedDups(), pendingPasses: [], metrics: { calls, totalCostUsd: totalCost() } }
   }
 
-  return { ok: true, draft: merged.draft, issues, warnings, slantedDocuments: merged.slantedDocuments, pendingPasses: ['endings', 'reveal'], metrics: { calls, totalCostUsd: totalCost() } }
+  return { ok: true, draft: merged.draft, issues, warnings: uniq(warnings), slantedDocuments: merged.slantedDocuments, mergedDuplicates: mergedDups(), pendingPasses: ['endings', 'reveal'], metrics: { calls, totalCostUsd: totalCost() } }
 }
 
 function mergeAndCheck(skeleton: SkeletonShape, bag: CallBag) {
@@ -147,7 +150,16 @@ function mergeAndCheck(skeleton: SkeletonShape, bag: CallBag) {
   const validation = validateSpec(merged.draft)
   const schemaIssues: CheckIssue[] = validation.ok ? [] : validation.issues.map((i) => ({ code: 'schema', path: i.path, message: i.message }))
   const errors = schemaIssues.length > 0 ? schemaIssues : checkSpec(merged.draft).errors
-  return { draft: merged.draft, errors, warnings: merged.warnings, slantedDocuments: merged.slantedDocuments }
+  const warnings = [...merged.warnings, ...slantReactionsWarnings(merged.draft)]
+  return { draft: merged.draft, errors, warnings, slantedDocuments: merged.slantedDocuments }
+}
+
+/** ≥3 slantConfronted triggers that all move the same direction read as mechanical. */
+function slantReactionsWarnings(draft: AdventureSpec): CheckIssue[] {
+  const deltas = draft.triggers.filter((t) => 'slantConfronted' in t.on && 'stanceDelta' in t.effect).map((t) => (t.effect as { stanceDelta: number }).stanceDelta)
+  if (deltas.length >= 3 && deltas.every((d) => d === deltas[0]))
+    return [{ code: 'slant-reactions-uniform', path: 'triggers', message: `all ${deltas.length} slant-confronted triggers use stanceDelta ${deltas[0]}` }]
+  return []
 }
 
 // --- link context ------------------------------------------------------------------------------
@@ -172,7 +184,7 @@ function buildLinkContext(skeleton: SkeletonShape, bag: CallBag): LinkContext {
       tier: 'minor' as const,
       stageIds,
       stances: [],
-      slants: (minor?.slants ?? []).map((s) => ({ id: s.id, claim: s.claim, contradictedBy: s.contradictedBy })),
+      slants: (minor?.slants ?? []).map((s) => ({ id: s.id, claim: s.claim, contradictedBy: s.contradictedBy, unlocksDiscoveryId: s.unlocksDiscoveryId })),
     }
   })
   const discoveries: LinkContext['discoveries'] = skeleton.discoveries.map((d) => ({
@@ -180,14 +192,18 @@ function buildLinkContext(skeleton: SkeletonShape, bag: CallBag): LinkContext {
     stageId: d.stageId,
     holder: 'characterId' in d.holder ? `character:${d.holder.characterId}` : `document:${d.holder.documentId}`,
     text: d.text,
+    core: true,
   }))
   for (const [stageId, result] of bag.stage)
-    for (const d of result.output?.discoveries ?? []) discoveries.push({ id: d.id, stageId, holder: `document:${d.documentId}`, text: d.text })
+    for (const d of result.output?.discoveries ?? []) discoveries.push({ id: d.id, stageId, holder: `document:${d.documentId}`, text: d.text, core: false })
   for (const [characterId, result] of bag.persona)
-    for (const d of result.output?.discoveries ?? []) discoveries.push({ id: d.id, stageId: d.stageId, holder: `character:${characterId}`, text: d.text })
+    for (const d of result.output?.discoveries ?? []) discoveries.push({ id: d.id, stageId: d.stageId, holder: `character:${characterId}`, text: d.text, core: false })
   for (const minor of bag.minors?.output?.characters ?? [])
-    for (const d of minor.discoveries) discoveries.push({ id: d.id, stageId: d.stageId, holder: `character:${minor.characterId}`, text: d.text })
-  return { characters, discoveries, stageOrder }
+    for (const d of minor.discoveries) discoveries.push({ id: d.id, stageId: d.stageId, holder: `character:${minor.characterId}`, text: d.text, core: false })
+  const triggers: LinkContext['triggers'] = []
+  for (const [characterId, result] of bag.persona)
+    for (const t of result.output?.triggers ?? []) triggers.push({ characterId, on: { kind: t.on.kind, id: t.on.id } })
+  return { characters, discoveries, triggers, stageOrder }
 }
 
 // --- post-merge issue routing --------------------------------------------------------------------

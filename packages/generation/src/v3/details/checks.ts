@@ -216,6 +216,8 @@ export function stageIssues(stageId: string, output: StageDetailsLlmOutput, ctx:
       issues.push(issue('ref', `${at}.toRoomId`, `room '${event.toRoomId}' is not a room of stage '${stageId}'`))
     if (event.effect === 'deliverDocument' && (event.documentId === null || !outDocs.has(event.documentId)))
       issues.push(issue('ref', `${at}.documentId`, `document '${event.documentId}' is not a document of this stage`))
+    if (event.effect === 'beginMoment' && event.when.kind !== 'timerOut' && event.when.kind !== 'allCore')
+      issues.push(issue('begin-moment', `${at}.when`, 'beginMoment must fire on timerOut or allCore'))
   })
 
   // open questions
@@ -318,6 +320,9 @@ export function personaIssues(characterId: string, output: PersonaLlmOutput, ctx
       issues.push(issue('ref', `${at}.effect.stance`, `stance '${trigger.effect.stance}' does not exist`))
     if (trigger.effect.kind === 'stanceDelta' && trigger.effect.delta !== 1 && trigger.effect.delta !== -1)
       issues.push(issue('ref', `${at}.effect.delta`, `stanceDelta must be 1 or -1, got ${trigger.effect.delta}`))
+    const requireCount = trigger.requires === null ? 0 : trigger.requires.discoveries.length + (trigger.requires.stanceAtLeast !== null ? 1 : 0)
+    if (trigger.effect.kind === 'toStance' && trigger.effect.stance !== null && hiddenStance >= 0 && trigger.effect.stance === `s${hiddenStance + 1}` && requireCount < 2)
+      issues.push(issue('hidden-stance-guard', `${at}.requires`, `a trigger into the hidden stance needs requires with ≥2 conditions, got ${requireCount}`))
     if (trigger.requires !== null) {
       for (const id of trigger.requires.discoveries)
         if (!skelDiscoveryIds.has(id) && !ownDiscoveryIds.has(id)) issues.push(issue('ref', `${at}.requires.discoveries`, `discovery '${id}' does not exist`))
@@ -382,8 +387,10 @@ export function minorsIssues(output: MinorsLlmOutput, ctx: Ctx): { errors: Check
 
 export interface LinkContext {
   /** every character: id, tier, assigned stance ids (s1..sN for majors), slants, stages placed in */
-  characters: { id: string; tier: 'major' | 'minor'; stageIds: string[]; stances: string[]; slants: { id: string; claim: string; contradictedBy: string[] }[] }[]
-  discoveries: { id: string; stageId: string; holder: string; text: string }[]
+  characters: { id: string; tier: 'major' | 'minor'; stageIds: string[]; stances: string[]; slants: { id: string; claim: string; contradictedBy: string[]; unlocksDiscoveryId?: string | null }[] }[]
+  discoveries: { id: string; stageId: string; holder: string; text: string; core: boolean }[]
+  /** persona/minor triggers already written: characterId + on kind/id — link must not re-create them */
+  triggers: { characterId: string; on: { kind: string; id: string } }[]
   stageOrder: Map<string, number>
 }
 
@@ -395,6 +402,7 @@ export function linkIssues(output: LinkLlmOutput, ctx: LinkContext): CheckIssue[
   for (const c of ctx.characters) for (const slant of c.slants) slantOwner.set(slant.id, c.id)
 
   const seen = new Set<string>()
+  const pairsSeen = new Set<string>()
   output.slantLinks.forEach((link, i) => {
     const ownerId = slantOwner.get(link.slantId)
     if (ownerId === undefined) {
@@ -426,6 +434,38 @@ export function linkIssues(output: LinkLlmOutput, ctx: LinkContext): CheckIssue[
       issues.push(issue('ref', `${at}.effect.stance`, `stance '${trigger.effect.stance}' does not exist for '${trigger.characterId}'`))
     if (trigger.effect.kind === 'stanceDelta' && trigger.effect.delta !== 1 && trigger.effect.delta !== -1)
       issues.push(issue('ref', `${at}.effect.delta`, `stanceDelta must be 1 or -1, got ${trigger.effect.delta}`))
+    const pair = `${trigger.characterId}:${trigger.discoveryId}`
+    if (pairsSeen.has(pair) || ctx.triggers.some((t) => t.characterId === trigger.characterId && (t.on.kind === 'notePassed' || t.on.kind === 'discovered') && t.on.id === trigger.discoveryId))
+      issues.push(issue('duplicate-trigger', at, `a trigger for '${trigger.characterId}' on discovery '${trigger.discoveryId}' already exists`))
+    pairsSeen.add(pair)
+  })
+
+  // duplicates: merge same-fact discoveries — only character-held, non-core, non-unlocking drops
+  const unlockIds = new Set(ctx.characters.flatMap((c) => c.slants.map((s) => s.unlocksDiscoveryId).filter((id): id is string => id !== null && id !== undefined)))
+  const dropped = new Set<string>()
+  const keeps = new Set<string>()
+  output.duplicates.forEach((dup, i) => {
+    const at = `duplicates.${i}`
+    const keep = discoveries.get(dup.keep)
+    if (keep === undefined) issues.push(issue('duplicate-merge', `${at}.keep`, `keep discovery '${dup.keep}' does not exist`))
+    if (dropped.has(dup.keep)) issues.push(issue('duplicate-merge', `${at}.keep`, `keep '${dup.keep}' is itself dropped elsewhere`))
+    keeps.add(dup.keep)
+    for (const [j, id] of dup.drop.entries()) {
+      const at2 = `${at}.drop.${j}`
+      const drop = discoveries.get(id)
+      if (drop === undefined) {
+        issues.push(issue('duplicate-merge', at2, `drop discovery '${id}' does not exist`))
+        continue
+      }
+      if (id === dup.keep) issues.push(issue('duplicate-merge', at2, `keep and drop are the same id '${id}'`))
+      if (dropped.has(id)) issues.push(issue('duplicate-merge', at2, `discovery '${id}' is dropped twice`))
+      if (keeps.has(id)) issues.push(issue('duplicate-merge', at2, `discovery '${id}' is a keep elsewhere`))
+      if (keep !== undefined && drop.stageId !== keep.stageId) issues.push(issue('duplicate-merge', at2, `'${id}' is in stage '${drop.stageId}', keep is in '${keep.stageId}'`))
+      if (drop.holder.startsWith('document:')) issues.push(issue('duplicate-merge', at2, `discovery '${id}' is document-held and cannot be dropped`))
+      if (drop.core) issues.push(issue('duplicate-merge', at2, `core discovery '${id}' cannot be dropped`))
+      if (unlockIds.has(id)) issues.push(issue('duplicate-merge', at2, `discovery '${id}' is unlocked by a slant and cannot be dropped`))
+      dropped.add(id)
+    }
   })
   return issues
 }

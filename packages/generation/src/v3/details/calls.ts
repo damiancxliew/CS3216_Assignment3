@@ -195,6 +195,7 @@ export function linkDetails(context: LinkContext, shared: DetailsShared, opts: D
       stageIds: c.stageIds,
       stances: c.stances.map((id) => ({ id, label: id })),
       slants: c.slants.map((s) => ({ id: s.id, claim: s.claim, contradictedBy: s.contradictedBy })),
+      triggers: context.triggers.filter((t) => t.characterId === c.id).map((t) => ({ on: { kind: t.on.kind, id: t.on.id } })),
     })),
     discoveries: context.discoveries.map((d) => ({ id: d.id, stageId: d.stageId, holder: d.holder, text: d.text })),
     stages: shared.skeleton.stages.map((s, i) => ({ id: s.id, order: i })),

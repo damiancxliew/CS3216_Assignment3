@@ -94,8 +94,9 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
       })
     }
 
+    const stageCoreIds = skeleton.discoveries.filter((d) => d.stageId === stage.id).map((d) => d.id)
     for (const event of output.storyEvents) {
-      const base = { id: event.id, stageId: stage.id, when: toWhen(event.when), text: event.text }
+      const base = { id: event.id, stageId: stage.id, when: toWhen(event.when, stageCoreIds), text: event.text }
       switch (event.effect) {
         case 'summons':
           storyEvents.push({ ...base, effect: 'summons', characterId: event.characterId! })
@@ -266,12 +267,61 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
     }
   })
 
-  // link noteTriggers → triggers; drop triggers on dropped slants
+  // link noteTriggers → triggers (after persona triggers, so persona wins a (characterId, on) tie)
   for (const trigger of parts.link.noteTriggers)
     triggers.push({ id: trigger.id, characterId: trigger.characterId, on: { notePassed: trigger.discoveryId }, effect: toEffect(trigger.effect), notice: trigger.notice })
-  const keptTriggers = triggers.filter((trigger) => {
+
+  // --- link duplicates: drop the merged-away discoveries and remap every reference -------------
+  const dropToKeep = new Map<string, string>()
+  for (const dup of parts.link.duplicates) for (const id of dup.drop) dropToKeep.set(id, dup.keep)
+  if (dropToKeep.size > 0) {
+    const remapId = (id: string) => dropToKeep.get(id) ?? id
+    const remapCondition = (condition: Condition): Condition => {
+      if ('all' in condition) return { all: condition.all.map(remapCondition) }
+      if ('any' in condition) return { any: condition.any.map(remapCondition) }
+      if ('not' in condition) return { not: remapCondition(condition.not) }
+      if ('discovered' in condition) return { discovered: remapId(condition.discovered) }
+      if ('notePassed' in condition) return { notePassed: { ...condition.notePassed, discoveryId: remapId(condition.notePassed.discoveryId) } }
+      return condition
+    }
+    const dedupe = (ids: string[]) => [...new Set(ids)]
+    for (const [drop, keep] of dropToKeep) warn('discovery-merged', 'discoveries', `'${drop}' merged into '${keep}'`)
+
+    for (const d of discoveries) {
+      if (d.condition !== undefined) d.condition = remapCondition(d.condition)
+    }
+    for (const trigger of triggers) {
+      if ('notePassed' in trigger.on) trigger.on = { notePassed: remapId(trigger.on.notePassed) }
+      else if ('discovered' in trigger.on) trigger.on = { discovered: remapId(trigger.on.discovered) }
+      if (trigger.requires !== undefined) trigger.requires = remapCondition(trigger.requires)
+    }
+    for (const event of storyEvents) if ('condition' in event.when) event.when = { condition: remapCondition(event.when.condition) }
+    for (const question of openQuestions) question.discoveryIds = dedupe(question.discoveryIds.map(remapId))
+    for (const character of characters) {
+      const heldIds = new Set(discoveries.filter((d) => 'characterId' in d.holder && d.holder.characterId === character.id).map((d) => d.id))
+      character.slants = character.slants.map((slant) => ({ ...slant, contradictedBy: dedupe(slant.contradictedBy.map(remapId)).filter((id) => !heldIds.has(id)) }))
+      character.slants = character.slants.filter((slant) => {
+        if (slant.contradictedBy.length === 0) {
+          droppedSlants.add(slant.id)
+          warn('slant-dropped', `characters.${characters.indexOf(character)}.slants`, `slant '${slant.id}' has no contradicting discovery after duplicate merging`)
+          return false
+        }
+        return true
+      })
+    }
+    for (let i = discoveries.length - 1; i >= 0; i--) if (dropToKeep.has(discoveries[i]!.id)) discoveries.splice(i, 1)
+  }
+
+  // after remapping, two triggers may share (characterId, on) — keep the first (persona before link)
+  const keptTriggers = triggers.filter((trigger, i) => {
+    const onKey = `${trigger.characterId}:${JSON.stringify(trigger.on)}`
+    const earlier = triggers.findIndex((t) => `${t.characterId}:${JSON.stringify(t.on)}` === onKey)
+    if (earlier !== i) {
+      warn('trigger-merged', 'triggers', `trigger '${trigger.id}' duplicates '${triggers[earlier]!.id}' on ${onKey}`)
+      return false
+    }
     if ('slantConfronted' in trigger.on && droppedSlants.has(trigger.on.slantConfronted)) {
-      warn('slant-dropped', `triggers`, `trigger '${trigger.id}' dropped: its slant was dropped`)
+      warn('slant-dropped', 'triggers', `trigger '${trigger.id}' dropped: its slant was dropped`)
       return false
     }
     return true

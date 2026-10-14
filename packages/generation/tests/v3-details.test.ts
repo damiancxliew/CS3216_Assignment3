@@ -268,8 +268,9 @@ const minorsOutput: MinorsLlmOutput = {
 const linkOutput: LinkLlmOutput = {
   slantLinks: [{ slantId: 'farquhar-slant', contradictedBy: ['s1-d-note'] }],
   noteTriggers: [
-    { id: 'link-t1', characterId: 'raffles', discoveryId: 'd-dues', effect: { kind: 'stanceDelta', stance: null, delta: -1 }, notice: 'He bristles.' },
+    { id: 'link-t1', characterId: 'raffles', discoveryId: 's1-d-note', effect: { kind: 'stanceDelta', stance: null, delta: -1 }, notice: 'He bristles.' },
   ],
+  duplicates: [],
 }
 
 // --- routing fake LLM ----------------------------------------------------------------------
@@ -354,7 +355,7 @@ describe('generateDetails', () => {
     expect(draft.discoveries.find((d) => d.id === 'farquhar-d1')!.condition).toEqual({ all: [{ discovered: 'd-dues' }, { discovered: 'd-treaty' }] })
 
     // link note trigger + slanted documents
-    expect(draft.triggers.find((t) => t.id === 'link-t1')).toMatchObject({ characterId: 'raffles', on: { notePassed: 'd-dues' }, effect: { stanceDelta: -1 } })
+    expect(draft.triggers.find((t) => t.id === 'link-t1')).toMatchObject({ characterId: 'raffles', on: { notePassed: 's1-d-note' }, effect: { stanceDelta: -1 } })
     expect(result.slantedDocuments).toEqual([{ stageId: 's1', documentId: 'doc-1', note: 'Omits the merchants’ side.' }])
 
     // placeholders + timer
@@ -395,7 +396,7 @@ describe('generateDetails', () => {
   })
 
   it('flags a dangling link contradictedBy and gives up after MAX_REPAIRS when always broken', async () => {
-    const dangling: LinkLlmOutput = { slantLinks: [{ slantId: 'farquhar-slant', contradictedBy: ['nope'] }], noteTriggers: [] }
+    const dangling: LinkLlmOutput = { slantLinks: [{ slantId: 'farquhar-slant', contradictedBy: ['nope'] }], noteTriggers: [], duplicates: [] }
     const llm = new RoutingLlm({ ...happyRoutes(), link: [{ json: dangling }, { json: linkOutput }] })
     const ok = await generateDetails(input, { llm })
     expect(ok.ok).toBe(true)
@@ -449,7 +450,7 @@ describe('generateDetails', () => {
     const llm = new RoutingLlm({
       ...happyRoutes(),
       'persona farquhar': [{ json: farq }],
-      link: [{ json: { slantLinks: [], noteTriggers: [] } }],
+      link: [{ json: { slantLinks: [], noteTriggers: [], duplicates: [] } }],
     })
     const result = await generateDetails(input, { llm })
     expect(result.ok).toBe(true)
@@ -470,5 +471,93 @@ describe('generateDetails', () => {
     expect(llm.count('persona raffles')).toBe(1)
     expect(llm.count('link')).toBe(2) // re-run after the repair round
     expect(llm.requests.filter((r) => r.key === 'persona farquhar')[1]!.request.user).toContain('core-unreachable')
+  })
+
+  it('rejects a link noteTrigger duplicating an existing persona trigger, then repairs', async () => {
+    const dup: LinkLlmOutput = {
+      ...linkOutput,
+      noteTriggers: [{ id: 'link-t1', characterId: 'farquhar', discoveryId: 'd-dues', effect: { kind: 'stanceDelta', stance: null, delta: 1 }, notice: 'Again.' }],
+    }
+    const llm = new RoutingLlm({ ...happyRoutes(), link: [{ json: dup }, { json: linkOutput }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.ok).toBe(true)
+    expect(llm.count('link')).toBe(2)
+    expect(llm.requests.filter((r) => r.key === 'link')[1]!.request.user).toContain('duplicate-trigger')
+  })
+
+  it('requires ≥2 requires conditions on a toStance into the hidden stance', async () => {
+    const hidden = JSON.parse(JSON.stringify(farquharOutput))
+    hidden.stances[2].hidden = true
+    hidden.triggers[0] = { id: 'farquhar-t1', on: { kind: 'discovered', id: 'd-dues' }, requires: { discoveries: ['d-treaty'], stanceAtLeast: null }, effect: { kind: 'toStance', stance: 's3', delta: null }, handsOver: [], notice: 'He opens fully.' }
+    const bad = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: hidden }, { json: farquharOutput }] })
+    const res = await generateDetails(input, { llm: bad })
+    expect(res.ok).toBe(true)
+    expect(bad.requests.filter((r) => r.key === 'persona farquhar')[1]!.request.user).toContain('hidden-stance-guard')
+
+    hidden.triggers[0].requires = { discoveries: ['d-treaty'], stanceAtLeast: 's2' }
+    const good = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: hidden }] })
+    const res2 = await generateDetails(input, { llm: good })
+    expect(res2.issues.filter((i) => i.code === 'hidden-stance-guard')).toEqual([])
+    expect(good.count('persona farquhar')).toBe(1)
+  })
+
+  it('flags a beginMoment event on discovered and converts allCore to the core conditions', async () => {
+    const bad = JSON.parse(JSON.stringify(stageOutput))
+    bad.storyEvents = [{ id: 's1-ev1', when: { kind: 'discovered', seconds: null, discoveryId: 'd-treaty' }, effect: 'beginMoment', characterId: null, toRoomId: null, documentId: null, text: 'Time to decide.' }]
+    const good = JSON.parse(JSON.stringify(stageOutput))
+    good.storyEvents = [{ id: 's1-ev1', when: { kind: 'allCore', seconds: null, discoveryId: null }, effect: 'beginMoment', characterId: null, toRoomId: null, documentId: null, text: 'Time to decide.' }]
+    const llm = new RoutingLlm({ ...happyRoutes(), 'stage s1': [{ json: bad }, { json: good }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.ok).toBe(true)
+    expect(llm.requests.filter((r) => r.key === 'stage s1')[1]!.request.user).toContain('begin-moment')
+    const event = result.draft!.storyEvents.find((e) => e.id === 's1-ev1')!
+    expect(event.when).toEqual({ condition: { all: [{ discovered: 'd-treaty' }, { discovered: 'd-dues' }] } })
+  })
+
+  it('merges duplicate discoveries: removes the drop and remaps every reference', async () => {
+    // farquhar-d2 duplicates farquhar-d1's fact; the link keeps s1-d-note instead
+    const farq = JSON.parse(JSON.stringify(farquharOutput))
+    farq.discoveries.push({ id: 'farquhar-d2', stageId: 's1', text: 'Raffles ordered the flag to stay.', note: 'Same fact again.', topic: '', sourceLabel: 'invented', citations: null, requires: { discoveries: [], stanceAtLeast: null } })
+    farq.discoveries[0].requires = { discoveries: ['farquhar-d2'], stanceAtLeast: null } // condition referencing the drop
+    farq.triggers[0].on = { kind: 'discovered', id: 'farquhar-d2' } // trigger on referencing the drop
+    farq.slants[0].contradictedBy = ['d-dues', 'farquhar-d2'] // slant contradictedBy referencing the drop
+    const link: LinkLlmOutput = {
+      slantLinks: [],
+      noteTriggers: [],
+      duplicates: [{ keep: 's1-d-note', drop: ['farquhar-d2'] }],
+    }
+    const llm = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: farq }], link: [{ json: link }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.issues).toEqual([])
+    expect(result.ok).toBe(true)
+    const draft = result.draft!
+    expect(draft.discoveries.find((d) => d.id === 'farquhar-d2')).toBeUndefined()
+    expect(draft.discoveries.find((d) => d.id === 'farquhar-d1')!.condition).toEqual({ discovered: 's1-d-note' })
+    expect(draft.triggers.find((t) => t.id === 'farquhar-t1')!.on).toEqual({ discovered: 's1-d-note' })
+    expect(draft.characters.find((c) => c.id === 'farquhar')!.slants[0]!.contradictedBy).toEqual(['d-dues', 's1-d-note'])
+    expect(result.warnings.some((w) => w.code === 'discovery-merged' && w.message === "'farquhar-d2' merged into 's1-d-note'")).toBe(true)
+    expect(result.mergedDuplicates).toEqual([{ keep: 's1-d-note', drop: ['farquhar-d2'] }])
+
+    // dropping a core or a document-held discovery is rejected by the link check
+    for (const drop of ['d-dues', 's1-d-note', 'd-treaty']) {
+      const badLink: LinkLlmOutput = { ...linkOutput, duplicates: [{ keep: 'farquhar-d1', drop: [drop] }] }
+      const bad = new RoutingLlm({ ...happyRoutes(), link: [{ json: badLink }, { json: linkOutput }] })
+      const r = await generateDetails(input, { llm: bad })
+      expect(r.ok).toBe(true) // repaired
+      expect(bad.requests.filter((x) => x.key === 'link')[1]!.request.user).toContain('duplicate-merge')
+    }
+  })
+
+  it('warns slant-reactions-uniform when ≥3 slant triggers all move the same direction', async () => {
+    const farq = JSON.parse(JSON.stringify(farquharOutput))
+    const raf = JSON.parse(JSON.stringify(rafflesOutput))
+    raf.slants = [{ id: 'raffles-sl1', claim: 'x', contradictedBy: ['d-dues'] }]
+    raf.triggers.push({ id: 'raffles-t2', on: { kind: 'slantConfronted', id: 'raffles-sl1' }, requires: null, effect: { kind: 'stanceDelta', stance: null, delta: -1 }, handsOver: [], notice: 'n' })
+    farq.slants.push({ id: 'farquhar-slant2', claim: 'y', contradictedBy: ['d-dues'] })
+    farq.triggers.push({ id: 'farquhar-t2', on: { kind: 'slantConfronted', id: 'farquhar-slant' }, requires: null, effect: { kind: 'stanceDelta', stance: null, delta: -1 }, handsOver: [], notice: 'n' })
+    farq.triggers.push({ id: 'farquhar-t3', on: { kind: 'slantConfronted', id: 'farquhar-slant2' }, requires: null, effect: { kind: 'stanceDelta', stance: null, delta: -1 }, handsOver: [], notice: 'n' })
+    const llm = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: farq }], 'persona raffles': [{ json: raf }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.warnings.some((w) => w.code === 'slant-reactions-uniform' && w.path === 'triggers')).toBe(true)
   })
 })
