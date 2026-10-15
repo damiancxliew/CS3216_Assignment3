@@ -78,13 +78,18 @@ export function tagBody(text: string): string {
 export function skeletonUserMessage(input: SkeletonPromptInput): string {
   const lines = [`Episode: ${tagBody(input.episode)}`, `Reading level: ${input.readingLevel}`]
   if (input.teacherNotes !== undefined) lines.push(`<teacher-notes>\n${tagBody(input.teacherNotes)}\n</teacher-notes>`)
-  const sources = input.documents
+  return `${lines.join('\n')}\n\n${sourcesBlock(input.documents)}`
+}
+
+/** The "Teacher's sources (cite them by id):" block, shared with the v3 detail passes. */
+export function sourcesBlock(documents: ExtractedDocument[]): string {
+  const sources = documents
     .map((doc) => {
       const pages = doc.pages.map((page) => `[page ${page.page}]\n${tagBody(page.text)}`).join('\n')
       return `<source id="${attribute(doc.id)}" title="${attribute(doc.title)}">\n${pages}\n</source>`
     })
     .join('\n')
-  return `${lines.join('\n')}\n\nTeacher's sources (cite them by id):\n${sources}`
+  return `Teacher's sources (cite them by id):\n${sources}`
 }
 
 export function skeletonRepairMessage(issues: CheckIssue[]): string {

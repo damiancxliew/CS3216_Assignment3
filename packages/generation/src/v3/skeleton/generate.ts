@@ -8,6 +8,7 @@ import type { CheckIssue, SkeletonSpec } from '@adventure/spec-v3'
 import type { ExtractedDocument } from '../../ingest/types'
 import type { LlmClient, LlmUsage } from '../../llm/client'
 import { estimateCostUsd, ZERO_USAGE } from '../../llm/client'
+import { quoteIssues, sourceTexts } from '../grounding'
 import { skeletonRepairMessage, skeletonSystemPrompt, skeletonUserMessage } from './prompt'
 import type { SkeletonPromptInput } from './prompt'
 import { SkeletonLlmOutput, skeletonOutputJsonSchema, toSkeleton } from './schema'
@@ -70,6 +71,7 @@ export async function generateSkeleton(input: SkeletonGenerationInput, opts: Ske
   const system = skeletonSystemPrompt(input.readingLevel)
   const user = skeletonUserMessage(promptInput)
   const jsonSchema = skeletonOutputJsonSchema()
+  const texts = sourceTexts(input.documents)
 
   const calls: SkeletonCallMetrics[] = []
   let issues: CheckIssue[] = []
@@ -113,6 +115,19 @@ export async function generateSkeleton(input: SkeletonGenerationInput, opts: Ske
         } else {
           skeleton = valid.spec
           issues = checkSkeleton(valid.spec).errors
+          issues.push(
+            ...quoteIssues(
+              [
+                ...valid.spec.discoveries.flatMap((d, i) =>
+                  (d.citations ?? []).flatMap((c, j) => (c.quote !== undefined ? [{ path: `discoveries.${i}.citations.${j}.quote`, sourceId: c.sourceId, quote: c.quote }] : [])),
+                ),
+                ...valid.spec.endings.flatMap((e, i) =>
+                  (e.citations ?? []).flatMap((c, j) => (c.quote !== undefined ? [{ path: `endings.${i}.citations.${j}.quote`, sourceId: c.sourceId, quote: c.quote }] : [])),
+                ),
+              ],
+              texts,
+            ),
+          )
         }
       }
     }
