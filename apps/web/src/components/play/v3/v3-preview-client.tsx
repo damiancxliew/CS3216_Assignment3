@@ -28,6 +28,7 @@ export function V3PreviewClient({
       initialRevision={0}
       initialView={initialView}
       makeClient={makeClient}
+      busyLabel="Working…"
       notice={
         <div className="mx-auto mt-4 flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-xl border border-signal bg-signal-wash px-4 py-3 text-sm font-semibold text-ink">
           <span>

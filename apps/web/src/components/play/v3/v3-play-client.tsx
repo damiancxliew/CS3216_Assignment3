@@ -19,12 +19,14 @@ export function V3PlayClient({
   initialRevision,
   makeClient,
   notice,
+  busyLabel = "Saving…",
 }: {
   attemptId: string;
   initialView: PlayerView;
   initialRevision: number;
   makeClient?: () => PlayClient;
   notice?: ReactNode;
+  busyLabel?: string;
 }) {
   const { view, busy, banner, send, clearBanner } = useV3Play(
     attemptId,
@@ -40,7 +42,7 @@ export function V3PlayClient({
           <p className="text-xs font-black uppercase tracking-[0.2em] text-[#ead5ae]">Historical adventure</p>
           <h1 className={`${styles.adventureTitle} mt-1 break-words`}>{view.stage?.title ?? view.briefing.name}</h1>
         </div>
-        {busy ? <span role="status" className="text-sm font-semibold">Saving…</span> : null}
+        {busy ? <span role="status" className="text-sm font-semibold">{busyLabel}</span> : null}
       </header>
       {notice}
       {banner ? (
