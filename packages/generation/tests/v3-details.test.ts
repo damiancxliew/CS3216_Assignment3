@@ -6,6 +6,7 @@ import type { FakeReply, LlmJsonRequest, LlmJsonResponse, LlmUsage } from '../sr
 import { tryParseJson } from '../src/llm/client'
 import type { LlmClient } from '../src/llm/client'
 import { generateDetails, toSkeleton } from '../src/v3/index'
+import { mergeDetails } from '../src/v3/details/merge'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, SkeletonLlmOutput, StageDetailsLlmOutput } from '../src/v3/index'
 
 // --- fixture: one-stage skeleton, 2 majors + 1 minor, 1 char-held + 1 doc-held core ---------
@@ -166,6 +167,10 @@ const stageOutput: StageDetailsLlmOutput = {
   situations: [],
   storyEvents: [],
   openQuestions: [{ id: 's1-q1', text: 'Who really wanted the port?', discoveryIds: ['d-treaty'] }],
+  hintAngles: [
+    { id: 's1-h1', discoveryId: 'd-treaty', kind: 'ask', text: 'Perhaps Farquhar knows who really signed.' },
+    { id: 's1-h2', discoveryId: 'd-dues', kind: 'read', text: 'Perhaps the register mentions the dues.' },
+  ],
 }
 
 const personaCore = {
@@ -363,7 +368,10 @@ describe('generateDetails', () => {
     expect(draft.definingMoments[0]!.outcomes[0]!.predictionText).toBe('')
     expect(draft.endings[0]!.interview.verdicts.map((v) => v.id)).toEqual(['e-historical-pending-v1', 'e-historical-pending-v2', 'e-historical-pending-v3'])
     expect(draft.timer).toEqual({ enabled: true, stageMinutes: [30] })
-    expect(draft.hintAngles).toEqual([])
+    expect(draft.hintAngles).toEqual([
+      { id: 's1-h1', discoveryId: 'd-treaty', kind: 'ask', text: 'Perhaps Farquhar knows who really signed.' },
+      { id: 's1-h2', discoveryId: 'd-dues', kind: 'read', text: 'Perhaps the register mentions the dues.' },
+    ])
     expect(draft.conflicts).toEqual([])
 
     // metrics: one call per route with labels
@@ -598,5 +606,51 @@ describe('generateDetails', () => {
     const llm = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: farq }], 'persona raffles': [{ json: raf }] })
     const result = await generateDetails(input, { llm })
     expect(result.warnings.some((w) => w.code === 'slant-reactions-uniform' && w.path === 'triggers')).toBe(true)
+  })
+
+  it('repairs a core discovery with no hint angle', async () => {
+    const broken = JSON.parse(JSON.stringify(stageOutput))
+    broken.hintAngles = broken.hintAngles.filter((a: { discoveryId: string }) => a.discoveryId !== 'd-treaty')
+    const llm = new RoutingLlm({ ...happyRoutes(), 'stage s1': [{ json: broken }, { json: stageOutput }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.ok).toBe(true)
+    const stageCalls = llm.requests.filter((r) => r.key === 'stage s1')
+    expect(stageCalls).toHaveLength(2)
+    expect(stageCalls[1]!.request.user).toContain('hint-angle-missing')
+    expect(result.draft!.hintAngles).toHaveLength(2)
+  })
+
+  it('rejects a read angle on a character-held discovery', async () => {
+    const broken = JSON.parse(JSON.stringify(stageOutput))
+    broken.hintAngles[0].kind = 'read' // d-treaty is held by farquhar
+    const llm = new RoutingLlm({ ...happyRoutes(), 'stage s1': [{ json: broken }, { json: stageOutput }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.ok).toBe(true)
+    expect(llm.requests.filter((r) => r.key === 'stage s1')).toHaveLength(2)
+    expect(llm.requests.filter((r) => r.key === 'stage s1')[1]!.request.user).toContain('hint-angle-kind')
+  })
+
+  it('remaps, drops and dedupes hint angles on a duplicate merge', () => {
+    // drop candidates are only character-held discoveries, which hint angles may not reference —
+    // exercise the merge-level remap/drop/dedupe directly on mergeDetails
+    const withAngles = JSON.parse(JSON.stringify(stageOutput)) as StageDetailsLlmOutput
+    withAngles.hintAngles.push({ id: 's1-h3', discoveryId: 'farquhar-d1', kind: 'passOn', text: 'Perhaps someone should hear this worry.' })
+    withAngles.hintAngles.push({ id: 's1-h3b', discoveryId: 'farquhar-d1', kind: 'passOn', text: 'Perhaps someone should hear this worry.' }) // identical → deduped
+    withAngles.hintAngles.push({ id: 's1-h4', discoveryId: 'gone-id', kind: 'show', text: 'Nowhere to point.' }) // no such discovery → dropped
+    const link: LinkLlmOutput = { slantLinks: [], noteTriggers: [], duplicates: [{ keep: 'd-dues', drop: ['farquhar-d1'] }] }
+    const merged = mergeDetails(skeleton, {
+      stages: new Map([['s1', withAngles]]),
+      personas: new Map([
+        ['farquhar', farquharOutput],
+        ['raffles', rafflesOutput],
+      ]),
+      minors: minorsOutput,
+      link,
+    })
+    const angles = merged.draft.hintAngles
+    expect(angles.find((a) => a.id === 's1-h3')?.discoveryId).toBe('d-dues')
+    expect(angles.filter((a) => a.kind === 'passOn' && a.discoveryId === 'd-dues')).toHaveLength(1)
+    expect(angles.find((a) => a.id === 's1-h4')).toBeUndefined()
+    expect(merged.draft.discoveries.find((d) => d.id === 'farquhar-d1')).toBeUndefined()
   })
 })

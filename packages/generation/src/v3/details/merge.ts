@@ -44,6 +44,19 @@ const pendingEnding = (ending: SkeletonShape['endings'][number]): SpecEnding => 
 
 const emptyToUndefined = <T>(value: T | ''): T | undefined => (value === '' ? undefined : value)
 
+/** drop angles whose discovery is gone (e.g. merged away) and dedupe identical ones. */
+const dedupeHintAngles = (angles: AdventureSpec['hintAngles'], discoveries: SpecDiscovery[]): AdventureSpec['hintAngles'] => {
+  const live = new Set(discoveries.map((d) => d.id))
+  const seen = new Set<string>()
+  return angles.filter((angle) => {
+    if (!live.has(angle.discoveryId)) return false
+    const key = `${angle.discoveryId}:${angle.kind}:${angle.text}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): MergeResult {
   const warnings: CheckIssue[] = []
   const slantedDocuments: MergeResult['slantedDocuments'] = []
@@ -54,6 +67,7 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
   const discoveries: SpecDiscovery[] = []
   const storyEvents: SpecStoryEvent[] = []
   const openQuestions: AdventureSpec['openQuestions'] = []
+  const hintAngles: AdventureSpec['hintAngles'] = []
 
   const stages: SpecStage[] = skeleton.stages.map((stage) => {
     const output = parts.stages.get(stage.id)
@@ -121,6 +135,7 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
       }
     }
     for (const question of output.openQuestions) openQuestions.push({ id: question.id, stageId: stage.id, text: question.text, discoveryIds: question.discoveryIds })
+    hintAngles.push(...output.hintAngles)
 
     return {
       id: stage.id,
@@ -292,6 +307,7 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
     }
     for (const event of storyEvents) if ('condition' in event.when) event.when = { condition: remapCondition(event.when.condition) }
     for (const question of openQuestions) question.discoveryIds = dedupe(question.discoveryIds.map(remapId))
+    for (const angle of hintAngles) angle.discoveryId = remapId(angle.discoveryId)
     for (const character of characters)
       character.slants = character.slants.map((slant) => ({ ...slant, contradictedBy: dedupe(slant.contradictedBy.map(remapId)) }))
     for (let i = discoveries.length - 1; i >= 0; i--) if (dropToKeep.has(discoveries[i]!.id)) discoveries.splice(i, 1)
@@ -345,7 +361,7 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
     conflicts: [],
     storyEvents,
     openQuestions,
-    hintAngles: [],
+    hintAngles: dedupeHintAngles(hintAngles, discoveries),
   }
   return { draft, warnings, slantedDocuments }
 }
