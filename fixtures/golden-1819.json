@@ -362,6 +362,12 @@
       },
       "core": true,
       "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "src-handout",
+          "quote": "The Temenggong governed Singapore, but he was not the sovereign; only the Sultan of Johor could lawfully grant land to the Company."
+        }
+      ],
       "text": "The Temenggong governs Singapore for the Sultan of Johor, but he is not the sovereign: only the Sultan can lawfully grant land to the Company.",
       "note": "The Temenggong rules here for the Sultan of Johor. Only the Sultan can grant the British land."
     },
@@ -373,6 +379,16 @@
       },
       "core": true,
       "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "src-handout",
+          "quote": "The younger, Tengku Abdul Rahman, was installed as Sultan in his absence with the support of the powerful Bugis faction at court, and this choice was later recognised by the Dutch."
+        },
+        {
+          "sourceId": "src-handout",
+          "quote": "The elder, Tengku Hussein, also known as Tengku Long, was away in Pahang for his wedding when his father died."
+        }
+      ],
       "topic": "the Johor succession",
       "condition": {
         "stanceAtLeast": {
@@ -420,6 +436,12 @@
       },
       "core": false,
       "sourceLabel": "NLB Infopedia, \"1819 Singapore Treaty\"",
+      "citations": [
+        {
+          "sourceId": "src-nlb",
+          "quote": "In January 1819, just a month before the treaty was signed, Singapore had approximately 1,000 inhabitants."
+        }
+      ],
       "text": "About a thousand people already live on and around the island, most of them Orang Laut such as the Orang Kallang, Orang Seletar and Orang Gelam, with some Malays and a few Chinese planters.",
       "note": "About a thousand people already live here, mostly Orang Laut, with some Malays and Chinese planters."
     },
@@ -432,6 +454,12 @@
       },
       "core": true,
       "sourceLabel": "Treaty of Friendship and Alliance, Singapore, 6 February 1819",
+      "citations": [
+        {
+          "sourceId": "src-treaty",
+          "quote": "for himself and for Sultan Hussein Mahummed Shah Sultan of Johor"
+        }
+      ],
       "text": "The preliminary agreement is made by the Temenggong for himself and on behalf of the Sultan of Johor, and leaves it to be confirmed when the Sultan arrives.",
       "note": "The draft agreement is only on the Sultan's behalf: it still has to be settled when a Sultan arrives."
     },
@@ -467,6 +495,16 @@
       },
       "core": true,
       "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "src-handout",
+          "quote": "The elder, Tengku Hussein, also known as Tengku Long, was away in Pahang for his wedding when his father died."
+        },
+        {
+          "sourceId": "src-handout",
+          "quote": "Hussein arrived in Singapore in early February 1819, and Raffles recognised him as Sultan Hussein Shah of Johor."
+        }
+      ],
       "text": "Tengku Hussein, the elder son passed over in 1812, claims the throne of Johor and wants to be recognised as its Sultan.",
       "note": "Tengku Hussein says the throne is his by right, and wants to be recognised as Sultan."
     },
@@ -496,6 +534,12 @@
       },
       "core": true,
       "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "src-handout",
+          "quote": "Raffles took the view that Tengku Hussein, as the elder son, had the stronger claim."
+        }
+      ],
       "topic": "whom he means to recognise",
       "condition": {
         "stanceAtLeast": {
@@ -540,6 +584,12 @@
       },
       "core": true,
       "sourceLabel": "Treaty of Friendship and Alliance, Singapore, 6 February 1819",
+      "citations": [
+        {
+          "sourceId": "src-treaty",
+          "quote": "is to be considered in no way bound to interfere with the internal politics of his States or engaged to assert or maintain the authority of His Highness by force of Arms"
+        }
+      ],
       "text": "The treaty promises the Sultan protection, but says the British are not bound to interfere in Johor's politics or to uphold his authority by force.",
       "note": "The treaty protects the Sultan, but the British will not fight to keep him on his throne."
     },
@@ -651,6 +701,11 @@
       "body": "Article 2nd. … the said Company further agree to afford their protection to His Highness aforesaid as long as he may continue to reside in the immediate vicinity of the places subject to their authority. It is however clearly explained to, and understood by His Highness, that the English Government in entering into this Alliance and in thus engaging to afford protection to His Highness is to be considered in no way bound to interfere with the internal politics of his States or engaged to assert or maintain the authority of His Highness by force of Arms.\n\nArticle 8. The port of Singapoora is to be considered under the immediate protection and subject to the Regulation of the British Authorities.\n\nArticle 9. With regard to the Duties which it may hereafter be deemed necessary to levy on Goods, Merchandize, Boats or Vessels, His Highness Datoo Tumungong Sree Maharajah Abdul Rahman is to be entitled to a moiety or full half of all the amounts collected from native Vessels.",
       "real": true,
       "sourceLabel": "Treaty of Friendship and Alliance, Singapore, 6 February 1819",
+      "citations": [
+        {
+          "sourceId": "src-treaty"
+        }
+      ],
       "glossary": [
         {
           "term": "moiety",
@@ -1057,7 +1112,17 @@
         ],
         "generalCounter": "Some would say no treaty of that time asked ordinary people anything, so \"fair\" is the wrong measure. What would you measure it by instead?"
       },
-      "sourceLabel": "from the teacher"
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "src-handout",
+          "quote": "Hussein arrived in Singapore in early February 1819, and Raffles recognised him as Sultan Hussein Shah of Johor."
+        },
+        {
+          "sourceId": "src-handout",
+          "quote": "In return the Sultan was to receive 5,000 Spanish dollars a year and the Temenggong 3,000 Spanish dollars a year."
+        }
+      ]
     },
     {
       "id": "e-wait",
@@ -1187,6 +1252,25 @@
       "Had the Temenggong refused, Raffles had no other ruler on the island to deal with."
     ]
   },
+  "sources": [
+    {
+      "id": "src-handout",
+      "title": "The founding of a trading post at Singapore, 1819 (classroom handout)",
+      "origin": "teacher"
+    },
+    {
+      "id": "src-treaty",
+      "title": "Treaty of Friendship and Alliance, Singapore, 6 February 1819",
+      "origin": "outside",
+      "url": "https://en.wikisource.org/wiki/1819_Singapore_Treaty"
+    },
+    {
+      "id": "src-nlb",
+      "title": "NLB Infopedia, \"1819 Singapore Treaty\"",
+      "origin": "outside",
+      "url": "https://web.archive.org/web/20180121060511/eresources.nlb.gov.sg/infopedia/articles/SIP_2014-05-16_133354.html"
+    }
+  ],
   "teacherQuestions": [
     "Who gained most from the treaty of 6 February 1819, and who gained least? Use evidence from the game."
   ],
