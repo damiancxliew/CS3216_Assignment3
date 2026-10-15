@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { v3SchoolAllowed } from "@/lib/v3/flag";
 
+import { signPreviewState, verifyPreviewState } from "./preview-token";
 import { ENGINE_ERROR_STATUS, limiterFor, type ServiceResponse } from "./service";
 import type { V3PlayStore } from "./store";
 
@@ -13,11 +14,11 @@ export interface V3PreviewDeps {
   llm: (ctx: { organizationId: string; userId: string }) => LlmClient;
   now: () => number;
   env?: NodeJS.ProcessEnv;
+  stateSecret?: string;
 }
 
-const State = z.record(z.string(), z.unknown());
-const PreviewActionRequest = z.strictObject({ state: State, action: Action });
-const PreviewCheckRequest = z.strictObject({ state: State, messageId: z.string().min(1) });
+const PreviewActionRequest = z.strictObject({ token: z.string().min(1), action: Action });
+const PreviewCheckRequest = z.strictObject({ token: z.string().min(1), messageId: z.string().min(1) });
 const RESET_MESSAGE = "The preview can't continue. Restart it to play again.";
 
 function error(status: number, code: string, message: string): ServiceResponse {
@@ -55,6 +56,34 @@ function stepError(cause: unknown, context: string): ServiceResponse {
   return error(400, "preview_reset", RESET_MESSAGE);
 }
 
+function signState(
+  deps: V3PreviewDeps,
+  userId: string,
+  adventureId: string,
+  spec: unknown,
+  state: EngineState,
+): string {
+  return signPreviewState(
+    state,
+    { userId, adventureId, spec },
+    deps.stateSecret ?? deps.env?.SUPABASE_SERVICE_ROLE_KEY,
+  );
+}
+
+function verifyState(
+  deps: V3PreviewDeps,
+  userId: string,
+  adventureId: string,
+  spec: unknown,
+  token: string,
+): EngineState | null {
+  return verifyPreviewState(
+    token,
+    { userId, adventureId, spec },
+    deps.stateSecret ?? deps.env?.SUPABASE_SERVICE_ROLE_KEY,
+  );
+}
+
 export async function startPreview(
   deps: V3PreviewDeps,
   userId: string,
@@ -66,7 +95,10 @@ export async function startPreview(
   const state = engine.createState(access.spec, crypto.randomUUID());
   return {
     status: 201,
-    body: { state, view: engine.project(access.spec, state) },
+    body: {
+      token: signState(deps, userId, adventureId, access.adventure.spec, state),
+      view: engine.project(access.spec, state),
+    },
   };
 }
 
@@ -80,11 +112,11 @@ export async function previewAction(
   if ("status" in access) return access;
   const parsed = PreviewActionRequest.safeParse(body);
   if (!parsed.success) return error(400, "invalid_request", "Invalid preview action request.");
+  const state = verifyState(deps, userId, adventureId, access.adventure.spec, parsed.data.token);
+  if (!state) return error(400, "preview_reset", RESET_MESSAGE);
   if (!limiterFor(deps)(`preview:${userId}`)) {
     return error(429, "rate_limited", "You're moving too quickly. Please wait a moment and try again.");
   }
-
-  const state = parsed.data.state as unknown as EngineState;
   const llm = deps.llm({ organizationId: access.adventure.schoolId, userId });
   try {
     const result = await engine.step(
@@ -98,7 +130,7 @@ export async function previewAction(
     return {
       status: 200,
       body: {
-        state: result.state,
+        token: signState(deps, userId, adventureId, access.adventure.spec, result.state),
         view: result.view,
         pendingCheckIds: pendingCheckIds(result.state),
       },
@@ -118,18 +150,18 @@ export async function previewCheck(
   if ("status" in access) return access;
   const parsed = PreviewCheckRequest.safeParse(body);
   if (!parsed.success) return error(400, "invalid_request", "Invalid preview check request.");
+  const state = verifyState(deps, userId, adventureId, access.adventure.spec, parsed.data.token);
+  if (!state) return error(400, "preview_reset", RESET_MESSAGE);
   if (!limiterFor(deps)(`preview:${userId}`)) {
     return error(429, "rate_limited", "You're moving too quickly. Please wait a moment and try again.");
   }
-
-  const state = parsed.data.state as unknown as EngineState;
   const llm = deps.llm({ organizationId: access.adventure.schoolId, userId });
   try {
     if (!pendingCheckIds(state).includes(parsed.data.messageId)) {
       return {
         status: 200,
         body: {
-          state,
+          token: parsed.data.token,
           view: engine.project(access.spec, state),
           pendingCheckIds: pendingCheckIds(state),
         },
@@ -151,7 +183,7 @@ export async function previewCheck(
     return {
       status: 200,
       body: {
-        state: stepped.state,
+        token: signState(deps, userId, adventureId, access.adventure.spec, stepped.state),
         view: stepped.view,
         pendingCheckIds: pendingCheckIds(stepped.state),
       },

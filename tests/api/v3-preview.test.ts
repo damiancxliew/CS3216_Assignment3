@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { EngineSpec, type EngineState, pendingCheckIds } from "@adventure/engine";
+import { EngineSpec } from "@adventure/engine";
 import { FakeLlmClient, type LlmRequest } from "@adventure/orchestration";
 import type { PlayerView } from "@adventure/play-contract";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -12,6 +12,7 @@ import {
   startPreview,
   type V3PreviewDeps,
 } from "@/lib/play/v3/preview";
+import { previewBodyTooLarge } from "@/lib/play/v3/preview-body";
 import { MemoryV3PlayStore } from "@/lib/play/v3/store";
 
 const OWNER_ID = "teacher-owner";
@@ -71,12 +72,13 @@ function setup(options: {
       V3_RATE_LIMIT_PER_10S: "20",
       ...options.env,
     },
+    stateSecret: "test-preview-secret",
   };
   return { store, deps, llm, setTime: (next: number) => { time = next; } };
 }
 
 type PreviewBody = {
-  state: EngineState;
+  token: string;
   view: PlayerView;
   pendingCheckIds?: string[];
 };
@@ -93,6 +95,7 @@ describe("v3 teacher preview service", () => {
     const result = await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID);
     expect(result.status).toBe(201);
     expect(previewBody(result).view.phase).toBe("briefing");
+    expect(result.body).not.toHaveProperty("state");
     expect(await fixture.store.findLatestAttempt(ADVENTURE_ID, OWNER_ID)).toBeNull();
     expect(fixture.store.savedEvents).toEqual([]);
   });
@@ -146,44 +149,48 @@ describe("v3 teacher preview service", () => {
   it("round-trips a message and its post-turn check without persisting", async () => {
     const fixture = setup();
     const started = await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID);
-    let { state, view } = previewBody(started);
+    let { token, view } = previewBody(started);
+    expect(started.body).not.toHaveProperty("state");
     expect(view.phase).toBe("briefing");
 
     const afterBriefing = await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
-      state,
+      token,
       action: { type: "continue" },
     });
     expect(afterBriefing.status).toBe(200);
-    ({ state, view } = previewBody(afterBriefing));
+    expect(afterBriefing.body).not.toHaveProperty("state");
+    ({ token, view } = previewBody(afterBriefing));
     if (view.phase === "stage" && view.stage?.intro) {
       const afterIntro = await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
-        state,
+        token,
         action: { type: "continue" },
       });
       expect(afterIntro.status).toBe(200);
-      ({ state, view } = previewBody(afterIntro));
+      expect(afterIntro.body).not.toHaveProperty("state");
+      ({ token, view } = previewBody(afterIntro));
     }
 
     const character = view.characters[0];
     expect(character).toBeDefined();
     const messaged = await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
-      state,
+      token,
       action: { type: "message", characterId: character!.id, text: "What do you know?" },
     });
     expect(messaged.status).toBe(200);
-    ({ state, view } = previewBody(messaged));
-    const pending = pendingCheckIds(state);
+    expect(messaged.body).not.toHaveProperty("state");
+    ({ token, view } = previewBody(messaged));
+    const pending = previewBody(messaged).pendingCheckIds ?? [];
     expect(pending).not.toHaveLength(0);
     expect(previewBody(messaged).pendingCheckIds).toEqual(pending);
 
     const checked = await previewCheck(fixture.deps, OWNER_ID, ADVENTURE_ID, {
-      state,
+      token,
       messageId: pending[0],
     });
     expect(checked.status).toBe(200);
+    expect(checked.body).not.toHaveProperty("state");
     const checkedBody = previewBody(checked);
     expect(checkedBody.pendingCheckIds).toEqual([]);
-    expect(pendingCheckIds(checkedBody.state)).toEqual([]);
     expect(checkedBody.view.pendingCheck).toBeFalsy();
     expect(await fixture.store.findLatestAttempt(ADVENTURE_ID, OWNER_ID)).toBeNull();
     expect(fixture.store.savedEvents).toEqual([]);
@@ -193,29 +200,86 @@ describe("v3 teacher preview service", () => {
     const fixture = setup();
     const started = previewBody(await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID));
     const checked = await previewCheck(fixture.deps, OWNER_ID, ADVENTURE_ID, {
-      state: started.state,
+      token: started.token,
       messageId: "unknown-message",
     });
     expect(checked.status).toBe(200);
-    expect(previewBody(checked).state).toEqual(started.state);
+    expect(previewBody(checked).token).toBe(started.token);
     expect(previewBody(checked).view).toEqual(started.view);
   });
 
-  it("returns a client error rather than throwing for a forged state", async () => {
+  it("rejects a token whose payload segment was modified for actions and checks", async () => {
     const fixture = setup();
-    const result = await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
-      state: { foo: 1 },
+    const started = previewBody(await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID));
+    const [payload, signature] = started.token.split(".");
+    const changedPayload = `${payload![0] === "A" ? "B" : "A"}${payload!.slice(1)}`;
+    const tamperedToken = `${changedPayload}.${signature}`;
+    const errorResponse = {
+      status: 400,
+      body: { error: { code: "preview_reset", message: "The preview can't continue. Restart it to play again." } },
+    };
+    expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
+      token: tamperedToken,
       action: { type: "continue" },
-    });
-    expect(result.status).toBeGreaterThanOrEqual(400);
-    expect(result.status).toBeLessThan(500);
+    })).toMatchObject(errorResponse);
+    expect(await previewCheck(fixture.deps, OWNER_ID, ADVENTURE_ID, {
+      token: tamperedToken,
+      messageId: "unknown-message",
+    })).toMatchObject(errorResponse);
   });
 
-  it("rejects extra request fields", async () => {
+  it("rejects tokens bound to a different user or adventure", async () => {
     const fixture = setup();
-    const state = previewBody(await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID)).state;
+    const token = previewBody(await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID)).token;
+    fixture.store.addSchoolAdmin(SCHOOL_ID, ADMIN_ID);
+    expect(await previewAction(fixture.deps, ADMIN_ID, ADVENTURE_ID, {
+      token,
+      action: { type: "continue" },
+    })).toMatchObject({ status: 400, body: { error: { code: "preview_reset" } } });
+
+    fixture.store.addAdventure({
+      id: "another-adventure",
+      schoolId: SCHOOL_ID,
+      ownerId: OWNER_ID,
+      status: "draft",
+      specVersion: 1,
+      spec: goldenSpec,
+    });
+    expect(await previewAction(fixture.deps, OWNER_ID, "another-adventure", {
+      token,
+      action: { type: "continue" },
+    })).toMatchObject({ status: 400, body: { error: { code: "preview_reset" } } });
+  });
+
+  it("rejects a token after the adventure spec changes", async () => {
+    const fixture = setup();
+    const token = previewBody(await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID)).token;
+    fixture.store.addAdventure({
+      id: ADVENTURE_ID,
+      schoolId: SCHOOL_ID,
+      ownerId: OWNER_ID,
+      status: "draft",
+      specVersion: 2,
+      spec: { ...goldenSpec, title: `${goldenSpec.title} edited` },
+    });
     expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
-      state,
+      token,
+      action: { type: "continue" },
+    })).toMatchObject({ status: 400, body: { error: { code: "preview_reset" } } });
+  });
+
+  it("rejects garbage, missing, and extra token request fields", async () => {
+    const fixture = setup();
+    const token = previewBody(await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID)).token;
+    expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
+      token: "garbage",
+      action: { type: "continue" },
+    })).toMatchObject({ status: 400, body: { error: { code: "preview_reset" } } });
+    expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
+      action: { type: "continue" },
+    })).toMatchObject({ status: 400, body: { error: { code: "invalid_request" } } });
+    expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
+      token,
       action: { type: "continue" },
       extra: true,
     })).toMatchObject({ status: 400, body: { error: { code: "invalid_request" } } });
@@ -223,15 +287,20 @@ describe("v3 teacher preview service", () => {
 
   it("rate-limits preview actions per user", async () => {
     const fixture = setup({ env: { V3_RATE_LIMIT_PER_10S: "1" } });
-    const state = previewBody(await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID)).state;
+    const token = previewBody(await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID)).token;
     const first = await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
-      state,
+      token,
       action: { type: "continue" },
     });
     expect(first.status).toBe(200);
     expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
-      state: previewBody(first).state,
+      token: previewBody(first).token,
       action: { type: "continue" },
     })).toMatchObject({ status: 429, body: { error: { code: "rate_limited" } } });
+  });
+
+  it("caps preview request bodies by UTF-8 byte length", () => {
+    expect(previewBodyTooLarge("界".repeat(700_000))).toBe(true);
+    expect(previewBodyTooLarge("a".repeat(2_000_000))).toBe(false);
   });
 });

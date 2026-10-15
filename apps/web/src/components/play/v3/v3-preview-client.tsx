@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback } from "react";
-import type { EngineState } from "@adventure/engine";
 import type { PlayerView } from "@adventure/play-contract";
 
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
@@ -10,16 +9,16 @@ import { createV3PreviewClient } from "@/lib/play/v3/preview-client";
 
 export function V3PreviewClient({
   adventureId,
-  initialState,
+  initialToken,
   initialView,
 }: {
   adventureId: string;
-  initialState: EngineState;
+  initialToken: string;
   initialView: PlayerView;
 }) {
   const makeClient = useCallback(
-    () => createV3PreviewClient(adventureId, initialState, initialView),
-    [adventureId, initialState, initialView],
+    () => createV3PreviewClient(adventureId, initialToken, initialView),
+    [adventureId, initialToken, initialView],
   );
 
   return (

@@ -6,7 +6,6 @@ import { startPreview } from "@/lib/play/v3/preview";
 import { v3PreviewDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
-import type { EngineState } from "@adventure/engine";
 import type { PlayerView } from "@adventure/play-contract";
 
 export const metadata: Metadata = {
@@ -35,6 +34,6 @@ export default async function V3TeacherPreviewPage({ params }: { params: Promise
     );
   }
 
-  const body = result.body as { state: EngineState; view: PlayerView };
-  return <V3PreviewClient adventureId={id} initialState={body.state} initialView={body.view} />;
+  const body = result.body as { token: string; view: PlayerView };
+  return <V3PreviewClient adventureId={id} initialToken={body.token} initialView={body.view} />;
 }

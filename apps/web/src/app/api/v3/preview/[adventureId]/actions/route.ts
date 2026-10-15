@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireUserId } from "@/lib/play/http";
 import { v3PreviewDeps } from "@/lib/play/v3/http";
+import { previewBodyTooLarge } from "@/lib/play/v3/preview-body";
 import { previewAction } from "@/lib/play/v3/preview";
 import { v3Enabled } from "@/lib/v3/flag";
 
@@ -19,7 +20,7 @@ export async function POST(
   if (userId instanceof NextResponse) return userId;
   const { adventureId } = await params;
   const text = await request.text();
-  if (text.length > 2_000_000) {
+  if (previewBodyTooLarge(text)) {
     return NextResponse.json(
       { error: { code: "too_large", message: "Request body is too large." } },
       { status: 413 },

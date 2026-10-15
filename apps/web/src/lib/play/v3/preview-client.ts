@@ -1,22 +1,21 @@
-import type { EngineState } from "@adventure/engine";
 import type { Action, PlayerView } from "@adventure/play-contract";
 
 import { failureOf, readBody, type V3PlayClient, type V3PlayResult } from "./client";
 
 type PreviewResponseBody = {
-  state?: unknown;
+  token?: unknown;
   view?: unknown;
   pendingCheckIds?: unknown;
 };
 
 export function createV3PreviewClient(
   adventureId: string,
-  initialState: EngineState,
+  initialToken: string,
   initialView: PlayerView,
   fetchImpl: typeof fetch = fetch,
 ): V3PlayClient {
   const base = `/api/v3/preview/${encodeURIComponent(adventureId)}`;
-  let state = initialState;
+  let token = initialToken;
   let view = initialView;
   let revision = 0;
   let pending: string[] = [];
@@ -39,12 +38,12 @@ export function createV3PreviewClient(
       const result = raw as (typeof raw & PreviewResponseBody) | null;
       if (
         response.status === 200 &&
-        result?.state !== null &&
-        typeof result?.state === "object" &&
+        typeof result?.token === "string" &&
+        result.token.length > 0 &&
         result.view !== null &&
         typeof result.view === "object"
       ) {
-        state = result.state as EngineState;
+        token = result.token;
         view = result.view as PlayerView;
         pending = Array.isArray(result.pendingCheckIds)
           ? result.pendingCheckIds.filter((id): id is string => typeof id === "string")
@@ -60,13 +59,13 @@ export function createV3PreviewClient(
 
   return {
     act(_revision: number, action: Action): Promise<V3PlayResult> {
-      return serialize(() => post(`${base}/actions`, { state, action }));
+      return serialize(() => post(`${base}/actions`, { token, action }));
     },
     refresh(): Promise<V3PlayResult> {
       return serialize(async () => {
         for (const messageId of [...pending]) {
           if (!pending.includes(messageId)) continue;
-          const result = await post(`${base}/check`, { state, messageId });
+          const result = await post(`${base}/check`, { token, messageId });
           if (!result.ok) return result;
         }
         return { ok: true, revision, view };
