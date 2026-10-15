@@ -30,13 +30,15 @@ export function DocumentReader({
 }: {
   document: DocumentView;
   onClose: () => void;
-  onSelectPassage: (start: number, end: number) => void;
+  /** Omitted once the defining moment is open: the document can be re-read, but close reading is over. */
+  onSelectPassage?: (start: number, end: number) => void;
 }) {
   const content = useRef<HTMLDivElement>(null);
   const paragraphs = document.body.split("\n");
 
   function selectPassage() {
     const container = content.current;
+    if (!onSelectPassage) return;
     const selection = window.getSelection();
     if (!container || !selection || selection.isCollapsed || selection.rangeCount === 0) return;
     const offsets = selectionOffsets(container, selection.getRangeAt(0));
@@ -67,7 +69,9 @@ export function DocumentReader({
           <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-line-strong px-3 font-bold text-ink">Close</button>
         </header>
         <div className="flex-1 overflow-y-auto p-5 sm:p-8">
-          <p className="mb-4 text-sm text-muted">Select a passage to add it to your notes.</p>
+          <p className="mb-4 text-sm text-muted">
+            {onSelectPassage ? "Select a passage to add it to your notes." : "You can re-read this, but it's time to decide now."}
+          </p>
           <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text font-serif text-lg leading-8 text-ink">
             {paragraphs.map((paragraph, index) => (
               <p key={index} data-document-paragraph="" className="mb-4 whitespace-pre-wrap">{paragraph}</p>

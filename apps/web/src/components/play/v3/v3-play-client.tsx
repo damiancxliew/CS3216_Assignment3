@@ -3,6 +3,9 @@
 import type { PlayerView } from "@adventure/play-contract";
 
 import { BriefingScreen } from "@/components/play/v3/briefing-screen";
+import { EpilogueScreen } from "@/components/play/v3/epilogue-screen";
+import { InterviewScreen } from "@/components/play/v3/interview-screen";
+import { RevealScreen } from "@/components/play/v3/reveal-screen";
 import { StageIntroScreen } from "@/components/play/v3/stage-intro-screen";
 import { StagePlayScreen } from "@/components/play/v3/stage-play-screen";
 import { useV3Play } from "@/components/play/v3/use-v3-play";
@@ -35,17 +38,22 @@ export function V3PlayClient({
         </div>
       ) : null}
       {view.phase === "briefing" ? (
-        <BriefingScreen briefing={view.briefing} onContinue={() => send({ type: "continue" })} />
+        <BriefingScreen briefing={view.briefing} onContinue={() => { if (!busy) send({ type: "continue" }); }} />
       ) : view.phase === "stage" && view.stage?.intro ? (
-        <StageIntroScreen stage={view.stage} onContinue={() => send({ type: "continue" })} />
+        <StageIntroScreen stage={view.stage} onContinue={() => { if (!busy) send({ type: "continue" }); }} />
       ) : view.phase === "stage" ? (
         <StagePlayScreen view={view} busy={busy} send={send} />
+      ) : view.phase === "epilogue" && view.epilogue ? (
+        <EpilogueScreen epilogue={view.epilogue} busy={busy} send={send} />
+      ) : view.phase === "interview" && view.interview ? (
+        <InterviewScreen interview={view.interview} notes={view.notes} busy={busy} send={send} />
+      ) : view.phase === "reveal" && view.reveal ? (
+        <RevealScreen reveal={view.reveal} />
       ) : (
         <main className="mx-auto grid min-h-[60dvh] max-w-3xl place-items-center px-5 py-12">
           <section className="w-full rounded-3xl border-2 border-ink bg-surface p-8 text-center shadow-[0_5px_0_var(--ink)]">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-record">Checkpoint 2</p>
-            <h1 className="mt-3 text-3xl font-black text-ink">The next part of your adventure is coming soon.</h1>
-            <p className="mt-3 text-sm leading-relaxed text-muted">Your choices and notes are saved.</p>
+            <h1 className="text-xl font-black text-ink">This part of the adventure could not be loaded.</h1>
+            <p className="mt-3 text-sm leading-relaxed text-muted">Refresh the page to try again.</p>
           </section>
         </main>
       )}

@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createV3PlayClient } from "@/lib/play/v3/client";
+import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
 import { portraitUrl } from "@/lib/play/v3/portraits";
-import type { PlayerView } from "@adventure/play-contract";
+import { MAX_EVIDENCE_NOTES, MAX_INTERVIEW_TEXT_LENGTH, type PlayerView } from "@adventure/play-contract";
 
 const view = { phase: "briefing", pendingCheck: false } as unknown as PlayerView;
 const continueAction = { type: "continue" } as const;
@@ -83,5 +84,57 @@ describe("stance portrait URLs", () => {
   it("uses an encoded stance key under the configured base", () => {
     expect(portraitUrl("ahmad:steady", { NEXT_PUBLIC_V3_PORTRAIT_BASE: "https://cdn.example.test/portraits/" }))
       .toBe("https://cdn.example.test/portraits/ahmad%3Asteady.png");
+  });
+});
+
+describe("interview answer form", () => {
+  const choices = { verdictIds: ["verdict-a", "verdict-b"], noteIds: ["note-1", "note-2"] };
+
+  it("builds an answer and omits blank optional text", () => {
+    expect(buildInterviewAnswerAction(
+      { verdictId: "verdict-a", evidenceNoteIds: ["note-2"], text: "   " },
+      choices,
+    )).toEqual({
+      ok: true,
+      action: { type: "interviewAnswer", verdictId: "verdict-a", evidenceNoteIds: ["note-2"] },
+    });
+  });
+
+  it("trims and includes nonblank text", () => {
+    expect(buildInterviewAnswerAction(
+      { verdictId: "verdict-b", evidenceNoteIds: [], text: "  My reasoning.  " },
+      choices,
+    )).toEqual({
+      ok: true,
+      action: { type: "interviewAnswer", verdictId: "verdict-b", evidenceNoteIds: [], text: "My reasoning." },
+    });
+  });
+
+  it("rejects verdicts and evidence that are not in the provided choices", () => {
+    expect(buildInterviewAnswerAction(
+      { verdictId: "unknown", evidenceNoteIds: [], text: "" },
+      choices,
+    )).toMatchObject({ ok: false, error: "Choose a verdict." });
+    expect(buildInterviewAnswerAction(
+      { verdictId: "verdict-a", evidenceNoteIds: ["unknown"], text: "" },
+      choices,
+    )).toMatchObject({ ok: false, error: "Choose evidence from your notes." });
+    expect(buildInterviewAnswerAction(
+      { verdictId: "verdict-a", evidenceNoteIds: ["note-1", "note-1"], text: "" },
+      choices,
+    )).toMatchObject({ ok: false, error: "Choose evidence from your notes." });
+  });
+
+  it("enforces the contract limits for evidence and text", () => {
+    const tooManyNotes = Array.from({ length: MAX_EVIDENCE_NOTES + 1 }, (_, index) => `note-${index}`);
+    expect(buildInterviewAnswerAction(
+      { verdictId: "verdict-a", evidenceNoteIds: tooManyNotes, text: "" },
+      choices,
+    )).toMatchObject({ ok: false, error: `Choose no more than ${MAX_EVIDENCE_NOTES} notes.` });
+
+    expect(buildInterviewAnswerAction(
+      { verdictId: "verdict-a", evidenceNoteIds: [], text: "x".repeat(MAX_INTERVIEW_TEXT_LENGTH + 1) },
+      choices,
+    )).toMatchObject({ ok: false, error: `Keep your response to ${MAX_INTERVIEW_TEXT_LENGTH} characters or fewer.` });
   });
 });
