@@ -168,7 +168,7 @@ function OverviewSummary({
   summary: ClassSummary;
   flaggedCount: number;
 }) {
-  const endingTotal = Math.max(summary.completed, 1);
+  const endingTotal = Math.max(summary.attempts, 1);
   return (
     <>
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
