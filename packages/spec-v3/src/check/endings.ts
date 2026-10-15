@@ -5,11 +5,12 @@
  * Codes: `historical-missing`, `historical-unreachable`, `paths-overflow`, `endings-open`,
  * `final-outcome-ending`.
  */
-import type { AdventureSpec, CheckIssue } from '../index.js'
+import type { CheckIssue } from '../index.js'
+import type { SkeletonShape } from '../skeleton.js'
 
 const PATH_CAP = 10_000
 
-export function endingIssues(spec: AdventureSpec): CheckIssue[] {
+export function endingIssues(spec: SkeletonShape): CheckIssue[] {
   const issues: CheckIssue[] = []
   const add = (code: string, path: string, message: string) => issues.push({ code, path, message })
 

@@ -7,6 +7,10 @@
  */
 import { z } from 'zod'
 
+import { DOCUMENT_KINDS, Role } from './shared.js'
+
+export { DOCUMENT_KINDS, Role }
+
 const Id = z.string().min(1)
 const Text = z.string()
 
@@ -45,15 +49,6 @@ export const Condition: z.ZodType<Condition> = z.lazy(() =>
   ]),
 )
 
-export const Role = z.strictObject({
-  name: Text,
-  position: Text,
-  relationships: z.array(Text),
-  reputation: Text,
-  stakes: Text,
-  privateBrief: z.strictObject({ goals: z.array(Text), fears: z.array(Text), constraints: z.array(Text), knows: z.array(Text) }),
-  situation: Text,
-})
 
 export const Room = z.strictObject({ id: Id, name: Text, description: Text })
 
@@ -130,7 +125,6 @@ export const Discovery = z.strictObject({
   citations: z.array(Citation).optional(),
 })
 
-export const DOCUMENT_KINDS = ['newspaper', 'letter', 'telegram', 'speech', 'minutes', 'memoir', 'treaty', 'report', 'other'] as const
 
 export const Document = z.strictObject({
   id: Id,
@@ -321,3 +315,6 @@ export type CheckIssue = { code: string; path: string; message: string }
 export type CheckResult = { errors: CheckIssue[]; warnings: CheckIssue[] }
 
 export { checkSpec } from './check/index.js'
+export { checkSkeleton } from './check/skeleton.js'
+export { SkeletonSpec, validateSkeleton } from './skeleton.js'
+export type { SkeletonShape, ValidateSkeletonResult } from './skeleton.js'
