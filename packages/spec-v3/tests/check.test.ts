@@ -115,7 +115,7 @@ describe('checkSpec', () => {
     })
 
     it('fallback-rule', () => {
-      expect(codes((s) => (s.definingMoments[0].rules[1].when = { discovered: 'disc-1' }))).toContain('fallback-rule')
+      expect(codes((s) => (s.definingMoments[0].rules[0].when = { discovered: 'disc-1' }))).toContain('fallback-rule')
     })
 
     it('passage-offsets', () => {
@@ -187,7 +187,7 @@ describe('checkSpec', () => {
     })
 
     it('endings-open when a path leaves only one non-secret ending', () => {
-      const result = checked(twoStage([['end-1'], ['end-2']]))
+      const result = checked(twoStage([['end-1', 'end-3'], ['end-1', 'end-2']]))
       const issue = result.errors.find((e) => e.code === 'endings-open')
       expect(issue).toBeDefined()
       expect(issue!.message).toContain('out-0-1')

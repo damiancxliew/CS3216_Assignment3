@@ -21,19 +21,21 @@ export function revealableFor(spec: EngineSpec, state: EngineState, characterId:
   )
 }
 
-/** Topics this character holds but may not discuss yet: only the topic phrase, never the content. */
+/**
+ * Topics this character holds but may not discuss now: only the topic phrase, never the content. That covers
+ * this stage's discoveries whose condition isn't met, and every undiscovered one from an earlier stage, which
+ * the character still knows but the stage structure no longer offers.
+ */
 export function heldBackTopics(spec: EngineSpec, state: EngineState, characterId: string, now: number): string[] {
-  const stageId = spec.stages[state.stageIndex]?.id
+  const stageOrder = new Map(spec.stages.map((stage, index) => [stage.id, index]))
   return spec.discoveries
-    .filter(
-      (discovery) =>
-        'characterId' in discovery.holder &&
-        discovery.holder.characterId === characterId &&
-        discovery.stageId === stageId &&
-        !state.discovered.includes(discovery.id) &&
-        !evaluate(discovery.condition, { spec, state, now }) &&
-        discovery.topic !== undefined,
-    )
+    .filter((discovery) => {
+      if (!('characterId' in discovery.holder) || discovery.holder.characterId !== characterId) return false
+      if (state.discovered.includes(discovery.id) || discovery.topic === undefined) return false
+      const stageIndex = stageOrder.get(discovery.stageId) ?? -1
+      if (stageIndex < state.stageIndex) return true
+      return stageIndex === state.stageIndex && !evaluate(discovery.condition, { spec, state, now })
+    })
     .map((discovery) => discovery.topic as string)
 }
 

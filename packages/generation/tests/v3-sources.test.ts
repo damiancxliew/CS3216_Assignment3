@@ -72,8 +72,10 @@ describe('quote verification', () => {
   })
 
   it('matches ordered elisions and rejects reversed, empty, or missing quotes', () => {
-    expect(findQuote('the first ... the last', 'The first passage comes before the last.').found).toBe(true)
-    expect(findQuote('the last [...] the first', 'The first passage comes before the last.').found).toBe(false)
+    expect(findQuote('the first passage ... before the last one', 'The first passage comes before the last one.').found).toBe(true)
+    expect(findQuote('before the last one [...] the first passage', 'The first passage comes before the last one.').found).toBe(false)
+    // elided segments too short to count as quoting
+    expect(findQuote('the ... comes ... last', 'The first passage comes before the last.').found).toBe(false)
     expect(findQuote('…', 'A passage').found).toBe(false)
     expect(findQuote('', 'A passage')).toEqual({ found: false, index: -1 })
   })

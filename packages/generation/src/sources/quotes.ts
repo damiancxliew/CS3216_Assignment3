@@ -13,6 +13,9 @@ export function normaliseForQuote(text: string): string {
     .toLowerCase()
 }
 
+/** Shortest segment of an elided quote that still counts as quoting, in normalised characters. */
+export const MIN_ELIDED_SEGMENT = 12
+
 export function findQuote(quote: string, sourceText: string): { found: boolean; index: number } {
   const normalisedQuote = normaliseForQuote(quote)
   const normalisedSource = normaliseForQuote(sourceText)
@@ -20,6 +23,8 @@ export function findQuote(quote: string, sourceText: string): { found: boolean; 
 
   const segments = normalisedQuote.split(/\[\s*\.{3}\s*\]|\.{3}/g).map((segment) => segment.trim()).filter(Boolean)
   if (segments.length === 0) return { found: false, index: -1 }
+  // With elisions, every segment must be substantial: "a ... e ... i" would otherwise match almost any text.
+  if (segments.length > 1 && segments.some((segment) => segment.length < MIN_ELIDED_SEGMENT)) return { found: false, index: -1 }
 
   let cursor = 0
   let firstIndex = -1
