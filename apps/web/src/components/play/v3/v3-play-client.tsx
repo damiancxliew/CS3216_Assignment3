@@ -38,9 +38,9 @@ export function V3PlayClient({
         </div>
       ) : null}
       {view.phase === "briefing" ? (
-        <BriefingScreen briefing={view.briefing} onContinue={() => send({ type: "continue" })} />
+        <BriefingScreen briefing={view.briefing} onContinue={() => { if (!busy) send({ type: "continue" }); }} />
       ) : view.phase === "stage" && view.stage?.intro ? (
-        <StageIntroScreen stage={view.stage} onContinue={() => send({ type: "continue" })} />
+        <StageIntroScreen stage={view.stage} onContinue={() => { if (!busy) send({ type: "continue" }); }} />
       ) : view.phase === "stage" ? (
         <StagePlayScreen view={view} busy={busy} send={send} />
       ) : view.phase === "epilogue" && view.epilogue ? (

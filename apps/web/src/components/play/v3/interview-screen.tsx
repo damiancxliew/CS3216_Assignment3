@@ -74,6 +74,8 @@ export function InterviewScreen({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // A second answer is legal (it becomes the response to the push-back), so a double click must not send it.
+    if (busy) return;
     const result = buildInterviewAnswerAction(
       { verdictId, evidenceNoteIds, text },
       { verdictIds: interview.verdicts.map((verdict) => verdict.id), noteIds: notes.map((note) => note.id) },
