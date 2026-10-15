@@ -17,7 +17,7 @@ export interface V3PlayServiceDeps {
   env?: NodeJS.ProcessEnv;
 }
 
-type ServiceResponse = {
+export type ServiceResponse = {
   status: number;
   body: Record<string, unknown>;
 };
@@ -27,7 +27,7 @@ const ActionRequest = z.strictObject({
   action: Action,
 });
 
-const ENGINE_ERROR_STATUS: Record<EngineError["code"], number> = {
+export const ENGINE_ERROR_STATUS: Record<EngineError["code"], number> = {
   invalid_action: 400,
   unknown_id: 400,
   illegal_phase: 409,
@@ -56,7 +56,9 @@ function integerSetting(value: string | undefined, fallback: number): number {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-function limiterFor(deps: V3PlayServiceDeps): (attemptId: string) => boolean {
+type RateLimitDeps = Pick<V3PlayServiceDeps, "store" | "now" | "env">;
+
+export function limiterFor(deps: RateLimitDeps): (key: string) => boolean {
   const limit = integerSetting(deps.env?.V3_RATE_LIMIT_PER_10S, DEFAULT_RATE_LIMIT);
   const current = rateLimiters.get(deps.store);
   if (current?.limit === limit && current.now === deps.now) return current.allow;
