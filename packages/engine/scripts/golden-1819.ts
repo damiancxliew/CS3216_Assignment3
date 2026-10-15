@@ -32,6 +32,7 @@ function document(spec: {
   sourceLabel: string
   glossary?: { term: string; meaning: string }[]
   keyPassages: { id: string; text: string }[]
+  citations?: { sourceId: string; quote?: string }[]
 }) {
   return {
     ...spec,
@@ -42,6 +43,23 @@ function document(spec: {
       return { id, start, end: start + text.length }
     }),
   }
+}
+
+const SOURCES = [
+  { id: 'src-handout', title: 'The founding of a trading post at Singapore, 1819 (classroom handout)', origin: 'teacher' },
+  { id: 'src-treaty', title: TREATY, origin: 'outside', url: 'https://en.wikisource.org/wiki/1819_Singapore_Treaty' },
+  { id: 'src-nlb', title: INFOPEDIA, origin: 'outside', url: 'https://web.archive.org/web/20180121060511/eresources.nlb.gov.sg/infopedia/articles/SIP_2014-05-16_133354.html' },
+]
+
+/** Citations, quoted word for word; `tests/golden.test.ts` checks every quote against the saved source text. */
+const cite = (sourceId: string, quote: string) => ({ sourceId, quote })
+const HANDOUT = {
+  notSovereign: 'The Temenggong governed Singapore, but he was not the sovereign; only the Sultan of Johor could lawfully grant land to the Company.',
+  younger: 'The younger, Tengku Abdul Rahman, was installed as Sultan in his absence with the support of the powerful Bugis faction at court, and this choice was later recognised by the Dutch.',
+  elder: 'The elder, Tengku Hussein, also known as Tengku Long, was away in Pahang for his wedding when his father died.',
+  view: 'Raffles took the view that Tengku Hussein, as the elder son, had the stronger claim.',
+  recognised: 'Hussein arrived in Singapore in early February 1819, and Raffles recognised him as Sultan Hussein Shah of Johor.',
+  allowances: 'In return the Sultan was to receive 5,000 Spanish dollars a year and the Temenggong 3,000 Spanish dollars a year.',
 }
 
 const stance = (id: string, label: string, demeanour: string, hidden = false) => ({ id, label, demeanour, ...(hidden ? { hidden } : {}) })
@@ -126,6 +144,7 @@ const documents = [
     body: TREATY_BODY,
     real: true,
     sourceLabel: TREATY,
+    citations: [{ sourceId: 'src-treaty' }],
     glossary: [
       { term: 'moiety', meaning: 'a half share' },
       { term: 'His Highness', meaning: 'in Article 2, the Sultan' },
@@ -373,21 +392,21 @@ const golden = {
   ],
   discoveries: [
     // Stage 1
-    { id: 'd1-not-sovereign', stageId: 's1', holder: { characterId: 'temenggong' }, core: true, sourceLabel: TEACHER, text: 'The Temenggong governs Singapore for the Sultan of Johor, but he is not the sovereign: only the Sultan can lawfully grant land to the Company.', note: 'The Temenggong rules here for the Sultan of Johor. Only the Sultan can grant the British land.' },
-    { id: 'd1-throne', stageId: 's1', holder: { characterId: 'temenggong' }, core: true, sourceLabel: TEACHER, topic: 'the Johor succession', condition: { stanceAtLeast: { characterId: 'temenggong', stanceId: 't2' } }, text: 'The Johor throne is disputed: when Sultan Mahmud died in 1812, his younger son Abdul Rahman was installed with Bugis support, and later recognised by the Dutch, while the elder son, Tengku Hussein, was away and passed over.', note: 'The Johor throne is disputed. The younger son was made Sultan with Bugis support; the elder, Tengku Hussein, was passed over.' },
+    { id: 'd1-not-sovereign', stageId: 's1', holder: { characterId: 'temenggong' }, core: true, sourceLabel: TEACHER, citations: [cite('src-handout', HANDOUT.notSovereign)], text: 'The Temenggong governs Singapore for the Sultan of Johor, but he is not the sovereign: only the Sultan can lawfully grant land to the Company.', note: 'The Temenggong rules here for the Sultan of Johor. Only the Sultan can grant the British land.' },
+    { id: 'd1-throne', stageId: 's1', holder: { characterId: 'temenggong' }, core: true, sourceLabel: TEACHER, citations: [cite('src-handout', HANDOUT.younger), cite('src-handout', HANDOUT.elder)], topic: 'the Johor succession', condition: { stanceAtLeast: { characterId: 'temenggong', stanceId: 't2' } }, text: 'The Johor throne is disputed: when Sultan Mahmud died in 1812, his younger son Abdul Rahman was installed with Bugis support, and later recognised by the Dutch, while the elder son, Tengku Hussein, was away and passed over.', note: 'The Johor throne is disputed. The younger son was made Sultan with Bugis support; the elder, Tengku Hussein, was passed over.' },
     { id: 'd1-riau-fear', stageId: 's1', holder: { characterId: 'temenggong' }, core: false, sourceLabel: INVENTED, topic: 'his fears about Riau', condition: { stanceAtLeast: { characterId: 'temenggong', stanceId: 't3' } }, text: 'The Temenggong fears that the Riau court and the Dutch will punish him for dealing with the British.', note: 'The Temenggong is afraid Riau and the Dutch will punish him for this.' },
     { id: 'd1-free-port', stageId: 's1', holder: { characterId: 'raffles' }, core: false, sourceLabel: TEACHER, text: 'Raffles means to make Singapore a free port, where ships can trade without paying duties, to draw traders from across the region.', note: 'Raffles wants a free port here, with no duties, to pull in traders from everywhere.' },
-    { id: 'd1-inhabitants', stageId: 's1', holder: { characterId: 'batin' }, core: false, sourceLabel: INFOPEDIA, text: 'About a thousand people already live on and around the island, most of them Orang Laut such as the Orang Kallang, Orang Seletar and Orang Gelam, with some Malays and a few Chinese planters.', note: 'About a thousand people already live here, mostly Orang Laut, with some Malays and Chinese planters.' },
-    { id: 'd1-agreement', stageId: 's1', holder: { documentId: 'doc-prelim', keyPassageId: 'kp-prelim-settled' }, core: true, sourceLabel: TREATY, text: 'The preliminary agreement is made by the Temenggong for himself and on behalf of the Sultan of Johor, and leaves it to be confirmed when the Sultan arrives.', note: 'The draft agreement is only on the Sultan\'s behalf: it still has to be settled when a Sultan arrives.' },
+    { id: 'd1-inhabitants', stageId: 's1', holder: { characterId: 'batin' }, core: false, sourceLabel: INFOPEDIA, citations: [cite('src-nlb', 'In January 1819, just a month before the treaty was signed, Singapore had approximately 1,000 inhabitants.')], text: 'About a thousand people already live on and around the island, most of them Orang Laut such as the Orang Kallang, Orang Seletar and Orang Gelam, with some Malays and a few Chinese planters.', note: 'About a thousand people already live here, mostly Orang Laut, with some Malays and Chinese planters.' },
+    { id: 'd1-agreement', stageId: 's1', holder: { documentId: 'doc-prelim', keyPassageId: 'kp-prelim-settled' }, core: true, sourceLabel: TREATY, citations: [cite('src-treaty', 'for himself and for Sultan Hussein Mahummed Shah Sultan of Johor')], text: 'The preliminary agreement is made by the Temenggong for himself and on behalf of the Sultan of Johor, and leaves it to be confirmed when the Sultan arrives.', note: 'The draft agreement is only on the Sultan\'s behalf: it still has to be settled when a Sultan arrives.' },
     { id: 'd1-calcutta', stageId: 's1', holder: { documentId: 'doc-instructions', keyPassageId: 'kp-instructions-dutch' }, core: false, sourceLabel: TEACHER, text: 'Raffles\'s instructions from Calcutta tell him to found a post at the southern end of the Straits but to avoid any collision with the Dutch.', note: 'Calcutta told Raffles to avoid any clash with the Dutch.' },
     { id: 'd1-riau-claim', stageId: 's1', holder: { documentId: 'doc-riau-letter', keyPassageId: 'kp-riau-authority' }, core: false, sourceLabel: TEACHER, text: 'The Riau court says the Temenggong is only a servant of Sultan Abdul Rahman and has no authority to give away any of the Sultan\'s land.', note: 'Riau says the Temenggong is only the Sultan\'s servant and cannot give away land.' },
     // Stage 2
-    { id: 'd2-hussein-claim', stageId: 's2', holder: { characterId: 'hussein' }, core: true, sourceLabel: TEACHER, text: 'Tengku Hussein, the elder son passed over in 1812, claims the throne of Johor and wants to be recognised as its Sultan.', note: 'Tengku Hussein says the throne is his by right, and wants to be recognised as Sultan.' },
+    { id: 'd2-hussein-claim', stageId: 's2', holder: { characterId: 'hussein' }, core: true, sourceLabel: TEACHER, citations: [cite('src-handout', HANDOUT.elder), cite('src-handout', HANDOUT.recognised)], text: 'Tengku Hussein, the elder son passed over in 1812, claims the throne of Johor and wants to be recognised as its Sultan.', note: 'Tengku Hussein says the throne is his by right, and wants to be recognised as Sultan.' },
     { id: 'd2-hussein-needs', stageId: 's2', holder: { characterId: 'hussein' }, core: false, sourceLabel: TEACHER, topic: 'how he has been living', condition: { stanceAtLeast: { characterId: 'hussein', stanceId: 'h2' } }, text: 'Hussein has been living in obscurity in Riau and needs an income and protection if he is to live as a Sultan.', note: 'Hussein has been living quietly in Riau. He needs money and protection to live as Sultan.' },
-    { id: 'd2-raffles-plan', stageId: 's2', holder: { characterId: 'raffles' }, core: true, sourceLabel: TEACHER, topic: 'whom he means to recognise', condition: { stanceAtLeast: { characterId: 'raffles', stanceId: 'r2' } }, text: 'Raffles believes Hussein, as the elder son, has the stronger claim, and means to recognise him as Sultan so that a ruler of Johor signs the treaty.', note: 'Raffles plans to recognise Hussein as Sultan, so a ruler of Johor signs the treaty.' },
+    { id: 'd2-raffles-plan', stageId: 's2', holder: { characterId: 'raffles' }, core: true, sourceLabel: TEACHER, citations: [cite('src-handout', HANDOUT.view)], topic: 'whom he means to recognise', condition: { stanceAtLeast: { characterId: 'raffles', stanceId: 'r2' } }, text: 'Raffles believes Hussein, as the elder son, has the stronger claim, and means to recognise him as Sultan so that a ruler of Johor signs the treaty.', note: 'Raffles plans to recognise Hussein as Sultan, so a ruler of Johor signs the treaty.' },
     { id: 'd2-dutch-protest', stageId: 's2', holder: { characterId: 'farquhar' }, core: false, sourceLabel: TEACHER, text: 'Farquhar expects the Dutch to protest, because they recognise Sultan Abdul Rahman as the only lawful ruler of Johor and treat Singapore as theirs to watch over.', note: 'Farquhar is sure the Dutch will protest: they say Abdul Rahman is the only lawful Sultan.' },
     { id: 'd2-bugis', stageId: 's2', holder: { characterId: 'messenger' }, core: false, sourceLabel: TEACHER, condition: { slantConfronted: 'slant-messenger' }, text: 'The messenger admits that Abdul Rahman was made Sultan with the support of the powerful Bugis party at court while Hussein was away.', note: 'The Riau messenger admitted the Bugis party at court put Abdul Rahman on the throne.' },
-    { id: 'd2-no-force', stageId: 's2', holder: { documentId: 'doc-treaty', keyPassageId: 'kp-treaty-force' }, core: true, sourceLabel: TREATY, text: 'The treaty promises the Sultan protection, but says the British are not bound to interfere in Johor\'s politics or to uphold his authority by force.', note: 'The treaty protects the Sultan, but the British will not fight to keep him on his throne.' },
+    { id: 'd2-no-force', stageId: 's2', holder: { documentId: 'doc-treaty', keyPassageId: 'kp-treaty-force' }, core: true, sourceLabel: TREATY, citations: [cite('src-treaty', 'is to be considered in no way bound to interfere with the internal politics of his States or engaged to assert or maintain the authority of His Highness by force of Arms')], text: 'The treaty promises the Sultan protection, but says the British are not bound to interfere in Johor\'s politics or to uphold his authority by force.', note: 'The treaty protects the Sultan, but the British will not fight to keep him on his throne.' },
     { id: 'd2-duties', stageId: 's2', holder: { documentId: 'doc-treaty', keyPassageId: 'kp-treaty-duties' }, core: false, sourceLabel: TREATY, text: 'Under the treaty, the Temenggong is to receive half of all the duties collected from native vessels.', note: 'The Temenggong would get half of the duties paid by native boats.' },
     { id: 'd2-riau-claim', stageId: 's2', holder: { documentId: 'doc-proclamation', keyPassageId: 'kp-proclamation-dutch' }, core: false, sourceLabel: TEACHER, text: 'The Riau court proclaims Abdul Rahman the only lawful Sultan, acknowledged by the Dutch.', note: 'Riau proclaims Abdul Rahman the only Sultan, backed by the Dutch.' },
   ],
@@ -485,6 +504,7 @@ const golden = {
         generalCounter: 'Some would say no treaty of that time asked ordinary people anything, so "fair" is the wrong measure. What would you measure it by instead?',
       },
       sourceLabel: TEACHER,
+      citations: [cite('src-handout', HANDOUT.recognised), cite('src-handout', HANDOUT.allowances)],
     },
     {
       id: 'e-wait',
@@ -558,6 +578,7 @@ const golden = {
       'Had the Temenggong refused, Raffles had no other ruler on the island to deal with.',
     ],
   },
+  sources: SOURCES,
   teacherQuestions: ['Who gained most from the treaty of 6 February 1819, and who gained least? Use evidence from the game.'],
   storyEvents: [
     { id: 'se1-summons', stageId: 's1', when: { atSeconds: 300 }, effect: 'summons', characterId: 'raffles', text: 'A sailor runs up the bank: "Sir Stamford wants his interpreter at the landing."' },

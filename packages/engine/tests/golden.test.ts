@@ -29,6 +29,12 @@ const SOURCES: Record<string, string> = {
   'Treaty of Friendship and Alliance, Singapore, 6 February 1819': 'fixtures/sources/treaty-1819-wikisource.txt',
 }
 
+/** Saved source texts by source id, for checking citation quotes word for word. */
+const SAVED: Record<string, string> = {
+  'src-handout': 'fixtures/sources/singapore-1819-handout.txt',
+  'src-treaty': 'fixtures/sources/treaty-1819-wikisource.txt',
+}
+
 describe('golden-1819: content', () => {
   it('passes spec-v3: validateSpec and checkSpec with no errors, and every reference resolves', () => {
     expect(validateSpec(JSON.parse(readFileSync(resolve(ROOT, 'fixtures/golden-1819.json'), 'utf8'))).ok).toBe(true)
@@ -73,6 +79,17 @@ describe('golden-1819: content', () => {
         .map((segment) => segment.replace(/^\s*Article \w+\.\s*/, '').trim())
         .filter((segment) => segment.length > 0)
       for (const segment of segments) expect(source.includes(normalise(segment)), `${document.id}: "${segment.slice(0, 50)}…"`).toBe(true)
+    }
+  })
+
+  it('cites core claims word for word from the saved sources (G13)', () => {
+    const cited = [...golden.discoveries, ...golden.endings, ...golden.documents].flatMap((item) => (item.citations ?? []).map((citation) => ({ id: item.id, ...citation })))
+    expect(cited.length).toBeGreaterThan(0)
+    for (const { id, sourceId, quote } of cited) {
+      expect(golden.sources.some((source) => source.id === sourceId), `${id}: unknown source ${sourceId}`).toBe(true)
+      const path = SAVED[sourceId]
+      if (quote === undefined || path === undefined) continue
+      expect(normalise(readFileSync(resolve(ROOT, path), 'utf8')).includes(normalise(quote)), `${id}: "${quote.slice(0, 50)}…"`).toBe(true)
     }
   })
 
