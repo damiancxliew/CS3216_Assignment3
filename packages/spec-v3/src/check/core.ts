@@ -1,8 +1,9 @@
 /**
  * Rule 4: every `core` discovery must be reachable in its own stage, under an optimistic static
  * fixpoint (assume whatever could fire does fire). Secret routes (hidden stances) are excluded (G15).
+ * `core-missing` and `core-holder` are skeleton rules and live in `skeleton.ts`.
  *
- * Codes: `core-unreachable`, `core-holder`, `core-missing`.
+ * Codes: `core-unreachable`.
  */
 import type { AdventureSpec, CheckIssue, Condition } from '../index.js'
 
@@ -21,11 +22,7 @@ export function coreIssues(spec: AdventureSpec): CheckIssue[] {
     for (const slant of character.slants) if (slant.unlocksDiscoveryId !== undefined) lockedBy.set(slant.unlocksDiscoveryId, slant.id)
 
   spec.stages.forEach((stage, stageIndex) => {
-    const at = `stages.${stageIndex}`
     const stageDiscoveries = spec.discoveries.filter((d) => d.stageId === stage.id)
-    if (!stageDiscoveries.some((d) => d.core))
-      add('core-missing', `${at}.id`, `stage '${stage.id}' has no core discovery`)
-
     const present = new Set<string>([
       ...Object.keys(stage.placement),
       ...stage.situations.flatMap((s) => Object.keys(s.placement ?? {})),
@@ -145,8 +142,6 @@ export function coreIssues(spec: AdventureSpec): CheckIssue[] {
     for (const discovery of stageDiscoveries) {
       if (!discovery.core) continue
       const i = discoveryIndex.get(discovery.id) ?? 0
-      if ('characterId' in discovery.holder && characterById.get(discovery.holder.characterId)?.tier !== 'major')
-        add('core-holder', `discoveries.${i}.holder`, `core discovery '${discovery.id}' is held by a non-major character`)
       if (!found.has(discovery.id))
         add('core-unreachable', `discoveries.${i}.id`, `core discovery '${discovery.id}' is not reachable in stage '${stage.id}'`)
     }

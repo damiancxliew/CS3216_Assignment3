@@ -6,7 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import type { V3PlayClient } from "@/lib/play/v3/client";
 
-const PENDING_REFRESH_DELAYS = [2_500, 6_000];
+// Back off while the post-turn check is still running; it usually lands in 2–4 s, rarely after ~30 s.
+const PENDING_REFRESH_DELAYS = [2_000, 3_000, 5_000, 8_000, 12_000, 20_000];
 
 export function useV3Play(attemptId: string, initialView: PlayerView, initialRevision: number) {
   const client = useRef<V3PlayClient | null>(null);

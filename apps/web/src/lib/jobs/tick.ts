@@ -30,7 +30,14 @@ export async function handleTick(opts: {
     return { status: 401, body: { error: "unauthorized" }, kicks: 0 };
   }
 
-  const result = await opts.getJobs().runNext();
+  let result: RunResult | null;
+  try {
+    result = await opts.getJobs().runNext();
+  } catch (error) {
+    // A transient claim or database failure: report it cleanly and let the next tick (or the timer) retry.
+    console.error("jobs tick failed", error);
+    return { status: 500, body: { error: "tick_failed" }, kicks: 0 };
+  }
   if (result === null) return { status: 200, body: { ran: false }, kicks: 0 };
 
   return {

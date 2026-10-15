@@ -31,6 +31,7 @@ describe('AdventureSpec', () => {
   it('applies defaults when sources/conflicts/storyEvents/openQuestions/hintAngles are absent', () => {
     const sparse = clone(sampleSpec) as Record<string, unknown>
     delete sparse.storyEvents
+    delete sparse.sources
     const result = validateSpec(sparse)
     expect(result.ok).toBe(true)
     if (result.ok) {
