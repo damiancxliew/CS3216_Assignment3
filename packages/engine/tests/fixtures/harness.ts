@@ -22,6 +22,8 @@ export class Harness {
   /** The next check result; consumed by `check()`. */
   nextCheck: CheckScript = {}
   replyText = 'A reply.'
+  interviewLine: string | null = null
+  invalidInterviewLine = false
   readonly llm: FakeLlmClient
 
   constructor(readonly spec: EngineSpec) {
@@ -31,6 +33,11 @@ export class Harness {
 
   private respond(request: LlmRequest): string {
     if (request.schemaName === 'v3_character_reply') return JSON.stringify({ reply: this.replyText })
+    if (request.schemaName === 'v3_interview_line') {
+      if (this.invalidInterviewLine) return '{invalid interview line'
+      const counterpoint = request.user.match(/<counterpoint>([\s\S]*?)<\/counterpoint>/)?.[1] ?? 'Thank you for telling me.'
+      return JSON.stringify({ line: this.interviewLine ?? counterpoint })
+    }
     const script = this.nextCheck
     this.nextCheck = {}
     return JSON.stringify({
