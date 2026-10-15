@@ -5,7 +5,7 @@
  */
 import type { CheckIssue, SkeletonShape } from '@adventure/spec-v3'
 
-import { citationQuotes, quoteIssues } from '../grounding'
+import { citationQuotes, quoteInSource, quoteIssues } from '../grounding'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, StageDetailsLlmOutput } from './schema'
 
 type Ctx = {
@@ -230,6 +230,23 @@ export function stageIssues(stageId: string, output: StageDetailsLlmOutput, ctx:
 
   // labels + grounding
   output.documents.forEach((doc, i) => issues.push(...labelIssue(doc.sourceLabel, `documents.${i}.sourceLabel`, `document '${doc.id}'`)))
+  // G13.2: a document marked real must reproduce its cited source word for word, paragraph by paragraph.
+  output.documents.forEach((doc, i) => {
+    if (!doc.real) return
+    const cited = (doc.citations ?? []).map((c) => c.sourceId).filter((id) => sources.has(id))
+    if (cited.length === 0) {
+      issues.push(issue('real-uncited', `documents.${i}.citations`, `real document '${doc.id}' cites no source text to check its wording against`))
+      return
+    }
+    doc.body
+      .split(/\n\s*\n/)
+      .map((paragraph) => paragraph.trim())
+      .filter((paragraph) => paragraph.length > 0)
+      .forEach((paragraph, k) => {
+        if (!cited.some((id) => quoteInSource(paragraph, sources.get(id) as string)))
+          issues.push(issue('quote-not-in-source', `documents.${i}.body`, `paragraph ${k + 1} of real document '${doc.id}' does not occur word for word in its cited source`))
+      })
+  })
   output.discoveries.forEach((d, i) => issues.push(...labelIssue(d.sourceLabel, `discoveries.${i}.sourceLabel`, `discovery '${d.id}'`)))
   issues.push(
     ...quoteIssues(

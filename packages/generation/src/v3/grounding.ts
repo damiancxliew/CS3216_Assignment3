@@ -23,10 +23,15 @@ export function sourceTexts(documents: ExtractedDocument[]): Map<string, string>
   return new Map(documents.map((doc) => [doc.id, doc.pages.map((p) => p.text).join('\n')]))
 }
 
+/** Shortest piece of an elided quote ("…") that still counts as quoting, in normalised characters. */
+export const MIN_ELIDED_PIECE = 12
+
 export function quoteInSource(quote: string, source: string): boolean {
   const haystack = normaliseText(source)
   const needle = normaliseText(quote)
   const pieces = needle.split(/…|\.\.\./).map((p) => p.trim()).filter((p) => p.length > 0)
+  // With elisions, every piece must be substantial: "a … e … i" would otherwise match almost any text.
+  if (pieces.length > 1 && pieces.some((piece) => piece.length < MIN_ELIDED_PIECE)) return false
   let from = 0
   for (const piece of pieces) {
     const at = haystack.indexOf(piece, from)

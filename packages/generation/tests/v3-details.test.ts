@@ -76,7 +76,7 @@ const llmSkeleton: SkeletonLlmOutput = {
       text: 'Some merchants resented new port dues.',
       note: 'Not all welcomed the flag.',
       sourceLabel: 'from the teacher',
-      citations: [{ sourceId: 'singapore-1819', quote: null }],
+      citations: [{ sourceId: 'singapore-1819', quote: 'The treaty was signed on 6 February 1819.' }],
     },
   ],
   documents: [{ id: 'doc-1', kind: 'report', title: 'Port Register', real: true }],
@@ -123,11 +123,11 @@ const stageOutput: StageDetailsLlmOutput = {
       title: 'Port Register',
       real: true,
       provenance: { masthead: 'Port Office', date: null, sender: null, recipient: null, place: null },
-      body: 'The register shows dues doubled this quarter.',
+      body: 'The treaty was signed on 6 February 1819.',
       sourceLabel: 'from the teacher',
       glossary: [],
-      keyPassages: [{ id: 's1-doc1-kp1', text: 'dues doubled' }],
-      citations: null,
+      keyPassages: [{ id: 's1-doc1-kp1', text: 'signed on 6 February 1819' }],
+      citations: [{ sourceId: 'singapore-1819', quote: null }],
       slanted: true,
       slantNote: 'Omits the merchants’ side.',
     },
@@ -346,7 +346,7 @@ describe('generateDetails', () => {
 
     // key passage offsets
     const doc1 = draft.documents.find((d) => d.id === 'doc-1')!
-    expect(doc1.body.slice(doc1.keyPassages[0]!.start, doc1.keyPassages[0]!.end)).toBe('dues doubled')
+    expect(doc1.body.slice(doc1.keyPassages[0]!.start, doc1.keyPassages[0]!.end)).toBe('signed on 6 February 1819')
     expect(doc1.provenance).toEqual({ masthead: 'Port Office' })
 
     // requires → Condition shapes: none / one / many
@@ -416,7 +416,9 @@ describe('generateDetails', () => {
     const invented = JSON.parse(JSON.stringify(stageOutput))
     invented.documents[0].citations = [{ sourceId: 'singapore-1819', quote: 'the harbour was crowded with ships' }]
     const split = JSON.parse(JSON.stringify(stageOutput))
-    split.documents[0].citations = [{ sourceId: 'singapore-1819', quote: 'The treaty … 1819.' }]
+    split.documents[0].citations = [{ sourceId: 'singapore-1819', quote: 'The treaty was signed … Farquhar called it' }]
+    const thin = JSON.parse(JSON.stringify(stageOutput))
+    thin.documents[0].citations = [{ sourceId: 'singapore-1819', quote: 'The … 1819.' }] // elided pieces too short to count
 
     for (const variant of [curly, split]) {
       const llm = new RoutingLlm({ ...happyRoutes(), 'stage s1': [{ json: variant }] })
@@ -425,11 +427,28 @@ describe('generateDetails', () => {
       expect(llm.count('stage s1')).toBe(1)
     }
 
-    const llm = new RoutingLlm({ ...happyRoutes(), 'stage s1': [{ json: invented }, { json: stageOutput }] })
-    const result = await generateDetails(input, { llm })
-    expect(result.ok).toBe(true)
-    expect(llm.count('stage s1')).toBe(2)
-    expect(llm.requests.filter((r) => r.key === 'stage s1')[1]!.request.user).toContain('quote-not-in-source')
+    for (const variant of [invented, thin]) {
+      const llm = new RoutingLlm({ ...happyRoutes(), 'stage s1': [{ json: variant }, { json: stageOutput }] })
+      const result = await generateDetails(input, { llm })
+      expect(result.ok).toBe(true)
+      expect(llm.count('stage s1')).toBe(2)
+      expect(llm.requests.filter((r) => r.key === 'stage s1')[1]!.request.user).toContain('quote-not-in-source')
+    }
+  })
+
+  it('requires a real document to cite a source and reproduce it word for word (G13.2)', async () => {
+    const rewritten = JSON.parse(JSON.stringify(stageOutput))
+    rewritten.documents[0].body = 'The treaty was signed on 6 February 1819 to great acclaim.'
+    rewritten.documents[0].keyPassages = [{ id: 's1-doc1-kp1', text: 'signed on 6 February 1819' }]
+    const uncited = JSON.parse(JSON.stringify(stageOutput))
+    uncited.documents[0].citations = null
+    for (const [variant, code] of [[rewritten, 'quote-not-in-source'], [uncited, 'real-uncited']] as const) {
+      const llm = new RoutingLlm({ ...happyRoutes(), 'stage s1': [{ json: variant }, { json: stageOutput }] })
+      const result = await generateDetails(input, { llm })
+      expect(result.ok).toBe(true)
+      expect(llm.count('stage s1')).toBe(2)
+      expect(llm.requests.filter((r) => r.key === 'stage s1')[1]!.request.user).toContain(code)
+    }
   })
 
   it('flags id-prefix and passage-not-in-body', async () => {
@@ -471,6 +490,8 @@ describe('generateDetails', () => {
     expect(llm.count('persona raffles')).toBe(1)
     expect(llm.count('link')).toBe(2) // re-run after the repair round
     expect(llm.requests.filter((r) => r.key === 'persona farquhar')[1]!.request.user).toContain('core-unreachable')
+    // every call, the routed repair included, is in the metrics
+    expect(result.metrics.calls).toHaveLength(llm.requests.length)
   })
 
   it('rejects a link noteTrigger duplicating an existing persona trigger, then repairs', async () => {

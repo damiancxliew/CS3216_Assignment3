@@ -53,8 +53,14 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
   const calls: DetailCallMetrics[] = []
   const warnings: CheckIssue[] = []
   const issues: CheckIssue[] = []
+  // A call's metrics array keeps growing when it is rerun for repair, so record how much of it is counted.
+  const counted = new Map<DetailCallMetrics[], number>()
+  const countCalls = (result: CallResult<unknown>) => {
+    calls.push(...result.calls.slice(counted.get(result.calls) ?? 0))
+    counted.set(result.calls, result.calls.length)
+  }
   const collect = (result: CallResult<unknown>) => {
-    calls.push(...result.calls)
+    countCalls(result)
     warnings.push(...result.warnings)
     issues.push(...result.issues)
   }
@@ -113,6 +119,7 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
     }
     const repairs = await Promise.all([...routed.entries()].map(([result, its]) => result.rerun(its)))
     for (const repair of repairs) {
+      countCalls(repair)
       warnings.push(...repair.warnings)
       issues.push(...repair.issues)
       if (repair.output === undefined) continue
