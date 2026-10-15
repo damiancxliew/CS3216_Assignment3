@@ -77,6 +77,17 @@ describe("jobs tick handler", () => {
     expect(outcome).toEqual({ status: 200, body: { ran: false }, kicks: 0 });
   });
 
+  it("reports a failed claim as a clean 500 with no kicks, leaving recovery to the next tick", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const outcome = await handleTick({
+      getJobs: () => ({ runNext: async () => { throw new Error("connection reset"); } }),
+      secretHeader: tickSecret,
+      env: enabledEnv(),
+    });
+
+    expect(outcome).toEqual({ status: 500, body: { error: "tick_failed" }, kicks: 0 });
+  });
+
   it("runs one step per tick and fans out once for each newly ready dependant", async () => {
     const jobs = newJobs();
     await jobs.enqueue("tick-job", ["a", "b", "c"], { b: ["a"], c: ["a"] });

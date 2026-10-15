@@ -97,13 +97,14 @@ export function StagePlayScreen({ view, busy, send }: {
     () => view.documents.find((document) => document.open)?.id ?? null,
   );
   const [now, setNow] = useState<number | null>(null);
+  const [confirmMoment, setConfirmMoment] = useState(false);
   const currentCharacter = view.characters.find((character) => character.id === characterId) ?? null;
   const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
   const stage = view.stage;
   const messages = useMemo(
+    // Conversation is per room; story lines (narration, notices, the role's own thoughts) follow the student.
     () => view.messages.filter((item) =>
-      item.roomId === view.currentRoomId ||
-      (item.roomId === null && (item.kind === "notice" || item.kind === "narration")),
+      item.roomId === view.currentRoomId || item.kind === "notice" || item.kind === "narration" || item.kind === "thought",
     ),
     [view.currentRoomId, view.messages],
   );
@@ -165,6 +166,28 @@ export function StagePlayScreen({ view, busy, send }: {
         <p className="w-full rounded-xl border-l-4 border-world bg-world-wash px-4 py-3 font-semibold leading-relaxed text-ink">
           {stage?.centralQuestion}
         </p>
+        {view.definingMoment === null ? (
+          <div className="flex w-full flex-wrap items-center justify-end gap-3">
+            {confirmMoment ? (
+              <>
+                <span className="text-sm font-semibold text-muted">Talking and searching end once the moment begins.</span>
+                <button type="button" disabled={busy} onClick={() => setConfirmMoment(false)}
+                  className="min-h-11 rounded-xl border border-line-strong bg-paper px-4 font-bold text-ink disabled:opacity-50">
+                  Not yet
+                </button>
+                <button type="button" disabled={busy} onClick={() => { setConfirmMoment(false); send({ type: "endStage" }); }}
+                  className="min-h-11 rounded-xl bg-signal px-4 font-black text-on-signal disabled:opacity-50">
+                  Begin the defining moment
+                </button>
+              </>
+            ) : (
+              <button type="button" disabled={busy} onClick={() => setConfirmMoment(true)}
+                className="min-h-11 rounded-xl border-2 border-signal bg-surface px-4 font-black text-signal disabled:opacity-50">
+                I am ready to decide
+              </button>
+            )}
+          </div>
+        ) : null}
       </header>
 
       {view.definingMoment === null ? (

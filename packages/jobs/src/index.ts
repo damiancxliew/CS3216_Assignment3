@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/** Default step lease: below Vercel's 300 s `maxDuration`, leaving time to record the result. */
+export const DEFAULT_LEASE_SECONDS = 285;
+
 export type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 
 export interface StepContext<I extends Json = Json> {
@@ -374,7 +377,8 @@ export function createJobs(store: JobStore, definitions: StepDefinition<any, any
   }
 
   async function runNext(options: { jobId?: string; leaseSeconds?: number } = {}): Promise<RunResult | null> {
-    const leaseSeconds = options.leaseSeconds ?? 330;
+    // Under the host's 300 s limit, so the step aborts and its row is released before the function is killed.
+    const leaseSeconds = options.leaseSeconds ?? DEFAULT_LEASE_SECONDS;
     const token = crypto.randomUUID();
     const claimed = await store.claim(token, leaseSeconds, options.jobId);
     if (!claimed) return null;
