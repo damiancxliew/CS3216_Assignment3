@@ -45,8 +45,8 @@ depend on the teacher's browser tab.
 - [x] **L** `GET /api/v3/attempts/:id` → `PlayerView`
 - [x] **M** `POST /api/v3/attempts/:id/actions`: optimistic revision, `engine.step`, save `state` and `events`
 - [x] **L** Rate limit and per-attempt cost ceiling [C5–C7]
-- [ ] **M** Sources step: allowlisted web search and excerpt extraction [G13, T7]
-- [ ] **M** Sources step: word-for-word quote check and source labels [G13.2, G1.2]
+- [x] **M** Sources step: allowlisted web search and excerpt extraction [G13, T7]
+- [x] **M** Sources step: word-for-word quote check and source labels [G13.2, G1.2]
 - [x] **L** Screen: role briefing [P18]
 - [x] **H** Screens: chat, notes panel, inserting a note into chat [P8, P13]
 - [x] **H** Screen: document reader with passage selection [P11]
@@ -57,8 +57,8 @@ depend on the teacher's browser tab.
 Portrait URLs are wired to `NEXT_PUBLIC_V3_PORTRAIT_BASE`; initials remain the fallback until stance portrait generation lands.
 
 **By Checkpoint 2 (D2 13:00)**
-- [ ] **M** Hints that escalate with time left [P5, P5.1.1]
-- [ ] **M** Story events [P12]
+- [x] **M** Hints that escalate with time left [P5, P5.1.1]
+- [x] **M** Story events [P12]
 - [ ] **H** Interview: push-back prompt and logic [E2]
 - [ ] **M** Reveal assembly, including source labels [E3]
 - [x] **H** Screens: defining moment, acts and one-tap prediction [P9, P3]
