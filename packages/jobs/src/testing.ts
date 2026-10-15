@@ -69,7 +69,8 @@ export function describeJobStore(label: string, makeStore: () => JobStore) {
 
       const a = await store.claim(crypto.randomUUID(), 330, jobId);
       expect(a?.name).toBe("a");
-      expect((await store.fail(a!.id, a!.leaseToken!, "failed")).status).toBe("failed");
+      const failed = await store.fail(a!.id, a!.leaseToken!, "failed");
+      expect(failed?.status).toBe("failed");
 
       expect((await store.list(jobId)).map(({ name, status, error }) => [name, status, error])).toEqual([
         ["a", "failed", "failed"],
