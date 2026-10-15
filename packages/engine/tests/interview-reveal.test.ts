@@ -116,7 +116,7 @@ describe('Reveal assembly', () => {
     const reveal = await finish(game)
     expect(reveal.reveal?.pathVsHistory[0]?.closedEndings).not.toContain('Hidden')
     expect(reveal.reveal?.corrections).toEqual([
-      'A told you: "The island is mine." That was one-sided: The letter says the key line.',
+      'A\'s view that "The island is mine." was one-sided: The letter says the key line.',
       'A slanted.',
     ])
     expect(PlayerView.parse(reveal)).toBeDefined()

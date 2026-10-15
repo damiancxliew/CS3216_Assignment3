@@ -27,7 +27,8 @@ function slantCorrections(spec: EngineSpec, state: EngineState): string[] {
       .map((slant) => {
         const contradictedBy = spec.discoveries.find((discovery) => discovery.id === slant.contradictedBy[0])?.text
         if (contradictedBy === undefined) return null
-        return `${character.name} told you: "${slant.claim}" That was one-sided: ${contradictedBy}`
+        // Phrased as the character's view, not "told you": the reply may never have voiced this slant.
+        return `${character.name}'s view that "${slant.claim}" was one-sided: ${contradictedBy}`
       })
       .filter((correction): correction is string => correction !== null)
   })
