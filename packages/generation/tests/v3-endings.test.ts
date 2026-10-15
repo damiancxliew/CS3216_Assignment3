@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AdventureSpec, CheckIssue } from '@adventure/spec-v3'
 
 import type { FakeReply, LlmJsonRequest, LlmJsonResponse, LlmUsage } from '../src/llm/client'
+import { tryParseJson } from '../src/llm/client'
 import type { LlmClient } from '../src/llm/client'
 import { generateEndings } from '../src/v3/index'
 import type { Atom, EndingLlmOutput, MomentLlmOutput } from '../src/v3/index'
@@ -268,13 +269,14 @@ class RoutingLlm implements LlmClient {
     if (reply === undefined) throw new Error(`RoutingLlm: no scripted reply for ${key}`)
     if ('error' in reply) throw new Error(reply.error)
     const base = { usage, model: request.model, latencyMs: 1 }
-    if ('json' in reply) return { ...base, text: JSON.stringify(reply.json), json: reply.json, refusal: null }
-    return { ...base, text: reply.text, json: null, refusal: null }
+    if ('refusal' in reply) return { ...base, text: null, json: null, refusal: reply.refusal }
+    const text = 'json' in reply ? JSON.stringify(reply.json) : reply.text
+    return { ...base, text, json: tryParseJson(text), refusal: null }
   }
 }
 
 const happyRoutes = () => ({
-  'moment m1': [{ json: momentOutput({ conditionalRules: [{ actId: 'a1-yield', outcomeId: 'o1-hold', when: [atom('discovered', { discoveryId: 'd-core1' }), atom('notePassed', { discoveryId: 'd-extra', characterId: 'raffles' }), atom('discovered', { discoveryId: 'd-guarded', negate: true })] }] }) }],
+  'moment m1': [{ json: momentOutput({ conditionalRules: [{ actId: 'a1-yield', outcomeId: 'o1-hold', when: [atom('notePassed', { discoveryId: 'd-extra', characterId: 'raffles' }), atom('stanceAtLeast', { characterId: 'raffles', stanceId: 's2' }), atom('slantConfronted', { slantId: 'farquhar-sl1', negate: true })] }] }) }],
   'moment m2': [{ json: momentOutput({ conditionalRules: [{ actId: 'a2-refuse', outcomeId: 'o2-defer', when: [atom('outcome', { momentId: 'm1', outcomeId: 'o1-hold' })] }] }, 'm2') }],
   'ending e-historical': [{ json: endingOutput() }],
   'ending e-alt1': [{ json: endingOutput() }],
@@ -282,6 +284,10 @@ const happyRoutes = () => ({
 })
 
 const input = { draft, documents: [] }
+const inputWithSource = {
+  draft,
+  documents: [{ id: 'singapore-1819-handout', title: 'Handout', kind: 'text' as const, contentHash: 'h', pageCount: 1, charCount: 1, pages: [{ page: 1, text: 'x' }], warnings: [] }],
+}
 
 describe('generateEndings', () => {
   it('merges a clean run: conditional rules before fallbacks, condition shapes, verdict ids', async () => {
@@ -296,7 +302,7 @@ describe('generateEndings', () => {
     const m1 = spec.definingMoments[0]!
     expect(m1.nudge).not.toBe('')
     const a1yield = m1.rules.filter((r) => r.actId === 'a1-yield')
-    expect(a1yield[0]!.when).toEqual({ all: [{ discovered: 'd-core1' }, { notePassed: { discoveryId: 'd-extra', characterId: 'raffles' } }, { not: { discovered: 'd-guarded' } }] })
+    expect(a1yield[0]!.when).toEqual({ all: [{ notePassed: { discoveryId: 'd-extra', characterId: 'raffles' } }, { stanceAtLeast: { characterId: 'raffles', stanceId: 's2' } }, { not: { slantConfronted: 'farquhar-sl1' } }] })
     expect(a1yield[0]!.outcomeId).toBe('o1-hold')
     expect(a1yield.slice(1).every((r) => r.when === undefined)).toBe(true) // fallbacks unchanged, after conditionals
 
@@ -320,13 +326,53 @@ describe('generateEndings', () => {
     expect(llm.requests.filter((r) => r.key === 'moment m1')).toHaveLength(1)
   })
 
+  it('rejects a discovered atom in a conditional rule', async () => {
+    const bad = momentOutput({ conditionalRules: [{ actId: 'a1-yield', outcomeId: 'o1-hold', when: [atom('discovered', { discoveryId: 'd-core1' })] }] })
+    const llm = new RoutingLlm({ ...happyRoutes(), 'moment m1': [{ json: bad }, { json: momentOutput() }] })
+    const result = await generateEndings(input, { llm })
+    expect(result.ok).toBe(true)
+    const calls = llm.requests.filter((r) => r.key === 'moment m1')
+    expect(calls).toHaveLength(2)
+    expect(calls[1]!.request.user).toContain('rule-discovered')
+  })
+
   it('rejects a rule condition on a later-stage discovery', async () => {
-    const bad = momentOutput({ conditionalRules: [{ actId: 'a1-yield', outcomeId: 'o1-hold', when: [atom('discovered', { discoveryId: 'd-core2' })] }] }) // d-core2 is stage s2
+    const bad = momentOutput({ conditionalRules: [{ actId: 'a1-yield', outcomeId: 'o1-hold', when: [atom('notePassed', { discoveryId: 'd-core2', characterId: 'raffles' })] }] }) // d-core2 is stage s2
     const llm = new RoutingLlm({ ...happyRoutes(), 'moment m1': [{ json: bad }, { json: momentOutput() }] })
     const result = await generateEndings(input, { llm })
     expect(result.ok).toBe(true)
     expect(llm.requests.filter((r) => r.key === 'moment m1')).toHaveLength(2)
     expect(llm.requests.filter((r) => r.key === 'moment m1')[1]!.request.user).toContain('not reachable')
+  })
+
+  it('historical-diverted is an error with a positive atom, a warning when all negated', async () => {
+    // a1-hold's fallback is the historical outcome o1-hold
+    const positive = momentOutput({ conditionalRules: [{ actId: 'a1-hold', outcomeId: 'o1-yield', when: [atom('notePassed', { discoveryId: 'd-extra', characterId: 'farquhar' })] }] })
+    const llm = new RoutingLlm({ ...happyRoutes(), 'moment m1': [{ json: positive }, { json: momentOutput() }] })
+    const result = await generateEndings(input, { llm })
+    expect(result.ok).toBe(true)
+    const calls = llm.requests.filter((r) => r.key === 'moment m1')
+    expect(calls).toHaveLength(2)
+    expect(calls[1]!.request.user).toContain('historical-diverted')
+
+    const negated = momentOutput({ conditionalRules: [{ actId: 'a1-hold', outcomeId: 'o1-yield', when: [atom('stanceAtLeast', { characterId: 'farquhar', stanceId: 's2', negate: true })] }] })
+    const llm2 = new RoutingLlm({ ...happyRoutes(), 'moment m1': [{ json: negated }] })
+    const result2 = await generateEndings(input, { llm: llm2 })
+    expect(result2.ok).toBe(true)
+    expect(result2.issues).toEqual([])
+    expect(result2.warnings.some((w) => w.code === 'historical-diverted')).toBe(true)
+    expect(llm2.requests.filter((r) => r.key === 'moment m1')).toHaveLength(1)
+  })
+
+  it('rejects source ids and page references in student-facing text', async () => {
+    const bad = momentOutput()
+    bad.outcomes[0]!.because = 'Because it says so (singapore-1819-handout, p. 2).'
+    const llm = new RoutingLlm({ ...happyRoutes(), 'moment m1': [{ json: bad }, { json: momentOutput() }] })
+    const result = await generateEndings(inputWithSource, { llm })
+    expect(result.ok).toBe(true)
+    const calls = llm.requests.filter((r) => r.key === 'moment m1')
+    expect(calls).toHaveLength(2)
+    expect(calls[1]!.request.user).toContain('citation-in-text')
   })
 
   it('rejects document-id counterPoints and verdicts with no core counterPoint', async () => {

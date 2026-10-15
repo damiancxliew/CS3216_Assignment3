@@ -12,6 +12,8 @@ const issue = (code: string, path: string, message: string): CheckIssue => ({ co
 export interface MomentContext {
   draft: AdventureSpec
   momentId: string
+  /** teacher source document ids — must never appear in student-facing text */
+  sourceIds: Set<string>
   /** stage index of the moment's stage */
   stageIndex: number
   /** characterId → stage indices the character is placed in (≤ moment's stage) */
@@ -26,7 +28,7 @@ export interface MomentContext {
   earlierOutcomes: Map<string, Set<string>>
 }
 
-export function buildMomentContext(draft: AdventureSpec, momentId: string): MomentContext {
+export function buildMomentContext(draft: AdventureSpec, momentId: string, sourceIds: Set<string> = new Set()): MomentContext {
   const moment = draft.definingMoments.find((m) => m.id === momentId)!
   const stageIndex = draft.stages.findIndex((s) => s.id === moment.stageId)
   const placedCharacters = new Map<string, number[]>()
@@ -44,7 +46,16 @@ export function buildMomentContext(draft: AdventureSpec, momentId: string): Mome
     const mStage = draft.stages.findIndex((s) => s.id === m.stageId)
     if (mStage < stageIndex) earlierOutcomes.set(m.id, new Set(m.outcomes.map((o) => o.id)))
   }
-  return { draft, momentId, stageIndex, placedCharacters, reachableCharacters, reachableDiscoveries, slants, earlierOutcomes }
+  return { draft, momentId, stageIndex, placedCharacters, reachableCharacters, reachableDiscoveries, slants, earlierOutcomes, sourceIds }
+}
+
+/** student-facing text must contain no source ids and no page references. */
+const PAGE_REF = /\bpp?\.\s?\d/i
+function citationInText(text: string, path: string, sourceIds: Set<string>): CheckIssue[] {
+  const issues: CheckIssue[] = []
+  for (const id of sourceIds) if (id !== '' && text.includes(id)) issues.push(issue('citation-in-text', path, `student-facing text contains the source id '${id}'`))
+  if (PAGE_REF.test(text)) issues.push(issue('citation-in-text', path, `student-facing text contains a page reference '${text.match(PAGE_REF)![0]}'`))
+  return issues
 }
 
 /** acts whose fallback rule (no `when`) points at an outcome with `secret: true`. */
@@ -153,13 +164,18 @@ export function momentIssues(output: MomentLlmOutput, ctx: MomentContext): { err
   for (const id of outcomeIds) if (!output.outcomes.some((o) => o.id === id)) errors.push(issue('missing', 'outcomes', `outcome '${id}' has no entry`))
 
   // text
+  errors.push(...citationInText(output.nudge, 'nudge', ctx.sourceIds))
+  errors.push(...citationInText(output.finalCallNarration, 'finalCallNarration', ctx.sourceIds))
   if (output.nudge.trim() === '') errors.push(issue('empty-field', 'nudge', 'nudge is empty'))
   if (output.finalCallNarration.trim() === '') errors.push(issue('empty-field', 'finalCallNarration', 'finalCallNarration is empty'))
   output.acts.forEach((a, i) => {
     if (a.reaction.trim() === '') errors.push(issue('empty-field', `acts.${i}.reaction`, `reaction for act '${a.id}' is empty`))
+    errors.push(...citationInText(a.reaction, `acts.${i}.reaction`, ctx.sourceIds))
   })
   const predictionTexts = new Set<string>()
   output.outcomes.forEach((o, i) => {
+    errors.push(...citationInText(o.predictionText, `outcomes.${i}.predictionText`, ctx.sourceIds))
+    errors.push(...citationInText(o.because, `outcomes.${i}.because`, ctx.sourceIds))
     if (o.predictionText.trim() === '') errors.push(issue('empty-field', `outcomes.${i}.predictionText`, `predictionText for '${o.id}' is empty`))
     else {
       if (o.predictionText.trim().split(/\s+/).length > 12)
@@ -189,17 +205,25 @@ export function momentIssues(output: MomentLlmOutput, ctx: MomentContext): { err
       if (secretOutcomes.has(rule.outcomeId)) errors.push(issue('ref', `${at}.outcomeId`, `a conditional rule may not target the secret outcome '${rule.outcomeId}'`))
       if (fallback.get(rule.actId) === rule.outcomeId) errors.push(issue('ref', `${at}.outcomeId`, `a conditional rule duplicates act '${rule.actId}'s fallback outcome`))
       if (historicalOutcomes.has(fallback.get(rule.actId) ?? '')) {
-        // the historical act: never divert it via a hidden stance, and warn on any diversion
+        // the historical act: never divert it via a hidden stance
         for (const [j, atom] of rule.when.entries()) {
           if (atom.kind === 'stanceAtLeast' && hiddenStances.get(atom.characterId ?? '')?.has(atom.stanceId ?? ''))
             errors.push(issue('historical-hidden', `${at}.when.${j}`, 'the historical path may not depend on reaching a hidden stance'))
         }
-        if (!historicalOutcomes.has(rule.outcomeId))
-          warnings.push(issue('historical-diverted', at, `conditional rule routes the historical act '${rule.actId}' away from the historical outcome`))
+        if (!historicalOutcomes.has(rule.outcomeId)) {
+          // good play must never close the historical ending: a positive condition diverting it is an error
+          const message = `conditional rule routes the historical act '${rule.actId}' away from the historical outcome`
+          if (rule.when.some((atom) => !atom.negate)) errors.push(issue('historical-diverted', at, message))
+          else warnings.push(issue('historical-diverted', at, message))
+        }
       }
     }
     if (rule.when.length < 1 || rule.when.length > 3) errors.push(issue('rule-when', `${at}.when`, `a conditional rule needs 1–3 conditions (has ${rule.when.length})`))
-    rule.when.forEach((atom, j) => errors.push(...atomIssues(atom, `${at}.when.${j}`, ctx)))
+    rule.when.forEach((atom, j) => {
+      if (atom.kind === 'discovered')
+        errors.push(issue('rule-discovered', `${at}.when.${j}`, 'a conditional rule may not use discovered — what the student found only matters once it is passed on'))
+      errors.push(...atomIssues(atom, `${at}.when.${j}`, ctx))
+    })
   })
   for (const [actId, count] of rulesPerAct) if (count > 2) errors.push(issue('rule-count', 'conditionalRules', `act '${actId}' has ${count} conditional rules (≤2 allowed)`))
 
@@ -224,13 +248,16 @@ export function momentIssues(output: MomentLlmOutput, ctx: MomentContext): { err
   return { errors, warnings }
 }
 
-export function endingIssues(output: EndingLlmOutput, draft: AdventureSpec, endingId: string): { errors: CheckIssue[]; warnings: CheckIssue[] } {
+export function endingIssues(output: EndingLlmOutput, draft: AdventureSpec, endingId: string, sourceIds: Set<string> = new Set()): { errors: CheckIssue[]; warnings: CheckIssue[] } {
   const errors: CheckIssue[] = []
   const discoveryById = new Map(draft.discoveries.map((d) => [d.id, d]))
   const documentIds = new Set(draft.documents.map((d) => d.id))
 
   if (!output.epilogue.trim().startsWith('Your simulation:'))
     errors.push(issue('epilogue', 'epilogue', `epilogue must start with "Your simulation:"`))
+  errors.push(...citationInText(output.epilogue, 'epilogue', sourceIds))
+  errors.push(...citationInText(output.question, 'question', sourceIds))
+  errors.push(...citationInText(output.generalCounter, 'generalCounter', sourceIds))
   if (output.interviewer.trim() === '') errors.push(issue('empty-field', 'interviewer', 'interviewer is empty'))
   else if (draft.characters.some((c) => output.interviewer.toLowerCase().includes(c.name.toLowerCase())))
     errors.push(issue('interviewer-character', 'interviewer', 'the interviewer must not be a character the student met'))
@@ -241,6 +268,7 @@ export function endingIssues(output: EndingLlmOutput, draft: AdventureSpec, endi
   const seen = new Set<string>()
   output.verdicts.forEach((verdict, i) => {
     if (verdict.text.trim() === '') errors.push(issue('empty-field', `verdicts.${i}.text`, `verdict ${i + 1} text is empty`))
+    errors.push(...citationInText(verdict.text, `verdicts.${i}.text`, sourceIds))
     const key = verdict.text.trim().toLowerCase()
     if (seen.has(key)) errors.push(issue('verdict-duplicate', `verdicts.${i}.text`, 'verdict texts must be distinct'))
     seen.add(key)

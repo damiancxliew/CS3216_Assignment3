@@ -80,7 +80,7 @@ function momentUserMessage(shared: EndingsShared, ctx: MomentContext): string {
 }
 
 export function generateMoment(momentId: string, shared: EndingsShared, opts: DetailCallOptions): Promise<CallResult<MomentLlmOutput>> {
-  const ctx = buildMomentContext(shared.draft, momentId)
+  const ctx = buildMomentContext(shared.draft, momentId, new Set(shared.documents.map((d) => d.id)))
   return runCall(
     {
       label: `moment ${momentId}`,
@@ -133,7 +133,7 @@ export function generateEnding(endingId: string, shared: EndingsShared, opts: De
       schema: EndingWire,
       system: fillEndingsPrompt(ENDING_SYSTEM_PROMPT, { readingLevel: shared.readingLevel, endingId }),
       user: `Write ending: ${endingId}\n\n${JSON.stringify(compact, null, 2)}\n\n${sourcesBlock(shared.documents)}`,
-      check: (output) => endingIssues(output, draft, endingId),
+      check: (output) => endingIssues(output, draft, endingId, new Set(shared.documents.map((d) => d.id))),
     },
     opts,
     { model: ENDINGS_MODEL, reasoningEffort: 'medium' },

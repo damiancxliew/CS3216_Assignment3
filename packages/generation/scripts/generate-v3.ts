@@ -235,7 +235,7 @@ if (endings.spec !== undefined) {
     const coreIds = new Set(spec.discoveries.filter((d) => d.core).map((d) => d.id))
     lines.push(`Ending ${ending.id} (${ending.type}): ${ending.title}`)
     lines.push(`  epilogue: ${ending.epilogue}`)
-    lines.push(`  interviewer: ${ending.interviewer}`)
+    lines.push(`  interviewer: ${ending.interview.interviewer}`)
     lines.push(`  question: ${ending.interview.question}`)
     for (const verdict of ending.interview.verdicts)
       lines.push(`  verdict ${verdict.id}: ${verdict.text} — countered by ${verdict.counterPoints.map((id) => `${id}${coreIds.has(id) ? ' (core)' : ''}`).join(', ')}`)
