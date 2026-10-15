@@ -6,7 +6,7 @@
  */
 import { z } from 'zod'
 
-import { DOCUMENT_KINDS, Role } from './index.js'
+import { DOCUMENT_KINDS, Role } from './shared.js'
 import type { Condition, SpecIssue } from './index.js'
 
 const Id = z.string().min(1)
