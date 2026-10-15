@@ -76,6 +76,31 @@ describe("createJobs", () => {
     });
   });
 
+  it("reports all transitively failed steps as complete progress", async () => {
+    const jobs = createJobs(memoryJobStore(), [
+      defineStep("a", async () => {
+        throw new Error("failed");
+      }, { maxAttempts: 1 }),
+      defineStep("b", async () => null),
+      defineStep("c", async () => null),
+    ]);
+    const jobId = crypto.randomUUID();
+    await jobs.enqueue(jobId, ["a", "b", "c"], { b: ["a"], c: ["b"] });
+
+    const progress = await jobs.drain({ jobId });
+
+    expect(progress).toMatchObject({
+      status: "failed",
+      done: 3,
+      total: 3,
+      steps: [
+        { name: "a", status: "failed" },
+        { name: "b", status: "failed", error: "dependency failed: a" },
+        { name: "c", status: "failed", error: "dependency failed: b" },
+      ],
+    });
+  });
+
   it("reports progress counts", async () => {
     const store = memoryJobStore();
     const jobs = createJobs(store, [

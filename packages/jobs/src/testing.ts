@@ -58,6 +58,90 @@ export function describeJobStore(label: string, makeStore: () => JobStore) {
       expect((await store.complete(right!.id, right!.leaseToken!, null)).map((row) => row.name)).toEqual(["join"]);
     });
 
+    it("fails dependency chains transitively after a final failure", async () => {
+      const store = makeStore();
+      const jobId = crypto.randomUUID();
+      await store.enqueue(jobId, [
+        { name: "a", step: "a", input: null, deps: [], maxAttempts: 1 },
+        { name: "b", step: "b", input: null, deps: ["a"], maxAttempts: 3 },
+        { name: "c", step: "c", input: null, deps: ["b"], maxAttempts: 3 },
+      ]);
+
+      const a = await store.claim(crypto.randomUUID(), 330, jobId);
+      expect(a?.name).toBe("a");
+      expect((await store.fail(a!.id, a!.leaseToken!, "failed")).status).toBe("failed");
+
+      expect((await store.list(jobId)).map(({ name, status, error }) => [name, status, error])).toEqual([
+        ["a", "failed", "failed"],
+        ["b", "failed", "dependency failed: a"],
+        ["c", "failed", "dependency failed: b"],
+      ]);
+      expect(await store.claim(crypto.randomUUID(), 330, jobId)).toBeNull();
+    });
+
+    it("fails a join without blocking an independent dependency", async () => {
+      const store = makeStore();
+      const jobId = crypto.randomUUID();
+      await store.enqueue(jobId, [
+        { name: "a", step: "a", input: null, deps: [], maxAttempts: 1 },
+        { name: "x", step: "x", input: null, deps: [], maxAttempts: 3 },
+        { name: "join", step: "join", input: null, deps: ["a", "x"], maxAttempts: 3 },
+      ]);
+
+      const a = await store.claim(crypto.randomUUID(), 330, jobId);
+      expect(a?.name).toBe("a");
+      await store.fail(a!.id, a!.leaseToken!, "failed");
+
+      const rows = await store.list(jobId);
+      expect(rows.find((row) => row.name === "join")).toMatchObject({
+        status: "failed",
+        error: "dependency failed: a",
+      });
+      expect(rows.find((row) => row.name === "x")?.status).toBe("ready");
+
+      const x = await store.claim(crypto.randomUUID(), 330, jobId);
+      expect(x?.name).toBe("x");
+      expect((await store.complete(x!.id, x!.leaseToken!, null))).toEqual([]);
+      expect((await store.list(jobId)).find((row) => row.name === "x")?.status).toBe("succeeded");
+    });
+
+    it("fails dependants when an expired final lease is swept", async () => {
+      const store = makeStore();
+      const jobId = crypto.randomUUID();
+      await store.enqueue(jobId, [
+        { name: "a", step: "a", input: null, deps: [], maxAttempts: 1 },
+        { name: "b", step: "b", input: null, deps: ["a"], maxAttempts: 3 },
+      ]);
+
+      const a = await store.claim(crypto.randomUUID(), 1, jobId);
+      expect(a?.name).toBe("a");
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      expect(await store.claim(crypto.randomUUID(), 1, jobId)).toBeNull();
+      expect((await store.list(jobId)).map(({ name, status }) => [name, status])).toEqual([
+        ["a", "failed"],
+        ["b", "failed"],
+      ]);
+    });
+
+    it("fails a late-enqueued step whose dependency already failed", async () => {
+      const store = makeStore();
+      const jobId = crypto.randomUUID();
+      await store.enqueue(jobId, [
+        { name: "a", step: "a", input: null, deps: [], maxAttempts: 1 },
+      ]);
+      const a = await store.claim(crypto.randomUUID(), 330, jobId);
+      await store.fail(a!.id, a!.leaseToken!, "failed");
+
+      await store.enqueue(jobId, [
+        { name: "after-review", step: "after-review", input: null, deps: ["a"], maxAttempts: 3 },
+      ]);
+
+      expect((await store.list(jobId)).find((row) => row.name === "after-review")).toMatchObject({
+        status: "failed",
+        error: "dependency failed: a",
+      });
+    });
+
     it("readies concurrent sibling joins reliably", async () => {
       const store = makeStore();
       for (let iteration = 0; iteration < 10; iteration += 1) {
