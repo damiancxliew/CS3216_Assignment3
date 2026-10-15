@@ -61,10 +61,10 @@ Portrait URLs are wired to `NEXT_PUBLIC_V3_PORTRAIT_BASE`; initials remain the f
 - [ ] **M** Story events [P12]
 - [ ] **H** Interview: push-back prompt and logic [E2]
 - [ ] **M** Reveal assembly, including source labels [E3]
-- [ ] **H** Screens: defining moment, acts and one-tap prediction [P9, P3]
-- [ ] **L** Screen: epilogue [E1]
-- [ ] **M** Screen: Interview
-- [ ] **M** Screen: reveal
+- [x] **H** Screens: defining moment, acts and one-tap prediction [P9, P3]
+- [x] **L** Screen: epilogue [E1]
+- [x] **M** Screen: Interview
+- [x] **M** Screen: reveal
 - [ ] **L** `/v3/teacher/:id/preview`: play screens without saving an attempt [T4.8]
 - [ ] **L** `/v3/teacher/:id/summary`: class summary tabs [T2]
 - [ ] **L** v3 maps without doors: an option in the map compiler and renderer (v2 unchanged)
