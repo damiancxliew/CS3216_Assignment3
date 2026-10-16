@@ -97,7 +97,7 @@ export default async function TeacherHome() {
       <TeacherWorkspace
         resume={resume.success ? resume.data : undefined}
         hasAdventures={adventures.length > 0}
-        {...(v3Allowed ? { newAdventure: { href: "/v3/teacher/new", label: "New adventure" } } : {})}
+        {...(v3Allowed && !resume.success ? { newAdventure: { href: "/v3/teacher/new", label: "New adventure" } } : {})}
         adventures={
           adventures.length === 0 ? (
             <EmptyState title="No adventures yet">Start with the class you are teaching next.</EmptyState>

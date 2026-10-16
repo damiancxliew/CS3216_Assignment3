@@ -84,9 +84,7 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
                     <h3 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">{PASS_LABELS[pass as keyof typeof PASS_LABELS] ?? pass}</h3>
                     <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-ink">
                       {list.map((warning, i) => (
-                        <li key={i}>
-                          <span className="font-semibold">{warning.code}</span> — {warning.message}
-                        </li>
+                        <li key={i}>{warning.message}</li>
                       ))}
                     </ul>
                   </div>
@@ -111,15 +109,21 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
       const failed = progress && !("error" in progress) ? progress.steps.find((s) => s.status === "failed") : undefined;
       const label = failed ? (PASS_LABELS[failed.name as keyof typeof PASS_LABELS] ?? failed.name) : "generation";
       return (
-        <Page title="Generation stopped" lede={`Generation stopped at ${label}${failed?.error ? `: ${failed.error}` : "."}`}>
+        <Page title="Generation stopped" lede={`Generation stopped at ${label}. You can start again with the same sources.`}>
           <StartAgain adventureId={id} />
+          {failed?.error ? (
+            <details className="mt-6 max-w-2xl text-sm text-muted">
+              <summary className="cursor-pointer font-semibold">Technical details</summary>
+              <pre className="mt-2 whitespace-pre-wrap rounded-surface border border-line bg-sunken p-3">{failed.error}</pre>
+            </details>
+          ) : null}
         </Page>
       );
     }
     default:
       // published / archived: send the teacher to the preview
       return (
-        <Page title={row.state ? "Adventure" : "Adventure"} lede="This adventure is already finished.">
+        <Page title={row.title ?? "Adventure"} lede="This adventure is already finished.">
           <Link href={`/v3/teacher/${id}/preview`} className={button.primary}>
             Preview
           </Link>

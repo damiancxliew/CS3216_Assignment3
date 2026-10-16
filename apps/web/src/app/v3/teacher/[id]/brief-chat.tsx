@@ -97,7 +97,9 @@ export function V3BriefChat({ initial }: { initial: BriefStateV3 }) {
         <h2 className="text-2xl font-extrabold tracking-tight text-ink">New adventure</h2>
         <ConfirmButton
           label="Discard this brief"
-          confirmLabel="Discard the whole brief?"
+          title="Discard this brief?"
+          body="The conversation and any sources you added are thrown away."
+          confirmLabel="Discard"
           disabled={pending}
           onConfirm={() =>
             startTransition(async () => {
