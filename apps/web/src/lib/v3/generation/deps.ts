@@ -25,13 +25,15 @@ export interface V3SourceStore {
   saveUploads(adventureId: string, uploads: { doc: ExtractedDocument; storageKey: string }[]): Promise<void>;
   /** upsert keyed (adventureId, doc.id); retry-safe */
   saveOutside(adventureId: string, sources: OutsideSource[], documents: ExtractedDocument[]): Promise<void>;
+  /** copies every stored row (uploads and outside docs) to another adventure */
+  copyUploads(fromId: string, toId: string): Promise<void>;
 }
 
 export interface V3AdventureRow {
   id: string;
   schoolId: string;
   ownerId: string;
-  status: "generating" | "needs_review" | "draft" | "published" | "failed" | "archived";
+  status: "briefing" | "generating" | "needs_review" | "draft" | "published" | "failed" | "archived";
 }
 
 export interface V3AdventureWriter {
@@ -94,18 +96,101 @@ function supabaseV3AdventureWriter(getClient: () => SupabaseClient): V3Adventure
   };
 }
 
-/** sources_v3 does not exist yet (Damian is adding it); fail loudly rather than silently drop. */
-const unavailableSources: V3SourceStore = {
-  async load() {
-    throw new Error("sources_v3 is not available yet");
-  },
-  async saveUploads() {
-    throw new Error("sources_v3 is not available yet");
-  },
-  async saveOutside() {
-    throw new Error("sources_v3 is not available yet");
-  },
+type SourceRow = {
+  source_key: string;
+  origin: "upload" | "outside";
+  kind: string;
+  title: string;
+  storage_key: string | null;
+  url: string | null;
+  content_hash: string;
+  pages: { page: number; text: string }[];
 };
+
+/** sources_v3 (#207): source_key is the document id cited by the spec; pages are the citation unit. */
+export function supabaseV3SourceStore(getClient: () => SupabaseClient): V3SourceStore {
+  return {
+    async load(adventureId) {
+      const { data, error } = await getClient()
+        .from("sources_v3")
+        .select("source_key, origin, kind, title, storage_key, url, content_hash, pages")
+        .eq("adventure_id", adventureId)
+        .order("created_at")
+        .order("source_key")
+        .returns<SourceRow[]>();
+      if (error) throw error;
+      return (data ?? []).map((row) => ({
+        id: row.source_key,
+        title: row.title,
+        kind: row.kind as ExtractedDocument["kind"],
+        contentHash: row.content_hash,
+        pages: row.pages ?? [],
+        pageCount: (row.pages ?? []).length,
+        charCount: (row.pages ?? []).reduce((sum, page) => sum + page.text.length, 0),
+        warnings: [],
+      }));
+    },
+    async saveUploads(adventureId, uploads) {
+      if (uploads.length === 0) return;
+      const { error } = await getClient().from("sources_v3").upsert(
+        uploads.map(({ doc, storageKey }) => ({
+          adventure_id: adventureId,
+          source_key: doc.id,
+          origin: "upload" as const,
+          kind: doc.kind,
+          title: doc.title,
+          storage_key: storageKey,
+          content_hash: doc.contentHash,
+          pages: doc.pages,
+        })),
+        { onConflict: "adventure_id,source_key" },
+      );
+      if (error) throw error;
+    },
+    async saveOutside(adventureId, sources, documents) {
+      if (documents.length === 0) return;
+      const urlById = new Map(sources.map((source) => [source.id, source.url]));
+      const { error } = await getClient().from("sources_v3").upsert(
+        documents.map((doc) => ({
+          adventure_id: adventureId,
+          source_key: doc.id,
+          origin: "outside" as const,
+          kind: doc.kind,
+          title: doc.title,
+          url: urlById.get(doc.id) ?? null,
+          content_hash: doc.contentHash,
+          pages: doc.pages,
+        })),
+        { onConflict: "adventure_id,source_key" },
+      );
+      if (error) throw error;
+    },
+    async copyUploads(fromId, toId) {
+      const { data, error } = await getClient()
+        .from("sources_v3")
+        .select("source_key, origin, kind, title, storage_key, url, content_hash, pages")
+        .eq("adventure_id", fromId)
+        .returns<SourceRow[]>();
+      if (error) throw error;
+      if (!data || data.length === 0) return;
+      const { error: insertError } = await getClient().from("sources_v3").upsert(
+        data.map((row) => ({
+          adventure_id: toId,
+          source_key: row.source_key,
+          origin: row.origin,
+          kind: row.kind,
+          title: row.title,
+          storage_key: row.storage_key,
+          url: row.url,
+          content_hash: row.content_hash,
+          pages: row.pages,
+        })),
+        { onConflict: "adventure_id,source_key" },
+      );
+      if (insertError) throw insertError;
+    },
+  };
+}
 
 export function defaultGenerationDeps(): GenerationDeps {
   return {
@@ -130,7 +215,7 @@ export function defaultGenerationDeps(): GenerationDeps {
         userId: brief.ownerId,
       });
     },
-    sources: unavailableSources,
+    sources: supabaseV3SourceStore(createAdminClient),
     adventures: supabaseV3AdventureWriter(createAdminClient),
     passes: { sources: runSources, skeleton: generateSkeleton, details: generateDetails, endings: generateEndings, reveal: generateReveal },
   };
@@ -160,6 +245,11 @@ export function memoryV3SourceStore() {
         else list.push(entry);
       }
       rows.set(adventureId, list);
+    },
+    async copyUploads(fromId: string, toId: string) {
+      const list = rows.get(toId) ?? [];
+      for (const row of rows.get(fromId) ?? []) if (!list.some((existing) => existing.doc.id === row.doc.id)) list.push({ ...row });
+      rows.set(toId, list);
     },
   } satisfies V3SourceStore & { rows: Map<string, { doc: ExtractedDocument; storageKey: string; outside?: OutsideSource }[]> };
 }
