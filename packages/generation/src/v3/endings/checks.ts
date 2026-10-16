@@ -226,6 +226,11 @@ export function momentIssues(output: MomentLlmOutput, ctx: MomentContext): { err
     })
   })
   for (const [actId, count] of rulesPerAct) if (count > 2) errors.push(issue('rule-count', 'conditionalRules', `act '${actId}' has ${count} conditional rules (≤2 allowed)`))
+  // G6: an outcome depends on the act *and* on stances and what characters were told. With no conditional rule,
+  // every act maps to one outcome whatever the student did during the stage.
+  // A warning for now (test fixtures still have unconditional moments); consider an error once they're updated.
+  if (output.conditionalRules.length === 0)
+    warnings.push(issue('rules-unconditional', 'conditionalRules', 'write at least one conditional rule: the outcome must depend on stances or notes passed on, not only on the act (G6)'))
 
   // secret unlock
   const secret = secretActIds(moment)

@@ -364,6 +364,14 @@ describe('generateEndings', () => {
     expect(llm2.requests.filter((r) => r.key === 'moment m1')).toHaveLength(1)
   })
 
+  it('warns when a moment has no conditional rule, so outcomes would ignore what the student did (G6)', async () => {
+    const llm = new RoutingLlm({ ...happyRoutes(), 'moment m2': [{ json: momentOutput({}, 'm2') }] })
+    const result = await generateEndings(input, { llm })
+    expect(result.warnings.some((w) => w.code === 'rules-unconditional')).toBe(true)
+    const clean = await generateEndings(input, { llm: new RoutingLlm(happyRoutes()) })
+    expect(clean.warnings.some((w) => w.code === 'rules-unconditional')).toBe(false)
+  })
+
   it('rejects source ids and page references in student-facing text', async () => {
     const bad = momentOutput()
     bad.outcomes[0]!.because = 'Because it says so (singapore-1819-handout, p. 2).'
