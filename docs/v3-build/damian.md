@@ -70,7 +70,7 @@ Portrait URLs are wired to `NEXT_PUBLIC_V3_PORTRAIT_BASE`; initials remain the f
 - [x] **L** `/v3/teacher/:id/summary`: class summary tabs [T2]
 - [x] **L** v3 maps without doors: an option in the map compiler and renderer (v2 unchanged)
 - [x] **L** Moderation results → `flags_v3` [T5]
-- [ ] **L** Per-stance portrait generation step [G4.2]
+- [x] **L** Per-stance portrait generation step [G4.2]
 
 ## Shared context (identical in all three files)
 

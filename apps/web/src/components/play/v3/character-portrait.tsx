@@ -7,16 +7,20 @@ import { portraitUrl } from "@/lib/play/v3/portraits";
 export function CharacterPortrait({
   name,
   portraitKey,
+  portraitBase,
   selected,
   onSelect,
 }: {
   name: string;
   portraitKey: string;
+  portraitBase: string | null;
   selected: boolean;
   onSelect: () => void;
 }) {
-  const [failed, setFailed] = useState(false);
-  const src = failed ? null : portraitUrl(portraitKey);
+  // Remember which URL failed, not just that one did: a stance change brings a new URL worth trying.
+  const url = portraitUrl(portraitKey, portraitBase);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const src = url !== failedUrl ? url : null;
   const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 
   return (
@@ -31,7 +35,7 @@ export function CharacterPortrait({
       <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border border-line-strong bg-world-wash font-black text-world">
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element -- optional generated stance portrait URL
-          <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />
+          <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailedUrl(src)} />
         ) : initials}
       </span>
       <span className="min-w-0">
