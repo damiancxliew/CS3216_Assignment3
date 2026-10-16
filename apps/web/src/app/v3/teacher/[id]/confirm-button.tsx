@@ -20,21 +20,23 @@ export function ConfirmButton({
   disabled = false,
   pending = false,
   onConfirm,
+  ariaLabel,
 }: {
   label: string;
   pendingLabel?: string;
   title: string;
-  body: string;
+  body: React.ReactNode;
   confirmLabel?: string;
   className?: string;
   disabled?: boolean;
   pending?: boolean;
   onConfirm: () => void;
+  ariaLabel?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   return (
     <>
-      <button type="button" onClick={() => dialog.current?.showModal()} disabled={disabled || pending} className={className}>
+      <button type="button" onClick={() => dialog.current?.showModal()} disabled={disabled || pending} className={className} aria-label={ariaLabel}>
         <StableLabel label={label} pending={pending} pendingLabel={<Pending>{pendingLabel ?? "Working…"}</Pending>} />
       </button>
       <dialog

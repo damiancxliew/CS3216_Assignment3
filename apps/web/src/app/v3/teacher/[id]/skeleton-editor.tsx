@@ -1,0 +1,596 @@
+"use client";
+
+import { Plus, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
+
+import { checkSkeleton, DOCUMENT_KINDS } from "@adventure/spec-v3";
+import type { CheckIssue, SkeletonShape } from "@adventure/spec-v3";
+
+import { button, control, ErrorText, Section, StableLabel } from "@/components/ui";
+import { addItem, dependentsOf, issuesAt, removeItem, type AddKind, type Ref } from "@/lib/v3/skeleton-edit";
+
+import { approveV3Skeleton, discardV3SkeletonDraft, saveV3SkeletonDraft } from "../actions";
+import { ConfirmButton } from "./confirm-button";
+
+type Draft = SkeletonShape;
+type Moment = Draft["definingMoments"][number];
+type Stage = Draft["stages"][number];
+
+/**
+ * The needs_review editor: every skeleton field, add/remove with dangling
+ * references left for `checkSkeleton` to flag in place, and autosaved drafts
+ * on the server. Continue is blocked while errors remain.
+ */
+export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId: string; initial: SkeletonShape; hasDraft: boolean }) {
+  const [draft, setDraft] = useState<Draft>(initial);
+  const [saveState, setSaveState] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [showIssues, setShowIssues] = useState(false);
+  const [discardPending, startDiscard] = useTransition();
+  const [continuePending, startContinue] = useTransition();
+  const [continueError, setContinueError] = useState<string | null>(null);
+  const router = useRouter();
+
+  const { errors, warnings } = checkSkeleton(draft);
+
+  // --- autosave: 1 s debounce, latest wins, failure retries with backoff ------
+  const pendingRef = useRef<Draft | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attemptRef = useRef(0);
+  const inFlight = useRef(0);
+
+  async function save(target: Draft, attempt: number) {
+    const seq = ++inFlight.current;
+    const result = await saveV3SkeletonDraft(adventureId, target as unknown);
+    if (seq !== inFlight.current || attempt !== attemptRef.current) return; // a newer edit won
+    if ("ok" in result) {
+      setSaveState("saved");
+      setSavedAt(new Date(result.savedAt));
+      return;
+    }
+    setSaveState("error");
+    timerRef.current = setTimeout(() => {
+      if (pendingRef.current) void save(pendingRef.current, ++attemptRef.current);
+    }, 2_000 * Math.max(1, attempt));
+  }
+
+  function update(mutate: (draft: Draft) => void) {
+    const next = structuredClone(draft);
+    mutate(next);
+    setDraft(next);
+    pendingRef.current = next;
+    setSaveState((s) => (s === "error" ? "error" : "dirty"));
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      const target = pendingRef.current;
+      if (target) {
+        pendingRef.current = null;
+        setSaveState("saving");
+        void save(target, ++attemptRef.current);
+      }
+    }, 1_000);
+  }
+
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  const add = (kind: AddKind, parentRef?: Ref) => update((s) => Object.assign(s, addItem(s, kind, parentRef)));
+  const remove = (ref: Ref) => update((s) => Object.assign(s, removeItem(s, ref)));
+
+  const scrollTo = (path: string) => {
+    const target = document.getElementById(`sk-${path}`) ?? document.getElementById(`sk-${path.split(".").slice(0, -1).join(".")}`);
+    target?.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+
+  const continueConfirm = () =>
+    startContinue(async () => {
+      setContinueError(null);
+      const result = await approveV3Skeleton(adventureId, draft);
+      if ("error" in result) setContinueError(result.error + (result.issues?.length ? ` (${result.issues.length} issue${result.issues.length === 1 ? "" : "s"} — see the highlights on the page)` : ""));
+      else router.refresh();
+    });
+
+  const momentOf = (stage: Stage): Moment | undefined => draft.definingMoments.find((m) => m.id === stage.definingMomentId);
+
+  return (
+    <div className="flex flex-col gap-8">
+      {/* sticky status bar */}
+      <div className="sticky top-0 z-30 -mx-2 flex flex-wrap items-center gap-3 border-b-2 border-line bg-paper/95 px-2 py-3 backdrop-blur">
+        <button type="button" onClick={() => setShowIssues((v) => !v)} className={`${button.subtle} text-sm`} aria-expanded={showIssues}>
+          <StableLabel label={`${errors.length} error${errors.length === 1 ? "" : "s"} · ${warnings.length} warning${warnings.length === 1 ? "" : "s"}`} />
+        </button>
+        <span className="text-sm text-muted" role="status">
+          {saveState === "saving" ? "Saving…" : saveState === "saved" && savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : saveState === "error" ? "Couldn't save — retrying" : saveState === "dirty" ? "Saving…" : hasDraft ? "Draft restored" : "No unsaved changes"}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <ConfirmButton
+            label="Discard my edits"
+            pendingLabel="Discarding…"
+            title="Discard your edits?"
+            body="Your edits are thrown away and the generated skeleton is restored."
+            confirmLabel="Discard edits"
+            pending={discardPending}
+            onConfirm={() =>
+              startDiscard(async () => {
+                await discardV3SkeletonDraft(adventureId);
+                router.refresh();
+              })
+            }
+          />
+          <ConfirmButton
+            label="Continue generation"
+            pendingLabel="Continuing…"
+            title="Continue generation?"
+            body="The rest of the adventure is generated from the skeleton as you left it."
+            confirmLabel="Continue"
+            className={button.primary}
+            disabled={errors.length > 0 || continuePending}
+            pending={continuePending}
+            onConfirm={continueConfirm}
+          />
+        </div>
+      </div>
+      {continueError ? <ErrorText>{continueError}</ErrorText> : null}
+      {showIssues ? (
+        <ul className="flex flex-col gap-1 rounded-surface border-2 border-line bg-sunken p-4 text-sm">
+          {[...errors, ...warnings].map((issue, i) => (
+            <li key={i}>
+              <button type="button" onClick={() => scrollTo(issue.path)} className="text-left underline decoration-dotted underline-offset-2">
+                <span className={errors.includes(issue) ? "text-record" : "text-muted"}>{issue.path || "(top)"} — {issue.message}</span>
+              </button>
+            </li>
+          ))}
+          {errors.length === 0 && warnings.length === 0 ? <li className="text-muted">No issues.</li> : null}
+        </ul>
+      ) : null}
+
+      {/* 1. Overview */}
+      <Section title="Overview">
+        <FieldIssues issues={issuesAt(errors, "title")} />
+        <Text label="Title" value={draft.title} onChange={(v) => update((s) => void (s.title = v))} />
+        <Area label="Arc" value={draft.arc ?? ""} onChange={(v) => update((s) => void (s.arc = v))} />
+        <Card path="role">
+          <ItemIssues issues={issuesAt(errors, "role")} />
+          <Text label="Role name" value={draft.role.name} onChange={(v) => update((s) => void (s.role.name = v))} />
+          <Text label="Position" value={draft.role.position} onChange={(v) => update((s) => void (s.role.position = v))} />
+          <Area label="Situation" value={draft.role.situation} onChange={(v) => update((s) => void (s.role.situation = v))} />
+          <Area label="Reputation" value={draft.role.reputation} onChange={(v) => update((s) => void (s.role.reputation = v))} />
+          <Area label="Stakes" value={draft.role.stakes} onChange={(v) => update((s) => void (s.role.stakes = v))} />
+          <Lines label="Relationships" values={draft.role.relationships} onChange={(v) => update((s) => void (s.role.relationships = v))} />
+          <Lines label="Goals" values={draft.role.privateBrief.goals} onChange={(v) => update((s) => void (s.role.privateBrief.goals = v))} />
+          <Lines label="Fears" values={draft.role.privateBrief.fears} onChange={(v) => update((s) => void (s.role.privateBrief.fears = v))} />
+          <Lines label="Constraints" values={draft.role.privateBrief.constraints} onChange={(v) => update((s) => void (s.role.privateBrief.constraints = v))} />
+          <Lines label="Knows" values={draft.role.privateBrief.knows} onChange={(v) => update((s) => void (s.role.privateBrief.knows = v))} />
+        </Card>
+      </Section>
+
+      {/* 2. Characters */}
+      <Section title="Characters">
+        {draft.characters.map((character, i) => {
+          const path = `characters.${i}`;
+          return (
+            <Card key={character.id} path={path} title={character.name || character.id} onRemove={<RemoveButton draft={draft} ref_={`character:${character.id}`} onRemove={remove} />}>
+              <ItemIssues issues={issuesAt(errors, path)} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Text label="Name" value={character.name} onChange={(v) => update((s) => void (s.characters[i].name = v))} />
+                <Text label="Title" value={character.title} onChange={(v) => update((s) => void (s.characters[i].title = v))} />
+                <Select label="Tier" value={character.tier} options={["major", "minor"]} onChange={(v) => update((s) => void (s.characters[i].tier = v as "major" | "minor"))} />
+                <Check label="Real historical figure" checked={character.real} onChange={(v) => update((s) => void (s.characters[i].real = v))} />
+              </div>
+              <Area label="Public position" value={character.persona.publicPosition} onChange={(v) => update((s) => void (s.characters[i].persona.publicPosition = v))} />
+              <Area label="Private agenda" value={character.persona.privateAgenda} onChange={(v) => update((s) => void (s.characters[i].persona.privateAgenda = v))} />
+            </Card>
+          );
+        })}
+        <AddButton label="Add character" onClick={() => add("character")} />
+      </Section>
+
+      {/* 3. Documents */}
+      <Section title="Documents">
+        {draft.documents.map((document, i) => {
+          const path = `documents.${i}`;
+          return (
+            <Card key={document.id} path={path} title={document.title || document.id} onRemove={<RemoveButton draft={draft} ref_={`document:${document.id}`} onRemove={remove} />}>
+              <ItemIssues issues={issuesAt(errors, path)} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Text label="Title" value={document.title} onChange={(v) => update((s) => void (s.documents[i].title = v))} />
+                <Select label="Kind" value={document.kind} options={DOCUMENT_KINDS} onChange={(v) => update((s) => void (s.documents[i].kind = v as typeof document.kind))} />
+                <Check label="Real artefact" checked={document.real} onChange={(v) => update((s) => void (s.documents[i].real = v))} />
+              </div>
+            </Card>
+          );
+        })}
+        <AddButton label="Add document" onClick={() => add("document")} />
+      </Section>
+
+      {/* 4. Stages */}
+      <Section title="Stages">
+        {draft.stages.map((stage, i) => {
+          const path = `stages.${i}`;
+          const moment = momentOf(stage);
+          const mIndex = moment ? draft.definingMoments.indexOf(moment) : -1;
+          return (
+            <Card key={stage.id} path={path} title={stage.title || stage.id} onRemove={<RemoveButton draft={draft} ref_={`stage:${stage.id}`} onRemove={remove} />}>
+              <ItemIssues issues={issuesAt(errors, path)} />
+              <Text label="Title" value={stage.title} onChange={(v) => update((s) => void (s.stages[i].title = v))} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Text label="Time and place" value={stage.timePlace} onChange={(v) => update((s) => void (s.stages[i].timePlace = v))} />
+                <Text label="Central question" value={stage.centralQuestion} onChange={(v) => update((s) => void (s.stages[i].centralQuestion = v))} />
+              </div>
+
+              <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Rooms</h4>
+              {stage.rooms.map((room, j) => (
+                <div key={room.id} className="flex items-start gap-2">
+                  <div className="grid flex-1 gap-3 sm:grid-cols-2">
+                    <Text label="Name" value={room.name} onChange={(v) => update((s) => void (s.stages[i].rooms[j].name = v))} />
+                    <Text label="Description" value={room.description} onChange={(v) => update((s) => void (s.stages[i].rooms[j].description = v))} />
+                  </div>
+                  <RemoveButton draft={draft} ref_={`room:${stage.id}/${room.id}`} onRemove={remove} />
+                </div>
+              ))}
+              <AddButton label="Add room" onClick={() => add("room", `stage:${stage.id}`)} />
+
+              <Select label="Start room" value={stage.startRoomId} options={stage.rooms.map((r) => r.id)} labels={Object.fromEntries(stage.rooms.map((r) => [r.id, r.name || r.id]))} onChange={(v) => update((s) => void (s.stages[i].startRoomId = v))} />
+
+              <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Placement</h4>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {draft.characters.map((character) => (
+                  <Select
+                    key={character.id}
+                    label={character.name || character.id}
+                    value={stage.placement[character.id] ?? ""}
+                    options={["", ...stage.rooms.map((r) => r.id)]}
+                    labels={{ "": "— not placed —", ...Object.fromEntries(stage.rooms.map((r) => [r.id, r.name || r.id])) }}
+                    onChange={(v) =>
+                      update((s) => {
+                        if (v === "") delete s.stages[i].placement[character.id];
+                        else s.stages[i].placement[character.id] = v;
+                      })
+                    }
+                  />
+                ))}
+              </div>
+
+              {moment && mIndex >= 0 ? (
+                <MomentEditor
+                  moment={moment}
+                  path={`definingMoments.${mIndex}`}
+                  errors={errors}
+                  characters={draft.characters}
+                  endings={draft.endings}
+                  update={update}
+                  mIndex={mIndex}
+                  draft={draft}
+                  onAdd={(kind) => add(kind, `moment:${moment.id}`)}
+                  onRemove={remove}
+                />
+              ) : null}
+
+              <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Core discoveries</h4>
+              {draft.discoveries.map((discovery, dIndex) => {
+                if (discovery.stageId !== stage.id || !discovery.core) return null;
+                const dPath = `discoveries.${dIndex}`;
+                return (
+                  <Card key={discovery.id} path={dPath} title={discovery.id} onRemove={<RemoveButton draft={draft} ref_={`discovery:${discovery.id}`} onRemove={remove} />}>
+                    <ItemIssues issues={issuesAt(errors, dPath)} />
+                    <Area label="Text" value={discovery.text} onChange={(v) => update((s) => void (s.discoveries[dIndex].text = v))} />
+                    <Area label="Note" value={discovery.note} onChange={(v) => update((s) => void (s.discoveries[dIndex].note = v))} />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Select
+                        label="Held by"
+                        value={"characterId" in discovery.holder ? `char:${discovery.holder.characterId}` : `doc:${discovery.holder.documentId}`}
+                        options={[...draft.characters.map((c) => `char:${c.id}`), ...draft.documents.map((d) => `doc:${d.id}`)]}
+                        labels={Object.fromEntries([
+                          ...draft.characters.map((c) => [`char:${c.id}`, c.name || c.id] as const),
+                          ...draft.documents.map((d) => [`doc:${d.id}`, d.title || d.id] as const),
+                        ])}
+                        onChange={(v) =>
+                          update((s) => {
+                            const [kind, id] = v.split(":");
+                            s.discoveries[dIndex].holder = kind === "char" ? { characterId: id! } : { documentId: id! };
+                          })
+                        }
+                      />
+                      <Text label="Source label" value={discovery.sourceLabel} onChange={(v) => update((s) => void (s.discoveries[dIndex].sourceLabel = v))} />
+                    </div>
+                    <CitationsEditor
+                      citations={discovery.citations ?? []}
+                      sources={draft.sources}
+                      onChange={(citations) => update((s) => void (s.discoveries[dIndex].citations = citations))}
+                    />
+                  </Card>
+                );
+              })}
+              <AddButton label="Add core discovery" onClick={() => add("discovery", `stage:${stage.id}`)} />
+            </Card>
+          );
+        })}
+        <AddButton label="Add stage" onClick={() => add("stage")} />
+      </Section>
+
+      {/* 6. Endings */}
+      <Section title="Endings">
+        {draft.endings.map((ending, i) => {
+          const path = `endings.${i}`;
+          return (
+            <Card key={ending.id} path={path} title={ending.title || ending.id} onRemove={<RemoveButton draft={draft} ref_={`ending:${ending.id}`} onRemove={remove} />}>
+              <ItemIssues issues={issuesAt(errors, path)} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Select label="Type" value={ending.type} options={["historical", "alternative", "secret"]} onChange={(v) => update((s) => void (s.endings[i].type = v as typeof ending.type))} />
+                <Text label="Title" value={ending.title} onChange={(v) => update((s) => void (s.endings[i].title = v))} />
+              </div>
+              <Area label="Summary" value={ending.summary} onChange={(v) => update((s) => void (s.endings[i].summary = v))} />
+              <Text label="Source label" value={ending.sourceLabel} onChange={(v) => update((s) => void (s.endings[i].sourceLabel = v))} />
+              <CitationsEditor citations={ending.citations ?? []} sources={draft.sources} onChange={(citations) => update((s) => void (s.endings[i].citations = citations))} />
+            </Card>
+          );
+        })}
+        <AddButton label="Add ending" onClick={() => add("ending")} />
+      </Section>
+    </div>
+  );
+}
+
+function MomentEditor({
+  moment,
+  path,
+  errors,
+  characters,
+  endings,
+  update,
+  mIndex,
+  draft,
+  onAdd,
+  onRemove,
+}: {
+  moment: Moment;
+  path: string;
+  errors: CheckIssue[];
+  characters: Draft["characters"];
+  endings: Draft["endings"];
+  update: (mutate: (draft: Draft) => void) => void;
+  mIndex: number;
+  draft: Draft;
+  onAdd: (kind: "act" | "outcome" | "rule") => void;
+  onRemove: (ref: Ref) => void;
+}) {
+  return (
+    <div id={`sk-${path}`} className="flex flex-col gap-3 rounded-surface border-2 border-line bg-sunken p-4">
+      <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Defining moment</h4>
+      <ItemIssues issues={issuesAt(errors, path)} />
+      <Select
+        label="Decider"
+        value={moment.deciderId}
+        options={["", ...characters.map((c) => c.id)]}
+        labels={{ "": "— choose —", ...Object.fromEntries(characters.map((c) => [c.id, c.name || c.id])) }}
+        onChange={(v) => update((s) => void (s.definingMoments[mIndex].deciderId = v))}
+      />
+      <Area label="Scene" value={moment.scene} onChange={(v) => update((s) => void (s.definingMoments[mIndex].scene = v))} />
+
+      <h5 className="text-xs font-extrabold uppercase tracking-[0.12em] text-muted">Acts</h5>
+      {moment.acts.map((act, j) => (
+        <div key={act.id} id={`sk-${path}.acts.${j}`} className="flex items-start gap-2">
+          <Text label={`Act ${j + 1}`} value={act.text} onChange={(v) => update((s) => void (s.definingMoments[mIndex].acts[j].text = v))} grow />
+          <IconRemove draft={draft} ref_={`act:${moment.id}/${act.id}`} onRemove={onRemove} />
+        </div>
+      ))}
+      <AddButton label="Add act" onClick={() => onAdd("act")} />
+
+      <h5 className="text-xs font-extrabold uppercase tracking-[0.12em] text-muted">Outcomes</h5>
+      {moment.outcomes.map((outcome, j) => (
+        <div key={outcome.id} id={`sk-${path}.outcomes.${j}`} className="flex flex-col gap-2 rounded-surface border border-line bg-surface p-3">
+          <ItemIssues issues={issuesAt(errors, `${path}.outcomes.${j}`)} />
+          <div className="flex items-start gap-2">
+            <Area label={`Outcome ${j + 1}`} value={outcome.summary} onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].summary = v))} grow />
+            <IconRemove draft={draft} ref_={`outcome:${moment.id}/${outcome.id}`} onRemove={onRemove} />
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <Check label="Historical" checked={outcome.historical === true} onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].historical = v || undefined))} />
+            <Check label="Secret" checked={outcome.secret === true} onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].secret = v || undefined))} />
+            <Select
+              label="Leads to ending"
+              value={outcome.endingId ?? ""}
+              options={["", ...endings.map((e) => e.id)]}
+              labels={{ "": "— none —", ...Object.fromEntries(endings.map((e) => [e.id, e.title || e.id])) }}
+              onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].endingId = v === "" ? undefined : v))}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-ink">Closes endings:</span>
+            {endings.map((ending) => (
+              <label key={ending.id} className="inline-flex items-center gap-1.5 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={outcome.closesEndingIds.includes(ending.id)}
+                  onChange={(event) =>
+                    update((s) => {
+                      const o = s.definingMoments[mIndex].outcomes[j];
+                      o.closesEndingIds = event.target.checked ? [...o.closesEndingIds, ending.id] : o.closesEndingIds.filter((id) => id !== ending.id);
+                    })
+                  }
+                />
+                {ending.title || ending.id}
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+      <AddButton label="Add outcome" onClick={() => onAdd("outcome")} />
+
+      <h5 className="text-xs font-extrabold uppercase tracking-[0.12em] text-muted">Rules</h5>
+      {moment.rules.map((rule, j) => (
+        <div key={j} id={`sk-${path}.rules.${j}`} className="flex items-center gap-2">
+          <Select
+            label="When act"
+            value={rule.actId}
+            options={["", ...moment.acts.map((a) => a.id)]}
+            labels={{ "": "— act —", ...Object.fromEntries(moment.acts.map((a, k) => [a.id, a.text || `Act ${k + 1}`])) }}
+            onChange={(v) => update((s) => void (s.definingMoments[mIndex].rules[j].actId = v))}
+            grow
+          />
+          <span className="text-muted">→</span>
+          <Select
+            label="Outcome"
+            value={rule.outcomeId}
+            options={["", ...moment.outcomes.map((o) => o.id)]}
+            labels={{ "": "— outcome —", ...Object.fromEntries(moment.outcomes.map((o, k) => [o.id, o.summary || `Outcome ${k + 1}`])) }}
+            onChange={(v) => update((s) => void (s.definingMoments[mIndex].rules[j].outcomeId = v))}
+            grow
+          />
+          <IconRemove draft={draft} ref_={`rule:${moment.id}/${rule.actId}/${rule.outcomeId}`} onRemove={onRemove} />
+        </div>
+      ))}
+      <AddButton label="Add rule" onClick={() => onAdd("rule")} />
+    </div>
+  );
+}
+
+function CitationsEditor({
+  citations,
+  sources,
+  onChange,
+}: {
+  citations: { sourceId: string; quote?: string | undefined }[];
+  sources: Draft["sources"];
+  onChange: (citations: { sourceId: string; quote?: string }[]) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h5 className="text-xs font-extrabold uppercase tracking-[0.12em] text-muted">Citations</h5>
+      {citations.map((citation, i) => (
+        <div key={i} className="flex items-start gap-2">
+          <div className="grid flex-1 gap-2 sm:grid-cols-2">
+            <Select
+              label="Source"
+              value={citation.sourceId}
+              options={["", ...sources.map((s) => s.id)]}
+              labels={{ "": "— source —", ...Object.fromEntries(sources.map((s) => [s.id, s.title || s.id])) }}
+              onChange={(v) => onChange(citations.map((c, k) => (k === i ? { ...c, sourceId: v } : c)))}
+            />
+            <Area label="Quote" value={citation.quote ?? ""} onChange={(v) => onChange(citations.map((c, k) => (k === i ? { ...c, quote: v } : c)))} />
+          </div>
+          <button type="button" aria-label="Remove citation" onClick={() => onChange(citations.filter((_, k) => k !== i))} className={button.subtle + " !px-2"}>
+            <Trash2 className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+      ))}
+      <AddButton label="Add citation" onClick={() => onChange([...citations, { sourceId: sources[0]?.id ?? "", quote: "" }])} />
+    </div>
+  );
+}
+
+function RemoveButton({ draft, ref_, onRemove }: { draft: Draft; ref_: Ref; onRemove: (ref: Ref) => void }) {
+  const dependents = dependentsOf(draft, ref_);
+  return (
+    <ConfirmButton
+      label=""
+      title="Remove this?"
+      body={
+        dependents.length > 0 ? (
+          <>
+            These will be left pointing at it:
+            <ul className="mt-1 list-disc pl-5">
+              {dependents.map((d, i) => (
+                <li key={i}>{d.label}</li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          "Nothing else points at it."
+        )
+      }
+      confirmLabel="Remove"
+      className={`${button.subtle} !px-2`}
+      ariaLabel="Remove"
+      onConfirm={() => onRemove(ref_)}
+    />
+  );
+}
+
+const IconRemove = RemoveButton;
+
+// --- small field primitives ---------------------------------------------------
+
+function Card({ path, title, onRemove, children }: { path: string; title?: string; onRemove?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div id={`sk-${path}`} className="flex flex-col gap-3 rounded-surface border-2 border-line bg-surface p-5">
+      <div className="flex items-center justify-between gap-3">
+        {title ? <h3 className="font-bold text-ink">{title}</h3> : <span />}
+        {onRemove}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ItemIssues({ issues }: { issues: CheckIssue[] }) {
+  if (issues.length === 0) return null;
+  return (
+    <ul className="flex flex-col gap-0.5 text-sm text-record">
+      {issues.map((issue, i) => (
+        <li key={i}>{issue.path ? `${issue.path} — ` : ""}{issue.message}</li>
+      ))}
+    </ul>
+  );
+}
+
+const FieldIssues = ItemIssues;
+
+function Text({ label, value, onChange, grow }: { label: string; value: string; onChange: (v: string) => void; grow?: boolean }) {
+  return (
+    <label className={`flex flex-col gap-1.5 ${grow ? "flex-1" : ""}`}>
+      <span className="text-sm font-semibold text-ink">{label}</span>
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className={control} />
+    </label>
+  );
+}
+
+function Area({ label, value, onChange, grow }: { label: string; value: string; onChange: (v: string) => void; grow?: boolean }) {
+  return (
+    <label className={`flex flex-col gap-1.5 ${grow ? "flex-1" : ""}`}>
+      <span className="text-sm font-semibold text-ink">{label}</span>
+      <textarea value={value} rows={2} onChange={(e) => onChange(e.target.value)} className={`${control} resize-y py-2`} />
+    </label>
+  );
+}
+
+function Lines({ label, values, onChange }: { label: string; values: string[]; onChange: (v: string[]) => void }) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-sm font-semibold text-ink">{label} <span className="font-normal text-muted">(one per line)</span></span>
+      <textarea value={values.join("\n")} rows={Math.max(2, values.length)} onChange={(e) => onChange(e.target.value.split("\n"))} className={`${control} resize-y py-2`} />
+    </label>
+  );
+}
+
+function Select({ label, value, options, labels, onChange, grow }: { label: string; value: string; options: readonly string[]; labels?: Record<string, string>; onChange: (v: string) => void; grow?: boolean }) {
+  return (
+    <label className={`flex flex-col gap-1.5 ${grow ? "flex-1" : ""}`}>
+      <span className="text-sm font-semibold text-ink">{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={control}>
+        {options.map((option) => (
+          <option key={option} value={option}>{labels?.[option] ?? option}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-ink">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      {label}
+    </label>
+  );
+}
+
+function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className={`${button.subtle} inline-flex w-fit items-center gap-1.5`}>
+      <Plus className="h-4 w-4" aria-hidden /> {label}
+    </button>
+  );
+}

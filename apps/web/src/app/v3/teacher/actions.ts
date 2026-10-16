@@ -27,7 +27,7 @@ import type { BriefInputV3, BriefStateV3 } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
 import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
-import { approveSkeleton, getGenerationProgress, restartGeneration, startFromBrief } from "@/lib/v3/generation/service";
+import { approveSkeleton, discardSkeletonDraft, getGenerationProgress, restartGeneration, saveSkeletonDraft, startFromBrief } from "@/lib/v3/generation/service";
 
 const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
   "application/pdf": "pdf",
@@ -241,6 +241,21 @@ export async function restartV3Generation(adventureId: string) {
     adventureId,
     process.env,
   );
+}
+
+/** Autosaves the teacher's in-progress skeleton edits (raw JSON; may be mid-edit broken). */
+export async function saveV3SkeletonDraft(adventureId: string, draft: unknown) {
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
+  const result = await saveSkeletonDraft(defaultGenerationDeps(), auth.userId, adventureId, draft, process.env);
+  return "ok" in result ? { ok: true as const, savedAt: new Date().toISOString() } : result;
+}
+
+/** Reverts to the generated skeleton by clearing the saved draft. */
+export async function discardV3SkeletonDraft(adventureId: string) {
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
+  return discardSkeletonDraft(defaultGenerationDeps(), auth.userId, adventureId, process.env);
 }
 
 export async function approveV3Skeleton(adventureId: string, skeleton?: unknown) {
