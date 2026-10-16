@@ -62,6 +62,7 @@ Portrait URLs are wired to `NEXT_PUBLIC_V3_PORTRAIT_BASE`; initials remain the f
 - [x] **H** Interview: push-back prompt and logic [E2]
 - [x] **M** Reveal assembly, including source labels [E3]
 - [x] **H** Screens: defining moment, acts and one-tap prediction [P9, P3]
+- [x] **L** Name the decider in the prediction prompt during the defining moment
 - [x] **L** Screen: epilogue [E1]
 - [x] **M** Screen: Interview
 - [x] **M** Screen: reveal
