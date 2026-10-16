@@ -120,6 +120,26 @@ describe('planner pipeline (D3/D4)', () => {
     expect(result.metrics.calls[0]).toMatchObject({ purpose: 'plan', issueCount: 0 })
   })
 
+  it('corrects a stage target that names an ending without a repair', async () => {
+    const documents = [...(await loadI1Documents()).values()]
+    const reply = await plannerReply((adventure) => {
+      const target = adventure.stages[0].decision.options[2].branchTarget
+      expect(target).toEqual({ kind: 'ending', endingId: 'end-forced-landing' })
+      adventure.stages[0].decision.options[2].branchTarget = { kind: 'stage', stageId: target.endingId }
+    })
+    const llm = new FakeLlmClient([reply])
+    const result = await generateAdventure({ teacher: TEACHER, documents, llm })
+
+    expect(llm.requests).toHaveLength(1)
+    expect(result.status).toBe('ok')
+    if (result.status !== 'ok') return
+    expect(result.metrics.repairs).toBe(0)
+    expect(result.spec.stages[0]!.decision.options[2]!.branchTarget).toEqual({
+      kind: 'ending',
+      endingId: 'end-forced-landing',
+    })
+  })
+
   it('does not let the planner set server-owned fields (reading level, sources)', async () => {
     const documents = [...(await loadI1Documents()).values()]
     const reply = await plannerReply()

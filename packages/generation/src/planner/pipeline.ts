@@ -14,6 +14,7 @@ import type { ExtractedDocument } from '../ingest/types'
 import { DEFAULT_MODELS, PendingResponseError, type LlmClient, type LlmJsonResponse, type LlmUsage, ZERO_USAGE, addUsage, estimateCostUsd } from '../llm/client'
 import { SPEC_VERSION, type AdventureSpec, type SpecIssue, formatIssuePath, validateAdventureSpec } from '../spec/v2'
 import { PROMPT_VERSION, type PromptVersion, buildRepairPrompt, buildSystemPrompt, buildUserPrompt } from './prompt'
+import { fixBranchTargetKinds } from './branch-targets'
 import { type TeacherInput, type TeacherInputRaw, plannerOutputJsonSchema, plannerOutputSchema, teacherInputSchema } from './schema'
 
 /** FR-4: up to two bounded repair round-trips. */
@@ -126,7 +127,7 @@ export async function evaluateCandidate(json: unknown, teacher: TeacherInput, do
     const issues = parsed.error.issues.map((i) => ({ path: formatIssuePath(i.path), message: i.message }))
     return { spec: null, issues, schemaIssues: issues.length, groundingIssues: 0, missingInformation: extractMissingInfo(json) }
   }
-  const merged = mergeServerFields(parsed.data.adventure as unknown as Record<string, unknown>, teacher, documents)
+  const merged = mergeServerFields(fixBranchTargetKinds(parsed.data.adventure) as unknown as Record<string, unknown>, teacher, documents)
   const validation = validateAdventureSpec(merged)
   if (!validation.ok) {
     const issues = validation.issues.map((i) => ({ path: i.path.replace(/^\$/, '$.adventure'), message: i.message }))
