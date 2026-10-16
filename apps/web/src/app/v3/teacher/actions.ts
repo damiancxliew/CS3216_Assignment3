@@ -296,7 +296,7 @@ export async function getV3GenerationProgress(adventureId: string) {
     const progress = await jobs.getProgress(adventureId);
     const now = Date.now();
     if (progress && shouldKick(progress.steps, now) && allowKick(pollKicks, adventureId, now)) {
-      void kickAfter().catch(() => {});
+      await kickAfter().catch(() => {});
     }
   }
 
