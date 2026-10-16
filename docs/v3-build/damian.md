@@ -35,6 +35,7 @@ depend on the teacher's browser tab.
 - [x] **M** Migration: `attempts_v3` (id, adventure_id, spec_version, student_id, state jsonb, revision)
 - [x] **L** Migration: `attempt_events_v3` (attempt_id, seq, type, payload jsonb)
 - [x] **L** Migration: `flags_v3`
+- [x] **S** Migration: `sources_v3` and `llm_usage.adventure_v3_id` (for Yi Hao's generation job)
 
 **By Checkpoint 1 (D1 19:00)**
 - Local golden play seed: `npx vitest run --config scripts/vitest.v3-seed.config.ts` (student: `v3-student@local.test` / `password123!`).

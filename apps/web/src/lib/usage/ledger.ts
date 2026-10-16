@@ -19,12 +19,13 @@ type UsageRow = UsageTokens & {
   model: string | null;
   attemptId?: string;
   attemptV3Id?: string;
+  adventureV3Id?: string;
   adventureId?: string;
   organizationId?: string;
   userId?: string | null;
 };
 
-type JsonUsageContext = Pick<UsageRow, "adventureId" | "organizationId" | "userId"> & {
+type JsonUsageContext = Pick<UsageRow, "adventureId" | "adventureV3Id" | "organizationId" | "userId"> & {
   purpose: "brief" | "generation";
 };
 
@@ -40,6 +41,7 @@ export async function recordLlmUsage(getAdmin: () => SupabaseClient, row: UsageR
       reasoning_tokens: row.reasoningTokens,
       attempt_id: row.attemptId,
       ...(row.attemptV3Id === undefined ? {} : { attempt_v3_id: row.attemptV3Id }),
+      ...(row.adventureV3Id === undefined ? {} : { adventure_v3_id: row.adventureV3Id }),
       adventure_id: row.adventureId,
       organization_id: row.organizationId,
       user_id: row.userId,

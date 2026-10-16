@@ -350,3 +350,148 @@ describe("v3 attempts, events, and moderation flags", () => {
     expect(events?.map((event) => event.seq)).toEqual([1, 2, 3]);
   });
 });
+
+describe("v3 sources and generation usage", () => {
+  it("stores uploaded and outside sources and allows staff-only reads", async () => {
+    const adventure = await createAdventure();
+    const { data: inserted, error: insertError } = await admin
+      .from("sources_v3")
+      .insert([
+        {
+          adventure_id: adventure.id,
+          source_key: "uploaded-handout",
+          origin: "upload",
+          kind: "pdf",
+          title: "Uploaded handout",
+          storage_key: "v3/sources/uploaded-handout.pdf",
+          content_hash: "a".repeat(64),
+        },
+        {
+          adventure_id: adventure.id,
+          source_key: "outside-book",
+          origin: "outside",
+          kind: "text",
+          title: "Outside book",
+          url: "https://example.test/book",
+          content_hash: "b".repeat(64),
+        },
+      ])
+      .select("source_key")
+      .order("source_key");
+    expect(insertError).toBeNull();
+    expect(inserted?.map((source) => source.source_key)).toEqual(["outside-book", "uploaded-handout"]);
+
+    const { data: ownerRows, error: ownerError } = await owner.client
+      .from("sources_v3").select("source_key").eq("adventure_id", adventure.id).order("source_key");
+    expect(ownerError).toBeNull();
+    expect(ownerRows?.map((source) => source.source_key)).toEqual(["outside-book", "uploaded-handout"]);
+
+    const { data: adminRows, error: adminError } = await schoolAdmin.client
+      .from("sources_v3").select("source_key").eq("adventure_id", adventure.id).order("source_key");
+    expect(adminError).toBeNull();
+    expect(adminRows?.map((source) => source.source_key)).toEqual(["outside-book", "uploaded-handout"]);
+
+    const { data: studentRows, error: studentError } = await student.client
+      .from("sources_v3").select("id").eq("adventure_id", adventure.id);
+    expect(studentError).toBeNull();
+    expect(studentRows).toEqual([]);
+
+    const { data: otherSchoolRows, error: otherSchoolError } = await otherTeacher.client
+      .from("sources_v3").select("id").eq("adventure_id", adventure.id);
+    expect(otherSchoolError).toBeNull();
+    expect(otherSchoolRows).toEqual([]);
+
+    const denied = await owner.client.from("sources_v3").insert({
+      adventure_id: adventure.id,
+      source_key: "owner-insert",
+      origin: "upload",
+      kind: "pdf",
+      title: "Owner insert",
+      storage_key: "v3/sources/owner-insert.pdf",
+      content_hash: "c".repeat(64),
+    });
+    expect(denied.error?.code).toBe("42501");
+  });
+
+  it("enforces origin requirements and unique source keys", async () => {
+    const adventure = await createAdventure();
+    const missingUploadStorage = await admin.from("sources_v3").insert({
+      adventure_id: adventure.id,
+      source_key: "missing-upload-storage",
+      origin: "upload",
+      kind: "pdf",
+      title: "Missing upload storage",
+      storage_key: null,
+      content_hash: "d".repeat(64),
+    });
+    expect(missingUploadStorage.error?.code).toBe("23514");
+
+    const missingOutsideUrl = await admin.from("sources_v3").insert({
+      adventure_id: adventure.id,
+      source_key: "missing-outside-url",
+      origin: "outside",
+      kind: "text",
+      title: "Missing outside URL",
+      url: null,
+      content_hash: "e".repeat(64),
+    });
+    expect(missingOutsideUrl.error?.code).toBe("23514");
+
+    const source = {
+      adventure_id: adventure.id,
+      source_key: "unique-source",
+      origin: "upload",
+      kind: "pdf",
+      title: "Unique source",
+      storage_key: "v3/sources/unique-source.pdf",
+      content_hash: "f".repeat(64),
+    };
+    const { error: firstInsertError } = await admin.from("sources_v3").insert(source);
+    expect(firstInsertError).toBeNull();
+
+    const duplicate = await admin.from("sources_v3").insert(source);
+    expect(duplicate.error?.code).toBe("23505");
+  });
+
+  it("cascades sources and nulls usage when an adventure is deleted", async () => {
+    const adventure = await createAdventure();
+    const { error: sourceError } = await admin.from("sources_v3").insert({
+      adventure_id: adventure.id,
+      source_key: "cascade-source",
+      origin: "upload",
+      kind: "pdf",
+      title: "Cascade source",
+      storage_key: "v3/sources/cascade-source.pdf",
+      content_hash: "1".repeat(64),
+    });
+    expect(sourceError).toBeNull();
+
+    const { data: usage, error: usageError } = await admin
+      .from("llm_usage")
+      .insert({
+        adventure_v3_id: adventure.id,
+        purpose: "generation",
+        call: "v3_generation",
+        input_tokens: 100,
+        output_tokens: 25,
+      })
+      .select("id, adventure_v3_id")
+      .single();
+    expect(usageError).toBeNull();
+    expect(usage?.adventure_v3_id).toBe(adventure.id);
+    if (!usage) throw new Error("Expected the LLM usage row to be inserted");
+
+    const { error: deleteError } = await admin.from("adventures_v3").delete().eq("id", adventure.id);
+    expect(deleteError).toBeNull();
+
+    const { data: remainingSources, error: sourcesError } = await admin
+      .from("sources_v3").select("id").eq("adventure_id", adventure.id);
+    expect(sourcesError).toBeNull();
+    expect(remainingSources).toEqual([]);
+
+    const { data: remainingUsage, error: remainingUsageError } = await admin
+      .from("llm_usage").select("adventure_v3_id").eq("id", usage.id).single();
+    expect(remainingUsageError).toBeNull();
+    expect(remainingUsage?.adventure_v3_id).toBeNull();
+  });
+});
