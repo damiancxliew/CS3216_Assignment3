@@ -261,7 +261,8 @@ async function consult(draft: BriefDraftV3, slot: ConsultedSlot, ctx: Context): 
     role: "assistant",
     text: parsed.data.reply.trim() || QUESTIONS[slot],
     slot: key,
-    ...(answer !== "" ? { proposedText: answer.slice(0, FOCUS_MAX) } : {}),
+    // only a within-cap answer is offerable — "Use this" would otherwise take a truncated value
+    ...(answer !== "" && withinCap ? { proposedText: answer } : {}),
   };
   const revisit = revisitTarget(parsed.data.revisit, draft);
   if (revisit) return { ok: true, filled: false, followUp, revisit };

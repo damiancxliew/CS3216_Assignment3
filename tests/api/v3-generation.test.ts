@@ -458,6 +458,30 @@ describe("restartGeneration", () => {
   });
 });
 
+describe("findUntouched", () => {
+  it("returns the owner's most recent briefing row with 0 sources and no user messages", async () => {
+    const { briefStore } = await makeJob();
+    const first = await briefStore.create({ schoolId, ownerId });
+    const second = await briefStore.create({ schoolId, ownerId });
+    expect(await briefStore.findUntouched(ownerId)).toBe(second);
+
+    // a user message or a source makes a row "touched"
+    const secondRow = (await briefStore.load(second))!;
+    await briefStore.save(second, {
+      ...secondRow.state!,
+      messages: [...secondRow.state!.messages, { role: "user", text: "hi", slot: "sources" }],
+    });
+    expect(await briefStore.findUntouched(ownerId)).toBe(first);
+
+    const firstRow = (await briefStore.load(first))!;
+    await briefStore.save(first, { ...firstRow.state!, sources: [{ id: "s", title: "s", kind: "text" }] });
+    expect(await briefStore.findUntouched(ownerId)).toBeNull();
+
+    // non-briefing rows and other owners don't count
+    expect(await briefStore.findUntouched("someone-else")).toBeNull();
+  });
+});
+
 describe("labels and cost visibility", () => {
   it("maps every pass name to a label and row statuses to display statuses", () => {
     expect(PASS_ORDER.map((name) => PASS_LABELS[name])).toEqual([

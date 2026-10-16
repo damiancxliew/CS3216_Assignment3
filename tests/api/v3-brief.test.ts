@@ -109,7 +109,7 @@ describe("briefTurnV3", () => {
     expect(llm.requests).toHaveLength(2);
   });
 
-  it("a complete answer over the length cap stays a proposal", async () => {
+  it("a complete answer over the length cap stays a proposal — and leaves nothing to accept", async () => {
     const state = stateAt({ sources: { summary: "s", episodeProposal: "ep" } });
     const llm = new FakeLlmClient([
       { json: { reply: "That’s long.", answer: "x".repeat(250), complete: true, revisit: null } },
@@ -118,6 +118,10 @@ describe("briefTurnV3", () => {
     if (!result.ok) throw new Error(result.error);
     expect(result.state.draft.episode).toBeUndefined();
     expect(currentSlot(result.state.draft).name).toBe("episode");
+    // no proposedText → "Use this" has nothing to accept
+    expect(result.state.messages.at(-1)?.proposedText).toBeUndefined();
+    const accept = await briefTurnV3(result.state, { accept: true }, { llm, documents: docs });
+    expect(accept).toMatchObject({ ok: false });
   });
 
   it("unparsable readingLevel and mode re-ask with no model call", async () => {
