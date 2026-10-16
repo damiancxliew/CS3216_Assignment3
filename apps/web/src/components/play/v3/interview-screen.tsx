@@ -9,7 +9,7 @@ import {
   type NoteView,
 } from "@adventure/play-contract";
 
-import { nextChoiceIndex, useTypewriter } from "@/components/play/v3/dialogue-box";
+import { nextChoiceIndex, pixelFont, useTypewriter } from "@/components/play/v3/dialogue-box";
 import { SpeakerBox } from "@/components/play/v3/speaker-box";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { interviewDraftStart, interviewLine } from "@/lib/play/v3/interview-flow";
@@ -175,17 +175,18 @@ function AnswerPanel({
   });
 
   const rowClass = (selected: boolean) =>
-    `flex min-h-11 w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold leading-6 sm:text-base ${
-      selected ? "bg-[#ffd65a]/60" : "hover:bg-[#1f2433]/5"
+    `flex min-h-10 w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left leading-snug transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      selected ? "bg-[#e7edff] text-[#3659cf]" : "text-[#1f2433] hover:bg-[#1f2433]/5"
     }`;
 
   return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 bottom-[9.5rem] z-30 flex items-center justify-center p-2 sm:bottom-[11rem] sm:p-4">
     <section
       aria-label={responding ? "Your response" : "Your answer"}
-      className="absolute inset-x-2 top-2 z-30 mx-auto flex max-h-[calc(100%-12rem)] max-w-3xl flex-col overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:inset-x-4 sm:top-4"
+      className="pointer-events-auto flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433]"
     >
       <header className="flex items-center justify-between gap-3 border-b-4 border-[#1f2433] bg-[#1f2433] px-4 py-2 text-[#fffaf0]">
-        <h2 className="text-sm font-black uppercase tracking-wide">{responding ? "Your response" : "Your answer"}</h2>
+        <h2 className={`${pixelFont.className} text-base font-bold`}>{responding ? "Your response" : "Your answer"}</h2>
         <span className="text-xs font-semibold text-[#e9dcc0]">
           {step === "verdict" ? "↑↓ to choose · Enter to pick" : `${evidenceNoteIds.length}/${MAX_EVIDENCE_NOTES} notes · Esc to go back`}
         </span>
@@ -204,8 +205,8 @@ function AnswerPanel({
               onClick={() => chooseVerdict(index)}
               className={rowClass(index === verdictIndex)}
             >
-              <span aria-hidden className="w-4 shrink-0">{index === verdictIndex ? "▶" : ""}</span>
-              <span>{option.text}</span>
+              <span aria-hidden className="w-4 shrink-0 text-sm font-black text-[#e36b33]">{index === verdictIndex ? "▶" : ""}</span>
+              <span className={`${pixelFont.className} text-sm font-semibold sm:text-base`}>{option.text}</span>
             </button>
           ))}
         </div>
@@ -238,11 +239,11 @@ function AnswerPanel({
                     onClick={() => toggleNote(note.id)}
                     className={rowClass(index === cursor)}
                   >
-                    <span aria-hidden className="w-4 shrink-0">{index === cursor ? "▶" : ""}</span>
+                    <span aria-hidden className="w-4 shrink-0 text-sm font-black text-[#e36b33]">{index === cursor ? "▶" : ""}</span>
                     <span aria-hidden className="mt-1 grid size-4 shrink-0 place-items-center rounded border-2 border-[#1f2433] text-[10px] leading-none">
                       {checked ? "✓" : ""}
                     </span>
-                    <span className="font-medium">{note.text}</span>
+                    <span className="text-sm font-medium sm:text-base">{note.text}</span>
                   </button>
                 );
               })
@@ -267,7 +268,7 @@ function AnswerPanel({
                 disabled={busy}
                 onMouseEnter={() => setCursor(submitRow)}
                 className={`min-h-10 rounded-lg border-2 border-[#1f2433] px-4 text-sm font-black shadow-[2px_2px_0_#1f2433] disabled:opacity-50 ${
-                  cursor === submitRow ? "bg-[#ffd65a]" : "bg-white"
+                  cursor === submitRow ? "bg-[#e7edff] text-[#3659cf]" : "bg-white"
                 }`}
               >
                 {cursor === submitRow ? "▶ " : ""}{responding ? "Give my response" : "Give my answer"}
@@ -277,5 +278,6 @@ function AnswerPanel({
         </form>
       )}
     </section>
+    </div>
   );
 }
