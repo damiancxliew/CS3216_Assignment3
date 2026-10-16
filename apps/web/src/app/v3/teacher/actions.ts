@@ -26,6 +26,7 @@ import { briefTurnV3 } from "@/lib/v3/brief/turn";
 import type { BriefInputV3, BriefStateV3 } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
+import { allowKick, shouldKick } from "@/lib/v3/generation/heal";
 import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
 import { approveSkeleton, discardSkeletonDraft, getGenerationProgress, restartGeneration, saveSkeletonDraft, startFromBrief } from "@/lib/v3/generation/service";
 
@@ -38,6 +39,9 @@ const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
 const clientPagesSchema = z.array(z.string()).min(1).max(LIMITS.maxPages);
 
 const notFound = { error: "not_found" } as const;
+
+/** Per-adventure throttle for poll-triggered kicks (per instance). */
+const pollKicks = new Map<string, number>();
 
 let loggedNoKickUrl = false;
 
@@ -285,6 +289,16 @@ export async function getV3GenerationProgress(adventureId: string) {
 
   const adventure = { id: data.id, schoolId: data.school_id, ownerId: data.owner_id, status: data.status };
   if (!v3SchoolAllowed(adventure.schoolId)) return notFound;
+
+  // self-healing: a ready step with no in-flight tick gets a spare kick from the poll
+  if (adventure.status === "generating") {
+    const jobs = getJobs();
+    const progress = await jobs.getProgress(adventureId);
+    const now = Date.now();
+    if (progress && shouldKick(progress.steps, now) && allowKick(pollKicks, adventureId, now)) {
+      void kickAfter().catch(() => {});
+    }
+  }
 
   const store = supabaseJobStore(createAdminClient());
   return getGenerationProgress(defaultGenerationDeps(), getJobs(), store, adventure);
