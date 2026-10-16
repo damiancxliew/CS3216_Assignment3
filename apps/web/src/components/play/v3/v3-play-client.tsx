@@ -1,5 +1,6 @@
 "use client";
 
+import { Compass } from "lucide-react";
 import type { ReactNode } from "react";
 import type { PlayerView } from "@adventure/play-contract";
 
@@ -37,6 +38,35 @@ export function V3PlayClient({
     makeClient,
   );
 
+  if (view.phase === "stage" && view.stage && view.stage.intro === null && view.definingMoment === null) {
+    return (
+      <div className={`${styles.shell} flex h-dvh min-h-0 flex-col`}>
+        <header className={`${styles.header} shrink-0 lg:[zoom:0.75]`}>
+          <h1 className={styles.adventureTitle}>
+            <span className={styles.headerEmblem}><Compass size={24} aria-hidden /></span>
+            <span className="min-w-0">
+              <span className="block truncate">{view.briefing.name}</span>
+              <span className="hidden truncate text-xs font-normal text-[#ead5ae] sm:block">Historical adventure · {view.briefing.position}</span>
+            </span>
+          </h1>
+          <div className={`${styles.chapter} flex min-w-0 items-center gap-3`}>
+            <span className={styles.chapterNumber}>Stage {view.stage.index + 1} of {view.stage.count}</span>
+            <span className={`${styles.chapterTitle} min-w-0 truncate`} title={view.stage.title}>{view.stage.title}</span>
+          </div>
+          {busy ? <span role="status" className={`${styles.headerActions} text-sm font-semibold`}>{busyLabel}</span> : null}
+        </header>
+        {notice}
+        {banner ? (
+          <div role="alert" className="mx-auto mt-4 flex max-w-4xl items-center justify-between gap-3 rounded-xl border border-signal bg-signal-wash px-4 py-3 text-sm font-semibold text-ink">
+            <span>{banner.message}</span>
+            <button type="button" onClick={clearBanner} className="min-h-9 rounded-lg px-2 underline">Dismiss</button>
+          </div>
+        ) : null}
+        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} />
+      </div>
+    );
+  }
+
   return (
     <div className={`${styles.shell} min-h-screen`}>
       <header className={`${styles.header} shrink-0`}>
@@ -58,7 +88,7 @@ export function V3PlayClient({
       ) : view.phase === "stage" && view.stage?.intro ? (
         <StageIntroScreen stage={view.stage} onContinue={() => { if (!busy) send({ type: "continue" }); }} />
       ) : view.phase === "stage" ? (
-        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} />
+        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} />
       ) : view.phase === "epilogue" && view.epilogue ? (
         <EpilogueScreen epilogue={view.epilogue} busy={busy} send={send} />
       ) : view.phase === "interview" && view.interview ? (

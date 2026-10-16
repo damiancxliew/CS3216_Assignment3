@@ -9,6 +9,11 @@ import type { V3PlayClient } from "@/lib/play/v3/client";
 // Back off while the post-turn check is still running; it usually lands in 2–4 s, rarely after ~30 s.
 const PENDING_REFRESH_DELAYS = [2_000, 3_000, 5_000, 8_000, 12_000, 20_000];
 
+type QueuedAction = {
+  action: Action;
+  onSettled?: (succeeded: boolean) => void;
+};
+
 export function useV3Play(
   attemptId: string,
   initialView: PlayerView,
@@ -22,7 +27,7 @@ export function useV3Play(
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<{ kind: string; message: string } | null>(null);
   const revisionRef = useRef(initialRevision);
-  const queue = useRef<Action[]>([]);
+  const queue = useRef<QueuedAction[]>([]);
   const processing = useRef(false);
   const busyRef = useRef(false);
 
@@ -43,8 +48,8 @@ export function useV3Play(
     }
   }, [adopt]);
 
-  const send = useCallback((action: Action) => {
-    queue.current.push(action);
+  const send = useCallback((action: Action, onSettled?: (succeeded: boolean) => void) => {
+    queue.current.push({ action, onSettled });
     if (processing.current) return;
     processing.current = true;
     busyRef.current = true;
@@ -52,19 +57,22 @@ export function useV3Play(
     void (async () => {
       while (queue.current.length > 0) {
         const next = queue.current.shift()!;
-        const result = await client.current!.act(revisionRef.current, next);
+        const result = await client.current!.act(revisionRef.current, next.action);
         if (result.ok) {
           adopt(result.view, result.revision);
           setBanner(null);
+          next.onSettled?.(true);
           if (result.view.pendingCheck) void refreshPending();
           continue;
         }
+        next.onSettled?.(false);
         if (result.kind === "stale") {
           adopt(result.view, result.revision);
           setBanner({ kind: result.kind, message: "The game moved on — refreshed." });
         } else {
           setBanner({ kind: result.kind, message: result.message });
         }
+        for (const queued of queue.current) queued.onSettled?.(false);
         queue.current = [];
         break;
       }
