@@ -114,7 +114,11 @@ export function addItem(skeleton: SkeletonShape, kind: AddKind, parentRef?: Ref)
 
 export type Dependent = { ref: Ref; label: string };
 
-const holderLabel = (d: SkeletonShape["discoveries"][number]) => `Discovery "${d.id}"`;
+const truncate = (text: string, max = 60) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+const holderLabel = (d: SkeletonShape["discoveries"][number]) => `Discovery "${truncate(d.text || d.note || "a new discovery")}"`;
+const stageLabel = (s: SkeletonShape["stages"][number]) => `Stage "${truncate(s.title || s.id)}"`;
+const stageOfMoment = (skeleton: SkeletonShape, moment: SkeletonShape["definingMoments"][number]) =>
+  skeleton.stages.find((s) => s.definingMomentId === moment.id);
 
 /**
  * The items that reference `ref` — surfaced in the remove popup so the teacher
@@ -129,34 +133,43 @@ export function dependentsOf(skeleton: SkeletonShape, ref: Ref): Dependent[] {
       if ("characterId" in discovery.holder && discovery.holder.characterId === rest)
         dependents.push({ ref: `discovery:${discovery.id}`, label: `${holderLabel(discovery)} (held by this character)` });
     for (const stage of skeleton.stages) {
-      if (stage.placement[rest] !== undefined) dependents.push({ ref: `stage:${stage.id}`, label: `Stage "${stage.id}" (placed in it)` });
+      if (stage.placement[rest] !== undefined) dependents.push({ ref: `stage:${stage.id}`, label: `Who's where in "${truncate(stage.title || stage.id)}"` });
     }
     for (const moment of skeleton.definingMoments)
-      if (moment.deciderId === rest) dependents.push({ ref: `moment:${moment.id}`, label: `Defining moment "${moment.id}" (decider)` });
+      if (moment.deciderId === rest) {
+        const stage = stageOfMoment(skeleton, moment);
+        dependents.push({ ref: `moment:${moment.id}`, label: `The defining moment in "${truncate(stage?.title || stage?.id || moment.id)}" (decider)` });
+      }
   } else if (kind === "document") {
     for (const discovery of skeleton.discoveries)
       if ("documentId" in discovery.holder && discovery.holder.documentId === rest)
         dependents.push({ ref: `discovery:${discovery.id}`, label: `${holderLabel(discovery)} (held by this document)` });
   } else if (kind === "stage") {
     for (const discovery of skeleton.discoveries)
-      if (discovery.stageId === rest) dependents.push({ ref: `discovery:${discovery.id}`, label: `${holderLabel(discovery)} (its stage)` });
+      if (discovery.stageId === rest) dependents.push({ ref: `discovery:${discovery.id}`, label: `${holderLabel(discovery)} (in this stage)` });
   } else if (kind === "room") {
     const [stageId, roomId] = rest.split("/") as [string, string];
     const stage = skeleton.stages.find((s) => s.id === stageId);
     if (stage) {
-      if (stage.startRoomId === roomId) dependents.push({ ref: `stage:${stage.id}`, label: `Stage "${stage.id}" (start room)` });
+      if (stage.startRoomId === roomId) dependents.push({ ref: `stage:${stage.id}`, label: `${stageLabel(stage)} (its start room)` });
       for (const [characterId, placed] of Object.entries(stage.placement))
-        if (placed === roomId) dependents.push({ ref: `stage:${stage.id}`, label: `Stage "${stage.id}" (placement of "${characterId}")` });
+        if (placed === roomId) {
+          const character = skeleton.characters.find((c) => c.id === characterId);
+          dependents.push({ ref: `stage:${stage.id}`, label: `Who's where in "${truncate(stage.title || stage.id)}" (${character?.name || "a character"})` });
+        }
     }
   } else if (kind === "moment") {
     for (const stage of skeleton.stages)
-      if (stage.definingMomentId === rest) dependents.push({ ref: `stage:${stage.id}`, label: `Stage "${stage.id}" (its defining moment)` });
+      if (stage.definingMomentId === rest) dependents.push({ ref: `stage:${stage.id}`, label: `${stageLabel(stage)} (its defining moment)` });
   } else if (kind === "ending") {
-    for (const moment of skeleton.definingMoments)
+    for (const moment of skeleton.definingMoments) {
+      const stage = stageOfMoment(skeleton, moment);
+      const momentLabel = `The defining moment in "${truncate(stage?.title || stage?.id || moment.id)}"`;
       for (const outcome of moment.outcomes) {
-        if (outcome.endingId === rest) dependents.push({ ref: `outcome:${moment.id}/${outcome.id}`, label: `Outcome "${outcome.id}" (its ending)` });
-        if (outcome.closesEndingIds.includes(rest)) dependents.push({ ref: `outcome:${moment.id}/${outcome.id}`, label: `Outcome "${outcome.id}" (closes this ending)` });
+        if (outcome.endingId === rest) dependents.push({ ref: `outcome:${moment.id}/${outcome.id}`, label: `${momentLabel} (an outcome leads to this ending)` });
+        if (outcome.closesEndingIds.includes(rest)) dependents.push({ ref: `outcome:${moment.id}/${outcome.id}`, label: `${momentLabel} (an outcome closes this ending)` });
       }
+    }
   } else if (kind === "discovery") {
     // nothing references a discovery
   } else if (kind === "act" || kind === "outcome" || kind === "rule") {

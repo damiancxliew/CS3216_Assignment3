@@ -17,6 +17,20 @@ type Draft = SkeletonShape;
 type Moment = Draft["definingMoments"][number];
 type Stage = Draft["stages"][number];
 
+/** Server-side check codes the teacher sees: plain language, no ids or dev jargon. */
+function friendlyMessage(issue: CheckIssue): string {
+  switch (issue.code) {
+    case "quote-not-in-source":
+      return "This quote isn't in the source it cites";
+    case "ref":
+      return "This cites a source that doesn't exist";
+    case "schema":
+      return issue.message;
+    default:
+      return issue.message;
+  }
+}
+
 /**
  * The needs_review editor: every skeleton field, add/remove with dangling
  * references left for `checkSkeleton` to flag in place, and autosaved drafts
@@ -34,9 +48,11 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
   const [discardPending, startDiscard] = useTransition();
   const [continuePending, startContinue] = useTransition();
   const [continueError, setContinueError] = useState<string | null>(null);
+  const [serverIssues, setServerIssues] = useState<CheckIssue[]>([]);
   const router = useRouter();
 
-  const { errors, warnings } = checkSkeleton(draft);
+  const { errors: checkErrors, warnings } = checkSkeleton(draft);
+  const errors = [...checkErrors, ...serverIssues];
 
   // --- autosave: 1 s debounce, latest wins, failure retries with backoff ------
   const pendingRef = useRef<Draft | null>(null);
@@ -63,6 +79,15 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
     const next = structuredClone(draft);
     mutate(next);
     setDraft(next);
+    // drop server issues under any subtree this edit touched
+    setServerIssues((current) =>
+      current.filter((issue) => {
+        const [array, index] = issue.path.split(".");
+        const before = (draft as unknown as Record<string, unknown[]>)[array]?.[Number(index)];
+        const after = (next as unknown as Record<string, unknown[]>)[array]?.[Number(index)];
+        return JSON.stringify(before) === JSON.stringify(after);
+      }),
+    );
     pendingRef.current = next;
     setSaveState((s) => (s === "error" ? "error" : "dirty"));
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -113,12 +138,27 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
       setContinueError(null);
       const result = await approveV3Skeleton(adventureId, draft);
       if ("error" in result) {
-        const issueCount = "issues" in result ? (result.issues?.length ?? 0) : 0;
-        setContinueError(result.error + (issueCount > 0 ? ` (${issueCount} issue${issueCount === 1 ? "" : "s"} — see the highlights on the page)` : ""));
+        const issues = ("issues" in result ? result.issues : []) as CheckIssue[];
+        setServerIssues(issues.map((issue) => ({ ...issue, message: friendlyMessage(issue) })));
+        // expand every card an issue belongs to
+        setOpen((o) => {
+          const next = { ...o };
+          for (const issue of issues) {
+            const segments = issue.path.split(".");
+            for (let i = 1; i < segments.length; i += 1) next[segments.slice(0, i).join(".")] = true;
+          }
+          return next;
+        });
+        setContinueError(
+          issues.length > 0
+            ? `Some things need fixing before generation can continue: ${issues.length} issue${issues.length === 1 ? "" : "s"}.`
+            : "Couldn't continue generation. Please try again.",
+        );
       } else router.refresh();
     });
 
   const momentOf = (stage: Stage): Moment | undefined => draft.definingMoments.find((m) => m.id === stage.definingMomentId);
+  const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
   return (
     <div className="flex flex-col gap-8">
@@ -141,6 +181,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
             onConfirm={() =>
               startDiscard(async () => {
                 await discardV3SkeletonDraft(adventureId);
+                setServerIssues([]);
                 router.refresh();
               })
             }
@@ -198,8 +239,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
           const path = `characters.${i}`;
           const count = issuesAt(errors, path).length;
           return (
-            <ItemCard key={character.id} path={path} title={character.name || character.id} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
-              remove={<RemoveButton draft={draft} ref_={`character:${character.id}`} itemLabel={character.name || character.id} onRemove={remove} />}>
+            <ItemCard key={character.id} path={path} title={character.name || "New character"} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
+              remove={<RemoveButton draft={draft} ref_={`character:${character.id}`} itemLabel={character.name || "this character"} onRemove={remove} />}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Text label="Name" value={character.name} onChange={(v) => update((s) => void (s.characters[i].name = v))} />
                 <Text label="Title" value={character.title} onChange={(v) => update((s) => void (s.characters[i].title = v))} />
@@ -220,8 +261,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
           const path = `documents.${i}`;
           const count = issuesAt(errors, path).length;
           return (
-            <ItemCard key={document.id} path={path} title={document.title || document.id} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
-              remove={<RemoveButton draft={draft} ref_={`document:${document.id}`} itemLabel={document.title || document.id} onRemove={remove} />}>
+            <ItemCard key={document.id} path={path} title={document.title || "New document"} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
+              remove={<RemoveButton draft={draft} ref_={`document:${document.id}`} itemLabel={document.title || "this document"} onRemove={remove} />}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Text label="Title" value={document.title} onChange={(v) => update((s) => void (s.documents[i].title = v))} />
                 <Select label="Kind" value={document.kind} options={DOCUMENT_KINDS} onChange={(v) => update((s) => void (s.documents[i].kind = v as typeof document.kind))} />
@@ -245,8 +286,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
             (moment ? issuesAt(errors, `definingMoments.${mIndex}`).length : 0) +
             stageCore.reduce((sum, { dIndex }) => sum + issuesAt(errors, `discoveries.${dIndex}`).length, 0);
           return (
-            <ItemCard key={stage.id} path={path} title={stage.title || stage.id} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
-              remove={<RemoveButton draft={draft} ref_={`stage:${stage.id}`} itemLabel={stage.title || stage.id} onRemove={remove} />}>
+            <ItemCard key={stage.id} path={path} title={stage.title || `Stage ${i + 1}`} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
+              remove={<RemoveButton draft={draft} ref_={`stage:${stage.id}`} itemLabel={stage.title || `stage ${i + 1}`} onRemove={remove} />}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Text label="Title" value={stage.title} onChange={(v) => update((s) => void (s.stages[i].title = v))} />
                 <Text label="Time and place" value={stage.timePlace} onChange={(v) => update((s) => void (s.stages[i].timePlace = v))} />
@@ -258,8 +299,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
                 const rPath = `${path}.rooms.${j}`;
                 const rCount = issuesAt(errors, rPath).length;
                 return (
-                  <ItemCard key={room.id} path={rPath} title={room.name || room.id} issueCount={rCount} isOpen={isOpen(rPath, rCount)} onToggle={() => setOpen((o) => ({ ...o, [rPath]: !isOpen(rPath, rCount) }))} nested
-                    remove={<RemoveButton draft={draft} ref_={`room:${stage.id}/${room.id}`} itemLabel={room.name || room.id} onRemove={remove} />}>
+                  <ItemCard key={room.id} path={rPath} title={room.name || `Room ${j + 1}`} issueCount={rCount} isOpen={isOpen(rPath, rCount)} onToggle={() => setOpen((o) => ({ ...o, [rPath]: !isOpen(rPath, rCount) }))} nested
+                    remove={<RemoveButton draft={draft} ref_={`room:${stage.id}/${room.id}`} itemLabel={room.name || `room ${j + 1}`} onRemove={remove} />}>
                     <Text label="Name" value={room.name} onChange={(v) => update((s) => void (s.stages[i].rooms[j].name = v))} />
                     <Area label="Description" value={room.description} onChange={(v) => update((s) => void (s.stages[i].rooms[j].description = v))} />
                   </ItemCard>
@@ -308,8 +349,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
                 const dPath = `discoveries.${dIndex}`;
                 const dCount = issuesAt(errors, dPath).length;
                 return (
-                  <ItemCard key={discovery.id} path={dPath} title={discovery.id} issueCount={dCount} isOpen={isOpen(dPath, dCount)} onToggle={() => setOpen((o) => ({ ...o, [dPath]: !isOpen(dPath, dCount) }))} nested
-                    remove={<RemoveButton draft={draft} ref_={`discovery:${discovery.id}`} itemLabel={discovery.id} onRemove={remove} />}>
+                  <ItemCard key={discovery.id} path={dPath} title={truncate(discovery.text || discovery.note, 40) || `Discovery ${dIndex + 1}`} issueCount={dCount} isOpen={isOpen(dPath, dCount)} onToggle={() => setOpen((o) => ({ ...o, [dPath]: !isOpen(dPath, dCount) }))} nested
+                    remove={<RemoveButton draft={draft} ref_={`discovery:${discovery.id}`} itemLabel={truncate(discovery.text || discovery.note, 40) || "this discovery"} onRemove={remove} />}>
                     <Area label="Text" value={discovery.text} onChange={(v) => update((s) => void (s.discoveries[dIndex].text = v))} />
                     <Area label="Note" value={discovery.note} onChange={(v) => update((s) => void (s.discoveries[dIndex].note = v))} />
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -351,8 +392,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
           const path = `endings.${i}`;
           const count = issuesAt(errors, path).length;
           return (
-            <ItemCard key={ending.id} path={path} title={ending.title || ending.id} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
-              remove={<RemoveButton draft={draft} ref_={`ending:${ending.id}`} itemLabel={ending.title || ending.id} onRemove={remove} />}>
+            <ItemCard key={ending.id} path={path} title={ending.title || `Ending ${i + 1}`} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
+              remove={<RemoveButton draft={draft} ref_={`ending:${ending.id}`} itemLabel={ending.title || `ending ${i + 1}`} onRemove={remove} />}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Select label="Type" value={ending.type} options={["historical", "alternative", "secret"]} onChange={(v) => update((s) => void (s.endings[i].type = v as typeof ending.type))} />
                 <Text label="Title" value={ending.title} onChange={(v) => update((s) => void (s.endings[i].title = v))} />
@@ -552,7 +593,7 @@ function ItemCard({
 }) {
   return (
     <div id={`sk-${path}`} className={`rounded-surface border-2 ${issueCount > 0 ? "border-record" : "border-line"} ${nested ? "bg-sunken" : "bg-surface"}`}>
-      <div className="flex items-center gap-2 px-4 py-2.5">
+      <div className="flex items-center gap-2 px-4 py-2">
         <button type="button" onClick={onToggle} aria-expanded={isOpen} className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <ChevronRight className={`h-4 w-4 shrink-0 text-muted transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden />
           <span className="min-w-0 truncate font-bold text-ink">{title}</span>
@@ -593,7 +634,7 @@ function RemoveButton({ draft, ref_, itemLabel, onRemove, rulesUsedBy }: { draft
         )
       }
       confirmLabel="Remove"
-      className={`${button.subtle} shrink-0 !px-2`}
+      className={`${button.subtle} h-9 w-9 shrink-0 !px-0 inline-flex items-center justify-center`}
       ariaLabel={`Remove ${itemLabel}`}
       onConfirm={() => onRemove(ref_)}
     />
