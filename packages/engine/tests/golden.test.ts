@@ -100,6 +100,16 @@ describe('golden-1819: content', () => {
 })
 
 describe('golden-1819: the historical path plays from briefing to reveal', () => {
+  it('projects the decider name when they are not in the current room', async () => {
+    const game = new Harness(golden)
+    await game.start()
+
+    const moment = await game.act({ type: 'endStage' })
+
+    expect(moment.definingMoment?.deciderName).toBe('Temenggong Abdul Rahman')
+    expect(moment.characters.map(({ id }) => id)).not.toContain('temenggong')
+  })
+
   it('reaches the historical ending through the rules a student would use', async () => {
     const game = new Harness(golden)
     expect(PlayerView.parse(await game.start()).stage?.centralQuestion).toBe('Will the Temenggong let the Company stay, and on whose authority?')

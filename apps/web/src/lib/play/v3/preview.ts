@@ -3,8 +3,7 @@ import { Action } from "@adventure/play-contract";
 import { createRng, type LlmClient } from "@adventure/orchestration";
 import { z } from "zod";
 
-import { v3SchoolAllowed } from "@/lib/v3/flag";
-
+import { canStaffAdventure } from "./access";
 import { signPreviewState, verifyPreviewState } from "./preview-token";
 import { ENGINE_ERROR_STATUS, limiterFor, type ServiceResponse } from "./service";
 import type { V3PlayStore } from "./store";
@@ -31,11 +30,7 @@ async function permittedPreview(
   adventureId: string,
 ) {
   const adventure = await deps.store.loadAdventure(adventureId);
-  if (
-    !adventure ||
-    !v3SchoolAllowed(adventure.schoolId, deps.env) ||
-    (adventure.ownerId !== userId && !(await deps.store.isSchoolAdmin(adventure.schoolId, userId)))
-  ) {
+  if (!adventure || !(await canStaffAdventure(deps.store, adventure, userId, deps.env))) {
     return error(404, "not_found", "Not found.");
   }
   if (adventure.spec === null) {

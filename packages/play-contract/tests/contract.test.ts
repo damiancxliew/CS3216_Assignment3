@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { ACTION_TYPES, Action, ClassSummary, GameEvent, MAX_MESSAGE_LENGTH, PlayerView } from '../src'
+import { ACTION_TYPES, Action, ClassSummary, DefiningMomentView, GameEvent, MAX_MESSAGE_LENGTH, PlayerView } from '../src'
 
 const examples: Action[] = [
   { type: 'message', characterId: 'temenggong', text: 'Why did you leave Riau?' },
@@ -119,5 +119,26 @@ describe('PlayerView and ClassSummary', () => {
       flags: [],
     }
     expect(ClassSummary.parse(summary)).toEqual(summary)
+  })
+})
+
+describe('DefiningMomentView', () => {
+  it('requires the decider name', () => {
+    const moment = {
+      momentId: 'm1',
+      scene: 'The moment opens.',
+      deciderId: 'temenggong',
+      deciderName: 'Temenggong Abdul Rahman',
+      status: 'choosing',
+      acts: [],
+      nudge: null,
+      chosenActId: null,
+      reaction: null,
+      predictionOptions: [],
+    }
+    expect(DefiningMomentView.parse(moment)).toEqual(moment)
+    const { deciderName, ...withoutName } = moment
+    expect(deciderName).toBe('Temenggong Abdul Rahman')
+    expect(DefiningMomentView.safeParse(withoutName).success).toBe(false)
   })
 })

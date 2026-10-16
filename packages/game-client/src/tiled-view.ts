@@ -18,13 +18,13 @@ import { layoutMapLabels, overlaps, type LabelRect } from './map-labels.js'
 import { RoomPointers } from './room-pointers.js'
 import { fixtureScenery } from './scenery.js'
 import { matchMapPalette } from './pixel-art.js'
-import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, surfaceNoise } from './materials.js'
+import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, roomFinish, surfaceNoise } from './materials.js'
 import { isExposed, WeatherSurface } from './weather.js'
 import { RoomShells } from './room-shells.js'
 import { detailZoom, overviewZoom } from './camera.js'
 import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
-import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, storyArt } from './story-art.js'
+import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, roomMaterial, storyArt } from './story-art.js'
 import type { PlaygroundSnapshot, SoundCueId } from './model.js'
 import { RoomWandering, ROOM_STEP_MS } from './room-wandering.js'
 import type { MapView } from './view.js'
@@ -418,6 +418,19 @@ class TiledScene extends Phaser.Scene {
 
     for (const door of source.doors) {
       this.walls.removeTileAt(door.position.x, door.position.y)
+      if (source.doorless) {
+        const room = source.rooms.find(({ id }) => id === door.roomId)
+        if (room) {
+          const material = roomMaterial(`${this.current.roomNames?.[room.id] ?? ''} ${this.current.roomDescriptions?.[room.id] ?? ''}`, art)
+          const finish = roomFinish(`${this.current.storyContext ?? this.current.seed}:${room.id}`)
+          this.ground.putTileAt(
+            materialTile(material, door.position.x - room.x, door.position.y - room.y, finish.seed),
+            door.position.x,
+            door.position.y,
+          )
+        }
+        continue
+      }
       const image = this.add.image(door.position.x * T + T / 2, door.position.y * T + T / 2, 'house', DOOR.closed).setDepth(3)
       image.setTint(Phaser.Display.Color.HexStringToColor(art.wallLight).color)
       this.doors.set(door.id, image)
@@ -528,7 +541,9 @@ class TiledScene extends Phaser.Scene {
   private renderSnapshot(snapshot: PlaygroundSnapshot, snap = false): void {
     this.wandering.sync(snapshot, Boolean(snapshot.roomWandering && snapshot.running && !this.reducedMotion))
     this.renderLandmarkTiles(snapshot)
-    for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
+    if (!snapshot.map.doorless) {
+      for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
+    }
 
     this.renderProps(snapshot)
     this.renderActors(snapshot, snap)
@@ -1033,6 +1048,7 @@ class TiledScene extends Phaser.Scene {
     }
 
     for (const cue of snapshot.audio?.cues ?? []) {
+      if (snapshot.map.doorless && cue.id === 'door') continue
       if (this.playedCues.has(cue.key)) continue
       this.playedCues.add(cue.key)
       this.playSfx(cue.id, cue.id === 'step' ? 0.25 : 0.6)

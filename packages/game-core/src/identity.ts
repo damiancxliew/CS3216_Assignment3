@@ -46,6 +46,7 @@ export function mapIdentityPayload(map: StageMap): Omit<StageMap, 'id'> {
       inside: { x: door.inside.x, y: door.inside.y },
       outside: { x: door.outside.x, y: door.outside.y },
     })),
+    ...(map.doorless ? { doorless: true as const } : {}),
     ...(map.waterBodies ? { waterBodies: map.waterBodies.map(body => ({ ...body })) } : {}),
     ...(map.scenery ? { scenery: map.scenery.map(item => ({ ...item })) } : {}),
     ...(map.landmarks ? { landmarks: map.landmarks.map((landmark) => ({ ...landmark })) } : {}),
