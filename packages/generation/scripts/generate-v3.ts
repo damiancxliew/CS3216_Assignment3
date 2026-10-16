@@ -188,6 +188,8 @@ if (details.draft !== undefined) {
     }
     for (const event of draft.storyEvents.filter((e) => e.stageId === stage.id)) lines.push(`  event ${event.id}: ${JSON.stringify(event.when)} → ${event.effect} — ${event.text}`)
     for (const question of draft.openQuestions.filter((q) => q.stageId === stage.id)) lines.push(`  open question ${question.id}: ${question.text}`)
+    const angleIds = new Set(draft.discoveries.filter((d) => d.stageId === stage.id).map((d) => d.id))
+    for (const angle of draft.hintAngles.filter((a) => angleIds.has(a.discoveryId))) lines.push(`  hint ${angle.id} [${angle.kind} → ${angle.discoveryId}]: ${angle.text}`)
   }
   lines.push('')
   for (const character of draft.characters) {
