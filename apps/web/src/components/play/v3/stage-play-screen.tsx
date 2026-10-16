@@ -4,16 +4,24 @@ import { MapPin, Timer } from "lucide-react";
 import type { Action, PlayerView } from "@adventure/play-contract";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
-import { AdventureDialog } from "@/components/play/adventure-dialog";
 import styles from "@/components/play/adventure-chrome.module.css";
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
 import { DefiningMomentScreen } from "@/components/play/v3/defining-moment-screen";
 import { DocumentReader } from "@/components/play/v3/document-reader";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
+import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { V3Map } from "@/components/play/v3/v3-map";
 
 export function v3InsertNoteAction(characterId: string, noteId: string, text?: string): Action {
   return { type: "insertNote", characterId, noteId, ...(text ? { text } : {}) };
+}
+
+export function v3SelectPassageAction(documentId: string, start: number, end: number): Action {
+  return { type: "selectPassage", documentId, start, end };
+}
+
+export function firstV3CollectedDocumentId(documents: Pick<PlayerView["documents"][number], "id">[]): string | null {
+  return documents[0]?.id ?? null;
 }
 
 export function submitV3NoteInsert(
@@ -78,7 +86,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const [walkTo, setWalkTo] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
-  const [documentsOpen, setDocumentsOpen] = useState(false);
+  const [emptyDocumentsOpen, setEmptyDocumentsOpen] = useState(false);
   const [documentId, setDocumentId] = useState<string | null>(
     () => view.documents.find((document) => document.open)?.id ?? null,
   );
@@ -130,8 +138,24 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
 
   function openDocument(id: string) {
     setDocumentId(id);
-    setDocumentsOpen(false);
+    setEmptyDocumentsOpen(false);
     send({ type: "openDocument", documentId: id });
+  }
+
+  function openCollectedDocuments() {
+    const firstDocumentId = firstV3CollectedDocumentId(view.documents);
+    if (firstDocumentId) {
+      openDocument(firstDocumentId);
+    } else {
+      setDocumentId(null);
+      setEmptyDocumentsOpen(true);
+    }
+  }
+
+  function closeDocument() {
+    if (openedDocument) send({ type: "closeDocument", documentId: openedDocument.id });
+    setDocumentId(null);
+    setEmptyDocumentsOpen(false);
   }
 
   if (view.definingMoment === null) {
@@ -175,7 +199,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               <button
                 type="button"
                 className={`${styles.tool} flex min-h-10 items-center gap-2 px-3 text-sm font-bold`}
-                onClick={() => setDocumentsOpen(true)}
+                onClick={openCollectedDocuments}
               >
                 Documents ({view.documents.length})
               </button>
@@ -328,53 +352,35 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
         </div>
 
         {notesOpen ? (
-          <AdventureDialog kind="notes" titleId="v3-notes-title" onClose={() => setNotesOpen(false)}>
-            <div>
-              <h2 id="v3-notes-title" className={styles.modalTitle}>Your notes</h2>
-              <NotesPanel
-                notes={view.notes}
-                busy={busy}
-                selectedCharacterName={currentCharacter?.name ?? null}
-                onInsert={(noteId, text) => {
-                  if (!characterId) return;
-                  submitV3NoteInsert(characterId, noteId, text, send, () => setNotesOpen(false));
-                }}
-              />
-            </div>
-          </AdventureDialog>
+          <V3ScrollDialog
+            eyebrow="Your notes"
+            title="Your notes"
+            kicker="From your travels"
+            footerText="A record of your discoveries"
+            closeLabel="Close notes"
+            onClose={() => setNotesOpen(false)}
+          >
+            <NotesPanel
+              notes={view.notes}
+              busy={busy}
+              selectedCharacterName={currentCharacter?.name ?? null}
+              onInsert={(noteId, text) => {
+                if (!characterId) return;
+                submitV3NoteInsert(characterId, noteId, text, send, () => setNotesOpen(false));
+              }}
+            />
+          </V3ScrollDialog>
         ) : null}
 
-        {documentsOpen ? (
-          <AdventureDialog kind="documents" titleId="v3-documents-title" onClose={() => setDocumentsOpen(false)}>
-            <div>
-              <h2 id="v3-documents-title" className={styles.modalTitle}>Documents</h2>
-              {view.documents.length ? (
-                <div className="mt-4 grid gap-2">
-                  {view.documents.map((document) => (
-                    <button
-                      key={document.id}
-                      type="button"
-                      disabled={busy}
-                      onClick={() => openDocument(document.id)}
-                      className={`${styles.chip} min-h-11 border px-3 py-2 text-left text-sm font-bold disabled:opacity-50`}
-                    >
-                      {document.title}
-                    </button>
-                  ))}
-                </div>
-              ) : <p className="mt-3 text-sm text-muted">No documents have been collected yet.</p>}
-            </div>
-          </AdventureDialog>
-        ) : null}
-
-        {openedDocument ? (
+        {openedDocument || emptyDocumentsOpen ? (
           <DocumentReader
             document={openedDocument}
-            onClose={() => {
-              send({ type: "closeDocument", documentId: openedDocument.id });
-              setDocumentId(null);
-            }}
-            onSelectPassage={(start: number, end: number) => send({ type: "selectPassage", documentId: openedDocument.id, start, end })}
+            documents={view.documents}
+            onSelectDocument={openDocument}
+            onClose={closeDocument}
+            {...(openedDocument
+              ? { onSelectPassage: (start: number, end: number) => send(v3SelectPassageAction(openedDocument.id, start, end)) }
+              : {})}
           />
         ) : null}
       </>
@@ -412,10 +418,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
       {openedDocument ? (
         <DocumentReader
           document={openedDocument}
-          onClose={() => {
-            send({ type: "closeDocument", documentId: openedDocument.id });
-            setDocumentId(null);
-          }}
+          documents={view.documents}
+          onSelectDocument={openDocument}
+          onClose={closeDocument}
         />
       ) : null}
     </main>

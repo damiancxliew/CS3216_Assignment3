@@ -4,7 +4,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
-import { StagePlayScreen, submitV3NoteInsert, v3InsertNoteAction } from "@/components/play/v3/stage-play-screen";
+import { DocumentReader } from "@/components/play/v3/document-reader";
+import { NotesPanel } from "@/components/play/v3/notes-panel";
+import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
+import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
@@ -249,7 +252,116 @@ describe("v3 stage play screen", () => {
     });
   });
 
-  it("sends insertNote and closes the Notes modal after insertion", () => {
+  it("renders the Notes scroll with its saved note and insert action", () => {
+    const notes = [{ id: "note-1", text: "A useful discovery.", source: "document" as const, stageIndex: 0, at: "2026-01-01T00:00:00.000Z" }];
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(
+        V3ScrollDialog,
+        {
+          eyebrow: "Your notes",
+          title: "Your notes",
+          kicker: "From your travels",
+          footerText: "A record of your discoveries",
+          closeLabel: "Close notes",
+          onClose: () => {},
+        },
+        createElement(NotesPanel, {
+          notes,
+          busy: false,
+          selectedCharacterName: "Temenggong",
+          onInsert: () => {},
+        }),
+      ));
+      const emptyMarkup = renderToStaticMarkup(createElement(NotesPanel, {
+        notes: [],
+        busy: false,
+        selectedCharacterName: null,
+        onInsert: () => {},
+      }));
+
+      expect(markup).toContain("Your notes");
+      expect(markup).toContain("From your travels");
+      expect(markup).toContain("From the historical record");
+      expect(markup).toContain("A useful discovery.");
+      expect(markup).toContain("Optional comment for Temenggong");
+      expect(markup).toContain("Insert into chat");
+      expect(markup).toContain("Roll up scroll");
+      expect(emptyMarkup).toContain("No notes yet.");
+      expect(emptyMarkup).toContain("Talk to people and read documents.");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("renders collected documents as navigable scrolls and shows the empty state", () => {
+    const documents: PlayerView["documents"] = [
+      {
+        id: "document-1",
+        kind: "letter",
+        title: "A letter from the harbour",
+        provenance: { masthead: null, date: null, sender: null, recipient: null, place: null },
+        body: "The harbour is busy.\nShips are arriving.",
+        real: false,
+        sourceLabel: null,
+        glossary: [],
+        open: false,
+      },
+      {
+        id: "document-2",
+        kind: "minutes",
+        title: "Council minutes",
+        provenance: { masthead: null, date: null, sender: null, recipient: null, place: null },
+        body: "The council met.",
+        real: false,
+        sourceLabel: null,
+        glossary: [],
+        open: false,
+      },
+    ];
+
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DocumentReader, {
+        document: documents[0]!,
+        documents,
+        onSelectDocument: () => {},
+        onClose: () => {},
+        onSelectPassage: () => {},
+      }));
+      const emptyMarkup = renderToStaticMarkup(createElement(DocumentReader, {
+        document: null,
+        documents: [],
+        onSelectDocument: () => {},
+        onClose: () => {},
+      }));
+
+      expect(markup).toContain("Collected scroll 1 of 2");
+      expect(markup).toContain("From your travels");
+      expect(markup).toContain("A letter from the harbour");
+      expect(markup).toContain("Choose a collected scroll");
+      expect(markup).toContain("Saved in your notes");
+      expect(markup).toContain("Roll up scroll");
+      expect(markup).toContain("data-document-paragraph");
+      expect(emptyMarkup).toContain("No scrolls collected yet.");
+      expect(emptyMarkup).toContain("Continue exploring");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("opens the first collected scroll and preserves passage selection actions", () => {
+    expect(firstV3CollectedDocumentId([{ id: "document-1" }])).toBe("document-1");
+    expect(firstV3CollectedDocumentId([])).toBeNull();
+    expect(v3SelectPassageAction("document-1", 4, 18)).toEqual({
+      type: "selectPassage",
+      documentId: "document-1",
+      start: 4,
+      end: 18,
+    });
+  });
+
+  it("sends insertNote and closes the Notes scroll after insertion", () => {
     const send = vi.fn();
     const close = vi.fn();
     submitV3NoteInsert("character-1", "note-1", "A short comment.", send, close);
