@@ -21,7 +21,7 @@ import { matchMapPalette } from './pixel-art.js'
 import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, roomFinish, surfaceNoise } from './materials.js'
 import { isExposed, WeatherSurface } from './weather.js'
 import { RoomShells } from './room-shells.js'
-import { detailZoom, overviewZoom } from './camera.js'
+import { detailZoom, overviewZoom, scaledZoom } from './camera.js'
 import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
 import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, roomMaterial, storyArt } from './story-art.js'
@@ -81,6 +81,8 @@ export interface TiledViewOptions {
   onLandmark?: (landmarkId: string) => void
   /** "detail" (play) magnifies around the player; "overview" fits the stage's width in a small preview. */
   camera?: 'detail' | 'overview'
+  /** Optional scale for detail camera zoom. */
+  zoomScale?: number
 }
 
 class TiledScene extends Phaser.Scene {
@@ -91,6 +93,7 @@ class TiledScene extends Phaser.Scene {
   private readonly defaultSprite: string
   private readonly clickToWalk: boolean
   private readonly cameraMode: 'detail' | 'overview'
+  private readonly zoomScale: number
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
   private readonly onLandmark: ((landmarkId: string) => void) | undefined
@@ -151,6 +154,7 @@ class TiledScene extends Phaser.Scene {
     this.defaultSprite = options.defaultSprite ?? 'Villager'
     this.clickToWalk = options.clickToWalk ?? false
     this.cameraMode = options.camera ?? 'detail'
+    this.zoomScale = options.zoomScale ?? 1
     this.onActor = options.onActor
     this.onProp = options.onProp
     this.onLandmark = options.onLandmark
@@ -869,7 +873,9 @@ class TiledScene extends Phaser.Scene {
     const mapW = this.current.map.width * T
     const mapH = this.current.map.height * T
     const { width, height } = this.scale.gameSize
-    const zoom = this.cameraMode === 'overview' ? overviewZoom(width, mapW) : detailZoom(width, height, mapW, mapH)
+    const zoom = this.cameraMode === 'overview'
+      ? overviewZoom(width, mapW)
+      : scaledZoom(detailZoom(width, height, mapW, mapH), this.zoomScale)
     cam.setZoom(zoom)
     cam.setRoundPixels(true)
     if (mapW * zoom <= width && mapH * zoom <= height) {

@@ -41,7 +41,7 @@ export function V3PlayClient({
   if (view.phase === "stage" && view.stage && view.stage.intro === null && view.definingMoment === null) {
     return (
       <div className={`${styles.shell} flex h-dvh min-h-0 flex-col`}>
-        <header className={`${styles.header} shrink-0`}>
+        <header className={`${styles.header} shrink-0 lg:[zoom:0.75]`}>
           <h1 className={styles.adventureTitle}>
             <span className={styles.headerEmblem}><Compass size={24} aria-hidden /></span>
             <span className="min-w-0">

@@ -262,6 +262,7 @@ export function V3Map(props: V3MapProps) {
             }
           },
           camera: "detail",
+          zoomScale: window.matchMedia("(min-width: 1024px)").matches ? 0.75 : 1,
         });
         if (destroyed) {
           view.destroy();

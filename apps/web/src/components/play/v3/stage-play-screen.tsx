@@ -206,7 +206,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             </div>
           </section>
 
-          <aside className={`${styles.panel} flex min-h-0 w-full min-w-0 shrink-0 flex-col text-base lg:w-[min(42rem,48vw)]`}>
+          <aside className={`${styles.panel} flex min-h-0 w-full min-w-0 shrink-0 flex-col text-base lg:w-[min(42rem,48vw)] lg:[zoom:0.75]`}>
             <section className={`${styles.where} order-1 flex shrink-0 flex-col gap-2 px-4 py-3 sm:px-5`}>
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <p className="min-w-0 text-sm font-semibold">
