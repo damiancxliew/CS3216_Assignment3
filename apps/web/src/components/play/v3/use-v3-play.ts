@@ -9,9 +9,14 @@ import type { V3PlayClient } from "@/lib/play/v3/client";
 // Back off while the post-turn check is still running; it usually lands in 2–4 s, rarely after ~30 s.
 const PENDING_REFRESH_DELAYS = [2_000, 3_000, 5_000, 8_000, 12_000, 20_000];
 
-export function useV3Play(attemptId: string, initialView: PlayerView, initialRevision: number) {
+export function useV3Play(
+  attemptId: string,
+  initialView: PlayerView,
+  initialRevision: number,
+  makeClient?: () => V3PlayClient,
+) {
   const client = useRef<V3PlayClient | null>(null);
-  if (client.current === null) client.current = createV3PlayClient(attemptId);
+  if (client.current === null) client.current = makeClient ? makeClient() : createV3PlayClient(attemptId);
   const [view, setView] = useState(initialView);
   const [revision, setRevision] = useState(initialRevision);
   const [busy, setBusy] = useState(false);

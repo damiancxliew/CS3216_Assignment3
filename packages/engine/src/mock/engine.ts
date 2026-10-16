@@ -358,6 +358,7 @@ function momentView(state: MockState, stage: (typeof stages)[number]): DefiningM
     momentId: `moment-${state.stageIndex}`,
     scene: stage.scene,
     deciderId: stage.deciderId,
+    deciderName: characters[stage.deciderId]?.name ?? stage.deciderId,
     status: moment.status,
     acts: stage.acts.map(({ id, text }) => ({ id, text })),
     nudge: moment.nudge,

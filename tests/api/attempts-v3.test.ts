@@ -57,6 +57,7 @@ function setup(options: {
   store.addAdventure({
     id: ADVENTURE_ID,
     schoolId: SCHOOL_ID,
+    ownerId: USER_ID,
     status: options.status ?? "published",
     specVersion: 1,
     spec: goldenSpec,
@@ -143,6 +144,7 @@ describe("v3 attempts API service", () => {
     fixture.store.addAdventure({
       id: ADVENTURE_ID,
       schoolId: SCHOOL_ID,
+      ownerId: USER_ID,
       status: "published",
       specVersion: 2,
       spec: anotherVersion,

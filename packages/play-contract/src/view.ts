@@ -125,6 +125,8 @@ export const DefiningMomentView = z.object({
   momentId: Id,
   scene: z.string(),
   deciderId: Id,
+  /** The decider's display name, so the prediction prompt can name them when they aren't in the room. */
+  deciderName: z.string(),
   /** `choosing`: pick an act. `predicting`: the reaction is shown, pick a prediction. */
   status: z.enum(['choosing', 'predicting']),
   /** 2–4 written acts, plus the secret act once unlocked (P9.1, P9.11). Never labelled. */
