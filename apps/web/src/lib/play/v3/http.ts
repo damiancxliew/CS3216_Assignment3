@@ -5,11 +5,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { withPlayUsageV3, withPreviewUsageV3 } from "@/lib/usage/ledger";
 
 import type { V3PreviewDeps } from "./preview";
+import type { V3SummaryDeps } from "./summary";
 import type { V3PlayServiceDeps } from "./service";
 import { SupabaseV3PlayStore } from "./store";
 
 let deps: V3PlayServiceDeps | null = null;
 let previewDeps: V3PreviewDeps | null = null;
+let summaryDeps: V3SummaryDeps | null = null;
 
 export function v3PlayDeps(): V3PlayServiceDeps {
   if (!deps) {
@@ -35,4 +37,14 @@ export function v3PreviewDeps(): V3PreviewDeps {
     };
   }
   return previewDeps;
+}
+
+export function v3SummaryDeps(): V3SummaryDeps {
+  if (!summaryDeps) {
+    summaryDeps = {
+      store: new SupabaseV3PlayStore(createAdminClient()),
+      env: process.env,
+    };
+  }
+  return summaryDeps;
 }
