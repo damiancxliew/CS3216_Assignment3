@@ -76,7 +76,7 @@ export function InterviewScreen({
       ) : null}
       <SpeakerBox
         speaker={interview.interviewer}
-        tag={line.kind === "pushBack" ? "It pushes back" : line.kind === "closing" ? "Closing thoughts" : null}
+        tag={line.kind === "closing" ? "Closing thoughts" : null}
         text={busy && typed.done && line.next !== "continue" ? `${typed.shown}\n\n…` : typed.shown}
         done={typed.done && !answering}
         busy={busy}

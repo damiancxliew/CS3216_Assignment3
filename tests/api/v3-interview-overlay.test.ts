@@ -64,14 +64,14 @@ describe("interview flow", () => {
     expect(html).toMatch(/aria-selected="true"[^>]*>.*▶.*Yes, it was coming either way\./);
   });
 
-  it("labels the push-back and waits for the student before the response panel", () => {
+  it("shows the push-back and waits for the student before the response panel", () => {
     const html = renderToStaticMarkup(createElement(InterviewScreen, {
       interview: { ...interview, answer: { verdictId: "no", evidenceNoteIds: [], text: null }, pushBack: "But the British had ships." },
       notes,
       busy: false,
       send: () => {},
     }));
-    expect(html).toContain("It pushes back");
+    expect(html).not.toContain("It pushes back");
     expect(html).toContain("But the British had ships.");
     expect(html).toContain("Respond");
     expect(html).not.toContain("Your response");
