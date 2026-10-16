@@ -13,6 +13,7 @@ export { MAP_SCHEMA_VERSION, GENERATOR_VERSION } from './types.js'
 export type {
   ActorPositions,
   CompiledStage,
+  CompileOptions,
   DoorState,
   DoorStates,
   Enclosure,
@@ -61,6 +62,7 @@ export function projectMap(value: CompiledStage): StageMap {
       inside: { x: door.inside.x, y: door.inside.y },
       outside: { x: door.outside.x, y: door.outside.y },
     })),
+    ...(map.doorless ? { doorless: true as const } : {}),
     ...(map.waterBodies ? { waterBodies: map.waterBodies.map(body => ({ ...body })) } : {}),
     ...(map.scenery ? { scenery: map.scenery.map(item => ({ ...item })) } : {}),
     ...(map.landmarks ? { landmarks: map.landmarks.map((landmark) => ({ ...landmark })) } : {}),

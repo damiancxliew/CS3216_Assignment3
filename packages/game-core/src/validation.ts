@@ -7,6 +7,7 @@ import {
   GENERATOR_VERSION,
   MAP_SCHEMA_VERSION,
   type CompiledStage,
+  type CompileOptions,
   type DoorState,
   type Enclosure,
   type MapDoor,
@@ -69,7 +70,7 @@ export function isValidSeed(value: unknown): value is string {
   return typeof value === 'string' && SEED_PATTERN.test(value)
 }
 
-export function validateStageLayout(value: unknown): ValidationResult {
+export function validateStageLayout(value: unknown, options: CompileOptions = {}): ValidationResult {
   const errors: string[] = []
   if (!isRecord(value)) return result(['layout: expected an object'])
   if (!hasRequiredKeys(value, ['stageId', 'spawnRoomId', 'rooms', 'placements'])) {
@@ -129,7 +130,12 @@ export function validateStageLayout(value: unknown): ValidationResult {
     const enclosure = room.enclosure === 'open' ? 'open' : 'enclosed'
     if (enclosure === 'open') {
       if (room.doorDefault !== null) errors.push(`rooms[${index}].doorDefault: open locations require null`)
-    } else if (typeof room.doorDefault !== 'string' || !DOOR_STATE_VALUES.has(room.doorDefault as DoorState)) {
+    } else if (
+      room.doorDefault !== null &&
+      (typeof room.doorDefault !== 'string' || !DOOR_STATE_VALUES.has(room.doorDefault as DoorState))
+    ) {
+      errors.push(`rooms[${index}].doorDefault: expected open or closed`)
+    } else if (room.doorDefault === null && options.doors !== false) {
       errors.push(`rooms[${index}].doorDefault: expected open or closed`)
     }
   })
@@ -295,10 +301,11 @@ function reachablePoints(map: StageMap): Set<string> {
 }
 
 function validateMapShape(value: unknown, errors: string[]): value is StageMap {
-  if (!isRecord(value) || !hasExactKeys(value, ['schemaVersion', 'generatorVersion', 'id', 'stageId', 'seed', 'width', 'height', 'tiles', 'rooms', 'doors', ...(value.landmarks !== undefined ? ['landmarks'] : []), ...(value.scenery !== undefined ? ['scenery'] : []), ...(value.waterBodies !== undefined ? ['waterBodies'] : [])])) {
+  if (!isRecord(value) || !hasExactKeys(value, ['schemaVersion', 'generatorVersion', 'id', 'stageId', 'seed', 'width', 'height', 'tiles', 'rooms', 'doors', ...(Object.prototype.hasOwnProperty.call(value, 'doorless') ? ['doorless'] : []), ...(value.landmarks !== undefined ? ['landmarks'] : []), ...(value.scenery !== undefined ? ['scenery'] : []), ...(value.waterBodies !== undefined ? ['waterBodies'] : [])])) {
     errors.push('map: unexpected or missing fields')
     return false
   }
+  if (Object.prototype.hasOwnProperty.call(value, 'doorless') && value.doorless !== true) errors.push('map.doorless: expected true')
   if (value.schemaVersion !== MAP_SCHEMA_VERSION) errors.push('map.schemaVersion: unsupported version')
   if (value.generatorVersion !== GENERATOR_VERSION) errors.push('map.generatorVersion: unsupported version')
   if (typeof value.id !== 'string' || !/^map-[0-9a-f]{16}$/.test(value.id)) errors.push('map.id: invalid identity')
@@ -509,6 +516,7 @@ export function validateCompiledStage(value: unknown): ValidationResult {
   if (initialDoorIds.length !== doorIds.size || initialDoorIds.some((id) => !doorIds.has(id))) errors.push('initialDoors: keys must exactly match map doors')
   for (const doorId of initialDoorIds) {
     if (!DOOR_STATE_VALUES.has(doors[doorId] as DoorState)) errors.push(`initialDoors.${doorId}: invalid state`)
+    if (compiled.map.doorless && doors[doorId] !== 'open') errors.push(`initialDoors.${doorId}: doorless maps keep every doorway open`)
   }
   const placementIds = new Set<string>()
   const occupied = new Set<string>()

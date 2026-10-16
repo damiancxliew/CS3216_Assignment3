@@ -1,3 +1,5 @@
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import type OpenAI from 'openai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +18,7 @@ import {
   sourceLabel,
   type SearchHit,
 } from '../src/sources'
+import { pinnedFetch, publicOnlyLookup } from '../src/sources/pinned-fetch'
 
 describe('source allowlist', () => {
   it('allows exact domains and subdomains without accepting lookalikes', () => {
@@ -210,6 +213,33 @@ describe('runSources', () => {
     expect(result.rejected).toEqual([{ url: 'https://example.com/private', reason: 'not_allowlisted' }])
   })
 
+  it.skipIf(!isAllowedUrl('http://localhost:1234/', { allowAny: true }))(
+    'blocks a rebinding response after the pre-check for an allowlisted localhost URL',
+    async () => {
+      const server = createServer((_request, response) => response.end(LONG_TEXT))
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', () => resolve())
+      })
+      const address = server.address() as AddressInfo
+      const url = `http://localhost:${address.port}/`
+
+      try {
+        const search = new FakeWebSearch([{ url, title: 'Local record', snippet: '' }])
+        const result = await runSources({
+          episode: 'A source',
+          policy: { allowAny: true },
+        }, { search, lookup: publicLookup })
+
+        expect(result.rejected).toEqual([{ url, reason: 'private_address' }])
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          server.close((error) => error ? reject(error) : resolve())
+        })
+      }
+    },
+  )
+
   it('rechecks redirect targets and reports non-success and short pages', async () => {
     const search = new FakeWebSearch([
       { url: 'https://nas.gov.sg/redirect', title: 'Redirect', snippet: '' },
@@ -353,6 +383,90 @@ describe('runSources', () => {
 
     expect(fetches).toBe(0)
     expect(result.rejected).toEqual([{ url, reason: 'private_address' }])
+  })
+})
+
+describe('DNS-pinned source fetching', () => {
+  it('rejects private and empty lookup results', async () => {
+    const callLookup = (lookup: ReturnType<typeof publicOnlyLookup>, all: boolean) =>
+      new Promise<{ address: string | Array<{ address: string; family: number }>; family?: number }>(
+        (resolve, reject) => {
+          lookup('source.example', { all }, (error, address, family) => {
+            if (error) {
+              reject(error)
+              return
+            }
+            resolve(family === undefined ? { address } : { address, family })
+          })
+        },
+      )
+
+    await expect(callLookup(
+      publicOnlyLookup(async () => [{ address: '127.0.0.1', family: 4 }]),
+      false,
+    )).rejects.toMatchObject({ code: 'ERR_SOURCE_PRIVATE_ADDRESS' })
+    await expect(callLookup(publicOnlyLookup(async () => []), false))
+      .rejects.toMatchObject({ code: 'ERR_SOURCE_PRIVATE_ADDRESS' })
+  })
+
+  it('returns public addresses in all and first-address lookup forms', async () => {
+    const addresses = [
+      { address: '93.184.216.34', family: 4 },
+      { address: '2606:4700:4700::1111', family: 6 },
+    ]
+    const resolve = async () => addresses
+    const lookup = publicOnlyLookup(resolve)
+    const callLookup = (all: boolean) =>
+      new Promise<{ address: string | Array<{ address: string; family: number }>; family?: number }>(
+        (resolve, reject) => {
+          lookup('source.example', { all }, (error, address, family) => {
+            if (error) {
+              reject(error)
+              return
+            }
+            resolve(family === undefined ? { address } : { address, family })
+          })
+        },
+      )
+
+    await expect(callLookup(true)).resolves.toEqual({ address: addresses })
+    await expect(callLookup(false)).resolves.toEqual({
+      address: '93.184.216.34',
+      family: 4,
+    })
+  })
+
+  it('blocks a localhost connection through undici with the private-address error code', async () => {
+    const server = createServer((_request, response) => response.end(LONG_TEXT))
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+    const address = server.address() as AddressInfo
+
+    try {
+      let failure: unknown
+      try {
+        await pinnedFetch(`http://localhost:${address.port}/`)
+      } catch (cause) {
+        failure = cause
+      }
+
+      let current = failure
+      let hasPrivateAddressCode = false
+      for (let depth = 0; depth < 4 && typeof current === 'object' && current !== null; depth += 1) {
+        if ('code' in current && current.code === 'ERR_SOURCE_PRIVATE_ADDRESS') {
+          hasPrivateAddressCode = true
+          break
+        }
+        current = 'cause' in current ? current.cause : undefined
+      }
+      expect(hasPrivateAddressCode).toBe(true)
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => error ? reject(error) : resolve())
+      })
+    }
   })
 })
 
