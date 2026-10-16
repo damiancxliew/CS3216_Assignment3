@@ -33,6 +33,8 @@ export interface V3BriefStore {
   startFromBrief(id: string, title: string): Promise<boolean>;
   /** deletes the row, only while briefing */
   discard(id: string): Promise<boolean>;
+  /** the owner's most recent untouched briefing row (0 sources, no user messages), if any */
+  findUntouched(ownerId: string): Promise<string | null>;
   /** the owner's rows for the /teacher list, excluding archived */
   listForOwner(ownerId: string): Promise<V3BriefListRow[]>;
 }
@@ -46,6 +48,13 @@ type StoredRow = {
   brief_state: unknown;
   updated_at: string;
 };
+
+/** A fresh row: nothing uploaded and no teacher message yet. */
+function isUntouched(row: StoredRow): boolean {
+  const state = briefStateV3Schema.safeParse(row.brief_state);
+  if (!state.success) return false;
+  return state.data.sources.length === 0 && !state.data.messages.some((message) => message.role === "user");
+}
 
 function toBriefRow(row: StoredRow): V3BriefRow {
   const state = briefStateV3Schema.safeParse(row.brief_state);
@@ -101,6 +110,18 @@ export function supabaseV3BriefStore(client: SupabaseClient): V3BriefStore {
       if (error) throw error;
       return (data ?? []).length > 0;
     },
+    async findUntouched(ownerId) {
+      const { data, error } = await client
+        .from("adventures_v3")
+        .select("id, school_id, owner_id, status, title, brief_state, updated_at")
+        .eq("owner_id", ownerId)
+        .eq("status", "briefing")
+        .order("updated_at", { ascending: false })
+        .returns<StoredRow[]>();
+      if (error) throw error;
+      for (const row of data ?? []) if (isUntouched(row)) return row.id;
+      return null;
+    },
     async listForOwner(ownerId) {
       const { data, error } = await client
         .from("adventures_v3")
@@ -154,6 +175,15 @@ export function memoryV3BriefStore() {
       const row = rows.get(id);
       if (!row || row.status !== "briefing") return false;
       return rows.delete(id);
+    },
+    async findUntouched(ownerId) {
+      // Map order = insertion order; >= makes the later insert win a timestamp tie
+      let best: StoredRow | null = null;
+      for (const row of rows.values()) {
+        if (row.owner_id !== ownerId || row.status !== "briefing" || !isUntouched(row)) continue;
+        if (!best || row.updated_at >= best.updated_at) best = row;
+      }
+      return best?.id ?? null;
     },
     async listForOwner(ownerId) {
       return [...rows.values()]

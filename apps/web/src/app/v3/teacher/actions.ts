@@ -116,14 +116,17 @@ async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocume
   }
 }
 
-/** Opens a new guided brief: a `briefing` row the chat then fills in. */
+/** Opens a guided brief — reusing the owner's most recent untouched row if there is one. */
 export async function startV3Brief() {
   const auth = await requireStaff();
   if ("error" in auth) return auth;
   if (!v3SchoolAllowed(auth.schoolId)) return notFound;
 
+  const store = supabaseV3BriefStore(createAdminClient());
   try {
-    const adventureId = await supabaseV3BriefStore(createAdminClient()).create({
+    const existing = await store.findUntouched(auth.userId);
+    if (existing) return { adventureId: existing };
+    const adventureId = await store.create({
       schoolId: auth.schoolId,
       ownerId: auth.userId,
     });
@@ -145,11 +148,12 @@ export async function v3BriefTurn(adventureId: string, input: BriefInputV3) {
     return { ok: false as const, error: "This feature is temporarily unavailable. Please try again later." };
   }
 
-  let documents: ExtractedDocument[] = [];
+  let documents: ExtractedDocument[];
   try {
     documents = await defaultGenerationDeps().sources.load(adventureId);
-  } catch {
-    // sources_v3 is not available yet; the digest then behaves as if no sources
+  } catch (error) {
+    console.error("could not load v3 brief sources", adventureId, error);
+    return { ok: false as const, error: "Your sources can’t be loaded right now. Please try again later." };
   }
 
   const result = await briefTurnV3(context.row.state, input, {
