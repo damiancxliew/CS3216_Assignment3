@@ -9,13 +9,14 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 
-import { validateSkeleton } from '@adventure/spec-v3'
-import type { Condition, SkeletonShape } from '@adventure/spec-v3'
+import { validateSkeleton, validateSpec } from '@adventure/spec-v3'
+import type { AdventureSpec, Condition, SkeletonShape } from '@adventure/spec-v3'
 
 import { extractDocument, slugify } from '../src/ingest/extract'
 import type { ExtractedDocument } from '../src/ingest/types'
 import { OpenAiLlmClient } from '../src/llm/openai'
 import { generateDetails } from '../src/v3/details/generate'
+import { generateEndings } from '../src/v3/endings/generate'
 import { generateSkeleton } from '../src/v3/skeleton/generate'
 
 const args = process.argv.slice(2)
@@ -35,10 +36,12 @@ const teacherNotes = flag('notes')
 const outDir = flag('out') ?? 'evals/results/v3-manual'
 
 const skeletonPath = flag('skeleton')
+const draftPath = flag('draft')
 const detailsModel = flag('details-model')
+const endingsModel = flag('endings-model')
 
 if (sources.length === 0 || episode === undefined || (readingLevel !== 'sec' && readingLevel !== 'jc')) {
-  console.error('usage: generate-v3.ts --source <file>... --episode "..." --level sec|jc [--notes "..."] [--model m] [--skeleton skeleton.json] [--details-model m] [--out dir]')
+  console.error('usage: generate-v3.ts --source <file>... --episode "..." --level sec|jc [--notes "..."] [--model m] [--skeleton skeleton.json] [--draft spec.json|draft.json] [--details-model m] [--endings-model m] [--out dir]')
   process.exit(2)
 }
 
@@ -62,8 +65,19 @@ const llm = new OpenAiLlmClient({ timeoutMs: 600_000 })
 await mkdir(outDir, { recursive: true })
 
 let skeleton: SkeletonShape
+let draftInput: AdventureSpec | undefined
 let skeletonMetrics: unknown = null
-if (skeletonPath !== undefined) {
+if (draftPath !== undefined) {
+  const loaded = validateSpec(JSON.parse(await readFile(draftPath, 'utf8')))
+  if (!loaded.ok) {
+    console.log(`draft at ${draftPath} failed validation:`)
+    for (const issue of loaded.issues) console.log(`  ${issue.path}: ${issue.message}`)
+    process.exit(1)
+  }
+  draftInput = loaded.spec
+  skeleton = loaded.spec // a full spec is also a valid SkeletonShape
+  console.log(`loaded draft from ${draftPath}`)
+} else if (skeletonPath !== undefined) {
   const loaded = validateSkeleton(JSON.parse(await readFile(skeletonPath, 'utf8')))
   if (!loaded.ok) {
     console.log(`skeleton at ${skeletonPath} failed validation:`)
@@ -129,17 +143,32 @@ for (const ending of skeleton.endings) lines.push(`  ${ending.id} (${ending.type
 
 // --- details pass --------------------------------------------------------------------------------
 
-const details = await generateDetails(
-  { skeleton, documents, ...(readingLevel !== undefined ? { readingLevel } : {}) },
-  { llm, ...(detailsModel !== undefined ? { model: detailsModel } : {}) },
-)
+const details = draftInput !== undefined
+  ? { ok: true, draft: draftInput, issues: [], warnings: [], slantedDocuments: [], mergedDuplicates: [], pendingPasses: [], metrics: { calls: [] as import('../src/v3/details/calls').DetailCallMetrics[], totalCostUsd: 0 } }
+  : await generateDetails(
+      { skeleton, documents, ...(readingLevel !== undefined ? { readingLevel } : {}) },
+      { llm, ...(detailsModel !== undefined ? { model: detailsModel } : {}) },
+    )
 for (const [i, call] of details.metrics.calls.entries())
   console.log(`details call ${i + 1} (${call.label}): ${call.model} in ${(call.latencyMs / 1000).toFixed(1)}s, issues ${call.issueCount}, cost $${call.costUsd?.toFixed(4) ?? '?'}`)
 
 await writeFile(join(outDir, 'details-issues.json'), `${JSON.stringify({ issues: details.issues, warnings: details.warnings }, null, 2)}\n`)
-await writeFile(join(outDir, 'metrics.json'), `${JSON.stringify({ skeleton: skeletonMetrics, details: details.metrics }, null, 2)}\n`)
-
 if (details.draft !== undefined) await writeFile(join(outDir, 'draft.json'), `${JSON.stringify(details.draft, null, 2)}\n`)
+
+// --- endings pass --------------------------------------------------------------------------------
+
+const endings = details.draft === undefined
+  ? { ok: false, spec: undefined as AdventureSpec | undefined, issues: [], warnings: [], pendingPasses: [] as string[], metrics: { calls: [] as import('../src/v3/details/calls').DetailCallMetrics[], totalCostUsd: 0 } }
+  : await generateEndings(
+      { draft: details.draft, documents, ...(readingLevel !== undefined ? { readingLevel } : {}) },
+      { llm, ...(endingsModel !== undefined ? { model: endingsModel } : {}) },
+    )
+for (const [i, call] of endings.metrics.calls.entries())
+  console.log(`endings call ${i + 1} (${call.label}): ${call.model} in ${(call.latencyMs / 1000).toFixed(1)}s, issues ${call.issueCount}, cost $${call.costUsd?.toFixed(4) ?? '?'}`)
+
+await writeFile(join(outDir, 'endings-issues.json'), `${JSON.stringify({ issues: endings.issues, warnings: endings.warnings }, null, 2)}\n`)
+await writeFile(join(outDir, 'metrics.json'), `${JSON.stringify({ skeleton: skeletonMetrics, details: details.metrics, endings: endings.metrics }, null, 2)}\n`)
+if (endings.spec !== undefined) await writeFile(join(outDir, 'spec.json'), `${JSON.stringify(endings.spec, null, 2)}\n`)
 
 lines.push('')
 lines.push('=== details ===')
@@ -182,12 +211,49 @@ for (const dup of details.mergedDuplicates) lines.push(`merged duplicates: kept 
 for (const issue of [...details.issues.map((i) => ({ ...i, kind: 'issue' })), ...details.warnings.map((w) => ({ ...w, kind: 'warning' }))])
   lines.push(`  ${issue.kind} ${issue.code} at ${issue.path}: ${issue.message}`)
 
+lines.push('')
+lines.push('=== endings ===')
+if (endings.spec !== undefined) {
+  const spec = endings.spec
+  for (const moment of spec.definingMoments) {
+    lines.push('')
+    lines.push(`Moment ${moment.id}: ${moment.scene}`)
+    lines.push(`  nudge: ${moment.nudge}`)
+    lines.push(`  final call: ${moment.finalCallNarration}`)
+    for (const act of moment.acts) {
+      lines.push(`  act ${act.id}${act.secret !== undefined ? ' [SECRET]' : ''}: ${act.text}${act.deception === true ? ' (deception)' : ''}`)
+      lines.push(`    reaction: ${act.reaction}`)
+      if (act.secret !== undefined) lines.push(`    unlock (≥${act.secret.minMet}): ${act.secret.unlock.map(renderCondition).join(' | ')}`)
+      for (const rule of spec.definingMoments.find((m) => m.id === moment.id)!.rules.filter((r) => r.actId === act.id))
+        lines.push(`    rule → ${rule.outcomeId}${rule.when !== undefined ? ` when ${renderCondition(rule.when)}` : ' (fallback)'}`)
+    }
+    for (const outcome of moment.outcomes) {
+      lines.push(`  outcome ${outcome.id}${outcome.historical === true ? ' [historical]' : ''}${outcome.secret === true ? ' [secret]' : ''}: “${outcome.predictionText}”`)
+      lines.push(`    because: ${outcome.because}`)
+    }
+  }
+  lines.push('')
+  for (const ending of spec.endings) {
+    const coreIds = new Set(spec.discoveries.filter((d) => d.core).map((d) => d.id))
+    lines.push(`Ending ${ending.id} (${ending.type}): ${ending.title}`)
+    lines.push(`  epilogue: ${ending.epilogue}`)
+    lines.push(`  interviewer: ${ending.interview.interviewer}`)
+    lines.push(`  question: ${ending.interview.question}`)
+    for (const verdict of ending.interview.verdicts)
+      lines.push(`  verdict ${verdict.id}: ${verdict.text} — countered by ${verdict.counterPoints.map((id) => `${id}${coreIds.has(id) ? ' (core)' : ''}`).join(', ')}`)
+    lines.push(`  general counter: ${ending.interview.generalCounter}`)
+    lines.push('')
+  }
+}
+for (const issue of [...endings.issues.map((i) => ({ ...i, kind: 'issue' })), ...endings.warnings.map((w) => ({ ...w, kind: 'warning' }))])
+  lines.push(`  ${issue.kind} ${issue.code} at ${issue.path}: ${issue.message}`)
+
 const outline = lines.join('\n')
 await writeFile(join(outDir, 'outline.txt'), `${outline}\n`)
 console.log('')
 console.log(outline)
-console.log(`\nwrote ${outDir} — details cost $${details.metrics.totalCostUsd.toFixed(4)}`)
-if (!details.ok) process.exit(1)
+console.log(`\nwrote ${outDir} — details $${details.metrics.totalCostUsd.toFixed(4)}, endings $${endings.metrics.totalCostUsd.toFixed(4)}`)
+if (!details.ok || !endings.ok) process.exit(1)
 
 function renderCondition(condition: Condition): string {
   if ('all' in condition) return condition.all.map(renderCondition).join(' + ')
