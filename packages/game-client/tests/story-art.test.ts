@@ -9,6 +9,8 @@ describe('story art direction', () => {
   it('keeps detail readable on compact and desktop screens', () => {
     expect(detailZoom(390, 780, 512, 640)).toBe(3)
     expect(detailZoom(1440, 960, 512, 640)).toBe(4)
+    expect(detailZoom(770, 675, 512, 640)).toBe(3)
+    expect(detailZoom(1020, 810, 512, 640)).toBe(4)
     expect(Number.isInteger(detailZoom(900, 600, 720, 480))).toBe(true)
   })
   it('uses stage fauna and preserves a deliberate choice of no animals', () => {
