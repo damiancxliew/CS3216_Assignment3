@@ -1,5 +1,7 @@
 "use client";
 
+import { boxClass, ContinueIndicator, NameTag, pixelFont } from "@/components/play/v3/dialogue-box";
+
 /** The bottom dialogue box for one speaker's line, in the style of the talk and defining-moment box. */
 export function SpeakerBox({
   speaker,
@@ -27,37 +29,42 @@ export function SpeakerBox({
     <section
       aria-label={`${speaker} says`}
       onClick={onAdvance}
-      className="absolute inset-x-2 bottom-2 z-20 cursor-pointer font-sans text-[#1f2433] sm:inset-x-4 sm:bottom-4"
+      className={`${boxClass} cursor-pointer flex-row items-stretch gap-2 px-2 py-2 sm:gap-3 sm:px-3 sm:py-3`}
     >
-      {tag ? (
-        <span className="mb-2 ml-2 inline-flex max-w-full rounded-md border-2 border-[#1f2433] bg-[#ffd65a] px-3 py-1 text-xs font-black uppercase tracking-wide shadow-[2px_2px_0_#1f2433] sm:ml-28">
-          <span className="truncate">{tag}</span>
-        </span>
-      ) : null}
-      <div className="flex max-h-[45dvh] min-h-[8.5rem] overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] shadow-[4px_4px_0_#1f2433]">
-        <div className="hidden w-24 shrink-0 place-items-center border-r-4 border-[#1f2433] bg-[#e9dcc0] text-3xl font-black sm:grid">
-          {initials || "?"}
+      <div className="flex shrink-0 items-center">
+        <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden border-4 border-[#1f2433] bg-[#2a2f3d] min-[480px]:h-24 min-[480px]:w-24 sm:h-28 sm:w-28">
+          <span className={`${pixelFont.className} text-2xl font-bold text-[#fffaf0] sm:text-4xl`}>{initials || "?"}</span>
         </div>
-        <div className="relative flex min-w-0 flex-1 flex-col">
-          <span className="self-start rounded-br-lg bg-[#1f2433] px-4 py-1.5 text-sm font-black text-[#fffaf0]">{speaker}</span>
-          {note ? <p className="px-5 pt-2 text-xs font-bold uppercase tracking-wide text-[#1f2433]/60">{note}</p> : null}
-          <p aria-live="polite" className="min-h-0 flex-1 overflow-y-auto whitespace-pre-line px-5 pt-3 pb-8 text-base font-medium leading-7 sm:text-lg">
-            {text}
-          </p>
-          {done && continueLabel ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={(event) => {
-                event.stopPropagation();
-                onAdvance();
-              }}
-              className="absolute right-3 bottom-2 flex min-h-9 items-center gap-1 rounded-md px-2 text-sm font-black disabled:opacity-50"
-            >
-              {continueLabel} <span aria-hidden className="animate-bounce">▼</span>
-            </button>
+      </div>
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 pb-2 pr-2 pt-1">
+          <NameTag>{speaker}</NameTag>
+          {tag ? (
+            <span className="inline-block rounded-md border-2 border-[#1f2433] bg-[#ffd65a] px-2 py-0.5 text-xs font-black uppercase tracking-wide">
+              {tag}
+            </span>
           ) : null}
         </div>
+        <div className="min-h-0 flex-1 overflow-y-auto pb-7 pr-2">
+          {note ? <p className="text-xs font-bold uppercase tracking-wide text-[#5c6472]">{note}</p> : null}
+          <p aria-live="polite" className={`${pixelFont.className} mt-1 whitespace-pre-line text-base leading-relaxed sm:text-lg`}>
+            {text}
+          </p>
+        </div>
+        {done && continueLabel ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAdvance();
+            }}
+            className="absolute bottom-0 right-6 min-h-8 px-2 text-sm font-black text-[#e36b33] disabled:opacity-50"
+          >
+            {continueLabel}
+          </button>
+        ) : null}
+        {done && continueLabel ? <ContinueIndicator /> : null}
       </div>
     </section>
   );

@@ -12,6 +12,10 @@ import { InterviewScreen } from "@/components/play/v3/interview-screen";
 import { backdropFromState, backdropFromView } from "@/lib/play/v3/backdrop";
 import { DEFAULT_CLOSING, interviewDraftStart, interviewLine } from "@/lib/play/v3/interview-flow";
 
+vi.mock("next/font/google", () => ({
+  Pixelify_Sans: () => ({ className: "pixelify-sans" }),
+}));
+
 const goldenSpec = EngineSpec.parse(JSON.parse(readFileSync(resolve(process.cwd(), "fixtures/golden-1819.json"), "utf8")));
 
 const interview: InterviewView = {

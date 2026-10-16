@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEve
 
 import { portraitUrl } from "@/lib/play/v3/portraits";
 
-const pixelFont = Pixelify_Sans({
+export const pixelFont = Pixelify_Sans({
   subsets: ["latin"],
   weight: ["400", "600", "700"],
   display: "swap",
@@ -40,7 +40,7 @@ type MomentProps = {
 
 export type DialogueBoxProps = TalkProps | MomentProps;
 
-const boxClass =
+export const boxClass =
   "absolute bottom-2 left-1/2 z-20 flex max-h-[55%] w-[calc(100%-1rem)] max-w-[56rem] -translate-x-1/2 overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:bottom-4 sm:w-[calc(100%-2rem)]";
 
 function wordCount(text: string) {
@@ -149,7 +149,7 @@ function DialoguePortrait({ character, portraitBase }: { character: CharacterVie
   );
 }
 
-function NameTag({ children }: { children: string }) {
+export function NameTag({ children }: { children: string }) {
   return (
     <span className={`${pixelFont.className} inline-block max-w-full whitespace-normal break-words bg-[#1f2433] px-3 py-1 text-sm font-bold text-[#fffaf0] sm:text-base`}>
       {children}
@@ -157,7 +157,7 @@ function NameTag({ children }: { children: string }) {
   );
 }
 
-function ContinueIndicator() {
+export function ContinueIndicator() {
   return (
     <span
       aria-hidden="true"
