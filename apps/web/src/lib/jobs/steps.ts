@@ -2,7 +2,8 @@ import { defineStep, type EnqueueStep } from "@adventure/jobs";
 import { EngineSpec } from "@adventure/engine";
 import { OpenAiImageService } from "@adventure/generation/assets";
 
-import { SupabaseAssetCache, SupabaseAssetStore } from "@/lib/assets/supabase";
+import { createAssetStore } from "@/lib/assets/store";
+import { SupabaseAssetCache } from "@/lib/assets/supabase";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateStancePortraits } from "@/lib/v3/portraits/generate";
 
@@ -24,13 +25,16 @@ const stancePortraitStep = defineStep<
 
     const spec = EngineSpec.parse(data.spec);
     return generateStancePortraits(spec, input.adventureId, input.version, {
-      images: new OpenAiImageService(),
-      store: new SupabaseAssetStore(admin),
+      // Two image calls of at most 60 s each fit between `startBy` and the step's abort at ~270 s.
+      images: new OpenAiImageService({ timeoutMs: 60_000 }),
+      store: createAssetStore(admin),
       cache: new SupabaseAssetCache(admin),
       signal,
+      startBy: Date.now() + 120_000,
     });
   },
-  { maxAttempts: 2 },
+  // Each attempt resumes from the prompt-hash cache, so a large cast finishes over a few attempts.
+  { maxAttempts: 6 },
 );
 
 export const jobSteps = [stancePortraitStep];

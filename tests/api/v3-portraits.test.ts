@@ -15,7 +15,7 @@ import {
 } from "@adventure/generation/assets";
 
 import { jobSteps, portraitsStep } from "@/lib/jobs/steps";
-import { generateStancePortraits, stancePortraitRequests } from "@/lib/v3/portraits/generate";
+import { generateStancePortraits, PortraitBudgetError, stancePortraitRequests } from "@/lib/v3/portraits/generate";
 import {
   portraitFile,
   portraitStoragePrefix,
@@ -33,6 +33,9 @@ describe("portrait helpers", () => {
     expect(v3PortraitBase(adventureId, 3, "https://supabase.example.test/"))
       .toBe("https://supabase.example.test/storage/v1/object/public/assets/v3/portraits/adventure-portraits/v3");
     expect(v3PortraitBase(adventureId, 3, "")).toBeNull();
+    // With S3 assets the portraits live under the CloudFront base, like every other asset.
+    expect(v3PortraitBase(adventureId, 3, "https://supabase.example.test", "https://cdn.example.test/"))
+      .toBe("https://cdn.example.test/v3/portraits/adventure-portraits/v3");
     expect(portraitUrl("raffles:r1", null)).toBeNull();
   });
 });
@@ -229,6 +232,18 @@ describe("stance portrait generation", () => {
       signal: controller.signal,
     })).rejects.toThrow("Portrait generation aborted.");
     expect(started).toBe(1);
+  });
+
+  it("stops starting image calls past its time budget, then fails so the retry resumes from the cache", async () => {
+    const images = new FakeImageService("ok", 0.011);
+    const store = new InMemoryAssetStore();
+    const cache = new InMemoryAssetCache();
+    await expect(generateStancePortraits(spec, adventureId, 1, { images, store, cache, startBy: Date.now() - 1 }))
+      .rejects.toBeInstanceOf(PortraitBudgetError);
+    expect(store.objects.size).toBe(0);
+    // With time, the next attempt completes.
+    const result = await generateStancePortraits(spec, adventureId, 1, { images, store, cache });
+    expect(result.generated).toBe(stancePortraitRequests(spec).length);
   });
 
   it("registers the job step and returns its publish enqueue descriptor", () => {

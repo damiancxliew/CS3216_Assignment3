@@ -20,6 +20,19 @@ export interface StancePortraitDeps {
   cache: AssetCache;
   quality?: ImageRequest["quality"];
   signal?: AbortSignal;
+  /**
+   * Epoch ms after which no new image call starts. A call can take up to two image timeouts, so the step stops
+   * starting calls early enough to finish inside the host's 300 s limit, then fails so the retry resumes from
+   * the cache instead of being killed mid-call.
+   */
+  startBy?: number;
+}
+
+export class PortraitBudgetError extends Error {
+  constructor(readonly remaining: number) {
+    super(`Portrait time budget reached with ${remaining} portrait(s) left; the retry resumes from the cache.`);
+    this.name = "PortraitBudgetError";
+  }
 }
 
 export function stancePortraitRequests(
@@ -63,6 +76,8 @@ export async function generateStancePortraits(
   const prefix = portraitStoragePrefix(adventureId, version);
   const counts = { generated: 0, cached: 0, failed: 0, costUsd: 0 };
   let nextIndex = 0;
+  let deferred = 0;
+  const outOfTime = () => deps.startBy !== undefined && Date.now() > deps.startBy;
 
   async function generateOne(request: { portraitKey: string; prompt: string }): Promise<void> {
     throwIfAborted(deps.signal);
@@ -91,6 +106,10 @@ export async function generateStancePortraits(
         quality,
       };
       throwIfAborted(deps.signal);
+      if (outOfTime()) {
+        deferred += 1;
+        return;
+      }
       let result;
       try {
         result = await deps.images.generate(imageRequest);
@@ -98,6 +117,10 @@ export async function generateStancePortraits(
         if (!(error instanceof ImageServiceError) || error.code !== "content-filtered") throw error;
         counts.costUsd += error.rejectedImage?.costUsd ?? 0;
         throwIfAborted(deps.signal);
+        if (outOfTime()) {
+          deferred += 1;
+          return;
+        }
         result = await deps.images.generate({
           ...imageRequest,
           prompt: buildPortraitSafetyRetryPrompt(request.prompt),
@@ -129,5 +152,6 @@ export async function generateStancePortraits(
 
   await Promise.all(Array.from({ length: Math.min(4, requests.length) }, () => worker()));
   throwIfAborted(deps.signal);
+  if (deferred > 0) throw new PortraitBudgetError(deferred);
   return counts;
 }
