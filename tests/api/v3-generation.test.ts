@@ -13,6 +13,7 @@ import type { ExtractedDocument, OutsideSource } from "@adventure/generation";
 import type { LlmUsage } from "@adventure/generation/llm";
 import { createJobs, memoryJobStore } from "@adventure/jobs";
 
+import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
 import { memoryV3AdventureWriter, memoryV3SourceStore } from "@/lib/v3/generation/deps";
 import type { GenerationDeps } from "@/lib/v3/generation/deps";
 import { approveSkeleton, getGenerationProgress, startGeneration } from "@/lib/v3/generation/service";
@@ -349,5 +350,38 @@ describe("v3 generation job", () => {
       expect.objectContaining({ code: "w2", pass: "endings" }),
     ]);
     expect(progress.steps).toHaveLength(6);
+  });
+
+  it("fails the adventure instead of orphaning it when saveUploads throws", async () => {
+    const { deps, jobs, adventures, sources, store } = await makeJob();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(sources, "saveUploads").mockRejectedValue(new Error("sources_v3 is not available yet"));
+
+    const result = await startGeneration(deps, jobs, ctx(adventures), form("quick"), env);
+    expect("error" in result && result.error).toBe("Couldn't start generation. Please try again.");
+
+    const entry = [...adventures.rows.values()][0]!;
+    expect(entry.row.status).toBe("failed");
+    // nothing enqueued
+    await expect(store.list(entry.row.id)).resolves.toEqual([]);
+    await expect(jobs.getProgress(entry.row.id)).resolves.toBeNull();
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+});
+
+describe("dedupeUploadIds", () => {
+  const doc = (id: string): ExtractedDocument => ({ ...uploadDoc, id });
+  it("appends -2, -3 to repeated ids, in order", () => {
+    const uploads = [
+      { doc: doc("pasted-source"), storageKey: "inline:1" },
+      { doc: doc("handout"), storageKey: "upload:2/a" },
+      { doc: doc("pasted-source"), storageKey: "inline:3" },
+      { doc: doc("handout"), storageKey: "upload:4/a" },
+      { doc: doc("pasted-source"), storageKey: "inline:5" },
+    ];
+    expect(dedupeUploadIds(uploads).map((u) => u.doc.id)).toEqual(["pasted-source", "handout", "pasted-source-2", "handout-2", "pasted-source-3"]);
+    // originals untouched
+    expect(uploads[0]!.doc.id).toBe("pasted-source");
   });
 });

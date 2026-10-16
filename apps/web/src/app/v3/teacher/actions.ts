@@ -19,6 +19,7 @@ import { tickUrl } from "@/lib/jobs/tick";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
+import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
 import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
 import { approveSkeleton, getGenerationProgress, startGeneration } from "@/lib/v3/generation/service";
 
@@ -31,6 +32,27 @@ const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
 const clientPagesSchema = z.array(z.string()).min(1).max(LIMITS.maxPages);
 
 const notFound = { error: "not_found" } as const;
+
+let loggedNoKickUrl = false;
+
+/** Kick the job tick from the request's host; never throws — the timer is the safety net. */
+async function kickAfter() {
+  if (!process.env.JOBS_TICK_URL) {
+    const requestHeaders = await headers();
+    const host = requestHeaders.get("host");
+    if (!host) {
+      if (!loggedNoKickUrl) {
+        console.error("JOBS_TICK_URL is unset and the request has no host header — skipping the tick kick");
+        loggedNoKickUrl = true;
+      }
+      return;
+    }
+    const proto = requestHeaders.get("x-forwarded-proto") ?? "https";
+    after(() => kickTick(tickUrl(`${proto}://${host}`)));
+    return;
+  }
+  after(() => kickTick(tickUrl("")));
+}
 
 async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocument; storageKey: string } | { error: string }> {
   const body = String(formData.get("body") ?? "").trim();
@@ -103,8 +125,8 @@ export async function startV3Generation(formData: FormData) {
 
   const episode = String(formData.get("episode") ?? "");
   const teacherNotes = String(formData.get("teacherNotes") ?? "").trim();
-  const readingLevel = String(formData.get("readingLevel") ?? "sec");
-  const mode = String(formData.get("mode") ?? "quick");
+  const readingLevel = String(formData.get("readingLevel") ?? "");
+  const mode = String(formData.get("mode") ?? "");
   if (readingLevel !== "sec" && readingLevel !== "jc") return { error: "Choose a reading level" };
   if (mode !== "quick" && mode !== "standard") return { error: "Choose a mode" };
 
@@ -131,14 +153,13 @@ export async function startV3Generation(formData: FormData) {
       ...(teacherNotes !== "" ? { teacherNotes } : {}),
       readingLevel,
       mode,
-      uploads,
+      uploads: dedupeUploadIds(uploads),
     },
     process.env,
   );
   if ("error" in result) return result;
 
-  const origin = (await headers()).get("origin") ?? "";
-  after(() => kickTick(tickUrl(origin)));
+  await kickAfter();
   return result;
 }
 
@@ -152,8 +173,7 @@ export async function approveV3Skeleton(adventureId: string, skeleton?: unknown)
   const result = await approveSkeleton(defaultGenerationDeps(), getJobs(), store, viewer.user.id, adventureId, skeleton, process.env);
   if ("error" in result) return result;
 
-  const origin = (await headers()).get("origin") ?? "";
-  after(() => kickTick(tickUrl(origin)));
+  await kickAfter();
   return result;
 }
 

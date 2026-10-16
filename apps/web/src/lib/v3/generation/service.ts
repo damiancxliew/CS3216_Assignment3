@@ -45,33 +45,40 @@ export async function startGeneration(
   if (form.uploads.length === 0) return { error: "Upload at least one source" };
 
   const adventureId = await ctx.createAdventure();
-  await deps.sources.saveUploads(adventureId, form.uploads);
+  try {
+    await deps.sources.saveUploads(adventureId, form.uploads);
 
-  const brief: GenerationBrief = {
-    adventureId,
-    schoolId: ctx.schoolId,
-    ownerId: ctx.userId,
-    episode: form.episode,
-    ...(form.teacherNotes !== undefined ? { teacherNotes: form.teacherNotes } : {}),
-    readingLevel: form.readingLevel,
-    mode: form.mode,
-  };
+    const brief: GenerationBrief = {
+      adventureId,
+      schoolId: ctx.schoolId,
+      ownerId: ctx.userId,
+      episode: form.episode,
+      ...(form.teacherNotes !== undefined ? { teacherNotes: form.teacherNotes } : {}),
+      readingLevel: form.readingLevel,
+      mode: form.mode,
+    };
 
-  // quick: all six steps; standard: sources + skeleton, then the teacher reviews
-  const names = form.mode === "quick" ? ["sources", "skeleton", "details", "endings", "reveal", "save"] : ["sources", "skeleton"];
-  const depsOf: Record<string, string[]> = {
-    skeleton: ["sources"],
-    details: ["skeleton"],
-    endings: ["details"],
-    reveal: ["details", "endings"],
-    save: ["reveal"],
-  };
-  const steps: EnqueueStep[] = names.map((name) => ({
-    name,
-    step: `v3.gen.${name}`,
-    input: name === "details" ? ({ brief } as unknown as Json) : STEP_INPUT(brief),
-  }));
-  await jobs.enqueue(adventureId, steps, depsOf);
+    // quick: all six steps; standard: sources + skeleton, then the teacher reviews
+    const names = form.mode === "quick" ? ["sources", "skeleton", "details", "endings", "reveal", "save"] : ["sources", "skeleton"];
+    const depsOf: Record<string, string[]> = {
+      skeleton: ["sources"],
+      details: ["skeleton"],
+      endings: ["details"],
+      reveal: ["details", "endings"],
+      save: ["reveal"],
+    };
+    const steps: EnqueueStep[] = names.map((name) => ({
+      name,
+      step: `v3.gen.${name}`,
+      input: name === "details" ? ({ brief } as unknown as Json) : STEP_INPUT(brief),
+    }));
+    await jobs.enqueue(adventureId, steps, depsOf);
+  } catch (error) {
+    // don't leave the row generating forever — the timer would never see a step
+    console.error("v3 generation start failed after creating the adventure", error);
+    await deps.adventures.setStatus(adventureId, "failed", ["generating"]);
+    return { error: "Couldn't start generation. Please try again." };
+  }
   return { adventureId };
 }
 
