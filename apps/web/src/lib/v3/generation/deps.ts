@@ -25,13 +25,15 @@ export interface V3SourceStore {
   saveUploads(adventureId: string, uploads: { doc: ExtractedDocument; storageKey: string }[]): Promise<void>;
   /** upsert keyed (adventureId, doc.id); retry-safe */
   saveOutside(adventureId: string, sources: OutsideSource[], documents: ExtractedDocument[]): Promise<void>;
+  /** copies every stored row (uploads and outside docs) to another adventure */
+  copyUploads(fromId: string, toId: string): Promise<void>;
 }
 
 export interface V3AdventureRow {
   id: string;
   schoolId: string;
   ownerId: string;
-  status: "generating" | "needs_review" | "draft" | "published" | "failed" | "archived";
+  status: "briefing" | "generating" | "needs_review" | "draft" | "published" | "failed" | "archived";
 }
 
 export interface V3AdventureWriter {
@@ -105,6 +107,9 @@ const unavailableSources: V3SourceStore = {
   async saveOutside() {
     throw new Error("sources_v3 is not available yet");
   },
+  async copyUploads() {
+    throw new Error("sources_v3 is not available yet");
+  },
 };
 
 export function defaultGenerationDeps(): GenerationDeps {
@@ -160,6 +165,11 @@ export function memoryV3SourceStore() {
         else list.push(entry);
       }
       rows.set(adventureId, list);
+    },
+    async copyUploads(fromId: string, toId: string) {
+      const list = rows.get(toId) ?? [];
+      for (const row of rows.get(fromId) ?? []) if (!list.some((existing) => existing.doc.id === row.doc.id)) list.push({ ...row });
+      rows.set(toId, list);
     },
   } satisfies V3SourceStore & { rows: Map<string, { doc: ExtractedDocument; storageKey: string; outside?: OutsideSource }[]> };
 }
