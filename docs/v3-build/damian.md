@@ -65,7 +65,7 @@ The publish flow enqueues `portraitsStep(adventureId, version)`.
 - [x] **L** Screen: epilogue [E1]
 - [x] **M** Screen: Interview
 - [x] **M** Screen: reveal
-- [ ] **L** `/v3/teacher/:id/preview`: play screens without saving an attempt [T4.8]
+- [x] **L** `/v3/teacher/:id/preview`: play screens without saving an attempt [T4.8]
 - [ ] **L** `/v3/teacher/:id/summary`: class summary tabs [T2]
 - [ ] **L** v3 maps without doors: an option in the map compiler and renderer (v2 unchanged)
 - [ ] **L** Moderation results → `flags_v3` [T5]

@@ -4,6 +4,7 @@ import type { GameEvent } from "@adventure/play-contract";
 export interface V3Adventure {
   id: string;
   schoolId: string;
+  ownerId: string;
   status: string;
   specVersion: number;
   spec: unknown | null;
@@ -23,6 +24,7 @@ export interface V3PlayStore {
   loadAdventure(id: string): Promise<V3Adventure | null>;
   loadVersionSpec(adventureId: string, version: number): Promise<unknown | null>;
   isActiveMember(schoolId: string, userId: string): Promise<boolean>;
+  isSchoolAdmin(schoolId: string, userId: string): Promise<boolean>;
   findLatestAttempt(adventureId: string, studentId: string): Promise<V3Attempt | null>;
   createAttempt(input: {
     adventureId: string;
@@ -43,6 +45,7 @@ export interface V3PlayStore {
 type AdventureRow = {
   id: string;
   school_id: string;
+  owner_id: string;
   status: string;
   spec_version: number;
   spec: unknown | null;
@@ -63,7 +66,7 @@ export class SupabaseV3PlayStore implements V3PlayStore {
   async loadAdventure(id: string): Promise<V3Adventure | null> {
     const { data, error } = await this.admin
       .from("adventures_v3")
-      .select("id, school_id, status, spec_version, spec")
+      .select("id, school_id, owner_id, status, spec_version, spec")
       .eq("id", id)
       .maybeSingle<AdventureRow>();
     if (error) throw error;
@@ -71,6 +74,7 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     return {
       id: data.id,
       schoolId: data.school_id,
+      ownerId: data.owner_id,
       status: data.status,
       specVersion: data.spec_version,
       spec: data.spec,
@@ -96,6 +100,27 @@ export class SupabaseV3PlayStore implements V3PlayStore {
         .eq("organization_id", schoolId)
         .eq("user_id", userId)
         .eq("status", "active")
+        .limit(1),
+      this.admin
+        .from("platform_admin")
+        .select("user_id")
+        .eq("user_id", userId)
+        .limit(1),
+    ]);
+    if (membership.error) throw membership.error;
+    if (platformAdmin.error) throw platformAdmin.error;
+    return (membership.data?.length ?? 0) > 0 || (platformAdmin.data?.length ?? 0) > 0;
+  }
+
+  async isSchoolAdmin(schoolId: string, userId: string): Promise<boolean> {
+    const [membership, platformAdmin] = await Promise.all([
+      this.admin
+        .from("organization_member")
+        .select("user_id")
+        .eq("organization_id", schoolId)
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .eq("role", "admin")
         .limit(1),
       this.admin
         .from("platform_admin")
@@ -202,6 +227,7 @@ export class MemoryV3PlayStore implements V3PlayStore {
   private readonly versions = new Map<string, unknown>();
   private readonly attempts = new Map<string, MemoryAttempt>();
   private readonly activeMembers = new Set<string>();
+  private readonly schoolAdmins = new Set<string>();
   private readonly platformAdmins = new Set<string>();
   private readonly tokenCounts = new Map<string, number>();
   private sequence = 0;
@@ -224,6 +250,10 @@ export class MemoryV3PlayStore implements V3PlayStore {
     else this.activeMembers.delete(key);
   }
 
+  addSchoolAdmin(schoolId: string, userId: string): void {
+    this.schoolAdmins.add(`${schoolId}:${userId}`);
+  }
+
   addPlatformAdmin(userId: string): void {
     this.platformAdmins.add(userId);
   }
@@ -244,6 +274,10 @@ export class MemoryV3PlayStore implements V3PlayStore {
 
   async isActiveMember(schoolId: string, userId: string): Promise<boolean> {
     return this.activeMembers.has(`${schoolId}:${userId}`) || this.platformAdmins.has(userId);
+  }
+
+  async isSchoolAdmin(schoolId: string, userId: string): Promise<boolean> {
+    return this.schoolAdmins.has(`${schoolId}:${userId}`) || this.platformAdmins.has(userId);
   }
 
   async findLatestAttempt(adventureId: string, studentId: string): Promise<V3Attempt | null> {

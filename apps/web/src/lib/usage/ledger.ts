@@ -113,3 +113,26 @@ export function withPlayUsageV3(
     },
   };
 }
+
+export function withPreviewUsageV3(
+  client: PlayLlmClient,
+  context: { organizationId: string; userId: string },
+): PlayLlmClient {
+  return {
+    async complete(request) {
+      const response = await client.complete(request);
+      await recordLlmUsage(createAdminClient, {
+        purpose: "play",
+        call: `preview:${request.schemaName}`,
+        model: response.model ?? request.model ?? null,
+        organizationId: context.organizationId,
+        userId: context.userId,
+        inputTokens: response.usage.promptTokens,
+        cachedInputTokens: response.usage.cachedPromptTokens ?? 0,
+        outputTokens: response.usage.completionTokens,
+        reasoningTokens: response.usage.reasoningTokens ?? 0,
+      });
+      return response;
+    },
+  };
+}

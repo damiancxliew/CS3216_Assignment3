@@ -8,6 +8,7 @@ import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
 import { portraitFile, portraitStoragePrefix, portraitUrl, v3PortraitBase } from "@/lib/play/v3/portraits";
+import { createV3PreviewClient } from "@/lib/play/v3/preview-client";
 import { MAX_EVIDENCE_NOTES, MAX_INTERVIEW_TEXT_LENGTH, type PlayerView } from "@adventure/play-contract";
 
 const view = { phase: "briefing", pendingCheck: false } as unknown as PlayerView;
@@ -61,6 +62,67 @@ describe("v3 play browser client", () => {
     expect(await client.act(1, continueAction)).toEqual({ ok: false, kind: "error", message: "Try later." });
     expect(await client.refresh()).toEqual({ ok: true, revision: 9, view });
     expect(fetchImpl.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ method: "GET", cache: "no-store" }));
+  });
+});
+
+describe("v3 preview browser client", () => {
+  const initialToken = "preview-token-0";
+  const nextToken = "preview-token-1";
+  const checkedToken = "preview-token-2";
+
+  it("sends and adopts client state across actions", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response(200, { token: nextToken, view, pendingCheckIds: [] }))
+      .mockResolvedValueOnce(response(200, { token: checkedToken, view, pendingCheckIds: [] }));
+    const client = createV3PreviewClient("adventure/1", initialToken, view, fetchImpl);
+
+    expect(await client.act(0, continueAction)).toEqual({ ok: true, revision: 1, view });
+    expect(await client.act(1, continueAction)).toEqual({ ok: true, revision: 2, view });
+    expect(fetchImpl).toHaveBeenNthCalledWith(1, "/api/v3/preview/adventure%2F1/actions", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ token: initialToken, action: continueAction }),
+    }));
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, "/api/v3/preview/adventure%2F1/actions", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ token: nextToken, action: continueAction }),
+    }));
+  });
+
+  it("refreshes pending checks and makes no request when none are pending", async () => {
+    const emptyFetch = vi.fn<typeof fetch>();
+    const emptyClient = createV3PreviewClient("adventure-1", initialToken, view, emptyFetch);
+    expect(await emptyClient.refresh()).toEqual({ ok: true, revision: 0, view });
+    expect(emptyFetch).not.toHaveBeenCalled();
+
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response(200, { token: nextToken, view, pendingCheckIds: ["message-1"] }))
+      .mockResolvedValueOnce(response(200, { token: checkedToken, view, pendingCheckIds: [] }));
+    const client = createV3PreviewClient("adventure-1", initialToken, view, fetchImpl);
+    await client.act(0, continueAction);
+    expect(await client.refresh()).toEqual({ ok: true, revision: 2, view });
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, "/api/v3/preview/adventure-1/check", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ token: nextToken, messageId: "message-1" }),
+    }));
+    expect(await client.refresh()).toEqual({ ok: true, revision: 2, view });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("serializes an action and refresh so the check uses the action's state", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response(200, { token: nextToken, view, pendingCheckIds: ["message-1"] }))
+      .mockResolvedValueOnce(response(200, { token: checkedToken, view, pendingCheckIds: [] }));
+    const client = createV3PreviewClient("adventure-1", initialToken, view, fetchImpl);
+    const action = client.act(0, continueAction);
+    const refresh = client.refresh();
+
+    const [actionResult, refreshResult] = await Promise.all([action, refresh]);
+    expect(actionResult).toEqual({ ok: true, revision: 1, view });
+    expect(refreshResult).toEqual({ ok: true, revision: 2, view });
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, "/api/v3/preview/adventure-1/check", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ token: nextToken, messageId: "message-1" }),
+    }));
   });
 });
 
