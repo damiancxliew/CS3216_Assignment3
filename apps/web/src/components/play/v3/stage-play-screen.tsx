@@ -1,11 +1,10 @@
 "use client";
 
-import { MapPin, Timer } from "lucide-react";
+import { ChevronDown, Timer } from "lucide-react";
 import type { Action, PlayerView } from "@adventure/play-contract";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import styles from "@/components/play/adventure-chrome.module.css";
-import { CharacterPortrait } from "@/components/play/v3/character-portrait";
 import { DialogueBox } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
@@ -53,6 +52,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const [confirmEndStage, setConfirmEndStage] = useState(false);
   const [walkTo, setWalkTo] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [missionCollapsed, setMissionCollapsed] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [emptyDocumentsOpen, setEmptyDocumentsOpen] = useState(false);
   const [documentId, setDocumentId] = useState<string | null>(
@@ -161,15 +161,12 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     setEmptyDocumentsOpen(false);
   }
 
-  const chipClass = `${styles.chip} flex min-h-10 min-w-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-semibold`;
-  const controlClass = "w-full min-w-0 border-0 bg-transparent p-0 text-sm font-medium text-ink outline-none";
-
   return (
     <>
-      <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row`}>
+      <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col`}>
         <section
           ref={mapSection}
-          className="relative h-[32dvh] min-h-[11rem] min-w-0 shrink-0 bg-sunken lg:h-auto lg:min-h-0 lg:flex-1"
+          className="relative min-h-0 min-w-0 flex-1 bg-sunken"
           aria-label="Map"
         >
           {stage && view.rooms.length > 0 ? (
@@ -196,7 +193,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
           ) : null}
 
           {isMoment ? (
-            <div className="absolute left-3 top-3 z-30 flex gap-2">
+            <div className="absolute bottom-3 left-16 z-30 flex gap-2">
               <button
                 type="button"
                 className={`${styles.tool} flex min-h-10 items-center gap-2 px-3 text-sm font-bold`}
@@ -238,6 +235,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             <DialogueBox
               mode="moment"
               moment={view.definingMoment}
+              decider={view.characters.find((character) => character.id === view.definingMoment?.deciderId)}
+              portraitBase={portraitBase}
               busy={busy}
               onAct={(actId) => send({ type: "act", actId })}
               onPredict={(outcomeId) => send({ type: "predict", outcomeId })}
@@ -247,6 +246,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               key={openCharacter.id}
               mode="talk"
               character={openCharacter}
+              portraitBase={portraitBase}
               messages={dialogueMessages}
               busy={busy}
               onSend={(text) => {
@@ -256,116 +256,104 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               onClose={closeTalk}
             />
           ) : null}
+
+        <section
+          aria-label="Mission"
+          className="absolute right-2 top-2 z-10 w-[min(20rem,calc(100%_-_1rem))] rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] p-3 text-[#1f2433] shadow-[3px_3px_0_#1f2433] sm:right-4 sm:top-4"
+        >
+          <header className="flex items-center gap-2">
+            <h2 className="mr-auto text-xs font-black uppercase tracking-[0.14em]">Mission</h2>
+            {view.timer ? (
+              <span aria-label="Time remaining" className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#1f2433]/35 bg-white/70 px-2 py-1 font-mono text-xs font-bold">
+                <Timer size={14} aria-hidden />
+                {remaining === null ? "--:--" : formatTime(remaining)}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              aria-expanded={!missionCollapsed}
+              aria-label={missionCollapsed ? "Show mission" : "Hide mission"}
+              onClick={() => setMissionCollapsed((collapsed) => !collapsed)}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-[#1f2433]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]"
+            >
+              <ChevronDown
+                size={16}
+                aria-hidden
+                className={`transition-transform ${missionCollapsed ? "-rotate-90" : "rotate-180"}`}
+              />
+            </button>
+          </header>
+
+          {!missionCollapsed ? (
+            <div className="mt-2 space-y-2">
+              {stage?.centralQuestion ? (
+                <p className="text-sm font-semibold leading-snug">{stage.centralQuestion}</p>
+              ) : null}
+              {!isMoment ? (
+                <>
+                  <p className="text-xs text-[#5c6472]">
+                    You are in {view.rooms.find((room) => room.id === view.currentRoomId)?.name ?? "an unknown room"}
+                  </p>
+                  {confirmEndStage ? (
+                    <div role="alert" className="space-y-2">
+                      <p className="text-xs font-bold">You won&apos;t be able to explore after this.</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setConfirmEndStage(false)}
+                          className={`${styles.chip} min-h-8 border px-2 text-xs font-bold`}
+                        >
+                          Keep exploring
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setConfirmEndStage(false);
+                            send({ type: "endStage" });
+                          }}
+                          className={`${styles.primary} min-h-8 px-2 text-xs font-black disabled:opacity-50`}
+                        >
+                          Continue to decision
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setConfirmEndStage(true)}
+                      className={`${styles.primary} min-h-8 px-3 text-xs font-black disabled:opacity-50`}
+                    >
+                      I&apos;m ready to decide
+                    </button>
+                  )}
+                  {view.pendingCheck ? (
+                    <p role="status" className="text-xs font-bold text-[#5c6472]">Adding to your notes…</p>
+                  ) : null}
+                  {!mapReady ? (
+                    <label className="flex flex-col gap-1 border-t border-[#1f2433]/20 pt-2 text-[11px] font-black uppercase tracking-wide">
+                      Walk to
+                      <select
+                        aria-label="Walk to"
+                        value={view.currentRoomId ?? ""}
+                        disabled={busy || movementLocked || view.rooms.length < 2}
+                        onChange={(event) => {
+                          if (event.target.value) send({ type: "enterRoom", roomId: event.target.value });
+                        }}
+                        className="min-h-9 w-full rounded-md border border-[#1f2433]/35 bg-white px-2 text-sm font-medium normal-case tracking-normal text-[#1f2433]"
+                      >
+                        {view.rooms.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
+                      </select>
+                    </label>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
         </section>
-
-        <aside className={`${styles.panel} flex min-h-0 w-full min-w-0 shrink-0 flex-col text-base lg:w-[min(42rem,48vw)] lg:[zoom:0.75]`}>
-          <section className={`${styles.where} order-1 flex shrink-0 flex-col gap-2 px-4 py-3 sm:px-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-              <p className="min-w-0 text-sm font-semibold">
-                You are playing <strong>{view.briefing.name}</strong>
-              </p>
-              {view.pendingCheck ? (
-                <span role="status" className="rounded-full bg-sunshine px-3 py-1 text-xs font-black text-ink">
-                  Adding to your notes…
-                </span>
-              ) : null}
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className={styles.locationLabel}><MapPin size={14} aria-hidden /> You are here</p>
-                <h2 className="truncate text-lg font-bold">{view.rooms.find((room) => room.id === view.currentRoomId)?.name ?? "Exploring"}</h2>
-              </div>
-              {view.timer ? (
-                <span aria-label="Time remaining" className={`${styles.chip} flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-sm font-bold`}>
-                  <Timer size={16} aria-hidden />
-                  {remaining === null ? "--:--" : formatTime(remaining)}
-                </span>
-              ) : null}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <label className={`${chipClass} flex-col items-start`}>
-                <span className={styles.locationLabel}>Look around</span>
-                <select
-                  aria-label="Look around"
-                  value=""
-                  disabled={busy || view.documentsHere.length === 0}
-                  onChange={(event) => {
-                    if (event.target.value) openDocument(event.target.value);
-                  }}
-                  className={controlClass}
-                >
-                  <option value="">{view.documentsHere.length ? "Choose a document" : "No documents here"}</option>
-                  {view.documentsHere.map((document) => (
-                    <option key={document.id} value={document.id}>{document.title}</option>
-                  ))}
-                </select>
-              </label>
-              <label className={`${chipClass} flex-col items-start`}>
-                <span className={styles.locationLabel}>Walk to</span>
-                <select
-                  aria-label="Walk to"
-                  value={walkTo ?? view.currentRoomId ?? ""}
-                  disabled={busy || movementLocked || view.rooms.length < 2}
-                  onChange={(event) => {
-                    const roomId = event.target.value;
-                    if (mapReady) setWalkTo(roomId);
-                    else send({ type: "enterRoom", roomId });
-                  }}
-                  className={controlClass}
-                >
-                  {view.rooms.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
-                </select>
-              </label>
-            </div>
-          </section>
-
-          {!isMoment ? (
-            <section aria-labelledby="people-heading" className={`${styles.conversation} order-2 shrink-0 px-4 py-2.5 sm:px-5`}>
-              <h2 id="people-heading" className="font-black">People here</h2>
-              {view.characters.length ? (
-                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                  {view.characters.map((character) => (
-                    <CharacterPortrait
-                      key={character.id}
-                      name={character.name}
-                      portraitKey={character.portraitKey}
-                      portraitBase={portraitBase}
-                      selected={character.id === characterId}
-                      onSelect={() => openTalk(character.id)}
-                    />
-                  ))}
-                </div>
-              ) : <p className="mt-1 text-sm text-muted">No one is here just now. Try another room.</p>}
-            </section>
-          ) : null}
-
-          {!isMoment ? (
-            <section className={`${styles.quests} order-3 flex shrink-0 flex-col gap-2 px-4 py-2.5 sm:px-5`}>
-              <h2 className={styles.questHeading}>Central question</h2>
-              <p className="text-sm font-semibold leading-relaxed">{stage?.centralQuestion}</p>
-              {confirmEndStage ? (
-                <div role="alert" className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-bold">You won&apos;t be able to explore after this.</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" disabled={busy} onClick={() => setConfirmEndStage(false)} className={`${styles.chip} min-h-10 border px-3 text-sm font-bold`}>
-                      Keep exploring
-                    </button>
-                    <button type="button" disabled={busy} onClick={() => {
-                      setConfirmEndStage(false);
-                      send({ type: "endStage" });
-                    }} className={`${styles.primary} min-h-10 px-3 text-sm font-black disabled:opacity-50`}>
-                      Continue to decision
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button type="button" disabled={busy} onClick={() => setConfirmEndStage(true)} className={`${styles.primary} min-h-10 self-start px-4 text-sm font-black disabled:opacity-50`}>
-                  I&apos;m ready to decide
-                </button>
-              )}
-            </section>
-          ) : null}
-        </aside>
+        </section>
       </div>
 
       {notesOpen ? (

@@ -1,7 +1,16 @@
 "use client";
 
 import type { CharacterView, DefiningMomentView, MessageView } from "@adventure/play-contract";
+import { Pixelify_Sans } from "next/font/google";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+
+import { portraitUrl } from "@/lib/play/v3/portraits";
+
+const pixelFont = Pixelify_Sans({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  display: "swap",
+});
 
 type DialogueMessage = MessageView & {
   speaker?: string;
@@ -11,6 +20,7 @@ type DialogueMessage = MessageView & {
 type TalkProps = {
   mode: "talk";
   character: CharacterView;
+  portraitBase: string | null;
   messages: DialogueMessage[];
   busy: boolean;
   onSend: (text: string) => void;
@@ -21,6 +31,8 @@ type TalkProps = {
 type MomentProps = {
   mode: "moment";
   moment: DefiningMomentView;
+  decider?: CharacterView;
+  portraitBase: string | null;
   busy: boolean;
   onAct: (actId: string) => void;
   onPredict: (outcomeId: string) => void;
@@ -29,7 +41,7 @@ type MomentProps = {
 export type DialogueBoxProps = TalkProps | MomentProps;
 
 const boxClass =
-  "absolute inset-x-2 bottom-2 z-20 flex max-h-[55%] flex-col overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:inset-x-4 sm:bottom-4";
+  "absolute inset-x-2 bottom-2 z-20 flex max-h-[55%] overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:inset-x-4 sm:bottom-4";
 
 function wordCount(text: string) {
   return text.match(/\S+/g)?.length ?? 0;
@@ -113,7 +125,50 @@ function isSkipKey(event: KeyboardEvent) {
   return key === "enter" || key === "e" || event.key === " " || event.code === "Space";
 }
 
-function TalkDialogue({ character, messages, busy, onSend, onOpenNotes, onClose }: TalkProps) {
+function DialoguePortrait({ character, portraitBase }: { character: CharacterView; portraitBase: string | null }) {
+  const url = portraitUrl(character.portraitKey, portraitBase);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const src = url !== failedUrl ? url : null;
+  const initials = character.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+
+  useEffect(() => {
+    setFailedUrl(null);
+  }, [url]);
+
+  return (
+    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden border-4 border-[#1f2433] bg-[#2a2f3d] min-[480px]:h-24 min-[480px]:w-24 sm:h-28 sm:w-28">
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element -- portraits use generated storage URLs
+        <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailedUrl(src)} />
+      ) : (
+        <span className={`${pixelFont.className} text-2xl font-bold text-[#fffaf0] sm:text-4xl`}>
+          {initials || "?"}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function NameTag({ children }: { children: string }) {
+  return (
+    <span className={`${pixelFont.className} inline-block max-w-full whitespace-normal break-words bg-[#1f2433] px-3 py-1 text-sm font-bold text-[#fffaf0] sm:text-base`}>
+      {children}
+    </span>
+  );
+}
+
+function ContinueIndicator() {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute bottom-1 right-2 select-none text-xl leading-none text-[#e36b33] motion-reduce:animate-none animate-bounce"
+    >
+      ▼
+    </span>
+  );
+}
+
+function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenNotes, onClose }: TalkProps) {
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -178,94 +233,101 @@ function TalkDialogue({ character, messages, busy, onSend, onOpenNotes, onClose 
     setText("");
   }
 
-  const initials = character.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-
   return (
-    <section aria-label={`Conversation with ${character.name}`} className={boxClass}>
-      <header className="flex shrink-0 items-center gap-3 border-b-2 border-[#1f2433]/20 px-3 py-2 sm:px-4">
-        <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border-2 border-[#1f2433] bg-[#e7edff] text-sm font-black text-[#3659cf]">
-          {initials || "?"}
-        </span>
-        <h2 className="min-w-0 flex-1 truncate text-base font-black sm:text-lg">{character.name}</h2>
+    <section
+      aria-label={`Conversation with ${character.name}`}
+      className={`${boxClass} flex-row items-stretch gap-2 px-2 py-2 sm:gap-3 sm:px-3 sm:py-3`}
+    >
+      <div className="flex shrink-0 items-center">
+        <DialoguePortrait character={character} portraitBase={portraitBase} />
+      </div>
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex shrink-0 items-start pr-9 pb-2 pt-1">
+          <h2 className="min-w-0 flex-1">
+            <NameTag>{character.name}</NameTag>
+          </h2>
+        </header>
         <button
           type="button"
           aria-label="Close conversation (Esc)"
           onClick={onClose}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-2xl font-bold leading-none hover:bg-[#1f2433]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]"
+          className="absolute right-0 top-0 z-10 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-2xl font-bold leading-none hover:bg-[#1f2433]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]"
         >
           ×
         </button>
-      </header>
-
-      <div
-        ref={body}
-        aria-live="polite"
-        onClickCapture={(event) => {
-          if (typingDone) return;
-          event.preventDefault();
-          event.stopPropagation();
-          skipTyping();
-        }}
-        className="min-h-[3.5rem] min-w-0 flex-1 space-y-3 overflow-y-auto px-3 py-2.5 text-sm leading-relaxed sm:px-4 sm:py-3 sm:text-base"
-      >
-        {messages.length ? messages.map((message) => (
-          <article key={message.id} className="break-words">
-            <p className="mb-0.5 text-xs font-black uppercase tracking-wide text-[#5c6472]">
-              {message.speaker ?? (message.kind === "player" ? "You" : message.characterId === character.id ? character.name : "Story")}
-            </p>
-            {message.text ? (
-              <p className="whitespace-pre-wrap">
-                {message.id === animatingMessage?.id ? (
-                  <>
-                    <span className="sr-only">{message.text}</span>
-                    <span aria-hidden="true">{typedText}</span>
-                  </>
-                ) : message.text}
+        <div
+          ref={body}
+          aria-live="polite"
+          onClickCapture={(event) => {
+            if (typingDone) return;
+            event.preventDefault();
+            event.stopPropagation();
+            skipTyping();
+          }}
+          className="relative min-h-[3.5rem] min-w-0 flex-1 space-y-3 overflow-y-auto pb-7 pr-2 text-sm leading-relaxed sm:text-base"
+        >
+          {messages.length ? messages.map((message) => (
+            <article key={message.id} className="break-words">
+              <p className="mb-0.5 text-xs font-black uppercase tracking-wide text-[#5c6472]">
+                {message.speaker ?? (message.kind === "player" ? "You" : message.characterId === character.id ? character.name : "Story")}
               </p>
-            ) : null}
-            {message.insertedNoteId ? (
-              <blockquote className="mt-2 border-l-2 border-[#3659cf] bg-[#e7edff] px-3 py-2 text-sm">
-                {message.insertedNoteText ?? "Note shared"}
-              </blockquote>
-            ) : null}
-          </article>
-        )) : (
-          <p className="py-2 text-sm text-[#5c6472]">Say hello, or ask {character.name} a question.</p>
-        )}
-      </div>
+              {message.text ? (
+                <p className={`${pixelFont.className} whitespace-pre-wrap text-base leading-relaxed sm:text-lg`}>
+                  {message.id === animatingMessage?.id ? (
+                    <>
+                      <span className="sr-only">{message.text}</span>
+                      <span aria-hidden="true">{typedText}</span>
+                    </>
+                  ) : message.text}
+                </p>
+              ) : null}
+              {message.insertedNoteId ? (
+                <blockquote className="mt-2 border-l-2 border-[#3659cf] bg-[#e7edff] px-3 py-2 text-sm">
+                  {message.insertedNoteText ?? "Note shared"}
+                </blockquote>
+              ) : null}
+            </article>
+          )) : (
+            <p className={`${pixelFont.className} py-2 text-base leading-relaxed text-[#1f2433] sm:text-lg`}>
+              Say hello, or ask {character.name} a question.
+            </p>
+          )}
+          {messages.length > 0 && typingDone ? <ContinueIndicator /> : null}
+        </div>
 
-      <form onSubmit={submit} className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2 border-t-2 border-[#1f2433]/20 p-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:p-3">
-        <label htmlFor="v3-message" className="sr-only">Ask {character.name} a question</label>
-        <input
-          ref={input}
-          id="v3-message"
-          value={text}
-          maxLength={1000}
-          disabled={busy}
-          onChange={(event) => setText(event.target.value)}
-          placeholder={`Ask ${character.name} a question`}
-          className="min-h-10 min-w-0 rounded-lg border-2 border-[#1f2433]/35 bg-white px-2.5 text-sm text-[#1f2433] placeholder:text-[#5c6472] disabled:opacity-60 sm:px-3"
-        />
-        <button
-          type="submit"
-          disabled={busy || !text.trim()}
-          className="min-h-10 rounded-lg border-2 border-[#1f2433] bg-[#3659cf] px-3 text-sm font-black text-white hover:bg-[#2949b5] disabled:opacity-50 sm:px-4"
-        >
-          {busy ? "Sending…" : "Send"}
-        </button>
-        <button
-          type="button"
-          onClick={onOpenNotes}
-          className="col-span-2 min-h-9 rounded-lg border border-[#1f2433]/35 px-3 text-sm font-bold hover:bg-[#1f2433]/5 sm:col-span-1"
-        >
+        <form onSubmit={submit} className="mt-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2 border-t-2 border-[#1f2433]/20 pt-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+          <label htmlFor="v3-message" className="sr-only">Ask {character.name} a question</label>
+          <input
+            ref={input}
+            id="v3-message"
+            value={text}
+            maxLength={1000}
+            disabled={busy}
+            onChange={(event) => setText(event.target.value)}
+            placeholder={`Ask ${character.name} a question`}
+            className="min-h-10 min-w-0 rounded-lg border-2 border-[#1f2433]/35 bg-white px-2.5 text-sm text-[#1f2433] placeholder:text-[#5c6472] disabled:opacity-60 sm:px-3"
+          />
+          <button
+            type="submit"
+            disabled={busy || !text.trim()}
+            className="min-h-10 rounded-lg border-2 border-[#1f2433] bg-[#3659cf] px-3 text-sm font-black text-white hover:bg-[#2949b5] disabled:opacity-50 sm:px-4"
+          >
+            {busy ? "Sending…" : "Send"}
+          </button>
+          <button
+            type="button"
+            onClick={onOpenNotes}
+            className="col-span-2 min-h-9 rounded-lg border border-[#1f2433]/35 px-3 text-sm font-bold hover:bg-[#1f2433]/5 sm:col-span-1"
+          >
           Insert a note
-        </button>
-      </form>
+          </button>
+        </form>
+      </div>
     </section>
   );
 }
 
-function MomentDialogue({ moment, busy, onAct, onPredict }: MomentProps) {
+function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict }: MomentProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { shown: reactionShown, done: reactionDone, skip: skipReaction } = useTypewriter(
     moment.reaction ?? "",
@@ -315,66 +377,79 @@ function MomentDialogue({ moment, busy, onAct, onPredict }: MomentProps) {
   };
 
   return (
-    <section aria-label="A defining moment" className={boxClass}>
-      <div
-        onClickCapture={handleBodyClickCapture}
-        className="min-h-0 flex-1 overflow-y-auto px-3 py-2.5 sm:px-4 sm:py-3"
-      >
-        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#5c6472] sm:text-xs">A defining moment</p>
-        <h2 className="mt-1 text-base font-black leading-snug sm:text-lg">{moment.scene}</h2>
-        {moment.nudge ? <p className="mt-1 text-xs leading-relaxed text-[#5c6472] sm:text-sm">{moment.nudge}</p> : null}
-
-        {moment.status === "predicting" ? (
-          <>
-            {moment.reaction ? (
-              <p aria-live="polite" className="mt-2 whitespace-pre-wrap text-sm leading-relaxed sm:text-base">
-                <span className="sr-only">{moment.reaction}</span>
-                <span aria-hidden="true">{reactionShown}</span>
-              </p>
-            ) : null}
-            <h3 className="mt-2 text-sm font-black sm:text-base">
-              What will {moment.deciderName || "they"} decide?
-            </h3>
-          </>
-        ) : null}
-
-        <div
-          role="listbox"
-          aria-label={moment.status === "choosing" ? "Choose an action" : "Choose a prediction"}
-          className="mt-2 grid gap-1.5"
-        >
-          {choices.map((choice, index) => {
-            const selected = selectedIndex === index;
-            return (
-              <button
-                key={choice.id}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                tabIndex={selected ? 0 : -1}
-                disabled={busy}
-                onMouseEnter={() => {
-                  if (!busy) setSelectedIndex(index);
-                }}
-                onClick={() => {
-                  if (busy) return;
-                  if (moment.status === "choosing") onAct(choice.id);
-                  else onPredict(choice.id);
-                }}
-                className={`grid min-h-10 grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-bold leading-snug transition sm:text-base ${
-                  selected
-                    ? "bg-[#e7edff] text-[#3659cf]"
-                    : "text-[#1f2433] hover:bg-[#1f2433]/5"
-                } disabled:cursor-not-allowed disabled:opacity-60`}
-              >
-                <span aria-hidden="true" className="text-sm font-black text-[#e36b33]">
-                  {selected ? "▶" : ""}
-                </span>
-                <span>{choice.text}</span>
-              </button>
-            );
-          })}
+    <section
+      aria-label="A defining moment"
+      className={`${boxClass} flex-row items-stretch gap-2 px-2 py-2 sm:gap-3 sm:px-3 sm:py-3`}
+    >
+      {decider ? (
+        <div className="flex shrink-0 items-center">
+          <DialoguePortrait character={decider} portraitBase={portraitBase} />
         </div>
+      ) : null}
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="shrink-0 pb-2 pr-2 pt-1">
+          <NameTag>A defining moment</NameTag>
+        </div>
+        <div
+          onClickCapture={handleBodyClickCapture}
+          className="relative min-h-0 flex-1 overflow-y-auto pb-7 pr-2"
+        >
+          <h2 className={`${pixelFont.className} text-base font-bold leading-snug sm:text-lg`}>{moment.scene}</h2>
+          {moment.nudge ? <p className="mt-1 text-xs leading-relaxed text-[#5c6472] sm:text-sm">{moment.nudge}</p> : null}
+
+          {moment.status === "predicting" ? (
+            <>
+              {moment.reaction ? (
+                <p aria-live="polite" className={`${pixelFont.className} mt-2 whitespace-pre-wrap text-base leading-relaxed sm:text-lg`}>
+                  <span className="sr-only">{moment.reaction}</span>
+                  <span aria-hidden="true">{reactionShown}</span>
+                </p>
+              ) : null}
+              <h3 className="mt-2 text-sm font-black sm:text-base">
+                What will {moment.deciderName || "they"} decide?
+              </h3>
+            </>
+          ) : null}
+
+          <div
+            role="listbox"
+            aria-label={moment.status === "choosing" ? "Choose an action" : "Choose a prediction"}
+            className="mt-2 grid gap-1.5"
+          >
+            {choices.map((choice, index) => {
+              const selected = selectedIndex === index;
+              return (
+                <button
+                  key={choice.id}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  tabIndex={selected ? 0 : -1}
+                  disabled={busy}
+                  onMouseEnter={() => {
+                    if (!busy) setSelectedIndex(index);
+                  }}
+                  onClick={() => {
+                    if (busy) return;
+                    if (moment.status === "choosing") onAct(choice.id);
+                    else onPredict(choice.id);
+                  }}
+                  className={`grid min-h-10 grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-2 rounded-lg px-2 py-1.5 text-left leading-snug transition ${
+                    selected
+                      ? "bg-[#e7edff] text-[#3659cf]"
+                      : "text-[#1f2433] hover:bg-[#1f2433]/5"
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  <span aria-hidden="true" className="text-sm font-black text-[#e36b33]">
+                    {selected ? "▶" : ""}
+                  </span>
+                  <span className={`${pixelFont.className} text-sm font-semibold sm:text-base`}>{choice.text}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {moment.status === "choosing" || reactionDone ? <ContinueIndicator /> : null}
       </div>
     </section>
   );

@@ -23,6 +23,10 @@ import {
   type PlayerView,
 } from "@adventure/play-contract";
 
+vi.mock("next/font/google", () => ({
+  Pixelify_Sans: () => ({ className: "pixelify-sans" }),
+}));
+
 const view = { phase: "briefing", pendingCheck: false } as unknown as PlayerView;
 const continueAction = { type: "continue" } as const;
 
@@ -222,7 +226,7 @@ describe("v3 stance portrait paths", () => {
 });
 
 describe("v3 stage play screen", () => {
-  it("shows the walking, look-around, notes, and documents controls", () => {
+  it("shows the Mission card and map fallback while retaining notes and documents", () => {
     const stageView = stagePlayView({
       notes: [{ id: "note-1", text: "A useful discovery.", source: "document", stageIndex: 0, at: "2026-01-01T00:00:00.000Z" }],
       documents: [{
@@ -247,13 +251,18 @@ describe("v3 stage play screen", () => {
         send: () => {},
         attemptId: "preview-attempt",
       }));
+      const mission = markup.match(/<section aria-label="Mission"[\s\S]*?<\/section>/)?.[0] ?? "";
 
-      expect(markup).toContain("Walk to");
-      expect(markup).toContain("Look around");
+      expect(markup).not.toContain("<aside");
+      expect(markup).not.toContain("People here");
+      expect(markup).not.toContain("Look around");
+      expect(mission).toContain("Mission");
+      expect(mission).toContain("Who will shape the island?");
+      expect(mission).toContain("ready to decide");
+      expect(mission).toContain('aria-expanded="true"');
+      expect(mission).toContain("Walk to");
       expect(markup).toContain("Notes (1)");
       expect(markup).toContain("Documents (1)");
-      expect(markup).toContain("People here");
-      expect(markup).toContain("ready to decide");
       expect(markup).not.toContain('id="v3-message"');
       expect(markup).not.toContain("Say hello");
       expect(markup).not.toContain("Move to");
@@ -283,11 +292,14 @@ describe("v3 stage play screen", () => {
         send: () => {},
         attemptId: "preview-attempt",
       }));
+      const mission = markup.match(/<section aria-label="Mission"[\s\S]*?<\/section>/)?.[0] ?? "";
 
       expect(markup).toContain("A defining moment");
       expect(markup).toContain("The landing may decide Singapore");
       expect(markup).toContain("Welcome the British ships.");
-      expect(markup).not.toContain("I'm ready to decide");
+      expect(mission).toContain("Who will shape the island?");
+      expect(mission).not.toContain("I'm ready to decide");
+      expect(mission).not.toContain("Walk to");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -467,6 +479,7 @@ describe("v3 dialogue box", () => {
       const markup = renderToStaticMarkup(createElement(DialogueBox, {
         mode: "talk",
         character,
+        portraitBase: "https://assets.example/v3/portraits",
         messages: [message],
         busy: false,
         onSend: () => {},
@@ -475,11 +488,35 @@ describe("v3 dialogue box", () => {
       }));
 
       expect(markup).toContain(character.name);
+      expect(markup).toContain('src="https://assets.example/v3/portraits/temenggong.webp"');
+      expect(markup).toContain("bg-[#1f2433]");
+      expect(markup).toContain(`>${character.name}</span>`);
+      expect(markup).toContain("▼");
       expect(markup).toContain(message.text);
       expect(markup).toContain("The tide changes before dawn.");
       expect(markup).toContain('id="v3-message"');
       expect(markup).toContain("Insert a note");
       expect(markup).toContain('aria-label="Close conversation (Esc)"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows character initials when the portrait base is unavailable", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "talk",
+        character,
+        portraitBase: null,
+        messages: [],
+        busy: false,
+        onSend: () => {},
+        onOpenNotes: () => {},
+        onClose: () => {},
+      }));
+
+      expect(markup).toContain(">TA</span>");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -491,6 +528,7 @@ describe("v3 dialogue box", () => {
       const markup = renderToStaticMarkup(createElement(DialogueBox, {
         mode: "moment",
         moment,
+        portraitBase: null,
         busy: false,
         onAct: () => {},
         onPredict: () => {},
@@ -501,6 +539,27 @@ describe("v3 dialogue box", () => {
       expect(markup).toContain("▶");
       expect(markup).toContain("Welcome the British ships.");
       expect(markup).toContain("Refuse their proposal.");
+      expect(markup).not.toContain("<img");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("renders a decider portrait in moment mode", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "moment",
+        moment,
+        decider: character,
+        portraitBase: "https://assets.example/v3/portraits",
+        busy: false,
+        onAct: () => {},
+        onPredict: () => {},
+      }));
+
+      expect(markup).toContain('src="https://assets.example/v3/portraits/temenggong.webp"');
+      expect(markup).toContain("A defining moment");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -521,6 +580,7 @@ describe("v3 dialogue box", () => {
       const markup = renderToStaticMarkup(createElement(DialogueBox, {
         mode: "moment",
         moment: predicting,
+        portraitBase: null,
         busy: false,
         onAct: () => {},
         onPredict: () => {},
