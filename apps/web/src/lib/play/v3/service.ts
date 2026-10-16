@@ -6,7 +6,7 @@ import { z } from "zod";
 import { v3SchoolAllowed } from "@/lib/v3/flag";
 
 import { createRateLimiter } from "./rate-limit";
-import type { V3Attempt, V3PlayStore } from "./store";
+import type { V3Attempt, V3FlagInput, V3PlayStore } from "./store";
 
 type LlmContext = { attemptId: string; organizationId: string; userId: string };
 
@@ -17,7 +17,7 @@ export interface V3PlayServiceDeps {
   env?: NodeJS.ProcessEnv;
 }
 
-type ServiceResponse = {
+export type ServiceResponse = {
   status: number;
   body: Record<string, unknown>;
 };
@@ -27,7 +27,7 @@ const ActionRequest = z.strictObject({
   action: Action,
 });
 
-const ENGINE_ERROR_STATUS: Record<EngineError["code"], number> = {
+export const ENGINE_ERROR_STATUS: Record<EngineError["code"], number> = {
   invalid_action: 400,
   unknown_id: 400,
   illegal_phase: 409,
@@ -56,7 +56,9 @@ function integerSetting(value: string | undefined, fallback: number): number {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-function limiterFor(deps: V3PlayServiceDeps): (attemptId: string) => boolean {
+type RateLimitDeps = Pick<V3PlayServiceDeps, "store" | "now" | "env">;
+
+export function limiterFor(deps: RateLimitDeps): (key: string) => boolean {
   const limit = integerSetting(deps.env?.V3_RATE_LIMIT_PER_10S, DEFAULT_RATE_LIMIT);
   const current = rateLimiters.get(deps.store);
   if (current?.limit === limit && current.now === deps.now) return current.allow;
@@ -253,7 +255,8 @@ export async function runPostTurnChecks(
         if (!attempt) break;
         const spec = await pinnedSpec(deps, attempt);
         const state = attempt.state as EngineState;
-        if (!pendingCheckIds(state).includes(messageId)) break;
+        const pending = state.pendingChecks.find((check) => check.messageId === messageId);
+        if (pending === undefined) break;
 
         const llm = deps.llm({
           attemptId: attempt.id,
@@ -265,7 +268,14 @@ export async function runPostTurnChecks(
           { spec, state, action: { type: "postTurn", messageId, result: checkResult } },
           { llm, now: deps.now(), rng: createRng(`${attempt.id}:${attempt.revision}`) },
         );
-        const saved = await deps.store.save(attempt.id, attempt.revision, result.state, result.events as GameEvent[]);
+        const flags = flagsFromEvents(pending, result.events);
+        const saved = await deps.store.save(
+          attempt.id,
+          attempt.revision,
+          result.state,
+          result.events as GameEvent[],
+          flags,
+        );
         if (saved.saved) break;
       } catch (cause) {
         console.error("Failed to run v3 post-turn check", cause);
@@ -273,4 +283,30 @@ export async function runPostTurnChecks(
       }
     }
   }
+}
+
+export function flagsFromEvents(
+  pending: EngineState["pendingChecks"][number],
+  events: readonly GameEvent[],
+): V3FlagInput[] {
+  const excerpt = (
+    pending.turn.kind === "message"
+      ? pending.turn.text
+      : [pending.turn.text, pending.turn.note].filter(Boolean).join("\n")
+  ).trim().slice(0, 1000);
+
+  return events.flatMap((event) => (
+    event.type === "flag" && event.messageId === pending.messageId
+      ? [{
+          messageId: event.messageId,
+          category: event.category,
+          excerpt,
+          result: {
+            reason: event.reason,
+            characterId: pending.characterId,
+            stageIndex: pending.stageIndex,
+          },
+        }]
+      : []
+  ));
 }

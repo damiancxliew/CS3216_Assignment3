@@ -48,6 +48,7 @@ function momentView(spec: EngineSpec, state: EngineState): DefiningMomentView | 
     momentId: moment.id,
     scene: moment.scene,
     deciderId: moment.deciderId,
+    deciderName: spec.characters.find((character) => character.id === moment.deciderId)?.name ?? moment.deciderId,
     status: current.status,
     acts:
       current.status === 'choosing'

@@ -17,7 +17,7 @@ function messageOf(body: ResponseBody | null): string {
     : "Something went wrong. Please try again.";
 }
 
-async function readBody(response: Response): Promise<ResponseBody | null> {
+export async function readBody(response: Response): Promise<ResponseBody | null> {
   const body: unknown = await response.json().catch(() => null);
   return body !== null && typeof body === "object" ? body as ResponseBody : null;
 }
@@ -34,7 +34,7 @@ function successOf(response: Response, body: ResponseBody | null): V3PlayResult 
   return null;
 }
 
-function failureOf(response: Response, body: ResponseBody | null): V3PlayResult {
+export function failureOf(response: Response, body: ResponseBody | null): V3PlayResult {
   if (response.status === 409 && body?.error?.code === "stale_state" &&
     typeof body.revision === "number" && body.view !== null && typeof body.view === "object") {
     return { ok: false, kind: "stale", revision: body.revision, view: body.view as PlayerView };
