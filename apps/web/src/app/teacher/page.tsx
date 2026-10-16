@@ -10,12 +10,21 @@ import { briefStateSchema } from "@/lib/brief/schema";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { loadLibraryArtwork } from "@/lib/teacher/library";
+import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
+import { V3_STATUS_LABELS } from "@/lib/v3/generation/labels";
 import { AdventureCover } from "@/components/teacher/adventure-cover";
 import { SchoolMembershipRequired } from "@/components/school-membership-required";
 
 export const metadata: Metadata = {
   title: "Your adventures",
   robots: { index: false },
+};
+
+type V3Row = {
+  id: string;
+  title: string | null;
+  status: string;
+  updated_at: string;
 };
 
 type AdventureRow = {
@@ -68,6 +77,17 @@ export default async function TeacherHome() {
   const resume = briefStateSchema.safeParse(unfinished?.brief_state);
   const artwork = await loadLibraryArtwork(supabase, adventures);
 
+  const v3Allowed = viewer.membership ? v3Enabled() && v3SchoolAllowed(viewer.membership.organizationId) : false;
+  const { data: v3Rows } = v3Allowed
+    ? await supabase
+        .from("adventures_v3")
+        .select("id, title, status, updated_at")
+        .eq("owner_id", user.id)
+        .neq("status", "archived")
+        .order("updated_at", { ascending: false })
+        .returns<V3Row[]>()
+    : { data: null };
+
   return (
     <Page
       title="Choose your next adventure"
@@ -77,6 +97,7 @@ export default async function TeacherHome() {
       <TeacherWorkspace
         resume={resume.success ? resume.data : undefined}
         hasAdventures={adventures.length > 0}
+        {...(v3Allowed ? { newAdventure: { href: "/v3/teacher/new", label: "New adventure" } } : {})}
         adventures={
           adventures.length === 0 ? (
             <EmptyState title="No adventures yet">Start with the class you are teaching next.</EmptyState>
@@ -119,6 +140,26 @@ export default async function TeacherHome() {
           )
         }
       />
+      {v3Allowed && (v3Rows ?? []).length > 0 ? (
+        <section className="mt-10">
+          <h2 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Your v3 adventures</h2>
+          <ul className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {(v3Rows ?? []).map((row) => (
+              <li key={row.id}>
+                <Link
+                  href={`/v3/teacher/${row.id}`}
+                  className="group flex items-center justify-between gap-3 rounded-surface border-2 border-line bg-surface px-5 py-4 transition-colors hover:border-ink"
+                >
+                  <span className="min-w-0 truncate font-bold text-ink group-hover:text-record">{row.title ?? "Untitled adventure"}</span>
+                  <span className="whitespace-nowrap rounded-full border border-line-strong px-3 py-1 font-sans text-xs font-extrabold uppercase tracking-wide text-muted">
+                    {V3_STATUS_LABELS[row.status] ?? row.status}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </Page>
   );
 }
