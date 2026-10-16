@@ -85,10 +85,11 @@ function DocumentShelf({
   );
 }
 
-export function StagePlayScreen({ view, busy, send }: {
+export function StagePlayScreen({ view, busy, send, portraitBase = null }: {
   view: PlayerView;
   busy: boolean;
   send: (action: Action) => void;
+  portraitBase?: string | null;
 }) {
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -234,6 +235,7 @@ export function StagePlayScreen({ view, busy, send }: {
                       key={character.id}
                       name={character.name}
                       portraitKey={character.portraitKey}
+                      portraitBase={portraitBase}
                       selected={character.id === characterId}
                       onSelect={() => setCharacterId(character.id)}
                     />

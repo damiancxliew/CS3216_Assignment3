@@ -7,16 +7,18 @@ import { portraitUrl } from "@/lib/play/v3/portraits";
 export function CharacterPortrait({
   name,
   portraitKey,
+  portraitBase,
   selected,
   onSelect,
 }: {
   name: string;
   portraitKey: string;
+  portraitBase: string | null;
   selected: boolean;
   onSelect: () => void;
 }) {
   const [failed, setFailed] = useState(false);
-  const src = failed ? null : portraitUrl(portraitKey);
+  const src = failed ? null : portraitUrl(portraitKey, portraitBase);
   const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 
   return (

@@ -54,7 +54,7 @@ depend on the teacher's browser tab.
 - [x] **L** Play route picks v2 or v3 by the adventure's version (v2 attempts keep working)
 - [x] **L** Switch from `@adventure/engine/mock` to `@adventure/engine`
 
-Portrait URLs are wired to `NEXT_PUBLIC_V3_PORTRAIT_BASE`; initials remain the fallback until stance portrait generation lands.
+The publish flow enqueues `portraitsStep(adventureId, version)`.
 
 **By Checkpoint 2 (D2 13:00)**
 - [x] **M** Hints that escalate with time left [P5, P5.1.1]
@@ -69,7 +69,7 @@ Portrait URLs are wired to `NEXT_PUBLIC_V3_PORTRAIT_BASE`; initials remain the f
 - [ ] **L** `/v3/teacher/:id/summary`: class summary tabs [T2]
 - [ ] **L** v3 maps without doors: an option in the map compiler and renderer (v2 unchanged)
 - [ ] **L** Moderation results → `flags_v3` [T5]
-- [ ] **L** Per-stance portrait generation step [G4.2]
+- [x] **L** Per-stance portrait generation step [G4.2]
 
 ## Shared context (identical in all three files)
 

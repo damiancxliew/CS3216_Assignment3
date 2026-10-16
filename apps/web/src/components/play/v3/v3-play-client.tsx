@@ -15,10 +15,12 @@ export function V3PlayClient({
   attemptId,
   initialView,
   initialRevision,
+  portraitBase = null,
 }: {
   attemptId: string;
   initialView: PlayerView;
   initialRevision: number;
+  portraitBase?: string | null;
 }) {
   const { view, busy, banner, send, clearBanner } = useV3Play(attemptId, initialView, initialRevision);
 
@@ -42,7 +44,7 @@ export function V3PlayClient({
       ) : view.phase === "stage" && view.stage?.intro ? (
         <StageIntroScreen stage={view.stage} onContinue={() => { if (!busy) send({ type: "continue" }); }} />
       ) : view.phase === "stage" ? (
-        <StagePlayScreen view={view} busy={busy} send={send} />
+        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} />
       ) : view.phase === "epilogue" && view.epilogue ? (
         <EpilogueScreen epilogue={view.epilogue} busy={busy} send={send} />
       ) : view.phase === "interview" && view.interview ? (

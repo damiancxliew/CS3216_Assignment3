@@ -1,9 +1,13 @@
+import { createElement } from "react";
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { CharacterPortrait } from "@/components/play/v3/character-portrait";
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
-import { portraitUrl } from "@/lib/play/v3/portraits";
+import { portraitFile, portraitStoragePrefix, portraitUrl, v3PortraitBase } from "@/lib/play/v3/portraits";
 import { MAX_EVIDENCE_NOTES, MAX_INTERVIEW_TEXT_LENGTH, type PlayerView } from "@adventure/play-contract";
 
 const view = { phase: "briefing", pendingCheck: false } as unknown as PlayerView;
@@ -76,14 +80,44 @@ describe("passage offsets", () => {
   });
 });
 
-describe("stance portrait URLs", () => {
-  it("returns null until a base URL is configured", () => {
-    expect(portraitUrl("ahmad:steady", {})).toBeNull();
+describe("v3 stance portrait paths", () => {
+  it("sanitizes portrait keys into webp file names", () => {
+    expect(portraitFile("ahmad:steady/slash")).toBe("ahmad_steady_slash.webp");
   });
 
-  it("uses an encoded stance key under the configured base", () => {
-    expect(portraitUrl("ahmad:steady", { NEXT_PUBLIC_V3_PORTRAIT_BASE: "https://cdn.example.test/portraits/" }))
-      .toBe("https://cdn.example.test/portraits/ahmad%3Asteady.png");
+  it("scopes storage paths and public bases to an adventure version", () => {
+    expect(portraitStoragePrefix("adventure-1", 4)).toBe("v3/portraits/adventure-1/v4");
+    expect(v3PortraitBase("adventure-1", 4, "https://supabase.example.test/"))
+      .toBe("https://supabase.example.test/storage/v1/object/public/assets/v3/portraits/adventure-1/v4");
+    expect(v3PortraitBase("adventure-1", 4, "")).toBeNull();
+    expect(portraitUrl("ahmad:steady", "https://cdn.example.test/portraits/"))
+      .toBe("https://cdn.example.test/portraits/ahmad_steady.webp");
+    expect(portraitUrl("ahmad:steady", null)).toBeNull();
+  });
+
+  it("renders an image when a base is present and initials without one", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const image = renderToStaticMarkup(createElement(CharacterPortrait, {
+        name: "Temenggong Abdul Rahman",
+        portraitKey: "temenggong:t1",
+        portraitBase: "https://cdn.example.test/v3/portraits/adventure/v1",
+        selected: false,
+        onSelect: () => {},
+      }));
+      expect(image).toContain('src="https://cdn.example.test/v3/portraits/adventure/v1/temenggong_t1.webp"');
+
+      const fallback = renderToStaticMarkup(createElement(CharacterPortrait, {
+        name: "Temenggong Abdul Rahman",
+        portraitKey: "temenggong:t1",
+        portraitBase: null,
+        selected: false,
+        onSelect: () => {},
+      }));
+      expect(fallback).toContain(">TA</span>");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
