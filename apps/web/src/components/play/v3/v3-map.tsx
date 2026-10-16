@@ -309,7 +309,7 @@ export function V3Map(props: V3MapProps) {
       ref={host}
       role="img"
       aria-label="Walkable stage map"
-      className="h-full w-full overflow-hidden"
+      className="absolute inset-0 overflow-hidden"
     />
   );
 }
