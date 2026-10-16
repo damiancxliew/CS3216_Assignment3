@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { EngineSpec, type EngineState, pendingCheckIds } from "@adventure/engine";
+import { EngineSpec, type EngineState, type PendingCheck, pendingCheckIds } from "@adventure/engine";
 import { FakeLlmClient, type LlmRequest } from "@adventure/orchestration";
 import type { GameEvent } from "@adventure/play-contract";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -9,6 +9,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
   createAttempt,
   getAttempt,
+  flagsFromEvents,
   postAction,
   runPostTurnChecks,
   type V3PlayServiceDeps,
@@ -26,7 +27,7 @@ beforeAll(() => {
   goldenSpec = EngineSpec.parse(JSON.parse(readFileSync(GOLDEN_SOURCE, "utf8")));
 });
 
-function fakeLlm(): FakeLlmClient {
+function fakeLlm(flagged = false): FakeLlmClient {
   return new FakeLlmClient({
     replies: [
       (request: LlmRequest) => request.schemaName === "v3_post_turn_check"
@@ -34,7 +35,11 @@ function fakeLlm(): FakeLlmClient {
             conveyed: [],
             assertedUndiscovered: false,
             assertion: null,
-            moderation: { flagged: false, category: "none", reason: null },
+            moderation: {
+              flagged,
+              category: flagged ? "abusive" : "none",
+              reason: flagged ? "insult" : null,
+            },
           })
         : JSON.stringify({ reply: "A reply." }),
     ],
@@ -46,6 +51,7 @@ function setup(options: {
   activeMember?: boolean;
   env?: NodeJS.ProcessEnv;
   store?: MemoryV3PlayStore;
+  flagged?: boolean;
 } = {}) {
   const store = options.store ?? new MemoryV3PlayStore();
   store.addAdventure({
@@ -58,7 +64,7 @@ function setup(options: {
   store.addMember(SCHOOL_ID, USER_ID, options.activeMember ?? true);
 
   let time = 1_000;
-  const llm = fakeLlm();
+  const llm = fakeLlm(options.flagged ?? false);
   const deps: V3PlayServiceDeps = {
     store,
     llm: () => llm,
@@ -77,6 +83,23 @@ async function create(deps: V3PlayServiceDeps) {
   const result = await createAttempt(deps, USER_ID, ADVENTURE_ID);
   expect(result.status).toBe(201);
   return result.body as { attemptId: string; revision: number; view: { phase: string }; resumed: boolean };
+}
+
+async function createPendingMessage(deps: V3PlayServiceDeps, attemptId: string, text: string) {
+  let revision = 0;
+  for (const action of [
+    { type: "continue" },
+    { type: "continue" },
+    { type: "enterRoom", roomId: "balai" },
+    { type: "message", characterId: "temenggong", text },
+  ] as const) {
+    const result = await postAction(deps, USER_ID, attemptId, { revision, action });
+    expect(result.status).toBe(200);
+    revision = (result.body as { revision: number }).revision;
+  }
+  const attempt = await deps.store.loadAttempt(attemptId);
+  expect(attempt).not.toBeNull();
+  return (attempt!.state as EngineState).pendingChecks[0]!;
 }
 
 describe("v3 attempts API service", () => {
@@ -271,5 +294,73 @@ describe("v3 attempts API service", () => {
     expect(checked?.revision).toBe(revision + 2);
     expect(pendingCheckIds(checked!.state as EngineState)).toEqual([]);
     expect(fixture.llm.requests.filter((request) => request.schemaName === "v3_post_turn_check")).toHaveLength(1);
+  });
+
+  it("saves a moderation flag with the student's excerpt and is idempotent", async () => {
+    const fixture = setup({ flagged: true });
+    const created = await create(fixture.deps);
+    const text = "I hate you; you are a fool.";
+    const pending = await createPendingMessage(fixture.deps, created.attemptId, text);
+
+    await runPostTurnChecks(fixture.deps, created.attemptId, [pending.messageId]);
+
+    expect(fixture.store.flags).toEqual([{
+      attemptId: created.attemptId,
+      messageId: pending.messageId,
+      category: "abusive",
+      excerpt: text,
+      result: { reason: "insult", characterId: "temenggong", stageIndex: 0 },
+    }]);
+    expect(fixture.store.savedEvents.flatMap((save) => save.events)).toContainEqual(
+      expect.objectContaining({
+        type: "flag",
+        messageId: pending.messageId,
+        category: "abusive",
+        reason: "insult",
+      }),
+    );
+
+    await runPostTurnChecks(fixture.deps, created.attemptId, [pending.messageId]);
+    expect(fixture.store.flags).toHaveLength(1);
+  });
+
+  it("does not save a moderation flag for a non-flagged check", async () => {
+    const fixture = setup();
+    const created = await create(fixture.deps);
+    const pending = await createPendingMessage(fixture.deps, created.attemptId, "A calm question.");
+
+    await runPostTurnChecks(fixture.deps, created.attemptId, [pending.messageId]);
+
+    expect(fixture.store.flags).toEqual([]);
+    expect(fixture.store.savedEvents.flatMap((save) => save.events))
+      .not.toContainEqual(expect.objectContaining({ type: "flag" }));
+  });
+
+  it("builds note-turn excerpts and caps excerpts at 1000 characters", () => {
+    const pending: PendingCheck = {
+      messageId: "message-1",
+      characterId: "temenggong",
+      stageIndex: 2,
+      revealable: [],
+      studentNotes: [],
+      turn: { kind: "note", text: "Quoted words", note: "Student note" },
+      reply: "A reply.",
+    };
+    const flag: GameEvent = {
+      type: "flag",
+      at: 1,
+      stageIndex: 2,
+      messageId: "message-1",
+      category: "abusive",
+      reason: "insult",
+    };
+
+    expect(flagsFromEvents(pending, [flag])).toMatchObject([
+      { excerpt: "Quoted words\nStudent note", result: { characterId: "temenggong", stageIndex: 2 } },
+    ]);
+    expect(flagsFromEvents({
+      ...pending,
+      turn: { kind: "note", text: null, note: "x".repeat(1200) },
+    }, [flag])[0]?.excerpt).toHaveLength(1000);
   });
 });
