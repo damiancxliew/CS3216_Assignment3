@@ -6,6 +6,8 @@ import { createAssetStore } from "@/lib/assets/store";
 import { SupabaseAssetCache } from "@/lib/assets/supabase";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateStancePortraits } from "@/lib/v3/portraits/generate";
+import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
+import { v3GenerationSteps } from "@/lib/v3/generation/steps";
 
 const stancePortraitStep = defineStep<
   { adventureId: string; version: number },
@@ -37,7 +39,7 @@ const stancePortraitStep = defineStep<
   { maxAttempts: 6 },
 );
 
-export const jobSteps = [stancePortraitStep];
+export const jobSteps = [stancePortraitStep, ...v3GenerationSteps(defaultGenerationDeps)];
 
 export function portraitsStep(adventureId: string, version: number): EnqueueStep {
   return {
