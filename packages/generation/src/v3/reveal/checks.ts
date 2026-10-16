@@ -61,7 +61,8 @@ export function buildRevealContext(
     correctionActs,
     expectedOutcomes,
     allOutcomeIds,
-    secretStrings: secretStrings.filter((s) => s.length > 0),
+    // Short titles ("Wait", "The Deal") would flag innocent text, so only distinctive strings are matched.
+    secretStrings: secretStrings.filter((s) => s.trim().length >= MIN_SECRET_STRING),
   }
 }
 
@@ -72,10 +73,15 @@ export function isSecretAct(act: { id: string; secret?: unknown }, moment: Adven
   return moment.rules.some((r) => r.actId === act.id && r.when === undefined && secretOutcomes.has(r.outcomeId))
 }
 
-/** backstop: no student-facing text may name a secret ending or the secret act. */
+const MIN_SECRET_STRING = 8
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** backstop: no student-facing text may name a secret ending or the secret act (whole words only). */
 function secretLeaks(text: string, path: string, ctx: RevealContext): CheckIssue[] {
   const lower = text.toLowerCase()
-  return ctx.secretStrings.filter((s) => lower.includes(s)).map(() => issue('secret-leak', path, 'student-facing text mentions the secret path'))
+  return ctx.secretStrings
+    .filter((s) => new RegExp(`(^|\\W)${escapeRegExp(s.trim())}($|\\W)`).test(lower))
+    .map(() => issue('secret-leak', path, 'student-facing text mentions the secret path'))
 }
 
 export function revealIssues(output: RevealLlmOutput, ctx: RevealContext): { errors: CheckIssue[]; warnings: CheckIssue[] } {
@@ -88,13 +94,16 @@ export function revealIssues(output: RevealLlmOutput, ctx: RevealContext): { err
     ...output.couldHaveGone.map((c, i) => ({ text: c.text, path: `couldHaveGone.${i}.text` })),
     ...output.teacherQuestions.map((q, i) => ({ text: q, path: `teacherQuestions.${i}` })),
   ]
-  if (output.interpretationsWarning !== null) {
-    texts.push({ text: output.interpretationsWarning.message, path: 'interpretationsWarning.message' })
-    output.interpretationsWarning.suggestedSources.forEach((s, i) => texts.push({ text: s, path: `interpretationsWarning.suggestedSources.${i}` }))
-  }
   for (const { text, path } of texts) {
     errors.push(...citationInText(text, path, ctx.sourceIds))
     errors.push(...secretLeaks(text, path, ctx))
+  }
+  // The interpretations warning goes to the teacher, who may need source names and pages; it only must not
+  // name the secret path.
+  if (output.interpretationsWarning !== null) {
+    errors.push(...secretLeaks(output.interpretationsWarning.message, 'interpretationsWarning.message', ctx))
+    output.interpretationsWarning.suggestedSources.forEach((source, i) =>
+      errors.push(...secretLeaks(source, `interpretationsWarning.suggestedSources.${i}`, ctx)))
   }
 
   // cites: sourceId exists and the quote is word for word in that source ("…" rule applies)

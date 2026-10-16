@@ -247,6 +247,42 @@ describe('generateReveal', () => {
     })
   })
 
+  it('the secret-leak backstop matches whole distinctive strings only', async () => {
+    const leak = revealOutput({ whatHappened: { text: 'A rival recalled the side deal years later.', cites: [{ sourceId: 'src', quote: QUOTE }] } })
+    const llm = new RevealLlm([{ json: leak }, { json: revealOutput() }])
+    const result = await generateReveal({ draft: secretDraft(), sources, slantedDocuments }, { llm })
+    expect(result.ok).toBe(true)
+    expect(llm.requests[1]!.user).toContain('secret-leak')
+
+    // a short secret title ("Wait") must not flag ordinary words
+    const shortSecret = secretDraft()
+    shortSecret.endings.find((e) => e.id === 'e-secret')!.title = 'Wait'
+    const ordinary = revealOutput({ whatHappened: { text: 'They had to wait for Calcutta.', cites: [{ sourceId: 'src', quote: QUOTE }] } })
+    const llm2 = new RevealLlm([{ json: ordinary }])
+    expect((await generateReveal({ draft: shortSecret, sources, slantedDocuments }, { llm: llm2 })).ok).toBe(true)
+  })
+
+  it('the teacher-only interpretations warning may name sources and pages', async () => {
+    const thin = revealOutput({
+      interpretations: [{ text: 'One reading only.', cites: [{ sourceId: 'src', quote: QUOTE }] }],
+      interpretationsWarning: { message: 'See src, p. 4 for the only reading.', suggestedSources: ['Dutch account, p. 12'] },
+    })
+    const llm = new RevealLlm([{ json: thin }])
+    const result = await generateReveal(input, { llm })
+    expect(result.ok).toBe(true)
+    expect(llm.requests).toHaveLength(1)
+  })
+
+  it('fails fast, with no model call, when the draft already fails checkSpec', async () => {
+    const broken = baseDraft()
+    broken.definingMoments[0]!.rules = broken.definingMoments[0]!.rules.map((r) => ({ ...r, outcomeId: 'nope' }))
+    const llm = new RevealLlm([])
+    const result = await generateReveal({ draft: broken, sources, slantedDocuments }, { llm })
+    expect(result.ok).toBe(false)
+    expect(llm.requests).toHaveLength(0)
+    expect(result.issues.every((i) => i.message.startsWith('draft already fails'))).toBe(true)
+  })
+
   it('fewer than 2 interpretations needs the warning, which is surfaced', async () => {
     const thin = revealOutput({
       interpretations: [{ text: 'One reading only.', cites: [{ sourceId: 'src', quote: QUOTE }] }],

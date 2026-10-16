@@ -95,6 +95,19 @@ export async function generateReveal(input: GenerateRevealInput, opts: GenerateR
   const now = opts.now ?? Date.now
   const deadline = now() + (opts.budgetMs ?? REVEAL_BUDGET_MS)
 
+  // Errors already in the draft aren't the reveal's to fix: fail fast instead of paying for a doomed call and repair.
+  const before = validateSpec(draft)
+  const draftErrors = before.ok ? checkSpec(before.spec).errors : before.issues.map((i) => ({ code: 'schema', path: i.path, message: i.message }))
+  if (draftErrors.length > 0) {
+    return {
+      ok: false,
+      issues: draftErrors.map((e) => ({ ...e, message: `draft already fails before the reveal pass: ${e.message}` })),
+      warnings: [],
+      pendingPasses: [],
+      metrics: { calls, totalCostUsd: 0 },
+    }
+  }
+
   const result = await runCall(
     {
       label: 'reveal',

@@ -7,7 +7,7 @@
  * Writes skeleton.json, issues.json, metrics.json and outline.txt to --out, and prints the outline.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { basename, extname, join } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
 
 import { validateSkeleton, validateSpec } from '@adventure/spec-v3'
 import type { AdventureSpec, Condition, SkeletonShape } from '@adventure/spec-v3'
@@ -149,9 +149,11 @@ for (const ending of skeleton.endings) lines.push(`  ${ending.id} (${ending.type
 let persistedSlanted: { stageId: string; documentId: string; note: string }[] = []
 if (draftPath !== undefined) {
   try {
-    const saved = JSON.parse(await readFile(join(draftPath.slice(0, draftPath.lastIndexOf('/')), 'details-issues.json'), 'utf8'))
+    const saved = JSON.parse(await readFile(join(dirname(draftPath), 'details-issues.json'), 'utf8'))
     if (Array.isArray(saved.slantedDocuments)) persistedSlanted = saved.slantedDocuments
   } catch { /* not saved — empty list */ }
+  if (persistedSlanted.length === 0)
+    console.warn(`WARNING: no slantedDocuments recovered from ${join(dirname(draftPath), 'details-issues.json')}; if any document is slanted, the reveal will not correct it (G15).`)
 }
 
 const details = draftInput !== undefined
