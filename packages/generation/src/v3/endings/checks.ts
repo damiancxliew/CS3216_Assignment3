@@ -51,7 +51,7 @@ export function buildMomentContext(draft: AdventureSpec, momentId: string, sourc
 
 /** student-facing text must contain no source ids and no page references. */
 const PAGE_REF = /\bpp?\.\s?\d/i
-function citationInText(text: string, path: string, sourceIds: Set<string>): CheckIssue[] {
+export function citationInText(text: string, path: string, sourceIds: Set<string>): CheckIssue[] {
   const issues: CheckIssue[] = []
   for (const id of sourceIds) if (id !== '' && text.includes(id)) issues.push(issue('citation-in-text', path, `student-facing text contains the source id '${id}'`))
   if (PAGE_REF.test(text)) issues.push(issue('citation-in-text', path, `student-facing text contains a page reference '${text.match(PAGE_REF)![0]}'`))
