@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
@@ -20,10 +20,14 @@ type Stage = Draft["stages"][number];
 /**
  * The needs_review editor: every skeleton field, add/remove with dangling
  * references left for `checkSkeleton` to flag in place, and autosaved drafts
- * on the server. Continue is blocked while errors remain.
+ * on the server. Item cards are collapsed by default — they open on their own
+ * when they carry errors or were just added. Continue is blocked while errors
+ * remain.
  */
 export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId: string; initial: SkeletonShape; hasDraft: boolean }) {
   const [draft, setDraft] = useState<Draft>(initial);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [addedPaths, setAddedPaths] = useState<Set<string>>(new Set());
   const [saveState, setSaveState] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [showIssues, setShowIssues] = useState(false);
@@ -76,20 +80,42 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
     if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
 
-  const add = (kind: AddKind, parentRef?: Ref) => update((s) => Object.assign(s, addItem(s, kind, parentRef)));
+  const add = (kind: AddKind, parentRef: Ref | undefined, path: string) => {
+    update((s) => Object.assign(s, addItem(s, kind, parentRef)));
+    setAddedPaths((prev) => new Set(prev).add(path));
+    setOpen((o) => ({ ...o, [path]: true }));
+  };
   const remove = (ref: Ref) => update((s) => Object.assign(s, removeItem(s, ref)));
 
-  const scrollTo = (path: string) => {
-    const target = document.getElementById(`sk-${path}`) ?? document.getElementById(`sk-${path.split(".").slice(0, -1).join(".")}`);
-    target?.scrollIntoView({ block: "center", behavior: "smooth" });
+  /** Expands every ancestor card of `path` and scrolls to its deepest anchor. */
+  const openTo = (path: string) => {
+    const segments = path.split(".");
+    setOpen((o) => {
+      const next = { ...o };
+      for (let i = 1; i < segments.length; i += 1) next[segments.slice(0, i).join(".")] = true;
+      return next;
+    });
+    requestAnimationFrame(() => {
+      for (let i = segments.length; i > 0; i -= 1) {
+        const el = document.getElementById(`sk-${segments.slice(0, i).join(".")}`);
+        if (el) {
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+          return;
+        }
+      }
+    });
   };
+
+  const isOpen = (path: string, issueCount: number) => open[path] ?? (issueCount > 0 || addedPaths.has(path));
 
   const continueConfirm = () =>
     startContinue(async () => {
       setContinueError(null);
       const result = await approveV3Skeleton(adventureId, draft);
-      if ("error" in result) setContinueError(result.error + (result.issues?.length ? ` (${result.issues.length} issue${result.issues.length === 1 ? "" : "s"} — see the highlights on the page)` : ""));
-      else router.refresh();
+      if ("error" in result) {
+        const issueCount = "issues" in result ? (result.issues?.length ?? 0) : 0;
+        setContinueError(result.error + (issueCount > 0 ? ` (${issueCount} issue${issueCount === 1 ? "" : "s"} — see the highlights on the page)` : ""));
+      } else router.refresh();
     });
 
   const momentOf = (stage: Stage): Moment | undefined => draft.definingMoments.find((m) => m.id === stage.definingMomentId);
@@ -99,7 +125,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
       {/* sticky status bar */}
       <div className="sticky top-0 z-30 -mx-2 flex flex-wrap items-center gap-3 border-b-2 border-line bg-paper/95 px-2 py-3 backdrop-blur">
         <button type="button" onClick={() => setShowIssues((v) => !v)} className={`${button.subtle} text-sm`} aria-expanded={showIssues}>
-          <StableLabel label={`${errors.length} error${errors.length === 1 ? "" : "s"} · ${warnings.length} warning${warnings.length === 1 ? "" : "s"}`} />
+          <StableLabel label={`${errors.length} error${errors.length === 1 ? "" : "s"} · ${warnings.length} warning${warnings.length === 1 ? "" : "s"}`} pending={false} pendingLabel="" />
         </button>
         <span className="text-sm text-muted" role="status">
           {saveState === "saving" ? "Saving…" : saveState === "saved" && savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : saveState === "error" ? "Couldn't save — retrying" : saveState === "dirty" ? "Saving…" : hasDraft ? "Draft restored" : "No unsaved changes"}
@@ -137,8 +163,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
         <ul className="flex flex-col gap-1 rounded-surface border-2 border-line bg-sunken p-4 text-sm">
           {[...errors, ...warnings].map((issue, i) => (
             <li key={i}>
-              <button type="button" onClick={() => scrollTo(issue.path)} className="text-left underline decoration-dotted underline-offset-2">
-                <span className={errors.includes(issue) ? "text-record" : "text-muted"}>{issue.path || "(top)"} — {issue.message}</span>
+              <button type="button" onClick={() => openTo(issue.path)} className="text-left underline decoration-dotted underline-offset-2">
+                <span className={i < errors.length ? "text-record" : "text-muted"}>{issue.path || "(top)"} — {issue.message}</span>
               </button>
             </li>
           ))}
@@ -146,12 +172,12 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
         </ul>
       ) : null}
 
-      {/* 1. Overview */}
+      {/* 1. Overview — always expanded */}
       <Section title="Overview">
-        <FieldIssues issues={issuesAt(errors, "title")} />
+        <ItemIssues issues={issuesAt(errors, "title")} />
         <Text label="Title" value={draft.title} onChange={(v) => update((s) => void (s.title = v))} />
         <Area label="Arc" value={draft.arc ?? ""} onChange={(v) => update((s) => void (s.arc = v))} />
-        <Card path="role">
+        <div id="sk-role" className="flex flex-col gap-3 rounded-surface border-2 border-line bg-surface p-5">
           <ItemIssues issues={issuesAt(errors, "role")} />
           <Text label="Role name" value={draft.role.name} onChange={(v) => update((s) => void (s.role.name = v))} />
           <Text label="Position" value={draft.role.position} onChange={(v) => update((s) => void (s.role.position = v))} />
@@ -163,16 +189,17 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
           <Lines label="Fears" values={draft.role.privateBrief.fears} onChange={(v) => update((s) => void (s.role.privateBrief.fears = v))} />
           <Lines label="Constraints" values={draft.role.privateBrief.constraints} onChange={(v) => update((s) => void (s.role.privateBrief.constraints = v))} />
           <Lines label="Knows" values={draft.role.privateBrief.knows} onChange={(v) => update((s) => void (s.role.privateBrief.knows = v))} />
-        </Card>
+        </div>
       </Section>
 
       {/* 2. Characters */}
       <Section title="Characters">
         {draft.characters.map((character, i) => {
           const path = `characters.${i}`;
+          const count = issuesAt(errors, path).length;
           return (
-            <Card key={character.id} path={path} title={character.name || character.id} onRemove={<RemoveButton draft={draft} ref_={`character:${character.id}`} onRemove={remove} />}>
-              <ItemIssues issues={issuesAt(errors, path)} />
+            <ItemCard key={character.id} path={path} title={character.name || character.id} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
+              remove={<RemoveButton draft={draft} ref_={`character:${character.id}`} itemLabel={character.name || character.id} onRemove={remove} />}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Text label="Name" value={character.name} onChange={(v) => update((s) => void (s.characters[i].name = v))} />
                 <Text label="Title" value={character.title} onChange={(v) => update((s) => void (s.characters[i].title = v))} />
@@ -181,28 +208,29 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
               </div>
               <Area label="Public position" value={character.persona.publicPosition} onChange={(v) => update((s) => void (s.characters[i].persona.publicPosition = v))} />
               <Area label="Private agenda" value={character.persona.privateAgenda} onChange={(v) => update((s) => void (s.characters[i].persona.privateAgenda = v))} />
-            </Card>
+            </ItemCard>
           );
         })}
-        <AddButton label="Add character" onClick={() => add("character")} />
+        <AddButton label="Add character" onClick={() => add("character", undefined, `characters.${draft.characters.length}`)} />
       </Section>
 
       {/* 3. Documents */}
       <Section title="Documents">
         {draft.documents.map((document, i) => {
           const path = `documents.${i}`;
+          const count = issuesAt(errors, path).length;
           return (
-            <Card key={document.id} path={path} title={document.title || document.id} onRemove={<RemoveButton draft={draft} ref_={`document:${document.id}`} onRemove={remove} />}>
-              <ItemIssues issues={issuesAt(errors, path)} />
+            <ItemCard key={document.id} path={path} title={document.title || document.id} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
+              remove={<RemoveButton draft={draft} ref_={`document:${document.id}`} itemLabel={document.title || document.id} onRemove={remove} />}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Text label="Title" value={document.title} onChange={(v) => update((s) => void (s.documents[i].title = v))} />
                 <Select label="Kind" value={document.kind} options={DOCUMENT_KINDS} onChange={(v) => update((s) => void (s.documents[i].kind = v as typeof document.kind))} />
                 <Check label="Real artefact" checked={document.real} onChange={(v) => update((s) => void (s.documents[i].real = v))} />
               </div>
-            </Card>
+            </ItemCard>
           );
         })}
-        <AddButton label="Add document" onClick={() => add("document")} />
+        <AddButton label="Add document" onClick={() => add("document", undefined, `documents.${draft.documents.length}`)} />
       </Section>
 
       {/* 4. Stages */}
@@ -211,26 +239,33 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
           const path = `stages.${i}`;
           const moment = momentOf(stage);
           const mIndex = moment ? draft.definingMoments.indexOf(moment) : -1;
+          const stageCore = draft.discoveries.map((d, dIndex) => ({ d, dIndex })).filter(({ d }) => d.stageId === stage.id && d.core);
+          const count =
+            issuesAt(errors, path).length +
+            (moment ? issuesAt(errors, `definingMoments.${mIndex}`).length : 0) +
+            stageCore.reduce((sum, { dIndex }) => sum + issuesAt(errors, `discoveries.${dIndex}`).length, 0);
           return (
-            <Card key={stage.id} path={path} title={stage.title || stage.id} onRemove={<RemoveButton draft={draft} ref_={`stage:${stage.id}`} onRemove={remove} />}>
-              <ItemIssues issues={issuesAt(errors, path)} />
-              <Text label="Title" value={stage.title} onChange={(v) => update((s) => void (s.stages[i].title = v))} />
+            <ItemCard key={stage.id} path={path} title={stage.title || stage.id} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
+              remove={<RemoveButton draft={draft} ref_={`stage:${stage.id}`} itemLabel={stage.title || stage.id} onRemove={remove} />}>
               <div className="grid gap-3 sm:grid-cols-2">
+                <Text label="Title" value={stage.title} onChange={(v) => update((s) => void (s.stages[i].title = v))} />
                 <Text label="Time and place" value={stage.timePlace} onChange={(v) => update((s) => void (s.stages[i].timePlace = v))} />
-                <Text label="Central question" value={stage.centralQuestion} onChange={(v) => update((s) => void (s.stages[i].centralQuestion = v))} />
               </div>
+              <Area label="Central question" value={stage.centralQuestion} onChange={(v) => update((s) => void (s.stages[i].centralQuestion = v))} />
 
               <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Rooms</h4>
-              {stage.rooms.map((room, j) => (
-                <div key={room.id} className="flex items-start gap-2">
-                  <div className="grid flex-1 gap-3 sm:grid-cols-2">
+              {stage.rooms.map((room, j) => {
+                const rPath = `${path}.rooms.${j}`;
+                const rCount = issuesAt(errors, rPath).length;
+                return (
+                  <ItemCard key={room.id} path={rPath} title={room.name || room.id} issueCount={rCount} isOpen={isOpen(rPath, rCount)} onToggle={() => setOpen((o) => ({ ...o, [rPath]: !isOpen(rPath, rCount) }))} nested
+                    remove={<RemoveButton draft={draft} ref_={`room:${stage.id}/${room.id}`} itemLabel={room.name || room.id} onRemove={remove} />}>
                     <Text label="Name" value={room.name} onChange={(v) => update((s) => void (s.stages[i].rooms[j].name = v))} />
-                    <Text label="Description" value={room.description} onChange={(v) => update((s) => void (s.stages[i].rooms[j].description = v))} />
-                  </div>
-                  <RemoveButton draft={draft} ref_={`room:${stage.id}/${room.id}`} onRemove={remove} />
-                </div>
-              ))}
-              <AddButton label="Add room" onClick={() => add("room", `stage:${stage.id}`)} />
+                    <Area label="Description" value={room.description} onChange={(v) => update((s) => void (s.stages[i].rooms[j].description = v))} />
+                  </ItemCard>
+                );
+              })}
+              <AddButton label="Add room" onClick={() => add("room", `stage:${stage.id}`, `${path}.rooms.${stage.rooms.length}`)} />
 
               <Select label="Start room" value={stage.startRoomId} options={stage.rooms.map((r) => r.id)} labels={Object.fromEntries(stage.rooms.map((r) => [r.id, r.name || r.id]))} onChange={(v) => update((s) => void (s.stages[i].startRoomId = v))} />
 
@@ -263,18 +298,18 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
                   update={update}
                   mIndex={mIndex}
                   draft={draft}
-                  onAdd={(kind) => add(kind, `moment:${moment.id}`)}
+                  onAdd={(kind, addedPath) => add(kind, `moment:${moment.id}`, addedPath)}
                   onRemove={remove}
                 />
               ) : null}
 
               <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Core discoveries</h4>
-              {draft.discoveries.map((discovery, dIndex) => {
-                if (discovery.stageId !== stage.id || !discovery.core) return null;
+              {stageCore.map(({ d: discovery, dIndex }) => {
                 const dPath = `discoveries.${dIndex}`;
+                const dCount = issuesAt(errors, dPath).length;
                 return (
-                  <Card key={discovery.id} path={dPath} title={discovery.id} onRemove={<RemoveButton draft={draft} ref_={`discovery:${discovery.id}`} onRemove={remove} />}>
-                    <ItemIssues issues={issuesAt(errors, dPath)} />
+                  <ItemCard key={discovery.id} path={dPath} title={discovery.id} issueCount={dCount} isOpen={isOpen(dPath, dCount)} onToggle={() => setOpen((o) => ({ ...o, [dPath]: !isOpen(dPath, dCount) }))} nested
+                    remove={<RemoveButton draft={draft} ref_={`discovery:${discovery.id}`} itemLabel={discovery.id} onRemove={remove} />}>
                     <Area label="Text" value={discovery.text} onChange={(v) => update((s) => void (s.discoveries[dIndex].text = v))} />
                     <Area label="Note" value={discovery.note} onChange={(v) => update((s) => void (s.discoveries[dIndex].note = v))} />
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -300,23 +335,24 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
                       sources={draft.sources}
                       onChange={(citations) => update((s) => void (s.discoveries[dIndex].citations = citations))}
                     />
-                  </Card>
+                  </ItemCard>
                 );
               })}
-              <AddButton label="Add core discovery" onClick={() => add("discovery", `stage:${stage.id}`)} />
-            </Card>
+              <AddButton label="Add core discovery" onClick={() => add("discovery", `stage:${stage.id}`, `discoveries.${draft.discoveries.length}`)} />
+            </ItemCard>
           );
         })}
-        <AddButton label="Add stage" onClick={() => add("stage")} />
+        <AddButton label="Add stage" onClick={() => add("stage", undefined, `stages.${draft.stages.length}`)} />
       </Section>
 
       {/* 6. Endings */}
       <Section title="Endings">
         {draft.endings.map((ending, i) => {
           const path = `endings.${i}`;
+          const count = issuesAt(errors, path).length;
           return (
-            <Card key={ending.id} path={path} title={ending.title || ending.id} onRemove={<RemoveButton draft={draft} ref_={`ending:${ending.id}`} onRemove={remove} />}>
-              <ItemIssues issues={issuesAt(errors, path)} />
+            <ItemCard key={ending.id} path={path} title={ending.title || ending.id} issueCount={count} isOpen={isOpen(path, count)} onToggle={() => setOpen((o) => ({ ...o, [path]: !isOpen(path, count) }))}
+              remove={<RemoveButton draft={draft} ref_={`ending:${ending.id}`} itemLabel={ending.title || ending.id} onRemove={remove} />}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Select label="Type" value={ending.type} options={["historical", "alternative", "secret"]} onChange={(v) => update((s) => void (s.endings[i].type = v as typeof ending.type))} />
                 <Text label="Title" value={ending.title} onChange={(v) => update((s) => void (s.endings[i].title = v))} />
@@ -324,10 +360,10 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
               <Area label="Summary" value={ending.summary} onChange={(v) => update((s) => void (s.endings[i].summary = v))} />
               <Text label="Source label" value={ending.sourceLabel} onChange={(v) => update((s) => void (s.endings[i].sourceLabel = v))} />
               <CitationsEditor citations={ending.citations ?? []} sources={draft.sources} onChange={(citations) => update((s) => void (s.endings[i].citations = citations))} />
-            </Card>
+            </ItemCard>
           );
         })}
-        <AddButton label="Add ending" onClick={() => add("ending")} />
+        <AddButton label="Add ending" onClick={() => add("ending", undefined, `endings.${draft.endings.length}`)} />
       </Section>
     </div>
   );
@@ -353,12 +389,16 @@ function MomentEditor({
   update: (mutate: (draft: Draft) => void) => void;
   mIndex: number;
   draft: Draft;
-  onAdd: (kind: "act" | "outcome" | "rule") => void;
+  onAdd: (kind: "act" | "outcome" | "rule", addedPath: string) => void;
   onRemove: (ref: Ref) => void;
 }) {
+  const count = issuesAt(errors, path).length;
   return (
     <div id={`sk-${path}`} className="flex flex-col gap-3 rounded-surface border-2 border-line bg-sunken p-4">
-      <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Defining moment</h4>
+      <div className="flex items-center gap-2">
+        <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Defining moment</h4>
+        {count > 0 ? <IssueBadge count={count} /> : null}
+      </div>
       <ItemIssues issues={issuesAt(errors, path)} />
       <Select
         label="Decider"
@@ -370,58 +410,67 @@ function MomentEditor({
       <Area label="Scene" value={moment.scene} onChange={(v) => update((s) => void (s.definingMoments[mIndex].scene = v))} />
 
       <h5 className="text-xs font-extrabold uppercase tracking-[0.12em] text-muted">Acts</h5>
-      {moment.acts.map((act, j) => (
-        <div key={act.id} id={`sk-${path}.acts.${j}`} className="flex items-start gap-2">
-          <Text label={`Act ${j + 1}`} value={act.text} onChange={(v) => update((s) => void (s.definingMoments[mIndex].acts[j].text = v))} grow />
-          <IconRemove draft={draft} ref_={`act:${moment.id}/${act.id}`} onRemove={onRemove} />
-        </div>
-      ))}
-      <AddButton label="Add act" onClick={() => onAdd("act")} />
+      {moment.acts.map((act, j) => {
+        const aPath = `${path}.acts.${j}`;
+        return (
+          <div key={act.id} id={`sk-${aPath}`} className="flex items-start gap-2 rounded-surface border border-line bg-surface p-3">
+            <div className="flex-1">
+              <ItemIssues issues={issuesAt(errors, aPath)} />
+              <Text label={`Act ${j + 1}`} value={act.text} onChange={(v) => update((s) => void (s.definingMoments[mIndex].acts[j].text = v))} />
+            </div>
+            <RemoveButton draft={draft} ref_={`act:${moment.id}/${act.id}`} itemLabel={act.text || `Act ${j + 1}`} onRemove={onRemove} rulesUsedBy={moment.rules.filter((r) => r.actId === act.id).length} />
+          </div>
+        );
+      })}
+      <AddButton label="Add act" onClick={() => onAdd("act", `${path}.acts.${moment.acts.length}`)} />
 
       <h5 className="text-xs font-extrabold uppercase tracking-[0.12em] text-muted">Outcomes</h5>
-      {moment.outcomes.map((outcome, j) => (
-        <div key={outcome.id} id={`sk-${path}.outcomes.${j}`} className="flex flex-col gap-2 rounded-surface border border-line bg-surface p-3">
-          <ItemIssues issues={issuesAt(errors, `${path}.outcomes.${j}`)} />
-          <div className="flex items-start gap-2">
-            <Area label={`Outcome ${j + 1}`} value={outcome.summary} onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].summary = v))} grow />
-            <IconRemove draft={draft} ref_={`outcome:${moment.id}/${outcome.id}`} onRemove={onRemove} />
+      {moment.outcomes.map((outcome, j) => {
+        const oPath = `${path}.outcomes.${j}`;
+        return (
+          <div key={outcome.id} id={`sk-${oPath}`} className="flex flex-col gap-2 rounded-surface border border-line bg-surface p-3">
+            <div className="flex items-start justify-between gap-2">
+              <ItemIssues issues={issuesAt(errors, oPath)} />
+              <RemoveButton draft={draft} ref_={`outcome:${moment.id}/${outcome.id}`} itemLabel={outcome.summary || `Outcome ${j + 1}`} onRemove={onRemove} rulesUsedBy={moment.rules.filter((r) => r.outcomeId === outcome.id).length} />
+            </div>
+            <Area label="Summary" value={outcome.summary} onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].summary = v))} />
+            <div className="flex flex-wrap items-center gap-4">
+              <Check label="Historical" checked={outcome.historical === true} onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].historical = v || undefined))} />
+              <Check label="Secret" checked={outcome.secret === true} onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].secret = v || undefined))} />
+              <Select
+                label="Leads to ending"
+                value={outcome.endingId ?? ""}
+                options={["", ...endings.map((e) => e.id)]}
+                labels={{ "": "— none —", ...Object.fromEntries(endings.map((e) => [e.id, e.title || e.id])) }}
+                onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].endingId = v === "" ? undefined : v))}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-semibold text-ink">Closes endings:</span>
+              {endings.map((ending) => (
+                <label key={ending.id} className="inline-flex items-center gap-1.5 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={outcome.closesEndingIds.includes(ending.id)}
+                    onChange={(event) =>
+                      update((s) => {
+                        const o = s.definingMoments[mIndex].outcomes[j];
+                        o.closesEndingIds = event.target.checked ? [...o.closesEndingIds, ending.id] : o.closesEndingIds.filter((id) => id !== ending.id);
+                      })
+                    }
+                  />
+                  {ending.title || ending.id}
+                </label>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <Check label="Historical" checked={outcome.historical === true} onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].historical = v || undefined))} />
-            <Check label="Secret" checked={outcome.secret === true} onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].secret = v || undefined))} />
-            <Select
-              label="Leads to ending"
-              value={outcome.endingId ?? ""}
-              options={["", ...endings.map((e) => e.id)]}
-              labels={{ "": "— none —", ...Object.fromEntries(endings.map((e) => [e.id, e.title || e.id])) }}
-              onChange={(v) => update((s) => void (s.definingMoments[mIndex].outcomes[j].endingId = v === "" ? undefined : v))}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-ink">Closes endings:</span>
-            {endings.map((ending) => (
-              <label key={ending.id} className="inline-flex items-center gap-1.5 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={outcome.closesEndingIds.includes(ending.id)}
-                  onChange={(event) =>
-                    update((s) => {
-                      const o = s.definingMoments[mIndex].outcomes[j];
-                      o.closesEndingIds = event.target.checked ? [...o.closesEndingIds, ending.id] : o.closesEndingIds.filter((id) => id !== ending.id);
-                    })
-                  }
-                />
-                {ending.title || ending.id}
-              </label>
-            ))}
-          </div>
-        </div>
-      ))}
-      <AddButton label="Add outcome" onClick={() => onAdd("outcome")} />
+        );
+      })}
+      <AddButton label="Add outcome" onClick={() => onAdd("outcome", `${path}.outcomes.${moment.outcomes.length}`)} />
 
       <h5 className="text-xs font-extrabold uppercase tracking-[0.12em] text-muted">Rules</h5>
       {moment.rules.map((rule, j) => (
-        <div key={j} id={`sk-${path}.rules.${j}`} className="flex items-center gap-2">
+        <div key={j} id={`sk-${path}.rules.${j}`} className="flex items-end gap-2">
           <Select
             label="When act"
             value={rule.actId}
@@ -430,7 +479,7 @@ function MomentEditor({
             onChange={(v) => update((s) => void (s.definingMoments[mIndex].rules[j].actId = v))}
             grow
           />
-          <span className="text-muted">→</span>
+          <span className="pb-3 text-muted">→</span>
           <Select
             label="Outcome"
             value={rule.outcomeId}
@@ -439,10 +488,10 @@ function MomentEditor({
             onChange={(v) => update((s) => void (s.definingMoments[mIndex].rules[j].outcomeId = v))}
             grow
           />
-          <IconRemove draft={draft} ref_={`rule:${moment.id}/${rule.actId}/${rule.outcomeId}`} onRemove={onRemove} />
+          <RemoveButton draft={draft} ref_={`rule:${moment.id}/${rule.actId}/${rule.outcomeId}`} itemLabel={`rule ${j + 1}`} onRemove={onRemove} />
         </div>
       ))}
-      <AddButton label="Add rule" onClick={() => onAdd("rule")} />
+      <AddButton label="Add rule" onClick={() => onAdd("rule", `${path}.rules.${moment.rules.length}`)} />
     </div>
   );
 }
@@ -471,9 +520,7 @@ function CitationsEditor({
             />
             <Area label="Quote" value={citation.quote ?? ""} onChange={(v) => onChange(citations.map((c, k) => (k === i ? { ...c, quote: v } : c)))} />
           </div>
-          <button type="button" aria-label="Remove citation" onClick={() => onChange(citations.filter((_, k) => k !== i))} className={button.subtle + " !px-2"}>
-            <Trash2 className="h-4 w-4" aria-hidden />
-          </button>
+          <RemoveIconButton label={`Remove citation ${i + 1}`} onClick={() => onChange(citations.filter((_, k) => k !== i))} />
         </div>
       ))}
       <AddButton label="Add citation" onClick={() => onChange([...citations, { sourceId: sources[0]?.id ?? "", quote: "" }])} />
@@ -481,12 +528,54 @@ function CitationsEditor({
   );
 }
 
-function RemoveButton({ draft, ref_, onRemove }: { draft: Draft; ref_: Ref; onRemove: (ref: Ref) => void }) {
+// --- small primitives ---------------------------------------------------------
+
+/** Collapsible card: collapsed by default, expanded when it has errors or was just added. */
+function ItemCard({
+  path,
+  title,
+  issueCount,
+  isOpen,
+  onToggle,
+  nested,
+  remove,
+  children,
+}: {
+  path: string;
+  title: string;
+  issueCount: number;
+  isOpen: boolean;
+  onToggle: () => void;
+  nested?: boolean;
+  remove: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div id={`sk-${path}`} className={`rounded-surface border-2 ${issueCount > 0 ? "border-record" : "border-line"} ${nested ? "bg-sunken" : "bg-surface"}`}>
+      <div className="flex items-center gap-2 px-4 py-2.5">
+        <button type="button" onClick={onToggle} aria-expanded={isOpen} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <ChevronRight className={`h-4 w-4 shrink-0 text-muted transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden />
+          <span className="min-w-0 truncate font-bold text-ink">{title}</span>
+          <IssueBadge count={issueCount} />
+        </button>
+        {remove}
+      </div>
+      {isOpen ? <div className="flex flex-col gap-3 border-t border-line px-4 py-4">{children}</div> : null}
+    </div>
+  );
+}
+
+function IssueBadge({ count }: { count: number }) {
+  if (count === 0) return null;
+  return <span className="shrink-0 rounded-full bg-record px-2 py-0.5 text-xs font-extrabold text-paper">{count}</span>;
+}
+
+function RemoveButton({ draft, ref_, itemLabel, onRemove, rulesUsedBy }: { draft: Draft; ref_: Ref; itemLabel: string; onRemove: (ref: Ref) => void; rulesUsedBy?: number }) {
   const dependents = dependentsOf(draft, ref_);
   return (
     <ConfirmButton
-      label=""
-      title="Remove this?"
+      label={<Trash2 className="h-4 w-4" aria-hidden />}
+      title={`Remove ${itemLabel}?`}
       body={
         dependents.length > 0 ? (
           <>
@@ -497,31 +586,25 @@ function RemoveButton({ draft, ref_, onRemove }: { draft: Draft; ref_: Ref; onRe
               ))}
             </ul>
           </>
+        ) : rulesUsedBy && rulesUsedBy > 0 ? (
+          `This also removes ${rulesUsedBy} rule${rulesUsedBy === 1 ? "" : "s"} that use it.`
         ) : (
           "Nothing else points at it."
         )
       }
       confirmLabel="Remove"
-      className={`${button.subtle} !px-2`}
-      ariaLabel="Remove"
+      className={`${button.subtle} shrink-0 !px-2`}
+      ariaLabel={`Remove ${itemLabel}`}
       onConfirm={() => onRemove(ref_)}
     />
   );
 }
 
-const IconRemove = RemoveButton;
-
-// --- small field primitives ---------------------------------------------------
-
-function Card({ path, title, onRemove, children }: { path: string; title?: string; onRemove?: React.ReactNode; children: React.ReactNode }) {
+function RemoveIconButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <div id={`sk-${path}`} className="flex flex-col gap-3 rounded-surface border-2 border-line bg-surface p-5">
-      <div className="flex items-center justify-between gap-3">
-        {title ? <h3 className="font-bold text-ink">{title}</h3> : <span />}
-        {onRemove}
-      </div>
-      {children}
-    </div>
+    <button type="button" aria-label={label} onClick={onClick} className={`${button.subtle} shrink-0 !px-2`}>
+      <Trash2 className="h-4 w-4" aria-hidden />
+    </button>
   );
 }
 
@@ -535,8 +618,6 @@ function ItemIssues({ issues }: { issues: CheckIssue[] }) {
     </ul>
   );
 }
-
-const FieldIssues = ItemIssues;
 
 function Text({ label, value, onChange, grow }: { label: string; value: string; onChange: (v: string) => void; grow?: boolean }) {
   return (
