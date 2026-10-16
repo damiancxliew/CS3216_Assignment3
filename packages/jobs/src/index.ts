@@ -187,6 +187,26 @@ export function memoryJobStore(options: { now?: () => number } = {}): JobStore {
     return new Date(now()).toISOString();
   }
 
+  function failDependants(jobId: string, at: string) {
+    const rows = jobs.get(jobId) ?? [];
+    let changed: boolean;
+    do {
+      changed = false;
+      for (const row of rows) {
+        if (row.status !== "pending") continue;
+        const failedDependency = row.deps.find((dep) =>
+          rows.some((candidate) => candidate.name === dep && candidate.status === "failed"),
+        );
+        if (!failedDependency) continue;
+        row.status = "failed";
+        row.error = `dependency failed: ${failedDependency}`;
+        row.finishedAt = at;
+        row.updatedAt = at;
+        changed = true;
+      }
+    } while (changed);
+  }
+
   return {
     async enqueue(jobId, steps) {
       const rows = jobs.get(jobId) ?? [];
@@ -228,10 +248,12 @@ export function memoryJobStore(options: { now?: () => number } = {}): JobStore {
       }));
       rows.push(...added);
       jobs.set(jobId, rows);
+      failDependants(jobId, createdAt);
     },
     async claim(token, leaseSeconds, jobId) {
       const time = now();
       const candidateJobs = jobId === undefined ? [...jobs.values()] : [jobs.get(jobId) ?? []];
+      const expiredJobs = new Set<string>();
       for (const rows of candidateJobs) {
         for (const row of rows) {
           if (
@@ -246,8 +268,12 @@ export function memoryJobStore(options: { now?: () => number } = {}): JobStore {
             row.leaseToken = null;
             row.leaseExpiresAt = null;
             row.updatedAt = timestamp();
+            expiredJobs.add(row.jobId);
           }
         }
+      }
+      for (const expiredJob of expiredJobs) {
+        failDependants(expiredJob, timestamp());
       }
       const candidates = candidateJobs.flat().filter((row) =>
         row.status === "ready" ||
@@ -288,12 +314,14 @@ export function memoryJobStore(options: { now?: () => number } = {}): JobStore {
     async fail(stepId, token, errorText) {
       const row = [...jobs.values()].flat().find((item) => item.id === stepId);
       if (!row || row.status !== "running" || row.leaseToken !== token) return null;
+      const updatedAt = timestamp();
       row.error = errorText;
       row.status = row.attempts < row.maxAttempts ? "ready" : "failed";
-      if (row.status === "failed") row.finishedAt = timestamp();
+      if (row.status === "failed") row.finishedAt = updatedAt;
       row.leaseToken = null;
       row.leaseExpiresAt = null;
-      row.updatedAt = timestamp();
+      row.updatedAt = updatedAt;
+      if (row.status === "failed") failDependants(row.jobId, updatedAt);
       return { ...row, deps: [...row.deps] };
     },
     async list(jobId) {

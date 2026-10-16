@@ -1,9 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { GameEvent } from "@adventure/play-contract";
+import { GameEvent } from "@adventure/play-contract";
 
 export interface V3Adventure {
   id: string;
   schoolId: string;
+  ownerId: string;
   status: string;
   specVersion: number;
   spec: unknown | null;
@@ -23,6 +24,10 @@ export interface V3PlayStore {
   loadAdventure(id: string): Promise<V3Adventure | null>;
   loadVersionSpec(adventureId: string, version: number): Promise<unknown | null>;
   isActiveMember(schoolId: string, userId: string): Promise<boolean>;
+  isSchoolAdmin(schoolId: string, userId: string): Promise<boolean>;
+  listAttempts(adventureId: string): Promise<{ id: string; specVersion: number; studentId: string }[]>;
+  loadEvents(attemptIds: readonly string[]): Promise<Map<string, GameEvent[]>>;
+  studentEmail(userId: string): Promise<string | null>;
   findLatestAttempt(adventureId: string, studentId: string): Promise<V3Attempt | null>;
   createAttempt(input: {
     adventureId: string;
@@ -43,6 +48,7 @@ export interface V3PlayStore {
 type AdventureRow = {
   id: string;
   school_id: string;
+  owner_id: string;
   status: string;
   spec_version: number;
   spec: unknown | null;
@@ -57,13 +63,26 @@ type AttemptRow = {
   revision: number;
 };
 
+type AttemptSummaryRow = {
+  id: string;
+  spec_version: number;
+  student_id: string;
+};
+
+type AttemptEventRow = {
+  attempt_id: string;
+  seq: number;
+  type: string;
+  payload: Record<string, unknown> | null;
+};
+
 export class SupabaseV3PlayStore implements V3PlayStore {
   constructor(private readonly admin: SupabaseClient) {}
 
   async loadAdventure(id: string): Promise<V3Adventure | null> {
     const { data, error } = await this.admin
       .from("adventures_v3")
-      .select("id, school_id, status, spec_version, spec")
+      .select("id, school_id, owner_id, status, spec_version, spec")
       .eq("id", id)
       .maybeSingle<AdventureRow>();
     if (error) throw error;
@@ -71,6 +90,7 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     return {
       id: data.id,
       schoolId: data.school_id,
+      ownerId: data.owner_id,
       status: data.status,
       specVersion: data.spec_version,
       spec: data.spec,
@@ -106,6 +126,90 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     if (membership.error) throw membership.error;
     if (platformAdmin.error) throw platformAdmin.error;
     return (membership.data?.length ?? 0) > 0 || (platformAdmin.data?.length ?? 0) > 0;
+  }
+
+  async isSchoolAdmin(schoolId: string, userId: string): Promise<boolean> {
+    const [membership, platformAdmin] = await Promise.all([
+      this.admin
+        .from("organization_member")
+        .select("user_id")
+        .eq("organization_id", schoolId)
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .eq("role", "admin")
+        .limit(1),
+      this.admin
+        .from("platform_admin")
+        .select("user_id")
+        .eq("user_id", userId)
+        .limit(1),
+    ]);
+    if (membership.error) throw membership.error;
+    if (platformAdmin.error) throw platformAdmin.error;
+    return (membership.data?.length ?? 0) > 0 || (platformAdmin.data?.length ?? 0) > 0;
+  }
+
+  async listAttempts(adventureId: string): Promise<{ id: string; specVersion: number; studentId: string }[]> {
+    const attempts: AttemptSummaryRow[] = [];
+    for (let from = 0; ; from += 1_000) {
+      const { data, error } = await this.admin
+        .from("attempts_v3")
+        .select("id, spec_version, student_id")
+        .eq("adventure_id", adventureId)
+        .order("created_at", { ascending: true })
+        .range(from, from + 999);
+      if (error) throw error;
+      const page = (data ?? []) as AttemptSummaryRow[];
+      attempts.push(...page);
+      if (page.length < 1_000) break;
+    }
+    return attempts.map((attempt) => ({
+      id: attempt.id,
+      specVersion: attempt.spec_version,
+      studentId: attempt.student_id,
+    }));
+  }
+
+  async loadEvents(attemptIds: readonly string[]): Promise<Map<string, GameEvent[]>> {
+    const ids = [...new Set(attemptIds)];
+    const events = new Map<string, GameEvent[]>(ids.map((id) => [id, []]));
+    let invalidCount = 0;
+
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const chunk = ids.slice(offset, offset + 100);
+      for (let from = 0; ; from += 1_000) {
+        const { data, error } = await this.admin
+          .from("attempt_events_v3")
+          .select("attempt_id, seq, type, payload")
+          .in("attempt_id", chunk)
+          .order("attempt_id", { ascending: true })
+          .order("seq", { ascending: true })
+          .range(from, from + 999);
+        if (error) throw error;
+        const page = (data ?? []) as AttemptEventRow[];
+        for (const row of page) {
+          const payload = row.payload && typeof row.payload === "object" ? row.payload : {};
+          const parsed = GameEvent.safeParse({ type: row.type, ...payload });
+          if (!parsed.success) {
+            invalidCount += 1;
+            continue;
+          }
+          events.get(row.attempt_id)?.push(parsed.data);
+        }
+        if (page.length < 1_000) break;
+      }
+    }
+
+    if (invalidCount > 0) {
+      console.warn(`Skipped ${invalidCount} invalid v3 attempt events.`);
+    }
+    return events;
+  }
+
+  async studentEmail(userId: string): Promise<string | null> {
+    const { data, error } = await this.admin.auth.admin.getUserById(userId);
+    if (error) throw error;
+    return data.user?.email ?? null;
   }
 
   async findLatestAttempt(adventureId: string, studentId: string): Promise<V3Attempt | null> {
@@ -202,7 +306,9 @@ export class MemoryV3PlayStore implements V3PlayStore {
   private readonly versions = new Map<string, unknown>();
   private readonly attempts = new Map<string, MemoryAttempt>();
   private readonly activeMembers = new Set<string>();
+  private readonly schoolAdmins = new Set<string>();
   private readonly platformAdmins = new Set<string>();
+  private readonly studentEmails = new Map<string, string>();
   private readonly tokenCounts = new Map<string, number>();
   private sequence = 0;
   readonly savedEvents: { attemptId: string; events: GameEvent[] }[] = [];
@@ -224,8 +330,37 @@ export class MemoryV3PlayStore implements V3PlayStore {
     else this.activeMembers.delete(key);
   }
 
+  addSchoolAdmin(schoolId: string, userId: string): void {
+    this.schoolAdmins.add(`${schoolId}:${userId}`);
+  }
+
   addPlatformAdmin(userId: string): void {
     this.platformAdmins.add(userId);
+  }
+
+  setStudentEmail(userId: string, email: string): void {
+    this.studentEmails.set(userId, email);
+  }
+
+  addAttemptWithEvents(input: {
+    adventureId: string;
+    specVersion: number;
+    studentId: string;
+    events: GameEvent[];
+    id?: string;
+  }): string {
+    const id = input.id ?? crypto.randomUUID();
+    this.attempts.set(id, {
+      id,
+      adventureId: input.adventureId,
+      specVersion: input.specVersion,
+      studentId: input.studentId,
+      state: {},
+      revision: 0,
+      events: structuredClone(input.events),
+      order: ++this.sequence,
+    });
+    return id;
   }
 
   setTokensUsed(attemptId: string, tokens: number): void {
@@ -244,6 +379,29 @@ export class MemoryV3PlayStore implements V3PlayStore {
 
   async isActiveMember(schoolId: string, userId: string): Promise<boolean> {
     return this.activeMembers.has(`${schoolId}:${userId}`) || this.platformAdmins.has(userId);
+  }
+
+  async isSchoolAdmin(schoolId: string, userId: string): Promise<boolean> {
+    return this.schoolAdmins.has(`${schoolId}:${userId}`) || this.platformAdmins.has(userId);
+  }
+
+  async listAttempts(adventureId: string): Promise<{ id: string; specVersion: number; studentId: string }[]> {
+    return [...this.attempts.values()]
+      .filter((attempt) => attempt.adventureId === adventureId)
+      .sort((a, b) => a.order - b.order)
+      .map(({ id, specVersion, studentId }) => ({ id, specVersion, studentId }));
+  }
+
+  async loadEvents(attemptIds: readonly string[]): Promise<Map<string, GameEvent[]>> {
+    const events = new Map<string, GameEvent[]>();
+    for (const id of new Set(attemptIds)) {
+      events.set(id, structuredClone(this.attempts.get(id)?.events ?? []));
+    }
+    return events;
+  }
+
+  async studentEmail(userId: string): Promise<string | null> {
+    return this.studentEmails.get(userId) ?? null;
   }
 
   async findLatestAttempt(adventureId: string, studentId: string): Promise<V3Attempt | null> {

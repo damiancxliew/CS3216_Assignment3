@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { PlayerView } from "@adventure/play-contract";
 
 import { BriefingScreen } from "@/components/play/v3/briefing-screen";
@@ -10,17 +11,29 @@ import { StageIntroScreen } from "@/components/play/v3/stage-intro-screen";
 import { StagePlayScreen } from "@/components/play/v3/stage-play-screen";
 import { useV3Play } from "@/components/play/v3/use-v3-play";
 import styles from "@/components/play/adventure-chrome.module.css";
+import type { V3PlayClient as PlayClient } from "@/lib/play/v3/client";
 
 export function V3PlayClient({
   attemptId,
   initialView,
   initialRevision,
+  makeClient,
+  notice,
+  busyLabel = "Saving…",
 }: {
   attemptId: string;
   initialView: PlayerView;
   initialRevision: number;
+  makeClient?: () => PlayClient;
+  notice?: ReactNode;
+  busyLabel?: string;
 }) {
-  const { view, busy, banner, send, clearBanner } = useV3Play(attemptId, initialView, initialRevision);
+  const { view, busy, banner, send, clearBanner } = useV3Play(
+    attemptId,
+    initialView,
+    initialRevision,
+    makeClient,
+  );
 
   return (
     <div className={`${styles.shell} min-h-screen`}>
@@ -29,8 +42,9 @@ export function V3PlayClient({
           <p className="text-xs font-black uppercase tracking-[0.2em] text-[#ead5ae]">Historical adventure</p>
           <h1 className={`${styles.adventureTitle} mt-1 break-words`}>{view.stage?.title ?? view.briefing.name}</h1>
         </div>
-        {busy ? <span role="status" className="text-sm font-semibold">Saving…</span> : null}
+        {busy ? <span role="status" className="text-sm font-semibold">{busyLabel}</span> : null}
       </header>
+      {notice}
       {banner ? (
         <div role="alert" className="mx-auto mt-4 flex max-w-4xl items-center justify-between gap-3 rounded-xl border border-signal bg-signal-wash px-4 py-3 text-sm font-semibold text-ink">
           <span>{banner.message}</span>

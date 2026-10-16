@@ -14,7 +14,7 @@ export function DefiningMomentScreen({
   const moment = view.definingMoment;
   if (!moment) return null;
 
-  const decider = view.characters.find((character) => character.id === moment.deciderId)?.name ?? "they";
+  const decider = moment.deciderName || "they";
 
   return (
     <section aria-labelledby="defining-moment-title" className="rounded-2xl border-2 border-signal bg-signal-wash p-5 sm:p-7">
