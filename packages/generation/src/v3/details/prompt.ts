@@ -52,7 +52,13 @@ Only for stages after the first. For each outcome of an earlier stage's defining
 - Characters must be placed in this stage, rooms must be this stage's rooms, and delivered documents must be this stage's documents. Unused fields are null.
 
 ## Open questions
-1–3 hidden questions a curious student might ask in this stage, each with the ids of the discoveries of this stage (skeleton core or your new ones) that answer it.`
+1–3 hidden questions a curious student might ask in this stage, each with the ids of the discoveries of this stage (skeleton core or your new ones) that answer it.
+
+## Hint angles
+hintAngles: when a student is stuck, the game shows angles as the role's own thoughts, nudging them towards one discovery. Write 1–2 for every skeleton core discovery of this stage and 0–1 for each of your new discoveries.
+- id starting with "{stageId}-", discoveryId, kind and text.
+- kind: ask (a person to ask, only for a discovery a character holds), read (a passage to read, only for a discovery a document holds), passOn (a note worth passing on to someone) or show (a document worth showing to someone).
+- text: one sentence in the first person, as the role's own thought, for example "Perhaps Farquhar knows what Batavia was told." Point the way without stating the discovery itself.`
 
 export const PERSONA_SYSTEM_PROMPT = `You write ONE major character of a classroom historical adventure for Singapore students. A student plays one role inside a real historical episode. They question characters in free conversation, pass them notes of what they have found, and confront them with evidence when a claim doesn't hold up. Each major character moves between stances, from closed to open, as the student plays well or badly, and reveals more as they open up.
 

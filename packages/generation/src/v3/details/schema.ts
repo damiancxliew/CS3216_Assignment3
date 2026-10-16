@@ -88,6 +88,7 @@ export const StageDetailsLlmOutput = z.object({
     }),
   ),
   openQuestions: z.array(z.object({ id: Id, text: Text, discoveryIds: z.array(Id) })),
+  hintAngles: z.array(z.object({ id: Id, discoveryId: Id, kind: z.enum(['ask', 'read', 'passOn', 'show']), text: Text })),
 })
 export type StageDetailsLlmOutput = z.infer<typeof StageDetailsLlmOutput>
 
