@@ -118,6 +118,7 @@ export function stageIssues(stageId: string, output: StageDetailsLlmOutput, ctx:
   output.discoveries.forEach((d, i) => idItems.push({ id: d.id, path: `discoveries.${i}.id` }))
   output.storyEvents.forEach((e, i) => idItems.push({ id: e.id, path: `storyEvents.${i}.id` }))
   output.openQuestions.forEach((q, i) => idItems.push({ id: q.id, path: `openQuestions.${i}.id` }))
+  output.hintAngles.forEach((a, i) => idItems.push({ id: a.id, path: `hintAngles.${i}.id` }))
   issues.push(...idIssues(idItems, stageId, skelIds, stubDocIds))
 
   // key passages
@@ -227,6 +228,22 @@ export function stageIssues(stageId: string, output: StageDetailsLlmOutput, ctx:
       if (!stageDiscoveryIds.has(id)) issues.push(issue('ref', `openQuestions.${i}.discoveryIds.${j}`, `discovery '${id}' is not a discovery of this stage`))
     }),
   )
+
+  // hint angles: every core covered; ask needs a character holder, read a document holder
+  const characterHeld = new Set(stageCores.filter((d) => 'characterId' in d.holder).map((d) => d.id))
+  const documentHeld = new Set([...stageCores.filter((d) => 'documentId' in d.holder).map((d) => d.id), ...output.discoveries.map((d) => d.id)])
+  for (const core of stageCores) {
+    if (!output.hintAngles.some((a) => a.discoveryId === core.id))
+      issues.push(issue('hint-angle-missing', 'hintAngles', `core discovery '${core.id}' has no hint angle`))
+  }
+  output.hintAngles.forEach((angle, i) => {
+    if (!stageDiscoveryIds.has(angle.discoveryId))
+      issues.push(issue('ref', `hintAngles.${i}.discoveryId`, `discovery '${angle.discoveryId}' is not a discovery of this stage`))
+    if (angle.kind === 'ask' && !characterHeld.has(angle.discoveryId))
+      issues.push(issue('hint-angle-kind', `hintAngles.${i}.kind`, `ask is only for a character-held discovery, not '${angle.discoveryId}'`))
+    if (angle.kind === 'read' && !documentHeld.has(angle.discoveryId))
+      issues.push(issue('hint-angle-kind', `hintAngles.${i}.kind`, `read is only for a document-held discovery, not '${angle.discoveryId}'`))
+  })
 
   // labels + grounding
   output.documents.forEach((doc, i) => issues.push(...labelIssue(doc.sourceLabel, `documents.${i}.sourceLabel`, `document '${doc.id}'`)))
