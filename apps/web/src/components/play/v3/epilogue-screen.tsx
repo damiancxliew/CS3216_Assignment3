@@ -1,6 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import type { Action, PlayerView } from "@adventure/play-contract";
+
+import { useTypewriter } from "@/components/play/v3/dialogue-box";
+import { SpeakerBox } from "@/components/play/v3/speaker-box";
 
 export function EpilogueScreen({
   epilogue,
@@ -11,23 +15,32 @@ export function EpilogueScreen({
   busy: boolean;
   send: (action: Action) => void;
 }) {
+  const typed = useTypewriter(epilogue.text, true);
+  const advance = () => {
+    if (!typed.done) typed.skip();
+    else if (!busy) send({ type: "continue" });
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " " && event.key.toLowerCase() !== "e") return;
+      event.preventDefault();
+      advance();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  });
+
   return (
-    <main className="mx-auto grid w-full max-w-4xl gap-6 px-4 py-8 sm:px-8 sm:py-12">
-      <article className="rounded-3xl border-2 border-ink bg-sunshine p-6 shadow-[0_5px_0_var(--ink)] sm:p-10">
-        <span className="inline-flex rounded-full bg-surface px-3 py-1 text-xs font-black uppercase tracking-wide text-record">
-          {epilogue.label}
-        </span>
-        <h2 className="mt-5 text-3xl font-black leading-tight text-ink sm:text-5xl">{epilogue.title}</h2>
-        <p className="mt-6 whitespace-pre-line text-base leading-8 text-ink sm:text-lg">{epilogue.text}</p>
-      </article>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => send({ type: "continue" })}
-        className="min-h-12 justify-self-start rounded-xl border-2 border-ink bg-world px-6 py-3 font-black text-white shadow-[0_4px_0_var(--ink)] hover:brightness-110 disabled:opacity-50"
-      >
-        Continue
-      </button>
-    </main>
+    <SpeakerBox
+      speaker="Narrator"
+      tag={epilogue.title}
+      note={epilogue.label}
+      text={typed.shown}
+      done={typed.done}
+      busy={busy}
+      continueLabel="Continue"
+      onAdvance={advance}
+    />
   );
 }

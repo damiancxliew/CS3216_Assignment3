@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   MAX_EVIDENCE_NOTES,
   MAX_INTERVIEW_TEXT_LENGTH,
@@ -7,40 +8,26 @@ import {
   type InterviewView,
   type NoteView,
 } from "@adventure/play-contract";
-import { useEffect, useState, type FormEvent } from "react";
 
+import { nextChoiceIndex, useTypewriter } from "@/components/play/v3/dialogue-box";
+import { SpeakerBox } from "@/components/play/v3/speaker-box";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
+import { interviewDraftStart, interviewLine } from "@/lib/play/v3/interview-flow";
 
-type InterviewAnswer = NonNullable<InterviewView["answer"]>;
-
-function AnswerSummary({
-  heading,
-  answer,
-  interview,
-  notes,
-}: {
-  heading: string;
-  answer: InterviewAnswer;
-  interview: InterviewView;
-  notes: NoteView[];
-}) {
-  const verdict = interview.verdicts.find((item) => item.id === answer.verdictId)?.text;
-  const evidence = answer.evidenceNoteIds.map((id) => notes.find((note) => note.id === id)?.text).filter(Boolean);
-
-  return (
-    <section className="rounded-xl border border-line bg-paper p-4">
-      <h3 className="font-black text-ink">{heading}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-ink"><strong>Verdict:</strong> {verdict ?? "A verdict was selected."}</p>
-      {evidence.length ? (
-        <ul className="mt-2 list-inside list-disc space-y-1 text-sm leading-relaxed text-ink">
-          {evidence.map((text, index) => <li key={`${text}-${index}`}>{text}</li>)}
-        </ul>
-      ) : null}
-      {answer.text ? <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink">{answer.text}</p> : null}
-    </section>
-  );
+function isTextEntryTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 }
 
+function choiceDelta(key: string): number {
+  if (key === "ArrowUp" || key.toLowerCase() === "w") return -1;
+  if (key === "ArrowDown" || key.toLowerCase() === "s") return 1;
+  return 0;
+}
+
+/**
+ * The Interview happens over the last stage's map: the interviewer's question, push-back and closing type out in
+ * the bottom dialogue box, and the student's answer (verdict, then notes as evidence) pops up above it.
+ */
 export function InterviewScreen({
   interview,
   notes,
@@ -52,33 +39,93 @@ export function InterviewScreen({
   busy: boolean;
   send: (action: Action) => void;
 }) {
-  const [verdictId, setVerdictId] = useState(interview.answer?.verdictId ?? "");
-  const [evidenceNoteIds, setEvidenceNoteIds] = useState<string[]>(interview.answer?.evidenceNoteIds ?? []);
-  const [text, setText] = useState(interview.answer?.text ?? "");
-  const [error, setError] = useState<string | null>(null);
+  const line = interviewLine(interview);
+  const typed = useTypewriter(line.text, true);
+  const [ackedPushBack, setAckedPushBack] = useState<string | null>(null);
+  const answering = typed.done && !busy && (line.next === "answer" || ackedPushBack === line.text);
+
+  const advance = () => {
+    if (!typed.done) typed.skip();
+    else if (line.next === "respond") setAckedPushBack(line.text);
+    else if (line.next === "continue" && !busy) send({ type: "continue" });
+  };
 
   useEffect(() => {
-    if (!interview.answer) return;
-    setVerdictId(interview.answer.verdictId);
-    setEvidenceNoteIds(interview.answer.evidenceNoteIds);
-    setText(interview.answer.text ?? "");
-  }, [interview.answer]);
+    if (answering) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTextEntryTarget(event.target)) return;
+      if (event.key !== "Enter" && event.key !== " " && event.key.toLowerCase() !== "e") return;
+      event.preventDefault();
+      advance();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  });
 
-  function toggleEvidence(noteId: string, checked: boolean) {
-    setEvidenceNoteIds((current) => {
-      if (!checked) return current.filter((id) => id !== noteId);
-      if (current.includes(noteId) || current.length >= MAX_EVIDENCE_NOTES) return current;
-      return [...current, noteId];
-    });
+  return (
+    <>
+      {answering && line.next !== "continue" ? (
+        <AnswerPanel
+          key={line.kind}
+          interview={interview}
+          notes={notes}
+          responding={line.next === "respond"}
+          busy={busy}
+          send={send}
+        />
+      ) : null}
+      <SpeakerBox
+        speaker={interview.interviewer}
+        tag={line.kind === "pushBack" ? "It pushes back" : line.kind === "closing" ? "Closing thoughts" : null}
+        text={busy && typed.done && line.next !== "continue" ? `${typed.shown}\n\n…` : typed.shown}
+        done={typed.done && !answering}
+        busy={busy}
+        continueLabel={line.next === "continue" ? "See what really happened" : line.next === "respond" ? "Respond" : undefined}
+        onAdvance={advance}
+      />
+    </>
+  );
+}
+
+function AnswerPanel({
+  interview,
+  notes,
+  responding,
+  busy,
+  send,
+}: {
+  interview: InterviewView;
+  notes: NoteView[];
+  responding: boolean;
+  busy: boolean;
+  send: (action: Action) => void;
+}) {
+  const [start] = useState(() => interviewDraftStart(interview));
+  const [step, setStep] = useState<"verdict" | "evidence">("verdict");
+  const [verdictIndex, setVerdictIndex] = useState(start.verdictIndex);
+  const [evidenceNoteIds, setEvidenceNoteIds] = useState<string[]>(start.evidenceNoteIds.filter((id) => notes.some((note) => note.id === id)));
+  const [cursor, setCursor] = useState(0);
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const verdict = interview.verdicts[verdictIndex];
+  const submitRow = notes.length;
+
+  function toggleNote(noteId: string) {
+    setError(null);
+    if (evidenceNoteIds.includes(noteId)) {
+      setEvidenceNoteIds(evidenceNoteIds.filter((id) => id !== noteId));
+    } else if (evidenceNoteIds.length >= MAX_EVIDENCE_NOTES) {
+      setError(`Choose no more than ${MAX_EVIDENCE_NOTES} notes.`);
+    } else {
+      setEvidenceNoteIds([...evidenceNoteIds, noteId]);
+    }
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    // A second answer is legal (it becomes the response to the push-back), so a double click must not send it.
-    if (busy) return;
+  function submit() {
+    if (busy || !verdict) return;
     const result = buildInterviewAnswerAction(
-      { verdictId, evidenceNoteIds, text },
-      { verdictIds: interview.verdicts.map((verdict) => verdict.id), noteIds: notes.map((note) => note.id) },
+      { verdictId: verdict.id, evidenceNoteIds, text },
+      { verdictIds: interview.verdicts.map(({ id }) => id), noteIds: notes.map(({ id }) => id) },
     );
     if (!result.ok) {
       setError(result.error);
@@ -88,105 +135,147 @@ export function InterviewScreen({
     send(result.action);
   }
 
-  const responding = interview.answer !== null && interview.pushBack !== null;
+  function chooseVerdict(index: number) {
+    setVerdictIndex(index);
+    setCursor(0);
+    setStep("evidence");
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && step === "evidence") {
+        event.preventDefault();
+        setStep("verdict");
+        return;
+      }
+      if (isTextEntryTarget(event.target)) return;
+      const delta = choiceDelta(event.key);
+      if (step === "verdict") {
+        if (delta !== 0) {
+          event.preventDefault();
+          setVerdictIndex((index) => nextChoiceIndex(index, delta, interview.verdicts.length));
+        } else if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          chooseVerdict(verdictIndex);
+        }
+        return;
+      }
+      if (delta !== 0) {
+        event.preventDefault();
+        setCursor((row) => nextChoiceIndex(row, delta, notes.length + 1));
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        const note = notes[cursor];
+        if (note) toggleNote(note.id);
+        else submit();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  });
+
+  const rowClass = (selected: boolean) =>
+    `flex min-h-11 w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold leading-6 sm:text-base ${
+      selected ? "bg-[#ffd65a]/60" : "hover:bg-[#1f2433]/5"
+    }`;
 
   return (
-    <main className="mx-auto grid w-full max-w-4xl gap-5 px-4 py-8 sm:px-8 sm:py-12">
-      <header className="rounded-3xl border-2 border-ink bg-record-wash p-6 shadow-[0_5px_0_var(--ink)] sm:p-9">
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-record">The Interview</p>
-        <h2 className="mt-2 text-3xl font-black text-ink sm:text-4xl">{interview.interviewer}</h2>
-        <p className="mt-5 text-lg font-bold leading-relaxed text-ink">{interview.question}</p>
+    <section
+      aria-label={responding ? "Your response" : "Your answer"}
+      className="absolute inset-x-2 top-2 z-30 mx-auto flex max-h-[calc(100%-12rem)] max-w-3xl flex-col overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:inset-x-4 sm:top-4"
+    >
+      <header className="flex items-center justify-between gap-3 border-b-4 border-[#1f2433] bg-[#1f2433] px-4 py-2 text-[#fffaf0]">
+        <h2 className="text-sm font-black uppercase tracking-wide">{responding ? "Your response" : "Your answer"}</h2>
+        <span className="text-xs font-semibold text-[#e9dcc0]">
+          {step === "verdict" ? "↑↓ to choose · Enter to pick" : `${evidenceNoteIds.length}/${MAX_EVIDENCE_NOTES} notes · Esc to go back`}
+        </span>
       </header>
 
-      {interview.answer ? <AnswerSummary heading="Your answer" answer={interview.answer} interview={interview} notes={notes} /> : null}
-      {interview.pushBack ? (
-        <section className="rounded-2xl border-l-4 border-signal bg-signal-wash p-5">
-          <h3 className="font-black text-signal">The interviewer pushes back</h3>
-          <p className="mt-2 text-sm leading-relaxed text-ink">{interview.pushBack}</p>
-        </section>
-      ) : null}
-      {interview.response ? <AnswerSummary heading="Your response" answer={interview.response} interview={interview} notes={notes} /> : null}
-      {interview.closing ? (
-        <section className="rounded-2xl border border-line bg-surface p-5">
-          <h3 className="font-black text-ink">Closing thoughts</h3>
-          <p className="mt-2 text-sm leading-relaxed text-ink">{interview.closing}</p>
-        </section>
-      ) : null}
-
-      {interview.closed ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => send({ type: "continue" })}
-          className="min-h-12 justify-self-start rounded-xl border-2 border-ink bg-world px-6 py-3 font-black text-white shadow-[0_4px_0_var(--ink)] hover:brightness-110 disabled:opacity-50"
-        >
-          Continue
-        </button>
+      {step === "verdict" ? (
+        <div role="listbox" aria-label="Verdict" className="min-h-0 overflow-y-auto p-2">
+          {interview.verdicts.map((option, index) => (
+            <button
+              key={option.id}
+              type="button"
+              role="option"
+              aria-selected={index === verdictIndex}
+              disabled={busy}
+              onMouseEnter={() => setVerdictIndex(index)}
+              onClick={() => chooseVerdict(index)}
+              className={rowClass(index === verdictIndex)}
+            >
+              <span aria-hidden className="w-4 shrink-0">{index === verdictIndex ? "▶" : ""}</span>
+              <span>{option.text}</span>
+            </button>
+          ))}
+        </div>
       ) : (
-        <form onSubmit={submit} className="grid gap-5 rounded-2xl border border-line bg-surface p-5 sm:p-7">
-          <h3 className="text-xl font-black text-ink">{responding ? "Your response" : "What do you think?"}</h3>
-          <fieldset className="grid gap-2">
-            <legend className="mb-2 text-sm font-black text-ink">Choose your verdict</legend>
-            {interview.verdicts.map((verdict) => (
-              <label key={verdict.id} className="flex min-h-12 cursor-pointer items-start gap-3 rounded-xl border border-line bg-paper p-3 text-sm font-semibold leading-relaxed text-ink">
-                <input
-                  type="radio"
-                  name="interview-verdict"
-                  value={verdict.id}
-                  checked={verdictId === verdict.id}
-                  disabled={busy}
-                  onChange={() => setVerdictId(verdict.id)}
-                  className="mt-1 size-4 accent-[var(--world)]"
-                />
-                <span>{verdict.text}</span>
-              </label>
-            ))}
-          </fieldset>
-
-          <fieldset className="grid gap-2">
-            <legend className="mb-2 text-sm font-black text-ink">
-              Which of your notes support this? <span className="font-semibold text-muted">({evidenceNoteIds.length}/{MAX_EVIDENCE_NOTES})</span>
-            </legend>
-            {notes.length ? notes.map((note) => {
-              const checked = evidenceNoteIds.includes(note.id);
-              return (
-                <label key={note.id} className="flex min-h-12 cursor-pointer items-start gap-3 rounded-xl border border-line bg-paper p-3 text-sm leading-relaxed text-ink">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={busy || (!checked && evidenceNoteIds.length >= MAX_EVIDENCE_NOTES)}
-                    onChange={(event) => toggleEvidence(note.id, event.target.checked)}
-                    className="mt-1 size-4 accent-[var(--world)]"
-                  />
-                  <span>{note.text}</span>
-                </label>
-              );
-            }) : <p className="text-sm text-muted">You have no notes to use as evidence.</p>}
-          </fieldset>
-
-          <label className="grid gap-2 text-sm font-black text-ink" htmlFor="v3-interview-text">
-            Optional explanation
-            <textarea
-              id="v3-interview-text"
+        <form
+          className="flex min-h-0 flex-col"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+        >
+          <p className="border-b-2 border-[#1f2433]/15 px-4 py-2 text-sm">
+            <span className="font-black">{verdict?.text}</span>
+            <span className="block text-[#1f2433]/70">Back it up with notes from your notebook (optional).</span>
+          </p>
+          <div className="min-h-0 overflow-y-auto p-2">
+            {notes.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-[#1f2433]/70">You didn&apos;t write any notes.</p>
+            ) : (
+              notes.map((note, index) => {
+                const checked = evidenceNoteIds.includes(note.id);
+                return (
+                  <button
+                    key={note.id}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={checked}
+                    disabled={busy}
+                    onMouseEnter={() => setCursor(index)}
+                    onClick={() => toggleNote(note.id)}
+                    className={rowClass(index === cursor)}
+                  >
+                    <span aria-hidden className="w-4 shrink-0">{index === cursor ? "▶" : ""}</span>
+                    <span aria-hidden className="mt-1 grid size-4 shrink-0 place-items-center rounded border-2 border-[#1f2433] text-[10px] leading-none">
+                      {checked ? "✓" : ""}
+                    </span>
+                    <span className="font-medium">{note.text}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <div className="grid gap-2 border-t-2 border-[#1f2433]/15 p-3">
+            <input
               value={text}
               maxLength={MAX_INTERVIEW_TEXT_LENGTH}
-              rows={4}
-              disabled={busy}
               onChange={(event) => setText(event.target.value)}
-              className="w-full resize-y rounded-xl border border-line-strong bg-paper p-3 text-sm font-normal leading-relaxed text-ink"
+              placeholder="Add a line in your own words (optional)"
+              aria-label="Your reasoning (optional)"
+              className="min-h-10 w-full rounded-lg border-2 border-[#1f2433] bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#ffd65a]"
             />
-            <span className="text-right text-xs font-normal text-muted">{text.length}/{MAX_INTERVIEW_TEXT_LENGTH}</span>
-          </label>
-          {error ? <p role="alert" className="text-sm font-bold text-signal">{error}</p> : null}
-          <button
-            type="submit"
-            disabled={busy}
-            className="min-h-12 justify-self-start rounded-xl border-2 border-ink bg-world px-6 py-3 font-black text-white shadow-[0_4px_0_var(--ink)] hover:brightness-110 disabled:opacity-50"
-          >
-            {busy ? "Saving…" : responding ? "Send your response" : "Submit your answer"}
-          </button>
+            {error ? <p role="alert" className="text-sm font-bold text-signal">{error}</p> : null}
+            <div className="flex items-center justify-between gap-2">
+              <button type="button" onClick={() => setStep("verdict")} className="min-h-10 rounded-lg px-3 text-sm font-bold underline">
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                onMouseEnter={() => setCursor(submitRow)}
+                className={`min-h-10 rounded-lg border-2 border-[#1f2433] px-4 text-sm font-black shadow-[2px_2px_0_#1f2433] disabled:opacity-50 ${
+                  cursor === submitRow ? "bg-[#ffd65a]" : "bg-white"
+                }`}
+              >
+                {cursor === submitRow ? "▶ " : ""}{responding ? "Give my response" : "Give my answer"}
+              </button>
+            </div>
+          </div>
         </form>
       )}
-    </main>
+    </section>
   );
 }
