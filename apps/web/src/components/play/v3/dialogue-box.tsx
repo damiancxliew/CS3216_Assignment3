@@ -41,7 +41,7 @@ type MomentProps = {
 export type DialogueBoxProps = TalkProps | MomentProps;
 
 const boxClass =
-  "absolute inset-x-2 bottom-2 z-20 flex max-h-[55%] overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:inset-x-4 sm:bottom-4";
+  "absolute bottom-2 left-1/2 z-20 flex max-h-[55%] w-[calc(100%-1rem)] max-w-[56rem] -translate-x-1/2 overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:bottom-4 sm:w-[calc(100%-2rem)]";
 
 function wordCount(text: string) {
   return text.match(/\S+/g)?.length ?? 0;
