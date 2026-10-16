@@ -20,6 +20,13 @@ export interface V3Attempt {
   schoolId: string;
 }
 
+export interface V3FlagInput {
+  messageId: string;
+  category: string;
+  excerpt: string;
+  result: { reason: string | null; characterId: string; stageIndex: number };
+}
+
 export interface V3PlayStore {
   loadAdventure(id: string): Promise<V3Adventure | null>;
   loadVersionSpec(adventureId: string, version: number): Promise<unknown | null>;
@@ -41,6 +48,7 @@ export interface V3PlayStore {
     expectedRevision: number,
     state: unknown,
     events: GameEvent[],
+    flags?: readonly V3FlagInput[],
   ): Promise<{ saved: boolean; revision: number | null }>;
   tokensUsed(attemptId: string): Promise<number>;
 }
@@ -260,12 +268,14 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     expectedRevision: number,
     state: unknown,
     events: GameEvent[],
+    flags: readonly V3FlagInput[] = [],
   ): Promise<{ saved: boolean; revision: number | null }> {
     const { data, error } = await this.admin.rpc("save_attempt_v3", {
       p_attempt_id: id,
       p_expected_revision: expectedRevision,
       p_state: state,
       p_events: events.map(({ type, ...payload }) => ({ type, payload })),
+      ...(flags.length > 0 ? { p_flags: flags } : {}),
     });
     if (error) throw error;
     const result = data as { saved: boolean; revision: number | null } | null;
@@ -312,6 +322,7 @@ export class MemoryV3PlayStore implements V3PlayStore {
   private readonly tokenCounts = new Map<string, number>();
   private sequence = 0;
   readonly savedEvents: { attemptId: string; events: GameEvent[] }[] = [];
+  readonly flags: ({ attemptId: string } & V3FlagInput)[] = [];
 
   addAdventure(adventure: V3Adventure): void {
     this.adventures.set(adventure.id, structuredClone(adventure));
@@ -441,6 +452,7 @@ export class MemoryV3PlayStore implements V3PlayStore {
     expectedRevision: number,
     state: unknown,
     events: GameEvent[],
+    flags: readonly V3FlagInput[] = [],
   ): Promise<{ saved: boolean; revision: number | null }> {
     const attempt = this.attempts.get(id);
     if (!attempt) return { saved: false, revision: null };
@@ -449,6 +461,15 @@ export class MemoryV3PlayStore implements V3PlayStore {
     attempt.revision += 1;
     attempt.events.push(...structuredClone(events));
     this.savedEvents.push({ attemptId: id, events: structuredClone(events) });
+    for (const flag of flags) {
+      if (!this.flags.some((saved) => (
+        saved.attemptId === id
+        && saved.messageId === flag.messageId
+        && saved.category === flag.category
+      ))) {
+        this.flags.push({ attemptId: id, ...structuredClone(flag) });
+      }
+    }
     return { saved: true, revision: attempt.revision };
   }
 

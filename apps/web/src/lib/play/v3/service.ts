@@ -6,7 +6,7 @@ import { z } from "zod";
 import { v3SchoolAllowed } from "@/lib/v3/flag";
 
 import { createRateLimiter } from "./rate-limit";
-import type { V3Attempt, V3PlayStore } from "./store";
+import type { V3Attempt, V3FlagInput, V3PlayStore } from "./store";
 
 type LlmContext = { attemptId: string; organizationId: string; userId: string };
 
@@ -255,7 +255,8 @@ export async function runPostTurnChecks(
         if (!attempt) break;
         const spec = await pinnedSpec(deps, attempt);
         const state = attempt.state as EngineState;
-        if (!pendingCheckIds(state).includes(messageId)) break;
+        const pending = state.pendingChecks.find((check) => check.messageId === messageId);
+        if (pending === undefined) break;
 
         const llm = deps.llm({
           attemptId: attempt.id,
@@ -267,7 +268,14 @@ export async function runPostTurnChecks(
           { spec, state, action: { type: "postTurn", messageId, result: checkResult } },
           { llm, now: deps.now(), rng: createRng(`${attempt.id}:${attempt.revision}`) },
         );
-        const saved = await deps.store.save(attempt.id, attempt.revision, result.state, result.events as GameEvent[]);
+        const flags = flagsFromEvents(pending, result.events);
+        const saved = await deps.store.save(
+          attempt.id,
+          attempt.revision,
+          result.state,
+          result.events as GameEvent[],
+          flags,
+        );
         if (saved.saved) break;
       } catch (cause) {
         console.error("Failed to run v3 post-turn check", cause);
@@ -275,4 +283,30 @@ export async function runPostTurnChecks(
       }
     }
   }
+}
+
+export function flagsFromEvents(
+  pending: EngineState["pendingChecks"][number],
+  events: readonly GameEvent[],
+): V3FlagInput[] {
+  const excerpt = (
+    pending.turn.kind === "message"
+      ? pending.turn.text
+      : [pending.turn.text, pending.turn.note].filter(Boolean).join("\n")
+  ).trim().slice(0, 1000);
+
+  return events.flatMap((event) => (
+    event.type === "flag" && event.messageId === pending.messageId
+      ? [{
+          messageId: event.messageId,
+          category: event.category,
+          excerpt,
+          result: {
+            reason: event.reason,
+            characterId: pending.characterId,
+            stageIndex: pending.stageIndex,
+          },
+        }]
+      : []
+  ));
 }
