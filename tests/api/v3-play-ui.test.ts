@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
-import { StagePlayScreen } from "@/components/play/v3/stage-play-screen";
+import { StagePlayScreen, submitV3NoteInsert, v3InsertNoteAction } from "@/components/play/v3/stage-play-screen";
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
@@ -185,9 +185,10 @@ describe("v3 stance portrait paths", () => {
 });
 
 describe("v3 stage play screen", () => {
-  it("labels room navigation as walking", () => {
+  it("shows the walking, look-around, notes, and documents controls", () => {
     const stageView = {
       phase: "stage",
+      briefing: { name: "Temenggong Abdul Rahman", position: "Temenggong", relationships: [], reputation: "", stakes: "", privateBrief: { goals: [], fears: [], constraints: [], knows: [] }, situation: "" },
       stage: {
         index: 0,
         count: 1,
@@ -198,11 +199,21 @@ describe("v3 stage play screen", () => {
       },
       rooms: [{ id: "landing", name: "The landing" }, { id: "balai", name: "The balai" }],
       currentRoomId: "landing",
-      characters: [],
+      characters: [{ id: "character-1", name: "Temenggong", title: "Temenggong", stanceId: null, portraitKey: "temenggong" }],
       messages: [],
-      notes: [],
-      documents: [],
-      documentsHere: [],
+      notes: [{ id: "note-1", text: "A useful discovery.", source: "document", stageIndex: 0, at: "2026-01-01T00:00:00.000Z" }],
+      documents: [{
+        id: "document-1",
+        kind: "letter",
+        title: "A letter from the harbour",
+        provenance: { masthead: null, date: null, sender: null, recipient: null, place: null },
+        body: "The harbour is busy.",
+        real: false,
+        sourceLabel: null,
+        glossary: [],
+        open: false,
+      }],
+      documentsHere: [{ id: "document-1", kind: "letter", title: "A letter from the harbour" }],
       definingMoment: null,
       timer: null,
       pendingCheck: false,
@@ -218,10 +229,38 @@ describe("v3 stage play screen", () => {
       }));
 
       expect(markup).toContain("Walk to");
+      expect(markup).toContain("Look around");
+      expect(markup).toContain("Notes (1)");
+      expect(markup).toContain("Documents (1)");
+      expect(markup).toContain("People here");
+      expect(markup).toContain("ready to decide");
       expect(markup).not.toContain("Move to");
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("builds the insertNote action used by the Notes modal", () => {
+    expect(v3InsertNoteAction("character-1", "note-1", "I noticed this detail.")).toEqual({
+      type: "insertNote",
+      characterId: "character-1",
+      noteId: "note-1",
+      text: "I noticed this detail.",
+    });
+  });
+
+  it("sends insertNote and closes the Notes modal after insertion", () => {
+    const send = vi.fn();
+    const close = vi.fn();
+    submitV3NoteInsert("character-1", "note-1", "A short comment.", send, close);
+
+    expect(send).toHaveBeenCalledWith({
+      type: "insertNote",
+      characterId: "character-1",
+      noteId: "note-1",
+      text: "A short comment.",
+    });
+    expect(close).toHaveBeenCalledOnce();
   });
 });
 

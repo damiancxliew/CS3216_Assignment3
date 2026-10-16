@@ -1,13 +1,13 @@
 "use client";
 
-import { canStep, findPath, roomInterior, spaceAt, type Point, type StageMap } from "@adventure/game-core";
+import { canStep, findPath, spaceAt, type Point } from "@adventure/game-core";
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { MapView } from "@adventure/game-client/view";
 import type { PlayerView } from "@adventure/play-contract";
 import { useEffect, useRef, useState } from "react";
 
 import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl } from "@/lib/play/appearance";
-import { compileV3StageMap, roomIdToEnter } from "@/lib/play/v3/map";
+import { compileV3StageMap, roomIdToEnter, seatIn, v3DocumentProps } from "@/lib/play/v3/map";
 
 const STEP_MS = 160;
 
@@ -33,30 +33,13 @@ interface V3MapProps {
   spawnRoomId: string;
   currentRoomId: string | null;
   characters: V3Character[];
+  documents: PlayerView["documentsHere"];
   walkTo: string | null;
   onWalkDone: () => void;
   onEnterRoom: (roomId: string) => Promise<boolean>;
   onSelectCharacter: (characterId: string) => void;
+  onOpenDocument: (documentId: string) => void;
   onReadyChange: (ready: boolean) => void;
-}
-
-function seatIn(map: StageMap, roomId: string | null, index: number): Point | null {
-  const room = map.rooms.find((candidate) => candidate.id === roomId);
-  if (!room) return null;
-  const interior: Point[] = [];
-  for (let y = room.y + 1; y < room.y + room.height - 1; y += 1) {
-    for (let x = room.x + 1; x < room.x + room.width - 1; x += 1) {
-      const point = { x, y };
-      if (roomInterior(room, point)) interior.push(point);
-    }
-  }
-  const center = { x: room.x + room.width / 2, y: room.y + room.height / 2 };
-  interior.sort((left, right) =>
-    Math.hypot(left.x - center.x, left.y - center.y) - Math.hypot(right.x - center.x, right.y - center.y)
-    || left.y - right.y
-    || left.x - right.x,
-  );
-  return interior[index % interior.length] ?? null;
 }
 
 function isTextEntryTarget(target: EventTarget | null): boolean {
@@ -67,6 +50,7 @@ function isTextEntryTarget(target: EventTarget | null): boolean {
 export function V3Map(props: V3MapProps) {
   const host = useRef<HTMLDivElement>(null);
   const currentRoomRef = useRef(props.currentRoomId);
+  const renderRef = useRef<(() => void) | null>(null);
   const walkToHandler = useRef<(roomId: string | null) => void>(() => {});
   const latest = useRef(props);
   latest.current = props;
@@ -82,7 +66,8 @@ export function V3Map(props: V3MapProps) {
 
   useEffect(() => {
     currentRoomRef.current = props.currentRoomId;
-  }, [props.currentRoomId]);
+    renderRef.current?.();
+  }, [props.currentRoomId, props.characters, props.documents]);
 
   useEffect(() => {
     const parent = host.current;
@@ -130,6 +115,7 @@ export function V3Map(props: V3MapProps) {
           }];
         }),
       ],
+      props: v3DocumentProps(map, currentRoomRef.current, latest.current.documents, latest.current.characters.length + 1),
       playerGoal: path.length ? { kind: "point", point: path[path.length - 1]! } : null,
       playerStatus: path.length ? "moving" : "idle",
       running: true,
@@ -139,6 +125,7 @@ export function V3Map(props: V3MapProps) {
       roomNames: Object.fromEntries(latest.current.rooms.map((room) => [room.id, room.name])),
     });
     const render = () => view?.render(snapshot());
+    renderRef.current = render;
     const finishWalk = () => {
       if (path.length === 0) latest.current.onWalkDone();
     };
@@ -269,6 +256,11 @@ export function V3Map(props: V3MapProps) {
               latest.current.onSelectCharacter(actorId);
             }
           },
+          onProp: (documentId) => {
+            if (latest.current.documents.some((document) => document.id === documentId)) {
+              latest.current.onOpenDocument(documentId);
+            }
+          },
           camera: "detail",
         });
         if (destroyed) {
@@ -296,6 +288,7 @@ export function V3Map(props: V3MapProps) {
 
     return () => {
       destroyed = true;
+      renderRef.current = null;
       walkToHandler.current = () => {};
       latest.current.onReadyChange(false);
       controller.abort();
@@ -316,7 +309,7 @@ export function V3Map(props: V3MapProps) {
       ref={host}
       role="img"
       aria-label="Walkable stage map"
-      className="h-[40dvh] min-h-64 w-full overflow-hidden rounded-2xl border border-line bg-surface lg:h-[min(76dvh,48rem)] lg:min-h-[32rem] lg:flex-1"
+      className="h-full w-full overflow-hidden"
     />
   );
 }
