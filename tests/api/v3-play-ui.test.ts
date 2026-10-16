@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
+import { DialogueBox, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
@@ -13,10 +14,43 @@ import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
 import { portraitFile, portraitStoragePrefix, portraitUrl, v3PortraitBase } from "@/lib/play/v3/portraits";
 import { createV3PreviewClient } from "@/lib/play/v3/preview-client";
-import { MAX_EVIDENCE_NOTES, MAX_INTERVIEW_TEXT_LENGTH, type PlayerView } from "@adventure/play-contract";
+import {
+  MAX_EVIDENCE_NOTES,
+  MAX_INTERVIEW_TEXT_LENGTH,
+  type CharacterView,
+  type DefiningMomentView,
+  type MessageView,
+  type PlayerView,
+} from "@adventure/play-contract";
 
 const view = { phase: "briefing", pendingCheck: false } as unknown as PlayerView;
 const continueAction = { type: "continue" } as const;
+
+function stagePlayView(overrides: Partial<PlayerView> = {}): PlayerView {
+  return {
+    phase: "stage",
+    briefing: { name: "Temenggong Abdul Rahman", position: "Temenggong", relationships: [], reputation: "", stakes: "", privateBrief: { goals: [], fears: [], constraints: [], knows: [] }, situation: "" },
+    stage: {
+      index: 0,
+      count: 1,
+      title: "The landing",
+      timePlace: "Singapore, 1819",
+      centralQuestion: "Who will shape the island?",
+      intro: null,
+    },
+    rooms: [{ id: "landing", name: "The landing" }, { id: "balai", name: "The balai" }],
+    currentRoomId: "landing",
+    characters: [{ id: "character-1", name: "Temenggong", title: "Temenggong", stanceId: null, portraitKey: "temenggong" }],
+    messages: [],
+    notes: [],
+    documents: [],
+    documentsHere: [],
+    definingMoment: null,
+    timer: null,
+    pendingCheck: false,
+    ...overrides,
+  } as unknown as PlayerView;
+}
 
 function response(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -189,21 +223,7 @@ describe("v3 stance portrait paths", () => {
 
 describe("v3 stage play screen", () => {
   it("shows the walking, look-around, notes, and documents controls", () => {
-    const stageView = {
-      phase: "stage",
-      briefing: { name: "Temenggong Abdul Rahman", position: "Temenggong", relationships: [], reputation: "", stakes: "", privateBrief: { goals: [], fears: [], constraints: [], knows: [] }, situation: "" },
-      stage: {
-        index: 0,
-        count: 1,
-        title: "The landing",
-        timePlace: "Singapore, 1819",
-        centralQuestion: "Who will shape the island?",
-        intro: null,
-      },
-      rooms: [{ id: "landing", name: "The landing" }, { id: "balai", name: "The balai" }],
-      currentRoomId: "landing",
-      characters: [{ id: "character-1", name: "Temenggong", title: "Temenggong", stanceId: null, portraitKey: "temenggong" }],
-      messages: [],
+    const stageView = stagePlayView({
       notes: [{ id: "note-1", text: "A useful discovery.", source: "document", stageIndex: 0, at: "2026-01-01T00:00:00.000Z" }],
       documents: [{
         id: "document-1",
@@ -217,10 +237,7 @@ describe("v3 stage play screen", () => {
         open: false,
       }],
       documentsHere: [{ id: "document-1", kind: "letter", title: "A letter from the harbour" }],
-      definingMoment: null,
-      timer: null,
-      pendingCheck: false,
-    } as unknown as PlayerView;
+    });
 
     vi.stubGlobal("React", React);
     try {
@@ -237,7 +254,40 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("Documents (1)");
       expect(markup).toContain("People here");
       expect(markup).toContain("ready to decide");
+      expect(markup).not.toContain('id="v3-message"');
+      expect(markup).not.toContain("Say hello");
       expect(markup).not.toContain("Move to");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows defining moments in the map dialogue box instead of the ready-to-decide controls", () => {
+    const moment = {
+      momentId: "moment-1",
+      scene: "The landing may decide Singapore's future.",
+      deciderId: "character-1",
+      deciderName: "Temenggong Abdul Rahman",
+      status: "choosing",
+      acts: [{ id: "act-1", text: "Welcome the British ships." }],
+      nudge: null,
+      chosenActId: null,
+      reaction: null,
+      predictionOptions: [],
+    } as unknown as DefiningMomentView;
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(StagePlayScreen, {
+        view: stagePlayView({ definingMoment: moment }),
+        busy: false,
+        send: () => {},
+        attemptId: "preview-attempt",
+      }));
+
+      expect(markup).toContain("A defining moment");
+      expect(markup).toContain("The landing may decide Singapore");
+      expect(markup).toContain("Welcome the British ships.");
+      expect(markup).not.toContain("I'm ready to decide");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -373,6 +423,124 @@ describe("v3 stage play screen", () => {
       text: "A short comment.",
     });
     expect(close).toHaveBeenCalledOnce();
+  });
+});
+
+describe("v3 dialogue box", () => {
+  const character = {
+    id: "character-1",
+    name: "Temenggong Abdul Rahman",
+    title: "Temenggong",
+    stanceId: null,
+    portraitKey: "temenggong",
+  } as unknown as CharacterView;
+  const message = {
+    id: "message-1",
+    kind: "character",
+    characterId: character.id,
+    roomId: "landing",
+    text: "The harbour is open to all who arrive in peace.",
+    insertedNoteId: "note-1",
+    at: "2026-01-01T00:00:00.000Z",
+    speaker: character.name,
+    insertedNoteText: "The tide changes before dawn.",
+  } as unknown as MessageView & { speaker: string; insertedNoteText: string };
+  const moment = {
+    momentId: "moment-1",
+    scene: "A defining scene.",
+    deciderId: "character-1",
+    deciderName: "Temenggong Abdul Rahman",
+    status: "choosing",
+    acts: [
+      { id: "act-1", text: "Welcome the British ships." },
+      { id: "act-2", text: "Refuse their proposal." },
+    ],
+    nudge: "Consider the evidence.",
+    chosenActId: null,
+    reaction: null,
+    predictionOptions: [],
+  } as unknown as DefiningMomentView;
+
+  it("renders talk mode with the character, filtered dialogue, input, notes, and close control", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "talk",
+        character,
+        messages: [message],
+        busy: false,
+        onSend: () => {},
+        onOpenNotes: () => {},
+        onClose: () => {},
+      }));
+
+      expect(markup).toContain(character.name);
+      expect(markup).toContain(message.text);
+      expect(markup).toContain("The tide changes before dawn.");
+      expect(markup).toContain('id="v3-message"');
+      expect(markup).toContain("Insert a note");
+      expect(markup).toContain('aria-label="Close conversation (Esc)"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("renders all acts as listbox options with only the first selected", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "moment",
+        moment,
+        busy: false,
+        onAct: () => {},
+        onPredict: () => {},
+      }));
+
+      expect(markup.match(/role="option"/g)).toHaveLength(2);
+      expect(markup.match(/aria-selected="true"/g)).toHaveLength(1);
+      expect(markup).toContain("▶");
+      expect(markup).toContain("Welcome the British ships.");
+      expect(markup).toContain("Refuse their proposal.");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("renders a predicting reaction, decider heading, and prediction options", () => {
+    const predicting = {
+      ...moment,
+      status: "predicting",
+      reaction: "The people watch in silence.",
+      predictionOptions: [
+        { outcomeId: "outcome-1", text: "They will accept the proposal." },
+        { outcomeId: "outcome-2", text: "They will refuse the proposal." },
+      ],
+    } as unknown as DefiningMomentView;
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "moment",
+        moment: predicting,
+        busy: false,
+        onAct: () => {},
+        onPredict: () => {},
+      }));
+
+      expect(markup).toContain("The people watch in silence.");
+      expect(markup).toContain("What will Temenggong Abdul Rahman decide?");
+      expect(markup).toContain("They will accept the proposal.");
+      expect(markup).toContain("They will refuse the proposal.");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("preserves source whitespace and wraps choice navigation in both directions", () => {
+    expect(typewriterSlice("Talk   to them   today", 0)).toBe("");
+    expect(typewriterSlice("Talk   to them   today", 3)).toBe("Talk   to them");
+    expect(typewriterSlice("Talk   to them   today", 10)).toBe("Talk   to them   today");
+    expect(nextChoiceIndex(0, -1, 3)).toBe(2);
+    expect(nextChoiceIndex(2, 1, 3)).toBe(0);
   });
 });
 

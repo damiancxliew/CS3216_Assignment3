@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { spaceAt } from "@adventure/game-core";
 
-import { compileV3StageMap, roomIdToEnter, seatIn, v3DocumentProps, v3StageLayout } from "@/lib/play/v3/map";
+import { compileV3StageMap, nearbyCharacterId, roomIdToEnter, seatIn, v3DocumentProps, v3StageLayout } from "@/lib/play/v3/map";
 import type { PlayerView } from "@adventure/play-contract";
 
 const golden = JSON.parse(readFileSync(new URL("../../fixtures/golden-1819.json", import.meta.url), "utf8")) as {
@@ -66,5 +66,37 @@ describe("v3 stage map layout", () => {
       const space = spaceAt(compiled.map, position);
       return space?.kind === "room" && space.roomId === spawnRoomId;
     })).toBe(true);
+  });
+});
+
+describe("nearby V3 characters", () => {
+  it("prefers the character on the tile the player is facing", () => {
+    expect(nearbyCharacterId({ x: 4, y: 4 }, "right", [
+      { id: "nearby-first", position: { x: 4, y: 3 } },
+      { id: "facing", position: { x: 5, y: 4 } },
+    ])).toBe("facing");
+  });
+
+  it("includes diagonal neighbours and the player's own tile", () => {
+    expect(nearbyCharacterId({ x: 2, y: 2 }, "left", [
+      { id: "diagonal", position: { x: 3, y: 3 } },
+    ])).toBe("diagonal");
+    expect(nearbyCharacterId({ x: 2, y: 2 }, "left", [
+      { id: "same-tile", position: { x: 2, y: 2 } },
+    ])).toBe("same-tile");
+  });
+
+  it("returns null for characters two tiles away or an empty seat list", () => {
+    expect(nearbyCharacterId({ x: 2, y: 2 }, "up", [
+      { id: "too-far", position: { x: 2, y: 4 } },
+    ])).toBeNull();
+    expect(nearbyCharacterId({ x: 2, y: 2 }, "up", [])).toBeNull();
+  });
+
+  it("breaks equal-distance ties by seat array order", () => {
+    expect(nearbyCharacterId({ x: 3, y: 3 }, "down", [
+      { id: "first", position: { x: 2, y: 3 } },
+      { id: "second", position: { x: 4, y: 3 } },
+    ])).toBe("first");
   });
 });
