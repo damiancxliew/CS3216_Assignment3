@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
+import { StagePlayScreen } from "@/components/play/v3/stage-play-screen";
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
@@ -177,6 +178,47 @@ describe("v3 stance portrait paths", () => {
         onSelect: () => {},
       }));
       expect(fallback).toContain(">TA</span>");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("v3 stage play screen", () => {
+  it("labels room navigation as walking", () => {
+    const stageView = {
+      phase: "stage",
+      stage: {
+        index: 0,
+        count: 1,
+        title: "The landing",
+        timePlace: "Singapore, 1819",
+        centralQuestion: "Who will shape the island?",
+        intro: null,
+      },
+      rooms: [{ id: "landing", name: "The landing" }, { id: "balai", name: "The balai" }],
+      currentRoomId: "landing",
+      characters: [],
+      messages: [],
+      notes: [],
+      documents: [],
+      documentsHere: [],
+      definingMoment: null,
+      timer: null,
+      pendingCheck: false,
+    } as unknown as PlayerView;
+
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(StagePlayScreen, {
+        view: stageView,
+        busy: false,
+        send: () => {},
+        attemptId: "preview-attempt",
+      }));
+
+      expect(markup).toContain("Walk to");
+      expect(markup).not.toContain("Move to");
     } finally {
       vi.unstubAllGlobals();
     }

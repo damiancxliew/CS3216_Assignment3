@@ -1,12 +1,13 @@
 "use client";
 
 import type { Action, PlayerView } from "@adventure/play-contract";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
 import { DefiningMomentScreen } from "@/components/play/v3/defining-moment-screen";
 import { DocumentReader } from "@/components/play/v3/document-reader";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
+import { V3Map } from "@/components/play/v3/v3-map";
 
 function formatTime(milliseconds: number) {
   const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
@@ -85,15 +86,18 @@ function DocumentShelf({
   );
 }
 
-export function StagePlayScreen({ view, busy, send, portraitBase = null }: {
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId }: {
   view: PlayerView;
   busy: boolean;
-  send: (action: Action) => void;
+  send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
   portraitBase?: string | null;
+  attemptId: string;
 }) {
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [confirmEndStage, setConfirmEndStage] = useState(false);
+  const [walkTo, setWalkTo] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const [documentId, setDocumentId] = useState<string | null>(
     () => view.documents.find((document) => document.open)?.id ?? null,
   );
@@ -101,6 +105,13 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null }: {
   const currentCharacter = view.characters.find((character) => character.id === characterId) ?? null;
   const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
   const stage = view.stage;
+  const stageIndex = stage?.index ?? 0;
+  const stageId = `stage-${stageIndex}`;
+  const spawnRoomId = view.rooms[0]?.id ?? "";
+  const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
+    send({ type: "enterRoom", roomId }, resolve);
+  }), [send]);
+  const onMapReadyChange = useCallback((ready: boolean) => setMapReady(ready), []);
   const messages = useMemo(
     // Conversation is per room; story lines (narration, notices, the role's own thoughts) follow the student.
     () => view.messages.filter((item) =>
@@ -216,8 +227,25 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null }: {
           </aside>
         </div>
       ) : (
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(18rem,0.8fr)]">
-          <section className="grid min-w-0 gap-4">
+        <div className="flex min-w-0 flex-col items-stretch gap-5 lg:flex-row lg:items-start">
+          {stage && view.rooms.length > 0 ? (
+            <V3Map
+              key={`${attemptId}:${stageId}`}
+              attemptId={attemptId}
+              stageId={stageId}
+              stageIndex={stageIndex}
+              rooms={view.rooms}
+              spawnRoomId={spawnRoomId}
+              currentRoomId={view.currentRoomId}
+              characters={view.characters}
+              walkTo={walkTo}
+              onWalkDone={() => setWalkTo(null)}
+              onEnterRoom={requestRoomEntry}
+              onSelectCharacter={setCharacterId}
+              onReadyChange={onMapReadyChange}
+            />
+          ) : null}
+          <div className="grid min-w-0 w-full gap-4 lg:w-[min(42rem,48vw)] lg:flex-none">
             <section className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
@@ -246,11 +274,15 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null }: {
               )}
               {view.rooms.length > 1 ? (
                 <label className="mt-4 flex flex-wrap items-center gap-3 text-sm font-bold text-ink">
-                  Move to
+                  Walk to
                   <select
-                    value={view.currentRoomId ?? ""}
+                    value={walkTo ?? view.currentRoomId ?? ""}
                     disabled={busy}
-                    onChange={(event) => send({ type: "enterRoom", roomId: event.target.value })}
+                    onChange={(event) => {
+                      const roomId = event.target.value;
+                      if (mapReady) setWalkTo(roomId);
+                      else send({ type: "enterRoom", roomId });
+                    }}
                     className="min-h-11 min-w-48 flex-1 rounded-lg border border-line-strong bg-paper px-3 text-ink"
                   >
                     {view.rooms.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
@@ -299,20 +331,19 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null }: {
                 </div>
               </form>
             </section>
-          </section>
-
-          <aside className="grid min-w-0 gap-4">
-            <DocumentShelf view={view} busy={busy} momentOpen={false} onOpen={openDocument} />
-            <NotesPanel
-              notes={view.notes}
-              busy={busy}
-              selectedCharacterName={currentCharacter?.name ?? null}
-              onInsert={(noteId, text) => {
-                if (!characterId) return;
-                send({ type: "insertNote", characterId, noteId, ...(text ? { text } : {}) });
-              }}
-            />
-          </aside>
+            <aside className="grid min-w-0 gap-4">
+              <DocumentShelf view={view} busy={busy} momentOpen={false} onOpen={openDocument} />
+              <NotesPanel
+                notes={view.notes}
+                busy={busy}
+                selectedCharacterName={currentCharacter?.name ?? null}
+                onInsert={(noteId, text) => {
+                  if (!characterId) return;
+                  send({ type: "insertNote", characterId, noteId, ...(text ? { text } : {}) });
+                }}
+              />
+            </aside>
+          </div>
         </div>
       )}
       {openedDocument ? (

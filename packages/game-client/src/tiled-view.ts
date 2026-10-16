@@ -71,6 +71,8 @@ export interface TiledViewOptions {
   themeBase?: string
   /** Sprite key to use for an actor that does not name one. */
   defaultSprite?: string
+  /** Allow mouse clicks on tiles to request a walk, in addition to touch taps. */
+  clickToWalk?: boolean
   /** Called when the player clicks a character instead of a tile. */
   onActor?: (actorId: string) => void
   /** Called when the player clicks a document or object lying on the map. */
@@ -87,6 +89,7 @@ class TiledScene extends Phaser.Scene {
   private readonly onReady: () => void
   private readonly base: string
   private readonly defaultSprite: string
+  private readonly clickToWalk: boolean
   private readonly cameraMode: 'detail' | 'overview'
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
@@ -146,6 +149,7 @@ class TiledScene extends Phaser.Scene {
     this.onReady = onReady
     this.base = options.assetBase.replace(/\/$/, '')
     this.defaultSprite = options.defaultSprite ?? 'Villager'
+    this.clickToWalk = options.clickToWalk ?? false
     this.cameraMode = options.camera ?? 'detail'
     this.onActor = options.onActor
     this.onProp = options.onProp
@@ -195,7 +199,7 @@ class TiledScene extends Phaser.Scene {
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
       // A mouse walks with the keyboard; only touch, which has no keys, taps a tile to walk there.
-      const walks = pointer.wasTouch
+      const walks = pointer.wasTouch || this.clickToWalk
       if (!this.pointRevealed(point)) { if (walks) this.onDestination(point, pointer.time || performance.now()); this.game.canvas.focus(); return }
       // A character under the pointer means "talk to them", not "walk here".
       const actor = this.current.actors.find((a) => {
