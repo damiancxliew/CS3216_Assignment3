@@ -93,8 +93,7 @@ export function V3BriefChat({ initial }: { initial: BriefStateV3 }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <header className="flex items-baseline justify-between gap-4">
-        <h2 className="text-2xl font-extrabold tracking-tight text-ink">New adventure</h2>
+      <div className="flex justify-end">
         <ConfirmButton
           label="Discard this brief"
           title="Discard this brief?"
@@ -109,7 +108,7 @@ export function V3BriefChat({ initial }: { initial: BriefStateV3 }) {
             })
           }
         />
-      </header>
+      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         <ol className="flex flex-col gap-3 text-base" aria-live="polite">
@@ -233,7 +232,14 @@ function SourceStep({
         }}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <input type="file" name="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" className="text-sm" disabled={pending} />
+          <input
+            type="file"
+            name="file"
+            accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+            aria-label="PDF, .txt or .md"
+            disabled={pending}
+            className={`${control} flex-1 file:mr-3 file:rounded-control file:border-0 file:bg-ink file:px-3 file:py-1 file:text-sm file:font-semibold file:text-paper`}
+          />
           <button type="submit" disabled={pending} className={button.subtle}>
             Add source
           </button>

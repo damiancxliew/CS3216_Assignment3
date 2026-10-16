@@ -39,7 +39,7 @@ export function ConfirmButton({
       </button>
       <dialog
         ref={dialog}
-        className="w-full max-w-md rounded-surface border-2 border-ink bg-surface p-6 shadow-[0_8px_0_color-mix(in_srgb,var(--ink)_15%,transparent)] backdrop:bg-ink/30"
+        className="m-auto w-full max-w-md rounded-surface border-2 border-ink bg-surface p-6 shadow-[0_8px_0_color-mix(in_srgb,var(--ink)_15%,transparent)] backdrop:bg-ink/30"
       >
         <h3 className="text-lg font-black tracking-tight text-ink">{title}</h3>
         <p className="mt-2 text-sm text-muted">{body}</p>

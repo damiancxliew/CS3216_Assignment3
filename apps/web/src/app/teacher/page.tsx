@@ -87,6 +87,7 @@ export default async function TeacherHome() {
         .order("updated_at", { ascending: false })
         .returns<V3Row[]>()
     : { data: null };
+  const v3Adventures = v3Rows ?? [];
 
   return (
     <Page
@@ -96,12 +97,34 @@ export default async function TeacherHome() {
     >
       <TeacherWorkspace
         resume={resume.success ? resume.data : undefined}
-        hasAdventures={adventures.length > 0}
+        hasAdventures={adventures.length > 0 || v3Adventures.length > 0}
         {...(v3Allowed && !resume.success ? { newAdventure: { href: "/v3/teacher/new", label: "New adventure" } } : {})}
         adventures={
-          adventures.length === 0 ? (
+          adventures.length === 0 && v3Adventures.length === 0 ? (
             <EmptyState title="No adventures yet">Start with the class you are teaching next.</EmptyState>
           ) : (
+            <div className="flex flex-col gap-10">
+            {v3Adventures.length > 0 ? (
+              <div className="flex flex-col gap-5">
+              <h2 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Your adventures</h2>
+              <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {v3Adventures.map((row) => (
+                  <li key={row.id}>
+                    <Link
+                      href={`/v3/teacher/${row.id}`}
+                      className="group flex items-center justify-between gap-3 rounded-surface border-2 border-line bg-surface px-5 py-4 transition-colors hover:border-ink"
+                    >
+                      <span className="min-w-0 truncate font-bold text-ink group-hover:text-record">{row.title ?? "Untitled adventure"}</span>
+                      <span className="whitespace-nowrap rounded-full border border-line-strong px-3 py-1 font-sans text-xs font-extrabold uppercase tracking-wide text-muted">
+                        {V3_STATUS_LABELS[row.status] ?? row.status}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              </div>
+            ) : null}
+            {adventures.length > 0 ? (
             <div className="flex flex-col gap-5">
             <div className="flex items-center justify-between gap-3">
               <h2 className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-[0.12em] text-muted"><BookOpen className="h-4 w-4" aria-hidden />Your worlds</h2>
@@ -137,29 +160,11 @@ export default async function TeacherHome() {
               );})}
             </ul>
             </div>
+            ) : null}
+            </div>
           )
         }
       />
-      {v3Allowed && (v3Rows ?? []).length > 0 ? (
-        <section className="mt-10">
-          <h2 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">Your v3 adventures</h2>
-          <ul className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {(v3Rows ?? []).map((row) => (
-              <li key={row.id}>
-                <Link
-                  href={`/v3/teacher/${row.id}`}
-                  className="group flex items-center justify-between gap-3 rounded-surface border-2 border-line bg-surface px-5 py-4 transition-colors hover:border-ink"
-                >
-                  <span className="min-w-0 truncate font-bold text-ink group-hover:text-record">{row.title ?? "Untitled adventure"}</span>
-                  <span className="whitespace-nowrap rounded-full border border-line-strong px-3 py-1 font-sans text-xs font-extrabold uppercase tracking-wide text-muted">
-                    {V3_STATUS_LABELS[row.status] ?? row.status}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
     </Page>
   );
 }
