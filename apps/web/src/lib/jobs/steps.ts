@@ -1,4 +1,4 @@
-import { defineStep, type EnqueueStep } from "@adventure/jobs";
+import { defineStep } from "@adventure/jobs";
 import { EngineSpec } from "@adventure/engine";
 import { OpenAiImageService } from "@adventure/generation/assets";
 
@@ -8,6 +8,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { generateStancePortraits } from "@/lib/v3/portraits/generate";
 import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
 import { v3GenerationSteps } from "@/lib/v3/generation/steps";
+
+export { portraitsStep } from "@/lib/v3/portraits/step";
 
 const stancePortraitStep = defineStep<
   { adventureId: string; version: number },
@@ -40,11 +42,3 @@ const stancePortraitStep = defineStep<
 );
 
 export const jobSteps = [stancePortraitStep, ...v3GenerationSteps(defaultGenerationDeps)];
-
-export function portraitsStep(adventureId: string, version: number): EnqueueStep {
-  return {
-    name: `portraits-v${version}`,
-    step: "v3.portraits",
-    input: { adventureId, version },
-  };
-}
