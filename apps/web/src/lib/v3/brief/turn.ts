@@ -25,7 +25,9 @@ import {
   EPISODE_MAX,
   FOCUS_MAX,
   QUESTIONS,
+  SLOT_KEYS,
   type Slot,
+  timerLabel,
 } from "./schema";
 
 export type TurnResultV3 = { ok: true; state: BriefStateV3 } | { ok: false; error: string };
@@ -104,6 +106,18 @@ export async function briefTurnV3(state: BriefStateV3, input: BriefInputV3, deps
       const readingLevel = parsed[1]!.toLowerCase().startsWith("j") ? "jc" : "sec";
       return ask({ ...state.draft, readingLevel }, ctx);
     }
+    case "timer": {
+      const timerMinutes = parseTimerAnswer(text);
+      if (timerMinutes === undefined) {
+        messages.push({
+          role: "assistant",
+          text: "Choose 45 minutes or No timer, or type a length between 10 and 120 minutes.",
+          slot: key,
+        });
+        return { ok: true, state: { ...state, messages } };
+      }
+      return ask({ ...state.draft, timerMinutes }, ctx);
+    }
     case "mode": {
       const parsed = /standard|quick/i.exec(text);
       if (!parsed) {
@@ -115,7 +129,23 @@ export async function briefTurnV3(state: BriefStateV3, input: BriefInputV3, deps
   }
 }
 
-const SLOT_NAMES: string[] = ["sources", "episode", "focus", "readingLevel", "mode", "confirm"];
+export function parseTimerAnswer(text: string): number | null | undefined {
+  const normalized = text.trim().toLowerCase().replace(/\s*\(recommended\)\s*$/, "").trim();
+  if (/^(no timer|no|none|off)$/.test(normalized)) return null;
+
+  const minutes = /^(\d+)\s*(m|min|mins|minute|minutes)?$/.exec(normalized);
+  if (minutes) {
+    const value = Number(minutes[1]);
+    return Number.isInteger(value) && value >= 10 && value <= 120 ? value : undefined;
+  }
+
+  const hours = /^(an?|\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)$/.exec(normalized);
+  if (!hours) return undefined;
+  const value = (hours[1] === "a" || hours[1] === "an" ? 1 : Number(hours[1])) * 60;
+  return Number.isInteger(value) && value >= 10 && value <= 120 ? value : undefined;
+}
+
+const SLOT_NAMES: string[] = ["sources", "episode", "focus", "readingLevel", "timer", "mode", "confirm"];
 
 /**
  * Where a consulted slot leaves the conversation: back at a slot the teacher
@@ -209,7 +239,7 @@ type Consulted =
   | { ok: true; filled: false; followUp: ChatMessage; revisit?: Slot }
   | { ok: false; error: string };
 
-const REVISITABLE = ["episode", "focus", "readingLevel", "mode"] as const;
+const REVISITABLE = ["episode", "focus", "readingLevel", "timer", "mode"] as const;
 
 const consultReply = z.object({
   reply: z.string(),
@@ -228,7 +258,7 @@ function revisitTarget(key: string | null, draft: BriefDraftV3): Slot | undefine
   const name = REVISITABLE.find((k) => k === key);
   if (!name) return undefined;
   if (name === currentSlot(draft).name) return undefined;
-  return draft[name] !== undefined ? { name } : undefined;
+  return draft[SLOT_KEYS[name]] !== undefined ? { name } : undefined;
 }
 
 const SLOT_LIMITS: Record<ConsultedSlot, number> = { episode: EPISODE_MAX, focus: FOCUS_MAX };
@@ -280,6 +310,7 @@ function userPrompt(draft: BriefDraftV3, slot: ConsultedSlot, exchange: readonly
     `- Episode: ${draft.episode ?? "(not yet)"}`,
     draft.focus !== undefined && draft.focus !== "" ? `- Focus: ${draft.focus}` : "",
     draft.readingLevel ? `- Reading level: ${draft.readingLevel}` : "",
+    draft.timerMinutes !== undefined ? `- Timer: ${timerLabel(draft.timerMinutes)}` : "",
     draft.mode ? `- Mode: ${draft.mode}` : "",
     draft.sources ? `- What the sources cover: ${draft.sources.summary}` : "",
     "",

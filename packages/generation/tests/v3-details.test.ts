@@ -367,7 +367,7 @@ describe('generateDetails', () => {
     expect(draft.definingMoments[0]!.nudge).toBe('')
     expect(draft.definingMoments[0]!.outcomes[0]!.predictionText).toBe('')
     expect(draft.endings[0]!.interview.verdicts.map((v) => v.id)).toEqual(['e-historical-pending-v1', 'e-historical-pending-v2', 'e-historical-pending-v3'])
-    expect(draft.timer).toEqual({ enabled: true, stageMinutes: [30] })
+    expect(draft.timer).toEqual({ enabled: true, stageMinutes: [45] })
     expect(draft.hintAngles).toEqual([
       { id: 's1-h1', discoveryId: 'd-treaty', kind: 'ask', text: 'Perhaps Farquhar knows who really signed.' },
       { id: 's1-h2', discoveryId: 'd-dues', kind: 'read', text: 'Perhaps the register mentions the dues.' },
@@ -652,5 +652,30 @@ describe('generateDetails', () => {
     expect(angles.filter((a) => a.kind === 'passOn' && a.discoveryId === 'd-dues')).toHaveLength(1)
     expect(angles.find((a) => a.id === 's1-h4')).toBeUndefined()
     expect(merged.draft.discoveries.find((d) => d.id === 'farquhar-d1')).toBeUndefined()
+  })
+
+  it('merges the requested timer duration, no timer, and the 45-minute default', () => {
+    const parts = {
+      stages: new Map([['s1', stageOutput]]),
+      personas: new Map([
+        ['farquhar', farquharOutput],
+        ['raffles', rafflesOutput],
+      ]),
+      minors: minorsOutput,
+      link: linkOutput,
+    }
+
+    expect(mergeDetails(skeleton, parts, { timerMinutes: 60 }).draft.timer).toEqual({
+      enabled: true,
+      stageMinutes: [60],
+    })
+    expect(mergeDetails(skeleton, parts, { timerMinutes: null }).draft.timer).toEqual({
+      enabled: false,
+      stageMinutes: [45],
+    })
+    expect(mergeDetails(skeleton, parts).draft.timer).toEqual({
+      enabled: true,
+      stageMinutes: [45],
+    })
   })
 })

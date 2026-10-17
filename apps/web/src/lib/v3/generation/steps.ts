@@ -86,7 +86,12 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
       const validated = validateSkeleton(raw);
       if (!validated.ok) throw asError("skeleton input", validated.issues);
       const result = await deps.passes.details(
-        { skeleton: validated.spec, documents, readingLevel: brief.readingLevel },
+        {
+          skeleton: validated.spec,
+          documents,
+          readingLevel: brief.readingLevel,
+          ...(brief.timerMinutes !== undefined ? { timerMinutes: brief.timerMinutes } : {}),
+        },
         { llm: deps.llm(brief) },
       );
       if (!result.ok || result.draft === undefined) throw asError("details pass", result.issues);

@@ -7,5 +7,6 @@ export interface GenerationBrief {
   episode: string;
   teacherNotes?: string;
   readingLevel: "sec" | "jc";
+  timerMinutes?: number | null;
   mode: GenerationMode;
 }

@@ -16,6 +16,7 @@ export interface GenerateDetailsInput {
   skeleton: SkeletonShape
   documents: ExtractedDocument[]
   readingLevel?: 'sec' | 'jc'
+  timerMinutes?: number | null
 }
 
 export interface GenerateDetailsOptions extends DetailCallOptions {
@@ -105,7 +106,7 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
     return { ok: false, issues, warnings: uniq(warnings), slantedDocuments: [], mergedDuplicates: mergedDups(), pendingPasses: [], metrics: { calls, totalCostUsd: totalCost() } }
 
   // --- merge + check ----------------------------------------------------------------------------
-  const merged = mergeAndCheck(skeleton, bag)
+  const merged = mergeAndCheck(skeleton, bag, input.timerMinutes)
   warnings.push(...merged.warnings)
   const remaining = merged.errors
 
@@ -133,7 +134,7 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
       bag.link = await linkDetails(buildLinkContext(skeleton, bag), shared, linkOpts)
       collect(bag.link)
       if (bag.link.output !== undefined && bag.link.issues.length === 0) {
-        const remerged = mergeAndCheck(skeleton, bag)
+        const remerged = mergeAndCheck(skeleton, bag, input.timerMinutes)
         warnings.push(...remerged.warnings)
         issues.push(...remerged.errors)
         if (issues.length === 0)
@@ -147,13 +148,13 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
   return { ok: true, draft: merged.draft, issues, warnings: uniq(warnings), slantedDocuments: merged.slantedDocuments, mergedDuplicates: mergedDups(), pendingPasses: ['endings', 'reveal'], metrics: { calls, totalCostUsd: totalCost() } }
 }
 
-function mergeAndCheck(skeleton: SkeletonShape, bag: CallBag) {
+function mergeAndCheck(skeleton: SkeletonShape, bag: CallBag, timerMinutes?: number | null) {
   const merged = mergeDetails(skeleton, {
     stages: new Map([...bag.stage].map(([id, r]) => [id, r.output!])),
     personas: new Map([...bag.persona].map(([id, r]) => [id, r.output!])),
     minors: bag.minors?.output ?? null,
     link: bag.link!.output!,
-  })
+  }, timerMinutes !== undefined ? { timerMinutes } : {})
   const validation = validateSpec(merged.draft)
   const schemaIssues: CheckIssue[] = validation.ok ? [] : validation.issues.map((i) => ({ code: 'schema', path: i.path, message: i.message }))
   const errors = schemaIssues.length > 0 ? schemaIssues : checkSpec(merged.draft).errors

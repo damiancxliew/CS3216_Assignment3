@@ -8,8 +8,17 @@ import { describe, expect, it, vi } from "vitest";
 import type { ExtractedDocument } from "@adventure/generation";
 import { FakeLlmClient } from "@adventure/generation/llm";
 
-import { briefTurnV3 } from "@/lib/v3/brief/turn";
-import { currentSlot, initialBriefStateV3, SOURCES_DONE, type BriefStateV3 } from "@/lib/v3/brief/schema";
+import { briefTurnV3, parseTimerAnswer } from "@/lib/v3/brief/turn";
+import {
+  currentSlot,
+  initialBriefStateV3,
+  QUESTIONS,
+  quickReplies,
+  SOURCES_DONE,
+  TIMER_OFF,
+  TIMER_RECOMMENDED,
+  type BriefStateV3,
+} from "@/lib/v3/brief/schema";
 
 const doc = (id: string, text = "source text"): ExtractedDocument => ({
   id,
@@ -40,6 +49,7 @@ const fullDraft = {
   episode: "ep",
   focus: "",
   readingLevel: "sec" as const,
+  timerMinutes: 45,
   mode: "quick" as const,
 };
 
@@ -71,11 +81,17 @@ describe("briefTurnV3", () => {
     if (!r4.ok) throw new Error(r4.error);
     state = r4.state;
     expect(state.draft.readingLevel).toBe("jc");
-    expect(currentSlot(state.draft).name).toBe("mode");
+    expect(currentSlot(state.draft).name).toBe("timer");
 
-    const r5 = await briefTurnV3(state, { text: "Quick: check everything at the end" }, { llm, documents: docs });
+    const r5 = await briefTurnV3(state, { text: TIMER_RECOMMENDED }, { llm, documents: docs });
     if (!r5.ok) throw new Error(r5.error);
     state = r5.state;
+    expect(state.draft.timerMinutes).toBe(45);
+    expect(currentSlot(state.draft).name).toBe("mode");
+
+    const r6 = await briefTurnV3(state, { text: "Quick: check everything at the end" }, { llm, documents: docs });
+    if (!r6.ok) throw new Error(r6.error);
+    state = r6.state;
     expect(state.draft.mode).toBe("quick");
     expect(currentSlot(state.draft).name).toBe("confirm");
 
@@ -132,7 +148,7 @@ describe("briefTurnV3", () => {
     expect(r1.state.draft.readingLevel).toBeUndefined();
     expect(r1.state.messages.at(-1)?.text).toContain("Sec or JC");
 
-    const mode = stateAt({ ...level.draft, readingLevel: "sec" });
+    const mode = stateAt({ ...level.draft, readingLevel: "sec", timerMinutes: 45 });
     const r2 = await briefTurnV3(mode, { text: "whichever" }, { llm, documents: docs });
     if (!r2.ok) throw new Error(r2.error);
     expect(r2.state.draft.mode).toBeUndefined();
@@ -140,11 +156,73 @@ describe("briefTurnV3", () => {
     expect(llm.requests).toHaveLength(0);
   });
 
+  it("parses timer answers, including the quick replies, without a model call", async () => {
+    const timerDraft = { sources: { summary: "s", episodeProposal: "ep" }, episode: "e", focus: "", readingLevel: "sec" as const };
+    const timerState = stateAt(timerDraft);
+    expect(quickReplies(timerState.draft, currentSlot(timerState.draft))).toEqual([TIMER_RECOMMENDED, TIMER_OFF]);
+    const cases: [string, number | null][] = [
+      [TIMER_RECOMMENDED, 45],
+      ["45", 45],
+      ["40 min", 40],
+      ["1 hour", 60],
+      ["No timer", null],
+      ["none", null],
+      ["off", null],
+      ["no", null],
+    ];
+
+    for (const [text, expected] of cases) {
+      const llm = new FakeLlmClient([]);
+      const result = await briefTurnV3(timerState, { text }, { llm, documents: docs });
+      if (!result.ok) throw new Error(result.error);
+      expect(result.state.draft.timerMinutes).toBe(expected);
+      expect(currentSlot(result.state.draft).name).toBe("mode");
+      expect(llm.requests).toHaveLength(0);
+    }
+  });
+
+  it("invalid timer answers re-ask without changing the draft or calling the model", async () => {
+    const draft = { sources: { summary: "s", episodeProposal: "ep" }, episode: "e", focus: "", readingLevel: "sec" as const };
+    for (const text of ["5", "200", "soon"]) {
+      const llm = new FakeLlmClient([]);
+      const result = await briefTurnV3(stateAt(draft), { text }, { llm, documents: docs });
+      if (!result.ok) throw new Error(result.error);
+      expect(result.state.draft).toEqual(draft);
+      expect(result.state.messages.at(-1)?.text).toBe("Choose 45 minutes or No timer, or type a length between 10 and 120 minutes.");
+      expect(llm.requests).toHaveLength(0);
+    }
+  });
+
+  it("revisiting timer from confirm clears timerMinutes and asks the timer question", async () => {
+    const llm = new FakeLlmClient([]);
+    const result = await briefTurnV3(stateAt(fullDraft), { change: "timer" }, { llm, documents: docs });
+    if (!result.ok) throw new Error(result.error);
+    expect(result.state.draft.timerMinutes).toBeUndefined();
+    expect(currentSlot(result.state.draft).name).toBe("timer");
+    expect(result.state.messages.at(-1)?.text).toBe(QUESTIONS.timer);
+    expect(llm.requests).toHaveLength(0);
+  });
+
+  it("a null timer is a filled slot", () => {
+    const draft = { sources: { summary: "s", episodeProposal: "ep" }, episode: "e", focus: "", readingLevel: "sec" as const, timerMinutes: null };
+    expect(currentSlot(draft).name).toBe("mode");
+    expect(parseTimerAnswer("  1 hour  ")).toBe(60);
+    expect(parseTimerAnswer("1.5 hours")).toBe(90);
+    expect(parseTimerAnswer("2.5 hours")).toBeUndefined();
+  });
+
   it("revisit only reopens already-answered slots", async () => {
-    // mid-brief at the focus slot: sources and episode answered, the rest open
-    const mid = stateAt({ sources: fullDraft.sources, episode: "old episode" });
+    // mid-brief at the focus slot: the prior answers, including timer, are settled
+    const mid = stateAt({
+      sources: fullDraft.sources,
+      episode: "old episode",
+      readingLevel: "sec",
+      timerMinutes: 45,
+      mode: "quick",
+    });
     const llm = new FakeLlmClient([
       { json: { reply: "Reopening the episode.", answer: "", complete: false, revisit: "episode" } },
+      { json: { reply: "Reopening the timer.", answer: "", complete: false, revisit: "timer" } },
       { json: { reply: "Reopening something that was never answered.", answer: "", complete: false, revisit: "mode" } },
     ]);
     // revisit of episode (answered) reopens it — the earlier question is asked again
@@ -153,11 +231,17 @@ describe("briefTurnV3", () => {
     expect(r1.state.draft.episode).toBeUndefined();
     expect(currentSlot(r1.state.draft).name).toBe("episode");
 
-    // revisit of mode (never answered) is ignored
-    const r2 = await briefTurnV3(mid, { text: "change the mode" }, { llm, documents: docs });
+    // timer is recognized through its mapped draft key
+    const r2 = await briefTurnV3(mid, { text: "change the timer" }, { llm, documents: docs });
     if (!r2.ok) throw new Error(r2.error);
-    expect(r2.state.draft.mode).toBeUndefined();
-    expect(currentSlot(r2.state.draft).name).toBe("focus");
+    expect(r2.state.draft.timerMinutes).toBeUndefined();
+
+    // revisit of mode (never answered) is ignored
+    const neverAnsweredMode = stateAt({ sources: fullDraft.sources, episode: "old episode" });
+    const r3 = await briefTurnV3(neverAnsweredMode, { text: "change the mode" }, { llm, documents: docs });
+    if (!r3.ok) throw new Error(r3.error);
+    expect(r3.state.draft.mode).toBeUndefined();
+    expect(currentSlot(r3.state.draft).name).toBe("focus");
     void fullDraft;
   });
 

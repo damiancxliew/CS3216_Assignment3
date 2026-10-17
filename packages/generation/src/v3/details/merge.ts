@@ -57,7 +57,8 @@ const dedupeHintAngles = (angles: AdventureSpec['hintAngles'], discoveries: Spec
   })
 }
 
-export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): MergeResult {
+export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts, opts: { timerMinutes?: number | null } = {}): MergeResult {
+  const total = opts.timerMinutes ?? 45
   const warnings: CheckIssue[] = []
   const slantedDocuments: MergeResult['slantedDocuments'] = []
   const warn = (code: string, path: string, message: string) => warnings.push({ code, path, message })
@@ -347,7 +348,10 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts): Merg
     title: skeleton.title,
     readingLevel: skeleton.readingLevel,
     ...(skeleton.arc !== undefined ? { arc: skeleton.arc } : {}),
-    timer: { enabled: true, stageMinutes: skeleton.stages.map(() => 30 / skeleton.stages.length) },
+    timer: {
+      enabled: opts.timerMinutes !== null,
+      stageMinutes: skeleton.stages.map(() => total / skeleton.stages.length),
+    },
     role: skeleton.role,
     stages,
     characters,

@@ -80,6 +80,7 @@ export async function startFromBrief(
     episode: draft.episode,
     ...(draft.focus !== "" ? { teacherNotes: draft.focus } : {}),
     readingLevel: draft.readingLevel,
+    timerMinutes: draft.timerMinutes,
     mode: draft.mode,
   };
 
@@ -130,6 +131,7 @@ export async function restartGeneration(
         episode: oldBrief?.episode ?? "",
         focus: oldBrief?.teacherNotes ?? "",
         readingLevel: oldBrief?.readingLevel ?? "sec",
+        timerMinutes: oldBrief?.timerMinutes === undefined ? 45 : oldBrief.timerMinutes,
         mode: oldBrief?.mode ?? "quick",
       },
       messages: [

@@ -155,7 +155,7 @@ type Harness = Awaited<ReturnType<typeof makeJob>>;
 async function briefingAtConfirm(
   { briefStore, sources, adventures }: Harness,
   mode: "quick" | "standard" = "quick",
-  { owner = ownerId, school = schoolId } = {},
+  { owner = ownerId, school = schoolId, timerMinutes = 45 }: { owner?: string; school?: string; timerMinutes?: number | null } = {},
 ) {
   const adventureId = await briefStore.create({ schoolId: school, ownerId: owner });
   adventures.rows.set(adventureId, { row: { id: adventureId, schoolId: school, ownerId: owner, status: "briefing" as const }, spec: null, specVersion: 0 });
@@ -167,6 +167,7 @@ async function briefingAtConfirm(
       episode: "Founding of Singapore, 1819",
       focus: "",
       readingLevel: "sec",
+      timerMinutes,
       mode,
     },
     sources: [{ id: "handout", title: "handout", kind: "text" }],
@@ -175,7 +176,11 @@ async function briefingAtConfirm(
 }
 
 /** startFromBrief with the harness' own stores — the path the confirm button takes. */
-async function start(harness: Harness, mode: "quick" | "standard" = "quick", options: { owner?: string; school?: string } = {}) {
+async function start(
+  harness: Harness,
+  mode: "quick" | "standard" = "quick",
+  options: { owner?: string; school?: string; timerMinutes?: number | null } = {},
+) {
   const adventureId = await briefingAtConfirm(harness, mode, options);
   const result = await startFromBrief(harness.deps, harness.jobs, harness.briefStore, options.owner ?? ownerId, adventureId, env);
   // the brief store and the writer are two views of one table in production; sync them here
@@ -203,6 +208,7 @@ describe("v3 generation job", () => {
     const docIds = passes.skeleton.mock.calls[0]![0].documents.map((d: ExtractedDocument) => d.id);
     expect(docIds).toEqual(["handout", "outside-1"]);
     expect(passes.details.mock.calls[0]![0].documents.map((d: ExtractedDocument) => d.id)).toEqual(["handout", "outside-1"]);
+    expect(passes.details.mock.calls[0]![0].timerMinutes).toBe(45);
 
     // reveal received details' slantedDocuments; saveSpec got the reveal spec
     expect(passes.reveal.mock.calls[0]![0].slantedDocuments).toEqual([{ stageId: "s1", documentId: "doc-1", note: "slanted" }]);
@@ -440,7 +446,7 @@ describe("restartGeneration", () => {
   it("copies the uploads and reopens the old brief at confirm", async () => {
     const harness = await makeJob({ skeleton: vi.fn(async () => ({ ok: false, skeleton: undefined, issues: [{ code: "e", path: "x", message: "no" }], warnings: [], metrics: { calls: [], totalCostUsd: 0 } })) as never });
     const { deps, jobs, briefStore, sources, store } = harness;
-    const { adventureId } = await start(harness, "quick");
+    const { adventureId } = await start(harness, "quick", { timerMinutes: null });
     await jobs.drain({ jobId: adventureId });
 
     const result = await restartGeneration(deps, briefStore, store, ownerId, adventureId, env);
@@ -448,6 +454,7 @@ describe("restartGeneration", () => {
 
     const row = (await briefStore.load(result.adventureId))!;
     expect(row.status).toBe("briefing");
+    expect(row.state?.draft.timerMinutes).toBeNull();
     // uploads carried over (the outside doc the sources pass saved comes too — idempotent)
     expect((await sources.load(result.adventureId)).map((d) => d.id)).toEqual(["handout", "outside-1"]);
     // the old brief is at the confirm slot
