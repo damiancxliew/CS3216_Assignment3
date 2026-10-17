@@ -203,7 +203,7 @@ class PlaygroundScene extends Phaser.Scene {
     for (const door of snapshot.map.doors) {
       const x = door.position.x * TILE_SIZE
       const y = door.position.y * TILE_SIZE
-      const open = snapshot.doors[door.id] === 'open'
+      const open = snapshot.map.doorless || snapshot.doors[door.id] === 'open'
       // Frame on both sides, then either an open doorway (floor showing) or a shut door with a handle.
       this.doorGraphics.fillStyle(PALETTE.doorFrame, 1)
       this.doorGraphics.fillRect(x, y, 3, TILE_SIZE)

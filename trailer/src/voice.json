@@ -1,0 +1,26 @@
+{
+  "voice": "nova",
+  "lengths": {
+    "context": 3.1,
+    "reading": 1.42,
+    "chatbots": 0.98,
+    "rarely": 1.46,
+    "here": 1.15,
+    "establish": 1.18,
+    "skill1": 1.63,
+    "skill2": 1.58,
+    "skill3": 1.34,
+    "skill4": 1.37,
+    "skill5": 1.68,
+    "skill6": 1.32,
+    "skill7": 1.61,
+    "anyLesson": 1.06,
+    "step1": 0.94,
+    "step2": 0.79,
+    "step3": 0.67,
+    "ask": 1.49,
+    "montage": 1.44,
+    "classView": 1.97,
+    "title": 2.59
+  }
+}

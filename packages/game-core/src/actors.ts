@@ -13,6 +13,7 @@ export function moveActor(map: StageMap, state: SpatialState, actorId: string, t
 }
 
 export function closeSpatialDoor(map: StageMap, state: SpatialState, doorId: string): SpatialState {
+  if (map.doorless) return state
   const door = map.doors.find(({ id }) => id === doorId)
   if (!door) return state
   const displaced = Object.entries(state.actors).filter(([, point]) => point.x === door.position.x && point.y === door.position.y)

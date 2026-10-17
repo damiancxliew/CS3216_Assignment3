@@ -1,6 +1,6 @@
 # Execution spec — work split, validation and checkpoints
 
-Companion to [`PRD.md`](PRD.md) (what we are building and why) and [`TEAM_PLAN.md`](TEAM_PLAN.md)
+Companion to [`PRD-v2.md`](archive/PRD-v2.md) (what we are building and why) and [`TEAM_PLAN.md`](TEAM_PLAN.md)
 (who owns what, day by day). **This file is the operational contract**: for each unit of work, who
 owns it, what "done" means, how it is validated, and the dated checkpoint by which it must be true.
 

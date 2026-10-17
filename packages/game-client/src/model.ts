@@ -218,7 +218,7 @@ export class PlaygroundModel {
   }
 
   toggleDoor(doorId: string): void {
-    if (!this.mapValue.doors.some(({ id }) => id === doorId)) return
+    if (this.mapValue.doorless || !this.mapValue.doors.some(({ id }) => id === doorId)) return
     const current = this.spatial.doors[doorId]
     if (current === 'open') {
       this.spatial = closeSpatialDoor(this.mapValue, this.spatial, doorId)
