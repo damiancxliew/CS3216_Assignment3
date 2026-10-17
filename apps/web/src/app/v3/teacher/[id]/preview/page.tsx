@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
+import { V3PublishPanel } from "@/components/play/v3/publish-panel";
 import { V3PreviewClient } from "@/components/play/v3/v3-preview-client";
 import { startPreview } from "@/lib/play/v3/preview";
-import { v3PreviewDeps } from "@/lib/play/v3/http";
+import { v3PreviewDeps, v3PublishDeps } from "@/lib/play/v3/http";
+import { loadPublishState } from "@/lib/play/v3/publish";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
 import type { PlayerView } from "@adventure/play-contract";
@@ -35,5 +37,15 @@ export default async function V3TeacherPreviewPage({ params }: { params: Promise
   }
 
   const body = result.body as { token: string; view: PlayerView };
-  return <V3PreviewClient adventureId={id} initialToken={body.token} initialView={body.view} />;
+  const publish = await loadPublishState(v3PublishDeps(), user.id, id);
+  return (
+    <V3PreviewClient
+      adventureId={id}
+      initialToken={body.token}
+      initialView={body.view}
+      publishControl={
+        publish.kind === "hidden" ? null : <V3PublishPanel adventureId={id} published={publish.kind === "published"} />
+      }
+    />
+  );
 }

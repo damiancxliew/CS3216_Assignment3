@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { V3PublishPanel } from "@/components/play/v3/publish-panel";
 import { button, EmptyState, Page, Section } from "@/components/ui";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
@@ -101,6 +102,9 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
             </button>
             <span className="text-xs text-muted">coming soon</span>
           </div>
+          <div className="mt-6">
+            <V3PublishPanel adventureId={id} published={false} />
+          </div>
         </Page>
       );
     }
@@ -121,12 +125,22 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
       );
     }
     default:
-      // published / archived: send the teacher to the preview
       return (
-        <Page title={row.title ?? "Adventure"} lede="This adventure is already finished.">
-          <Link href={`/v3/teacher/${id}/preview`} className={button.primary}>
-            Preview
-          </Link>
+        <Page
+          title={row.title ?? "Adventure"}
+          lede={row.status === "published" ? "Students can play this adventure from its link." : "This adventure is already finished."}
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href={`/v3/teacher/${id}/preview`} className={button.primary}>
+              Preview
+            </Link>
+            <Link href={`/v3/teacher/${id}/summary`} className={button.quiet}>
+              Class summary
+            </Link>
+          </div>
+          <div className="mt-6">
+            <V3PublishPanel adventureId={id} published={row.status === "published"} />
+          </div>
         </Page>
       );
   }

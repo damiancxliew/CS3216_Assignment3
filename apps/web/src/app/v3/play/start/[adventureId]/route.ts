@@ -13,9 +13,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ adve
   }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(new URL("/", request.url));
-
   const { adventureId } = await params;
+  if (!user) return NextResponse.redirect(new URL(`/v3/join/${encodeURIComponent(adventureId)}`, request.url));
+
   const result = await createAttempt(v3PlayDeps(), user.id, adventureId);
   if (result.status === 201 || result.status === 200) {
     const body = result.body as { attemptId: string };
