@@ -1,0 +1,6 @@
+export { generateReveal, REVEAL_MODEL, REVEAL_BUDGET_MS } from './generate.js'
+export { mergeReveal } from './merge.js'
+export { buildRevealContext, isSecretAct, revealIssues } from './checks.js'
+export type { RevealContext } from './checks.js'
+export type { RevealLlmOutput } from './schema.js'
+export type { GenerateRevealInput, GenerateRevealOptions, RevealResult } from './generate.js'

@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 
 import type { ActionResult } from "@/app/teacher/actions";
-import { button, ErrorText, Pending } from "@/components/ui";
+import { button, ErrorText, Pending, StableLabel } from "@/components/ui";
 import { track } from "@/lib/analytics/posthog";
 import type { AnalyticsEvent } from "@/lib/analytics/events";
 
@@ -17,14 +17,18 @@ export function ActionForm({
   submitLabel,
   pendingLabel,
   event,
+  id,
   className,
+  submitClassName = `${button.primary} w-fit`,
   children,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   submitLabel: string;
   pendingLabel?: string;
   event?: AnalyticsEvent;
+  id?: string;
   className?: string;
+  submitClassName?: string;
   children?: React.ReactNode;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -37,10 +41,18 @@ export function ActionForm({
   );
 
   return (
-    <form action={formAction} className={className ?? "flex flex-col gap-4"}>
+    <form id={id} action={formAction} className={className ?? "flex flex-col gap-4"}>
       {children}
-      <button type="submit" disabled={pending} className={`${button.primary} w-fit`}>
-        {pending ? <Pending>{pendingLabel ?? "Working…"}</Pending> : submitLabel}
+      <button type="submit" disabled={pending} className={submitClassName}>
+        <StableLabel
+          label={submitLabel}
+          pending={pending}
+          pendingLabel={
+            <span className="inline-flex items-center gap-2">
+              <Pending>{pendingLabel ?? "Working…"}</Pending>
+            </span>
+          }
+        />
       </button>
       {state.error ? (
         <ErrorText>{state.error}</ErrorText>
@@ -58,23 +70,38 @@ export function ActionButton({
   pendingLabel,
   event,
   variant = "primary",
+  className,
+  ariaLabel,
+  onDone,
 }: {
   action: () => Promise<ActionResult>;
-  label: string;
-  pendingLabel?: string;
+  label: React.ReactNode;
+  pendingLabel?: React.ReactNode;
   event?: AnalyticsEvent;
   variant?: "primary" | "quiet";
+  className?: string;
+  ariaLabel?: string;
+  onDone?: (result: ActionResult) => void;
 }) {
   const [state, formAction, pending] = useActionState(async () => {
     const result = await action();
     if (event && !result.error) track(event);
+    onDone?.(result);
     return result;
   }, {} as ActionResult);
 
   return (
     <form action={formAction} className="flex flex-col gap-2">
-      <button type="submit" disabled={pending} className={`${button[variant]} w-fit`}>
-        {pending ? <Pending>{pendingLabel ?? "Working…"}</Pending> : label}
+      <button type="submit" disabled={pending} aria-label={ariaLabel} title={ariaLabel} className={className ?? `${button[variant]} w-fit`}>
+        <StableLabel
+          label={label}
+          pending={pending}
+          pendingLabel={
+            <span className="inline-flex items-center gap-2">
+              <Pending>{pendingLabel ?? "Working…"}</Pending>
+            </span>
+          }
+        />
       </button>
       {state.error ? (
         <ErrorText>{state.error}</ErrorText>

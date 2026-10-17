@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, production]
   pull_request:
 
 jobs:
@@ -17,6 +17,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run check --workspace @adventure/jobs
+      - run: npm run check --workspace @adventure/spec-v3
       - run: npx vitest run tests/api
       - run: npm test --workspace @adventure/generation -- tests/assets.test.ts tests/sprite-sheet.test.ts
       - run: npm run build
@@ -37,8 +39,9 @@ jobs:
   # Hosted Postgres only changed when someone remembered to run `supabase db
   # push`, so a merged migration left production serving code against a schema
   # that did not have its columns yet.
+  # Hosted Postgres follows the `production` branch, the one Vercel serves.
   migrate:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/production'
     needs: [web, database]
     runs-on: ubuntu-latest
     concurrency: migrate-hosted

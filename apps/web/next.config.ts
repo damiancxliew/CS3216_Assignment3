@@ -1,12 +1,20 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
+  ...(process.env.NEXT_OUTPUT === "standalone" ? {
+    output: "standalone",
+    outputFileTracingRoot: path.resolve(__dirname, "../.."),
+  } : {}),
   // The workspace packages ship TypeScript source, not a build artifact.
   transpilePackages: [
     "@adventure/generation",
     "@adventure/orchestration",
     "@adventure/game-core",
     "@adventure/game-client",
+    "@adventure/jobs",
+    "@adventure/play-contract",
+    "@adventure/engine",
   ],
   // game-core and game-client import siblings as `./x.js` (Node ESM style) while shipping `.ts`
   // source; tsc and Vite resolve that, webpack needs telling.

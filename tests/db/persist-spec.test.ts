@@ -37,7 +37,7 @@ async function newAdventure(): Promise<string> {
 beforeAll(async () => {
   fixtureSpec = (await loadFixtureJson(I1_FIXTURE.spec)) as AdventureSpec;
   spec = fixtureSpec as unknown as Record<string, unknown>;
-  const teacher = await createUserClient(uniqueEmail("p5-teacher"));
+  const teacher = await createUserClient(uniqueEmail("p5-teacher"), "password123!", "teacher");
   teacherId = teacher.userId;
 });
 
@@ -265,7 +265,7 @@ describe("persistSpecVersion", () => {
     expect((gaps as string[]).length).toBe(fixtureSpec.stages[0].decision.options.length);
     expect((gaps as string[])[0]).toMatch(/^option /);
 
-    const teacher = await createUserClient(uniqueEmail("p5-incomplete"));
+    const teacher = await createUserClient(uniqueEmail("p5-incomplete"), "password123!", "teacher");
     await admin.from("adventure").update({ owner_id: teacher.userId }).eq("id", adventureId);
     const { error } = await teacher.client.rpc("publish_adventure", {
       p_adventure_id: adventureId,
@@ -293,7 +293,7 @@ describe("persistSpecVersion", () => {
     const adventureId = await newAdventure();
     await persistSpecVersion(admin, adventureId, spec, { generatorVersion: "test" });
 
-    const teacher = await createUserClient(uniqueEmail("p5-publisher"));
+    const teacher = await createUserClient(uniqueEmail("p5-publisher"), "password123!", "teacher");
     await admin.from("adventure").update({ owner_id: teacher.userId }).eq("id", adventureId);
     const { error } = await teacher.client.rpc("publish_adventure", {
       p_adventure_id: adventureId,

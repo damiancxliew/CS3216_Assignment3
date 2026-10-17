@@ -251,10 +251,10 @@ let fixtureA: Fixture;
 let fixtureB: Fixture;
 
 beforeAll(async () => {
-  const a = await createUserClient(uniqueEmail("teacher-a"));
-  const b = await createUserClient(uniqueEmail("teacher-b"));
-  const sa = await createUserClient(uniqueEmail("student-a"));
-  const sb = await createUserClient(uniqueEmail("student-b"));
+  const a = await createUserClient(uniqueEmail("teacher-a"), "password123!", "teacher");
+  const b = await createUserClient(uniqueEmail("teacher-b"), "password123!", "teacher");
+  const sa = await createUserClient(uniqueEmail("student-a"), "password123!", "student");
+  const sb = await createUserClient(uniqueEmail("student-b"), "password123!", "student");
   teacherA = a.client;
   teacherB = b.client;
   studentA = sa.client;

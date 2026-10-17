@@ -25,7 +25,9 @@ import {
   READING_BAND_LABELS,
 } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
+import { getViewer, isStaff } from "@/lib/auth/viewer";
 import type { ReadingLevel } from "@/lib/brief/schema";
+import { SchoolMembershipRequired } from "@/components/school-membership-required";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { buildDossier } from "@/lib/teacher/dossier";
@@ -93,31 +95,60 @@ export default async function AdventurePage({
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const tab = EDITOR_TABS.find((item) => item.id === query.tab)?.id ?? "overview";
+  const requestedTab = EDITOR_TABS.find((item) => item.id === query.tab)?.id ?? "overview";
   const stageView = query.view === "style" ? "style" : "content";
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const viewer = await getViewer(supabase);
+  const { user } = viewer;
   if (!user) redirect("/teacher");
+  if (viewer.membership?.role === "student" && !viewer.isSysadmin) redirect("/library");
+  if (!isStaff(viewer) && !viewer.isSysadmin) return <SchoolMembershipRequired />;
 
   // A student admitted to a published adventure can also select the row, so the
   // authoring view matches the owner rather than relying on visibility alone.
-  const { data: adventure } = await supabase
+  const { data: ownedAdventure } = await supabase
     .from("adventure")
     .select("id, title, setting, status, published_version, assets_ready, default_timer_seconds, allow_retries, share_token, student_role, learning_objectives, reading_level, stage_outline")
     .eq("id", id)
     .eq("owner_id", user.id)
     .maybeSingle<Adventure>();
+  let adventure: Adventure | null = ownedAdventure;
+  let isOverseer = false;
+  let schoolSlug: string | null = null;
+  let adminClient: ReturnType<typeof createAdminClient> | null = null;
+  if (!adventure) {
+    adminClient = createAdminClient();
+    const { data: candidate } = await adminClient
+      .from("adventure")
+      .select("id, title, setting, status, published_version, assets_ready, default_timer_seconds, allow_retries, share_token, student_role, learning_objectives, reading_level, stage_outline, organization_id")
+      .eq("id", id)
+      .maybeSingle<Adventure & { organization_id: string | null }>();
+    if (!candidate) notFound();
+    const isSchoolAdmin = viewer.membership?.role === "admin" &&
+      viewer.membership.organizationId === candidate.organization_id;
+    if (!viewer.isSysadmin && !isSchoolAdmin) notFound();
+    adventure = candidate;
+    isOverseer = true;
+    if (viewer.isSysadmin && candidate.organization_id) {
+      const { data: organization } = await adminClient
+        .from("organization")
+        .select("slug")
+        .eq("id", candidate.organization_id)
+        .maybeSingle<{ slug: string }>();
+      schoolSlug = organization?.slug ?? null;
+    } else {
+      schoolSlug = viewer.membership?.slug ?? null;
+    }
+  }
   if (!adventure) notFound();
+  const tab = isOverseer ? (requestedTab === "publish" ? "publish" : "attempts") : requestedTab;
 
-  const { data: versionRows } = await supabase
-    .from("spec_version")
-    .select("id, version, published_at")
-    .eq("adventure_id", id)
-    .order("version", { ascending: false })
-    .returns<Version[]>();
+  const { data: versionRows } = isOverseer ? { data: null } : await supabase
+      .from("spec_version")
+      .select("id, version, published_at")
+      .eq("adventure_id", id)
+      .order("version", { ascending: false })
+      .returns<Version[]>();
   const versions = versionRows ?? [];
   const draft = versions.find((v) => v.published_at === null) ?? null;
   const published = versions.find((v) => v.version === adventure.published_version) ?? null;
@@ -156,7 +187,8 @@ export default async function AdventurePage({
     .eq("adventure_id", id)
     .maybeSingle<GenerationJob>() : { data: null };
 
-  const { data: attempts } = tab === "attempts" ? await supabase
+  const attemptsReader = isOverseer ? adminClient ?? createAdminClient() : supabase;
+  const { data: attempts } = tab === "attempts" ? await attemptsReader
     .from("attempt")
     .select("id, student_id, status, published_version, updated_at, attempt_telemetry(stage_index, ended_by, duration_seconds, tokens, messages, evidence_found)")
     .eq("adventure_id", id)
@@ -173,9 +205,8 @@ export default async function AdventurePage({
     >() : { data: null };
   const studentEmails = new Map<string, string>();
   if (attempts?.length) {
-    // Ownership was checked above. Auth emails are only available through the
-    // server-side admin client; look up each student once for repeat attempts.
-    const admin = createAdminClient();
+    // Access was checked above; look up each student once for repeat attempts.
+    const admin = adminClient ?? createAdminClient();
     await Promise.all([...new Set(attempts.map((attempt) => attempt.student_id))].map(async (studentId) => {
       const { data } = await admin.auth.admin.getUserById(studentId);
       if (data.user?.email) studentEmails.set(studentId, data.user.email);
@@ -195,9 +226,12 @@ export default async function AdventurePage({
   return (
     <Page
       kicker={
-        <Link href="/teacher" className="inline-flex min-h-11 items-center gap-2 rounded-control px-2 hover:bg-surface hover:text-ink">
+        <Link
+          href={isOverseer && schoolSlug ? `/school/${encodeURIComponent(schoolSlug)}?tab=adventures` : "/teacher"}
+          className="inline-flex min-h-11 items-center gap-2 rounded-control px-2 hover:bg-surface hover:text-ink"
+        >
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          All adventures
+          {isOverseer ? "School adventures" : "All adventures"}
         </Link>
       }
       title={
@@ -210,14 +244,14 @@ export default async function AdventurePage({
       width="wide"
     >
       <nav aria-label="Adventure sections" className="flex gap-2 overflow-x-auto border-b border-line pb-2">
-        {EDITOR_TABS.map((item) => (
+        {(isOverseer ? EDITOR_TABS.filter((item) => item.id === "attempts" || item.id === "publish") : EDITOR_TABS).map((item) => (
           <Link
             key={item.id}
             href={`/teacher/${id}?tab=${item.id}`}
             aria-current={tab === item.id ? "page" : undefined}
             className={`inline-flex min-h-11 shrink-0 items-center rounded-control px-4 text-base font-semibold transition-colors ${tab === item.id ? "bg-ink text-paper" : "text-muted hover:bg-surface hover:text-ink"}`}
           >
-            {item.label}
+            {isOverseer && item.id === "publish" ? "Share" : item.label}
           </Link>
         ))}
       </nav>
@@ -334,6 +368,7 @@ export default async function AdventurePage({
       ) : null}
 
       {tab === "publish" ? <>
+      {isOverseer ? null : <>
       <Section title="Release">
         <ul className="flex flex-col gap-1.5 text-base">
           {releaseChecklist.map((row) => (
@@ -371,6 +406,7 @@ export default async function AdventurePage({
       </Section>
 
       {dossier && dossierFor ? <DossierSections dossier={dossier} adventureId={id} specVersionId={dossierFor.id} isDraft={dossierFor === draft} view="artwork" watchForArtwork={dossierFor === published && !adventure.assets_ready && Boolean(process.env.OPENAI_API_KEY) && published.published_at !== null && Date.now() - Date.parse(published.published_at) < 600_000} /> : null}
+      </>}
 
       <Section title="Share with students">
         <SharePanel
@@ -378,6 +414,7 @@ export default async function AdventurePage({
           token={adventure.share_token}
           published={adventure.status === "published"}
           ready={adventure.assets_ready}
+          canReplace={!isOverseer}
         />
         {adventure.status === "published" ? (
           <Link href={`/join/${adventure.share_token}`} className={`${button.quiet} w-fit`}>
@@ -386,6 +423,7 @@ export default async function AdventurePage({
         ) : null}
       </Section>
 
+      {isOverseer ? null : (
       <details className="rounded-surface border border-line bg-surface px-4 py-3 sm:px-5">
         <summary className="cursor-pointer text-xl font-extrabold tracking-tight text-ink">Playing settings</summary>
         <div className="mt-4 flex flex-col gap-6">
@@ -433,6 +471,7 @@ export default async function AdventurePage({
           </Section>
         </div>
       </details>
+      )}
       </> : null}
 
       {tab === "attempts" ? (

@@ -39,9 +39,9 @@ function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {
 }
 
 beforeAll(async () => {
-  teacher = await createUserClient(uniqueEmail("i3-teacher"));
-  student = await createUserClient(uniqueEmail("i3-student"));
-  coldStudent = await createUserClient(uniqueEmail("i3-cold-student"));
+  teacher = await createUserClient(uniqueEmail("i3-teacher"), "password123!", "teacher");
+  student = await createUserClient(uniqueEmail("i3-student"), "password123!", "student");
+  coldStudent = await createUserClient(uniqueEmail("i3-cold-student"), "password123!", "student");
 
   const { data: adventure } = await admin
     .from("adventure")

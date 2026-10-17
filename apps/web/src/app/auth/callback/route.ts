@@ -1,26 +1,50 @@
 import { NextResponse } from "next/server";
 
+import { requestOrigin } from "@/lib/auth/request-origin";
 import { safeNextPath } from "@/lib/auth/safe-next";
+import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 
 /** OAuth redirect target: trades the code for a session cookie. */
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  const origin = requestOrigin(request);
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next");
   // Only same-origin paths, so a share link cannot bounce a signed-in student
   // off to someone else's site.
-  const destination = safeNextPath(next, url.origin);
+  const destination = safeNextPath(next, origin);
 
   if (!code) {
-    return NextResponse.redirect(new URL("/?error=auth", url.origin));
+    return NextResponse.redirect(new URL("/?error=auth", origin));
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    return NextResponse.redirect(new URL("/?error=auth", url.origin));
+    return NextResponse.redirect(new URL("/?error=auth", origin));
   }
 
-  return NextResponse.redirect(new URL(destination, url.origin));
+  if (process.env.NEXT_PUBLIC_DATA_URL) {
+    const { error: syncError } = await supabase.rpc("sync_auth_user");
+    if (syncError) {
+      console.error("could not sync auth user after sign-in", syncError);
+      return NextResponse.redirect(new URL("/?error=auth", origin));
+    }
+  }
+
+  const { error: claimError } = await supabase.rpc("claim_staff_invites");
+  if (claimError) console.error("could not claim staff invitations after sign-in", claimError);
+
+  let target = destination;
+  if (!next || destination === "/") {
+    const viewer = await getViewer(supabase);
+    target = isStaff(viewer)
+      ? "/teacher"
+      : viewer.membership?.role === "student"
+        ? "/library"
+        : "/";
+  }
+
+  return NextResponse.redirect(new URL(target, origin));
 }

@@ -3,9 +3,7 @@ import type { Metadata } from "next";
 import { joinAdventure } from "./actions";
 import { EnterButton } from "./enter-button";
 import { SignInButton } from "@/components/sign-in-button";
-import { SiteNavigation } from "@/components/site-navigation";
-import { ThemeSelect } from "@/components/theme-provider";
-import { ErrorText, Wordmark } from "@/components/ui";
+import { ErrorText, SiteHeader } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 
 type Preview = {
@@ -13,6 +11,7 @@ type Preview = {
   title: string;
   setting: string | null;
   teacher_name: string | null;
+  organization_name?: string | null;
   assets_ready: boolean;
 };
 
@@ -83,7 +82,11 @@ export default async function JoinPage({
         )}
       </div>
 
-      {error ? <ErrorText>We couldn’t let you in. The adventure may have been unpublished.</ErrorText> : null}
+      {error === "school" ? (
+        <ErrorText>This adventure is only for students of {adventure.organization_name ?? "your school"}. Open your school&apos;s sign-up link first.</ErrorText>
+      ) : error ? (
+        <ErrorText>We couldn’t let you in. The adventure may have been unpublished.</ErrorText>
+      ) : null}
     </Shell>
   );
 }
@@ -98,16 +101,15 @@ function Shell({
   children?: React.ReactNode;
 }) {
   return (
-    <main className="game-grid mx-auto flex min-h-screen w-full max-w-4xl flex-col px-6 py-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Wordmark />
-        <div className="flex flex-wrap items-center gap-2"><SiteNavigation /><ThemeSelect /></div>
-      </div>
-      <div className="my-auto flex flex-col gap-5 rounded-[2rem] border-[3px] border-ink bg-surface px-7 py-10 shadow-[0_8px_0_var(--ink)] sm:px-12 sm:py-14">
-        <p className="w-fit rounded-full bg-sunshine px-4 py-2 text-sm font-black uppercase tracking-wider text-ink">{intro}</p>
-        <h1 className="max-w-[15ch] text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">{title}</h1>
-        {children}
-      </div>
-    </main>
+    <div className="game-grid flex min-h-screen flex-col">
+      <SiteHeader />
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-6 py-8">
+        <div className="my-auto flex flex-col gap-5 rounded-[2rem] border-[3px] border-ink bg-surface px-7 py-10 shadow-[0_8px_0_var(--ink)] sm:px-12 sm:py-14">
+          <p className="w-fit rounded-full bg-sunshine px-4 py-2 text-sm font-black uppercase tracking-wider text-ink">{intro}</p>
+          <h1 className="max-w-[15ch] text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">{title}</h1>
+          {children}
+        </div>
+      </main>
+    </div>
   );
 }

@@ -20,6 +20,7 @@ import { MAP_STYLES, validatePublishedSpec } from "@adventure/generation/spec";
 import { type SourceRow, sourcesToDocuments } from "@/lib/adventures/generate-from-sources";
 import { advanceGenerationJob, startGenerationJob } from "@/lib/adventures/resumable-generation";
 import { generateAssetsForVersion } from "@/lib/assets/generate";
+import { createAssetStore } from "@/lib/assets/store";
 import { applySpecEdit, type SpecEdit } from "@/lib/teacher/edit-spec";
 import { persistSpecVersion, SpecPersistError } from "@/lib/adventures/persist-spec";
 import {
@@ -33,8 +34,10 @@ import {
 } from "@/lib/brief/schema";
 import { runBriefTurn, type TurnResult } from "@/lib/brief/turn";
 import { parseBriefEdit } from "@/lib/brief/edit";
+import { getViewer } from "@/lib/auth/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { withJsonUsage } from "@/lib/usage/ledger";
 
 /**
  * Every action here re-establishes who is asking from the session cookie and
@@ -51,6 +54,14 @@ async function requireUser() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/teacher");
   return { supabase, user };
+}
+
+async function requireAuthor() {
+  const { supabase, user } = await requireUser();
+  const viewer = await getViewer(supabase);
+  const membership = viewer.membership;
+  if (membership?.role !== "admin" && membership?.role !== "teacher") redirect("/teacher");
+  return { supabase, user, membership };
 }
 
 // `adventure_select` also admits a student with an attempt on a published
@@ -79,10 +90,10 @@ export type ActionResult = { error?: string; notice?: string };
  * mandatory (FR-1a) because the conversation will not finish without it.
  */
 export async function startBrief(): Promise<TurnResult> {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, membership } = await requireAuthor();
   const { data, error } = await supabase
     .from("adventure")
-    .insert({ owner_id: user.id, title: "Untitled adventure" })
+    .insert({ owner_id: user.id, organization_id: membership.organizationId, title: "Untitled adventure" })
     .select("id")
     .single<{ id: string }>();
   if (error) {
@@ -93,11 +104,11 @@ export async function startBrief(): Promise<TurnResult> {
 }
 
 /** Re-establishes ownership of the adventure the conversation belongs to and re-validates the state the client sent back. */
-async function requireBrief(state: BriefState): Promise<{ state: BriefState } | { error: string }> {
+async function requireBrief(state: BriefState): Promise<{ state: BriefState; userId: string } | { error: string }> {
   const parsed = briefStateSchema.safeParse(state);
   if (!parsed.success) return { error: "The conversation got out of step — reload to start again" };
-  await requireOwnership(parsed.data.adventureId);
-  return { state: parsed.data };
+  const { user } = await requireOwnership(parsed.data.adventureId);
+  return { state: parsed.data, userId: user.id };
 }
 
 /** The sources uploaded so far, both as the chat lists them and as the documents the assistant reads. */
@@ -132,7 +143,16 @@ export async function briefTurn(state: BriefState, input: BriefInput): Promise<T
     return { ok: false, error: "This feature is temporarily unavailable. Please try again later." };
   }
   const { list, documents } = await loadBriefSources(checked.state.adventureId);
-  const result = await runBriefTurn({ ...checked.state, sources: list }, input, new OpenAiLlmClient({ timeoutMs: 90_000 }), documents);
+  const result = await runBriefTurn(
+    { ...checked.state, sources: list },
+    input,
+    withJsonUsage(new OpenAiLlmClient({ timeoutMs: 90_000 }), {
+      purpose: "brief",
+      adventureId: checked.state.adventureId,
+      userId: checked.userId,
+    }),
+    documents,
+  );
   return result.ok ? saveBrief(result.state) : result;
 }
 
@@ -569,26 +589,27 @@ export async function acceptRejectedSprite(adventureId: string, specVersionId: s
 
   // The rejected image is the model's full-size output. Phaser needs a 64x64
   // sheet with sixteen 16px frames even when the teacher accepts its poses.
-  const bucket = admin.storage.from("assets");
-  const sourceUrl = new URL(record.url);
-  const bucketUrl = new URL(bucket.getPublicUrl("").data.publicUrl);
-  const bucketPath = `${bucketUrl.pathname.replace(/\/$/, "")}/`;
-  if (sourceUrl.origin !== bucketUrl.origin || !sourceUrl.pathname.startsWith(bucketPath)) {
-    return { error: "The rejected sprite is outside adventure storage." };
+  const assetStore = createAssetStore(admin);
+  let original: Uint8Array | null;
+  try {
+    original = await assetStore.download(record.url);
+  } catch {
+    return { error: "Couldn’t load the rejected sprite. Please regenerate it." };
   }
-  const sourcePath = decodeURIComponent(sourceUrl.pathname.slice(bucketPath.length));
-  const { data: original, error: downloadError } = await bucket.download(sourcePath);
-  if (downloadError || !original) return { error: "Couldn’t load the rejected sprite. Please regenerate it." };
+  if (!original) return { error: "The rejected sprite is outside adventure storage." };
   let playable: Uint8Array;
   try {
-    playable = await normalizeWalkingSpriteSheet(new Uint8Array(await original.arrayBuffer()), { allowPoseMismatch: true });
+    playable = await normalizeWalkingSpriteSheet(original, { allowPoseMismatch: true });
   } catch {
     return { error: "This image cannot be turned into a playable walking sprite. Please regenerate it." };
   }
   const acceptedPath = `adventures/${validated.spec.id}/${assetId}-${randomUUID()}-accepted.png`;
-  const { error: uploadError } = await bucket.upload(acceptedPath, playable, { contentType: "image/png" });
-  if (uploadError) return { error: "Couldn’t save the accepted sprite. Please try again." };
-  const acceptedUrl = bucket.getPublicUrl(acceptedPath).data.publicUrl;
+  let acceptedUrl: string;
+  try {
+    acceptedUrl = await assetStore.put(acceptedPath, playable, "image/png");
+  } catch {
+    return { error: "Couldn’t save the accepted sprite. Please try again." };
+  }
   const { data: accepted, error } = await admin.from("asset")
     .update({ status: "ready", url: acceptedUrl, error: null, updated_at: new Date().toISOString() })
     .eq("spec_version_id", specVersionId)

@@ -35,6 +35,7 @@ class FakeClient {
   upserts: { table: string; values: unknown; options: unknown }[] = [];
   rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
   reads: Record<string, number> = {};
+  canPlayAttempt = true;
   rpcResult: { data: unknown; error: { message: string; code?: string } | null } = { data: { runtimeRevision: 1, stageDeadlineAt: null }, error: null };
   attempt: Record<string, unknown>;
 
@@ -85,6 +86,7 @@ class FakeClient {
 
   rpc(name: string, args: Record<string, unknown>) {
     this.rpcCalls.push({ name, args });
+    if (name === "can_play_attempt") return Promise.resolve({ data: this.canPlayAttempt, error: null });
     return Promise.resolve(this.rpcResult);
   }
 }
@@ -114,6 +116,15 @@ beforeEach(async () => {
 });
 
 describe("SupabasePlayStore runtime validation", () => {
+  it("does not load attempts when school membership no longer permits play", async () => {
+    client.canPlayAttempt = false;
+    await expect(new SupabasePlayStore(client as never).load("attempt", "student")).resolves.toBeNull();
+    expect(client.rpcCalls[0]).toMatchObject({
+      name: "can_play_attempt",
+      args: { p_attempt_id: "attempt", p_user: "student" },
+    });
+  });
+
   it("rejects invalid and mismatched stored snapshots", async () => {
     client.runtime = { stage_spec_id: "stage-landing", revision: 1, snapshot: { version: 1, stageIndex: 99, world: {} } };
     await expect(new SupabasePlayStore(client as never).load("attempt", "student")).rejects.toThrow(/invalid/);

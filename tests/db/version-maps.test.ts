@@ -13,9 +13,9 @@ let student: { client: SupabaseClient; userId: string };
 let otherStudent: { client: SupabaseClient; userId: string };
 
 beforeAll(async () => {
-  teacher = await createUserClient(uniqueEmail("maps-teacher"));
-  student = await createUserClient(uniqueEmail("maps-student"));
-  otherStudent = await createUserClient(uniqueEmail("maps-other-student"));
+  teacher = await createUserClient(uniqueEmail("maps-teacher"), "password123!", "teacher");
+  student = await createUserClient(uniqueEmail("maps-student"), "password123!", "student");
+  otherStudent = await createUserClient(uniqueEmail("maps-other-student"), "password123!", "student");
 });
 
 async function seedDraft(title: string) {

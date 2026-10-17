@@ -18,13 +18,13 @@ import { layoutMapLabels, overlaps, type LabelRect } from './map-labels.js'
 import { RoomPointers } from './room-pointers.js'
 import { fixtureScenery } from './scenery.js'
 import { matchMapPalette } from './pixel-art.js'
-import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, surfaceNoise } from './materials.js'
+import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, roomFinish, surfaceNoise } from './materials.js'
 import { isExposed, WeatherSurface } from './weather.js'
 import { RoomShells } from './room-shells.js'
-import { detailZoom, overviewZoom } from './camera.js'
+import { detailZoom, overviewZoom, scaledZoom } from './camera.js'
 import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
-import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, storyArt } from './story-art.js'
+import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, roomMaterial, storyArt } from './story-art.js'
 import type { PlaygroundSnapshot, SoundCueId } from './model.js'
 import { RoomWandering, ROOM_STEP_MS } from './room-wandering.js'
 import type { MapView } from './view.js'
@@ -71,6 +71,8 @@ export interface TiledViewOptions {
   themeBase?: string
   /** Sprite key to use for an actor that does not name one. */
   defaultSprite?: string
+  /** Allow mouse clicks on tiles to request a walk, in addition to touch taps. */
+  clickToWalk?: boolean
   /** Called when the player clicks a character instead of a tile. */
   onActor?: (actorId: string) => void
   /** Called when the player clicks a document or object lying on the map. */
@@ -79,6 +81,8 @@ export interface TiledViewOptions {
   onLandmark?: (landmarkId: string) => void
   /** "detail" (play) magnifies around the player; "overview" fits the stage's width in a small preview. */
   camera?: 'detail' | 'overview'
+  /** Optional scale for detail camera zoom. */
+  zoomScale?: number
 }
 
 class TiledScene extends Phaser.Scene {
@@ -87,7 +91,9 @@ class TiledScene extends Phaser.Scene {
   private readonly onReady: () => void
   private readonly base: string
   private readonly defaultSprite: string
+  private readonly clickToWalk: boolean
   private readonly cameraMode: 'detail' | 'overview'
+  private readonly zoomScale: number
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
   private readonly onLandmark: ((landmarkId: string) => void) | undefined
@@ -146,7 +152,9 @@ class TiledScene extends Phaser.Scene {
     this.onReady = onReady
     this.base = options.assetBase.replace(/\/$/, '')
     this.defaultSprite = options.defaultSprite ?? 'Villager'
+    this.clickToWalk = options.clickToWalk ?? false
     this.cameraMode = options.camera ?? 'detail'
+    this.zoomScale = options.zoomScale ?? 1
     this.onActor = options.onActor
     this.onProp = options.onProp
     this.onLandmark = options.onLandmark
@@ -195,7 +203,7 @@ class TiledScene extends Phaser.Scene {
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
       // A mouse walks with the keyboard; only touch, which has no keys, taps a tile to walk there.
-      const walks = pointer.wasTouch
+      const walks = pointer.wasTouch || this.clickToWalk
       if (!this.pointRevealed(point)) { if (walks) this.onDestination(point, pointer.time || performance.now()); this.game.canvas.focus(); return }
       // A character under the pointer means "talk to them", not "walk here".
       const actor = this.current.actors.find((a) => {
@@ -418,6 +426,19 @@ class TiledScene extends Phaser.Scene {
 
     for (const door of source.doors) {
       this.walls.removeTileAt(door.position.x, door.position.y)
+      if (source.doorless) {
+        const room = source.rooms.find(({ id }) => id === door.roomId)
+        if (room) {
+          const material = roomMaterial(`${this.current.roomNames?.[room.id] ?? ''} ${this.current.roomDescriptions?.[room.id] ?? ''}`, art)
+          const finish = roomFinish(`${this.current.storyContext ?? this.current.seed}:${room.id}`)
+          this.ground.putTileAt(
+            materialTile(material, door.position.x - room.x, door.position.y - room.y, finish.seed),
+            door.position.x,
+            door.position.y,
+          )
+        }
+        continue
+      }
       const image = this.add.image(door.position.x * T + T / 2, door.position.y * T + T / 2, 'house', DOOR.closed).setDepth(3)
       image.setTint(Phaser.Display.Color.HexStringToColor(art.wallLight).color)
       this.doors.set(door.id, image)
@@ -528,7 +549,9 @@ class TiledScene extends Phaser.Scene {
   private renderSnapshot(snapshot: PlaygroundSnapshot, snap = false): void {
     this.wandering.sync(snapshot, Boolean(snapshot.roomWandering && snapshot.running && !this.reducedMotion))
     this.renderLandmarkTiles(snapshot)
-    for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
+    if (!snapshot.map.doorless) {
+      for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
+    }
 
     this.renderProps(snapshot)
     this.renderActors(snapshot, snap)
@@ -850,7 +873,9 @@ class TiledScene extends Phaser.Scene {
     const mapW = this.current.map.width * T
     const mapH = this.current.map.height * T
     const { width, height } = this.scale.gameSize
-    const zoom = this.cameraMode === 'overview' ? overviewZoom(width, mapW) : detailZoom(width, height, mapW, mapH)
+    const zoom = this.cameraMode === 'overview'
+      ? overviewZoom(width, mapW)
+      : scaledZoom(detailZoom(width, height, mapW, mapH), this.zoomScale)
     cam.setZoom(zoom)
     cam.setRoundPixels(true)
     if (mapW * zoom <= width && mapH * zoom <= height) {
@@ -1033,6 +1058,7 @@ class TiledScene extends Phaser.Scene {
     }
 
     for (const cue of snapshot.audio?.cues ?? []) {
+      if (snapshot.map.doorless && cue.id === 'door') continue
       if (this.playedCues.has(cue.key)) continue
       this.playedCues.add(cue.key)
       this.playSfx(cue.id, cue.id === 'step' ? 0.25 : 0.6)
