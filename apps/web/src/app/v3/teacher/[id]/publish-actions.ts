@@ -1,0 +1,37 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import { publishAdventure, unpublishAdventure } from "@/lib/play/v3/publish";
+import { v3PublishDeps } from "@/lib/play/v3/http";
+import { createClient } from "@/lib/supabase/server";
+import { v3Enabled } from "@/lib/v3/flag";
+
+export type PublishActionResult = { ok: true; status: string } | { ok: false; message: string };
+
+async function run(
+  adventureId: string,
+  change: typeof publishAdventure,
+): Promise<PublishActionResult> {
+  if (!v3Enabled()) return { ok: false, message: "Not found." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Sign in again to continue." };
+
+  const result = await change(v3PublishDeps(), user.id, adventureId);
+  if (result.status !== 200) {
+    const body = result.body as { error: { message: string } };
+    return { ok: false, message: body.error.message };
+  }
+  revalidatePath(`/v3/teacher/${adventureId}`, "layout");
+  revalidatePath(`/v3/join/${adventureId}`);
+  return { ok: true, status: (result.body as { status: string }).status };
+}
+
+export async function publishV3Adventure(adventureId: string): Promise<PublishActionResult> {
+  return run(adventureId, publishAdventure);
+}
+
+export async function unpublishV3Adventure(adventureId: string): Promise<PublishActionResult> {
+  return run(adventureId, unpublishAdventure);
+}

@@ -1,0 +1,140 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { EngineSpec } from "@adventure/engine";
+import { beforeAll, describe, expect, it } from "vitest";
+
+import {
+  loadJoinView,
+  loadPublishState,
+  publishAdventure,
+  unpublishAdventure,
+  type V3PublishDeps,
+} from "@/lib/play/v3/publish";
+import { createAttempt, type V3PlayServiceDeps } from "@/lib/play/v3/service";
+import { MemoryV3PlayStore } from "@/lib/play/v3/store";
+
+const OWNER_ID = "teacher-owner";
+const OTHER_TEACHER_ID = "other-teacher";
+const ADMIN_ID = "school-admin";
+const STUDENT_ID = "student";
+const OUTSIDER_ID = "outsider";
+const ADVENTURE_ID = "publish-adventure";
+const SCHOOL_ID = "school-1";
+let goldenSpec: ReturnType<typeof EngineSpec.parse>;
+
+beforeAll(() => {
+  goldenSpec = EngineSpec.parse(JSON.parse(readFileSync(resolve(process.cwd(), "fixtures/golden-1819.json"), "utf8")));
+});
+
+function setup(options: { status?: string; spec?: unknown | null; env?: NodeJS.ProcessEnv } = {}) {
+  const store = new MemoryV3PlayStore();
+  store.addAdventure({
+    id: ADVENTURE_ID,
+    schoolId: SCHOOL_ID,
+    ownerId: OWNER_ID,
+    status: options.status ?? "draft",
+    specVersion: 1,
+    spec: options.spec === undefined ? goldenSpec : options.spec,
+  });
+  store.addMember(SCHOOL_ID, OWNER_ID);
+  store.addMember(SCHOOL_ID, OTHER_TEACHER_ID);
+  store.addMember(SCHOOL_ID, STUDENT_ID);
+  store.addSchoolAdmin(SCHOOL_ID, ADMIN_ID);
+  const env = { V3_ENABLED: "true", V3_SCHOOL_IDS: SCHOOL_ID, ...options.env };
+  const deps: V3PublishDeps = { store, env };
+  const playDeps: V3PlayServiceDeps = {
+    store,
+    env,
+    now: () => 1_000,
+    llm: () => {
+      throw new Error("no LLM calls expected");
+    },
+  };
+  return { store, deps, playDeps };
+}
+
+async function status(store: MemoryV3PlayStore) {
+  return (await store.loadAdventure(ADVENTURE_ID))?.status;
+}
+
+describe("v3 publish", () => {
+  it("lets the owner publish a generated draft, which opens it to students", async () => {
+    const { store, deps, playDeps } = setup();
+    expect((await createAttempt(playDeps, STUDENT_ID, ADVENTURE_ID)).status).toBe(409);
+
+    const result = await publishAdventure(deps, OWNER_ID, ADVENTURE_ID);
+    expect(result).toEqual({ status: 200, body: { status: "published" } });
+    expect(await status(store)).toBe("published");
+    expect((await createAttempt(playDeps, STUDENT_ID, ADVENTURE_ID)).status).toBe(201);
+  });
+
+  it("lets a school admin publish, but not another teacher or a student", async () => {
+    const admin = setup();
+    expect((await publishAdventure(admin.deps, ADMIN_ID, ADVENTURE_ID)).status).toBe(200);
+
+    for (const userId of [OTHER_TEACHER_ID, STUDENT_ID, OUTSIDER_ID]) {
+      const fixture = setup();
+      expect((await publishAdventure(fixture.deps, userId, ADVENTURE_ID)).status).toBe(404);
+      expect((await unpublishAdventure(fixture.deps, userId, ADVENTURE_ID)).status).toBe(404);
+      expect(await status(fixture.store)).toBe("draft");
+    }
+  });
+
+  it("refuses adventures that are still generating, awaiting review or failed", async () => {
+    for (const current of ["briefing", "generating", "needs_review", "failed"]) {
+      const { store, deps } = setup({ status: current });
+      const result = await publishAdventure(deps, OWNER_ID, ADVENTURE_ID);
+      expect(result.status).toBe(409);
+      expect(await status(store)).toBe(current);
+    }
+  });
+
+  it("refuses a missing or invalid spec", async () => {
+    for (const spec of [null, { title: "Broken" }]) {
+      const { store, deps } = setup({ spec });
+      expect((await publishAdventure(deps, OWNER_ID, ADVENTURE_ID)).status).toBe(409);
+      expect(await status(store)).toBe("draft");
+    }
+  });
+
+  it("hides everything when v3 is off for the school", async () => {
+    const { store, deps } = setup({ env: { V3_SCHOOL_IDS: "another-school" } });
+    expect((await publishAdventure(deps, OWNER_ID, ADVENTURE_ID)).status).toBe(404);
+    expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toEqual({ kind: "hidden" });
+    expect(await status(store)).toBe("draft");
+  });
+
+  it("is idempotent and can be undone, republishing the archived adventure too", async () => {
+    const { store, deps, playDeps } = setup({ status: "archived" });
+    expect((await publishAdventure(deps, OWNER_ID, ADVENTURE_ID)).status).toBe(200);
+    expect((await publishAdventure(deps, OWNER_ID, ADVENTURE_ID)).status).toBe(200);
+    expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toEqual({ kind: "published" });
+
+    expect(await unpublishAdventure(deps, OWNER_ID, ADVENTURE_ID)).toEqual({ status: 200, body: { status: "draft" } });
+    expect(await status(store)).toBe("draft");
+    expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toEqual({ kind: "unpublished", status: "draft" });
+    expect((await createAttempt(playDeps, STUDENT_ID, ADVENTURE_ID)).status).toBe(409);
+  });
+});
+
+describe("v3 student link", () => {
+  it("is closed until the adventure is published", async () => {
+    const { deps } = setup();
+    expect(await loadJoinView(deps, null, ADVENTURE_ID)).toEqual({ kind: "closed" });
+    expect(await loadJoinView(deps, STUDENT_ID, ADVENTURE_ID)).toEqual({ kind: "closed" });
+    expect(await loadJoinView(deps, STUDENT_ID, "missing")).toEqual({ kind: "closed" });
+  });
+
+  it("asks signed-out visitors to sign in, and turns away non-members", async () => {
+    const { deps } = setup({ status: "published" });
+    expect(await loadJoinView(deps, null, ADVENTURE_ID)).toEqual({ kind: "sign_in", title: goldenSpec.title });
+    expect(await loadJoinView(deps, OUTSIDER_ID, ADVENTURE_ID)).toEqual({ kind: "not_member", title: goldenSpec.title });
+    expect(await loadJoinView(deps, STUDENT_ID, ADVENTURE_ID)).toEqual({ kind: "ready", title: goldenSpec.title });
+  });
+
+  it("stays closed for a school without v3 even when published", async () => {
+    const { deps } = setup({ status: "published", env: { V3_SCHOOL_IDS: "" } });
+    expect(await loadJoinView(deps, STUDENT_ID, ADVENTURE_ID)).toEqual({ kind: "closed" });
+  });
+});
