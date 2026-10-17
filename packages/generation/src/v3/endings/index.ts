@@ -1,4 +1,4 @@
-export { generateEndings, ENDINGS_BUDGET_MS } from './generate.js'
+export { generateEndings, assembleEndings, ENDINGS_BUDGET_MS } from './generate.js'
 export { generateMoment, generateEnding, ENDINGS_MODEL } from './calls.js'
 export { mergeEndings } from './merge.js'
 export { momentIssues, endingIssues, buildMomentContext, secretActIds } from './checks.js'

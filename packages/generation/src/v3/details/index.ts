@@ -1,4 +1,4 @@
-export { generateDetails } from './generate.js'
+export { generateDetails, assembleDetails } from './generate.js'
 export { generateStageDetails, generatePersona, generateMinors, linkDetails, DETAILS_MODEL, LINK_MODEL } from './calls.js'
 export { mergeDetails, withPendingEndingsFields } from './merge.js'
 export type { CallResult, DetailCallMetrics, DetailCallOptions, DetailsShared } from './calls.js'

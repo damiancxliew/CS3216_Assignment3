@@ -5,7 +5,7 @@ import type { ExtractedDocument } from '../src/ingest/types'
 import type { FakeReply, LlmJsonRequest, LlmJsonResponse, LlmUsage } from '../src/llm/client'
 import { tryParseJson } from '../src/llm/client'
 import type { LlmClient } from '../src/llm/client'
-import { generateDetails, toSkeleton } from '../src/v3/index'
+import { assembleDetails, generateDetails, toSkeleton } from '../src/v3/index'
 import { mergeDetails } from '../src/v3/details/merge'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, SkeletonLlmOutput, StageDetailsLlmOutput } from '../src/v3/index'
 
@@ -379,6 +379,21 @@ describe('generateDetails', () => {
     for (const key of ['stage s1', 'persona farquhar', 'persona raffles', 'minors', 'link']) expect(llm.count(key)).toBe(1)
   })
 
+  it('returns its parts, and assembling them in code gives the same draft (#209)', async () => {
+    const result = await generateDetails(input, { llm: new RoutingLlm(happyRoutes()) })
+    expect(Object.keys(result.parts).sort()).toEqual(['link', 'minors', 'persona:farquhar', 'persona:raffles', 'stage:s1'])
+    expect(assembleDetails(input.skeleton, result.parts).draft).toEqual(result.draft)
+  })
+
+  it('gives a part with no output one fresh call and keeps the other parts (#209)', async () => {
+    const llm = new RoutingLlm({ ...happyRoutes(), 'persona raffles': [{ refusal: 'no' }, { refusal: 'no' }, { refusal: 'no' }, { json: rafflesOutput }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.ok).toBe(true)
+    expect(llm.count('persona raffles')).toBe(4)
+    expect(llm.count('stage s1')).toBe(1)
+    expect(llm.count('persona farquhar')).toBe(1)
+  })
+
   it('repairs a broken persona on the second reply; other routes stay at one call', async () => {
     const broken = JSON.parse(JSON.stringify(farquharOutput))
     broken.stances = threeStances.slice(0, 2) // only 2 stances
@@ -411,11 +426,18 @@ describe('generateDetails', () => {
     expect(llm.count('link')).toBe(2)
     expect(llm.requests.filter((r) => r.key === 'link')[1]!.request.user).toContain("discovery 'nope' does not exist")
 
-    const always = new RoutingLlm({ ...happyRoutes(), link: [{ json: dangling }, { json: dangling }, { json: dangling }] })
+    // still broken after its own repairs: the pass carries on, and returns the draft and its parts with the errors (#209)
+    const always = new RoutingLlm({
+      ...happyRoutes(),
+      'persona farquhar': [{ json: farquharOutput }, { json: farquharOutput }],
+      link: Array.from({ length: 6 }, () => ({ json: dangling })),
+    })
     const result = await generateDetails(input, { llm: always })
     expect(result.ok).toBe(false)
-    expect(always.count('link')).toBe(3)
+    expect(always.count('link')).toBeGreaterThanOrEqual(3)
     expect(result.issues.some((i) => i.code === 'ref')).toBe(true)
+    expect(result.draft).toBeDefined()
+    expect(result.parts.link?.issues.some((i) => i.code === 'ref')).toBe(true)
   })
 
   it('flags quote-not-in-source for an invented quote but passes normalised quotes', async () => {
