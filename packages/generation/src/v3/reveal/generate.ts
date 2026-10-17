@@ -16,7 +16,7 @@ import { sourcesBlock } from '../skeleton/index'
 import { buildRevealContext, isSecretAct, revealIssues } from './checks'
 import { mergeReveal } from './merge'
 import { partId } from '../parts'
-import type { Parts } from '../parts'
+import type { PartResume, Parts } from '../parts'
 import { fillRevealPrompt, REVEAL_SYSTEM_PROMPT } from './prompt'
 import { RevealLlmOutput as RevealWire } from './schema'
 import type { RevealLlmOutput } from './schema'
@@ -79,6 +79,25 @@ function revealUserMessage(input: GenerateRevealInput, readingLevel: 'sec' | 'jc
   return `Write the reveal.\n\n${JSON.stringify(compact, null, 2)}\n\n${sourcesBlock(input.sources)}`
 }
 
+/** The reveal call; `from` resumes it from a saved output (#209). */
+export function revealCall(input: GenerateRevealInput, opts: DetailCallOptions, from?: PartResume) {
+  const readingLevel = input.readingLevel ?? input.draft.readingLevel
+  const ctx = buildRevealContext(input.draft, sourceTexts(input.sources), new Set(input.sources.map((d) => d.id)), input.slantedDocuments)
+  return runCall(
+    {
+      label: 'reveal',
+      schemaName: 'reveal_v3',
+      schema: RevealWire,
+      system: fillRevealPrompt(REVEAL_SYSTEM_PROMPT, { readingLevel }),
+      user: revealUserMessage(input, readingLevel),
+      check: (output) => revealIssues(output, ctx),
+    },
+    opts,
+    { model: REVEAL_MODEL, reasoningEffort: 'medium' },
+    from,
+  )
+}
+
 export async function generateReveal(input: GenerateRevealInput, opts: GenerateRevealOptions): Promise<RevealResult> {
   const draft = input.draft
   const readingLevel = input.readingLevel ?? draft.readingLevel
@@ -107,18 +126,7 @@ export async function generateReveal(input: GenerateRevealInput, opts: GenerateR
   const inDraft = new Set(draftErrors.map(key))
   const added = (errs: CheckIssue[]) => errs.filter((e) => !inDraft.has(key(e)))
 
-  const result = await runCall(
-    {
-      label: 'reveal',
-      schemaName: 'reveal_v3',
-      schema: RevealWire,
-      system: fillRevealPrompt(REVEAL_SYSTEM_PROMPT, { readingLevel }),
-      user: revealUserMessage(input, readingLevel),
-      check: (output) => revealIssues(output, ctx),
-    },
-    opts,
-    { model: REVEAL_MODEL, reasoningEffort: 'medium' },
-  )
+  const result = await revealCall(input, opts)
   countCalls(result)
   warnings.push(...result.warnings)
   issues.push(...result.issues)

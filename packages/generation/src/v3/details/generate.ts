@@ -236,6 +236,17 @@ function slantReactionsWarnings(draft: AdventureSpec): CheckIssue[] {
 
 // --- link context ------------------------------------------------------------------------------
 
+/** The link call's context from saved parts, to redo the link on its own (#209). */
+export function linkContextFromParts(skeleton: SkeletonShape, parts: Parts): LinkContext {
+  const result = <T,>(id: string) => ({ output: parts[id]?.output }) as CallResult<T>
+  return buildLinkContext(skeleton, {
+    stage: new Map(skeleton.stages.map((s) => [s.id, result<StageDetailsLlmOutput>(partId.stage(s.id))])),
+    persona: new Map(skeleton.characters.filter((c) => c.tier === 'major').map((c) => [c.id, result<PersonaLlmOutput>(partId.persona(c.id))])),
+    minors: parts[partId.minors] !== undefined ? result<MinorsLlmOutput>(partId.minors) : null,
+    link: null,
+  })
+}
+
 function buildLinkContext(skeleton: SkeletonShape, bag: CallBag): LinkContext {
   const stageOrder = new Map(skeleton.stages.map((s, i) => [s.id, i]))
   const characters: LinkContext['characters'] = skeleton.characters.map((c) => {

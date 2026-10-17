@@ -5,7 +5,7 @@ import type { ExtractedDocument } from '../src/ingest/types'
 import type { FakeReply, LlmJsonRequest, LlmJsonResponse, LlmUsage } from '../src/llm/client'
 import { tryParseJson } from '../src/llm/client'
 import type { LlmClient } from '../src/llm/client'
-import { assembleDetails, generateDetails, toSkeleton } from '../src/v3/index'
+import { assembleDetails, blame, finalRepair, generateDetails, specErrors, toSkeleton } from '../src/v3/index'
 import { mergeDetails } from '../src/v3/details/merge'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, SkeletonLlmOutput, StageDetailsLlmOutput } from '../src/v3/index'
 
@@ -699,5 +699,67 @@ describe('generateDetails', () => {
       enabled: true,
       stageMinutes: [45],
     })
+  })
+})
+
+describe('final check-and-repair (#209)', () => {
+  const generated = async () => {
+    const result = await generateDetails(input, { llm: new RoutingLlm(happyRoutes()) })
+    expect(result.ok).toBe(true)
+    return result
+  }
+
+  it('blames a planned id nobody produced on its producer, not on the part that refers to it', async () => {
+    const result = await generated()
+    const spec = structuredClone(result.draft!)
+    spec.documents = spec.documents.filter((d) => d.id !== 'doc-1')
+    const refs = specErrors(spec).filter((i) => i.code === 'ref' && i.ids?.[0] === 'doc-1')
+    expect(refs.length).toBeGreaterThan(0)
+    for (const issue of refs) expect(blame(issue, { skeleton, spec, parts: result.parts })).toEqual(['stage:s1'])
+  })
+
+  it('blames an invented id on the part that refers to it', async () => {
+    const result = await generated()
+    const spec = structuredClone(result.draft!)
+    const i = spec.discoveries.findIndex((d) => d.id === 'raffles-d1')
+    spec.discoveries[i]!.condition = { discovered: 'raffles-nope' }
+    const issue = specErrors(spec).find((e) => e.code === 'ref' && e.ids?.[0] === 'raffles-nope')!
+    expect(issue.path.startsWith(`discoveries.${i}`)).toBe(true)
+    expect(blame(issue, { skeleton, spec, parts: result.parts })).toEqual(['persona:raffles'])
+  })
+
+  it('leaves skeleton-level errors unblamed, for the teacher', async () => {
+    const result = await generated()
+    expect(blame({ code: 'historical-missing', path: 'endings', message: 'x' }, { skeleton, spec: result.draft!, parts: result.parts })).toEqual([])
+  })
+
+  it('blames a cross-part error on its fixed group: historical-unreachable on every moment part', async () => {
+    const result = await generated()
+    const parts = { ...result.parts, 'moment:m1': { output: {}, issues: [] } }
+    expect(blame({ code: 'historical-unreachable', path: 'endings', message: 'x' }, { skeleton, spec: result.draft!, parts })).toEqual(['moment:m1'])
+    // a part that was never saved can't be redone
+    expect(blame({ code: 'historical-unreachable', path: 'endings', message: 'x' }, { skeleton, spec: result.draft!, parts: result.parts })).toEqual([])
+  })
+
+  it('redoes only the blamed part, from its saved output, and reassembles a clean spec', async () => {
+    const result = await generated()
+    const broken = JSON.parse(JSON.stringify(rafflesOutput).replace('"d-dues"', '"raffles-nope"'))
+    const parts = { ...result.parts, 'persona:raffles': { output: broken, issues: [] } }
+    const llm = new RoutingLlm({ 'persona raffles': [{ json: rafflesOutput }] })
+    const repair = await finalRepair({ skeleton, documents: [doc], parts }, { llm })
+    expect(repair.repaired).toEqual(['persona:raffles'])
+    expect(repair.errors).toEqual([])
+    expect(repair.spec).toEqual(result.draft)
+    expect(llm.requests.map((r) => r.key)).toEqual(['persona raffles'])
+    expect(llm.requests[0]!.request.user).toContain('Your previous output:')
+    expect(llm.requests[0]!.request.user).toContain('raffles-nope')
+  })
+
+  it('does nothing on a clean spec', async () => {
+    const result = await generated()
+    const llm = new RoutingLlm({})
+    const repair = await finalRepair({ skeleton, documents: [doc], parts: result.parts }, { llm })
+    expect(repair).toMatchObject({ errors: [], unresolved: [], repaired: [] })
+    expect(llm.requests).toEqual([])
   })
 })
