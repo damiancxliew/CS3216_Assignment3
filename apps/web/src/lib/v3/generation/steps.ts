@@ -142,6 +142,11 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
       if (errors.length > 0) throw asError("final spec", errors);
       const version = await deps.adventures.saveSpec(brief.adventureId, validated.spec);
       await deps.adventures.setStatus(brief.adventureId, "draft", ["generating"]);
+      try {
+        await deps.queuePortraits(brief.adventureId, version);
+      } catch (error) {
+        console.error("Failed to queue v3 portraits", error);
+      }
       return { version };
     }),
     { maxAttempts: 3 },
