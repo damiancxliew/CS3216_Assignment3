@@ -5,6 +5,7 @@
  * No Next imports — deps and the flag env are injected.
  */
 import { checkSkeleton, validateSkeleton } from "@adventure/spec-v3";
+import { quoteIssues, sourceTexts } from "@adventure/generation/v3";
 import type { CheckIssue, SkeletonShape } from "@adventure/spec-v3";
 import type { createJobs, EnqueueStep, JobStep, Json } from "@adventure/jobs";
 
@@ -150,6 +151,39 @@ export async function restartGeneration(
 }
 
 /** Cost is school-budget information: school admins and sysadmins only. */
+/** A teacher's skeleton draft, stored raw — a semantically broken draft is expected mid-edit. */
+const SKELETON_DRAFT_MAX_BYTES = 512 * 1024;
+
+export async function saveSkeletonDraft(
+  deps: GenerationDeps,
+  userId: string,
+  adventureId: string,
+  draft: unknown,
+  env: NodeJS.ProcessEnv,
+): Promise<{ ok: true } | { error: string }> {
+  const adventure = await deps.adventures.get(adventureId);
+  if (adventure === null || adventure.ownerId !== userId) return { error: "not_found" };
+  if (!v3SchoolAllowed(adventure.schoolId, env)) return { error: "not_found" };
+  if (adventure.status !== "needs_review") return { error: "not awaiting review" };
+  if (JSON.stringify(draft).length > SKELETON_DRAFT_MAX_BYTES) return { error: "The draft is too large to save" };
+  await deps.adventures.saveSkeletonDraft(adventureId, draft);
+  return { ok: true };
+}
+
+export async function discardSkeletonDraft(
+  deps: GenerationDeps,
+  userId: string,
+  adventureId: string,
+  env: NodeJS.ProcessEnv,
+): Promise<{ ok: true } | { error: string }> {
+  const adventure = await deps.adventures.get(adventureId);
+  if (adventure === null || adventure.ownerId !== userId) return { error: "not_found" };
+  if (!v3SchoolAllowed(adventure.schoolId, env)) return { error: "not_found" };
+  if (adventure.status !== "needs_review") return { error: "not awaiting review" };
+  await deps.adventures.clearSkeletonDraft(adventureId);
+  return { ok: true };
+}
+
 export function viewerSeesCost(viewer: Pick<Viewer, "membership" | "isSysadmin">): boolean {
   return viewer.isSysadmin || viewer.membership?.role === "admin";
 }
@@ -175,6 +209,19 @@ export async function approveSkeleton(
     if (!validated.ok) return { error: "invalid skeleton", issues: validated.issues.map((i) => ({ code: "schema", path: i.path, message: i.message })) };
     const check = checkSkeleton(validated.spec);
     if (check.errors.length > 0) return { error: "invalid skeleton", issues: check.errors };
+    // every citation quote must occur in the cited source, exactly as the
+    // skeleton pass checks its own output (`sources_v3.source_key` is the id)
+    const texts = sourceTexts(await deps.sources.load(adventureId));
+    const quotes = [
+      ...validated.spec.discoveries.flatMap((d, i) =>
+        (d.citations ?? []).flatMap((c, j) => (c.quote !== undefined ? [{ path: `discoveries.${i}.citations.${j}.quote`, sourceId: c.sourceId, quote: c.quote }] : [])),
+      ),
+      ...validated.spec.endings.flatMap((e, i) =>
+        (e.citations ?? []).flatMap((c, j) => (c.quote !== undefined ? [{ path: `endings.${i}.citations.${j}.quote`, sourceId: c.sourceId, quote: c.quote }] : [])),
+      ),
+    ];
+    const quoteFailures = quoteIssues(quotes, texts);
+    if (quoteFailures.length > 0) return { error: "invalid skeleton", issues: quoteFailures };
     edited = validated.spec;
   }
 
@@ -200,6 +247,7 @@ export async function approveSkeleton(
     await deps.adventures.setStatus(adventureId, "needs_review", ["generating"]);
     return { error: error instanceof Error ? error.message : "could not queue generation" };
   }
+  await deps.adventures.clearSkeletonDraft(adventureId).catch(() => {});
   return { ok: true };
 }
 
@@ -209,6 +257,8 @@ export interface GenerationProgress {
   costUsd: number;
   warnings: (CheckIssue & { pass: string })[];
   skeleton?: unknown;
+  /** a saved teacher draft exists for this skeleton */
+  hasDraft?: boolean;
 }
 
 /** The caller has already done the access check on `adventure`. */
@@ -231,6 +281,12 @@ export async function getGenerationProgress(
     steps: (progress?.steps ?? []).map((s) => ({ name: s.name, status: s.status, attempts: s.attempts, error: s.error })),
     costUsd,
     warnings,
-    ...(adventure.status === "needs_review" && outputs.skeleton !== undefined ? { skeleton: (outputs.skeleton as { skeleton: unknown }).skeleton } : {}),
+    ...(adventure.status === "needs_review"
+      ? await (async () => {
+          const draft = await deps.adventures.loadSkeletonDraft(adventure.id);
+          if (draft !== null && draft !== undefined) return { skeleton: draft, hasDraft: true };
+          return outputs.skeleton !== undefined ? { skeleton: (outputs.skeleton as { skeleton: unknown }).skeleton } : {};
+        })()
+      : {}),
   };
 }

@@ -43,6 +43,10 @@ export interface V3AdventureWriter {
   setStatus(id: string, to: V3AdventureRow["status"], from: V3AdventureRow["status"][]): Promise<boolean>;
   /** returns spec_version; the same spec twice → the same version (the DB trigger only bumps on change) */
   saveSpec(id: string, spec: AdventureSpec): Promise<number>;
+  /** the teacher's saved skeleton draft (raw JSON; it may be semantically broken), or null */
+  loadSkeletonDraft(id: string): Promise<unknown>;
+  saveSkeletonDraft(id: string, draft: unknown): Promise<void>;
+  clearSkeletonDraft(id: string): Promise<void>;
 }
 
 export interface GenerationDeps {
@@ -93,6 +97,19 @@ function supabaseV3AdventureWriter(getClient: () => SupabaseClient): V3Adventure
         .single<{ spec_version: number }>();
       if (error) throw error;
       return data.spec_version;
+    },
+    async loadSkeletonDraft(id) {
+      const { data, error } = await getClient().from("adventures_v3").select("skeleton_draft").eq("id", id).maybeSingle<{ skeleton_draft: unknown }>();
+      if (error) throw error;
+      return data?.skeleton_draft ?? null;
+    },
+    async saveSkeletonDraft(id, draft) {
+      const { error } = await getClient().from("adventures_v3").update({ skeleton_draft: draft }).eq("id", id);
+      if (error) throw error;
+    },
+    async clearSkeletonDraft(id) {
+      const { error } = await getClient().from("adventures_v3").update({ skeleton_draft: null }).eq("id", id);
+      if (error) throw error;
     },
   };
 }
@@ -259,6 +276,7 @@ export function memoryV3SourceStore() {
 
 export function memoryV3AdventureWriter(initial: V3AdventureRow[] = []) {
   const rows = new Map<string, { row: V3AdventureRow; spec: AdventureSpec | null; specVersion: number }>();
+  const skeletonDrafts = new Map<string, unknown>();
   for (const row of initial) rows.set(row.id, { row: { ...row }, spec: null, specVersion: 0 });
   return {
     rows,
@@ -281,5 +299,15 @@ export function memoryV3AdventureWriter(initial: V3AdventureRow[] = []) {
       }
       return entry.specVersion;
     },
-  } satisfies V3AdventureWriter & { rows: Map<string, { row: V3AdventureRow; spec: AdventureSpec | null; specVersion: number }> };
+    skeletonDrafts,
+    async loadSkeletonDraft(id: string) {
+      return skeletonDrafts.get(id) ?? null;
+    },
+    async saveSkeletonDraft(id: string, draft: unknown) {
+      skeletonDrafts.set(id, draft);
+    },
+    async clearSkeletonDraft(id: string) {
+      skeletonDrafts.delete(id);
+    },
+  } satisfies V3AdventureWriter & { rows: Map<string, { row: V3AdventureRow; spec: AdventureSpec | null; specVersion: number }>; skeletonDrafts: Map<string, unknown> };
 }

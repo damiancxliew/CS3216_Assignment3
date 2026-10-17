@@ -26,8 +26,9 @@ import { briefTurnV3 } from "@/lib/v3/brief/turn";
 import type { BriefInputV3, BriefStateV3 } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
+import { allowKick, shouldKick } from "@/lib/v3/generation/heal";
 import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
-import { approveSkeleton, getGenerationProgress, restartGeneration, startFromBrief } from "@/lib/v3/generation/service";
+import { approveSkeleton, discardSkeletonDraft, getGenerationProgress, restartGeneration, saveSkeletonDraft, startFromBrief } from "@/lib/v3/generation/service";
 
 const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
   "application/pdf": "pdf",
@@ -38,6 +39,9 @@ const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
 const clientPagesSchema = z.array(z.string()).min(1).max(LIMITS.maxPages);
 
 const notFound = { error: "not_found" } as const;
+
+/** Per-adventure throttle for poll-triggered kicks (per instance). */
+const pollKicks = new Map<string, number>();
 
 let loggedNoKickUrl = false;
 
@@ -243,6 +247,21 @@ export async function restartV3Generation(adventureId: string) {
   );
 }
 
+/** Autosaves the teacher's in-progress skeleton edits (raw JSON; may be mid-edit broken). */
+export async function saveV3SkeletonDraft(adventureId: string, draft: unknown) {
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
+  const result = await saveSkeletonDraft(defaultGenerationDeps(), auth.userId, adventureId, draft, process.env);
+  return "ok" in result ? { ok: true as const, savedAt: new Date().toISOString() } : result;
+}
+
+/** Reverts to the generated skeleton by clearing the saved draft. */
+export async function discardV3SkeletonDraft(adventureId: string) {
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
+  return discardSkeletonDraft(defaultGenerationDeps(), auth.userId, adventureId, process.env);
+}
+
 export async function approveV3Skeleton(adventureId: string, skeleton?: unknown) {
   const auth = await requireStaff();
   if ("error" in auth) return auth;
@@ -270,6 +289,16 @@ export async function getV3GenerationProgress(adventureId: string) {
 
   const adventure = { id: data.id, schoolId: data.school_id, ownerId: data.owner_id, status: data.status };
   if (!v3SchoolAllowed(adventure.schoolId)) return notFound;
+
+  // self-healing: a ready step with no in-flight tick gets a spare kick from the poll
+  if (adventure.status === "generating") {
+    const jobs = getJobs();
+    const progress = await jobs.getProgress(adventureId);
+    const now = Date.now();
+    if (progress && shouldKick(progress.steps, now) && allowKick(pollKicks, adventureId, now)) {
+      await kickAfter().catch(() => {});
+    }
+  }
 
   const store = supabaseJobStore(createAdminClient());
   return getGenerationProgress(defaultGenerationDeps(), getJobs(), store, adventure);

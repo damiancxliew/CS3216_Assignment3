@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { V3PublishPanel } from "@/components/play/v3/publish-panel";
 import { button, EmptyState, Page, Section } from "@/components/ui";
+import { validateSkeleton } from "@adventure/spec-v3";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
@@ -17,7 +18,8 @@ import type { SkeletonShape } from "@adventure/spec-v3";
 import { getV3GenerationProgress } from "../actions";
 import { V3BriefChat } from "./brief-chat";
 import { GenerationProgress } from "./generation-progress";
-import { ContinueGeneration, StartAgain } from "./review-actions";
+import { SkeletonEditor } from "./skeleton-editor";
+import { StartAgain } from "./review-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -56,13 +58,18 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
       );
     case "needs_review": {
       const progress = await getV3GenerationProgress(id);
-      const skeleton = progress && !("error" in progress) ? (progress.skeleton as SkeletonShape | undefined) : undefined;
+      // a saved draft may be mid-edit broken — still hand it to the editor (the checks inside flag it)
+      const rawSkeleton = progress && !("error" in progress) ? progress.skeleton : undefined;
+      const parsed = rawSkeleton !== undefined ? validateSkeleton(rawSkeleton) : undefined;
+      const skeleton = parsed?.ok ? parsed.spec : (rawSkeleton as SkeletonShape | undefined);
+      const hasDraft = progress && !("error" in progress) && progress.hasDraft === true;
       return (
-        <Page title="Check the skeleton" lede="This is what the generator plans to build. Continue when it looks right.">
-          {skeleton ? <SkeletonOutline skeleton={skeleton} /> : <EmptyState title="No skeleton">The skeleton could not be loaded.</EmptyState>}
-          <div className="mt-6">
-            <ContinueGeneration adventureId={id} />
-          </div>
+        <Page title="Check the skeleton" lede="This is what the generator plans to build. Edit anything, then continue when it looks right." width="wide">
+          {skeleton ? (
+            <SkeletonEditor adventureId={id} initial={skeleton} hasDraft={hasDraft} />
+          ) : (
+            <EmptyState title="No skeleton">The skeleton could not be loaded.</EmptyState>
+          )}
         </Page>
       );
     }
@@ -146,48 +153,3 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
   }
 }
 
-function SkeletonOutline({ skeleton }: { skeleton: SkeletonShape }) {
-  return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <div>
-        <h2 className="text-2xl font-black tracking-tight text-ink">{skeleton.title}</h2>
-        <p className="mt-1 text-muted">{skeleton.arc}</p>
-        <p className="mt-2 text-sm text-ink">
-          <span className="font-semibold">You play:</span> {skeleton.role.name} — {skeleton.role.situation}
-        </p>
-      </div>
-      <Section title="Characters">
-        <ul className="grid gap-2 sm:grid-cols-2">
-          {skeleton.characters.map((character) => (
-            <li key={character.id} className="rounded-surface border border-line bg-surface px-3 py-2 text-sm">
-              <span className="font-semibold text-ink">{character.name}</span>
-              <span className="text-muted"> · {character.title}</span>
-            </li>
-          ))}
-        </ul>
-      </Section>
-      <Section title="Stages">
-        <ol className="flex flex-col gap-2">
-          {skeleton.stages.map((stage) => (
-            <li key={stage.id} className="rounded-surface border border-line bg-surface px-3 py-2 text-sm">
-              <span className="font-semibold text-ink">{stage.title}</span>
-              <span className="text-muted"> · {stage.timePlace}</span>
-              <p className="mt-0.5 text-muted">{stage.centralQuestion}</p>
-            </li>
-          ))}
-        </ol>
-      </Section>
-      <Section title="Endings">
-        <ul className="flex flex-col gap-2">
-          {skeleton.endings.map((ending) => (
-            <li key={ending.id} className="rounded-surface border border-line bg-surface px-3 py-2 text-sm">
-              <span className="font-semibold text-ink">{ending.title}</span>
-              <span className="text-muted"> · {ending.type === "historical" ? "What really happened" : ending.type === "secret" ? "Secret" : "Alternative"}</span>
-              <p className="mt-0.5 text-muted">{ending.summary}</p>
-            </li>
-          ))}
-        </ul>
-      </Section>
-    </div>
-  );
-}

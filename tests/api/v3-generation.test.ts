@@ -18,7 +18,7 @@ import { memoryV3AdventureWriter, memoryV3SourceStore } from "@/lib/v3/generatio
 import type { GenerationDeps } from "@/lib/v3/generation/deps";
 import { memoryV3BriefStore } from "@/lib/v3/brief/store";
 import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
-import { approveSkeleton, getGenerationProgress, restartGeneration, startFromBrief, viewerSeesCost } from "@/lib/v3/generation/service";
+import { approveSkeleton, getGenerationProgress, restartGeneration, saveSkeletonDraft, startFromBrief, viewerSeesCost } from "@/lib/v3/generation/service";
 import { PASS_LABELS, PASS_ORDER, stepDisplayStatus } from "@/lib/v3/generation/labels";
 import { v3GenerationSteps } from "@/lib/v3/generation/steps";
 import type { GenerationBrief } from "@/lib/v3/generation/types";
@@ -507,5 +507,58 @@ describe("labels and cost visibility", () => {
     expect(viewerSeesCost(teacher as never)).toBe(false);
     expect(viewerSeesCost(admin as never)).toBe(true);
     expect(viewerSeesCost(sysadmin as never)).toBe(true);
+  });
+});
+
+describe("skeleton drafts", () => {
+  it("save/discard guards: non-owner, wrong status and oversize all error", async () => {
+    const harness = await makeJob();
+    const { deps, adventures } = harness;
+    const { adventureId } = await start(harness, "standard");
+    await harness.jobs.drain({ jobId: adventureId }); // now needs_review
+
+    expect(await saveSkeletonDraft(deps, "someone-else", adventureId, { x: 1 }, env)).toMatchObject({ error: "not_found" });
+    expect(await saveSkeletonDraft(deps, ownerId, adventureId, { x: 1 }, { V3_ENABLED: "1", V3_SCHOOL_IDS: "other" } as NodeJS.ProcessEnv)).toMatchObject({ error: "not_found" });
+    const huge = { pad: "x".repeat(513 * 1024) };
+    expect(await saveSkeletonDraft(deps, ownerId, adventureId, huge, env)).toMatchObject({ error: expect.any(String) });
+    expect(await saveSkeletonDraft(deps, ownerId, adventureId, { title: "T" }, env)).toEqual({ ok: true });
+    expect(await deps.adventures.loadSkeletonDraft(adventureId)).toEqual({ title: "T" });
+
+    // a generating row rejects saves
+    const { adventureId: generating } = await start(harness, "quick");
+    expect(await saveSkeletonDraft(deps, ownerId, generating, { x: 1 }, env)).toMatchObject({ error: expect.any(String) });
+    void adventures;
+  });
+
+  it("a saved draft is returned by progress, and approve clears it", async () => {
+    const harness = await makeJob();
+    const { deps, jobs, adventures, store } = harness;
+    const { adventureId } = await start(harness, "standard");
+    await jobs.drain({ jobId: adventureId });
+
+    const edited = { ...skeleton, title: "Teacher's edit" };
+    await saveSkeletonDraft(deps, ownerId, adventureId, edited, env);
+    const progress = await getGenerationProgress(deps, jobs, store, (await adventures.get(adventureId))!);
+    expect(progress.hasDraft).toBe(true);
+    expect((progress.skeleton as SkeletonShape).title).toBe("Teacher's edit");
+
+    expect(await approveSkeleton(deps, jobs, store, ownerId, adventureId, edited, env)).toEqual({ ok: true });
+    expect(await deps.adventures.loadSkeletonDraft(adventureId)).toBeNull();
+  });
+
+  it("approve with a quote not in the cited source returns issues and enqueues nothing", async () => {
+    const harness = await makeJob();
+    const { deps, jobs, adventures, store, passes } = harness;
+    const { adventureId } = await start(harness, "standard");
+    await jobs.drain({ jobId: adventureId });
+
+    const edited = structuredClone(skeleton);
+    edited.discoveries[0]!.citations = [{ sourceId: "handout", quote: "words never written" }];
+    const result = await approveSkeleton(deps, jobs, store, ownerId, adventureId, edited, env);
+    expect(result).toMatchObject({ error: "invalid skeleton" });
+    expect((result as { issues: { code: string }[] }).issues[0]!.code).toBe("quote-not-in-source");
+    expect((await adventures.get(adventureId))!.status).toBe("needs_review");
+    await jobs.drain({ jobId: adventureId });
+    expect(passes.details).not.toHaveBeenCalled();
   });
 });

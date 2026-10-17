@@ -8,11 +8,13 @@
  * details/endings/reveal hand back the golden spec. Every pass waits ~3 s so
  * the progress page is visible.
  */
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { validateSkeleton, validateSpec } from "@adventure/spec-v3";
 import type { AdventureSpec, SkeletonShape } from "@adventure/spec-v3";
+import type { ExtractedDocument, OutsideSource } from "@adventure/generation";
 
 import type { GenerationDeps } from "./deps";
 
@@ -98,6 +100,51 @@ export function goldenSkeleton(spec: AdventureSpec): SkeletonShape {
 
 const failIssue = (pass: string) => [{ code: "fake-failure", path: pass, message: `Fake failure requested via V3_FAKE_PASSES=fail:${pass}` }];
 
+/** Every citation quote in the spec, wherever it appears (discoveries, endings, phrases…). */
+function* citationItems(node: unknown): Generator<{ sourceId: string; quote: string }> {
+  if (typeof node !== "object" || node === null) return;
+  if (Array.isArray(node)) {
+    for (const item of node) yield* citationItems(item);
+    return;
+  }
+  const record = node as Record<string, unknown>;
+  if (Array.isArray(record.citations)) {
+    for (const citation of record.citations as { sourceId?: string; quote?: string }[])
+      if (typeof citation.quote === "string" && typeof citation.sourceId === "string") yield { sourceId: citation.sourceId, quote: citation.quote };
+  }
+  for (const value of Object.values(record)) yield* citationItems(value);
+}
+
+/**
+ * One fake "outside" document per spec source, whose text is every citation
+ * quote that cites it — so approve's quote check passes in fake mode.
+ */
+export function fakeOutsideSources(spec: AdventureSpec): { sources: OutsideSource[]; documents: ExtractedDocument[] } {
+  const quotesBySource = new Map<string, string[]>();
+  for (const item of citationItems(spec)) {
+    const list = quotesBySource.get(item.sourceId) ?? [];
+    if (!list.includes(item.quote)) list.push(item.quote);
+    quotesBySource.set(item.sourceId, list);
+  }
+  const sources: OutsideSource[] = [];
+  const documents: ExtractedDocument[] = [];
+  for (const source of spec.sources) {
+    const text = (quotesBySource.get(source.id) ?? [source.title]).join("\n\n");
+    sources.push({ id: source.id, title: source.title, origin: "outside", url: `https://example.invalid/${source.id}` });
+    documents.push({
+      id: source.id,
+      title: source.title,
+      kind: "text",
+      contentHash: createHash("sha256").update(text).digest("hex"),
+      pages: [{ page: 1, text }],
+      pageCount: 1,
+      charCount: text.length,
+      warnings: [],
+    });
+  }
+  return { sources, documents };
+}
+
 /** Returns the fake passes, or null when fakes are off. */
 export function fakeGenerationPasses(env: NodeJS.ProcessEnv = process.env): GenerationDeps["passes"] | null {
   const flag = env.V3_FAKE_PASSES;
@@ -108,7 +155,8 @@ export function fakeGenerationPasses(env: NodeJS.ProcessEnv = process.env): Gene
     sources: async () => {
       await sleep(FAKE_DELAY_MS);
       if (failAt === "sources") throw new Error("Fake failure requested via V3_FAKE_PASSES=fail:sources");
-      return { sources: [], documents: [], rejected: [], usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 }, costUsd: FAKE_COST };
+      const { sources, documents } = fakeOutsideSources(goldenSpec());
+      return { sources, documents, rejected: [], usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 }, costUsd: FAKE_COST };
     },
     skeleton: async () => {
       await sleep(FAKE_DELAY_MS);
