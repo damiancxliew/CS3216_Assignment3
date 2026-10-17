@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { BookOpen, Compass, Flag, Sparkles } from "lucide-react";
 
 import { BriefChat } from "./brief-chat";
+import { button } from "@/components/ui";
 import type { BriefState } from "@/lib/brief/schema";
 
 /**
@@ -22,10 +24,13 @@ export function TeacherWorkspace({
   adventures,
   hasAdventures,
   resume,
+  newAdventure,
 }: {
   adventures: React.ReactNode;
   hasAdventures: boolean;
   resume?: BriefState;
+  /** When set (v3 schools), the "new adventure" control links here instead of opening the v2 chat. */
+  newAdventure?: { href: string; label: string };
 }) {
   const [composing, setComposing] = useState(false);
   const banner = hasAdventures && !composing;
@@ -78,7 +83,15 @@ export function TeacherWorkspace({
           </>
         )}
         <div className={banner ? "shrink-0" : "contents"}>
-          <BriefChat resume={resume} compact={hasAdventures} onComposingChange={setComposing} />
+          {newAdventure ? (
+            composing ? null : (
+              <Link href={newAdventure.href} className={banner ? button.primary : `${button.primary} w-full justify-center`}>
+                {newAdventure.label}
+              </Link>
+            )
+          ) : (
+            <BriefChat resume={resume} compact={hasAdventures} onComposingChange={setComposing} />
+          )}
         </div>
       </section>
     </div>

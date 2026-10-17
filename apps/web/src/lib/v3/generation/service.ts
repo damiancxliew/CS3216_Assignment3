@@ -1,91 +1,163 @@
 /**
- * Orchestration for the v3 generation job: start (quick = all six steps, standard =
- * sources + skeleton, then teacher review), approve the skeleton, and read progress.
+ * Orchestration for the v3 generation job: a confirmed brief enqueues the pass
+ * steps (quick = all six, standard = sources + skeleton, then teacher review),
+ * approve resumes a reviewed skeleton, and progress reads the step rows.
  * No Next imports — deps and the flag env are injected.
  */
 import { checkSkeleton, validateSkeleton } from "@adventure/spec-v3";
 import type { CheckIssue, SkeletonShape } from "@adventure/spec-v3";
 import type { createJobs, EnqueueStep, JobStep, Json } from "@adventure/jobs";
 
+import type { Viewer } from "@/lib/auth/viewer";
 import { v3SchoolAllowed } from "@/lib/v3/flag";
+import { completeDraft, type BriefStateV3 } from "@/lib/v3/brief/schema";
+import type { V3BriefStore } from "@/lib/v3/brief/store";
 
 import type { GenerationDeps, V3AdventureRow } from "./deps";
-import type { GenerationBrief, GenerationMode } from "./types";
+import type { GenerationBrief } from "./types";
 
 type Jobs = Pick<ReturnType<typeof createJobs>, "enqueue" | "getProgress">;
 /** raw step rows — needed for the stored brief (skeleton input) and step outputs. */
-type Store = { list(jobId: string): Promise<JobStep[]>; outputs(jobId: string, names: string[]): Promise<Record<string, Json>> };
-
-export interface StartForm {
-  episode: string;
-  teacherNotes?: string;
-  readingLevel: "sec" | "jc";
-  mode: GenerationMode;
-  uploads: { doc: Parameters<GenerationDeps["sources"]["saveUploads"]>[1][number]["doc"]; storageKey: string }[];
-}
-
-export interface StartContext {
-  userId: string;
-  schoolId: string;
-  /** inserts the adventures_v3 row (status defaults to `generating`) and returns its id */
-  createAdventure: () => Promise<string>;
-}
+export type StepStore = { list(jobId: string): Promise<JobStep[]>; outputs(jobId: string, names: string[]): Promise<Record<string, Json>> };
 
 const STEP_INPUT = (brief: GenerationBrief): Json => brief as unknown as Json;
 
-export async function startGeneration(
+const QUICK_STEPS = ["sources", "skeleton", "details", "endings", "reveal", "save"] as const;
+const STANDARD_STEPS = ["sources", "skeleton"] as const;
+
+const STEP_DEPS: Record<string, string[]> = {
+  skeleton: ["sources"],
+  details: ["skeleton"],
+  endings: ["details"],
+  reveal: ["details", "endings"],
+  save: ["reveal"],
+};
+
+/** Enqueues the generation steps for a confirmed brief. The caller owns the row's status. */
+export async function enqueueGeneration(jobs: Jobs, brief: GenerationBrief): Promise<void> {
+  const names = brief.mode === "quick" ? QUICK_STEPS : STANDARD_STEPS;
+  const steps: EnqueueStep[] = names.map((name) => ({
+    name,
+    step: `v3.gen.${name}`,
+    input: name === "details" ? ({ brief } as unknown as Json) : STEP_INPUT(brief),
+  }));
+  await jobs.enqueue(brief.adventureId, steps, STEP_DEPS);
+}
+
+/** Rebuilds the stored brief from the skeleton (or sources) step's input. */
+async function storedBrief(store: StepStore, adventureId: string): Promise<GenerationBrief | null> {
+  const rows = await store.list(adventureId);
+  const row = rows.find((r) => r.name === "skeleton") ?? rows.find((r) => r.name === "sources");
+  return (row?.input as GenerationBrief | null) ?? null;
+}
+
+/**
+ * Confirms a finished brief: the conditional briefing → generating transition
+ * (a double click loses it and enqueues nothing), then the generation steps.
+ * Title = the episode the teacher agreed.
+ */
+export async function startFromBrief(
   deps: GenerationDeps,
   jobs: Jobs,
-  ctx: StartContext,
-  form: StartForm,
+  briefStore: V3BriefStore,
+  userId: string,
+  adventureId: string,
+  env: NodeJS.ProcessEnv,
+): Promise<{ ok: true } | { error: string }> {
+  const row = await briefStore.load(adventureId);
+  if (row === null || row.ownerId !== userId) return { error: "not_found" };
+  if (!v3SchoolAllowed(row.schoolId, env)) return { error: "not_found" };
+  if (row.status !== "briefing") return { error: "not awaiting confirmation" };
+
+  const draft = row.state?.draft;
+  if (!draft || !completeDraft(draft) || (row.state?.sources.length ?? 0) === 0) return { error: "The brief isn’t complete yet" };
+
+  const brief: GenerationBrief = {
+    adventureId,
+    schoolId: row.schoolId,
+    ownerId: userId,
+    episode: draft.episode,
+    ...(draft.focus !== "" ? { teacherNotes: draft.focus } : {}),
+    readingLevel: draft.readingLevel,
+    mode: draft.mode,
+  };
+
+  if (!(await briefStore.startFromBrief(adventureId, draft.episode))) return { error: "already started" };
+
+  try {
+    await enqueueGeneration(jobs, brief);
+  } catch (error) {
+    // put the brief back so the teacher can retry the confirm
+    if (row.state) await briefStore.save(adventureId, row.state).catch(() => {});
+    await deps.adventures.setStatus(adventureId, "briefing", ["generating"]).catch(() => {});
+    return { error: error instanceof Error ? error.message : "could not queue generation" };
+  }
+  return { ok: true };
+}
+
+/**
+ * "Start again" on a failed adventure: a fresh briefing row with the uploads
+ * copied over and the old brief reopened at the confirm slot, so the teacher
+ * lands on the summary and can change anything before regenerating.
+ */
+export async function restartGeneration(
+  deps: GenerationDeps,
+  briefStore: V3BriefStore,
+  store: StepStore,
+  userId: string,
+  adventureId: string,
   env: NodeJS.ProcessEnv,
 ): Promise<{ adventureId: string } | { error: string }> {
-  if (!v3SchoolAllowed(ctx.schoolId, env)) return { error: "v3 generation is not enabled for this school" };
-  if (form.episode.trim() === "") return { error: "An episode is required" };
-  if (form.uploads.length === 0) return { error: "Upload at least one source" };
+  const adventure = await deps.adventures.get(adventureId);
+  if (adventure === null || adventure.ownerId !== userId) return { error: "not_found" };
+  if (!v3SchoolAllowed(adventure.schoolId, env)) return { error: "not_found" };
+  if (adventure.status !== "failed") return { error: "only a failed generation can be started again" };
 
-  const adventureId = await ctx.createAdventure();
+  const oldBrief = await storedBrief(store, adventureId);
+  const documents = await deps.sources.load(adventureId);
+
+  const newId = await briefStore.create({ schoolId: adventure.schoolId, ownerId: userId });
   try {
-    await deps.sources.saveUploads(adventureId, form.uploads);
-
-    const brief: GenerationBrief = {
-      adventureId,
-      schoolId: ctx.schoolId,
-      ownerId: ctx.userId,
-      episode: form.episode,
-      ...(form.teacherNotes !== undefined ? { teacherNotes: form.teacherNotes } : {}),
-      readingLevel: form.readingLevel,
-      mode: form.mode,
+    await deps.sources.copyUploads(adventureId, newId);
+    const state: BriefStateV3 = {
+      adventureId: newId,
+      draft: {
+        sources: {
+          summary: "The sources carried over from the previous attempt.",
+          episodeProposal: oldBrief?.episode ?? "",
+        },
+        episode: oldBrief?.episode ?? "",
+        focus: oldBrief?.teacherNotes ?? "",
+        readingLevel: oldBrief?.readingLevel ?? "sec",
+        mode: oldBrief?.mode ?? "quick",
+      },
+      messages: [
+        {
+          role: "assistant",
+          text: "Here’s the brief from the failed attempt — the same sources are attached. Create the adventure again, or change anything first.",
+          slot: "confirm",
+        },
+      ],
+      sources: documents.map((doc) => ({ id: doc.id, title: doc.title, kind: doc.kind === "pdf" ? "pdf" : "text" })),
     };
-
-    // quick: all six steps; standard: sources + skeleton, then the teacher reviews
-    const names = form.mode === "quick" ? ["sources", "skeleton", "details", "endings", "reveal", "save"] : ["sources", "skeleton"];
-    const depsOf: Record<string, string[]> = {
-      skeleton: ["sources"],
-      details: ["skeleton"],
-      endings: ["details"],
-      reveal: ["details", "endings"],
-      save: ["reveal"],
-    };
-    const steps: EnqueueStep[] = names.map((name) => ({
-      name,
-      step: `v3.gen.${name}`,
-      input: name === "details" ? ({ brief } as unknown as Json) : STEP_INPUT(brief),
-    }));
-    await jobs.enqueue(adventureId, steps, depsOf);
+    await briefStore.save(newId, state);
   } catch (error) {
-    // don't leave the row generating forever — the timer would never see a step
-    console.error("v3 generation start failed after creating the adventure", error);
-    await deps.adventures.setStatus(adventureId, "failed", ["generating"]);
-    return { error: "Couldn't start generation. Please try again." };
+    await briefStore.discard(newId).catch(() => {});
+    console.error("could not restart v3 generation", adventureId, error);
+    return { error: "Couldn’t restart generation. Please try again." };
   }
-  return { adventureId };
+  return { adventureId: newId };
+}
+
+/** Cost is school-budget information: school admins and sysadmins only. */
+export function viewerSeesCost(viewer: Pick<Viewer, "membership" | "isSysadmin">): boolean {
+  return viewer.isSysadmin || viewer.membership?.role === "admin";
 }
 
 export async function approveSkeleton(
   deps: GenerationDeps,
   jobs: Jobs,
-  store: Store,
+  store: StepStore,
   userId: string,
   adventureId: string,
   editedSkeleton: unknown | undefined,
@@ -107,9 +179,8 @@ export async function approveSkeleton(
   }
 
   // rebuild the brief from the skeleton step's stored input
-  const skeletonRow = (await store.list(adventureId)).find((row) => row.name === "skeleton");
-  const brief = skeletonRow?.input as GenerationBrief | null;
-  if (brief === null || brief === undefined) return { error: "generation brief not found" };
+  const brief = await storedBrief(store, adventureId);
+  if (brief === null) return { error: "generation brief not found" };
 
   // guards double clicks: enqueue_job_steps raises on a duplicate step name anyway
   if (!(await deps.adventures.setStatus(adventureId, "generating", ["needs_review"]))) return { error: "already approved" };
@@ -144,7 +215,7 @@ export interface GenerationProgress {
 export async function getGenerationProgress(
   deps: GenerationDeps,
   jobs: Jobs,
-  store: Store,
+  store: StepStore,
   adventure: V3AdventureRow,
 ): Promise<GenerationProgress> {
   const progress = await jobs.getProgress(adventure.id);

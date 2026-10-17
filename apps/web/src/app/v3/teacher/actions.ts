@@ -1,9 +1,10 @@
 "use server";
 
 /**
- * Teacher-facing v3 generation actions: start a generation job, approve the
- * skeleton in standard mode, and poll progress. Everything is behind V3_ENABLED
- * plus the school allowlist.
+ * Teacher-facing v3 actions: the guided brief (start, turn, source upload,
+ * discard, confirm, restart), skeleton approval and generation progress.
+ * Everything is behind V3_ENABLED plus the school allowlist; state is loaded
+ * from the store on the server, never trusted from the client.
  */
 import { after } from "next/server";
 import { headers } from "next/headers";
@@ -11,17 +12,22 @@ import { z } from "zod";
 
 import { extractDocument, ExtractionError, LIMITS, slugify } from "@adventure/generation";
 import type { ExtractedDocument } from "@adventure/generation";
+import { OpenAiLlmClient } from "@adventure/generation/llm";
 import { supabaseJobStore } from "@adventure/jobs";
 
-import { getViewer, isStaff } from "@/lib/auth/viewer";
+import { getViewer, isStaff, type Viewer } from "@/lib/auth/viewer";
 import { getJobs, kickTick } from "@/lib/jobs/runner";
 import { tickUrl } from "@/lib/jobs/tick";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { withJsonUsage } from "@/lib/usage/ledger";
 import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
+import { briefTurnV3 } from "@/lib/v3/brief/turn";
+import type { BriefInputV3, BriefStateV3 } from "@/lib/v3/brief/schema";
+import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
 import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
-import { approveSkeleton, getGenerationProgress, startGeneration } from "@/lib/v3/generation/service";
+import { approveSkeleton, getGenerationProgress, restartGeneration, startFromBrief } from "@/lib/v3/generation/service";
 
 const UPLOAD_KINDS: Record<string, "pdf" | "text"> = {
   "application/pdf": "pdf",
@@ -52,6 +58,22 @@ async function kickAfter() {
     return;
   }
   after(() => kickTick(tickUrl("")));
+}
+
+async function requireStaff(): Promise<{ viewer: Viewer; userId: string; schoolId: string } | { error: string }> {
+  if (!v3Enabled()) return notFound;
+  const supabase = await createClient();
+  const viewer = await getViewer(supabase);
+  if (!viewer.user || !isStaff(viewer) || !viewer.membership) return notFound;
+  return { viewer, userId: viewer.user.id, schoolId: viewer.membership.organizationId };
+}
+
+/** Loads a briefing row and checks the caller owns it and the school is allowed. */
+async function requireBriefingRow(adventureId: string, userId: string) {
+  const store = supabaseV3BriefStore(createAdminClient());
+  const row = await store.load(adventureId);
+  if (!row || row.ownerId !== userId || !v3SchoolAllowed(row.schoolId)) return null;
+  return { store, row };
 }
 
 async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocument; storageKey: string } | { error: string }> {
@@ -94,83 +116,139 @@ async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocume
   }
 }
 
-export async function startV3Generation(formData: FormData) {
-  if (!v3Enabled()) return notFound;
-  const supabase = await createClient();
-  const viewer = await getViewer(supabase);
-  if (!viewer.user || !isStaff(viewer) || !viewer.membership) return notFound;
+/** Opens a guided brief — reusing the owner's most recent untouched row if there is one. */
+export async function startV3Brief() {
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
+  if (!v3SchoolAllowed(auth.schoolId)) return notFound;
 
-  const uploads: { doc: ExtractedDocument; storageKey: string }[] = [];
-  const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
-  const bodies = [formData.get("body"), ...formData.getAll("bodies")].map((b) => String(b ?? "").trim()).filter(Boolean);
-  if (files.length === 0 && bodies.length === 0) return { error: "Upload at least one source" };
-
-  // one body and/or files, mirroring v2's extractUpload per entry
-  for (const body of bodies) {
-    const single = new FormData();
-    single.set("body", body);
-    const extracted = await extractUpload(single);
-    if ("error" in extracted) return extracted;
-    uploads.push(extracted);
+  const store = supabaseV3BriefStore(createAdminClient());
+  try {
+    const existing = await store.findUntouched(auth.userId);
+    if (existing) return { adventureId: existing };
+    const adventureId = await store.create({
+      schoolId: auth.schoolId,
+      ownerId: auth.userId,
+    });
+    return { adventureId };
+  } catch (error) {
+    console.error("could not create v3 brief", error);
+    return { error: "Couldn’t start a new adventure. Please try again." };
   }
-  for (const file of files) {
-    const single = new FormData();
-    single.set("file", file);
-    const pages = formData.get(`pages:${file.name}`);
-    if (pages !== null) single.set("pages", String(pages));
-    const extracted = await extractUpload(single);
-    if ("error" in extracted) return extracted;
-    uploads.push(extracted);
+}
+
+export async function v3BriefTurn(adventureId: string, input: BriefInputV3) {
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
+  const context = await requireBriefingRow(adventureId, auth.userId);
+  if (!context || context.row.status !== "briefing" || !context.row.state) return notFound;
+
+  if (!process.env.OPENAI_API_KEY) {
+    console.error("v3 brief assistant unavailable: OPENAI_API_KEY is missing");
+    return { ok: false as const, error: "This feature is temporarily unavailable. Please try again later." };
   }
 
-  const episode = String(formData.get("episode") ?? "");
-  const teacherNotes = String(formData.get("teacherNotes") ?? "").trim();
-  const readingLevel = String(formData.get("readingLevel") ?? "");
-  const mode = String(formData.get("mode") ?? "");
-  if (readingLevel !== "sec" && readingLevel !== "jc") return { error: "Choose a reading level" };
-  if (mode !== "quick" && mode !== "standard") return { error: "Choose a mode" };
+  let documents: ExtractedDocument[];
+  try {
+    documents = await defaultGenerationDeps().sources.load(adventureId);
+  } catch (error) {
+    console.error("could not load v3 brief sources", adventureId, error);
+    return { ok: false as const, error: "Your sources can’t be loaded right now. Please try again later." };
+  }
 
-  const schoolId = viewer.membership.organizationId;
-  const userId = viewer.user.id;
-  const result = await startGeneration(
+  const result = await briefTurnV3(context.row.state, input, {
+    llm: withJsonUsage(new OpenAiLlmClient({ timeoutMs: 90_000 }), {
+      purpose: "brief",
+      organizationId: context.row.schoolId,
+      userId: auth.userId,
+    }),
+    documents,
+  });
+  if (!result.ok) return result;
+  await context.store.save(adventureId, result.state);
+  return result;
+}
+
+/** Adds one uploaded or pasted source to a briefing, deduped against the ids already there. */
+export async function addV3BriefSource(adventureId: string, formData: FormData) {
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
+  const context = await requireBriefingRow(adventureId, auth.userId);
+  if (!context || context.row.status !== "briefing" || !context.row.state) return notFound;
+
+  const extracted = await extractUpload(formData);
+  if ("error" in extracted) return { ok: false as const, error: extracted.error };
+
+  const state = context.row.state;
+  const doc = dedupeUploadIds([
+    ...state.sources.map((source) => ({ doc: { id: source.id } as ExtractedDocument, storageKey: "" })),
+    extracted,
+  ]).at(-1)!.doc;
+
+  try {
+    await defaultGenerationDeps().sources.saveUploads(adventureId, [{ doc, storageKey: extracted.storageKey }]);
+  } catch (error) {
+    console.error("could not save v3 brief source", error);
+    return { ok: false as const, error: "Couldn’t save that source. Please try again." };
+  }
+
+  const next: BriefStateV3 = {
+    ...state,
+    sources: [...state.sources, { id: doc.id, title: doc.title, kind: doc.kind === "pdf" ? "pdf" : "text" }],
+  };
+  await context.store.save(adventureId, next);
+  return { ok: true as const, state: next };
+}
+
+export async function discardV3Brief(adventureId: string) {
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
+  const context = await requireBriefingRow(adventureId, auth.userId);
+  if (!context || context.row.status !== "briefing") return notFound;
+
+  const discarded = await context.store.discard(adventureId);
+  return discarded ? { ok: true as const } : { error: "Couldn’t discard this setup. Please try again." };
+}
+
+/** The confirm slot's "Create": transitions briefing → generating and queues the steps. */
+export async function createFromV3Brief(adventureId: string) {
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
+
+  const result = await startFromBrief(
     defaultGenerationDeps(),
     getJobs(),
-    {
-      userId,
-      schoolId,
-      createAdventure: async () => {
-        const { data, error } = await supabase
-          .from("adventures_v3")
-          .insert({ school_id: schoolId, owner_id: userId })
-          .select("id")
-          .single<{ id: string }>();
-        if (error) throw new Error(error.message);
-        return data.id;
-      },
-    },
-    {
-      episode,
-      ...(teacherNotes !== "" ? { teacherNotes } : {}),
-      readingLevel,
-      mode,
-      uploads: dedupeUploadIds(uploads),
-    },
+    supabaseV3BriefStore(createAdminClient()),
+    auth.userId,
+    adventureId,
     process.env,
   );
   if ("error" in result) return result;
-
   await kickAfter();
   return result;
 }
 
+/** "Start again" on a failed adventure: a fresh briefing row with uploads and the old brief. */
+export async function restartV3Generation(adventureId: string) {
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
+
+  return restartGeneration(
+    defaultGenerationDeps(),
+    supabaseV3BriefStore(createAdminClient()),
+    supabaseJobStore(createAdminClient()),
+    auth.userId,
+    adventureId,
+    process.env,
+  );
+}
+
 export async function approveV3Skeleton(adventureId: string, skeleton?: unknown) {
-  if (!v3Enabled()) return notFound;
-  const supabase = await createClient();
-  const viewer = await getViewer(supabase);
-  if (!viewer.user || !isStaff(viewer)) return notFound;
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
 
   const store = supabaseJobStore(createAdminClient());
-  const result = await approveSkeleton(defaultGenerationDeps(), getJobs(), store, viewer.user.id, adventureId, skeleton, process.env);
+  const result = await approveSkeleton(defaultGenerationDeps(), getJobs(), store, auth.userId, adventureId, skeleton, process.env);
   if ("error" in result) return result;
 
   await kickAfter();
@@ -178,17 +256,16 @@ export async function approveV3Skeleton(adventureId: string, skeleton?: unknown)
 }
 
 export async function getV3GenerationProgress(adventureId: string) {
-  if (!v3Enabled()) return notFound;
-  const supabase = await createClient();
-  const viewer = await getViewer(supabase);
-  if (!viewer.user || !isStaff(viewer)) return notFound;
+  const auth = await requireStaff();
+  if ("error" in auth) return auth;
 
+  const supabase = await createClient();
   // the user's client: RLS covers owner, org admin and sysadmin
   const { data } = await supabase
     .from("adventures_v3")
     .select("id, school_id, owner_id, status")
     .eq("id", adventureId)
-    .maybeSingle<{ id: string; school_id: string; owner_id: string; status: "generating" | "needs_review" | "draft" | "published" | "failed" | "archived" }>();
+    .maybeSingle<{ id: string; school_id: string; owner_id: string; status: "briefing" | "generating" | "needs_review" | "draft" | "published" | "failed" | "archived" }>();
   if (!data) return notFound;
 
   const adventure = { id: data.id, schoolId: data.school_id, ownerId: data.owner_id, status: data.status };

@@ -18,6 +18,7 @@ import { recordLlmUsage, withJsonUsage } from "@/lib/usage/ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import type { GenerationBrief } from "./types";
+import { fakeGenerationPasses } from "./fake-passes";
 
 export interface V3SourceStore {
   /** uploads + outside, in insertion order */
@@ -217,7 +218,9 @@ export function defaultGenerationDeps(): GenerationDeps {
     },
     sources: supabaseV3SourceStore(createAdminClient),
     adventures: supabaseV3AdventureWriter(createAdminClient),
-    passes: { sources: runSources, skeleton: generateSkeleton, details: generateDetails, endings: generateEndings, reveal: generateReveal },
+    passes:
+      // dev-only: V3_FAKE_PASSES swaps in canned passes so the flow runs without OpenAI
+      fakeGenerationPasses() ?? { sources: runSources, skeleton: generateSkeleton, details: generateDetails, endings: generateEndings, reveal: generateReveal },
   };
 }
 

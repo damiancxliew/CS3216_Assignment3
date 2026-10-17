@@ -16,7 +16,10 @@ import { createJobs, memoryJobStore } from "@adventure/jobs";
 import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
 import { memoryV3AdventureWriter, memoryV3SourceStore } from "@/lib/v3/generation/deps";
 import type { GenerationDeps } from "@/lib/v3/generation/deps";
-import { approveSkeleton, getGenerationProgress, startGeneration } from "@/lib/v3/generation/service";
+import { memoryV3BriefStore } from "@/lib/v3/brief/store";
+import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
+import { approveSkeleton, getGenerationProgress, restartGeneration, startFromBrief, viewerSeesCost } from "@/lib/v3/generation/service";
+import { PASS_LABELS, PASS_ORDER, stepDisplayStatus } from "@/lib/v3/generation/labels";
 import { v3GenerationSteps } from "@/lib/v3/generation/steps";
 import type { GenerationBrief } from "@/lib/v3/generation/types";
 
@@ -142,22 +145,43 @@ async function makeJob(overrides: Partial<GenerationDeps["passes"]> = {}) {
   const { deps, sources, adventures, passes } = fakeDeps(overrides);
   const store = memoryJobStore();
   const jobs = createJobs(store, v3GenerationSteps(() => deps));
-  return { deps, sources, adventures, passes, store, jobs };
+  const briefStore = memoryV3BriefStore();
+  return { deps, sources, adventures, passes, store, jobs, briefStore };
 }
 
-function form(mode: "quick" | "standard" = "quick") {
-  return { episode: "Founding of Singapore, 1819", readingLevel: "sec" as const, mode, uploads: [{ doc: uploadDoc, storageKey: "upload:x/handout.txt" }] };
+type Harness = Awaited<ReturnType<typeof makeJob>>;
+
+/** A briefing row with one upload and a draft at the confirm slot — what the chat leaves behind. */
+async function briefingAtConfirm(
+  { briefStore, sources, adventures }: Harness,
+  mode: "quick" | "standard" = "quick",
+  { owner = ownerId, school = schoolId } = {},
+) {
+  const adventureId = await briefStore.create({ schoolId: school, ownerId: owner });
+  adventures.rows.set(adventureId, { row: { id: adventureId, schoolId: school, ownerId: owner, status: "briefing" as const }, spec: null, specVersion: 0 });
+  await sources.saveUploads(adventureId, [{ doc: uploadDoc, storageKey: "upload:x/handout.txt" }]);
+  await briefStore.save(adventureId, {
+    ...initialBriefStateV3(adventureId),
+    draft: {
+      sources: { summary: "A handout about 1819.", episodeProposal: "Founding of Singapore, 1819" },
+      episode: "Founding of Singapore, 1819",
+      focus: "",
+      readingLevel: "sec",
+      mode,
+    },
+    sources: [{ id: "handout", title: "handout", kind: "text" }],
+  });
+  return adventureId;
 }
 
-const ctx = (adventures: ReturnType<typeof memoryV3AdventureWriter>) => ({
-  userId: ownerId,
-  schoolId,
-  createAdventure: async () => {
-    const id = crypto.randomUUID();
-    adventures.rows.set(id, { row: { id, schoolId, ownerId, status: "generating" as const }, spec: null, specVersion: 0 });
-    return id;
-  },
-});
+/** startFromBrief with the harness' own stores — the path the confirm button takes. */
+async function start(harness: Harness, mode: "quick" | "standard" = "quick", options: { owner?: string; school?: string } = {}) {
+  const adventureId = await briefingAtConfirm(harness, mode, options);
+  const result = await startFromBrief(harness.deps, harness.jobs, harness.briefStore, options.owner ?? ownerId, adventureId, env);
+  // the brief store and the writer are two views of one table in production; sync them here
+  if ("ok" in result) harness.adventures.rows.get(adventureId)!.row.status = "generating";
+  return { adventureId, result };
+}
 
 beforeEach(() => {
   process.env.V3_ENABLED = "1";
@@ -166,11 +190,9 @@ beforeEach(() => {
 
 describe("v3 generation job", () => {
   it("quick: runs all six steps in order and lands the spec as a draft", async () => {
-    const { deps, jobs, adventures, sources, passes, store } = await makeJob();
-    const result = await startGeneration(deps, jobs, ctx(adventures), form("quick"), env);
-    expect("adventureId" in result).toBe(true);
-    if (!("adventureId" in result)) return;
-    const adventureId = result.adventureId;
+    const harness = await makeJob();
+    const { deps, jobs, adventures, sources, passes, store } = harness;
+    const { adventureId } = await start(harness, "quick");
 
     const progress = await jobs.drain({ jobId: adventureId });
     expect(progress?.status).toBe("succeeded");
@@ -196,10 +218,9 @@ describe("v3 generation job", () => {
 
   describe("standard", () => {
     it("stops after skeleton with needs_review; approval with an edit resumes to draft", async () => {
-      const { deps, jobs, adventures, passes, store } = await makeJob();
-      const result = await startGeneration(deps, jobs, ctx(adventures), form("standard"), env);
-      if (!("adventureId" in result)) throw new Error("start failed");
-      const adventureId = result.adventureId;
+      const harness = await makeJob();
+      const { deps, jobs, adventures, passes, store } = harness;
+      const { adventureId } = await start(harness, "standard");
 
       await jobs.drain({ jobId: adventureId });
       const adventure = (await adventures.get(adventureId))!;
@@ -220,10 +241,9 @@ describe("v3 generation job", () => {
     });
 
     it("approval without an edit uses the stored skeleton", async () => {
-      const { deps, jobs, adventures, passes, store } = await makeJob();
-      const result = await startGeneration(deps, jobs, ctx(adventures), form("standard"), env);
-      if (!("adventureId" in result)) throw new Error("start failed");
-      const adventureId = result.adventureId;
+      const harness = await makeJob();
+      const { deps, jobs, adventures, passes, store } = harness;
+      const { adventureId } = await start(harness, "standard");
       await jobs.drain({ jobId: adventureId });
 
       expect(await approveSkeleton(deps, jobs, store, ownerId, adventureId, undefined, env)).toEqual({ ok: true });
@@ -235,10 +255,9 @@ describe("v3 generation job", () => {
 
   describe("approveSkeleton guards", () => {
     it("a second approve errors and enqueues nothing; approve while generating errors; non-owner errors", async () => {
-      const { deps, jobs, adventures, store, passes } = await makeJob();
-      const result = await startGeneration(deps, jobs, ctx(adventures), form("standard"), env);
-      if (!("adventureId" in result)) throw new Error("start failed");
-      const adventureId = result.adventureId;
+      const harness = await makeJob();
+      const { deps, jobs, adventures, store, passes } = harness;
+      const { adventureId } = await start(harness, "standard");
 
       // still generating → error
       expect(await approveSkeleton(deps, jobs, store, ownerId, adventureId, undefined, env)).toMatchObject({ error: expect.any(String) });
@@ -254,10 +273,9 @@ describe("v3 generation job", () => {
     });
 
     it("an invalid skeleton returns issues and changes nothing", async () => {
-      const { deps, jobs, adventures, store } = await makeJob();
-      const result = await startGeneration(deps, jobs, ctx(adventures), form("standard"), env);
-      if (!("adventureId" in result)) throw new Error("start failed");
-      const adventureId = result.adventureId;
+      const harness = await makeJob();
+      const { deps, jobs, adventures, store } = harness;
+      const { adventureId } = await start(harness, "standard");
       await jobs.drain({ jobId: adventureId });
 
       const approve = await approveSkeleton(deps, jobs, store, ownerId, adventureId, { bad: true }, env);
@@ -274,10 +292,9 @@ describe("v3 generation job", () => {
       if (calls === 1) throw new Error("transient");
       return (await fakeDeps().passes.details)();
     });
-    const { deps, jobs, adventures, sources, passes } = await makeJob({ details: flakyDetails as never });
-    const result = await startGeneration(deps, jobs, ctx(adventures), form("quick"), env);
-    if (!("adventureId" in result)) throw new Error("start failed");
-    const adventureId = result.adventureId;
+    const harness = await makeJob({ details: flakyDetails as never });
+    const { deps, jobs, adventures, sources, passes } = harness;
+    const { adventureId } = await start(harness, "quick");
 
     const progress = await jobs.drain({ jobId: adventureId });
     expect(progress?.status).toBe("succeeded");
@@ -297,10 +314,9 @@ describe("v3 generation job", () => {
 
   it("a pass that fails on every attempt fails the job and the adventure", async () => {
     const failingSkeleton = vi.fn(async () => ({ ok: false, skeleton: undefined, issues: [{ code: "e1", path: "x", message: "bad skeleton" }], warnings: [], metrics: { calls: [], totalCostUsd: 0 } }));
-    const { deps, jobs, adventures, passes, store } = await makeJob({ skeleton: failingSkeleton as never });
-    const result = await startGeneration(deps, jobs, ctx(adventures), form("quick"), env);
-    if (!("adventureId" in result)) throw new Error("start failed");
-    const adventureId = result.adventureId;
+    const harness = await makeJob({ skeleton: failingSkeleton as never });
+    const { deps, jobs, adventures, passes, store } = harness;
+    const { adventureId } = await start(harness, "quick");
 
     const progress = await jobs.drain({ jobId: adventureId });
     expect(progress?.status).toBe("failed");
@@ -315,31 +331,33 @@ describe("v3 generation job", () => {
 
   describe("flags", () => {
     it("start with V3 off or the school unlisted errors and enqueues nothing", async () => {
-      const { deps, jobs, adventures, store } = await makeJob();
-      const r1 = await startGeneration(deps, jobs, ctx(adventures), form(), { V3_ENABLED: "0" } as NodeJS.ProcessEnv);
+      const harness = await makeJob();
+      const { deps, jobs, adventures, store, briefStore } = harness;
+      const off = await briefingAtConfirm(harness);
+      const r1 = await startFromBrief(deps, jobs, briefStore, ownerId, off, { V3_ENABLED: "0" } as NodeJS.ProcessEnv);
       expect(r1).toMatchObject({ error: expect.any(String) });
-      const r2 = await startGeneration(deps, jobs, ctx(adventures), form(), { V3_ENABLED: "1", V3_SCHOOL_IDS: "other" } as NodeJS.ProcessEnv);
+      const unlisted = await briefingAtConfirm(harness, "quick", { school: "other-school" });
+      const r2 = await startFromBrief(deps, jobs, briefStore, ownerId, unlisted, { V3_ENABLED: "1", V3_SCHOOL_IDS: "other" } as NodeJS.ProcessEnv);
       expect(r2).toMatchObject({ error: expect.any(String) });
-      expect((await store.list("anything")).length).toBe(0);
-      expect(adventures.rows.size).toBe(0);
+      expect((await store.list(off)).length + (await store.list(unlisted)).length).toBe(0);
+      expect([...adventures.rows.values()].every((e) => e.row.status === "briefing")).toBe(true);
     });
 
     it("a step whose school was removed from the allowlist throws", async () => {
-      const { deps, jobs, adventures } = await makeJob();
-      const result = await startGeneration(deps, jobs, ctx(adventures), form("quick"), env);
-      if (!("adventureId" in result)) throw new Error("start failed");
+      const harness = await makeJob();
+      const { jobs } = harness;
+      const { adventureId } = await start(harness, "quick");
       process.env.V3_SCHOOL_IDS = "other-school";
-      const progress = await jobs.drain({ jobId: result.adventureId });
+      const progress = await jobs.drain({ jobId: adventureId });
       expect(progress?.status).toBe("failed");
       expect(progress?.steps[0]?.error).toContain("not enabled");
     });
   });
 
   it("progress sums costUsd and tags warnings with their pass", async () => {
-    const { deps, jobs, adventures, store } = await makeJob();
-    const result = await startGeneration(deps, jobs, ctx(adventures), form("quick"), env);
-    if (!("adventureId" in result)) throw new Error("start failed");
-    const adventureId = result.adventureId;
+    const harness = await makeJob();
+    const { deps, jobs, adventures, store } = harness;
+    const { adventureId } = await start(harness, "quick");
     await jobs.drain({ jobId: adventureId });
 
     const progress = await getGenerationProgress(deps, jobs, store, (await adventures.get(adventureId))!);
@@ -352,21 +370,14 @@ describe("v3 generation job", () => {
     expect(progress.steps).toHaveLength(6);
   });
 
-  it("fails the adventure instead of orphaning it when saveUploads throws", async () => {
-    const { deps, jobs, adventures, sources, store } = await makeJob();
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(sources, "saveUploads").mockRejectedValue(new Error("sources_v3 is not available yet"));
-
-    const result = await startGeneration(deps, jobs, ctx(adventures), form("quick"), env);
-    expect("error" in result && result.error).toBe("Couldn't start generation. Please try again.");
-
-    const entry = [...adventures.rows.values()][0]!;
-    expect(entry.row.status).toBe("failed");
-    // nothing enqueued
-    await expect(store.list(entry.row.id)).resolves.toEqual([]);
-    await expect(jobs.getProgress(entry.row.id)).resolves.toBeNull();
-    expect(consoleError).toHaveBeenCalled();
-    consoleError.mockRestore();
+  it("double-clicking Create starts once: the second call errors and enqueues nothing", async () => {
+    const harness = await makeJob();
+    const { deps, jobs, briefStore, store } = harness;
+    const adventureId = await briefingAtConfirm(harness);
+    expect(await startFromBrief(deps, jobs, briefStore, ownerId, adventureId, env)).toEqual({ ok: true });
+    const second = await startFromBrief(deps, jobs, briefStore, ownerId, adventureId, env);
+    expect(second).toMatchObject({ error: "not awaiting confirmation" });
+    expect((await store.list(adventureId)).map((r) => r.name)).toEqual(PASS_ORDER.slice());
   });
 });
 
@@ -383,5 +394,118 @@ describe("dedupeUploadIds", () => {
     expect(dedupeUploadIds(uploads).map((u) => u.doc.id)).toEqual(["pasted-source", "handout", "pasted-source-2", "handout-2", "pasted-source-3"]);
     // originals untouched
     expect(uploads[0]!.doc.id).toBe("pasted-source");
+  });
+});
+
+describe("startFromBrief guards", () => {
+  it("non-owner, wrong school env, not briefing and incomplete drafts error", async () => {
+    const harness = await makeJob();
+    const { deps, jobs, briefStore } = harness;
+
+    const id = await briefingAtConfirm(harness);
+    expect(await startFromBrief(deps, jobs, briefStore, "someone-else", id, env)).toMatchObject({ error: "not_found" });
+    expect(await startFromBrief(deps, jobs, briefStore, ownerId, id, { V3_ENABLED: "0" } as NodeJS.ProcessEnv)).toMatchObject({ error: "not_found" });
+
+    // incomplete draft (mode unset) stays briefing
+    const partial = await briefStore.create({ schoolId, ownerId });
+    const partialRow = (await briefStore.load(partial))!;
+    await briefStore.save(partial, {
+      ...partialRow.state!,
+      draft: { sources: { summary: "s", episodeProposal: "e" }, episode: "e", focus: "", readingLevel: "sec" },
+      sources: [{ id: "handout", title: "handout", kind: "text" }],
+    });
+    expect(await startFromBrief(deps, jobs, briefStore, ownerId, partial, env)).toMatchObject({ error: expect.any(String) });
+    expect((await briefStore.load(partial))!.status).toBe("briefing");
+  });
+
+  it("sets the title, clears the brief, and enqueues 6 steps for quick / 2 for standard", async () => {
+    const harness = await makeJob();
+    const { deps, jobs, briefStore, store } = harness;
+
+    const quick = await briefingAtConfirm(harness, "quick");
+    expect(await startFromBrief(deps, jobs, briefStore, ownerId, quick, env)).toEqual({ ok: true });
+    const quickRow = (await briefStore.load(quick))!;
+    expect(quickRow.status).toBe("generating");
+    expect((quickRow as { title?: string }).title ?? (await briefStore.listForOwner(ownerId)).find((r) => r.id === quick)?.title).toBe("Founding of Singapore, 1819");
+    expect(quickRow.state).toBeNull();
+    expect((await store.list(quick)).map((r) => r.name)).toEqual(["sources", "skeleton", "details", "endings", "reveal", "save"]);
+
+    const standard = await briefingAtConfirm(harness, "standard");
+    expect(await startFromBrief(deps, jobs, briefStore, ownerId, standard, env)).toEqual({ ok: true });
+    expect((await store.list(standard)).map((r) => r.name)).toEqual(["sources", "skeleton"]);
+  });
+});
+
+describe("restartGeneration", () => {
+  it("copies the uploads and reopens the old brief at confirm", async () => {
+    const harness = await makeJob({ skeleton: vi.fn(async () => ({ ok: false, skeleton: undefined, issues: [{ code: "e", path: "x", message: "no" }], warnings: [], metrics: { calls: [], totalCostUsd: 0 } })) as never });
+    const { deps, jobs, briefStore, sources, store } = harness;
+    const { adventureId } = await start(harness, "quick");
+    await jobs.drain({ jobId: adventureId });
+
+    const result = await restartGeneration(deps, briefStore, store, ownerId, adventureId, env);
+    if (!("adventureId" in result)) throw new Error(`restart failed: ${result.error}`);
+
+    const row = (await briefStore.load(result.adventureId))!;
+    expect(row.status).toBe("briefing");
+    // uploads carried over (the outside doc the sources pass saved comes too — idempotent)
+    expect((await sources.load(result.adventureId)).map((d) => d.id)).toEqual(["handout", "outside-1"]);
+    // the old brief is at the confirm slot
+    expect(row.state?.draft.episode).toBe("Founding of Singapore, 1819");
+    expect(row.state?.draft.mode).toBe("quick");
+    expect(row.state?.sources.map((s) => s.id)).toEqual(["handout", "outside-1"]);
+    expect(row.state?.messages.at(-1)?.slot).toBe("confirm");
+  });
+});
+
+describe("findUntouched", () => {
+  it("returns the owner's most recent briefing row with 0 sources and no user messages", async () => {
+    const { briefStore } = await makeJob();
+    const first = await briefStore.create({ schoolId, ownerId });
+    const second = await briefStore.create({ schoolId, ownerId });
+    expect(await briefStore.findUntouched(ownerId)).toBe(second);
+
+    // a user message or a source makes a row "touched"
+    const secondRow = (await briefStore.load(second))!;
+    await briefStore.save(second, {
+      ...secondRow.state!,
+      messages: [...secondRow.state!.messages, { role: "user", text: "hi", slot: "sources" }],
+    });
+    expect(await briefStore.findUntouched(ownerId)).toBe(first);
+
+    const firstRow = (await briefStore.load(first))!;
+    await briefStore.save(first, { ...firstRow.state!, sources: [{ id: "s", title: "s", kind: "text" }] });
+    expect(await briefStore.findUntouched(ownerId)).toBeNull();
+
+    // non-briefing rows and other owners don't count
+    expect(await briefStore.findUntouched("someone-else")).toBeNull();
+  });
+});
+
+describe("labels and cost visibility", () => {
+  it("maps every pass name to a label and row statuses to display statuses", () => {
+    expect(PASS_ORDER.map((name) => PASS_LABELS[name])).toEqual([
+      "Sources",
+      "Skeleton",
+      "Stage details and personas",
+      "Endings",
+      "Reveal",
+      "Checks",
+    ]);
+    expect(stepDisplayStatus(undefined)).toBe("waiting");
+    expect(stepDisplayStatus("pending")).toBe("waiting");
+    expect(stepDisplayStatus("ready")).toBe("waiting");
+    expect(stepDisplayStatus("running")).toBe("running");
+    expect(stepDisplayStatus("succeeded")).toBe("done");
+    expect(stepDisplayStatus("failed")).toBe("failed");
+  });
+
+  it("viewerSeesCost is true only for school admins and sysadmins", () => {
+    const teacher = { membership: { role: "teacher" }, isSysadmin: false };
+    const admin = { membership: { role: "admin" }, isSysadmin: false };
+    const sysadmin = { membership: { role: "teacher" }, isSysadmin: true };
+    expect(viewerSeesCost(teacher as never)).toBe(false);
+    expect(viewerSeesCost(admin as never)).toBe(true);
+    expect(viewerSeesCost(sysadmin as never)).toBe(true);
   });
 });
