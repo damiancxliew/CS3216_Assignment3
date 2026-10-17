@@ -210,12 +210,9 @@ export function momentIssues(output: MomentLlmOutput, ctx: MomentContext): { err
           if (atom.kind === 'stanceAtLeast' && hiddenStances.get(atom.characterId ?? '')?.has(atom.stanceId ?? ''))
             errors.push(issue('historical-hidden', `${at}.when.${j}`, 'the historical path may not depend on reaching a hidden stance'))
         }
-        if (!historicalOutcomes.has(rule.outcomeId)) {
-          // good play must never close the historical ending: a positive condition diverting it is an error
-          const message = `conditional rule routes the historical act '${rule.actId}' away from the historical outcome`
-          if (rule.when.some((atom) => !atom.negate)) errors.push(issue('historical-diverted', at, message))
-          else warnings.push(issue('historical-diverted', at, message))
-        }
+        // the historical act always leads to the historical outcome: no rule may divert it, positive or negated
+        if (!historicalOutcomes.has(rule.outcomeId))
+          errors.push(issue('historical-diverted', at, `conditional rule routes the historical act '${rule.actId}' away from the historical outcome`))
       }
     }
     if (rule.when.length < 1 || rule.when.length > 3) errors.push(issue('rule-when', `${at}.when`, `a conditional rule needs 1–3 conditions (has ${rule.when.length})`))
