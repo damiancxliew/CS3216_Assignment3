@@ -755,11 +755,21 @@ describe('final check-and-repair (#209)', () => {
     expect(llm.requests[0]!.request.user).toContain('raffles-nope')
   })
 
+  it("redoes a part whose own check still reports issues, though the spec checks clean", async () => {
+    const result = await generated()
+    const missed = { code: 'core-condition', path: 'coreConditions', message: "skeleton core discovery 'd-treaty' held by 'raffles' has no coreCondition" }
+    const parts = { ...result.parts, 'persona:raffles': { output: rafflesOutput, issues: [missed] } }
+    const llm = new RoutingLlm({ 'persona raffles': [{ json: rafflesOutput }] })
+    const repair = await finalRepair({ skeleton, documents: [doc], parts }, { llm })
+    expect(repair).toMatchObject({ errors: [], partErrors: [], repaired: ['persona:raffles'] })
+    expect(llm.requests[0]!.request.user).toContain('has no coreCondition')
+  })
+
   it('does nothing on a clean spec', async () => {
     const result = await generated()
     const llm = new RoutingLlm({})
     const repair = await finalRepair({ skeleton, documents: [doc], parts: result.parts }, { llm })
-    expect(repair).toMatchObject({ errors: [], unresolved: [], repaired: [] })
+    expect(repair).toMatchObject({ errors: [], unresolved: [], partErrors: [], repaired: [] })
     expect(llm.requests).toEqual([])
   })
 })

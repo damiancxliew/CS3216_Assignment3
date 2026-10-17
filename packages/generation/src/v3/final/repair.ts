@@ -1,6 +1,6 @@
 /**
  * The final check-and-repair (#209): assemble the spec from saved parts, check it, redo each blamed part once from its
- * saved output (in parallel), reassemble and check again. It never throws on check errors: what is left is returned
+ * saved output (in parallel), reassemble and check again. A part whose own check still reports issues is redone too. It never throws on check errors: what is left is returned
  * for the teacher, and publish refuses a spec with errors.
  */
 import { checkSpec, validateSpec } from '@adventure/spec-v3'
@@ -35,6 +35,8 @@ export interface FinalRepairResult {
   errors: CheckIssue[]
   /** the left errors no part can be blamed for */
   unresolved: CheckIssue[]
+  /** what each part's own check still reports, e.g. an obligation to the skeleton it missed; the spec check can't see these */
+  partErrors: { part: string; issue: CheckIssue }[]
   /** parts redone, in the order they were blamed */
   repaired: string[]
   metrics: { calls: DetailCallMetrics[]; totalCostUsd: number }
@@ -90,6 +92,9 @@ function rerunPart(id: string, from: PartResume, input: FinalRepairInput, assemb
   }
 }
 
+const partErrorsOf = (parts: Parts) => Object.entries(parts).flatMap(([part, record]) => record.issues.map((issue) => ({ part, issue })))
+const issueKey = (i: CheckIssue) => `${i.code}|${i.path}|${i.message}`
+
 export async function finalRepair(input: FinalRepairInput, opts: DetailCallOptions): Promise<FinalRepairResult> {
   const calls: DetailCallMetrics[] = []
   const metrics = () => ({ calls, totalCostUsd: calls.reduce((sum, c) => sum + (c.costUsd ?? 0), 0) })
@@ -107,7 +112,11 @@ export async function finalRepair(input: FinalRepairInput, opts: DetailCallOptio
   const assembled = assembleSpec(input)
   const errors = specErrors(assembled.spec)
   const { blamed, unresolved } = blameAll(assembled.spec, input.parts, errors)
-  if (blamed.size === 0) return { spec: assembled.spec, parts: input.parts, errors, unresolved, repaired: [], metrics: metrics() }
+  for (const { part, issue } of partErrorsOf(input.parts)) {
+    const list = blamed.get(part) ?? []
+    if (!list.some((i) => issueKey(i) === issueKey(issue))) blamed.set(part, [...list, issue])
+  }
+  if (blamed.size === 0) return { spec: assembled.spec, parts: input.parts, errors, unresolved, partErrors: [], repaired: [], metrics: metrics() }
 
   const parts: Parts = { ...input.parts }
   const repaired = [...blamed.keys()]
@@ -123,5 +132,5 @@ export async function finalRepair(input: FinalRepairInput, opts: DetailCallOptio
 
   const reassembled = assembleSpec({ ...input, parts })
   const left = specErrors(reassembled.spec)
-  return { spec: reassembled.spec, parts, errors: left, unresolved: blameAll(reassembled.spec, parts, left).unresolved, repaired, metrics: metrics() }
+  return { spec: reassembled.spec, parts, errors: left, unresolved: blameAll(reassembled.spec, parts, left).unresolved, partErrors: partErrorsOf(parts), repaired, metrics: metrics() }
 }

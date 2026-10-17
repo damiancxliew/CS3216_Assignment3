@@ -152,13 +152,14 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
     "v3.gen.check",
     guarded(2, async (ctx, deps, brief) => {
       const reveal = ctx.outputs.reveal as unknown as { spec: AdventureSpec; parts?: Parts };
-      const errors = specErrors(reveal.spec);
-      const asIs = { spec: reveal.spec, errors, repaired: [], costUsd: 0 };
-      if (errors.length === 0) return asIs as unknown as Json;
       const details = ctx.outputs.details as unknown as { skeleton?: SkeletonShape; parts?: Parts };
-      // outputs from before parts were saved: nothing to redo
-      if (details.skeleton === undefined || details.parts === undefined) return asIs as unknown as Json;
       const endings = ctx.outputs.endings as unknown as { parts?: Parts };
+      const errors = specErrors(reveal.spec);
+      // outputs from before parts were saved have nothing to redo
+      const parts = details.parts !== undefined ? { ...details.parts, ...endings.parts, ...reveal.parts } : undefined;
+      const partErrors = Object.entries(parts ?? {}).flatMap(([part, record]) => record.issues.map((issue) => ({ part, issue })));
+      const asIs = { spec: reveal.spec, errors, partErrors, repaired: [], costUsd: 0 };
+      if ((errors.length === 0 && partErrors.length === 0) || parts === undefined || details.skeleton === undefined) return asIs as unknown as Json;
       const documents = await deps.sources.load(brief.adventureId);
       const result = await deps.passes.check(
         {
@@ -166,12 +167,15 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
           documents,
           readingLevel: brief.readingLevel,
           ...(brief.timerMinutes !== undefined ? { timerMinutes: brief.timerMinutes } : {}),
-          parts: { ...details.parts, ...endings.parts, ...reveal.parts },
+          parts,
         },
         { llm: deps.llm(brief) },
       );
       // a repair that leaves more errors than it found is dropped
-      const kept = result.errors.length <= errors.length ? { spec: result.spec, errors: result.errors } : { spec: reveal.spec, errors };
+      const kept =
+        result.errors.length + result.partErrors.length <= errors.length + partErrors.length
+          ? { spec: result.spec, errors: result.errors, partErrors: result.partErrors }
+          : { spec: reveal.spec, errors, partErrors };
       return { ...kept, repaired: result.repaired, costUsd: result.metrics.totalCostUsd } as unknown as Json;
     }),
     { maxAttempts: 2 },

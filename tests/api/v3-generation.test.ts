@@ -147,7 +147,7 @@ function fakeDeps(overrides: Partial<GenerationDeps["passes"]> = {}) {
       metrics: { calls: [], totalCostUsd: 0.3 },
     })),
     reveal: vi.fn(async () => ({ ok: true, spec, issues: [], warnings: [], pendingPasses: [], metrics: { calls: [], totalCostUsd: 0.4 } })),
-    check: vi.fn(async (input: { parts: unknown }) => ({ spec, parts: input.parts, errors: [], unresolved: [], repaired: [], metrics: { calls: [], totalCostUsd: 0 } })),
+    check: vi.fn(async (input: { parts: unknown }) => ({ spec, parts: input.parts, errors: [], unresolved: [], partErrors: [], repaired: [], metrics: { calls: [], totalCostUsd: 0 } })),
     ...overrides,
   };
   const deps: GenerationDeps = {
@@ -406,7 +406,7 @@ describe("v3 generation job", () => {
 
     it("leftover errors don't fail a pass: check redoes the blamed parts and the draft is saved with what's left", async () => {
       const draft = broken();
-      const check = vi.fn(async (input: { parts: unknown }) => ({ spec: draft, parts: input.parts, errors: [leftover], unresolved: [leftover], repaired: ["reveal"], metrics: { calls: [], totalCostUsd: 0.05 } }));
+      const check = vi.fn(async (input: { parts: unknown }) => ({ spec: draft, parts: input.parts, errors: [leftover], unresolved: [leftover], partErrors: [], repaired: ["reveal"], metrics: { calls: [], totalCostUsd: 0.05 } }));
       const harness = await makeJob({ ...withLeftovers(draft), check: check as never });
       const { deps, jobs, adventures, store } = harness;
       const { adventureId } = await start(harness, "quick");
@@ -427,10 +427,24 @@ describe("v3 generation job", () => {
       expect(report.costUsd).toBeCloseTo(0.001 + 0.1 + 0.2 + 0.3 + 0.4 + 0.05);
     });
 
+    it("a clean spec with a part whose own check still has issues goes through the repair", async () => {
+      const { details } = withLeftovers(spec);
+      const harness = await makeJob({ details });
+      const { deps, jobs, adventures, passes, store } = harness;
+      const { adventureId } = await start(harness, "quick");
+
+      expect((await jobs.drain({ jobId: adventureId }))?.status).toBe("succeeded");
+      expect(passes.check).toHaveBeenCalledOnce();
+      expect(Object.keys((passes.check.mock.calls[0]![0] as { parts: object }).parts)).toEqual(["stage:s1"]);
+      const report = await getGenerationProgress(deps, jobs, store, (await adventures.get(adventureId))!);
+      expect(report.checkErrors).toEqual([]);
+    });
+
     it("a repair that leaves more errors than it found is dropped", async () => {
       const draft = broken();
-      const many = Array.from({ length: checkSpec(draft).errors.length + 1 }, () => leftover);
-      const check = vi.fn(async (input: { parts: unknown }) => ({ spec, parts: input.parts, errors: many, unresolved: [], repaired: ["reveal"], metrics: { calls: [], totalCostUsd: 0 } }));
+      // more than the spec errors plus the stage part's own issue
+      const many = Array.from({ length: checkSpec(draft).errors.length + 2 }, () => leftover);
+      const check = vi.fn(async (input: { parts: unknown }) => ({ spec, parts: input.parts, errors: many, unresolved: [], partErrors: [], repaired: ["reveal"], metrics: { calls: [], totalCostUsd: 0 } }));
       const harness = await makeJob({ ...withLeftovers(draft), check: check as never });
       const { jobs, adventures } = harness;
       const { adventureId } = await start(harness, "quick");

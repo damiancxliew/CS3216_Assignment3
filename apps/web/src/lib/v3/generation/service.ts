@@ -287,7 +287,12 @@ export async function getGenerationProgress(
     steps: (progress?.steps ?? []).map((s) => ({ name: s.name, status: s.status, attempts: s.attempts, error: s.error })),
     costUsd,
     warnings,
-    ...(outputs.check !== undefined ? { checkErrors: (outputs.check as { errors?: CheckIssue[] }).errors ?? [] } : {}),
+    ...(outputs.check !== undefined
+      ? (() => {
+          const check = outputs.check as { errors?: CheckIssue[]; partErrors?: { part: string; issue: CheckIssue }[] };
+          return { checkErrors: [...(check.errors ?? []), ...(check.partErrors ?? []).map(({ part, issue }) => ({ ...issue, path: `${part}/${issue.path}` }))] };
+        })()
+      : {}),
     ...(adventure.status === "needs_review"
       ? await (async () => {
           const draft = await deps.adventures.loadSkeletonDraft(adventure.id);
