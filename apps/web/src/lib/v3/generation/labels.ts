@@ -1,5 +1,5 @@
 /** Display labels for the generation passes, in pipeline order. */
-export const PASS_ORDER = ["sources", "skeleton", "details", "endings", "reveal", "save"] as const;
+export const PASS_ORDER = ["sources", "skeleton", "details", "endings", "reveal", "check", "save"] as const;
 export type PassName = (typeof PASS_ORDER)[number];
 
 export const PASS_LABELS: Record<PassName, string> = {
@@ -8,7 +8,8 @@ export const PASS_LABELS: Record<PassName, string> = {
   details: "Stage details and personas",
   endings: "Endings",
   reveal: "Reveal",
-  save: "Checks",
+  check: "Checks",
+  save: "Saving",
 };
 
 export type StepDisplayStatus = "waiting" | "running" | "done" | "failed";

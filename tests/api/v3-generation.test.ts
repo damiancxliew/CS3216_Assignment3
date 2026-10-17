@@ -147,6 +147,7 @@ function fakeDeps(overrides: Partial<GenerationDeps["passes"]> = {}) {
       metrics: { calls: [], totalCostUsd: 0.3 },
     })),
     reveal: vi.fn(async () => ({ ok: true, spec, issues: [], warnings: [], pendingPasses: [], metrics: { calls: [], totalCostUsd: 0.4 } })),
+    check: vi.fn(async (input: { parts: unknown }) => ({ spec, parts: input.parts, errors: [], unresolved: [], repaired: [], metrics: { calls: [], totalCostUsd: 0 } })),
     ...overrides,
   };
   const deps: GenerationDeps = {
@@ -214,14 +215,14 @@ beforeEach(() => {
 });
 
 describe("v3 generation job", () => {
-  it("quick: runs all six steps in order and lands the spec as a draft", async () => {
+  it("quick: runs all seven steps in order and lands the spec as a draft", async () => {
     const harness = await makeJob();
     const { deps, jobs, adventures, sources, passes, store, queuePortraits } = harness;
     const { adventureId } = await start(harness, "quick");
 
     const progress = await jobs.drain({ jobId: adventureId });
     expect(progress?.status).toBe("succeeded");
-    expect(progress?.steps.map((s) => s.name)).toEqual(["sources", "skeleton", "details", "endings", "reveal", "save"]);
+    expect(progress?.steps.map((s) => s.name)).toEqual(["sources", "skeleton", "details", "endings", "reveal", "check", "save"]);
     expect(progress?.steps.every((s) => s.status === "succeeded")).toBe(true);
 
     // each pass got the uploads plus the outside docs
@@ -233,6 +234,8 @@ describe("v3 generation job", () => {
     // reveal received details' slantedDocuments; saveSpec got the reveal spec
     expect(passes.reveal.mock.calls[0]![0].slantedDocuments).toEqual([{ stageId: "s1", documentId: "doc-1", note: "slanted" }]);
     expect(passes.reveal.mock.calls[0]![0].draft).toBe(spec);
+    // a clean spec skips the final repair
+    expect(passes.check).not.toHaveBeenCalled();
     const entry = adventures.rows.get(adventureId)!;
     expect(entry.row.status).toBe("draft");
     expect(entry.spec).toEqual(spec);
@@ -379,6 +382,64 @@ describe("v3 generation job", () => {
     expect(v1).toBe(v2);
   });
 
+  describe("final check-and-repair (#209)", () => {
+    const broken = () => {
+      const out = structuredClone(spec);
+      out.documents = [];
+      expect(checkSpec(out).errors.length).toBeGreaterThan(1);
+      return out;
+    };
+    const leftover = { code: "ref", path: "discoveries.0.holder", message: "left over" };
+    const withLeftovers = (draft: typeof spec) => ({
+      details: vi.fn(async () => ({
+        ok: false,
+        draft: spec,
+        issues: [leftover],
+        warnings: [],
+        slantedDocuments: [],
+        mergedDuplicates: [],
+        parts: { "stage:s1": { output: { stage: 1 }, issues: [leftover] } },
+        metrics: { calls: [], totalCostUsd: 0.2 },
+      })) as never,
+      reveal: vi.fn(async () => ({ ok: false, spec: draft, issues: [leftover], warnings: [], parts: { reveal: { output: { reveal: 1 }, issues: [] } }, metrics: { calls: [], totalCostUsd: 0.4 } })) as never,
+    });
+
+    it("leftover errors don't fail a pass: check redoes the blamed parts and the draft is saved with what's left", async () => {
+      const draft = broken();
+      const check = vi.fn(async (input: { parts: unknown }) => ({ spec: draft, parts: input.parts, errors: [leftover], unresolved: [leftover], repaired: ["reveal"], metrics: { calls: [], totalCostUsd: 0.05 } }));
+      const harness = await makeJob({ ...withLeftovers(draft), check: check as never });
+      const { deps, jobs, adventures, store } = harness;
+      const { adventureId } = await start(harness, "quick");
+
+      const progress = await jobs.drain({ jobId: adventureId });
+      expect(progress?.status).toBe("succeeded");
+      expect(check).toHaveBeenCalledOnce();
+      const input = check.mock.calls[0]![0] as unknown as { skeleton: { title: string }; parts: Record<string, unknown>; timerMinutes?: number };
+      expect(Object.keys(input.parts).sort()).toEqual(["reveal", "stage:s1"]);
+      expect(input.skeleton.title).toBe(skeleton.title);
+      expect(input.timerMinutes).toBe(45);
+
+      const entry = adventures.rows.get(adventureId)!;
+      expect(entry.row.status).toBe("draft");
+      expect(entry.spec).toEqual(draft);
+      const report = await getGenerationProgress(deps, jobs, store, (await adventures.get(adventureId))!);
+      expect(report.checkErrors).toEqual([leftover]);
+      expect(report.costUsd).toBeCloseTo(0.001 + 0.1 + 0.2 + 0.3 + 0.4 + 0.05);
+    });
+
+    it("a repair that leaves more errors than it found is dropped", async () => {
+      const draft = broken();
+      const many = Array.from({ length: checkSpec(draft).errors.length + 1 }, () => leftover);
+      const check = vi.fn(async (input: { parts: unknown }) => ({ spec, parts: input.parts, errors: many, unresolved: [], repaired: ["reveal"], metrics: { calls: [], totalCostUsd: 0 } }));
+      const harness = await makeJob({ ...withLeftovers(draft), check: check as never });
+      const { jobs, adventures } = harness;
+      const { adventureId } = await start(harness, "quick");
+
+      expect((await jobs.drain({ jobId: adventureId }))?.status).toBe("succeeded");
+      expect(adventures.rows.get(adventureId)!.spec).toEqual(draft);
+    });
+  });
+
   it("a pass that fails on every attempt fails the job and the adventure", async () => {
     const failingSkeleton = vi.fn(async () => ({ ok: false, skeleton: undefined, issues: [{ code: "e1", path: "x", message: "bad skeleton" }], warnings: [], metrics: { calls: [], totalCostUsd: 0 } }));
     const harness = await makeJob({ skeleton: failingSkeleton as never });
@@ -434,7 +495,7 @@ describe("v3 generation job", () => {
       expect.objectContaining({ code: "w1", pass: "details" }),
       expect.objectContaining({ code: "w2", pass: "endings" }),
     ]);
-    expect(progress.steps).toHaveLength(6);
+    expect(progress.steps).toHaveLength(7);
   });
 
   it("double-clicking Create starts once: the second call errors and enqueues nothing", async () => {
@@ -485,7 +546,7 @@ describe("startFromBrief guards", () => {
     expect((await briefStore.load(partial))!.status).toBe("briefing");
   });
 
-  it("sets the title, clears the brief, and enqueues 6 steps for quick / 2 for standard", async () => {
+  it("sets the title, clears the brief, and enqueues 7 steps for quick / 2 for standard", async () => {
     const harness = await makeJob();
     const { deps, jobs, briefStore, store } = harness;
 
@@ -495,7 +556,7 @@ describe("startFromBrief guards", () => {
     expect(quickRow.status).toBe("generating");
     expect((quickRow as { title?: string }).title ?? (await briefStore.listForOwner(ownerId)).find((r) => r.id === quick)?.title).toBe("Founding of Singapore, 1819");
     expect(quickRow.state).toBeNull();
-    expect((await store.list(quick)).map((r) => r.name)).toEqual(["sources", "skeleton", "details", "endings", "reveal", "save"]);
+    expect((await store.list(quick)).map((r) => r.name)).toEqual(["sources", "skeleton", "details", "endings", "reveal", "check", "save"]);
 
     const standard = await briefingAtConfirm(harness, "standard");
     expect(await startFromBrief(deps, jobs, briefStore, ownerId, standard, env)).toEqual({ ok: true });
@@ -559,6 +620,7 @@ describe("labels and cost visibility", () => {
       "Endings",
       "Reveal",
       "Checks",
+      "Saving",
     ]);
     expect(stepDisplayStatus(undefined)).toBe("waiting");
     expect(stepDisplayStatus("pending")).toBe("waiting");

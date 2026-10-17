@@ -13,6 +13,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { validateSkeleton, validateSpec } from "@adventure/spec-v3";
+import { finalRepair } from "@adventure/generation/v3";
 import type { AdventureSpec, SkeletonShape } from "@adventure/spec-v3";
 import type { ExtractedDocument, OutsideSource } from "@adventure/generation";
 
@@ -191,6 +192,8 @@ export function fakeGenerationPasses(env: NodeJS.ProcessEnv = process.env): Gene
         metrics: { calls: [], totalCostUsd: FAKE_COST },
       };
     },
+    // the fake specs check clean, so the final repair is never reached
+    check: finalRepair,
     reveal: async () => {
       await sleep(FAKE_DELAY_MS);
       if (failAt === "reveal") return { ok: false as const, issues: failIssue("reveal"), warnings: [], metrics: { calls: [], totalCostUsd: FAKE_COST } };

@@ -23,7 +23,7 @@ export type StepStore = { list(jobId: string): Promise<JobStep[]>; outputs(jobId
 
 const STEP_INPUT = (brief: GenerationBrief): Json => brief as unknown as Json;
 
-const QUICK_STEPS = ["sources", "skeleton", "details", "endings", "reveal", "save"] as const;
+const QUICK_STEPS = ["sources", "skeleton", "details", "endings", "reveal", "check", "save"] as const;
 const STANDARD_STEPS = ["sources", "skeleton"] as const;
 
 const STEP_DEPS: Record<string, string[]> = {
@@ -31,7 +31,8 @@ const STEP_DEPS: Record<string, string[]> = {
   details: ["skeleton"],
   endings: ["details"],
   reveal: ["details", "endings"],
-  save: ["reveal"],
+  check: ["details", "endings", "reveal"],
+  save: ["check"],
 };
 
 /** Enqueues the generation steps for a confirmed brief. The caller owns the row's status. */
@@ -241,9 +242,10 @@ export async function approveSkeleton(
         { name: "details", step: "v3.gen.details", input: { brief, ...(edited !== undefined ? { skeleton: edited } : {}) } as unknown as Json },
         { name: "endings", step: "v3.gen.endings", input: STEP_INPUT(brief) },
         { name: "reveal", step: "v3.gen.reveal", input: STEP_INPUT(brief) },
+        { name: "check", step: "v3.gen.check", input: STEP_INPUT(brief) },
         { name: "save", step: "v3.gen.save", input: STEP_INPUT(brief) },
       ],
-      { details: ["skeleton"], endings: ["details"], reveal: ["details", "endings"], save: ["reveal"] },
+      { details: ["skeleton"], endings: ["details"], reveal: ["details", "endings"], check: ["details", "endings", "reveal"], save: ["check"] },
     );
   } catch (error) {
     await deps.adventures.setStatus(adventureId, "needs_review", ["generating"]);
@@ -258,6 +260,8 @@ export interface GenerationProgress {
   steps: { name: string; status: string; attempts: number; error: string | null }[];
   costUsd: number;
   warnings: (CheckIssue & { pass: string })[];
+  /** errors left after the final check-and-repair; the review screen shows them (#209) */
+  checkErrors?: CheckIssue[];
   skeleton?: unknown;
   /** a saved teacher draft exists for this skeleton */
   hasDraft?: boolean;
@@ -271,7 +275,7 @@ export async function getGenerationProgress(
   adventure: V3AdventureRow,
 ): Promise<GenerationProgress> {
   const progress = await jobs.getProgress(adventure.id);
-  const outputs = await store.outputs(adventure.id, ["sources", "skeleton", "details", "endings", "reveal", "save"]);
+  const outputs = await store.outputs(adventure.id, ["sources", "skeleton", "details", "endings", "reveal", "check", "save"]);
   const costUsd = Object.values(outputs).reduce((sum: number, output) => sum + (((output ?? null) as { costUsd?: number | null } | null)?.costUsd ?? 0), 0);
   const warnings: (CheckIssue & { pass: string })[] = [];
   for (const pass of ["details", "endings", "reveal"] as const) {
@@ -283,6 +287,7 @@ export async function getGenerationProgress(
     steps: (progress?.steps ?? []).map((s) => ({ name: s.name, status: s.status, attempts: s.attempts, error: s.error })),
     costUsd,
     warnings,
+    ...(outputs.check !== undefined ? { checkErrors: (outputs.check as { errors?: CheckIssue[] }).errors ?? [] } : {}),
     ...(adventure.status === "needs_review"
       ? await (async () => {
           const draft = await deps.adventures.loadSkeletonDraft(adventure.id);

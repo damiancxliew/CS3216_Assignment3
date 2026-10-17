@@ -13,7 +13,7 @@ import { OpenAiLlmClient } from "@adventure/generation/llm";
 import type { OutsideSource } from "@adventure/generation";
 import { createOpenAiWebSearch, runSources } from "@adventure/generation";
 import type { WebSearchClient } from "@adventure/generation";
-import { generateDetails, generateEndings, generateReveal, generateSkeleton } from "@adventure/generation/v3";
+import { generateDetails, generateEndings, generateReveal, finalRepair, generateSkeleton } from "@adventure/generation/v3";
 
 import { recordLlmUsage, withJsonUsage } from "@/lib/usage/ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -64,6 +64,7 @@ export interface GenerationDeps {
     details: typeof generateDetails;
     endings: typeof generateEndings;
     reveal: typeof generateReveal;
+    check: typeof finalRepair;
   };
 }
 
@@ -266,7 +267,7 @@ export function defaultGenerationDeps(): GenerationDeps {
     adventures: supabaseV3AdventureWriter(createAdminClient),
     passes:
       // dev-only: V3_FAKE_PASSES swaps in canned passes so the flow runs without OpenAI
-      fakeGenerationPasses() ?? { sources: runSources, skeleton: generateSkeleton, details: generateDetails, endings: generateEndings, reveal: generateReveal },
+      fakeGenerationPasses() ?? { sources: runSources, skeleton: generateSkeleton, details: generateDetails, endings: generateEndings, reveal: generateReveal, check: finalRepair },
   };
 }
 
