@@ -5,9 +5,17 @@
  */
 import { z } from "zod";
 
-export const SLOT_ORDER = ["sources", "episode", "focus", "readingLevel", "mode", "confirm"] as const;
+export const SLOT_ORDER = ["sources", "episode", "focus", "readingLevel", "timer", "mode", "confirm"] as const;
 export type SlotName = (typeof SLOT_ORDER)[number];
 export type Slot = { name: SlotName };
+
+export const SLOT_KEYS = {
+  episode: "episode",
+  focus: "focus",
+  readingLevel: "readingLevel",
+  timer: "timerMinutes",
+  mode: "mode",
+} as const;
 
 export const EPISODE_MAX = 200;
 export const FOCUS_MAX = 600;
@@ -26,17 +34,21 @@ export const briefDraftV3Schema = z.object({
   /** Optional guidance for the generator; "" means the teacher skipped it. */
   focus: z.string().max(FOCUS_MAX).optional(),
   readingLevel: z.enum(["sec", "jc"]).optional(),
+  timerMinutes: z.union([z.number().int().min(10).max(120), z.null()]).optional(),
   mode: z.enum(["standard", "quick"]).optional(),
 });
 export type BriefDraftV3 = z.infer<typeof briefDraftV3Schema>;
 
 /** What `startFromBrief` needs: every slot filled (focus may be the empty string). */
-export function completeDraft(draft: BriefDraftV3): draft is Required<Omit<BriefDraftV3, "focus">> & { focus: string } {
+export function completeDraft(
+  draft: BriefDraftV3,
+): draft is Required<Omit<BriefDraftV3, "focus">> & { focus: string; timerMinutes: number | null } {
   return (
     draft.sources !== undefined &&
     draft.episode !== undefined &&
     draft.focus !== undefined &&
     draft.readingLevel !== undefined &&
+    draft.timerMinutes !== undefined &&
     draft.mode !== undefined
   );
 }
@@ -86,7 +98,11 @@ export function initialBriefStateV3(adventureId: string): BriefStateV3 {
 export function currentSlot(draft: BriefDraftV3): Slot {
   for (const name of SLOT_ORDER) {
     if (name === "confirm") return { name: "confirm" };
-    if (draft[name] === undefined) return { name };
+    if (name === "sources") {
+      if (draft.sources === undefined) return { name };
+      continue;
+    }
+    if (draft[SLOT_KEYS[name]] === undefined) return { name };
   }
   return { name: "confirm" };
 }
@@ -95,7 +111,7 @@ export function currentSlot(draft: BriefDraftV3): Slot {
 export function clearSlot(draft: BriefDraftV3, slot: Slot): BriefDraftV3 {
   if (slot.name === "confirm" || slot.name === "sources") return draft;
   const next = { ...draft };
-  delete next[slot.name];
+  delete next[SLOT_KEYS[slot.name]];
   return next;
 }
 
@@ -116,9 +132,13 @@ export const QUESTIONS: Record<SlotName, string> = {
   episode: "Which episode should the adventure be about?",
   focus: "Anything students should take away, or anything to emphasise or avoid? (optional)",
   readingLevel: "Which reading level is the class?",
+  timer: "How long should the adventure run? Students see a countdown for each stage.",
   mode: "How do you want to check the adventure?",
   confirm: "Here’s the brief. Create the adventure, or change anything first.",
 };
+
+export const TIMER_RECOMMENDED = "45 minutes (recommended)";
+export const TIMER_OFF = "No timer";
 
 const READING_LEVEL_LABELS: Record<"sec" | "jc", string> = { sec: "Sec", jc: "JC" };
 const MODE_LABELS: Record<"standard" | "quick", string> = {
@@ -126,6 +146,10 @@ const MODE_LABELS: Record<"standard" | "quick", string> = {
   quick: "Quick: check everything at the end",
 };
 export { READING_LEVEL_LABELS, MODE_LABELS };
+
+export function timerLabel(minutes: number | null): string {
+  return minutes === null ? "Off" : `${minutes} minutes`;
+}
 
 /** Quick replies the console offers for a slot; the text is what gets sent. */
 export function quickReplies(draft: BriefDraftV3, slot: Slot): string[] {
@@ -139,6 +163,8 @@ export function quickReplies(draft: BriefDraftV3, slot: Slot): string[] {
       return ["Skip"];
     case "readingLevel":
       return ["Sec", "JC"];
+    case "timer":
+      return [TIMER_RECOMMENDED, TIMER_OFF];
     case "mode":
       return [MODE_LABELS.standard, MODE_LABELS.quick];
     case "confirm":

@@ -13,6 +13,7 @@ import {
   READING_LEVEL_LABELS,
   MODE_LABELS,
   SOURCES_DONE,
+  timerLabel,
 } from "@/lib/v3/brief/schema";
 
 import { addV3BriefSource, createFromV3Brief, discardV3Brief, v3BriefTurn } from "../actions";
@@ -263,6 +264,7 @@ function Summary({ state, pending, onChange }: { state: BriefStateV3; pending: b
     { slot: "episode", label: "Episode", value: draft.episode ?? "" },
     { slot: "focus", label: "Focus", value: draft.focus === "" ? "—" : (draft.focus ?? "—") },
     { slot: "readingLevel", label: "Reading level", value: draft.readingLevel ? READING_LEVEL_LABELS[draft.readingLevel] : "" },
+    { slot: "timer", label: "Timer", value: draft.timerMinutes !== undefined ? timerLabel(draft.timerMinutes) : "" },
     { slot: "mode", label: "Mode", value: draft.mode ? MODE_LABELS[draft.mode] : "" },
   ];
   return (
