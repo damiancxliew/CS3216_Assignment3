@@ -178,6 +178,15 @@ describe('reachability and leaks', () => {
     expect(leakIssues(golden, leaked, game.state)).toEqual([expect.stringContaining('stance demeanour'), expect.stringContaining('undiscovered text')])
   })
 
+  it('a slant claim leaks before the reveal, but not in the reveal\'s corrections', async () => {
+    const game = new Harness(golden)
+    const view = await game.start()
+    const claim = golden.characters.flatMap((character) => character.slants)[0]?.claim ?? ''
+    const quoted = { ...view, messages: [...view.messages, { ...view.messages[0], text: claim }] } as PlayerView
+    expect(leakIssues(golden, quoted, game.state)).toEqual([expect.stringContaining('slant claim')])
+    expect(leakIssues(golden, quoted, { ...game.state, phase: 'reveal' })).not.toContainEqual(expect.stringContaining('slant claim'))
+  })
+
   it.each([
     ['mini', mini],
     ['golden-1819', golden],
