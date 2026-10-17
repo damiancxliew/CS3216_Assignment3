@@ -1,6 +1,6 @@
 # PRD v3
 
-Status: levels 0–6 agreed and frozen for team review; levels 7 (systems) and 8 (build plan) to come. The rationale
+Status: levels 0–6 agreed and frozen for team review; level 7 (systems and architecture) drafted for team review; level 8 (build plan) to come. The rationale
 for each requirement, the team decisions and the open items are in [`PRD-v3-rationale.md`](PRD-v3-rationale.md).
 Derived views (overview, glossary, diagrams, example playthrough, v2 vs v3) are in [`prd-v3/`](prd-v3/).
 
@@ -289,3 +289,296 @@ When each skill is practised:
 | ☐ | C10 | The system should treat student messages as untrusted input, never as instructions. | | |
 | ☐ | C11 | The system should decide what is true, progress and consequences (which discoveries are available, stances, outcomes, endings) by rules, never by a model. | | |
 | ☐ | C12 | The system should not use a model to resolve stages or mint new options during play. | | |
+
+### 3. System requirements
+
+Level 7, draft for team review. The reasoning is in proposals A1–A24 in the rationale.
+
+| Status | ID | Requirement | Priority | Planned Week |
+|---|---|---|---|---|
+| | **S** | **System** | | |
+| ☐ | S1 | The system should run as containers on one EC2 instance in ap-southeast-1 (Singapore): a Postgres container and an app container, behind a TLS proxy. | | |
+| ☐ | S1.1 | The system should keep every database file on a separate encrypted EBS volume, so the instance can be replaced without losing data. | | |
+| ☐ | S1.2 | The system should store generated images and outside-source snapshots in S3, and store object keys rather than full URLs in the database. | | |
+| ☐ | S1.3 | The system should use Supabase only to sign users in (Google OAuth, and email and password for demo accounts), and keep no application data in Supabase. | | |
+| ☐ | S2 | The system should verify the sign-in token on the server for every request, and keep its own user table keyed by the Supabase user id. | | |
+| ☐ | S2.1 | The system should enforce who may read what in the database (row-level security), not only in the app, so that a missed check in the app fails closed. | | |
+| ☐ | S2.2 | The system should never send a student's client anything private: personas, slants, withheld discoveries, triggers, outcome rules or secret-ending conditions. | | |
+| ☐ | S3 | The system should run generation (G12) in a server-side worker, independent of any browser tab, running independent passes in parallel. | | |
+| ☐ | S3.1 | The system should make every generation pass resumable and safe to retry, so a restart or deploy resumes generation rather than losing it. | | |
+| ☐ | S3.2 | The system should notify the teacher in the app when a review is waiting or an adventure is ready, and optionally by email (T6.1). | | |
+| ☐ | S3.3 | The system should fetch and store the text of every outside source it cites, so quotations can be checked word for word against the stored text (G13.5) and the teacher can view it at review. | | |
+| ☐ | S4 | The system should stream character replies to the student as they are written. | | |
+| ☐ | S4.1 | The system should start showing a character's reply within about 2 seconds in normal conditions. | | |
+| ☐ | S4.2 | The system should apply the rules (C11) in one database transaction per student action, so two actions can never both use the same state. | | |
+| ☐ | S4.3 | The system should run the checks after each exchange (P17.1) after the reply has been sent, and show their results (new notes, stance changes) without the student refreshing. | | |
+| ☐ | S5 | The system should handle a class of 40 students playing at once on the single instance. | | |
+| ☐ | S6 | The system should back up the database at least daily to S3, keep backups for 30 days, and be restorable to a new instance within an hour. | | |
+| ☐ | S6.1 | The system should be deployed from CI, with database migrations applied before the new app starts. | | |
+| ☐ | S6.2 | The system should avoid interrupting lessons when deploying: deploys run outside school hours unless urgent. | | |
+| ☐ | S7 | The system should keep secrets in AWS (SSM Parameter Store) and give the instance an IAM role, with no long-lived AWS keys on the instance or in the repo. | | |
+| ☐ | S7.1 | The system should expose only HTTPS to the internet; the database and admin access are reachable only through AWS Session Manager. | | |
+| ☐ | S8 | The system should record token usage per model call and per attempt, so ceilings (C6) and the admin console use the same numbers. | | |
+| ☐ | S8.1 | The system should send logs to CloudWatch and alert the team when the app is down, the disk is nearly full, or errors spike. | | |
+| ☐ | S9 | The system should store students' data in Singapore, and send it to model providers only under terms that exclude training on it. | | |
+| ☐ | S9.1 | The system should let a school or sysadmin delete a student's play data on request. | | |
+| ☐ | S10 | The system should store each adventure as separate parts (the skeleton, each stage, each character, the endings, the reveal) with the dependencies between them recorded, so that a teacher's edit or a failed check regenerates only the parts that depend on it (G12.2, T4.1). | | |
+| ☐ | S10.1 | The system should check every part's output against its schema and references before saving it, and repair only that part. | | |
+| ☐ | S11 | The system should use the same rules engine to check a generated adventure (for example, that endings are reachable) as it uses during play. | | |
+| ☐ | S11.1 | (Low) The system should play each generated adventure with simulated students before teacher review, and show the results as warnings. | Low | |
+| ☐ | S12 | The system should record each attempt as an append-only log of events, and derive the current state, the reveal's playback (E3.3) and the class summary (T2) from it. | | |
+| ☐ | S13 | The system should give a character model only what that character knows and may reveal at that moment; withheld discoveries, slants' corrections and outcome rules are left out of the prompt, not marked as secret. | | |
+| ☐ | S13.1 | The system should give model outputs during play no direct effect: a check may only confirm discoveries the character was allowed to reveal, and the rules engine decides everything that follows. | | |
+| ☐ | S14 | The system should run teacher preview (T4.8) through the same runtime as students, kept out of the class summary. | | |
+
+## System architecture (level 7, draft)
+
+For team review. The decisions and their reasons are proposals A1–A14 in
+[`PRD-v3-rationale.md`](PRD-v3-rationale.md#level-7-proposals-for-team-review); the requirements are S1–S9. How
+generation and play work on top of it is in [Generation and gameplay architecture](#generation-and-gameplay-architecture-level-7-draft).
+
+### Overview
+
+```mermaid
+flowchart LR
+    subgraph Browser
+        T[Teacher console]
+        S[Student play client]
+    end
+    subgraph AWS["AWS ap-southeast-1"]
+        subgraph EC2["EC2 instance (Docker Compose)"]
+            P[Caddy: TLS, reverse proxy]
+            subgraph APP["app container (one image)"]
+                W[Next.js: pages, Turn API, server actions]
+                R[Rules engine]
+                J[Generation worker]
+            end
+            DB[(Postgres container<br/>on encrypted EBS volume)]
+        end
+        S3[(S3: assets, source snapshots, backups)]
+        CF[CloudFront]
+        SSM[SSM Parameter Store]
+        CW[CloudWatch]
+    end
+    SB[Supabase Auth<br/>Google OAuth only]
+    LLM[Model providers<br/>text, images, search]
+    PH[PostHog]
+
+    T & S -->|HTTPS| P --> W
+    T & S -->|sign in| SB
+    W -->|verify token| SB
+    W --- R
+    W --> DB
+    J --> DB
+    J --> LLM
+    W --> LLM
+    J --> S3
+    T & S -->|images| CF --> S3
+    DB -.nightly dump.-> S3
+    EC2 -.secrets.-> SSM
+    EC2 -.logs, alarms.-> CW
+    T & S -.events.-> PH
+```
+
+### Components
+
+| Component | Runs | Responsibility |
+|---|---|---|
+| Caddy | Container on the instance | TLS certificates (Let's Encrypt), HTTP to HTTPS, proxying to the app, no buffering for streamed replies. |
+| Web | App container, Next.js standalone server | Pages, server actions, the Turn API, streamed character replies (S4), the teacher's review screen and class summary. |
+| Rules engine | Inside web, a TypeScript package with no I/O | Everything C11 assigns to rules: reveal conditions, triggers and stances, passing on notes, story events, hints, outcomes, closed endings, the Interview push-back choice. Deterministic, so it is tested by replaying attempts. |
+| Generation worker | Inside the app container, as a second process from the same image | The generation passes (G12), images (G4.2), post-exchange checks (P17.1), notifications (S3.2). Takes jobs from Postgres. Can move to its own container without code changes. |
+| Postgres | Container on the instance, data on its own EBS volume | All application data, row-level security, the job queue, the usage ledger. |
+| S3 + CloudFront | AWS | Generated images and outside-source snapshots (private bucket, served through CloudFront), and database backups (separate bucket). |
+| Supabase Auth | Supabase (kept) | Google sign-in and demo accounts. Issues the token the app verifies. Holds no application data. |
+| Model providers | External | Character replies, checks, interviewer, narration, generation passes, image generation, search for outside sources. |
+
+### Key flows
+
+**Sign-in.** The browser signs in with Supabase Auth as today. On each request the app verifies the token
+(signature against Supabase's published keys, expiry and audience) without calling Supabase, then upserts the user
+into its own `app_user` table by Supabase user id. Every database call runs in a transaction that sets the current
+user, which the row-level security policies read. Background and administrative work uses a separate database role
+that bypasses row-level security, as `service_role` does today.
+
+**Generation.** Creating an adventure enqueues its passes as jobs in Postgres. The worker claims them with
+`FOR UPDATE SKIP LOCKED`, writes each pass's output before marking it done, and reclaims jobs whose lease
+expires, so a restart resumes generation (S3.1). The teacher's page shows progress from the job rows. The passes
+themselves are described under [Generation](#generation).
+
+**Outside sources.** The source pass searches only allowlisted sites by default (G13.7), fetches each page it
+uses, and stores the text in S3 with a hash. Citations point at that snapshot, so quotations are checked word for
+word against it (G13.5), and the teacher sees exactly what was quoted even if the page later changes.
+
+**A student message.** The Turn API runs the rules engine, streams the character's reply over server-sent
+events, and enqueues the post-exchange check; its results reach the client over the same stream. Details are
+under [Play](#play).
+
+**Deploy.** Pushing to `production` builds the image in GitHub Actions, pushes it to ECR, runs migrations as a
+one-off container, then restarts the app container through SSM Run Command (S6.1). The worker finishes or
+releases its current job on shutdown.
+
+### Moving off Vercel and Supabase
+
+| Today | After |
+|---|---|
+| Vercel hosting, `main` previews | App container on EC2. A staging stack (same compose file, separate database) on the same instance replaces previews if memory allows. |
+| Supabase Postgres, PostgREST through `supabase-js` (`.from()`, `.rpc()`) | Postgres container; a typed SQL client (for example Kysely) in a data-access layer, with the same row-level security policies and functions. |
+| `auth.uid()`, roles `anon` / `authenticated` / `service_role` | A small `auth` shim: `app.current_user_id()` read from a transaction setting, and app-owned roles with the same grants. |
+| `auth.users` foreign keys, the sign-up trigger on `auth.users` | `app_user` table, filled on first verified request. |
+| Supabase Storage `assets` bucket, full public URLs in `asset.url` | S3 + CloudFront; `asset.key` with the URL built from `ASSET_BASE_URL`. The existing `AssetStore` interface gets an S3 implementation. |
+| Generation driven by the teacher's tab (`advanceGeneration` polled every 5 seconds, one lease per adventure) | Postgres job queue and a worker (S3). |
+| `supabase db push` in CI | Plain SQL migrations applied by a migration container in the deploy job. |
+| `@vercel/analytics`, `@vercel/speed-insights` | Removed; PostHog stays. |
+| `*.vercel.app` domain | A custom domain; Google OAuth redirect URIs and Supabase's redirect allow-list updated to it. |
+
+Everything on the AWS side is described in Terraform (`infra/`): the instance, volume, security group, S3 buckets,
+CloudFront, ECR, IAM role, parameters and alarms.
+
+## Generation and gameplay architecture (level 7, draft)
+
+For team review. The reasons are proposals A15–A24 in the rationale; the requirements are S10–S14.
+
+### Principles
+
+1. **One rules engine.** A pure TypeScript package (no I/O, no clock, no randomness) owns everything C11 gives to
+   rules. Play calls it on every action. Generation calls it to check the content it produced (S11).
+2. **Models produce language and judgements against short lists, never state.** Every model output passes
+   through the engine before it has any effect (S13.1).
+3. **Content is data with dependencies.** An adventure is a set of parts with recorded dependencies, so repairs and
+   teacher edits regenerate only what depends on them (S10).
+4. **Attempts are logs.** State, the reveal playback and the class summary are all derived from one event log (S12).
+
+### Packages
+
+| Package | Kind | Responsibility | From today |
+|---|---|---|---|
+| `content` | Schemas | Adventure spec v3 (skeleton, stage details, personas, endings, reveal) as Zod schemas, the part and dependency model, and the public projection of a part for the client. | New; replaces `generation/spec` v2 |
+| `engine` | Pure | The rules: reveal conditions, triggers and stances, notes and passing on, challenged claims (P8.4), story events, stuck clock and hints, defining moments, outcomes, closed endings, the secret-ending unlock, the Interview push-back choice. Also the static checks built on the same rules (reachability, G12.4, G15). | New; replaces `orchestration` resolver, minting, agent actions |
+| `generation` | Server | The passes, their prompts and schemas, targeted repair, ingest, quotation checks, the asset service. | Keeps `ingest`, span checks, `llm`, `assets`; rebuilds `planner` |
+| `play-ai` | Server | Prompts and schemas for the play-time model calls: character reply, post-exchange check, interviewer, narration, moderation. | Rebuilt from `orchestration/agent` |
+| `game-core` | Pure | Map compiler and spatial model (rooms, walking, auto-walk to a room). | Kept; doors removed or decorative (open) |
+| `game-client` | Browser | Phaser renderer and map view. | Kept |
+| `apps/web` | Server and browser | Turn API, play UI (chat, notes, documents, minimap), teacher console and review screen, class summary, the worker entry point. | Play UI and console rebuilt on v3 |
+
+### Generation
+
+```mermaid
+flowchart TD
+    IN[Ingest teacher's materials] --> SRC[Sources pass<br/>search allowlist, snapshot text]
+    SRC --> SK[Skeleton pass]
+    SK --> SC{Engine: skeleton checks}
+    SC -->|fail| SKR[Repair skeleton] --> SC
+    SC -->|pass| GATE[Teacher review point<br/>Standard and Guided]
+    GATE --> ST1[Stage 1 details]
+    GATE --> STn[Stage n details]
+    GATE --> PE1[Persona: character 1]
+    GATE --> PEn[Persona: character n]
+    ST1 & STn & PE1 & PEn --> EN[Endings and Interview]
+    EN --> RV[Reveal]
+    RV --> FC{Full checks}
+    FC -->|error in part X| RX[Repair part X only] --> FC
+    FC -->|pass| AS[Assets: maps, portraits per stance, art]
+    AS --> REV[Teacher review screen]
+```
+
+- **Parts.** Each pass writes one or more parts (`skeleton`, `stage/<id>`, `persona/<id>`, `endings`, `reveal`). A
+  part records its schema version, content hash, the ids it references, and the hashes of the parts it was generated
+  from. Draft parts are editable; publishing freezes the set as one version, as `publish_adventure` does today.
+- **One pass, one job.** Each pass is a job in the queue (A6). A job loads the parts it depends on, calls the model
+  with a structured-output schema, validates the result (schema, then references), repairs that part at most
+  `MAX_REPAIRS` times, and saves it. Long frontier calls run as background responses, with the response id stored
+  on the job so a restart resumes the same call, as `pending_response_id` does today.
+- **Checks.** Errors block publishing and warnings don't (T4.7).
+  - Deterministic checks are errors: references exist, sizes (G17), reachability, quotations matched against the
+    stored source text (`resolveSpan`, extended to outside-source snapshots).
+  - Reachability uses the engine: it explores the stage's reveal conditions and triggers to show every core
+    discovery is reachable without secret-ending conditions, and walks the outcome rules across stages to show
+    the historical ending is reachable from the start and at least two endings stay open at the final defining
+    moment.
+  - Model-judged checks are warnings: reading level, whether a slant really is contradicted by its evidence, tone.
+- **Edits.** A direct edit replaces fields in a part; a plain-language request runs that part's pass again with
+  the instruction (T4.4). Either way, parts whose recorded input hashes no longer match are marked stale and
+  regenerated, and the checks for the touched parts re-run (T4.1, T4.7). Real excerpts are locked fields: the
+  validator rejects any change to their text (T4.5).
+- **Assets.** Maps go through the existing compiler. A base portrait is generated per major character, then each
+  stance's expression is made as an edit of it, so the face stays the same across stances (G4.2). All images are
+  cached by prompt hash, as today.
+- **Simulated playtests (S11.1, low priority).** A cheap model plays the adventure through the real runtime a few
+  times with different strategies. Stuck points and endings reached are shown to the teacher as warnings.
+
+### Play
+
+**State.** Each attempt has an append-only `attempt_event` log and a cached `attempt_state` snapshot with a
+revision number. Both are written in the same transaction, guarded by the revision, as `save_play_turn` does
+today. Events are facts in the game's own terms, for example `note_gained`, `note_passed_on`, `stance_changed`,
+`claim_challenged`, `story_event_fired`, `hint_given`, `act_chosen`, `prediction_made`, `outcome_resolved`,
+`ending_closed`, `verdict_chosen`, `message_flagged`. The engine's step function is
+`step(bundle, state, input, now) → { state, events, effects }`, where `bundle` is the pinned version's private
+content and `effects` are the model calls to make (a reply, a check, a narration).
+
+**A message to a character.**
+
+```mermaid
+sequenceDiagram
+    participant C as Student client
+    participant API as Turn API
+    participant E as Engine
+    participant M as Models
+    participant DB as Postgres
+    participant W as Worker
+    C->>API: message (text + inserted note ids)
+    API->>DB: load state, lock revision
+    API->>E: step(message)
+    E-->>API: events (note passed on, trigger?) + reply context
+    API->>M: moderation pre-check
+    API->>M: character reply (stream)
+    M-->>C: reply streamed (SSE)
+    API->>DB: append events, save state, enqueue check
+    W->>M: post-exchange check
+    W->>E: step(check result)
+    E-->>W: events (note gained, claim challenged, stance changed, flag)
+    W->>DB: append events, save state
+    DB-->>C: new notes and notices (SSE)
+```
+
+- **What the character sees.** The engine builds the reply context from the character's view only: persona and
+  voice, current stance and how it shows, the discoveries it may reveal now (conditions met), what the student has
+  passed on to it and how it was treated before (P11.3), the room and who is present, and the reading level.
+  Withheld discoveries and anything the character could not know are not in the prompt at all (S13). Student text
+  goes in as quoted, untrusted input (C10). Inserted notes arrive as structured note ids, so passing on is
+  deterministic (P8.1), and the prompt tells the character to question anything stated as fact that wasn't
+  inserted (P8.2).
+- **The post-exchange check** (P17.1) is one cheap structured call. It returns which of the allowed discoveries
+  were conveyed, whether the character challenged a claim, and whether the student's message was abusive. The
+  engine ignores any id that wasn't allowed (P8.3), turns conveyed discoveries into notes in the role's voice (P7.2),
+  counts challenged claims towards the trust trigger (P8.4), and fires any triggers that follow.
+- **Other actions** need no model and are only engine steps: moving to a room, opening a document, selecting a
+  passage (overlap with key passages is computed from character offsets, P13.2), showing a document, choosing an
+  act, predicting, choosing a verdict, inserting evidence.
+- **Time.** Timers, story events on time, and the stuck clock (P5.1) are engine inputs (`tick(now)`), run on every
+  request and every few seconds while the student's event stream is open. The client reports when it starts and
+  stops reading a document or waiting for a reply, which pauses the stuck clock (P5.1.3). With no client
+  connected, nothing needs to fire. Deadlines use the server's clock, never the browser's.
+- **Defining moments.** The engine lists the acts available now (written acts, closed outcomes removed, the hidden
+  act shown only when its unlock conditions hold, P9.11), resolves the chosen act by the outcome rules (P9.3), and
+  emits the effects. The characters' immediate reaction (P9.7) and minor details (P9.4) are narrated by a model
+  given the fixed outcome, so the wording can vary but the outcome can't.
+- **The Interview.** The engine picks the push-back by E2.4.1's order from the student's notes and the verdict's
+  written counter-points. The interviewer model only phrases it (E2.4.2), then closes (E2.6).
+- **Epilogue and reveal.** Assembled from written content and the attempt's events: choices, predictions,
+  Interview answers, which choice closed which ending, missed core discoveries, and corrections for every slanted
+  claim or document the student actually met (E3.5). No model is needed, so the reveal is exactly what the teacher
+  reviewed.
+- **The client** renders the map with `game-client`, and holds the chat, notes (with the insert tool), the document
+  reader with passage selection, and the minimap. Walking within a room is local; entering a room is a server action,
+  because who is present matters. Everything else waits for the server. Payloads are built from the public
+  projection only, and the existing forbidden-key test is extended to v3's private fields (S2.2).
+
+**Class summary.** Built by SQL over `attempt_event` for the class's attempts, as totals per section (T2.1–T2.5),
+with anonymised Interview answers (T2.6) and flagged messages per student (T5). Preview attempts are excluded
+(S14).
+
+**Limits.** The C5 rate limit is a token bucket in the attempt state, as today. The C6 ceiling is checked against
+the usage ledger for the attempt; reaching it moves the attempt to the epilogue with a story reason, never an
+error.
