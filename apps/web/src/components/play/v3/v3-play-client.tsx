@@ -38,7 +38,7 @@ export function V3PlayClient({
     makeClient,
   );
 
-  if (view.phase === "stage" && view.stage && view.stage.intro === null && view.definingMoment === null) {
+  if (view.phase === "stage" && view.stage && view.stage.intro === null) {
     return (
       <div className={`${styles.shell} flex h-dvh min-h-0 flex-col`}>
         <header className={`${styles.header} shrink-0 lg:[zoom:0.75]`}>

@@ -47,6 +47,38 @@ export function roomIdToEnter(map: StageMap, point: Point, currentRoomId: string
   return space?.kind === "room" && space.roomId !== currentRoomId ? space.roomId : null;
 }
 
+export function nearbyCharacterId(
+  player: Point,
+  facing: "up" | "down" | "left" | "right",
+  seats: readonly { id: string; position: Point }[],
+): string | null {
+  const direction: Point = facing === "up"
+    ? { x: 0, y: -1 }
+    : facing === "down"
+      ? { x: 0, y: 1 }
+      : facing === "left"
+        ? { x: -1, y: 0 }
+        : { x: 1, y: 0 };
+  const faced = { x: player.x + direction.x, y: player.y + direction.y };
+  const nearby = seats.filter(({ position }) =>
+    Math.max(Math.abs(position.x - player.x), Math.abs(position.y - player.y)) <= 1,
+  );
+  const inFront = nearby.find(({ position }) => position.x === faced.x && position.y === faced.y);
+  if (inFront) return inFront.id;
+  if (nearby.length === 0) return null;
+
+  let closest = nearby[0]!;
+  let closestDistance = Math.abs(closest.position.x - player.x) + Math.abs(closest.position.y - player.y);
+  for (const seat of nearby.slice(1)) {
+    const distance = Math.abs(seat.position.x - player.x) + Math.abs(seat.position.y - player.y);
+    if (distance < closestDistance) {
+      closest = seat;
+      closestDistance = distance;
+    }
+  }
+  return closest.id;
+}
+
 export function seatIn(map: StageMap, roomId: string | null, index: number): Point | null {
   const room = map.rooms.find((candidate) => candidate.id === roomId);
   if (!room) return null;

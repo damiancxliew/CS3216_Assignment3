@@ -7,7 +7,7 @@ import type { PlayerView } from "@adventure/play-contract";
 import { useEffect, useRef, useState } from "react";
 
 import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl } from "@/lib/play/appearance";
-import { compileV3StageMap, roomIdToEnter, seatIn, v3DocumentProps } from "@/lib/play/v3/map";
+import { compileV3StageMap, nearbyCharacterId, roomIdToEnter, seatIn, v3DocumentProps } from "@/lib/play/v3/map";
 
 const STEP_MS = 160;
 
@@ -35,16 +35,24 @@ interface V3MapProps {
   characters: V3Character[];
   documents: PlayerView["documentsHere"];
   walkTo: string | null;
+  movementLocked: boolean;
   onWalkDone: () => void;
   onEnterRoom: (roomId: string) => Promise<boolean>;
   onSelectCharacter: (characterId: string) => void;
+  onTalk: (characterId: string) => void;
+  onNearbyCharacterChange: (characterId: string | null) => void;
   onOpenDocument: (documentId: string) => void;
   onReadyChange: (ready: boolean) => void;
 }
 
 function isTextEntryTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement
-    && Boolean(target.closest("input, textarea, select, button, [contenteditable='true']"));
+    && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+function isMovementTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement
+    && Boolean(target.closest("button"));
 }
 
 export function V3Map(props: V3MapProps) {
@@ -52,6 +60,8 @@ export function V3Map(props: V3MapProps) {
   const currentRoomRef = useRef(props.currentRoomId);
   const renderRef = useRef<(() => void) | null>(null);
   const walkToHandler = useRef<(roomId: string | null) => void>(() => {});
+  const nearbyChangeHandler = useRef<() => void>(() => {});
+  const movementLockHandler = useRef<() => void>(() => {});
   const latest = useRef(props);
   latest.current = props;
   const [failed, setFailed] = useState(false);
@@ -66,8 +76,10 @@ export function V3Map(props: V3MapProps) {
 
   useEffect(() => {
     currentRoomRef.current = props.currentRoomId;
+    if (props.movementLocked) movementLockHandler.current();
     renderRef.current?.();
-  }, [props.currentRoomId, props.characters, props.documents]);
+    nearbyChangeHandler.current();
+  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked]);
 
   useEffect(() => {
     const parent = host.current;
@@ -84,6 +96,20 @@ export function V3Map(props: V3MapProps) {
     let transitioning = false;
     let repeat: number | undefined;
     let lastWalkTo: string | null = null;
+    let lastNearbyCharacterId: string | null | undefined;
+
+    const characterSeats = () => latest.current.characters.flatMap((character, index) => {
+      const position = seatIn(map, currentRoomRef.current, index + 1);
+      if (!position || spaceAt(map, position)?.kind !== "room") return [];
+      return [{ id: character.id, position, character }];
+    });
+
+    const updateNearbyCharacter = () => {
+      const characterId = nearbyCharacterId(playerPosition, facing, characterSeats());
+      if (characterId === lastNearbyCharacterId) return;
+      lastNearbyCharacterId = characterId;
+      latest.current.onNearbyCharacterChange(characterId);
+    };
 
     const snapshot = (): PlaygroundSnapshot => ({
       seed: `${latest.current.attemptId}:${latest.current.stageId}`,
@@ -100,11 +126,9 @@ export function V3Map(props: V3MapProps) {
           sprite: PLAYER_CHARACTER,
           facing,
         },
-        ...latest.current.characters.flatMap((character, index) => {
-          const position = seatIn(map, currentRoomRef.current, index + 1);
-          if (!position || spaceAt(map, position)?.kind !== "room") return [];
+        ...characterSeats().map(({ character, position }) => {
           const sprite = characterFor({ id: character.id, name: character.name, role: character.title });
-          return [{
+          return {
             id: character.id,
             name: character.name,
             position,
@@ -112,7 +136,7 @@ export function V3Map(props: V3MapProps) {
             targetRoomId: null,
             status: "idle" as const,
             spriteSheetUrl: walkSheetUrl(sprite),
-          }];
+          };
         }),
       ],
       props: v3DocumentProps(map, currentRoomRef.current, latest.current.documents, latest.current.characters.length + 1),
@@ -131,6 +155,7 @@ export function V3Map(props: V3MapProps) {
     };
 
     const goTo = (target: Point) => {
+      if (latest.current.movementLocked) return;
       const found = findPath(map, compiled.initialDoors, playerPosition, target);
       path = found
         ? found[0]?.x === playerPosition.x && found[0]?.y === playerPosition.y
@@ -153,6 +178,7 @@ export function V3Map(props: V3MapProps) {
 
     const stepTo = async (next: Point) => {
       if (destroyed || transitioning) return;
+      if (latest.current.movementLocked) return;
       const from = playerPosition;
       if (!canStep(map, compiled.initialDoors, from, next)) {
         path = [];
@@ -167,6 +193,7 @@ export function V3Map(props: V3MapProps) {
       playerPosition = next;
       if (path[0]?.x === next.x && path[0]?.y === next.y) path.shift();
       revision += 1;
+      updateNearbyCharacter();
       render();
 
       const roomId = roomIdToEnter(map, next, currentRoomRef.current);
@@ -187,13 +214,14 @@ export function V3Map(props: V3MapProps) {
         }
         transitioning = false;
         revision += 1;
+        updateNearbyCharacter();
         render();
       }
       finishWalk();
     };
 
     const walk = window.setInterval(() => {
-      if (document.visibilityState !== "visible" || transitioning || path.length === 0) return;
+      if (document.visibilityState !== "visible" || transitioning || latest.current.movementLocked || path.length === 0) return;
       void stepTo(path[0]!);
     }, STEP_MS);
 
@@ -205,9 +233,29 @@ export function V3Map(props: V3MapProps) {
       }
     };
 
+    movementLockHandler.current = () => {
+      if (path.length === 0 && held.size === 0 && repeat === undefined) return;
+      path = [];
+      clearHeld();
+      revision += 1;
+      render();
+      latest.current.onWalkDone();
+    };
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTextEntryTarget(event.target)) return;
+      if (latest.current.movementLocked) return;
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      if (key === "e") {
+        if (event.repeat || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+        const characterId = nearbyCharacterId(playerPosition, facing, characterSeats());
+        if (characterId) {
+          event.preventDefault();
+          latest.current.onTalk(characterId);
+        }
+        return;
+      }
+      if (isMovementTarget(event.target)) return;
       const delta = KEYS[key];
       if (!delta) return;
       event.preventDefault();
@@ -232,11 +280,13 @@ export function V3Map(props: V3MapProps) {
     };
 
     const onDestination = (point: Point) => {
+      if (latest.current.movementLocked) return;
       latest.current.onWalkDone();
       goTo(point);
     };
 
     walkToHandler.current = (roomId) => {
+      if (latest.current.movementLocked) return;
       if (roomId === lastWalkTo) return;
       lastWalkTo = roomId;
       if (roomId) goToRoom(roomId);
@@ -269,10 +319,13 @@ export function V3Map(props: V3MapProps) {
           return;
         }
         render();
+        nearbyChangeHandler.current = updateNearbyCharacter;
+        movementLockHandler.current();
+        updateNearbyCharacter();
         latest.current.onReadyChange(true);
         const canvas = parent.querySelector("canvas");
         canvas?.setAttribute("tabindex", "0");
-        canvas?.setAttribute("aria-label", "Walkable map. Use arrow keys or WASD to move.");
+        canvas?.setAttribute("aria-label", "Walkable map. Use arrow keys or WASD to move, and E to talk.");
         document.addEventListener("keydown", onKeyDown, { signal: controller.signal });
         document.addEventListener("keyup", onKeyUp, { signal: controller.signal });
         window.addEventListener("blur", clearHeld, { signal: controller.signal });
@@ -291,6 +344,8 @@ export function V3Map(props: V3MapProps) {
       destroyed = true;
       renderRef.current = null;
       walkToHandler.current = () => {};
+      nearbyChangeHandler.current = () => {};
+      movementLockHandler.current = () => {};
       latest.current.onReadyChange(false);
       controller.abort();
       clearHeld();
@@ -302,7 +357,7 @@ export function V3Map(props: V3MapProps) {
 
   useEffect(() => {
     walkToHandler.current(props.walkTo);
-  }, [props.walkTo]);
+  }, [props.walkTo, props.movementLocked]);
 
   if (failed) return null;
   return (
