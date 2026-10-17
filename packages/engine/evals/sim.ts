@@ -1,8 +1,8 @@
 /**
- * Simulated students (C2): model-played students run `golden-1819` through the real engine, real character
+ * Simulated students (C2): model-played students run a spec (default `golden-1819`) through the real engine, real character
  * replies and the real post-turn check, applied the way the API does it. Failures are logged, not asserted.
  *
- *   npx vite-node packages/engine/evals/run-sim.ts -- --per-profile 1 --turns 70      # from the repo root
+ *   npx vite-node packages/engine/evals/run-sim.ts -- --per-profile 1 --turns 70 [--spec path/to/spec.json]   # from the repo root
  *
  * Needs OPENAI_API_KEY (or the repo's .env). Writes `evals/results/sim-<time>/summary.md` (committed) and
  * `runs.jsonl` (ignored). The clock advances 20 s per turn and the student sends `tick`s, as the client would.
@@ -240,7 +240,7 @@ function percentile(values: number[], q: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0
 }
 
-export function report(results: RunResult[], startedAt: string): string {
+export function report(results: RunResult[], startedAt: string, specId = 'golden-1819'): string {
   const calls = results.flatMap((run) => run.calls)
   const cost = (records: CallRecord[]) =>
     records.reduce((sum, call) => {
@@ -266,7 +266,7 @@ export function report(results: RunResult[], startedAt: string): string {
     if (bad > 0) failures.push(`${schema}: ${bad} unparseable responses`)
   }
   return [
-    `# Simulated students on golden-1819 (${startedAt})`,
+    `# Simulated students on ${specId} (${startedAt})`,
     '',
     '| Profile | Turns | Reached | Ending | Notes | Trigger stance changes | Challenges | Flags | Player messages | Refused actions | Crashes | Leaks |',
     '|---|---|---|---|---|---|---|---|---|---|---|---|',
@@ -293,7 +293,9 @@ function argument(name: string, fallback: number): number {
 
 export async function main(): Promise<void> {
   if (!process.env.OPENAI_API_KEY) loadEnvFile(resolve(ROOT, '.env'))
-  const spec = EngineSpec.parse(JSON.parse(readFileSync(resolve(ROOT, 'fixtures/golden-1819.json'), 'utf8')))
+  const specIndex = process.argv.indexOf('--spec')
+  const specPath = specIndex < 0 ? resolve(ROOT, 'fixtures/golden-1819.json') : resolve(process.argv[specIndex + 1]!)
+  const spec = EngineSpec.parse(JSON.parse(readFileSync(specPath, 'utf8')))
   const perProfile = argument('per-profile', 1)
   const turns = argument('turns', 70)
   const stepSeconds = argument('step-seconds', 45)
@@ -304,7 +306,7 @@ export async function main(): Promise<void> {
   const dir = resolve(import.meta.dirname, 'results', `sim-${startedAt.replace(/[:.]/g, '-')}`)
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'runs.jsonl'), results.map((run) => JSON.stringify({ ...run, calls: undefined })).join('\n'))
-  const summary = report(results, startedAt)
+  const summary = report(results, startedAt, spec.id)
   writeFileSync(join(dir, 'summary.md'), `${summary}\n`)
   console.log(summary)
 }
