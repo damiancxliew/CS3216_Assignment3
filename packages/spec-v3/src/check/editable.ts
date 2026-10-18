@@ -1,0 +1,81 @@
+import type { AdventureSpec, CheckIssue, Condition } from '../index.js';
+
+/** Deterministic runtime constraints shared by editing and publishing. */
+export function editableIssues(spec: AdventureSpec): CheckIssue[] {
+  const issues: CheckIssue[] = [];
+  const add = (code: string, path: string, message: string) => issues.push({ code, path, message });
+  const nonempty = (text: string, path: string) => { if (!text.trim()) add('empty-field', path, 'This field must not be empty.'); };
+  spec.documents.forEach((doc, i) => {
+    if (doc.keyPassages.length < 1 || doc.keyPassages.length > 2) add('passage-count', `documents.${i}.keyPassages`, 'A document needs 1–2 key passages.');
+    doc.keyPassages.forEach((passage, j) => {
+      if (passage.end > doc.body.length || passage.end <= passage.start) add('passage-not-in-body', `documents.${i}.keyPassages.${j}`, 'The passage must lie inside the document body.');
+      const links = spec.discoveries.filter(d => 'documentId' in d.holder && d.holder.documentId === doc.id && d.holder.keyPassageId === passage.id);
+      if (links.length !== 1) add('passage-unlinked', `documents.${i}.keyPassages.${j}`, 'Each key passage must link to exactly one discovery.');
+    });
+  });
+  spec.stages.forEach((stage, i) => {
+    if (!spec.openQuestions.some(q => q.stageId === stage.id)) add('open-questions', `stages.${i}`, 'This stage needs an open question.');
+    for (const d of spec.discoveries.filter(d => d.stageId === stage.id && d.core)) {
+      if (!spec.hintAngles.some(a => a.discoveryId === d.id)) add('hint-angle-missing', 'hintAngles', `Core discovery '${d.id}' needs a hint angle.`);
+    }
+    if (i === 0 && stage.situations.length) add('ref', `stages.${i}.situations`, 'The first stage cannot depend on an earlier outcome.');
+    stage.situations.forEach((s, j) => {
+      const moment = spec.definingMoments.find(m => m.id === s.whenOutcome.momentId);
+      if (moment && spec.stages.findIndex(t => t.id === moment.stageId) >= i) add('ref', `stages.${i}.situations.${j}`, 'Situation must reference an earlier stage.');
+    });
+  });
+  spec.hintAngles.forEach((hint, i) => {
+    const discovery = spec.discoveries.find(d => d.id === hint.discoveryId);
+    if (discovery && ((hint.kind === 'ask' && !('characterId' in discovery.holder)) || (hint.kind === 'read' && !('documentId' in discovery.holder)))) add('hint-angle-kind', `hintAngles.${i}`, 'Choose a hint kind matching the discovery holder.');
+  });
+  const atoms = (c: Condition): Condition[] => 'all' in c ? c.all.flatMap(atoms) : 'any' in c ? c.any.flatMap(atoms) : 'not' in c ? atoms(c.not) : [c];
+  spec.definingMoments.forEach((m, i) => {
+    const at = `definingMoments.${i}`;
+    nonempty(m.nudge, `${at}.nudge`); nonempty(m.finalCallNarration, `${at}.finalCallNarration`);
+    m.acts.forEach((a, j) => nonempty(a.reaction, `${at}.acts.${j}.reaction`));
+    const predictions = new Set<string>();
+    m.outcomes.forEach((o, j) => {
+      const path = `${at}.outcomes.${j}`;
+      nonempty(o.predictionText, `${path}.predictionText`); nonempty(o.because, `${path}.because`);
+      if (o.predictionText.trim().split(/\s+/).length > 12) add('prediction-long', `${path}.predictionText`, 'Use at most 12 words.');
+      const key = o.predictionText.trim().toLowerCase();
+      if (predictions.has(key)) add('prediction-duplicate', `${path}.predictionText`, 'Predictions must be distinct.');
+      predictions.add(key);
+    });
+    m.rules.forEach((r, j) => {
+      if (!r.when) return;
+      const path = `${at}.rules.${j}`;
+      const fallback = m.rules.find(f => f.actId === r.actId && !f.when);
+      const historical = m.outcomes.find(o => o.id === fallback?.outcomeId)?.historical;
+      if (historical && !m.outcomes.find(o => o.id === r.outcomeId)?.historical) add('historical-diverted', path, 'A conditional rule must preserve the historical path.');
+      for (const atom of atoms(r.when)) {
+        if ('discovered' in atom) add('rule-discovered', path, 'Rules must use evidence passed on rather than discovery alone.');
+        if ('discovered' in atom || 'notePassed' in atom) {
+          const id = 'discovered' in atom ? atom.discovered : atom.notePassed.discoveryId;
+          const d = spec.discoveries.find(d => d.id === id);
+          if (d && spec.stages.findIndex(s => s.id === d.stageId) > spec.stages.findIndex(s => s.id === m.stageId)) add('ref', path, 'This evidence is only available in a later stage.');
+        }
+      }
+    });
+  });
+  spec.endings.forEach((ending, i) => {
+    const at = `endings.${i}`;
+    if (!ending.epilogue.trim().startsWith('Your simulation:')) add('epilogue', `${at}.epilogue`, 'Start the epilogue with “Your simulation:”.');
+    nonempty(ending.interview.interviewer, `${at}.interview.interviewer`);
+    nonempty(ending.interview.question, `${at}.interview.question`);
+    nonempty(ending.interview.generalCounter, `${at}.interview.generalCounter`);
+    if (spec.characters.some(c => c.name && ending.interview.interviewer.toLowerCase().includes(c.name.toLowerCase()))) add('interviewer-character', `${at}.interview.interviewer`, 'The interviewer must not be a character the student met.');
+    const texts = new Set<string>();
+    ending.interview.verdicts.forEach((v, j) => {
+      const path = `${at}.interview.verdicts.${j}`;
+      nonempty(v.text, `${path}.text`);
+      const key = v.text.trim().toLowerCase();
+      if (texts.has(key)) add('verdict-duplicate', path, 'Verdicts must be distinct.');
+      texts.add(key);
+      if (v.counterPoints.length < 1 || v.counterPoints.length > 3) add('counter-count', path, 'Use 1–3 counterpoints.');
+      if (!v.counterPoints.some(id => spec.discoveries.find(d => d.id === id)?.core)) add('counter-core', path, 'Include a core discovery among the counterpoints.');
+    });
+  });
+  if (spec.timer.enabled && spec.timer.stageMinutes.length !== spec.stages.length) add('timer-count', 'timer.stageMinutes', 'Provide a duration for each stage.');
+  return issues;
+}

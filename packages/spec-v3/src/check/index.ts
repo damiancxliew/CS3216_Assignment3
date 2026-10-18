@@ -4,6 +4,7 @@
  * `validateSpec` first on unknown input).
  */
 import type { AdventureSpec, CheckIssue, CheckResult } from '../index.js'
+import { editableIssues } from './editable.js'
 import { coreIssues } from './core.js'
 import { labelIssues } from './labels.js'
 import { referenceIssues } from './refs.js'
@@ -16,6 +17,7 @@ export function checkSpec(spec: AdventureSpec): CheckResult {
     ...referenceIssues(spec),
     ...coreIssues(spec),
     ...labelIssues(spec),
+    ...(spec.authoring ? editableIssues(spec) : []),
   ]
   return { errors, warnings: skeleton.warnings }
 }

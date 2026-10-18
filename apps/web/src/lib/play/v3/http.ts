@@ -1,3 +1,4 @@
+import { supabaseV3SourceStore } from "@/lib/v3/generation/deps";
 import { createOpenAiClient } from "@adventure/orchestration";
 import type { LlmClient } from "@adventure/orchestration";
 
@@ -54,6 +55,7 @@ export function v3SummaryDeps(): V3SummaryDeps {
 export function v3PublishDeps(): V3PublishDeps {
   if (!publishDeps) {
     publishDeps = {
+      sources: async id => (await supabaseV3SourceStore(createAdminClient).load(id)).map(d => ({ id: d.id, title: d.title, text: d.pages.map(p => p.text).join("\n") })),
       store: new SupabaseV3PlayStore(createAdminClient()),
       env: process.env,
     };

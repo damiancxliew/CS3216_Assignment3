@@ -1,3 +1,5 @@
+import { validateEditedSpec } from "@/lib/v3/edit/validation";
+import type { CapturedSource } from "@/lib/v3/edit/commands";
 import { EngineSpec, checkSpec } from "@adventure/engine";
 
 import { v3SchoolAllowed } from "@/lib/v3/flag";
@@ -8,6 +10,7 @@ import type { V3Adventure, V3PlayStore } from "./store";
 
 export interface V3PublishDeps {
   store: V3PlayStore;
+  sources?: (id: string) => Promise<CapturedSource[]>;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -30,7 +33,11 @@ async function staffAdventure(deps: V3PublishDeps, userId: string, adventureId: 
 export async function publishBlockReason(deps: V3PublishDeps, adventure: V3Adventure): Promise<string | undefined> {
   if (!PUBLISHABLE.has(adventure.status)) return "Finish generating this adventure before publishing it.";
   const parsed = adventure.spec === null ? null : EngineSpec.safeParse(adventure.spec);
-  if (!parsed?.success || checkSpec(parsed.data).errors.length > 0 || (await deps.store.loadCheckErrors(adventure.id)).length > 0) {
+  const saved = await deps.store.loadCheckErrors(adventure.id);
+  const issues = parsed?.success && parsed.data.authoring
+    ? validateEditedSpec(parsed.data, await deps.sources?.(adventure.id) ?? [], saved).errors
+    : [...(parsed?.success ? checkSpec(parsed.data).errors : [{ code: "schema" }]), ...saved];
+  if (!parsed?.success || issues.length > 0) {
     return "This adventure's story has errors to fix before it can be published.";
   }
 }
