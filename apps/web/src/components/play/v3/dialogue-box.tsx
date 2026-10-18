@@ -279,9 +279,9 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
         >
           {messages.length ? messages.map((message) => {
             const fromPlayer = message.kind === "player";
-            const otherSpeaker = fromPlayer || message.characterId === character.id
+            const speaker = fromPlayer
               ? null
-              : message.speaker ?? "Story";
+              : message.speaker ?? (message.characterId === character.id ? character.name : null);
             return (
             <article
               key={message.id}
@@ -290,8 +290,8 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
                 : "max-w-[95%] break-words"}
             >
               {fromPlayer ? <p className="sr-only">You</p> : null}
-              {otherSpeaker ? (
-                <p className="mb-0.5 text-xs font-bold uppercase tracking-wide text-[#5c6472]">{otherSpeaker}</p>
+              {speaker ? (
+                <p className="mb-0.5 text-xs font-bold uppercase tracking-wide text-[#5c6472]">{speaker}</p>
               ) : null}
               {message.text ? (
                 <p className={`whitespace-pre-wrap text-[15px] leading-relaxed sm:text-[17px] ${message.kind === "narration" || message.kind === "thought" ? "italic text-[#3b4252]" : ""}`}>
@@ -315,7 +315,6 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
               Say hello, or ask {character.name} a question.
             </p>
           )}
-          {messages.length > 0 && typingDone ? <ContinueIndicator /> : null}
         </div>
 
         <form onSubmit={submit} className="mt-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2 border-t-2 border-[#1f2433]/20 pt-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">

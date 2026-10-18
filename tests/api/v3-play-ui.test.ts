@@ -491,7 +491,7 @@ describe("v3 dialogue box", () => {
       expect(markup).toContain('src="https://assets.example/v3/portraits/temenggong.webp"');
       expect(markup).toContain("bg-[#1f2433]");
       expect(markup).toContain(`>${character.name}</span>`);
-      expect(markup).toContain("▼");
+      expect(markup).not.toContain("▼");
       expect(markup).toContain(message.text);
       expect(markup).toContain("The tide changes before dawn.");
       expect(markup).toContain('id="v3-message"');
