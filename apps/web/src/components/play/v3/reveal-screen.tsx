@@ -1,7 +1,7 @@
 "use client";
 
 import type { RevealView } from "@adventure/play-contract";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 function TextList({ items }: { items: string[] }) {
   return items.length ? (
@@ -20,7 +20,7 @@ function SourceGroup({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-export function RevealScreen({ reveal }: { reveal: RevealView }) {
+export function RevealScreen({ reveal, footer }: { reveal: RevealView; footer?: ReactNode }) {
   const [showMore, setShowMore] = useState(false);
 
   return (
@@ -117,6 +117,14 @@ export function RevealScreen({ reveal }: { reveal: RevealView }) {
           <TextList items={reveal.teacherQuestions} />
         </section>
       ) : null}
+
+      <footer className="mt-3 grid justify-items-center gap-3 border-t border-line pt-6 text-center">
+        {footer ?? (
+          <p className="text-base font-semibold text-ink">
+            You&apos;ve finished this adventure. You can close this tab.
+          </p>
+        )}
+      </footer>
     </main>
   );
 }

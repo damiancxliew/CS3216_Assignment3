@@ -7,6 +7,7 @@ import { CharacterPortrait } from "@/components/play/v3/character-portrait";
 import { DialogueBox, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
+import { RevealScreen } from "@/components/play/v3/reveal-screen";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { createV3PlayClient } from "@/lib/play/v3/client";
@@ -14,6 +15,7 @@ import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
 import { portraitFile, portraitStoragePrefix, portraitUrl, v3PortraitBase } from "@/lib/play/v3/portraits";
 import { createV3PreviewClient } from "@/lib/play/v3/preview-client";
+import { mockViews } from "@adventure/engine/mock";
 import {
   MAX_EVIDENCE_NOTES,
   MAX_INTERVIEW_TEXT_LENGTH,
@@ -653,5 +655,25 @@ describe("interview answer form", () => {
       { verdictId: "verdict-a", evidenceNoteIds: [], text: "x".repeat(MAX_INTERVIEW_TEXT_LENGTH + 1) },
       choices,
     )).toMatchObject({ ok: false, error: `Keep your response to ${MAX_INTERVIEW_TEXT_LENGTH} characters or fewer.` });
+  });
+});
+
+describe("v3 reveal screen", () => {
+  const reveal = mockViews.reveal.reveal!;
+
+  it("ends with a finished line for students", () => {
+    vi.stubGlobal("React", React);
+    const markup = renderToStaticMarkup(createElement(RevealScreen, { reveal }));
+    expect(markup).toContain("You&#x27;ve finished this adventure. You can close this tab.");
+  });
+
+  it("ends with the given footer instead, e.g. the preview's way back", () => {
+    vi.stubGlobal("React", React);
+    const markup = renderToStaticMarkup(createElement(RevealScreen, {
+      reveal,
+      footer: createElement("a", { href: "/teacher" }, "Back to adventures"),
+    }));
+    expect(markup).toContain('<a href="/teacher">Back to adventures</a>');
+    expect(markup).not.toContain("You can close this tab");
   });
 });
