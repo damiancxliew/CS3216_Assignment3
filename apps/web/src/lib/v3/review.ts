@@ -200,7 +200,7 @@ export function reviewDiscoveryTitle(
   discovery: SpecDiscovery,
 ): string {
   const topic = discovery.topic?.trim();
-  if (!topic) return discovery.text || discovery.id;
+  if (!topic) return discovery.text || "Untitled discovery";
   const pronoun = /^(?:his|her|their|its)\b\s*/i.exec(topic);
   if (!pronoun) return topic.charAt(0).toUpperCase() + topic.slice(1);
   const holder = discovery.holder;
@@ -209,7 +209,7 @@ export function reviewDiscoveryTitle(
       ? spec.characters.find((character) => character.id === holder.characterId)
       : undefined;
   const rest = topic.slice(pronoun[0].length);
-  if (!character || !rest) return discovery.text || discovery.id;
+  if (!character || !rest) return discovery.text || "Untitled discovery";
   return `${character.name}${/s$/i.test(character.name) ? "’" : "’s"} ${rest}`;
 }
 
@@ -286,7 +286,7 @@ export function reviewIndex(
       { id: itemId, label: "Overview" },
       section("persona", "Persona"),
       section("stances", "Stances"),
-      section("slants", "Slants"),
+      section("slants", "Biased claims"),
       section("reactions", "Reactions and trust"),
     ];
   if (tab === "documents")

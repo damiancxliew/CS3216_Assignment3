@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import type { CheckIssue } from "@adventure/spec-v3";
 import { compactButton as button } from "@/components/ui";
-import { PASS_LABELS } from "@/lib/v3/generation/labels";
+import { ReviewIssue } from "@/components/teacher/review-issue";
+import { REVIEW_PASS_LABELS } from "@/lib/v3/review-presentation";
 
 type Warning = CheckIssue & { pass: string };
 
@@ -83,10 +84,10 @@ export function DraftReady({
               </h2>
               <p className="mt-1 text-sm text-muted">
                 {errors.length
-                  ? `${errors.length} blocking ${errors.length === 1 ? "issue" : "issues"}`
+                  ? `${errors.length} ${errors.length === 1 ? "item" : "items"} to fix`
                   : blocked
-                    ? "Blocking issues to review"
-                    : "No blocking issues"}
+                    ? "Items to fix"
+                    : "Suggestions to review"}
                 {warnings.length
                   ? ` · ${warnings.length} ${warnings.length === 1 ? "warning" : "warnings"}`
                   : ""}
@@ -99,18 +100,20 @@ export function DraftReady({
           <div className="divide-y divide-line">
             {blocked && !errors.length ? (
               <p className="px-6 py-5 text-sm text-muted">
-                Open review to see the blocking issues.
+                Open review to see what needs fixing.
               </p>
             ) : null}
             {errors.length ? (
               <div className="px-6 py-5">
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-danger">
                   <CircleAlert aria-hidden className="size-4" />
-                  Blocking issues
+                  Needs fixing
                 </h3>
                 <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed">
                   {errors.slice(0, 5).map((error, i) => (
-                    <li key={i}>{error.message}</li>
+                    <li key={i}>
+                      <ReviewIssue issue={error} />
+                    </li>
                   ))}
                 </ul>
                 {errors.length > 5 ? (
@@ -123,11 +126,13 @@ export function DraftReady({
             {[...byPass].map(([pass, list]) => (
               <div key={pass} className="px-6 py-5">
                 <h3 className="mb-3 text-sm font-bold">
-                  {PASS_LABELS[pass as keyof typeof PASS_LABELS] ?? pass}
+                  {REVIEW_PASS_LABELS[pass] ?? "Other checks"}
                 </h3>
                 <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed">
                   {list.map((warning, i) => (
-                    <li key={i}>{warning.message}</li>
+                    <li key={i}>
+                      <ReviewIssue issue={warning} />
+                    </li>
                   ))}
                 </ul>
               </div>

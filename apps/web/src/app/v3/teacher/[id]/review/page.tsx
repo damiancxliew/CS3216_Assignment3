@@ -14,6 +14,7 @@ import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
 import { reviewErrors, reviewSources } from "@/lib/v3/review";
 import { SupabaseV3PlayStore } from "@/lib/play/v3/store";
 import { getV3GenerationProgress } from "../../actions";
+import { ReviewIssue } from "@/components/teacher/review-issue";
 import { ReviewScreen } from "./review-screen";
 
 export const dynamic = "force-dynamic";
@@ -90,8 +91,7 @@ export default async function ReviewPage({
           <ul className="mt-3 list-disc space-y-2 pl-5">
             {errors.map((error, i) => (
               <li key={i}>
-                {error.path ? `${error.path}: ` : ""}
-                {error.message}
+                <ReviewIssue issue={error} />
               </li>
             ))}
           </ul>

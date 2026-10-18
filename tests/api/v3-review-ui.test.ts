@@ -151,6 +151,6 @@ describe("review screen rendering", () => {
         warnings: [],
       }),
     );
-    expect(html).toContain("Conflict detection pending");
+    expect(html).toContain("Source comparison is not available yet");
   });
 });

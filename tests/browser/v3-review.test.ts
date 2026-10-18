@@ -236,6 +236,13 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           })
           .click();
         expect(await page.locator("mark").count()).toBeGreaterThan(0);
+        const headings = await panel.getByRole("heading").allTextContents();
+        expect(headings).toContain("Passage 1");
+        for (const passage of spec.documents[0].keyPassages) {
+          expect(headings).not.toContain(passage.id);
+          expect(await panel.locator("code").filter({ hasText: passage.id }).count()).toBeGreaterThan(0);
+        }
+
         for (const theme of ["light", "dark"]) {
           await page.evaluate((theme) => {
             document.documentElement.dataset.theme = theme;

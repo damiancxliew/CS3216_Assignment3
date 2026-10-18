@@ -14,7 +14,12 @@ import type {
   SpecSource,
 } from "@adventure/spec-v3";
 import { compactButton as button } from "@/components/ui";
-import { PASS_LABELS } from "@/lib/v3/generation/labels";
+import { ReviewIssue } from "@/components/teacher/review-issue";
+import {
+  reviewNames,
+  REVIEW_PASS_LABELS,
+  REVIEW_EVENT_LABELS,
+} from "@/lib/v3/review-presentation";
 import {
   conditionText,
   documentSegments,
@@ -40,11 +45,13 @@ const tabs: { id: ReviewTab; label: string }[] = [
 function Block({
   id,
   title,
+  reference,
   children,
   card = false,
 }: {
   id?: string;
   title: string;
+  reference?: string;
   children: ReactNode;
   card?: boolean;
 }) {
@@ -58,7 +65,14 @@ function Block({
           : "scroll-mt-4 space-y-3 border-t border-line pt-5 first:border-0 first:pt-0"
       }
     >
-      <h3 className="text-lg font-bold">{title}</h3>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="text-lg font-bold">{title}</h3>
+        {reference ? (
+          <code className="break-all text-xs font-normal text-muted">
+            {reference}
+          </code>
+        ) : null}
+      </div>
       {children}
     </section>
   );
@@ -138,13 +152,13 @@ export function Citations({
               const url = safeSourceUrl(source?.url);
               return (
                 <li key={`${citation.sourceId}-${i}`}>
-                  <p>
-                    {source
-                      ? source.origin === "teacher"
+                  {source ? (
+                    <p>
+                      {source.origin === "teacher"
                         ? "Teacher-provided source"
-                        : "Outside source"
-                      : "Source unavailable"}
-                  </p>
+                        : "Outside source"}
+                    </p>
+                  ) : null}
                   {url ? (
                     <a
                       className="underline"
@@ -155,9 +169,16 @@ export function Citations({
                       {source?.title}
                     </a>
                   ) : (
-                    <p className="font-semibold">
-                      {source?.title ?? citation.sourceId}
-                    </p>
+                    <div className="flex flex-wrap items-baseline gap-3">
+                      <p className="font-semibold">
+                        {source?.title ?? "Source unavailable"}
+                      </p>
+                      {!source ? (
+                        <code className="text-xs text-muted">
+                          {citation.sourceId}
+                        </code>
+                      ) : null}
+                    </div>
                   )}
                   {citation.quote ? (
                     <blockquote className="mt-1 whitespace-pre-wrap border-l-2 border-line pl-3">
@@ -202,30 +223,8 @@ export function ReviewScreen({
   const [destination, setDestination] = useState<ReviewTarget | null>(null);
   const detail = useRef<HTMLDivElement>(null);
   const targets = useMemo(() => reviewTargets(spec), [spec]);
-  const names = useMemo(
-    () =>
-      new Map([
-        ...spec.stages.map((s) => [s.id, s.title] as const),
-        ...spec.stages.flatMap((s) =>
-          s.rooms.map((r) => [r.id, r.name] as const),
-        ),
-        ...spec.characters.map((c) => [c.id, c.name] as const),
-        ...spec.documents.map((d) => [d.id, d.title] as const),
-        ...spec.discoveries.map(
-          (d) => [d.id, reviewDiscoveryTitle(spec, d)] as const,
-        ),
-        ...spec.definingMoments.flatMap((m) => [
-          ...m.acts.map((a) => [a.id, a.text] as const),
-          ...m.outcomes.map((o) => [o.id, o.summary] as const),
-        ]),
-        ...spec.endings.map((e) => [e.id, e.title] as const),
-        ...spec.characters.flatMap((c) =>
-          c.stances.map((s) => [s.id, s.label] as const),
-        ),
-      ]),
-    [spec],
-  );
-  const name = (id: string) => names.get(id) ?? id;
+  const names = useMemo(() => reviewNames(spec), [spec]);
+  const name = (id: string) => names.get(id) ?? "Unavailable item";
   const choose = (target: ReviewTarget) => {
     setCollapsed((current) => {
       const next = new Set(current);
@@ -280,7 +279,12 @@ export function ReviewScreen({
         {name(id)}
       </button>
     ) : (
-      name(id)
+      <span className="inline-flex flex-wrap items-baseline gap-2">
+        {name(id)}
+        {!names.has(id) ? (
+          <code className="text-xs text-muted">{id}</code>
+        ) : null}
+      </span>
     );
   };
   const issueList = (issues: CheckIssue[]) => (
@@ -289,18 +293,11 @@ export function ReviewScreen({
         const target = issueTarget(spec, issue, targets);
         return (
           <li key={i} className="text-sm">
-            {target ? (
-              <button
-                type="button"
-                onClick={() => choose(target)}
-                className="text-left underline"
-              >
-                {issue.message}
-              </button>
-            ) : (
-              issue.message
-            )}
-            <span className="ml-2 text-xs text-muted">{issue.code}</span>
+            <ReviewIssue
+              issue={issue}
+              onSelect={target ? () => choose(target) : undefined}
+              location={target ? name(target.itemId) : undefined}
+            />
           </li>
         );
       })}
@@ -331,8 +328,8 @@ export function ReviewScreen({
   };
   const items =
     tab === "characters"
-      ? spec.characters.map((c) => ({ id: c.id, title: c.name }))
-      : spec[tab].map((item) => ({ id: item.id, title: item.title }));
+      ? spec.characters.map((c) => ({ id: c.id, title: name(c.id) }))
+      : spec[tab].map((item) => ({ id: item.id, title: name(item.id) }));
   const stage =
     tab === "stages" ? spec.stages.find((s) => s.id === selected) : undefined;
   const character =
@@ -358,12 +355,12 @@ export function ReviewScreen({
         {errors.length ? (
           issueList(errors)
         ) : (
-          <p className="text-sm">No blocking errors.</p>
+          <p className="text-sm">Ready to publish.</p>
         )}
         {[...warningGroups].map(([pass, list]) => (
           <div key={pass}>
             <h3 className="mb-2 font-bold">
-              {PASS_LABELS[pass as keyof typeof PASS_LABELS] ?? pass} warnings
+              {REVIEW_PASS_LABELS[pass] ?? "Other checks"} warnings
             </h3>
             {issueList(list)}
           </div>
@@ -389,8 +386,7 @@ export function ReviewScreen({
           </ul>
         ) : (
           <p className="text-sm text-muted">
-            Conflict detection pending. No generated conflicts are available
-            yet.
+            Source comparison is not available yet.
           </p>
         )}
       </section>
@@ -534,7 +530,7 @@ export function ReviewScreen({
             </div>
             {stage ? (
               <>
-                <Card id={stage.id} title={stage.title}>
+                <Card id={stage.id} title={name(stage.id)}>
                   <p>{stage.timePlace}</p>
                   <Field title="Central question">
                     {stage.centralQuestion}
@@ -590,7 +586,7 @@ export function ReviewScreen({
                   {stage.situations.map((s, i) => (
                     <Field
                       key={i}
-                      title={`Situation after ${s.whenOutcome.outcomeId}`}
+                      title={`After: ${name(s.whenOutcome.outcomeId)}`}
                     >
                       <p>{s.openingNarration}</p>
                       <p>
@@ -608,7 +604,9 @@ export function ReviewScreen({
                       <p>
                         Stances:{" "}
                         {Object.entries(s.stances ?? {})
-                          .map(([id, stance]) => `${name(id)} → ${stance}`)
+                          .map(
+                            ([id, stance]) => `${name(id)} → ${name(stance)}`,
+                          )
                           .join(", ") || "Unchanged"}
                       </p>
                     </Field>
@@ -627,8 +625,10 @@ export function ReviewScreen({
                         title={reviewDiscoveryTitle(spec, d)}
                       >
                         <p className="text-sm">
-                          {d.core ? "Core discovery" : "Optional discovery"} ·
-                          Held by{" "}
+                          {d.core
+                            ? "Essential discovery"
+                            : "Optional discovery"}{" "}
+                          · Held by{" "}
                           {"characterId" in d.holder
                             ? link(d.holder.characterId)
                             : link(d.holder.documentId)}
@@ -636,7 +636,7 @@ export function ReviewScreen({
                         <Field title="Fact">{d.text}</Field>
                         <Field title="Student note">{d.note}</Field>
                         {d.condition ? (
-                          <Field title="Unlock condition">
+                          <Field title="Available when">
                             {conditionText(d.condition, name)}
                           </Field>
                         ) : null}
@@ -652,7 +652,11 @@ export function ReviewScreen({
                   {spec.storyEvents
                     .filter((e) => e.stageId === stage.id)
                     .map((e) => (
-                      <Block key={e.id} id={e.id} title={e.effect}>
+                      <Block
+                        key={e.id}
+                        id={e.id}
+                        title={REVIEW_EVENT_LABELS[e.effect]}
+                      >
                         <p>{e.text}</p>
                         <Field title="When">
                           {"atSeconds" in e.when
@@ -679,20 +683,22 @@ export function ReviewScreen({
                   .filter((m) => m.stageId === stage.id)
                   .map((m) => (
                     <Card key={m.id} id={m.id} title="Defining moment">
-                      <Field title="Decider">{link(m.deciderId)}</Field>
+                      <Field title="Who decides">{link(m.deciderId)}</Field>
                       <Field title="Scene">{m.scene}</Field>
-                      <Field title="Nudge">{m.nudge}</Field>
-                      <Field title="Final call">{m.finalCallNarration}</Field>
+                      <Field title="Prompt for the student">{m.nudge}</Field>
+                      <Field title="Decision narration">
+                        {m.finalCallNarration}
+                      </Field>
                       <Block
                         id={reviewSectionId(m.id, "choices")}
                         title="Choices"
                       >
                         {m.acts.map((a) => (
-                          <Block key={a.id} id={a.id} title={a.text}>
+                          <Block key={a.id} id={a.id} title={name(a.id)}>
                             <p>{a.reaction}</p>
                             {a.deception ? <p>Deception</p> : null}
                             {a.secret ? (
-                              <Field title="Secret requirements">{`Meet ${a.secret.minMet} of: ${a.secret.unlock.map((c) => conditionText(c, name)).join("; ")}`}</Field>
+                              <Field title="How to reveal this choice">{`Meet ${a.secret.minMet} of: ${a.secret.unlock.map((c) => conditionText(c, name)).join("; ")}`}</Field>
                             ) : null}
                           </Block>
                         ))}
@@ -702,7 +708,7 @@ export function ReviewScreen({
                         title="Outcomes"
                       >
                         {m.outcomes.map((o) => (
-                          <Block key={o.id} id={o.id} title={o.summary}>
+                          <Block key={o.id} id={o.id} title={name(o.id)}>
                             <p>
                               {o.historical
                                 ? "Historical outcome"
@@ -715,19 +721,17 @@ export function ReviewScreen({
                               <p>Ending: {link(o.endingId)}</p>
                             ) : null}
                             {o.closesEndingIds.length ? (
-                              <p>Closes: {o.closesEndingIds.join(", ")}</p>
+                              <p>
+                                Closes: {o.closesEndingIds.map(name).join(", ")}
+                              </p>
                             ) : null}
                           </Block>
                         ))}
                       </Block>
-                      <Field title="Outcome rules">
+                      <Field title="How choices lead to outcomes">
                         {m.rules.map((r, i) => (
                           <p key={i}>
-                            {m.acts.find((a) => a.id === r.actId)?.text ??
-                              r.actId}{" "}
-                            →{" "}
-                            {m.outcomes.find((o) => o.id === r.outcomeId)
-                              ?.summary ?? r.outcomeId}
+                            {name(r.actId)} → {name(r.outcomeId)}
                             {r.when
                               ? ` when ${conditionText(r.when, name)}`
                               : ""}
@@ -740,9 +744,13 @@ export function ReviewScreen({
             ) : null}
             {character ? (
               <>
-                <Card id={character.id} title={character.name}>
+                <Card id={character.id} title={name(character.id)}>
                   <p>
-                    {character.title} · {character.tier} ·{" "}
+                    {character.title} ·{" "}
+                    {character.tier === "major"
+                      ? "Main character"
+                      : "Supporting character"}{" "}
+                    ·{" "}
                     {character.real
                       ? "Real historical person"
                       : "Invented character"}
@@ -763,7 +771,7 @@ export function ReviewScreen({
                   {(
                     [
                       ["Voice", character.persona.voice],
-                      ["Knew then", character.persona.knewThen],
+                      ["What they know", character.persona.knewThen],
                       [
                         "Wants from the student",
                         character.persona.wantsFromStudent,
@@ -776,7 +784,7 @@ export function ReviewScreen({
                       {text}
                     </Field>
                   ))}
-                  <Field title="Withholds">
+                  <Field title="What they keep to themselves">
                     {character.persona.withholds.join("\n")}
                   </Field>
                   {character.persona.phrases.map((phrase, i) => (
@@ -795,7 +803,7 @@ export function ReviewScreen({
                   title="Stances"
                 >
                   {character.stances.map((s) => (
-                    <Block key={s.id} id={s.id} title={s.label}>
+                    <Block key={s.id} id={s.id} title={name(s.id)}>
                       <p>{s.demeanour}</p>
                       <p>
                         {s.id === character.initialStanceId
@@ -808,12 +816,12 @@ export function ReviewScreen({
                 </Card>
                 <Card
                   id={reviewSectionId(character.id, "slants")}
-                  title="Slants"
+                  title="Biased claims"
                 >
                   {character.slants.map((s) => (
-                    <Block key={s.id} id={s.id} title={s.claim}>
+                    <Block key={s.id} id={s.id} title={name(s.id)}>
                       <div className="flex flex-wrap gap-3">
-                        Contradicted by:{" "}
+                        Evidence that challenges this claim:{" "}
                         {s.contradictedBy.map((id) => (
                           <span key={id}>{link(id)}</span>
                         ))}
@@ -843,16 +851,16 @@ export function ReviewScreen({
                               : `Discover ${name(t.on.discovered)}`}
                         </Field>
                         {t.requires ? (
-                          <Field title="Requires">
+                          <Field title="Only when">
                             {conditionText(t.requires, name)}
                           </Field>
                         ) : null}
-                        <Field title="Effect">
+                        <Field title="What changes">
                           {"toStance" in t.effect
                             ? `Change stance to ${name(t.effect.toStance)}`
                             : t.effect.stanceDelta > 0
-                              ? "Gain one stance"
-                              : "Lose one stance"}
+                              ? "Becomes more receptive"
+                              : "Becomes less receptive"}
                         </Field>
                         {t.handsOver?.length ? (
                           <p>Hands over: {t.handsOver.map(name).join(", ")}</p>
@@ -864,7 +872,7 @@ export function ReviewScreen({
             ) : null}
             {doc ? (
               <>
-                <Card id={doc.id} title={doc.title}>
+                <Card id={doc.id} title={name(doc.id)}>
                   <p>
                     {doc.kind} ·{" "}
                     {doc.real
@@ -887,7 +895,10 @@ export function ReviewScreen({
                   <div className="whitespace-pre-wrap text-sm leading-relaxed">
                     {documentSegments(doc).map((s) =>
                       s.passageIds.length ? (
-                        <mark key={s.start} className="rounded-sm bg-sunshine text-ink">
+                        <mark
+                          key={s.start}
+                          className="rounded-sm bg-sunshine text-ink"
+                        >
                           {s.text}
                         </mark>
                       ) : (
@@ -900,8 +911,13 @@ export function ReviewScreen({
                   id={reviewSectionId(doc.id, "passages")}
                   title="Key passages"
                 >
-                  {doc.keyPassages.map((p) => (
-                    <Block key={p.id} id={p.id} title={p.id}>
+                  {doc.keyPassages.map((p, passageIndex) => (
+                    <Block
+                      key={p.id}
+                      id={p.id}
+                      title={`Passage ${passageIndex + 1}`}
+                      reference={p.id}
+                    >
                       <blockquote>{doc.body.slice(p.start, p.end)}</blockquote>
                       {spec.discoveries
                         .filter(
@@ -935,8 +951,14 @@ export function ReviewScreen({
             ) : null}
             {ending ? (
               <>
-                <Card id={ending.id} title={ending.title}>
-                  <p>{ending.type}</p>
+                <Card id={ending.id} title={name(ending.id)}>
+                  <p>
+                    {ending.type === "historical"
+                      ? "Historical ending"
+                      : ending.type === "alternative"
+                        ? "Alternative ending"
+                        : "Hidden ending"}
+                  </p>
                   <Field title="Summary">{ending.summary}</Field>
                   <Field title="Epilogue">{ending.epilogue}</Field>
                   <Citations
@@ -954,16 +976,16 @@ export function ReviewScreen({
                   </Field>
                   <Field title="Question">{ending.interview.question}</Field>
                   {ending.interview.verdicts.map((v) => (
-                    <Block key={v.id} id={v.id} title={v.text}>
+                    <Block key={v.id} id={v.id} title={name(v.id)}>
                       <div className="flex flex-wrap gap-3">
-                        Counterpoints:{" "}
+                        Evidence to discuss:{" "}
                         {v.counterPoints.map((id) => (
                           <span key={id}>{link(id)}</span>
                         ))}
                       </div>
                     </Block>
                   ))}
-                  <Field title="General counter">
+                  <Field title="Follow-up response">
                     {ending.interview.generalCounter}
                   </Field>
                 </Card>
