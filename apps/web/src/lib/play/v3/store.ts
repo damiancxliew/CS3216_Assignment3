@@ -1,4 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabaseJobStore } from "@adventure/jobs";
+import { finalCheckErrors, type FinalCheckOutput } from "@/lib/v3/generation/check-errors";
+import type { CheckIssue } from "@adventure/spec-v3";
 import { GameEvent } from "@adventure/play-contract";
 
 export interface V3Adventure {
@@ -29,6 +32,7 @@ export interface V3FlagInput {
 
 export interface V3PlayStore {
   loadAdventure(id: string): Promise<V3Adventure | null>;
+  loadCheckErrors(id: string): Promise<CheckIssue[]>;
   setAdventureStatus(id: string, status: string): Promise<void>;
   loadVersionSpec(adventureId: string, version: number): Promise<unknown | null>;
   isActiveMember(schoolId: string, userId: string): Promise<boolean>;
@@ -104,6 +108,11 @@ export class SupabaseV3PlayStore implements V3PlayStore {
       specVersion: data.spec_version,
       spec: data.spec,
     };
+  }
+
+  async loadCheckErrors(id: string): Promise<CheckIssue[]> {
+    const outputs = await supabaseJobStore(this.admin).outputs(id, ["check"]);
+    return finalCheckErrors(outputs.check as FinalCheckOutput | undefined);
   }
 
   async setAdventureStatus(id: string, status: string): Promise<void> {
@@ -387,6 +396,12 @@ export class MemoryV3PlayStore implements V3PlayStore {
   async loadAdventure(id: string): Promise<V3Adventure | null> {
     const adventure = this.adventures.get(id);
     return adventure ? structuredClone(adventure) : null;
+  }
+
+  readonly checkErrors = new Map<string, CheckIssue[]>();
+
+  async loadCheckErrors(id: string): Promise<CheckIssue[]> {
+    return structuredClone(this.checkErrors.get(id) ?? []);
   }
 
   async setAdventureStatus(id: string, status: string): Promise<void> {

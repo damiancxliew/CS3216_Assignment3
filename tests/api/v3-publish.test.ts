@@ -11,6 +11,7 @@ import {
   unpublishAdventure,
   type V3PublishDeps,
 } from "@/lib/play/v3/publish";
+import { finalCheckErrors } from "@/lib/v3/generation/check-errors";
 import { createAttempt, type V3PlayServiceDeps } from "@/lib/play/v3/service";
 import { MemoryV3PlayStore } from "@/lib/play/v3/store";
 
@@ -96,6 +97,16 @@ describe("v3 publish", () => {
       expect((await publishAdventure(deps, OWNER_ID, ADVENTURE_ID)).status).toBe(409);
       expect(await status(store)).toBe("draft");
     }
+  });
+
+  it("blocks final part errors even when the assembled spec passes checkSpec", async () => {
+    const { store, deps } = setup();
+    store.checkErrors.set(ADVENTURE_ID, finalCheckErrors({ partErrors: [{
+      part: "persona:raffles", issue: { code: "quote-mismatch", path: "phrases.0", message: "Quote is not grounded" },
+    }] }));
+    expect((await publishAdventure(deps, OWNER_ID, ADVENTURE_ID)).status).toBe(409);
+    expect(await status(store)).toBe("draft");
+    expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toMatchObject({ kind: "unpublished", blockedReason: expect.any(String) });
   });
 
   it("hides everything when v3 is off for the school", async () => {

@@ -13,6 +13,9 @@ export interface ExtractedPage {
 export interface ExtractedDocument {
   id: string
   title: string
+  /** Optional provenance for v3 sources; older extraction callers may omit it. */
+  origin?: 'teacher' | 'outside'
+  url?: string
   kind: SourceKind
   /** sha256 hex of the normalised full text. */
   contentHash: string

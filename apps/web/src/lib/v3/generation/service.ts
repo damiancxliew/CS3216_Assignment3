@@ -16,6 +16,7 @@ import type { V3BriefStore } from "@/lib/v3/brief/store";
 
 import type { GenerationDeps, V3AdventureRow } from "./deps";
 import type { GenerationBrief } from "./types";
+import { finalCheckErrors, type FinalCheckOutput } from "./check-errors";
 
 type Jobs = Pick<ReturnType<typeof createJobs>, "enqueue" | "getProgress">;
 /** raw step rows — needed for the stored brief (skeleton input) and step outputs. */
@@ -288,10 +289,7 @@ export async function getGenerationProgress(
     costUsd,
     warnings,
     ...(outputs.check !== undefined
-      ? (() => {
-          const check = outputs.check as { errors?: CheckIssue[]; partErrors?: { part: string; issue: CheckIssue }[] };
-          return { checkErrors: [...(check.errors ?? []), ...(check.partErrors ?? []).map(({ part, issue }) => ({ ...issue, path: `${part}/${issue.path}` }))] };
-        })()
+      ? { checkErrors: finalCheckErrors(outputs.check as FinalCheckOutput) }
       : {}),
     ...(adventure.status === "needs_review"
       ? await (async () => {

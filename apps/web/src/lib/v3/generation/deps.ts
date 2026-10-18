@@ -144,6 +144,8 @@ export function supabaseV3SourceStore(getClient: () => SupabaseClient): V3Source
       return (data ?? []).map((row) => ({
         id: row.source_key,
         title: row.title,
+        origin: row.origin === "outside" ? "outside" as const : "teacher" as const,
+        ...(row.url ? { url: row.url } : {}),
         kind: row.kind as ExtractedDocument["kind"],
         contentHash: row.content_hash,
         pages: row.pages ?? [],
@@ -278,7 +280,7 @@ export function memoryV3SourceStore() {
   return {
     rows,
     async load(adventureId: string) {
-      return (rows.get(adventureId) ?? []).map((row) => row.doc);
+      return (rows.get(adventureId) ?? []).map((row) => ({ ...row.doc, origin: row.outside ? "outside" as const : "teacher" as const, ...(row.outside ? { url: row.outside.url } : {}) }));
     },
     async saveUploads(adventureId: string, uploads: { doc: ExtractedDocument; storageKey: string }[]) {
       const list = rows.get(adventureId) ?? [];

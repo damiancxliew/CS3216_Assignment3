@@ -115,6 +115,13 @@ const llmOutput: SkeletonLlmOutput = {
 }
 
 describe('toSkeleton', () => {
+  it('preserves mixed source provenance and defaults legacy documents to teacher origin', () => {
+    const documents = [...input.documents, { ...input.documents[0]!, id: 'outside-doc', origin: 'outside' as const, url: 'https://example.com/history' }]
+    const skeleton = toSkeleton(llmOutput, { ...input, documents })
+    expect(skeleton.sources[0]!.origin).toBe('teacher')
+    expect(skeleton.sources.at(-1)).toMatchObject({ id: 'outside-doc', origin: 'outside', url: 'https://example.com/history' })
+  })
+
   it('converts the wire format to a SkeletonSpec', () => {
     const skeleton = toSkeleton(llmOutput, input)
     expect(skeleton.stages[0]!.placement).toEqual({ farquhar: 'office', raffles: 'office', nakhoda: 'dock' })

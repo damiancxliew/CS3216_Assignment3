@@ -12,6 +12,8 @@ import { briefStateV3Schema } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PASS_LABELS } from "@/lib/v3/generation/labels";
+import { loadPublishState } from "@/lib/play/v3/publish";
+import { v3PublishDeps } from "@/lib/play/v3/http";
 import { viewerSeesCost } from "@/lib/v3/generation/service";
 import type { SkeletonShape } from "@adventure/spec-v3";
 
@@ -37,6 +39,9 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
 
   const row = await supabaseV3BriefStore(createAdminClient()).load(id);
   if (!row || row.ownerId !== viewer.user.id || !v3SchoolAllowed(row.schoolId)) notFound();
+
+  const publish = ["draft", "published", "archived"].includes(row.status) ? await loadPublishState(v3PublishDeps(), viewer.user.id, id) : undefined;
+  const blockedReason = publish?.kind === "unpublished" ? publish.blockedReason : undefined;
 
   switch (row.status) {
     case "briefing": {
@@ -104,13 +109,12 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
             <Link href={`/v3/teacher/${id}/preview`} className={button.primary}>
               Preview
             </Link>
-            <button type="button" disabled className={button.subtle} title="Review and edit is coming soon">
+            <Link href={`/v3/teacher/${id}/review`} className={button.subtle}>
               Review and edit
-            </button>
-            <span className="text-xs text-muted">coming soon</span>
+            </Link>
           </div>
           <div className="mt-6">
-            <V3PublishPanel adventureId={id} published={false} />
+            <V3PublishPanel adventureId={id} published={false} blockedReason={blockedReason} />
           </div>
         </Page>
       );
@@ -141,12 +145,13 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
             <Link href={`/v3/teacher/${id}/preview`} className={button.primary}>
               Preview
             </Link>
+            <Link href={`/v3/teacher/${id}/review`} className={button.subtle}>Review and edit</Link>
             <Link href={`/v3/teacher/${id}/summary`} className={button.quiet}>
               Class summary
             </Link>
           </div>
           <div className="mt-6">
-            <V3PublishPanel adventureId={id} published={row.status === "published"} />
+            <V3PublishPanel adventureId={id} published={row.status === "published"} blockedReason={blockedReason} />
           </div>
         </Page>
       );

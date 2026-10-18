@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import { publishV3Adventure, unpublishV3Adventure } from "@/app/v3/teacher/[id]/publish-actions";
 import { button } from "@/components/ui";
 
-export function V3PublishPanel({ adventureId, published }: { adventureId: string; published: boolean }) {
+export function V3PublishPanel({ adventureId, published, blockedReason }: { adventureId: string; published: boolean; blockedReason?: string }) {
   const [isPublished, setPublished] = useState(published);
   const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -38,7 +38,7 @@ export function V3PublishPanel({ adventureId, published }: { adventureId: string
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm font-bold text-ink">{isPublished ? "Published" : "Not published"}</span>
-      <button type="button" onClick={toggle} disabled={pending} className={isPublished ? button.subtle : button.quiet}>
+      <button type="button" onClick={toggle} disabled={pending || (!isPublished && !!blockedReason)} aria-describedby={!isPublished && blockedReason ? `publish-block-${adventureId}` : undefined} className={isPublished ? button.subtle : button.quiet}>
         {pending ? "Saving…" : isPublished ? "Unpublish" : "Publish"}
       </button>
       {isPublished ? (
@@ -47,6 +47,7 @@ export function V3PublishPanel({ adventureId, published }: { adventureId: string
           {copied ? "Copied" : "Copy student link"}
         </button>
       ) : null}
+      {!isPublished && blockedReason ? <p id={`publish-block-${adventureId}`} className="w-full text-sm text-muted">{blockedReason}</p> : null}
       {message ? <p role="alert" className="w-full text-sm text-ink">{message}</p> : null}
     </div>
   );
