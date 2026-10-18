@@ -39,12 +39,13 @@ export async function publishAdventure(
   deps: V3PublishDeps,
   userId: string,
   adventureId: string,
+  expected?: { version: number; publishedVersion: number | null },
 ): Promise<ServiceResponse> {
   const adventure = await staffAdventure(deps, userId, adventureId);
   if (!adventure) return error(404, "not_found", "Not found.");
   const reason = await publishBlockReason(deps, adventure);
   if (reason) return error(409, "not_ready", reason);
-  if (adventure.status !== "published") await deps.store.setAdventureStatus(adventure.id, "published");
+  if (!(await deps.store.publishVersion(adventure.id, expected?.version ?? adventure.specVersion, expected ? expected.publishedVersion : adventure.publishedVersion ?? null, true))) return error(409, "conflict", "This adventure changed. Reload before publishing.");
   return { status: 200, body: { status: "published" } };
 }
 
@@ -52,17 +53,18 @@ export async function unpublishAdventure(
   deps: V3PublishDeps,
   userId: string,
   adventureId: string,
+  expected?: { version: number; publishedVersion: number | null },
 ): Promise<ServiceResponse> {
   const adventure = await staffAdventure(deps, userId, adventureId);
   if (!adventure) return error(404, "not_found", "Not found.");
-  if (adventure.status === "published") await deps.store.setAdventureStatus(adventure.id, "draft");
+  if (!(await deps.store.publishVersion(adventure.id, expected?.version ?? adventure.specVersion, expected ? expected.publishedVersion : adventure.publishedVersion ?? null, false))) return error(409, "conflict", "Publication changed. Reload before unpublishing.");
   return { status: 200, body: { status: adventure.status === "published" ? "draft" : adventure.status } };
 }
 
 export type V3PublishState =
   | { kind: "hidden" }
-  | { kind: "unpublished"; status: string; blockedReason?: string }
-  | { kind: "published" };
+  | { kind: "unpublished"; status: string; blockedReason?: string; version?: number; publishedVersion?: number | null }
+  | { kind: "published"; version?: number; publishedVersion?: number | null; unpublishedChanges?: boolean; blockedReason?: string };
 
 /** What the teacher's publish control should show; staff of the adventure only. */
 export async function loadPublishState(
@@ -72,9 +74,9 @@ export async function loadPublishState(
 ): Promise<V3PublishState> {
   const adventure = await staffAdventure(deps, userId, adventureId);
   if (!adventure) return { kind: "hidden" };
-  if (adventure.status === "published") return { kind: "published" };
+  if (adventure.status === "published") return { kind: "published", version: adventure.specVersion, publishedVersion: adventure.publishedVersion ?? null, ...(adventure.publishedVersion !== adventure.specVersion ? { unpublishedChanges: true, blockedReason: await publishBlockReason(deps, adventure) } : {}) };
   const blockedReason = await publishBlockReason(deps, adventure);
-  return { kind: "unpublished", status: adventure.status, ...(blockedReason ? { blockedReason } : {}) };
+  return { kind: "unpublished", version: adventure.specVersion, publishedVersion: adventure.publishedVersion ?? null, status: adventure.status, ...(blockedReason ? { blockedReason } : {}) };
 }
 
 export type V3JoinView =
@@ -101,7 +103,9 @@ export async function loadJoinView(
   ) {
     return { kind: "closed" };
   }
-  const title = specTitle(adventure.spec);
+  const published = adventure.publishedVersion == null ? null : await deps.store.loadVersionSpec(adventure.id, adventure.publishedVersion);
+  if (!published) return { kind: "closed" };
+  const title = specTitle(published);
   if (!userId) return { kind: "sign_in", title };
   if (!(await deps.store.isActiveMember(adventure.schoolId, userId))) return { kind: "not_member", title };
   return { kind: "ready", title };

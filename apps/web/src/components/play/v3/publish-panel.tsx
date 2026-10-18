@@ -14,11 +14,13 @@ export function V3PublishPanel({
   published,
   blockedReason,
   compact = false,
+  version, publishedVersion, unpublishedChanges = false, disabled = false,
 }: {
   adventureId: string;
   published: boolean;
   blockedReason?: string;
   compact?: boolean;
+  version?: number; publishedVersion?: number | null; unpublishedChanges?: boolean; disabled?: boolean;
 }) {
   const styles = compact ? compactButton : button;
   const [isPublished, setPublished] = useState(published);
@@ -29,13 +31,16 @@ export function V3PublishPanel({
   const studentLink = () =>
     `${window.location.origin}/v3/join/${encodeURIComponent(adventureId)}`;
 
-  const toggle = () => {
+  const [changes, setChanges] = useState(unpublishedChanges);
+  const [pointer, setPointer] = useState(publishedVersion ?? null);
+  const toggle = (publish = !isPublished) => {
     setMessage(null);
     startTransition(async () => {
-      const result = isPublished
-        ? await unpublishV3Adventure(adventureId)
-        : await publishV3Adventure(adventureId);
-      if (result.ok) setPublished(result.status === "published");
+      const expected = version === undefined ? undefined : { version, publishedVersion: pointer };
+      const result = publish
+        ? await publishV3Adventure(adventureId, expected)
+        : await unpublishV3Adventure(adventureId, expected);
+      if (result.ok) { setPublished(result.status === "published"); setPointer(publish ? version ?? null : null); setChanges(false); }
       else setMessage(result.message);
     });
   };
@@ -55,6 +60,11 @@ export function V3PublishPanel({
       {isPublished ? (
         <span className="text-sm font-bold text-ink">Published</span>
       ) : null}
+      {isPublished && changes ? <>
+        <span className="text-sm">Unpublished changes</span>
+        <button type="button" className={styles.quiet} disabled={disabled || pending || !!blockedReason} onClick={() => toggle(true)}>Publish changes</button>
+        {blockedReason ? <p className="text-sm" role="status">{blockedReason}</p> : null}
+      </> : null}
       <span
         className="group/publish relative inline-flex rounded-full outline-offset-4"
         tabIndex={!isPublished && blockedReason ? 0 : undefined}
@@ -70,8 +80,8 @@ export function V3PublishPanel({
       >
         <button
           type="button"
-          onClick={toggle}
-          disabled={pending || (!isPublished && !!blockedReason)}
+          onClick={() => toggle()}
+          disabled={disabled || pending || (!isPublished && !!blockedReason)}
           aria-describedby={
             !isPublished && blockedReason
               ? `publish-block-${adventureId}`

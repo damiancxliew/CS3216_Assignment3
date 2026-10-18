@@ -12,13 +12,14 @@ export type PublishActionResult = { ok: true; status: string } | { ok: false; me
 async function run(
   adventureId: string,
   change: typeof publishAdventure,
+  expected?: { version: number; publishedVersion: number | null },
 ): Promise<PublishActionResult> {
   if (!v3Enabled()) return { ok: false, message: "Not found." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "Sign in again to continue." };
 
-  const result = await change(v3PublishDeps(), user.id, adventureId);
+  const result = await change(v3PublishDeps(), user.id, adventureId, expected);
   if (result.status !== 200) {
     const body = result.body as { error: { message: string } };
     return { ok: false, message: body.error.message };
@@ -28,10 +29,10 @@ async function run(
   return { ok: true, status: (result.body as { status: string }).status };
 }
 
-export async function publishV3Adventure(adventureId: string): Promise<PublishActionResult> {
-  return run(adventureId, publishAdventure);
+export async function publishV3Adventure(adventureId: string, expected?: { version: number; publishedVersion: number | null }): Promise<PublishActionResult> {
+  return run(adventureId, publishAdventure, expected);
 }
 
-export async function unpublishV3Adventure(adventureId: string): Promise<PublishActionResult> {
-  return run(adventureId, unpublishAdventure);
+export async function unpublishV3Adventure(adventureId: string, expected?: { version: number; publishedVersion: number | null }): Promise<PublishActionResult> {
+  return run(adventureId, unpublishAdventure, expected);
 }

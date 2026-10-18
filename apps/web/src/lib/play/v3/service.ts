@@ -110,7 +110,7 @@ export async function createAttempt(
   userId: string,
   adventureId: string,
 ): Promise<ServiceResponse> {
-  const adventure = await permittedAdventure(deps, userId, adventureId);
+  let adventure = await permittedAdventure(deps, userId, adventureId);
   if (!adventure) return error(404, "not_found", "Not found.");
   if (adventure.status !== "published" || adventure.spec === null) {
     return error(409, "not_open", "This adventure is not open for play.");
@@ -125,26 +125,23 @@ export async function createAttempt(
     };
   }
 
-  const rawSpec = await deps.store.loadVersionSpec(adventure.id, adventure.specVersion);
-  if (rawSpec === null) throw new Error(`Missing pinned v3 spec ${adventure.id}:${adventure.specVersion}`);
-  const spec = EngineSpec.parse(rawSpec);
-  const seed = crypto.randomUUID();
-  const state = engine.createState(spec, seed);
-  const attempt = await deps.store.createAttempt({
-    adventureId: adventure.id,
-    specVersion: adventure.specVersion,
-    studentId: userId,
-    state,
-  });
-  return {
-    status: 201,
-    body: {
-      attemptId: attempt.id,
-      revision: attempt.revision,
-      view: engine.project(spec, state),
-      resumed: false,
-    },
-  };
+  for (let retry = 0; retry < 3; retry++) {
+    if (adventure.status !== "published" || adventure.publishedVersion == null) return error(409, "not_open", "This adventure is not open for play.");
+    const version = adventure.publishedVersion;
+    const rawSpec = await deps.store.loadVersionSpec(adventure.id, version);
+    if (rawSpec === null) throw new Error(`Missing published v3 spec ${adventure.id}:${version}`);
+    const spec = EngineSpec.parse(rawSpec);
+    const state = engine.createState(spec, crypto.randomUUID());
+    const attempt = await deps.store.createAttempt({ adventureId: adventure.id, specVersion: version, studentId: userId, state });
+    if (attempt) return {
+      status: 201,
+      body: { attemptId: attempt.id, revision: attempt.revision, view: engine.project(spec, state), resumed: false },
+    };
+    const latest = await permittedAdventure(deps, userId, adventureId);
+    if (!latest) return error(404, "not_found", "Not found.");
+    adventure = latest;
+  }
+  return error(409, "conflict", "Publication changed. Try starting again.");
 }
 
 export async function getAttempt(

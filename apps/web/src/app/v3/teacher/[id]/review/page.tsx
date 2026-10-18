@@ -68,6 +68,9 @@ export default async function ReviewPage({
           </Link>
         </div>
         <V3PublishPanel
+          version={adventure.specVersion}
+          publishedVersion={adventure.publishedVersion ?? null}
+          unpublishedChanges={row.status === "published" && adventure.publishedVersion !== adventure.specVersion}
           adventureId={id}
           compact
           published={row.status === "published"}

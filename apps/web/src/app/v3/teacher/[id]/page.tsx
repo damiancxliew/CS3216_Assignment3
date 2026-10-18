@@ -42,7 +42,7 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
   if (!row || row.ownerId !== viewer.user.id || !v3SchoolAllowed(row.schoolId)) notFound();
 
   const publish = ["draft", "published", "archived"].includes(row.status) ? await loadPublishState(v3PublishDeps(), viewer.user.id, id) : undefined;
-  const blockedReason = publish?.kind === "unpublished" ? publish.blockedReason : undefined;
+  const blockedReason = publish && publish.kind !== "hidden" ? publish.blockedReason : undefined;
 
   switch (row.status) {
     case "briefing": {
@@ -86,7 +86,7 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
       return (
         <Page kicker="Your adventure · Draft" title={row.title ?? "Adventure ready"} lede="Review the story, then share it with your class." width="wide">
           <DraftReady adventureId={id} errors={errors} warnings={warnings} blocked={!!blockedReason}
-            publishControl={<V3PublishPanel adventureId={id} published={false} compact blockedReason={blockedReason ? "Fix the errors in review before publishing." : undefined} />} />
+            publishControl={<V3PublishPanel {...(publish && publish.kind !== "hidden" ? { version: publish.version, publishedVersion: publish.publishedVersion, unpublishedChanges: publish.kind === "published" && publish.unpublishedChanges } : {})} adventureId={id} published={false} compact blockedReason={blockedReason ? "Fix the errors in review before publishing." : undefined} />} />
         </Page>
       );
     }
@@ -122,7 +122,7 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
             </Link>
           </div>
           <div className="mt-6">
-            <V3PublishPanel adventureId={id} published={row.status === "published"} compact blockedReason={blockedReason} />
+            <V3PublishPanel {...(publish && publish.kind !== "hidden" ? { version: publish.version, publishedVersion: publish.publishedVersion, unpublishedChanges: publish.kind === "published" && publish.unpublishedChanges } : {})} adventureId={id} published={row.status === "published"} compact blockedReason={blockedReason} />
           </div>
         </Page>
       );

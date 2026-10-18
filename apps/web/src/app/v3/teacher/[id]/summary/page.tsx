@@ -58,7 +58,7 @@ export default async function V3ClassSummaryPage({
   const headerLinks = (
     <div className="flex flex-wrap items-center gap-2">
       {publish.kind === "hidden" ? null : (
-        <V3PublishPanel adventureId={id} published={publish.kind === "published"} />
+        <V3PublishPanel {...({ version: publish.version, publishedVersion: publish.publishedVersion, unpublishedChanges: publish.kind === "published" && publish.unpublishedChanges })} adventureId={id} published={publish.kind === "published"} />
       )}
       <Link href={`/v3/teacher/${id}/preview`} className={button.subtle}>
         Preview

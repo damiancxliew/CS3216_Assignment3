@@ -120,11 +120,11 @@ describe("v3 publish", () => {
     const { store, deps, playDeps } = setup({ status: "archived" });
     expect((await publishAdventure(deps, OWNER_ID, ADVENTURE_ID)).status).toBe(200);
     expect((await publishAdventure(deps, OWNER_ID, ADVENTURE_ID)).status).toBe(200);
-    expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toEqual({ kind: "published" });
+    expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toMatchObject({ kind: "published", version: 1, publishedVersion: 1 });
 
     expect(await unpublishAdventure(deps, OWNER_ID, ADVENTURE_ID)).toEqual({ status: 200, body: { status: "draft" } });
     expect(await status(store)).toBe("draft");
-    expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toEqual({ kind: "unpublished", status: "draft" });
+    expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toMatchObject({ kind: "unpublished", status: "draft", version: 1, publishedVersion: null });
     expect((await createAttempt(playDeps, STUDENT_ID, ADVENTURE_ID)).status).toBe(409);
   });
 });

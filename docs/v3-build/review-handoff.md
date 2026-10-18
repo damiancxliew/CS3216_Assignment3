@@ -61,3 +61,15 @@ Migration request to coordinate with Damian (prepared here; not sent externally)
 
 No `spec_draft` column is needed. The source-policy, evaluation, Guided checkpoints
 and optional regeneration issues remain separate follow-up PRs as planned.
+
+## #213 publication foundation
+
+The additive `20261019000000_v3_publication.sql` migration must deploy before
+editor writes are enabled. It backfills published pointers, enforces same-adventure
+snapshot references, and provides service-only atomic save, publication and start
+operations. Authenticated direct insert/update access is revoked; application
+services retain the existing staff and school boundaries. Student starts initialize
+from the published snapshot and retry a publication race; attempts remain pinned.
+
+Platform/migration review: Damian. Contract changes in subsequent PR: Kevin.
+No production migration has been applied from this workspace.
