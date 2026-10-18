@@ -10,6 +10,8 @@ const STUDENT_PASSWORD = "password123!";
 const SCHOOL_NAME = "Testing School";
 const SCHOOL_SLUG = "testing-school";
 const ADVENTURE_ID = "00000000-0000-4000-8000-000000005c02";
+const TEACHER_EMAIL = "teacher@local.test";
+const TEACHER_ADVENTURE_ID = "00000000-0000-4000-8000-000000005c03";
 
 function assertLocalSupabaseUrl(value: string) {
   const url = new URL(value);
@@ -68,6 +70,32 @@ async function seedGoldenAdventure() {
   }, { onConflict: "id" });
   if (adventureError) throw adventureError;
 
+  const existingTeacher = users.users.find((user) => user.email === TEACHER_EMAIL);
+  const teacherResult = existingTeacher
+    ? await admin.auth.admin.updateUserById(existingTeacher.id, { password: STUDENT_PASSWORD, email_confirm: true })
+    : await admin.auth.admin.createUser({ email: TEACHER_EMAIL, password: STUDENT_PASSWORD, email_confirm: true });
+  if (teacherResult.error || !teacherResult.data.user) throw teacherResult.error ?? new Error("Could not create the local teacher.");
+  const teacherId = teacherResult.data.user.id;
+  const { error: teacherMembershipError } = await admin.from("organization_member").upsert({
+    organization_id: TESTING_SCHOOL_ID,
+    user_id: teacherId,
+    role: "admin",
+    status: "active",
+    added_by: null,
+    removed_by: null,
+    removed_at: null,
+  }, { onConflict: "organization_id,user_id" });
+  if (teacherMembershipError) throw teacherMembershipError;
+  const { error: teacherAdventureError } = await admin.from("adventures_v3").upsert({
+    id: TEACHER_ADVENTURE_ID,
+    school_id: TESTING_SCHOOL_ID,
+    owner_id: teacherId,
+    title: "Singapore 1819 (local teacher seed)",
+    status: "published",
+    spec,
+  }, { onConflict: "id" });
+  if (teacherAdventureError) throw teacherAdventureError;
+
   const appUrl = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
   console.log([
     "Local v3 golden adventure seeded.",
@@ -77,6 +105,9 @@ async function seedGoldenAdventure() {
     `student_email=${STUDENT_EMAIL}`,
     `student_password=${STUDENT_PASSWORD}`,
     `start_url=${appUrl}/v3/play/start/${ADVENTURE_ID}`,
+    `teacher_email=${TEACHER_EMAIL}`,
+    `teacher_adventure_url=${appUrl}/v3/teacher/${TEACHER_ADVENTURE_ID}`,
+    `teacher_preview_url=${appUrl}/v3/teacher/${TEACHER_ADVENTURE_ID}/preview`,
   ].join("\n"));
 }
 
