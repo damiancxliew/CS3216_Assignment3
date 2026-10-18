@@ -147,6 +147,20 @@
 .briefContext { border: 1px dashed var(--line-strong); border-radius: 6px; background: var(--surface); padding: 16px; }
 .game :is(button, input):focus-visible, .shell :is(a, button, summary):focus-visible, .dialog :is(button, input):focus-visible { outline: 3px solid var(--record); outline-offset: 3px; }
 .header :is(a, button, summary):focus-visible, .close:focus-visible { outline-color: #ffe0a2; }
+/* At 100% zoom on a laptop the title, chapter and navigation don't fit one row; truncate instead of wrapping. */
+@media (min-width: 1280px) {
+  .header { flex-wrap: nowrap; padding-block: 10px; }
+  .adventureTitle { flex: 0 3 auto; min-width: 10rem; }
+  .adventureTitle > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chapter { flex: 0 1 auto; min-width: 0; }
+  .chapter summary { flex-wrap: nowrap; overflow: hidden; }
+  .chapterNumber, .storyToggle { flex-shrink: 0; white-space: nowrap; }
+  .chapterTitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .headerActions { flex-shrink: 0; }
+  /* The open story gets its own row under the header line. */
+  .header:has(.chapter[open]) { flex-wrap: wrap; }
+  .chapter[open] { order: 3; flex-basis: 100%; }
+}
 @media (max-width: 1023px) {
   .game { overflow-y: auto; }
   .panel { border-left: 0; border-top: 8px solid var(--wood); box-shadow: inset 0 2px var(--brass); }
