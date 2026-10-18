@@ -311,7 +311,8 @@ export function validateSpec(input: unknown): ValidateResult {
 }
 
 /** `checkSpec` contract: PRD count/reference rules on top of `validateSpec`. */
-export type CheckIssue = { code: string; path: string; message: string }
+/** `ids` (on `ref` issues): the ids the message names, the unresolved or mismatched one first. */
+export type CheckIssue = { code: string; path: string; message: string; ids?: string[] }
 export type CheckResult = { errors: CheckIssue[]; warnings: CheckIssue[] }
 
 export { checkSpec } from './check/index.js'

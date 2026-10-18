@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback } from "react";
+import { useCallback, type ReactNode } from "react";
 import type { PlayerView } from "@adventure/play-contract";
 
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
@@ -11,10 +11,12 @@ export function V3PreviewClient({
   adventureId,
   initialToken,
   initialView,
+  publishControl,
 }: {
   adventureId: string;
   initialToken: string;
   initialView: PlayerView;
+  publishControl?: ReactNode;
 }) {
   const makeClient = useCallback(
     () => createV3PreviewClient(adventureId, initialToken, initialView),
@@ -33,7 +35,8 @@ export function V3PreviewClient({
           <span>
             Preview as a student. Nothing is saved, and it won&apos;t appear in your class&apos;s results. Reloading starts over.
           </span>
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-3">
+            {publishControl}
             <button
               type="button"
               onClick={() => window.location.reload()}

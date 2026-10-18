@@ -29,6 +29,7 @@ export interface V3FlagInput {
 
 export interface V3PlayStore {
   loadAdventure(id: string): Promise<V3Adventure | null>;
+  setAdventureStatus(id: string, status: string): Promise<void>;
   loadVersionSpec(adventureId: string, version: number): Promise<unknown | null>;
   isActiveMember(schoolId: string, userId: string): Promise<boolean>;
   isSchoolAdmin(schoolId: string, userId: string): Promise<boolean>;
@@ -103,6 +104,11 @@ export class SupabaseV3PlayStore implements V3PlayStore {
       specVersion: data.spec_version,
       spec: data.spec,
     };
+  }
+
+  async setAdventureStatus(id: string, status: string): Promise<void> {
+    const { error } = await this.admin.from("adventures_v3").update({ status }).eq("id", id);
+    if (error) throw error;
   }
 
   async loadVersionSpec(adventureId: string, version: number): Promise<unknown | null> {
@@ -381,6 +387,11 @@ export class MemoryV3PlayStore implements V3PlayStore {
   async loadAdventure(id: string): Promise<V3Adventure | null> {
     const adventure = this.adventures.get(id);
     return adventure ? structuredClone(adventure) : null;
+  }
+
+  async setAdventureStatus(id: string, status: string): Promise<void> {
+    const adventure = this.adventures.get(id);
+    if (adventure) adventure.status = status;
   }
 
   async loadVersionSpec(adventureId: string, version: number): Promise<unknown | null> {

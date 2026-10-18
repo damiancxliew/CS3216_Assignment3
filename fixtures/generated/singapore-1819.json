@@ -1,0 +1,1691 @@
+{
+  "id": "singapore-trading-post-1819",
+  "title": "A Trading Post at Singapore",
+  "readingLevel": "sec",
+  "arc": "In January 1819, Raffles seeks a British trading post on Singapore, but the Temenggong who governs the island cannot grant land on his own. The student helps navigate a preliminary agreement, then a disputed succession as Raffles decides whether to sign a treaty.",
+  "timer": {
+    "enabled": true,
+    "stageMinutes": [
+      15,
+      15
+    ]
+  },
+  "role": {
+    "name": "Siti",
+    "position": "Fictional interpreter between the British visitors and people at the river",
+    "relationships": [
+      "Temenggong Abdul Rahman values your help but doubts whom you serve.",
+      "Raffles trusts your translations but checks your advice.",
+      "Farquhar relies on you for local news."
+    ],
+    "reputation": "A careful interpreter who listens to both sides.",
+    "stakes": "Your family's place by the river could gain trade or be lost in a dispute.",
+    "privateBrief": {
+      "goals": [
+        "Protect your family's place by the river.",
+        "Help both sides understand what they are agreeing to."
+      ],
+      "fears": [
+        "A quarrel over the port could harm local people."
+      ],
+      "constraints": [
+        "You cannot sign for the Temenggong or the Sultan.",
+        "Neither side tells you everything."
+      ],
+      "knows": [
+        "The British want a harbour.",
+        "The Temenggong governs Singapore."
+      ]
+    },
+    "situation": "You meet the British visitors near the Singapore River as they seek permission to establish a post."
+  },
+  "stages": [
+    {
+      "id": "s1",
+      "title": "Permission to Land",
+      "timePlace": "Singapore River, 28–30 January 1819",
+      "centralQuestion": "Will the Temenggong sign an agreement before the Sultan gives his consent?",
+      "openingNarration": "You stand by the Singapore River as Raffles's visitors seek a place for a trading post. Your family's place by the river may be affected by what is agreed. Before you carry anyone's words to the Temenggong, you need to learn what the visitors want and who can give permission.",
+      "rooms": [
+        {
+          "id": "river-bank",
+          "name": "River bank",
+          "description": "Boats and visitors meet beside the small settlement."
+        },
+        {
+          "id": "temenggong-compound",
+          "name": "Temenggong's compound",
+          "description": "The Temenggong receives visitors and considers their request."
+        },
+        {
+          "id": "raffles-ship",
+          "name": "Raffles's ship",
+          "description": "A reconstructed account of Raffles's instructions lies on a table."
+        }
+      ],
+      "startRoomId": "river-bank",
+      "placement": {
+        "raffles": "raffles-ship",
+        "temenggong": "temenggong-compound",
+        "farquhar": "river-bank"
+      },
+      "documentPlacement": {
+        "doc-instructions": "raffles-ship",
+        "s1-doc-draft-letter": "temenggong-compound"
+      },
+      "situations": [],
+      "definingMomentId": "m1"
+    },
+    {
+      "id": "s2",
+      "title": "The Disputed Throne",
+      "timePlace": "Singapore River, early February–6 February 1819",
+      "centralQuestion": "Should Raffles recognise Hussein and sign a treaty despite the Dutch-backed rival Sultan?",
+      "openingNarration": "You are by the Singapore River as Hussein's claim to Johor's throne becomes part of the talks. Raffles must decide whom to recognise before a lasting treaty can be signed. You want to learn why the throne is disputed and what each agreement would mean for people by the river.",
+      "rooms": [
+        {
+          "id": "river-bank",
+          "name": "River bank",
+          "description": "Farquhar watches ships arrive as the treaty decision approaches."
+        },
+        {
+          "id": "temenggong-compound",
+          "name": "Temenggong's compound",
+          "description": "The Temenggong weighs the agreement that would give the Company a post."
+        },
+        {
+          "id": "raffles-ship",
+          "name": "Raffles's ship",
+          "description": "A reconstructed list shows the treaty's yearly payments."
+        },
+        {
+          "id": "s2-hussein-quarters",
+          "name": "Hussein's quarters",
+          "description": "The elder claimant receives visitors after arriving in Singapore."
+        }
+      ],
+      "startRoomId": "river-bank",
+      "placement": {
+        "raffles": "raffles-ship",
+        "temenggong": "temenggong-compound",
+        "hussein": "s2-hussein-quarters",
+        "farquhar": "river-bank"
+      },
+      "documentPlacement": {
+        "doc-treaty-terms": "raffles-ship",
+        "s2-doc-harbour-note": "temenggong-compound"
+      },
+      "situations": [
+        {
+          "whenOutcome": {
+            "momentId": "m1",
+            "outcomeId": "m1-o1"
+          },
+          "openingNarration": "You are back by the Singapore River after the preliminary agreement. It allowed plans for a trading post to move forward, but a Sultan's consent is still needed. Find out why the throne is disputed before Raffles makes his next decision."
+        },
+        {
+          "whenOutcome": {
+            "momentId": "m1",
+            "outcomeId": "m1-o2"
+          },
+          "openingNarration": "You are by the Singapore River, where the Temenggong has postponed a written agreement until a Sultan can take part. Now there are rival claims to the throne. Find out what each claim means before Raffles decides whom to approach."
+        },
+        {
+          "whenOutcome": {
+            "momentId": "m1",
+            "outcomeId": "m1-o3"
+          },
+          "openingNarration": "You are by the Singapore River after the Temenggong allowed a landing but put nothing in writing. A decision about the disputed throne now stands between the visitors and a lasting agreement. Find out whose consent Raffles hopes to obtain."
+        }
+      ],
+      "definingMomentId": "m2"
+    }
+  ],
+  "characters": [
+    {
+      "id": "raffles",
+      "name": "Stamford Raffles",
+      "title": "Lieutenant-Governor of Bencoolen",
+      "real": true,
+      "tier": "major",
+      "persona": {
+        "voice": "Raffles speaks briskly and politely, turning questions towards what can be agreed now. He avoids dwelling on doubts that might delay the post.",
+        "phrases": [],
+        "knewThen": "In s1, he knows the limits set out in d2-instructions. By s2, he knows about the rival ruler in d5-rival-sultan; he does not know how the dispute will end.",
+        "wantsFromStudent": "He wants Siti to translate carefully, bring him reliable news and help him judge whether an agreement can be made without delay.",
+        "withholds": [
+          "How much the Dutch risk troubles him",
+          "His doubts about the preliminary agreement",
+          "What might make him reconsider a lasting treaty"
+        ],
+        "publicPosition": "The Company needs a trading post without a clash with the Dutch.",
+        "privateAgenda": "Secure Singapore before another power blocks the site."
+      },
+      "stances": [
+        {
+          "id": "s1",
+          "label": "Pressed",
+          "demeanour": "He asks short questions and brushes aside worries about delay."
+        },
+        {
+          "id": "s2",
+          "label": "Attentive",
+          "demeanour": "He listens to Siti's evidence but checks each point before replying."
+        },
+        {
+          "id": "s3",
+          "label": "Candid",
+          "demeanour": "He explains the problem he is trying to solve and admits where his case is weak."
+        },
+        {
+          "id": "s4",
+          "label": "Reflective",
+          "demeanour": "He invites Siti to weigh a limited agreement against the risks of a lasting one.",
+          "hidden": true
+        }
+      ],
+      "initialStanceId": "s1",
+      "slants": [
+        {
+          "id": "raffles-sl-temenggong-consent",
+          "claim": "The Temenggong's consent settles who may grant land for the post.",
+          "contradictedBy": [
+            "d3-authority"
+          ]
+        }
+      ],
+      "trustNotice": "Raffles stops asking what Siti thinks and begins checking each word of her translations."
+    },
+    {
+      "id": "temenggong",
+      "name": "Temenggong Abdul Rahman",
+      "title": "Administrator of Singapore for the Sultan of Johor",
+      "real": true,
+      "tier": "major",
+      "persona": {
+        "voice": "Measured and courteous, he asks Siti to repeat important terms plainly. He avoids promising more than he can secure.",
+        "phrases": [],
+        "knewThen": "“I can discuss a post, but I must be careful about what my own agreement can settle.”",
+        "wantsFromStudent": "He wants Siti to explain the visitors’ instructions and make clear what they expect his signature to mean.",
+        "withholds": [
+          "His concern that an agreement could weaken his position",
+          "The terms he hopes to secure for his household"
+        ],
+        "publicPosition": "He can discuss a British post on the island he governs.",
+        "privateAgenda": "Keep his position secure while gaining terms for his household."
+      },
+      "stances": [
+        {
+          "id": "s1",
+          "label": "Formal",
+          "demeanour": "He answers Siti politely but keeps his replies short."
+        },
+        {
+          "id": "s2",
+          "label": "Attentive",
+          "demeanour": "He asks Siti what she has heard from the visitors and listens before replying."
+        },
+        {
+          "id": "s3",
+          "label": "Candid",
+          "demeanour": "He explains his concerns without pretending they are settled."
+        },
+        {
+          "id": "s4",
+          "label": "Confiding",
+          "demeanour": "He speaks frankly about the choice he must make and invites Siti to question him.",
+          "hidden": true
+        }
+      ],
+      "initialStanceId": "s1",
+      "slants": [],
+      "trustNotice": "The Temenggong pauses longer before answering and asks Siti to repeat her question."
+    },
+    {
+      "id": "hussein",
+      "name": "Tengku Hussein",
+      "title": "Elder claimant to Johor's throne",
+      "real": true,
+      "tier": "major",
+      "persona": {
+        "voice": "Hussein speaks formally and asks Siti to choose her words carefully when discussing his claim. He avoids admitting how much he needs others to recognise it.",
+        "phrases": [],
+        "knewThen": "He knows he was away in Pahang when his father died, that his younger brother was installed in his absence, and that the Temenggong sent for him from Riau. He does not know what Raffles will decide.",
+        "wantsFromStudent": "He wants Siti to explain his claim accurately to the British and find out whether Raffles intends to recognise him as Sultan.",
+        "withholds": [
+          "His younger brother's support",
+          "How much he needs British recognition",
+          "The Temenggong's part in an agreement"
+        ],
+        "publicPosition": "As the elder son, he has a claim to the throne.",
+        "privateAgenda": "Gain recognition as Sultan."
+      },
+      "stances": [
+        {
+          "id": "s1",
+          "label": "Reserved",
+          "demeanour": "He asks whom Siti speaks for and gives short answers."
+        },
+        {
+          "id": "s2",
+          "label": "Attentive",
+          "demeanour": "He listens to Siti's evidence and explains why his absence matters."
+        },
+        {
+          "id": "s3",
+          "label": "Candid",
+          "demeanour": "He discusses the rival claim and the Temenggong's role without brushing either aside."
+        },
+        {
+          "id": "s4",
+          "label": "Forthright",
+          "demeanour": "He asks Siti to carry both the strength and the limits of his claim to Raffles.",
+          "hidden": true
+        }
+      ],
+      "initialStanceId": "s1",
+      "slants": [
+        {
+          "id": "hussein-sl-rival-support",
+          "claim": "My younger brother has no support for his claim.",
+          "contradictedBy": [
+            "d5-rival-sultan"
+          ]
+        },
+        {
+          "id": "hussein-sl-temenggong",
+          "claim": "The Temenggong is merely an onlooker to any decision about Singapore.",
+          "contradictedBy": [
+            "d3-authority"
+          ]
+        }
+      ],
+      "trustNotice": "Hussein begins weighing each of Siti's words before he answers."
+    },
+    {
+      "id": "farquhar",
+      "name": "William Farquhar",
+      "title": "Former Resident of Malacca",
+      "real": true,
+      "tier": "major",
+      "persona": {
+        "voice": "Farquhar speaks plainly about ships and the practical work of making a settlement. When asked who has the right to grant land, he answers more carefully.",
+        "phrases": [],
+        "knewThen": "He knows British traders need a safe harbour and that he may be asked to command a new settlement. He does not know whether an agreement will be reached.",
+        "wantsFromStudent": "He wants Siti to bring him news from the river and check who can give the British permission to establish a post.",
+        "withholds": [
+          "His hope of leading the post",
+          "The limits of the Temenggong's authority"
+        ],
+        "publicPosition": "Ships need a useful harbour and a working settlement.",
+        "privateAgenda": "Lead the new post if an agreement is reached."
+      },
+      "stances": [
+        {
+          "id": "s1",
+          "label": "Businesslike",
+          "demeanour": "He asks for useful news but gives short answers about the proposed agreement."
+        },
+        {
+          "id": "s2",
+          "label": "Candid",
+          "demeanour": "He explains the need for a harbour and listens when Siti raises a risk."
+        },
+        {
+          "id": "s3",
+          "label": "Forthright",
+          "demeanour": "He speaks openly about his wish to lead the post and asks Siti to test his assumptions.",
+          "hidden": true
+        }
+      ],
+      "initialStanceId": "s1",
+      "slants": [
+        {
+          "id": "farquhar-sl-permission",
+          "claim": "If the Temenggong agrees, the Company needs no one else's permission to take land for its post.",
+          "contradictedBy": [
+            "d3-authority"
+          ]
+        },
+        {
+          "id": "farquhar-sl-dutch",
+          "claim": "The Dutch need not affect our choice of where to establish a post.",
+          "contradictedBy": [
+            "d2-instructions"
+          ]
+        }
+      ],
+      "trustNotice": "Farquhar folds his arms and waits before answering your next question."
+    }
+  ],
+  "discoveries": [
+    {
+      "id": "d2-instructions",
+      "stageId": "s1",
+      "holder": {
+        "documentId": "doc-instructions",
+        "keyPassageId": "s1-kp-instructions"
+      },
+      "text": "Raffles was told to establish a post but avoid a collision with the Dutch.",
+      "note": "Raffles needs a post, but his orders say not to clash with the Dutch.",
+      "core": true,
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "His instructions were cautious: he was to establish a post at the southern end of the Straits but to avoid any collision with the Dutch, who were then extending their authority over Riau."
+        }
+      ]
+    },
+    {
+      "id": "s1-d-quick-draft",
+      "stageId": "s1",
+      "holder": {
+        "documentId": "s1-doc-draft-letter",
+        "keyPassageId": "s1-kp-draft-letter"
+      },
+      "text": "The unsigned draft proposes a first written agreement before the question of who may grant land is settled.",
+      "note": "This draft wants an agreement now and the land question later.",
+      "topic": "Timing of consent",
+      "core": false,
+      "sourceLabel": "invented"
+    },
+    {
+      "id": "d6-payments",
+      "stageId": "s2",
+      "holder": {
+        "documentId": "doc-treaty-terms",
+        "keyPassageId": "s2-kp-payments"
+      },
+      "text": "The treaty terms set yearly payments of 5,000 Spanish dollars to the Sultan and 3,000 to the Temenggong.",
+      "note": "The Sultan would get 5,000 dollars a year; the Temenggong, 3,000.",
+      "core": true,
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "In return the Sultan was to receive 5,000 Spanish dollars a year and the Temenggong 3,000 Spanish dollars a year."
+        }
+      ]
+    },
+    {
+      "id": "s2-d-limited",
+      "stageId": "s2",
+      "holder": {
+        "documentId": "s2-doc-harbour-note",
+        "keyPassageId": "s2-kp-limited"
+      },
+      "text": "An unsigned note proposes short-term harbour permission while Calcutta reviews the rival claim.",
+      "note": "Someone suggests a temporary port deal while Calcutta looks at the rival claims.",
+      "topic": "Limited harbour proposal",
+      "core": false,
+      "sourceLabel": "invented"
+    },
+    {
+      "id": "d5-rival-sultan",
+      "stageId": "s2",
+      "holder": {
+        "characterId": "raffles"
+      },
+      "text": "The younger Abdul Rahman was installed as Sultan with Bugis support and later recognised by the Dutch.",
+      "note": "The Dutch recognise Abdul Rahman, not Hussein.",
+      "core": true,
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "The younger, Tengku Abdul Rahman, was installed as Sultan in his absence with the support of the powerful Bugis faction at court, and this choice was later recognised by the Dutch."
+        }
+      ]
+    },
+    {
+      "id": "raffles-d-calcutta-permission",
+      "stageId": "s1",
+      "holder": {
+        "characterId": "raffles"
+      },
+      "text": "In late 1818, Raffles obtained Lord Hastings's permission to look for a suitable site.",
+      "note": "Raffles had permission to look for a site.",
+      "topic": "Permission to search",
+      "core": false,
+      "condition": {
+        "stanceAtLeast": {
+          "characterId": "raffles",
+          "stanceId": "s2"
+        }
+      },
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "In late 1818 he obtained permission from the Governor-General in Calcutta, Lord Hastings, to look for a suitable site."
+        }
+      ]
+    },
+    {
+      "id": "raffles-d-hussein-claim",
+      "stageId": "s2",
+      "holder": {
+        "characterId": "raffles"
+      },
+      "text": "Raffles thought Hussein had the stronger claim because he was the elder son.",
+      "note": "Raffles thinks Hussein has the stronger claim as the elder son.",
+      "topic": "Raffles's choice",
+      "core": false,
+      "condition": {
+        "all": [
+          {
+            "discovered": "d4-elder-son"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "raffles",
+              "stanceId": "s2"
+            }
+          }
+        ]
+      },
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "Raffles took the view that Tengku Hussein, as the elder son, had the stronger claim."
+        }
+      ]
+    },
+    {
+      "id": "d3-authority",
+      "stageId": "s1",
+      "holder": {
+        "characterId": "temenggong"
+      },
+      "text": "The Temenggong governed Singapore, but only the Sultan of Johor could lawfully grant land to the Company.",
+      "note": "The Temenggong governs here, but the Sultan must grant the land.",
+      "core": true,
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "The Temenggong governed Singapore, but he was not the sovereign; only the Sultan of Johor could lawfully grant land to the Company."
+        }
+      ],
+      "condition": {
+        "all": [
+          {
+            "discovered": "d2-instructions"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "temenggong",
+              "stanceId": "s2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "temenggong-d-followers",
+      "stageId": "s1",
+      "holder": {
+        "characterId": "temenggong"
+      },
+      "text": "The Temenggong moved to Singapore with his followers a few years before January 1819.",
+      "note": "The Temenggong and his followers came here a few years ago.",
+      "topic": "Arrival with followers",
+      "core": false,
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "The island was administered on the Sultan's behalf by the Temenggong, Abdul Rahman, who had moved to Singapore with his followers a few years earlier."
+        }
+      ]
+    },
+    {
+      "id": "d4-elder-son",
+      "stageId": "s2",
+      "holder": {
+        "characterId": "hussein"
+      },
+      "text": "Hussein was the elder son and was away in Pahang when his father died.",
+      "note": "Hussein is the elder son, but he was away when his father died.",
+      "core": true,
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "The elder, Tengku Hussein, also known as Tengku Long, was away in Pahang for his wedding when his father died."
+        }
+      ],
+      "condition": {
+        "stanceAtLeast": {
+          "characterId": "hussein",
+          "stanceId": "s2"
+        }
+      }
+    },
+    {
+      "id": "hussein-d-riau",
+      "stageId": "s2",
+      "holder": {
+        "characterId": "hussein"
+      },
+      "text": "The Temenggong sent for Hussein while Hussein was living in Riau.",
+      "note": "The Temenggong asked Hussein to come from Riau.",
+      "topic": "Journey from Riau",
+      "core": false,
+      "condition": {
+        "all": [
+          {
+            "discovered": "d4-elder-son"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "hussein",
+              "stanceId": "s2"
+            }
+          }
+        ]
+      },
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "The Temenggong sent for Hussein, who was living in obscurity in Riau."
+        }
+      ]
+    },
+    {
+      "id": "hussein-d-temenggong-role",
+      "stageId": "s2",
+      "holder": {
+        "characterId": "hussein"
+      },
+      "text": "The Temenggong administered Singapore on the Sultan's behalf.",
+      "note": "The Temenggong runs Singapore for the Sultan.",
+      "topic": "Island administration",
+      "core": false,
+      "condition": {
+        "all": [
+          {
+            "discovered": "d3-authority"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "hussein",
+              "stanceId": "s3"
+            }
+          }
+        ]
+      },
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "The island was administered on the Sultan's behalf by the Temenggong, Abdul Rahman"
+        }
+      ]
+    },
+    {
+      "id": "d1-harbour",
+      "stageId": "s1",
+      "holder": {
+        "characterId": "farquhar"
+      },
+      "text": "British merchants trading with China lacked their own safe harbour at the southern end of the Straits of Malacca.",
+      "note": "British traders want a safe harbour here.",
+      "core": true,
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "British merchants trading with China complained that they had no safe harbour of their own at the southern end of the Straits of Malacca."
+        }
+      ],
+      "condition": {
+        "stanceAtLeast": {
+          "characterId": "farquhar",
+          "stanceId": "s2"
+        }
+      }
+    },
+    {
+      "id": "farquhar-d-malacca",
+      "stageId": "s1",
+      "holder": {
+        "characterId": "farquhar"
+      },
+      "text": "Farquhar had been Resident of Malacca before it was returned to the Dutch.",
+      "note": "Farquhar used to be Resident of Malacca.",
+      "topic": "Farquhar's earlier post",
+      "core": false,
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "Major William Farquhar, who had been the Resident of Malacca until it was returned to the Dutch"
+        }
+      ]
+    },
+    {
+      "id": "farquhar-d-command",
+      "stageId": "s1",
+      "holder": {
+        "characterId": "farquhar"
+      },
+      "text": "Farquhar was to command any settlement that the British founded.",
+      "note": "Farquhar expects to command the new post if it is founded.",
+      "topic": "Command of the post",
+      "core": false,
+      "condition": {
+        "all": [
+          {
+            "discovered": "d3-authority"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "farquhar",
+              "stanceId": "s3"
+            }
+          }
+        ]
+      },
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "Major William Farquhar, who had been the Resident of Malacca until it was returned to the Dutch, accompanied him and was to command whatever settlement they founded."
+        }
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc-instructions",
+      "kind": "report",
+      "title": "Reconstructed account of Raffles's instructions",
+      "provenance": {
+        "date": "January 1819 (reconstructed)",
+        "place": "Raffles's ship"
+      },
+      "body": "Raffles was told to establish a post at the southern end of the Straits, but to avoid a collision with the Dutch. Those two parts of his task must be considered together. Finding a useful place is not enough if the way it is obtained leads to a dispute. A first conversation with the people who govern the place may show whether a post is possible. Before any promise is written down, the visitors should ask what permission can be given now and what must wait for another person. A hurried answer may seem helpful today but leave the meaning of an agreement unclear tomorrow.",
+      "real": false,
+      "sourceLabel": "invented",
+      "glossary": [
+        {
+          "term": "collision",
+          "meaning": "a clash or serious dispute"
+        },
+        {
+          "term": "post",
+          "meaning": "a place used for trade"
+        }
+      ],
+      "keyPassages": [
+        {
+          "id": "s1-kp-instructions",
+          "start": 0,
+          "end": 113
+        }
+      ]
+    },
+    {
+      "id": "s1-doc-draft-letter",
+      "kind": "letter",
+      "title": "Unsigned draft urging a quick agreement",
+      "provenance": {
+        "date": "January 1819 (imagined)",
+        "recipient": "Temenggong Abdul Rahman",
+        "place": "Singapore River"
+      },
+      "body": "Sir, the visitors wish to know whether they may begin a trading post. A clear answer today would let everyone speak of the same plan instead of carrying different messages between the shore and your compound. Set down a first agreement now; leave the question of who may grant land for another day. The paper could say what the visitors hope to do first, while other questions are discussed later. Waiting to settle every question before writing anything may make even a small beginning difficult. This draft offers a quick course, though it does not say whose permission a grant of land would require.",
+      "real": false,
+      "sourceLabel": "invented",
+      "glossary": [
+        {
+          "term": "grant",
+          "meaning": "give formal permission"
+        },
+        {
+          "term": "draft",
+          "meaning": "a version that is not yet final"
+        }
+      ],
+      "keyPassages": [
+        {
+          "id": "s1-kp-draft-letter",
+          "start": 209,
+          "end": 298
+        }
+      ]
+    },
+    {
+      "id": "doc-treaty-terms",
+      "kind": "other",
+      "title": "Reconstructed list of treaty payments",
+      "provenance": {
+        "date": "Early February 1819",
+        "place": "Singapore"
+      },
+      "body": "Terms to check before any treaty is signed. The Company would be permitted to establish a trading post at Singapore. The Sultan would receive 5,000 Spanish dollars each year, and the Temenggong would receive 3,000 Spanish dollars each year. These are yearly payments, not a single payment made on the day of signing. Check that the two amounts are kept separate when the terms are read aloud. This list records the proposed payments; it does not settle the question of which claimant should be recognised as Sultan.",
+      "real": false,
+      "sourceLabel": "invented",
+      "glossary": [
+        {
+          "term": "claimant",
+          "meaning": "a person who says a position or title is theirs"
+        }
+      ],
+      "keyPassages": [
+        {
+          "id": "s2-kp-payments",
+          "start": 117,
+          "end": 240
+        }
+      ]
+    },
+    {
+      "id": "s2-doc-harbour-note",
+      "kind": "report",
+      "title": "Unsigned note proposing a limited harbour agreement",
+      "provenance": {
+        "date": "Early February 1819",
+        "place": "Singapore"
+      },
+      "body": "A lasting treaty is not the only possible way to discuss a port. A short-term permission to use the harbour could let ships trade while the rival claim is sent to Calcutta for review. Such a permission would need a clear end date and words explaining what could happen before that date. The people asked to consent should hear those limits in plain language. There is no need to delay over further objections: a temporary arrangement should be simple to put into effect. This note offers a proposal, not a record that anyone has accepted it.",
+      "real": false,
+      "sourceLabel": "invented",
+      "glossary": [
+        {
+          "term": "consent",
+          "meaning": "agreement to let something happen"
+        }
+      ],
+      "keyPassages": [
+        {
+          "id": "s2-kp-limited",
+          "start": 65,
+          "end": 183
+        }
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "id": "raffles-t-instructions",
+      "characterId": "raffles",
+      "on": {
+        "notePassed": "d2-instructions"
+      },
+      "effect": {
+        "toStance": "s2"
+      },
+      "notice": "Raffles reads the note twice before asking Siti what she has heard at the river."
+    },
+    {
+      "id": "raffles-t-authority",
+      "characterId": "raffles",
+      "on": {
+        "notePassed": "d3-authority"
+      },
+      "requires": {
+        "stanceAtLeast": {
+          "characterId": "raffles",
+          "stanceId": "s2"
+        }
+      },
+      "effect": {
+        "toStance": "s3"
+      },
+      "notice": "Raffles sets down his pen and asks Siti to explain the limit on the Temenggong's power."
+    },
+    {
+      "id": "raffles-t-consent-challenged",
+      "characterId": "raffles",
+      "on": {
+        "slantConfronted": "raffles-sl-temenggong-consent"
+      },
+      "effect": {
+        "stanceDelta": -1
+      },
+      "notice": "Raffles glances at the unsigned space on the page. ‘A delay gives others time,’ he says."
+    },
+    {
+      "id": "raffles-t-careful-case",
+      "characterId": "raffles",
+      "on": {
+        "notePassed": "d4-elder-son"
+      },
+      "requires": {
+        "all": [
+          {
+            "discovered": "d3-authority"
+          },
+          {
+            "discovered": "d5-rival-sultan"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "raffles",
+              "stanceId": "s3"
+            }
+          }
+        ]
+      },
+      "effect": {
+        "toStance": "s4"
+      },
+      "notice": "Raffles leaves the treaty page aside and asks Siti what a careful agreement would need to protect."
+    },
+    {
+      "id": "temenggong-t-instructions",
+      "characterId": "temenggong",
+      "on": {
+        "notePassed": "d2-instructions"
+      },
+      "effect": {
+        "stanceDelta": 1
+      },
+      "notice": "He asks Siti to read the part about avoiding a clash once more."
+    },
+    {
+      "id": "temenggong-t-harbour",
+      "characterId": "temenggong",
+      "on": {
+        "notePassed": "d1-harbour"
+      },
+      "requires": {
+        "all": [
+          {
+            "discovered": "d2-instructions"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "temenggong",
+              "stanceId": "s2"
+            }
+          }
+        ]
+      },
+      "effect": {
+        "stanceDelta": 1
+      },
+      "notice": "He sets aside his next question and lets Siti finish explaining."
+    },
+    {
+      "id": "temenggong-t-rival",
+      "characterId": "temenggong",
+      "on": {
+        "notePassed": "d5-rival-sultan"
+      },
+      "requires": {
+        "all": [
+          {
+            "discovered": "d3-authority"
+          },
+          {
+            "discovered": "d5-rival-sultan"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "temenggong",
+              "stanceId": "s3"
+            }
+          }
+        ]
+      },
+      "effect": {
+        "toStance": "s4"
+      },
+      "notice": "He lowers his voice and asks Siti to stay while he considers what the rival claim means for his household."
+    },
+    {
+      "id": "hussein-t-authority-note",
+      "characterId": "hussein",
+      "on": {
+        "notePassed": "d3-authority"
+      },
+      "effect": {
+        "toStance": "s2"
+      },
+      "notice": "Hussein pauses when Siti distinguishes governing the island from granting its land."
+    },
+    {
+      "id": "hussein-t-rival-note",
+      "characterId": "hussein",
+      "on": {
+        "notePassed": "d5-rival-sultan"
+      },
+      "requires": {
+        "all": [
+          {
+            "discovered": "d4-elder-son"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "hussein",
+              "stanceId": "s2"
+            }
+          }
+        ]
+      },
+      "effect": {
+        "toStance": "s3"
+      },
+      "notice": "Hussein stops insisting that Siti repeat only his side of the succession."
+    },
+    {
+      "id": "hussein-t-rival-confronted",
+      "characterId": "hussein",
+      "on": {
+        "slantConfronted": "hussein-sl-rival-support"
+      },
+      "effect": {
+        "stanceDelta": -1
+      },
+      "notice": "Hussein's reply turns sharply to the question of who will recognise him."
+    },
+    {
+      "id": "hussein-t-temenggong-confronted",
+      "characterId": "hussein",
+      "on": {
+        "slantConfronted": "hussein-sl-temenggong"
+      },
+      "effect": {
+        "stanceDelta": 1
+      },
+      "notice": "Hussein concedes the point and asks what the Temenggong has told Siti."
+    },
+    {
+      "id": "hussein-t-full-account",
+      "characterId": "hussein",
+      "on": {
+        "notePassed": "hussein-d-riau"
+      },
+      "requires": {
+        "all": [
+          {
+            "discovered": "d3-authority"
+          },
+          {
+            "discovered": "d5-rival-sultan"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "hussein",
+              "stanceId": "s3"
+            }
+          }
+        ]
+      },
+      "effect": {
+        "toStance": "s4"
+      },
+      "notice": "Hussein asks Siti to tell Raffles about the rival claim as well as his own."
+    },
+    {
+      "id": "farquhar-t-instructions",
+      "characterId": "farquhar",
+      "on": {
+        "discovered": "d2-instructions"
+      },
+      "effect": {
+        "toStance": "s2"
+      },
+      "notice": "Farquhar pauses to hear what the instructions actually say."
+    },
+    {
+      "id": "farquhar-t-dutch",
+      "characterId": "farquhar",
+      "on": {
+        "slantConfronted": "farquhar-sl-dutch"
+      },
+      "effect": {
+        "stanceDelta": 1
+      },
+      "notice": "Farquhar nods once and asks which words in the instructions trouble you."
+    },
+    {
+      "id": "farquhar-t-permission",
+      "characterId": "farquhar",
+      "on": {
+        "slantConfronted": "farquhar-sl-permission"
+      },
+      "effect": {
+        "stanceDelta": -1
+      },
+      "notice": "Farquhar looks towards the proposed post before answering; he seems reluctant to lose the chance to lead it."
+    },
+    {
+      "id": "farquhar-t-authority",
+      "characterId": "farquhar",
+      "on": {
+        "notePassed": "d3-authority"
+      },
+      "requires": {
+        "all": [
+          {
+            "discovered": "d2-instructions"
+          },
+          {
+            "discovered": "d3-authority"
+          },
+          {
+            "stanceAtLeast": {
+              "characterId": "farquhar",
+              "stanceId": "s2"
+            }
+          }
+        ]
+      },
+      "effect": {
+        "toStance": "s3"
+      },
+      "notice": "Farquhar reads your note twice, then asks what sort of post could be built without a doubtful grant of land."
+    },
+    {
+      "id": "link-hussein-payments",
+      "characterId": "hussein",
+      "on": {
+        "notePassed": "d6-payments"
+      },
+      "effect": {
+        "stanceDelta": 1
+      },
+      "notice": "Hussein pauses over the yearly payment named for the Sultan."
+    },
+    {
+      "id": "link-farquhar-rival",
+      "characterId": "farquhar",
+      "on": {
+        "notePassed": "d5-rival-sultan"
+      },
+      "effect": {
+        "stanceDelta": -1
+      },
+      "notice": "Farquhar reads the line about Dutch recognition twice."
+    }
+  ],
+  "definingMoments": [
+    {
+      "id": "m1",
+      "stageId": "s1",
+      "deciderId": "temenggong",
+      "scene": "Raffles asks the Temenggong for permission to establish a post. The Temenggong must decide what, if anything, he will agree to before the Sultan is involved.",
+      "acts": [
+        {
+          "id": "m1-a1",
+          "text": "Ask him to sign a preliminary agreement with Raffles.",
+          "reaction": "Raffles leans forward, ready to proceed. The Temenggong listens carefully, but asks what a first agreement would commit him to.",
+          "deception": false
+        },
+        {
+          "id": "m1-a2",
+          "text": "Urge him to wait for the Sultan before agreeing.",
+          "reaction": "The Temenggong nods at the mention of the Sultan. Raffles presses his lips together and waits for a decision.",
+          "deception": false
+        },
+        {
+          "id": "m1-a3",
+          "text": "Suggest allowing a landing but no written agreement yet.",
+          "reaction": "Raffles looks at the Temenggong, seeking something firmer. The Temenggong considers your distinction between landing and signing.",
+          "deception": false
+        }
+      ],
+      "outcomes": [
+        {
+          "id": "m1-o1",
+          "summary": "The Temenggong and Raffles sign the preliminary agreement on 30 January.",
+          "closesEndingIds": [],
+          "historical": true,
+          "predictionText": "The Temenggong signs a preliminary agreement with Raffles.",
+          "because": "You urged the Temenggong to make a first written agreement, and he agreed. He and Raffles signed on 30 January, though only the Sultan could lawfully grant land to the Company."
+        },
+        {
+          "id": "m1-o2",
+          "summary": "The Temenggong postpones any agreement until a Sultan can take part.",
+          "closesEndingIds": [
+            "e-historical",
+            "e-secret"
+          ],
+          "predictionText": "The Temenggong waits for a Sultan before agreeing.",
+          "because": "The Temenggong chose not to make an agreement without the Sultan. He governed Singapore, but only the Sultan could lawfully grant land to the Company."
+        },
+        {
+          "id": "m1-o3",
+          "summary": "The Temenggong permits a landing but puts nothing in writing.",
+          "closesEndingIds": [
+            "e-historical",
+            "e-secret"
+          ],
+          "predictionText": "The Temenggong permits a landing but signs nothing.",
+          "because": "The Temenggong allowed a landing without committing himself in writing. This gave Raffles less than a preliminary agreement while the question of who could grant land remained unsettled."
+        }
+      ],
+      "rules": [
+        {
+          "actId": "m1-a1",
+          "when": {
+            "not": {
+              "stanceAtLeast": {
+                "characterId": "temenggong",
+                "stanceId": "s2"
+              }
+            }
+          },
+          "outcomeId": "m1-o3"
+        },
+        {
+          "actId": "m1-a2",
+          "when": {
+            "notePassed": {
+              "discoveryId": "d1-harbour",
+              "characterId": "temenggong"
+            }
+          },
+          "outcomeId": "m1-o3"
+        },
+        {
+          "actId": "m1-a3",
+          "when": {
+            "notePassed": {
+              "discoveryId": "d2-instructions",
+              "characterId": "temenggong"
+            }
+          },
+          "outcomeId": "m1-o2"
+        },
+        {
+          "actId": "m1-a1",
+          "outcomeId": "m1-o1"
+        },
+        {
+          "actId": "m1-a2",
+          "outcomeId": "m1-o2"
+        },
+        {
+          "actId": "m1-a3",
+          "outcomeId": "m1-o3"
+        }
+      ],
+      "nudge": "The Temenggong says, ‘Before I answer, think about why they need this place, whose authority matters, and what limits Raffles has been given.’",
+      "finalCallNarration": "Raffles has put his request to the Temenggong. The Temenggong turns to you for your advice; he will decide now."
+    },
+    {
+      "id": "m2",
+      "stageId": "s2",
+      "deciderId": "raffles",
+      "scene": "Hussein has arrived, but the Dutch recognise his younger brother as Sultan. Raffles must decide whom to approach for a lasting agreement.",
+      "acts": [
+        {
+          "id": "m2-a1",
+          "text": "Urge Raffles to recognise Hussein and sign the treaty.",
+          "reaction": "Raffles listens closely. Hussein looks encouraged, while the Temenggong watches Raffles for any sign that his part in the agreement will be recognised.",
+          "deception": false
+        },
+        {
+          "id": "m2-a2",
+          "text": "Urge Raffles to seek fresh instructions from Calcutta.",
+          "reaction": "Raffles frowns at the thought of waiting. Hussein sounds disappointed, while the Temenggong asks what can be settled in the meantime.",
+          "deception": false
+        },
+        {
+          "id": "m2-a3",
+          "text": "Urge Raffles to approach the Dutch-recognised Sultan instead.",
+          "reaction": "Raffles grows quiet as he considers the Dutch-recognised claim. Hussein objects sharply, and the Temenggong looks uneasy.",
+          "deception": false
+        },
+        {
+          "id": "m2-a4",
+          "text": "Propose a short-term port agreement with Hussein and the Temenggong while Calcutta reviews the rival claim.",
+          "reaction": "Raffles considers the limit you propose rather than dismissing it. Hussein and the Temenggong listen carefully for what each would be asked to agree to.",
+          "deception": false,
+          "secret": {
+            "unlock": [
+              {
+                "stanceAtLeast": {
+                  "characterId": "raffles",
+                  "stanceId": "s4"
+                }
+              },
+              {
+                "discovered": "hussein-d-temenggong-role"
+              },
+              {
+                "notePassed": {
+                  "discoveryId": "s2-d-limited",
+                  "characterId": "raffles"
+                }
+              }
+            ],
+            "minMet": 2
+          }
+        }
+      ],
+      "outcomes": [
+        {
+          "id": "m2-o1",
+          "summary": "Raffles recognises Hussein and the three parties sign the 6 February treaty.",
+          "closesEndingIds": [],
+          "endingId": "e-historical",
+          "historical": true,
+          "predictionText": "Raffles recognises Hussein and signs the treaty",
+          "because": "Raffles considers Hussein's claim stronger and knows that a Sultan must grant land for the post. He recognises Hussein, and Raffles, Hussein and the Temenggong sign the treaty."
+        },
+        {
+          "id": "m2-o2",
+          "summary": "Raffles delays a lasting treaty and asks Calcutta for instructions.",
+          "closesEndingIds": [],
+          "endingId": "e-calcutta",
+          "predictionText": "Raffles delays the treaty and asks Calcutta",
+          "because": "The rival claim remains disputed, and Raffles must avoid a collision with the Dutch. He puts off a lasting treaty and asks Calcutta for instructions."
+        },
+        {
+          "id": "m2-o3",
+          "summary": "Raffles seeks an agreement with the Dutch-recognised Sultan Abdul Rahman.",
+          "closesEndingIds": [],
+          "endingId": "e-rival-sultan",
+          "predictionText": "Raffles seeks an agreement with Abdul Rahman",
+          "because": "You urged Raffles to approach the ruler recognised by the Dutch. Instead of recognising Hussein, he seeks an agreement with Abdul Rahman."
+        },
+        {
+          "id": "m2-o4",
+          "summary": "Raffles proposes time-limited port rights with local consent while referring the rival claim to Calcutta.",
+          "closesEndingIds": [],
+          "endingId": "e-secret",
+          "secret": true,
+          "predictionText": "Raffles proposes limited port rights and asks Calcutta",
+          "because": "You proposed a short-term arrangement with Hussein and the Temenggong rather than settling the rival claim at once. Raffles offers time-limited port rights with their consent while asking Calcutta to review the claim."
+        }
+      ],
+      "rules": [
+        {
+          "actId": "m2-a2",
+          "when": {
+            "all": [
+              {
+                "notePassed": {
+                  "discoveryId": "d4-elder-son",
+                  "characterId": "raffles"
+                }
+              },
+              {
+                "notePassed": {
+                  "discoveryId": "d3-authority",
+                  "characterId": "raffles"
+                }
+              }
+            ]
+          },
+          "outcomeId": "m2-o1"
+        },
+        {
+          "actId": "m2-a3",
+          "when": {
+            "notePassed": {
+              "discoveryId": "d4-elder-son",
+              "characterId": "raffles"
+            }
+          },
+          "outcomeId": "m2-o2"
+        },
+        {
+          "actId": "m2-a1",
+          "outcomeId": "m2-o1"
+        },
+        {
+          "actId": "m2-a2",
+          "outcomeId": "m2-o2"
+        },
+        {
+          "actId": "m2-a3",
+          "outcomeId": "m2-o3"
+        },
+        {
+          "actId": "m2-a4",
+          "outcomeId": "m2-o4"
+        }
+      ],
+      "nudge": "Raffles says, 'There is still more to weigh before I choose. Have you heard enough from those whose claims matter?'",
+      "finalCallNarration": "Raffles turns to you for your advice. He is ready to decide whom to approach and will not wait any longer."
+    }
+  ],
+  "endings": [
+    {
+      "id": "e-historical",
+      "type": "historical",
+      "title": "The Treaty of 6 February",
+      "summary": "Raffles recognises Hussein as Sultan, and Raffles, Hussein and the Temenggong sign the treaty establishing a Company trading post. Farquhar becomes Resident and Commandant.",
+      "sourceLabel": "from the teacher",
+      "citations": [
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "On 6 February 1819 a treaty was signed between the East India Company, represented by Raffles, Sultan Hussein and Temenggong Abdul Rahman."
+        },
+        {
+          "sourceId": "singapore-1819-handout",
+          "quote": "Raffles appointed Farquhar as Resident and Commandant and sailed for Bencoolen on 7 February, having spent little more than a week on the island."
+        }
+      ],
+      "epilogue": "Your simulation: 6 February 1819. You see Raffles recognise Hussein as Sultan. Raffles, Hussein and the Temenggong sign a treaty allowing the Company to establish a trading post at Singapore. The Sultan is to receive 5,000 Spanish dollars a year and the Temenggong 3,000. Raffles appoints Farquhar Resident and Commandant, then sails for Bencoolen on 7 February. The Dutch protest, and for several years you cannot be sure whether Britain will keep the settlement. In 1824, the Dutch withdraw their objection under the Anglo-Dutch Treaty.",
+      "interview": {
+        "interviewer": "A visiting merchant in Singapore, 1825",
+        "question": "Siti, how far was Raffles right to recognise Hussein rather than delay a lasting agreement?",
+        "verdicts": [
+          {
+            "id": "e-historical-v1",
+            "text": "Recognising Hussein was necessary to secure a lawful grant for the trading post.",
+            "counterPoints": [
+              "d5-rival-sultan",
+              "d2-instructions"
+            ]
+          },
+          {
+            "id": "e-historical-v2",
+            "text": "Recognising Hussein was a reasonable gamble, but a temporary port agreement would have been safer.",
+            "counterPoints": [
+              "d3-authority",
+              "d1-harbour"
+            ]
+          },
+          {
+            "id": "e-historical-v3",
+            "text": "Raffles should have delayed recognition while Calcutta reviewed the rival claim.",
+            "counterPoints": [
+              "d4-elder-son",
+              "d1-harbour"
+            ]
+          }
+        ],
+        "generalCounter": "You must weigh both the need for a lawful land grant and the risk of a clash with the Dutch. Neither concern disappears simply because Raffles chooses a different course."
+      }
+    },
+    {
+      "id": "e-calcutta",
+      "type": "alternative",
+      "title": "Wait for Calcutta",
+      "summary": "Raffles delays a lasting treaty while the Governor-General considers the Dutch risk. The future of a British post remains uncertain.",
+      "sourceLabel": "invented",
+      "epilogue": "Your simulation: early February 1819. As Hussein arrives in Singapore, you interpret Raffles’s decision to ask Calcutta for instructions instead of signing a lasting treaty. The Temenggong governs the island, but he cannot lawfully grant land to the Company on his own. British traders need a safe harbour, yet Dutch recognition of Hussein’s younger brother makes an agreement risky. While the Governor-General considers the dispute, the future of a British post remains uncertain. Waiting might avoid a clash with the Dutch, but it might also leave the traders without the harbour they sought.",
+      "interview": {
+        "interviewer": "A visiting merchant, 1823",
+        "question": "Siti, how far was waiting for Calcutta the best way to secure a British post without provoking the Dutch?",
+        "verdicts": [
+          {
+            "id": "e-calcutta-v1",
+            "text": "Waiting for Calcutta was the safest choice.",
+            "counterPoints": [
+              "d1-harbour",
+              "s2-d-limited"
+            ]
+          },
+          {
+            "id": "e-calcutta-v2",
+            "text": "A short-term port agreement would have balanced the need for a harbour against the Dutch risk.",
+            "counterPoints": [
+              "d3-authority",
+              "d5-rival-sultan"
+            ]
+          },
+          {
+            "id": "e-calcutta-v3",
+            "text": "Raffles should have signed a lasting treaty with Hussein at once.",
+            "counterPoints": [
+              "d2-instructions",
+              "d5-rival-sultan"
+            ]
+          }
+        ],
+        "generalCounter": "Each choice carried a risk: delay could leave traders without a harbour, while an agreement could deepen the dispute over who had authority. How much uncertainty should Raffles have accepted?"
+      }
+    },
+    {
+      "id": "e-rival-sultan",
+      "type": "alternative",
+      "title": "Approach the Rival Sultan",
+      "summary": "Raffles seeks permission from Abdul Rahman instead of recognising Hussein. Any British post now depends on talks with the ruler recognised by the Dutch.",
+      "sourceLabel": "invented",
+      "epilogue": "Your simulation: February 1819. You urge Raffles to approach Sultan Abdul Rahman, the ruler recognised by the Dutch, instead of recognising Hussein. Seeking his permission might reduce the risk of a clash, but it does not secure a post. The Temenggong governs Singapore, yet only the Sultan can lawfully grant land to the Company. While Raffles seeks an agreement, Farquhar cannot count on a lasting British settlement. Merchants still need a safe harbour, and Raffles must weigh that need against his orders to avoid a clash with the Dutch. Whether Abdul Rahman agrees remains open.",
+      "interview": {
+        "interviewer": "A visiting merchant, 1824",
+        "question": "Siti, how far was seeking Abdul Rahman's permission the wisest way to secure a British post?",
+        "verdicts": [
+          {
+            "id": "e-rival-sultan-v1",
+            "text": "It was the wisest choice because Dutch recognition made a clash less likely.",
+            "counterPoints": [
+              "d4-elder-son",
+              "d1-harbour"
+            ]
+          },
+          {
+            "id": "e-rival-sultan-v2",
+            "text": "It was unwise because Hussein's claim offered a quicker route to a post.",
+            "counterPoints": [
+              "d2-instructions",
+              "d5-rival-sultan"
+            ]
+          },
+          {
+            "id": "e-rival-sultan-v3",
+            "text": "A temporary port deal while Calcutta reviewed both claims was wiser than choosing either Sultan.",
+            "counterPoints": [
+              "d3-authority",
+              "d1-harbour"
+            ]
+          }
+        ],
+        "generalCounter": "Even if one approach seemed safer, no one could know in advance whether it would secure permission quickly. A delay could matter to merchants waiting for a harbour."
+      }
+    },
+    {
+      "id": "e-secret",
+      "type": "secret",
+      "title": "A Limited Harbour",
+      "summary": "Raffles proposes time-limited port rights with Hussein's and the Temenggong's consent, rather than an immediate lasting treaty. He asks Calcutta to review the rival claim before proceeding further.",
+      "sourceLabel": "invented",
+      "epilogue": "Your simulation: early February 1819. You help explain Raffles’ proposal to Hussein and the Temenggong: the Company may use the harbour for a limited time, while Calcutta reviews the rival claim to the throne. With their consent, ships could begin calling at Singapore, but this is not a lasting grant of land. The arrangement might give British traders the harbour they need without forcing an immediate decision about who can grant permanent rights. You also know why it may not settle the matter: the Dutch recognise Hussein’s younger brother as Sultan.",
+      "interview": {
+        "interviewer": "A visiting merchant, 1823",
+        "question": "Siti, how far did the limited harbour agreement balance the need for a port against the risk of a Dutch clash?",
+        "verdicts": [
+          {
+            "id": "e-secret-v1",
+            "text": "It balanced the traders’ urgent need with caution over the disputed throne.",
+            "counterPoints": [
+              "d5-rival-sultan",
+              "d3-authority"
+            ]
+          },
+          {
+            "id": "e-secret-v2",
+            "text": "It was too cautious to give traders the secure post they needed.",
+            "counterPoints": [
+              "s2-d-limited",
+              "d2-instructions"
+            ]
+          },
+          {
+            "id": "e-secret-v3",
+            "text": "It went too far before anyone settled who could grant rights at Singapore.",
+            "counterPoints": [
+              "d1-harbour",
+              "d4-elder-son",
+              "s2-d-limited"
+            ]
+          }
+        ],
+        "generalCounter": "What would count as success: allowing ships to use the harbour soon, or securing rights that others would accept?"
+      }
+    }
+  ],
+  "teacherQuestions": [
+    "What made the Temenggong's preliminary agreement useful, and what could it not settle?",
+    "How might Raffles and the Dutch have argued for different rulers of Johor?",
+    "Should the warning to avoid a clash with the Dutch have changed Raffles's decision? Which notes support your view?"
+  ],
+  "sources": [
+    {
+      "id": "singapore-1819-handout",
+      "title": "singapore 1819 handout",
+      "origin": "teacher"
+    }
+  ],
+  "conflicts": [],
+  "storyEvents": [
+    {
+      "id": "s1-ev-summons",
+      "stageId": "s1",
+      "when": {
+        "atSeconds": 90
+      },
+      "text": "A request reaches you from the Temenggong's compound: bring him what you have learnt before he answers Raffles.",
+      "effect": "summons",
+      "characterId": "temenggong"
+    },
+    {
+      "id": "s1-ev-decision",
+      "stageId": "s1",
+      "when": {
+        "timerOut": true
+      },
+      "text": "The time for questions is over; the Temenggong is ready to decide what answer to give.",
+      "effect": "beginMoment"
+    },
+    {
+      "id": "s2-ev-reminder",
+      "stageId": "s2",
+      "when": {
+        "atSeconds": 90
+      },
+      "text": "The decision is drawing near; there is still time to hear both claims and check the papers.",
+      "effect": "news"
+    },
+    {
+      "id": "s2-ev-moment",
+      "stageId": "s2",
+      "when": {
+        "condition": {
+          "all": [
+            {
+              "discovered": "d4-elder-son"
+            },
+            {
+              "discovered": "d5-rival-sultan"
+            },
+            {
+              "discovered": "d6-payments"
+            }
+          ]
+        }
+      },
+      "text": "You have heard about both claimants and the payments; it is time to speak to Raffles.",
+      "effect": "beginMoment"
+    }
+  ],
+  "openQuestions": [
+    {
+      "id": "s1-q-need",
+      "stageId": "s1",
+      "text": "Why do the visitors want a harbour, and what limit do Raffles's instructions place on his plans?",
+      "discoveryIds": [
+        "d1-harbour",
+        "d2-instructions"
+      ]
+    },
+    {
+      "id": "s1-q-permission",
+      "stageId": "s1",
+      "text": "What is missing from the draft's plan to put an agreement in writing at once?",
+      "discoveryIds": [
+        "s1-d-quick-draft",
+        "d3-authority"
+      ]
+    },
+    {
+      "id": "s2-q-throne",
+      "stageId": "s2",
+      "text": "Why might Hussein and his younger brother each be treated as Sultan?",
+      "discoveryIds": [
+        "d4-elder-son",
+        "d5-rival-sultan"
+      ]
+    },
+    {
+      "id": "s2-q-terms",
+      "stageId": "s2",
+      "text": "What payments are proposed, and is a lasting treaty the only idea on the table?",
+      "discoveryIds": [
+        "d6-payments",
+        "s2-d-limited"
+      ]
+    }
+  ],
+  "hintAngles": [
+    {
+      "id": "s1-hint-harbour",
+      "discoveryId": "d1-harbour",
+      "kind": "ask",
+      "text": "Perhaps I should ask Farquhar why ships need a harbour here."
+    },
+    {
+      "id": "s1-hint-instructions",
+      "discoveryId": "d2-instructions",
+      "kind": "read",
+      "text": "I should read the account on Raffles's ship for the limits on his task."
+    },
+    {
+      "id": "s1-hint-authority",
+      "discoveryId": "d3-authority",
+      "kind": "ask",
+      "text": "I should ask the Temenggong whether governing the island lets him grant land."
+    },
+    {
+      "id": "s1-hint-draft",
+      "discoveryId": "s1-d-quick-draft",
+      "kind": "read",
+      "text": "I should read the unsigned draft at the compound and notice which question it puts off."
+    },
+    {
+      "id": "s2-h-d4",
+      "discoveryId": "d4-elder-son",
+      "kind": "ask",
+      "text": "I should ask Hussein what happened when his father died."
+    },
+    {
+      "id": "s2-h-d5",
+      "discoveryId": "d5-rival-sultan",
+      "kind": "ask",
+      "text": "Perhaps Raffles can explain why another ruler is already recognised."
+    },
+    {
+      "id": "s2-h-d6",
+      "discoveryId": "d6-payments",
+      "kind": "read",
+      "text": "I should read the list of yearly payments on Raffles's ship."
+    },
+    {
+      "id": "s2-h-limited",
+      "discoveryId": "s2-d-limited",
+      "kind": "read",
+      "text": "I wonder what the unsigned note in the Temenggong's compound proposes."
+    }
+  ],
+  "reveal": {
+    "whatHappened": "Raffles wanted a British trading post near the route to China, but his instructions told him to avoid a clash with the Dutch. He arrived off Singapore on 28 January 1819 and landed near the Singapore River the next day. On 30 January, he and Temenggong Abdul Rahman signed a preliminary agreement for a trading post. The Temenggong governed the island, but only the Sultan of Johor could lawfully grant land to the Company.\n\nThe throne was disputed. The Dutch recognised the younger son of the former Sultan, Abdul Rahman; Raffles considered the elder son, Hussein, to have the stronger claim. Hussein arrived in Singapore in early February, and Raffles recognised him as Sultan. On 6 February, Raffles, Hussein and the Temenggong signed a treaty allowing the Company to establish a trading post. Farquhar became Resident and Commandant. The Dutch protested, and it remained uncertain for several years whether Britain would keep the settlement.",
+    "interpretations": [
+      "One reading puts trade first: Raffles was trying to secure a harbour for British merchants, and the choice of Singapore served that aim. His instructions, however, also warned him not to clash with the Dutch.",
+      "Another reading puts the disputed throne at the centre. Raffles considered Hussein's claim stronger because he was the elder son. The Dutch recognised Abdul Rahman instead and regarded him as the lawful ruler. Whether the treaty settled the question depended on whose claim was accepted."
+    ],
+    "corrections": [
+      "The draft letter presses for a quick written agreement while setting aside who could grant land. The sources say the Temenggong could agree to a preliminary trading post, but only the Sultan of Johor could lawfully grant land to the Company.",
+      "The harbour note makes a temporary arrangement sound simple and leaves out possible objections. The sources say the Johor throne was disputed, the Dutch protested against the British presence, and it remained uncertain for several years whether Britain would keep the settlement."
+    ],
+    "couldHaveGone": [
+      "The Temenggong might have waited for a Sultan to take part because he governed Singapore but could not lawfully grant land to the Company himself.",
+      "A landing without a written agreement was plausible as a cautious first step: Raffles had landed near the river before the preliminary agreement was signed, and his instructions warned against a clash with the Dutch.",
+      "Raffles might have sought further instructions because Calcutta had warned him to avoid a clash with the Dutch, who recognised a different Sultan.",
+      "Approaching Abdul Rahman was another possible path because he had been installed as Sultan and the Dutch recognised him. It would, however, have meant dealing with the ruler whose claim Raffles did not consider the stronger one."
+    ]
+  }
+}

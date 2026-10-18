@@ -7,6 +7,10 @@ export function detailZoom(width: number, height: number, mapWidth: number, mapH
   return Math.max(minimum, Math.min(8, Math.round(fit * 1.7)))
 }
 
+export function scaledZoom(zoom: number, scale: number): number {
+  return Math.max(1, Math.round(zoom * scale))
+}
+
 /** A small preview frame (the landing hero) shows the stage, not the player's surroundings:
  * the map's full width, following the player vertically. Never below half size or above 2×. */
 export function overviewZoom(width: number, mapWidth: number): number {

@@ -54,6 +54,43 @@ it the console still accepts a spec pasted into "Import an adventure spec".
 The database is **only ever** built from `supabase/migrations/`; `db reset` recreates it
 from scratch, so a schema change that is not a migration does not exist.
 
+## Running the v3 version locally
+
+The v3 rewrite (new play UI and teacher authoring) is behind a feature flag and is off by default.
+
+**What v3 changes**
+
+- Play: a walkable map for each stage, parchment-scroll dialogs, a redesigned dialogue and mission layout, a scaled desktop layout, and an Interview and epilogue held over the last stage's map.
+- Teacher: a brief chat that describes the adventure, a skeleton editor with autosaved drafts and quote-checked approval, publish and join links, and a background generation job (stages, endings, history checks, portraits).
+- Data: `adventures_v3`, `sources_v3` and `job_steps` tables, added by the v3 migrations.
+
+**Steps** (after the Quickstart above, with Supabase running)
+
+1. Apply any new migrations without wiping data: `npx supabase migration up --local`
+   (`npx supabase db reset` also works but deletes local data).
+2. Turn v3 on in `apps/web/.env.local`:
+   ```
+   V3_ENABLED=true
+   V3_SCHOOL_IDS=00000000-0000-4000-8000-000000005c01
+   ```
+   The school ID is the local "Testing School".
+3. Seed the local data (idempotent, localhost Supabase only):
+   ```bash
+   npx vitest run --config scripts/vitest.v3-seed.config.ts
+   ```
+   It creates `teacher@local.test` (school admin) and `v3-student@local.test`, both with password
+   `password123!`, plus a published golden 1819 adventure owned by each.
+4. Start the app (`npm run dev --workspace apps/web`), open <http://localhost:3000/teacher> and use
+   "Local dev sign-in (email/password)".
+   - Teacher preview: `/v3/teacher/00000000-0000-4000-8000-000000005c03/preview`
+   - Student play: sign in as the student, then `/v3/play/start/00000000-0000-4000-8000-000000005c02`
+
+**Without an OpenAI key.** Set `V3_FAKE_PASSES=1` so generation uses canned passes over the golden 1819
+content. The brief chat and in-game character replies still call a model. For characters, run
+`node tests/browser/model-server.mjs` and start the app with
+`OPENAI_API_KEY=local-browser-test OPENAI_BASE_URL=http://127.0.0.1:4010/v1`. Its replies are fixed, so it
+suits UI work only. The brief chat is not confirmed to work against it; use a real `OPENAI_API_KEY` for that.
+
 ## Checks
 
 ```bash

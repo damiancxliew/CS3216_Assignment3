@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# One deploy at a time on the box; overlapping deploy.sh runs race on /opt/app/current.
+concurrency:
+  group: aws-staging-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

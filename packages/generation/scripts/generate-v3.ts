@@ -18,6 +18,8 @@ import { OpenAiLlmClient } from '../src/llm/openai'
 import { generateDetails } from '../src/v3/details/generate'
 import { generateEndings } from '../src/v3/endings/generate'
 import { generateReveal } from '../src/v3/reveal/generate'
+import { finalRepair, specErrors } from '../src/v3/final/repair'
+import type { Parts } from '../src/v3/parts'
 import { generateSkeleton } from '../src/v3/skeleton/generate'
 
 const args = process.argv.slice(2)
@@ -193,8 +195,27 @@ for (const [i, call] of reveal.metrics.calls.entries())
   console.log(`reveal call ${i + 1} (${call.label}): ${call.model} in ${(call.latencyMs / 1000).toFixed(1)}s, issues ${call.issueCount}, cost $${call.costUsd?.toFixed(4) ?? '?'}`)
 
 await writeFile(join(outDir, 'reveal-issues.json'), `${JSON.stringify({ issues: reveal.issues, warnings: reveal.warnings }, null, 2)}\n`)
-await writeFile(join(outDir, 'metrics.json'), `${JSON.stringify({ skeleton: skeletonMetrics, details: details.metrics, endings: endings.metrics, reveal: reveal.metrics }, null, 2)}\n`)
-if (reveal.spec !== undefined) await writeFile(join(outDir, 'spec.json'), `${JSON.stringify(reveal.spec, null, 2)}\n`)
+// --- final check-and-repair (#209), as the job's check step runs it -----------------------------
+
+const partsOf = (result: unknown): Parts | undefined => (result as { parts?: Parts }).parts
+const revealErrors = reveal.spec !== undefined ? specErrors(reveal.spec) : []
+const savedParts = [partsOf(details), partsOf(endings), partsOf(reveal)]
+const check = reveal.spec !== undefined && revealErrors.length > 0 && savedParts.every((p) => p !== undefined)
+  ? await finalRepair(
+      { skeleton, documents, ...(readingLevel !== undefined ? { readingLevel } : {}), parts: Object.assign({}, ...savedParts) as Parts },
+      { llm },
+    )
+  : undefined
+for (const [i, call] of (check?.metrics.calls ?? []).entries())
+  console.log(`check call ${i + 1} (${call.label}): ${call.model} in ${(call.latencyMs / 1000).toFixed(1)}s, issues ${call.issueCount}, cost $${call.costUsd?.toFixed(4) ?? '?'}`)
+// a repair that leaves more errors than it found is dropped, as in the check step
+const finalSpec = check !== undefined && check.errors.length <= revealErrors.length ? check.spec : reveal.spec
+const finalErrors = finalSpec !== undefined ? specErrors(finalSpec) : []
+if (savedParts.every((p) => p !== undefined)) await writeFile(join(outDir, 'parts.json'), `${JSON.stringify(check?.parts ?? Object.assign({}, ...savedParts), null, 2)}\n`)
+await writeFile(join(outDir, 'check.json'), `${JSON.stringify({ before: revealErrors, repaired: check?.repaired ?? [], after: finalErrors, unresolved: check?.unresolved ?? [] }, null, 2)}\n`)
+
+await writeFile(join(outDir, 'metrics.json'), `${JSON.stringify({ skeleton: skeletonMetrics, details: details.metrics, endings: endings.metrics, reveal: reveal.metrics, check: check?.metrics ?? null }, null, 2)}\n`)
+if (finalSpec !== undefined) await writeFile(join(outDir, 'spec.json'), `${JSON.stringify(finalSpec, null, 2)}\n`)
 else if (endings.spec !== undefined) await writeFile(join(outDir, 'spec-endings.json'), `${JSON.stringify(endings.spec, null, 2)}\n`)
 
 lines.push('')
@@ -277,8 +298,8 @@ for (const issue of [...endings.issues.map((i) => ({ ...i, kind: 'issue' })), ..
 
 lines.push('')
 lines.push('=== reveal ===')
-if (reveal.spec?.reveal !== undefined) {
-  const spec = reveal.spec
+if (finalSpec?.reveal !== undefined) {
+  const spec = { ...finalSpec, reveal: finalSpec.reveal }
   lines.push(`What happened: ${spec.reveal.whatHappened}`)
   spec.reveal.interpretations.forEach((text, i) => lines.push(`Interpretation ${i + 1}: ${text}`))
   spec.reveal.corrections.forEach((text) => lines.push(`Correction: ${text}`))
@@ -294,8 +315,9 @@ const outline = lines.join('\n')
 await writeFile(join(outDir, 'outline.txt'), `${outline}\n`)
 console.log('')
 console.log(outline)
-console.log(`\nwrote ${outDir} — details $${details.metrics.totalCostUsd.toFixed(4)}, endings $${endings.metrics.totalCostUsd.toFixed(4)}, reveal $${reveal.metrics.totalCostUsd.toFixed(4)}`)
-if (!details.ok || !endings.ok || !reveal.ok) process.exit(1)
+console.log(`\nwrote ${outDir} — details $${details.metrics.totalCostUsd.toFixed(4)}, endings $${endings.metrics.totalCostUsd.toFixed(4)}, reveal $${reveal.metrics.totalCostUsd.toFixed(4)}, check $${(check?.metrics.totalCostUsd ?? 0).toFixed(4)}`)
+console.log(`check: ${revealErrors.length} errors before, repaired [${(check?.repaired ?? []).join(', ')}], ${finalErrors.length} left`)
+if (finalSpec === undefined || finalErrors.length > 0) process.exit(1)
 
 function renderCondition(condition: Condition): string {
   if ('all' in condition) return condition.all.map(renderCondition).join(' + ')

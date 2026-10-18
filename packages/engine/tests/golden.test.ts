@@ -178,6 +178,27 @@ describe('reachability and leaks', () => {
     expect(leakIssues(golden, leaked, game.state)).toEqual([expect.stringContaining('stance demeanour'), expect.stringContaining('undiscovered text')])
   })
 
+  it('a slant claim leaks before the reveal, but not in the reveal\'s corrections', async () => {
+    const game = new Harness(golden)
+    const view = await game.start()
+    const claim = golden.characters.flatMap((character) => character.slants)[0]?.claim ?? ''
+    const quoted = { ...view, messages: [...view.messages, { ...view.messages[0], text: claim }] } as PlayerView
+    expect(leakIssues(golden, quoted, game.state)).toEqual([expect.stringContaining('slant claim')])
+    expect(leakIssues(golden, quoted, { ...game.state, phase: 'reveal' })).not.toContainEqual(expect.stringContaining('slant claim'))
+  })
+
+  it('a withheld topic leaks during the stages, but the epilogue, Interview and reveal may name it', async () => {
+    const game = new Harness(golden)
+    const view = await game.start()
+    const withheld = golden.characters.flatMap((character) => character.persona.withholds).find((label) => label.length >= 12) ?? ''
+    expect(withheld).not.toBe('')
+    const named = { ...view, messages: [...view.messages, { ...view.messages[0], text: `The question was ${withheld}.` }] } as PlayerView
+    expect(leakIssues(golden, named, game.state)).toEqual([expect.stringContaining('persona withholds')])
+    for (const phase of ['epilogue', 'interview', 'reveal'] as const) {
+      expect(leakIssues(golden, named, { ...game.state, phase })).not.toContainEqual(expect.stringContaining('persona withholds'))
+    }
+  })
+
   it.each([
     ['mini', mini],
     ['golden-1819', golden],

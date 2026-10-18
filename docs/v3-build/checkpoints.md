@@ -61,3 +61,4 @@ create → review → edit → preview → play → reveal → class summary.
 ## Cut log
 | When | Checkpoint | Cut | Why |
 |---|---|---|---|
+| 2026-10-17 | 2 | Overheard conversations between characters [P12.2] (#229) | Low priority and "only if easily viable", but it needs a new spec field, generation, an engine event and play UI across all three owners. Characters are still summoned and moved by story events [P12, P12.1]. |

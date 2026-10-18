@@ -278,12 +278,15 @@ export function leakIssues(spec: EngineSpec, view: PlayerView, state: EngineStat
   for (const key of ['"keyPassages"', '"demeanour"', '"privateAgenda"', '"contradictedBy"', '"rules"', '"slants"']) {
     if (json.includes(key)) issues.push(`key ${key} in view`)
   }
+  // Withheld topics are short labels that the ending's epilogue, Interview and reveal may name, so they only leak during the stages.
+  const afterStages = state.phase === 'epilogue' || state.phase === 'interview' || state.phase === 'reveal'
   for (const character of spec.characters) {
     forbid(character.persona.privateAgenda, 'persona agenda')
     forbid(character.persona.knewThen, 'persona horizon')
-    for (const withheld of character.persona.withholds) forbid(withheld, 'persona withholds')
+    if (!afterStages) for (const withheld of character.persona.withholds) forbid(withheld, 'persona withholds')
     for (const stance of character.stances) forbid(stance.demeanour, 'stance demeanour')
-    for (const slant of character.slants) forbid(slant.claim, 'slant claim')
+    // The reveal quotes unconfronted slants as corrections [E3], so a claim is only a leak before it.
+    if (state.phase !== 'reveal') for (const slant of character.slants) forbid(slant.claim, 'slant claim')
   }
   const endgame = state.phase === 'interview' || state.phase === 'reveal'
   if (!endgame) {

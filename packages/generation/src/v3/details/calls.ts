@@ -10,6 +10,7 @@ import type { ExtractedDocument } from '../../ingest/types'
 import type { LlmClient, LlmUsage } from '../../llm/client'
 import { estimateCostUsd, ZERO_USAGE } from '../../llm/client'
 import { sourceTexts } from '../grounding'
+import type { PartResume } from '../parts'
 import { MAX_REPAIRS, skeletonRepairMessage, sourcesBlock } from '../skeleton/index'
 import { linkIssues, minorsIssues, personaIssues, stageIssues } from './checks'
 import type { LinkContext } from './checks'
@@ -56,7 +57,12 @@ interface CallConfig<T> {
   check: (output: T) => { errors: CheckIssue[]; warnings: CheckIssue[] }
 }
 
-export async function runCall<T>(config: CallConfig<T>, opts: DetailCallOptions, defaults: { model: string; reasoningEffort: 'low' | 'medium' | 'high' }): Promise<CallResult<T>> {
+export async function runCall<T>(
+  config: CallConfig<T>,
+  opts: DetailCallOptions,
+  defaults: { model: string; reasoningEffort: 'low' | 'medium' | 'high' },
+  from?: PartResume,
+): Promise<CallResult<T>> {
   const model = opts.model ?? defaults.model
   const reasoningEffort = opts.reasoningEffort === undefined ? defaults.reasoningEffort : opts.reasoningEffort
   const maxOutputTokens = opts.maxOutputTokens ?? 16_000
@@ -116,7 +122,8 @@ export async function runCall<T>(config: CallConfig<T>, opts: DetailCallOptions,
     },
   })
 
-  let result = await invoke(config.user)
+  if (from !== undefined) raw = JSON.stringify(from.output)
+  let result = await invoke(from !== undefined ? repairTurn(from.issues) : config.user)
   for (let attempt = 0; result.issues.length > 0 && attempt < MAX_REPAIRS; attempt++) result = await invoke(repairTurn(result.issues))
 
   return makeResult(result)
@@ -132,7 +139,7 @@ export interface DetailsShared {
 
 const skeletonJsonBlock = (skeleton: SkeletonShape) => `\`\`\`json\n${JSON.stringify(skeleton, null, 2)}\n\`\`\``
 
-export function generateStageDetails(stageId: string, shared: DetailsShared, opts: DetailCallOptions): Promise<CallResult<StageDetailsLlmOutput>> {
+export function generateStageDetails(stageId: string, shared: DetailsShared, opts: DetailCallOptions, from?: PartResume): Promise<CallResult<StageDetailsLlmOutput>> {
   const ctx = { skeleton: shared.skeleton, sources: sourceTexts(shared.documents) }
   return runCall(
     {
@@ -145,10 +152,11 @@ export function generateStageDetails(stageId: string, shared: DetailsShared, opt
     },
     opts,
     { model: DETAILS_MODEL, reasoningEffort: 'medium' },
+    from,
   )
 }
 
-export function generatePersona(characterId: string, shared: DetailsShared, opts: DetailCallOptions): Promise<CallResult<PersonaLlmOutput>> {
+export function generatePersona(characterId: string, shared: DetailsShared, opts: DetailCallOptions, from?: PartResume): Promise<CallResult<PersonaLlmOutput>> {
   const ctx = { skeleton: shared.skeleton, sources: sourceTexts(shared.documents) }
   const character = shared.skeleton.characters.find((c) => c.id === characterId)!
   const stageIds = shared.skeleton.stages.filter((s) => Object.keys(s.placement).includes(characterId)).map((s) => s.id)
@@ -163,10 +171,11 @@ export function generatePersona(characterId: string, shared: DetailsShared, opts
     },
     opts,
     { model: DETAILS_MODEL, reasoningEffort: 'medium' },
+    from,
   )
 }
 
-export function generateMinors(shared: DetailsShared, opts: DetailCallOptions): Promise<CallResult<MinorsLlmOutput>> {
+export function generateMinors(shared: DetailsShared, opts: DetailCallOptions, from?: PartResume): Promise<CallResult<MinorsLlmOutput>> {
   const ctx = { skeleton: shared.skeleton, sources: sourceTexts(shared.documents) }
   const list = shared.skeleton.characters
     .filter((c) => c.tier === 'minor')
@@ -183,10 +192,11 @@ export function generateMinors(shared: DetailsShared, opts: DetailCallOptions): 
     },
     opts,
     { model: DETAILS_MODEL, reasoningEffort: 'medium' },
+    from,
   )
 }
 
-export function linkDetails(context: LinkContext, shared: DetailsShared, opts: DetailCallOptions): Promise<CallResult<LinkLlmOutput>> {
+export function linkDetails(context: LinkContext, shared: DetailsShared, opts: DetailCallOptions, from?: PartResume): Promise<CallResult<LinkLlmOutput>> {
   const compact = {
     characters: context.characters.map((c) => ({
       id: c.id,
@@ -219,5 +229,6 @@ export function linkDetails(context: LinkContext, shared: DetailsShared, opts: D
     },
     opts,
     { model: LINK_MODEL, reasoningEffort: 'low' },
+    from,
   )
 }

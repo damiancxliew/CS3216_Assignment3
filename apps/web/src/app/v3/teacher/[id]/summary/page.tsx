@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { V3PublishPanel } from "@/components/play/v3/publish-panel";
 import { EmptyState, Page, Section, button } from "@/components/ui";
 import { loadClassSummary } from "@/lib/play/v3/summary";
-import { v3SummaryDeps } from "@/lib/play/v3/http";
+import { v3PublishDeps, v3SummaryDeps } from "@/lib/play/v3/http";
+import { loadPublishState } from "@/lib/play/v3/publish";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
 import type { ClassSummary } from "@adventure/play-contract";
@@ -51,9 +53,13 @@ export default async function V3ClassSummaryPage({
     Number(query.version) || undefined,
   );
   if (result.status === 404) notFound();
+  const publish = await loadPublishState(v3PublishDeps(), user.id, id);
 
   const headerLinks = (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      {publish.kind === "hidden" ? null : (
+        <V3PublishPanel adventureId={id} published={publish.kind === "published"} />
+      )}
       <Link href={`/v3/teacher/${id}/preview`} className={button.subtle}>
         Preview
       </Link>

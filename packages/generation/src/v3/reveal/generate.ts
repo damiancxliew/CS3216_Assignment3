@@ -1,8 +1,8 @@
 /**
  * The reveal pass — a single call over the finished spec. All secret content is
  * stripped from the prompt (E3.6.2: the engine itself says a secret path existed).
- * Merge → validateSpec + full checkSpec, nothing tolerated → one repair round if
- * anything is left and the budget allows it.
+ * Merge → validateSpec + full checkSpec → one repair round for errors the reveal added,
+ * if the budget allows it. Errors already in the draft are carried through.
  */
 import { checkSpec, validateSpec } from '@adventure/spec-v3'
 import type { AdventureSpec, CheckIssue } from '@adventure/spec-v3'
@@ -15,6 +15,8 @@ import { SKELETON_BUDGET_MS } from '../skeleton/generate'
 import { sourcesBlock } from '../skeleton/index'
 import { buildRevealContext, isSecretAct, revealIssues } from './checks'
 import { mergeReveal } from './merge'
+import { partId } from '../parts'
+import type { PartResume, Parts } from '../parts'
 import { fillRevealPrompt, REVEAL_SYSTEM_PROMPT } from './prompt'
 import { RevealLlmOutput as RevealWire } from './schema'
 import type { RevealLlmOutput } from './schema'
@@ -40,6 +42,8 @@ export interface RevealResult {
   issues: CheckIssue[]
   warnings: CheckIssue[]
   pendingPasses: string[]
+  /** the reveal part, when it produced an output (#209) */
+  parts: Parts
   metrics: { calls: DetailCallMetrics[]; totalCostUsd: number }
 }
 
@@ -75,6 +79,25 @@ function revealUserMessage(input: GenerateRevealInput, readingLevel: 'sec' | 'jc
   return `Write the reveal.\n\n${JSON.stringify(compact, null, 2)}\n\n${sourcesBlock(input.sources)}`
 }
 
+/** The reveal call; `from` resumes it from a saved output (#209). */
+export function revealCall(input: GenerateRevealInput, opts: DetailCallOptions, from?: PartResume) {
+  const readingLevel = input.readingLevel ?? input.draft.readingLevel
+  const ctx = buildRevealContext(input.draft, sourceTexts(input.sources), new Set(input.sources.map((d) => d.id)), input.slantedDocuments)
+  return runCall(
+    {
+      label: 'reveal',
+      schemaName: 'reveal_v3',
+      schema: RevealWire,
+      system: fillRevealPrompt(REVEAL_SYSTEM_PROMPT, { readingLevel }),
+      user: revealUserMessage(input, readingLevel),
+      check: (output) => revealIssues(output, ctx),
+    },
+    opts,
+    { model: REVEAL_MODEL, reasoningEffort: 'medium' },
+    from,
+  )
+}
+
 export async function generateReveal(input: GenerateRevealInput, opts: GenerateRevealOptions): Promise<RevealResult> {
   const draft = input.draft
   const readingLevel = input.readingLevel ?? draft.readingLevel
@@ -95,43 +118,32 @@ export async function generateReveal(input: GenerateRevealInput, opts: GenerateR
   const now = opts.now ?? Date.now
   const deadline = now() + (opts.budgetMs ?? REVEAL_BUDGET_MS)
 
-  // Errors already in the draft aren't the reveal's to fix: fail fast instead of paying for a doomed call and repair.
+  // Errors already in the draft aren't the reveal's to fix: they are carried through for the final repair (#209),
+  // and only errors the reveal adds are repaired here.
   const before = validateSpec(draft)
-  const draftErrors = before.ok ? checkSpec(before.spec).errors : before.issues.map((i) => ({ code: 'schema', path: i.path, message: i.message }))
-  if (draftErrors.length > 0) {
-    return {
-      ok: false,
-      issues: draftErrors.map((e) => ({ ...e, message: `draft already fails before the reveal pass: ${e.message}` })),
-      warnings: [],
-      pendingPasses: [],
-      metrics: { calls, totalCostUsd: 0 },
-    }
-  }
+  const draftErrors: CheckIssue[] = before.ok ? checkSpec(before.spec).errors : before.issues.map((i) => ({ code: 'schema', path: i.path, message: i.message }))
+  const key = (i: CheckIssue) => `${i.code}|${i.path}|${i.message}`
+  const inDraft = new Set(draftErrors.map(key))
+  const added = (errs: CheckIssue[]) => errs.filter((e) => !inDraft.has(key(e)))
 
-  const result = await runCall(
-    {
-      label: 'reveal',
-      schemaName: 'reveal_v3',
-      schema: RevealWire,
-      system: fillRevealPrompt(REVEAL_SYSTEM_PROMPT, { readingLevel }),
-      user: revealUserMessage(input, readingLevel),
-      check: (output) => revealIssues(output, ctx),
-    },
-    opts,
-    { model: REVEAL_MODEL, reasoningEffort: 'medium' },
-  )
+  const result = await revealCall(input, opts)
   countCalls(result)
   warnings.push(...result.warnings)
   issues.push(...result.issues)
 
-  const finish = (spec: AdventureSpec | undefined, errs: CheckIssue[]): RevealResult => ({
-    ok: errs.length === 0 && issues.length === 0 && spec !== undefined,
-    ...(spec !== undefined ? { spec } : {}),
-    issues: [...issues, ...errs],
-    warnings: uniq(warnings),
-    pendingPasses: [],
-    metrics: { calls, totalCostUsd: totalCost() },
-  })
+  let part = result
+  const finish = (spec: AdventureSpec | undefined, errs: CheckIssue[]): RevealResult => {
+    const all = uniq([...draftErrors, ...issues, ...errs])
+    return {
+      ok: all.length === 0 && spec !== undefined,
+      ...(spec !== undefined ? { spec } : {}),
+      issues: all,
+      warnings: uniq(warnings),
+      pendingPasses: [],
+      parts: part.output !== undefined ? { [partId.reveal]: { output: part.output, issues: part.issues } } : {},
+      metrics: { calls, totalCostUsd: totalCost() },
+    }
+  }
 
   if (result.output === undefined) return finish(undefined, [])
 
@@ -139,7 +151,7 @@ export async function generateReveal(input: GenerateRevealInput, opts: GenerateR
     const spec = mergeReveal(draft, output)
     const validation = validateSpec(spec)
     const errors: CheckIssue[] = validation.ok
-      ? checkSpec(spec).errors
+      ? added(checkSpec(spec).errors)
       : validation.issues.map((i) => ({ code: 'schema', path: i.path, message: i.message }))
     return { spec, errors }
   }
@@ -158,6 +170,7 @@ export async function generateReveal(input: GenerateRevealInput, opts: GenerateR
   warnings.push(...repair.warnings)
   issues.push(...repair.issues)
   if (repair.output === undefined) return finish(merged.spec, merged.errors)
+  part = repair
   merged = mergeAndCheck(repair.output)
   return finish(merged.spec, merged.errors)
 }

@@ -10,6 +10,7 @@ import type { FakeReply, LlmJsonRequest, LlmJsonResponse, LlmUsage } from '../sr
 import { tryParseJson } from '../src/llm/client'
 import type { LlmClient } from '../src/llm/client'
 import { generateEndings } from '../src/v3/index'
+import { buildMomentContext, momentIssues } from '../src/v3/endings/checks'
 import type { Atom, EndingLlmOutput, MomentLlmOutput } from '../src/v3/index'
 
 // allow tests to inject post-merge checkSpec errors (routing test)
@@ -345,7 +346,7 @@ describe('generateEndings', () => {
     expect(llm.requests.filter((r) => r.key === 'moment m1')[1]!.request.user).toContain('not reachable')
   })
 
-  it('historical-diverted is an error with a positive atom, a warning when all negated', async () => {
+  it('historical-diverted is an error with a positive atom', async () => {
     // a1-hold's fallback is the historical outcome o1-hold
     const positive = momentOutput({ conditionalRules: [{ actId: 'a1-hold', outcomeId: 'o1-yield', when: [atom('notePassed', { discoveryId: 'd-extra', characterId: 'farquhar' })] }] })
     const llm = new RoutingLlm({ ...happyRoutes(), 'moment m1': [{ json: positive }, { json: momentOutput() }] })
@@ -354,14 +355,26 @@ describe('generateEndings', () => {
     const calls = llm.requests.filter((r) => r.key === 'moment m1')
     expect(calls).toHaveLength(2)
     expect(calls[1]!.request.user).toContain('historical-diverted')
+  })
 
+  it('historical-diverted is an error when every condition is negated (#243)', () => {
+    // #243: { actId: 'm1-a1', when: not stanceAtLeast(temenggong, s2), outcomeId: 'm1-o3' } diverted good play by default.
+    // Here a1-hold is the historical act (fallback o1-hold) and o1-yield a non-historical outcome.
     const negated = momentOutput({ conditionalRules: [{ actId: 'a1-hold', outcomeId: 'o1-yield', when: [atom('stanceAtLeast', { characterId: 'farquhar', stanceId: 's2', negate: true })] }] })
-    const llm2 = new RoutingLlm({ ...happyRoutes(), 'moment m1': [{ json: negated }] })
-    const result2 = await generateEndings(input, { llm: llm2 })
-    expect(result2.ok).toBe(true)
-    expect(result2.issues).toEqual([])
-    expect(result2.warnings.some((w) => w.code === 'historical-diverted')).toBe(true)
-    expect(llm2.requests.filter((r) => r.key === 'moment m1')).toHaveLength(1)
+    const { errors, warnings } = momentIssues(negated, buildMomentContext(draft, 'm1'))
+    expect(errors).toContainEqual(expect.objectContaining({ code: 'historical-diverted', path: 'conditionalRules.0' }))
+    expect(warnings.some((w) => w.code === 'historical-diverted')).toBe(false)
+  })
+
+  it('repairs a negated-only historical diversion before merging', async () => {
+    const negated = momentOutput({ conditionalRules: [{ actId: 'a1-hold', outcomeId: 'o1-yield', when: [atom('stanceAtLeast', { characterId: 'farquhar', stanceId: 's2', negate: true })] }] })
+    const llm = new RoutingLlm({ ...happyRoutes(), 'moment m1': [{ json: negated }, { json: momentOutput() }] })
+    const result = await generateEndings(input, { llm })
+    expect(result.ok).toBe(true)
+    const calls = llm.requests.filter((r) => r.key === 'moment m1')
+    expect(calls).toHaveLength(2)
+    expect(calls[1]!.request.user).toContain('historical-diverted')
+    expect(result.warnings.some((w) => w.code === 'historical-diverted')).toBe(false)
   })
 
   it('warns when a moment has no conditional rule, so outcomes would ignore what the student did (G6)', async () => {

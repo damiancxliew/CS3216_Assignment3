@@ -1,5 +1,5 @@
 import { storyFauna } from '../src/fauna.js'
-import { detailZoom } from '../src/camera.js'
+import { detailZoom, scaledZoom } from '../src/camera.js'
 import { SCENERY_KINDS } from '@adventure/game-core'
 import { environmentSchema, ENVIRONMENT_MATERIALS, ENVIRONMENT_PROPS, MAP_STYLES } from '@adventure/generation/spec'
 import { describe, expect, it } from 'vitest'
@@ -12,6 +12,12 @@ describe('story art direction', () => {
     expect(detailZoom(770, 675, 512, 640)).toBe(3)
     expect(detailZoom(1020, 810, 512, 640)).toBe(4)
     expect(Number.isInteger(detailZoom(900, 600, 720, 480))).toBe(true)
+  })
+  it('scales detail zoom to crisp integer steps', () => {
+    expect(scaledZoom(4, 0.75)).toBe(3)
+    expect(scaledZoom(8, 0.75)).toBe(6)
+    expect(scaledZoom(3, 0.75)).toBe(2)
+    expect(scaledZoom(1, 0.5)).toBe(1)
   })
   it('uses stage fauna and preserves a deliberate choice of no animals', () => {
     expect(storyFauna(undefined, STORY_ART.desert, 'A caravan oasis')).toEqual(['camel', 'goat'])

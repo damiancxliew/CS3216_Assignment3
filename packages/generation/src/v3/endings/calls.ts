@@ -7,6 +7,7 @@ import type { AdventureSpec } from '@adventure/spec-v3'
 
 import type { ExtractedDocument } from '../../ingest/types'
 import { runCall } from '../details/calls'
+import type { PartResume } from '../parts'
 import type { CallResult, DetailCallOptions } from '../details/calls'
 import { detailsJsonSchema } from '../details/schema'
 import { sourcesBlock } from '../skeleton/index'
@@ -79,7 +80,7 @@ function momentUserMessage(shared: EndingsShared, ctx: MomentContext): string {
   return `Write moment: ${momentId}\n\n${JSON.stringify(compact, null, 2)}\n\n${sourcesBlock(shared.documents)}`
 }
 
-export function generateMoment(momentId: string, shared: EndingsShared, opts: DetailCallOptions): Promise<CallResult<MomentLlmOutput>> {
+export function generateMoment(momentId: string, shared: EndingsShared, opts: DetailCallOptions, from?: PartResume): Promise<CallResult<MomentLlmOutput>> {
   const ctx = buildMomentContext(shared.draft, momentId, new Set(shared.documents.map((d) => d.id)))
   return runCall(
     {
@@ -92,10 +93,11 @@ export function generateMoment(momentId: string, shared: EndingsShared, opts: De
     },
     opts,
     { model: ENDINGS_MODEL, reasoningEffort: 'medium' },
+    from,
   )
 }
 
-export function generateEnding(endingId: string, shared: EndingsShared, opts: DetailCallOptions): Promise<CallResult<EndingLlmOutput>> {
+export function generateEnding(endingId: string, shared: EndingsShared, opts: DetailCallOptions, from?: PartResume): Promise<CallResult<EndingLlmOutput>> {
   const { draft } = shared
   const ending = draft.endings.find((e) => e.id === endingId)!
   const leading = draft.definingMoments
@@ -137,5 +139,6 @@ export function generateEnding(endingId: string, shared: EndingsShared, opts: De
     },
     opts,
     { model: ENDINGS_MODEL, reasoningEffort: 'medium' },
+    from,
   )
 }

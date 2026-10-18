@@ -1,106 +1,86 @@
 "use client";
 
+import { ChevronDown, Timer } from "lucide-react";
 import type { Action, PlayerView } from "@adventure/play-contract";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CharacterPortrait } from "@/components/play/v3/character-portrait";
-import { DefiningMomentScreen } from "@/components/play/v3/defining-moment-screen";
+import styles from "@/components/play/adventure-chrome.module.css";
+import { DialogueBox } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
+import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3Map } from "@/components/play/v3/v3-map";
+
+export function v3InsertNoteAction(characterId: string, noteId: string, text?: string): Action {
+  return { type: "insertNote", characterId, noteId, ...(text ? { text } : {}) };
+}
+
+export function v3SelectPassageAction(documentId: string, start: number, end: number): Action {
+  return { type: "selectPassage", documentId, start, end };
+}
+
+export function firstV3CollectedDocumentId(documents: Pick<PlayerView["documents"][number], "id">[]): string | null {
+  return documents[0]?.id ?? null;
+}
+
+export function submitV3NoteInsert(
+  characterId: string,
+  noteId: string,
+  text: string | undefined,
+  send: (action: Action) => void,
+  onClose: () => void,
+) {
+  send(v3InsertNoteAction(characterId, noteId, text));
+  onClose();
+}
 
 function formatTime(milliseconds: number) {
   const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function DocumentShelf({
-  view,
-  busy,
-  momentOpen,
-  onOpen,
-}: {
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId }: {
   view: PlayerView;
   busy: boolean;
-  momentOpen: boolean;
-  onOpen: (documentId: string) => void;
-}) {
-  return (
-    <section className="rounded-2xl border border-line bg-surface p-4">
-      <h2 className="text-lg font-black text-ink">{momentOpen ? "Your documents" : "Documents here"}</h2>
-      {!momentOpen ? (
-        view.documentsHere.length ? (
-          <ul className="mt-3 space-y-2">
-            {view.documentsHere.map((document) => (
-              <li key={document.id}>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onOpen(document.id)}
-                  className="min-h-11 w-full rounded-xl border border-line bg-paper px-3 py-2 text-left text-sm font-bold text-ink hover:bg-record-wash disabled:opacity-50"
-                >
-                  {document.title}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="mt-2 text-sm text-muted">No documents are waiting in this room.</p>
-      ) : null}
-      {view.documents.length ? (
-        momentOpen ? (
-          <div className="mt-3 grid gap-2">
-            {view.documents.map((document) => (
-              <button
-                key={document.id}
-                type="button"
-                disabled={busy}
-                onClick={() => onOpen(document.id)}
-                className="min-h-11 rounded-lg bg-paper px-3 py-2 text-left text-sm font-bold text-ink hover:bg-record-wash disabled:opacity-50"
-              >
-                {document.title}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <details className="mt-3">
-            <summary className="cursor-pointer text-sm font-bold text-record">Collected documents ({view.documents.length})</summary>
-            <div className="mt-2 grid gap-2">
-              {view.documents.map((document) => (
-                <button
-                  key={document.id}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onOpen(document.id)}
-                  className="min-h-10 rounded-lg bg-paper px-3 text-left text-sm text-ink disabled:opacity-50"
-                >
-                  {document.title}
-                </button>
-              ))}
-            </div>
-          </details>
-        )
-      ) : (
-        <p className="mt-2 text-sm text-muted">No documents have been collected.</p>
-      )}
-    </section>
-  );
-}
-
-export function StagePlayScreen({ view, busy, send, portraitBase = null }: {
-  view: PlayerView;
-  busy: boolean;
-  send: (action: Action) => void;
+  send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
   portraitBase?: string | null;
+  attemptId: string;
 }) {
   const [characterId, setCharacterId] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
+  const [talkingTo, setTalkingTo] = useState<string | null>(null);
+  const [nearbyId, setNearbyId] = useState<string | null>(null);
   const [confirmEndStage, setConfirmEndStage] = useState(false);
+  const [walkTo, setWalkTo] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [missionCollapsed, setMissionCollapsed] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [emptyDocumentsOpen, setEmptyDocumentsOpen] = useState(false);
   const [documentId, setDocumentId] = useState<string | null>(
     () => view.documents.find((document) => document.open)?.id ?? null,
   );
   const [now, setNow] = useState<number | null>(null);
-  const currentCharacter = view.characters.find((character) => character.id === characterId) ?? null;
-  const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
+  const mapSection = useRef<HTMLElement>(null);
+  const talkingRoomId = useRef<string | null>(null);
   const stage = view.stage;
+  const stageIndex = stage?.index ?? 0;
+  const stageId = `stage-${stageIndex}`;
+  const isMoment = view.definingMoment !== null;
+  const openCharacter = talkingTo !== null &&
+    !isMoment &&
+    view.currentRoomId === talkingRoomId.current
+    ? view.characters.find((character) => character.id === talkingTo) ?? null
+    : null;
+  const isTalkOpen = openCharacter !== null;
+  const movementLocked = isTalkOpen || isMoment;
+  const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
+  const spawnRoomId = view.rooms[0]?.id ?? "";
+  const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
+    send({ type: "enterRoom", roomId }, resolve);
+  }), [send]);
+  const onMapReadyChange = useCallback((ready: boolean) => {
+    setMapReady(ready);
+    if (!ready) setNearbyId(null);
+  }, []);
   const messages = useMemo(
     // Conversation is per room; story lines (narration, notices, the role's own thoughts) follow the student.
     () => view.messages.filter((item) =>
@@ -108,12 +88,45 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null }: {
     ),
     [view.currentRoomId, view.messages],
   );
+  const dialogueMessages = useMemo(() => messages.map((item) => ({
+    ...item,
+    speaker: item.kind === "player"
+      ? "You"
+      : item.characterId === null
+        ? "Story"
+        : view.characters.find((character) => character.id === item.characterId)?.name ?? "Character",
+    insertedNoteText: item.insertedNoteId
+      ? view.notes.find((note) => note.id === item.insertedNoteId)?.text ?? "Note shared"
+      : null,
+  })), [messages, view.characters, view.notes]);
+  const nearbyCharacter = nearbyId
+    ? view.characters.find((character) => character.id === nearbyId) ?? null
+    : null;
+
+  const openTalk = useCallback((id: string) => {
+    if (view.definingMoment !== null || !view.characters.some((character) => character.id === id)) return;
+    talkingRoomId.current = view.currentRoomId;
+    setCharacterId(id);
+    setTalkingTo(id);
+  }, [view.characters, view.currentRoomId, view.definingMoment]);
+
+  const closeTalk = useCallback(() => {
+    setTalkingTo(null);
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => mapSection.current?.querySelector("canvas")?.focus());
+    }
+  }, []);
 
   useEffect(() => {
-    setCharacterId((current) => view.characters.some((character) => character.id === current)
-      ? current
-      : view.characters[0]?.id ?? null);
-  }, [view.characters]);
+    if (talkingTo === null) return;
+    if (
+      view.definingMoment !== null ||
+      view.currentRoomId !== talkingRoomId.current ||
+      !view.characters.some((character) => character.id === talkingTo)
+    ) {
+      setTalkingTo(null);
+    }
+  }, [talkingTo, view.characters, view.currentRoomId, view.definingMoment]);
 
   useEffect(() => {
     setNow(Date.now());
@@ -126,207 +139,255 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null }: {
   }, [view.timer]);
 
   const remaining = view.timer && now !== null ? new Date(view.timer.endsAt).getTime() - now : null;
-  const characterName = (id: string | null) =>
-    id === null ? "Story" : view.characters.find((character) => character.id === id)?.name ?? "Character";
+  const openDocument = useCallback((id: string) => {
+    setDocumentId(id);
+    setEmptyDocumentsOpen(false);
+    send({ type: "openDocument", documentId: id });
+  }, [send]);
 
-  function submitMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!characterId || !message.trim() || busy) return;
-    send({ type: "message", characterId, text: message.trim() });
-    setMessage("");
+  function openCollectedDocuments() {
+    const firstDocumentId = firstV3CollectedDocumentId(view.documents);
+    if (firstDocumentId) {
+      openDocument(firstDocumentId);
+    } else {
+      setDocumentId(null);
+      setEmptyDocumentsOpen(true);
+    }
   }
 
-  function openDocument(id: string) {
-    setDocumentId(id);
-    send({ type: "openDocument", documentId: id });
+  function closeDocument() {
+    if (openedDocument) send({ type: "closeDocument", documentId: openedDocument.id });
+    setDocumentId(null);
+    setEmptyDocumentsOpen(false);
   }
 
   return (
-    <main className="mx-auto grid w-full max-w-7xl gap-5 px-3 py-4 sm:px-6 sm:py-7">
-      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-ink bg-surface p-4 shadow-[0_3px_0_var(--ink)] sm:p-5">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-record">
-            Stage {stage ? stage.index + 1 : 1}{stage ? ` of ${stage.count}` : ""}
-          </p>
-          <h1 className="mt-1 text-2xl font-black text-ink">{stage?.title}</h1>
-          <p className="text-sm font-semibold text-muted">{stage?.timePlace}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {view.timer ? (
-            <span aria-label="Time remaining" className="rounded-full bg-signal-wash px-4 py-2 font-mono text-lg font-black text-signal">
-              {remaining === null ? "--:--" : formatTime(remaining)}
-            </span>
+    <>
+      <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col`}>
+        <section
+          ref={mapSection}
+          className="relative min-h-0 min-w-0 flex-1 bg-sunken"
+          aria-label="Map"
+        >
+          {stage && view.rooms.length > 0 ? (
+            <V3Map
+              key={`${attemptId}:${stageId}`}
+              attemptId={attemptId}
+              stageId={stageId}
+              stageIndex={stageIndex}
+              rooms={view.rooms}
+              spawnRoomId={spawnRoomId}
+              currentRoomId={view.currentRoomId}
+              characters={view.characters}
+              documents={view.documentsHere}
+              walkTo={walkTo}
+              movementLocked={movementLocked}
+              onWalkDone={() => setWalkTo(null)}
+              onEnterRoom={requestRoomEntry}
+              onSelectCharacter={isMoment ? () => {} : openTalk}
+              onTalk={openTalk}
+              onNearbyCharacterChange={setNearbyId}
+              onOpenDocument={openDocument}
+              onReadyChange={onMapReadyChange}
+            />
           ) : null}
-          {view.definingMoment === null ? (
-            <span className="rounded-full bg-record-wash px-4 py-2 text-sm font-black text-record">
-              {view.currentRoomId ? view.rooms.find((room) => room.id === view.currentRoomId)?.name : "Exploring"}
-            </span>
-          ) : null}
-        </div>
-        <p className="w-full rounded-xl border-l-4 border-world bg-world-wash px-4 py-3 font-semibold leading-relaxed text-ink">
-          {stage?.centralQuestion}
-        </p>
-      </header>
 
-      {view.definingMoment === null ? (
-        <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4">
-          {confirmEndStage ? (
-            <>
-              <p role="alert" className="font-bold text-ink">You won&apos;t be able to explore after this.</p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setConfirmEndStage(false)}
-                  className="min-h-11 rounded-xl border border-line-strong px-4 font-bold text-ink"
-                >
-                  Keep exploring
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setConfirmEndStage(false);
-                    send({ type: "endStage" });
-                  }}
-                  className="min-h-11 rounded-xl bg-signal px-4 font-black text-white disabled:opacity-50"
-                >
-                  Continue to decision
-                </button>
-              </div>
-            </>
-          ) : (
+          {isMoment ? (
+            <div className="absolute bottom-3 left-16 z-30 flex gap-2">
+              <button
+                type="button"
+                className={`${styles.tool} flex min-h-10 items-center gap-2 px-3 text-sm font-bold`}
+                onClick={openCollectedDocuments}
+              >
+                Documents ({view.documents.length})
+              </button>
+            </div>
+          ) : !isTalkOpen ? (
+            <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={`${styles.tool} flex min-h-10 items-center gap-2 px-3 text-sm font-bold`}
+                onClick={() => setNotesOpen(true)}
+              >
+                Notes ({view.notes.length})
+              </button>
+              <button
+                type="button"
+                className={`${styles.tool} flex min-h-10 items-center gap-2 px-3 text-sm font-bold`}
+                onClick={openCollectedDocuments}
+              >
+                Documents ({view.documents.length})
+              </button>
+            </div>
+          ) : null}
+
+          {!isMoment && !isTalkOpen && mapReady && nearbyCharacter && !notesOpen && !openedDocument && !emptyDocumentsOpen ? (
             <button
               type="button"
-              disabled={busy}
-              onClick={() => setConfirmEndStage(true)}
-              className="min-h-11 rounded-xl bg-signal px-5 font-black text-white hover:brightness-110 disabled:opacity-50"
+              onClick={() => openTalk(nearbyCharacter.id)}
+              className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
             >
-              I&apos;m ready to decide
+              Press E to talk to {nearbyCharacter.name}
             </button>
-          )}
+          ) : null}
+
+          {view.definingMoment ? (
+            <DialogueBox
+              mode="moment"
+              moment={view.definingMoment}
+              decider={view.characters.find((character) => character.id === view.definingMoment?.deciderId)}
+              portraitBase={portraitBase}
+              busy={busy}
+              onAct={(actId) => send({ type: "act", actId })}
+              onPredict={(outcomeId) => send({ type: "predict", outcomeId })}
+            />
+          ) : openCharacter ? (
+            <DialogueBox
+              key={openCharacter.id}
+              mode="talk"
+              character={openCharacter}
+              portraitBase={portraitBase}
+              messages={dialogueMessages}
+              busy={busy}
+              onSend={(text) => {
+                if (characterId) send({ type: "message", characterId, text });
+              }}
+              onOpenNotes={() => setNotesOpen(true)}
+              onClose={closeTalk}
+            />
+          ) : null}
+
+        <section
+          aria-label="Mission"
+          className="absolute right-2 top-2 z-10 w-[min(20rem,calc(100%_-_1rem))] rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] p-3 text-[#1f2433] shadow-[3px_3px_0_#1f2433] sm:right-4 sm:top-4"
+        >
+          <header className="flex items-center gap-2">
+            <h2 className="mr-auto text-xs font-black uppercase tracking-[0.14em]">Mission</h2>
+            {view.timer ? (
+              <span aria-label="Time remaining" className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#1f2433]/35 bg-white/70 px-2 py-1 font-mono text-xs font-bold">
+                <Timer size={14} aria-hidden />
+                {remaining === null ? "--:--" : formatTime(remaining)}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              aria-expanded={!missionCollapsed}
+              aria-label={missionCollapsed ? "Show mission" : "Hide mission"}
+              onClick={() => setMissionCollapsed((collapsed) => !collapsed)}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-[#1f2433]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]"
+            >
+              <ChevronDown
+                size={16}
+                aria-hidden
+                className={`transition-transform ${missionCollapsed ? "-rotate-90" : "rotate-180"}`}
+              />
+            </button>
+          </header>
+
+          {!missionCollapsed ? (
+            <div className="mt-2 space-y-2">
+              {stage?.centralQuestion ? (
+                <p className="text-sm font-semibold leading-snug">{stage.centralQuestion}</p>
+              ) : null}
+              {!isMoment ? (
+                <>
+                  <p className="text-xs text-[#5c6472]">
+                    You are in {view.rooms.find((room) => room.id === view.currentRoomId)?.name ?? "an unknown room"}
+                  </p>
+                  {confirmEndStage ? (
+                    <div role="alert" className="space-y-2">
+                      <p className="text-xs font-bold">You won&apos;t be able to explore after this.</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setConfirmEndStage(false)}
+                          className={`${styles.chip} min-h-8 border px-2 text-xs font-bold`}
+                        >
+                          Keep exploring
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setConfirmEndStage(false);
+                            send({ type: "endStage" });
+                          }}
+                          className={`${styles.primary} min-h-8 px-2 text-xs font-black disabled:opacity-50`}
+                        >
+                          Continue to decision
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setConfirmEndStage(true)}
+                      className={`${styles.primary} min-h-8 px-3 text-xs font-black disabled:opacity-50`}
+                    >
+                      I&apos;m ready to decide
+                    </button>
+                  )}
+                  {view.pendingCheck ? (
+                    <p role="status" className="text-xs font-bold text-[#5c6472]">Adding to your notes…</p>
+                  ) : null}
+                  {!mapReady ? (
+                    <label className="flex flex-col gap-1 border-t border-[#1f2433]/20 pt-2 text-[11px] font-black uppercase tracking-wide">
+                      Walk to
+                      <select
+                        aria-label="Walk to"
+                        value={view.currentRoomId ?? ""}
+                        disabled={busy || movementLocked || view.rooms.length < 2}
+                        onChange={(event) => {
+                          if (event.target.value) send({ type: "enterRoom", roomId: event.target.value });
+                        }}
+                        className="min-h-9 w-full rounded-md border border-[#1f2433]/35 bg-white px-2 text-sm font-medium normal-case tracking-normal text-[#1f2433]"
+                      >
+                        {view.rooms.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
+                      </select>
+                    </label>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
         </section>
+        </section>
+      </div>
+
+      {notesOpen ? (
+        <V3ScrollDialog
+          eyebrow="Your notes"
+          title="Your notes"
+          kicker="From your travels"
+          footerText="A record of your discoveries"
+          closeLabel="Close notes"
+          onClose={() => setNotesOpen(false)}
+        >
+          <NotesPanel
+            notes={view.notes}
+            busy={busy}
+            selectedCharacterName={isTalkOpen ? openCharacter.name : null}
+            onInsert={(noteId, text) => {
+              if (!isTalkOpen || !openCharacter || characterId !== openCharacter.id) return;
+              submitV3NoteInsert(characterId, noteId, text, send, () => setNotesOpen(false));
+            }}
+          />
+        </V3ScrollDialog>
       ) : null}
 
-      {view.definingMoment ? (
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(18rem,0.8fr)]">
-          <DefiningMomentScreen view={view} busy={busy} send={send} />
-          <aside className="grid min-w-0 gap-4">
-            <DocumentShelf view={view} busy={busy} momentOpen onOpen={openDocument} />
-          </aside>
-        </div>
-      ) : (
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(18rem,0.8fr)]">
-          <section className="grid min-w-0 gap-4">
-            <section className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-black text-ink">Who is here?</h2>
-                  <p className="text-sm text-muted">Choose someone to talk with.</p>
-                </div>
-                {view.pendingCheck ? (
-                  <span role="status" className="rounded-full bg-sunshine px-3 py-1.5 text-xs font-black text-ink">Adding to your notes…</span>
-                ) : null}
-              </div>
-              {view.characters.length ? (
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {view.characters.map((character) => (
-                    <CharacterPortrait
-                      key={character.id}
-                      name={character.name}
-                      portraitKey={character.portraitKey}
-                      portraitBase={portraitBase}
-                      selected={character.id === characterId}
-                      onSelect={() => setCharacterId(character.id)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-4 rounded-xl bg-paper p-4 text-sm text-muted">No one is here just now. Try another room.</p>
-              )}
-              {view.rooms.length > 1 ? (
-                <label className="mt-4 flex flex-wrap items-center gap-3 text-sm font-bold text-ink">
-                  Move to
-                  <select
-                    value={view.currentRoomId ?? ""}
-                    disabled={busy}
-                    onChange={(event) => send({ type: "enterRoom", roomId: event.target.value })}
-                    className="min-h-11 min-w-48 flex-1 rounded-lg border border-line-strong bg-paper px-3 text-ink"
-                  >
-                    {view.rooms.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
-                  </select>
-                </label>
-              ) : null}
-            </section>
-
-            <section aria-labelledby="conversation-heading" className="overflow-hidden rounded-2xl border border-line bg-surface">
-              <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
-                <h2 id="conversation-heading" className="font-black text-ink">Conversation</h2>
-                {currentCharacter ? <span className="text-xs font-semibold text-muted">Speaking with {currentCharacter.name}</span> : null}
-              </div>
-              <div className="max-h-[42dvh] min-h-44 space-y-3 overflow-y-auto bg-paper/60 p-4" aria-live="polite">
-                {messages.length ? messages.map((item) => (
-                  <article key={item.id} className={`max-w-[92%] rounded-2xl border border-line p-3 ${
-                    item.kind === "player" ? "ml-auto rounded-tr-sm bg-world-wash" :
-                    item.kind === "notice" ? "mx-auto border-0 bg-record-wash text-center" :
-                    item.kind === "narration" ? "mx-auto border-0 bg-sunshine/70 text-center" : "mr-auto rounded-tl-sm bg-surface"
-                  }`}>
-                    <p className="mb-1 text-[11px] font-black uppercase tracking-wide text-muted">
-                      {item.kind === "player" ? "You" : characterName(item.characterId)}
-                    </p>
-                    {item.text ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink">{item.text}</p> : null}
-                    {item.insertedNoteId ? (
-                      <blockquote className="mt-2 rounded-lg border-l-2 border-world bg-world-wash px-3 py-2 text-sm leading-relaxed text-ink">
-                        {view.notes.find((note) => note.id === item.insertedNoteId)?.text ?? "Note shared"}
-                      </blockquote>
-                    ) : null}
-                  </article>
-                )) : <p className="py-9 text-center text-sm text-muted">Start the conversation when you are ready.</p>}
-              </div>
-              <form onSubmit={submitMessage} className="grid gap-2 border-t border-line p-4">
-                <label htmlFor="v3-message" className="text-sm font-bold text-ink">
-                  Ask {currentCharacter?.name ?? "someone"} a question
-                </label>
-                <textarea id="v3-message" value={message} maxLength={1000} rows={3} disabled={busy || !characterId}
-                  onChange={(event) => setMessage(event.target.value)}
-                  className="w-full resize-y rounded-xl border border-line-strong bg-paper p-3 text-sm text-ink disabled:opacity-60" />
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs text-muted">{message.length}/1000</span>
-                  <button type="submit" disabled={busy || !characterId || !message.trim()}
-                    className="min-h-11 rounded-xl bg-world px-5 font-black text-white disabled:opacity-50">
-                    {busy ? "Sending…" : "Send"}
-                  </button>
-                </div>
-              </form>
-            </section>
-          </section>
-
-          <aside className="grid min-w-0 gap-4">
-            <DocumentShelf view={view} busy={busy} momentOpen={false} onOpen={openDocument} />
-            <NotesPanel
-              notes={view.notes}
-              busy={busy}
-              selectedCharacterName={currentCharacter?.name ?? null}
-              onInsert={(noteId, text) => {
-                if (!characterId) return;
-                send({ type: "insertNote", characterId, noteId, ...(text ? { text } : {}) });
-              }}
-            />
-          </aside>
-        </div>
-      )}
-      {openedDocument ? (
+      {openedDocument || emptyDocumentsOpen ? (
         <DocumentReader
           document={openedDocument}
-          onClose={() => {
-            send({ type: "closeDocument", documentId: openedDocument.id });
-            setDocumentId(null);
-          }}
-          {...(view.definingMoment === null
-            ? { onSelectPassage: (start: number, end: number) => send({ type: "selectPassage", documentId: openedDocument.id, start, end }) }
+          documents={view.documents}
+          onSelectDocument={openDocument}
+          onClose={closeDocument}
+          {...(openedDocument && !isMoment
+            ? { onSelectPassage: (start: number, end: number) => send(v3SelectPassageAction(openedDocument.id, start, end)) }
             : {})}
         />
       ) : null}
-    </main>
+    </>
   );
 }
