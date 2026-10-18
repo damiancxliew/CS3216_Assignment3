@@ -518,6 +518,7 @@ export function MapCanvas({ state, audio, intent, onIntentDone, onSteps, onLocal
           onProp: (propId) => latest.current.onProp(propId),
           onLandmark: (landmarkId) => latest.current.onLandmark(landmarkId),
           camera,
+          laptopFrames: true,
         });
         if (destroyed) {
           view.destroy();

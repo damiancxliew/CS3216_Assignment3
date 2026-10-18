@@ -83,6 +83,8 @@ export interface TiledViewOptions {
   camera?: 'detail' | 'overview'
   /** Optional scale for detail camera zoom. */
   zoomScale?: number
+  /** Treat detail frames under 900×600 as compact (3x, not 4x); see `detailZoom`. */
+  laptopFrames?: boolean
 }
 
 class TiledScene extends Phaser.Scene {
@@ -94,6 +96,7 @@ class TiledScene extends Phaser.Scene {
   private readonly clickToWalk: boolean
   private readonly cameraMode: 'detail' | 'overview'
   private readonly zoomScale: number
+  private readonly laptopFrames: boolean
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
   private readonly onLandmark: ((landmarkId: string) => void) | undefined
@@ -155,6 +158,7 @@ class TiledScene extends Phaser.Scene {
     this.clickToWalk = options.clickToWalk ?? false
     this.cameraMode = options.camera ?? 'detail'
     this.zoomScale = options.zoomScale ?? 1
+    this.laptopFrames = options.laptopFrames ?? false
     this.onActor = options.onActor
     this.onProp = options.onProp
     this.onLandmark = options.onLandmark
@@ -875,7 +879,7 @@ class TiledScene extends Phaser.Scene {
     const { width, height } = this.scale.gameSize
     const zoom = this.cameraMode === 'overview'
       ? overviewZoom(width, mapW)
-      : scaledZoom(detailZoom(width, height, mapW, mapH), this.zoomScale)
+      : scaledZoom(detailZoom(width, height, mapW, mapH, this.laptopFrames), this.zoomScale)
     cam.setZoom(zoom)
     cam.setRoundPixels(true)
     if (mapW * zoom <= width && mapH * zoom <= height) {
