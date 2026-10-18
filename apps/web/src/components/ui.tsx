@@ -22,6 +22,14 @@ export const button = {
   link: "text-base text-muted underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink",
 };
 
+const compactButtonBase = "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full border px-3.5 text-sm font-semibold leading-5 transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50";
+
+export const compactButton = {
+  primary: `${compactButtonBase} border-ink bg-signal text-on-signal shadow-[0_3px_0_var(--shadow)] hover:bg-ink hover:text-paper`,
+  quiet: `${compactButtonBase} border-line-strong bg-surface text-ink shadow-[0_2px_0_var(--shadow)] hover:border-ink hover:bg-sunken`,
+  subtle: `${compactButtonBase} border-line bg-surface text-muted shadow-[0_2px_0_var(--shadow)] hover:border-line-strong hover:text-ink`,
+};
+
 export const control =
   "w-full rounded-control border-2 border-line bg-surface px-3.5 py-3 text-base text-ink placeholder:text-muted transition-all focus:border-record focus:shadow-[0_0_0_4px_var(--record-wash)] focus:outline-none disabled:opacity-60";
 

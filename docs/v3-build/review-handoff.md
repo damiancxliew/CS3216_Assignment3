@@ -23,10 +23,21 @@ full generated-conflict acceptance still depends on #259.
 - An isolated Chromium fixture exercised every item at 1440, 375 and 320 pixels,
   tab keyboard navigation, issue selection/focus, passage highlighting and a
   20,000-character unbroken persona field. No horizontal overflow or browser errors.
-- The fixture uses the actual review component and application CSS, with button
-  styles copied from the shared UI module. It does not exercise a logged-in Next.js
-  session. No local Supabase configuration was present, so the final test-school
-  create → review → edit → preview → play walkthrough remains outstanding.
+- The layout regression (`RUN_REVIEW_BROWSER_TESTS=1 npx vitest run
+  tests/browser/v3-review.test.ts`) verifies every outline destination, index
+  collapse, stable tab/page/pane heights, scrolling and keyboard navigation at
+  1440, 1024, 375 and 320 pixels.
+- Local signed-in Supabase checks verify clean and blocked drafts, 40px action
+  buttons, stage-index collapse and explicit character names in discovery titles.
+  The final create → review → edit → preview → play walkthrough still requires
+  #213; editing remains disabled.
+
+The review workspace scrolls its index and detail pane independently. Separate
+cards group the content, and the index can be collapsed without resetting the
+selected stage. Tab buttons share dimensions, the page reserves scrollbar space,
+and the background is fixed to the viewport to avoid content-length shifts.
+Conversational topics such as “his fears” display the holder’s name in review
+headings and index entries; saved generation content is unchanged.
 
 ## Next PR: direct edits (#213)
 

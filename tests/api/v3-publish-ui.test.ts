@@ -25,6 +25,10 @@ describe("publish controls", () => {
     expect(html).toContain('disabled=""');
     expect(html).toContain('aria-describedby="publish-block-draft"');
     expect(html).toContain("Fix the story errors");
+    expect(html).not.toContain("Not published");
+    expect(html).toContain('role="tooltip"');
+    expect(html).toContain('aria-label="Publish unavailable"');
+    expect(html).toContain('tabindex="0"');
   });
   it("allows an owner to unpublish even if the draft has blocking errors", () => {
     const html = renderToStaticMarkup(

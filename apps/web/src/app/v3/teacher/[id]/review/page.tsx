@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { validateSpec } from "@adventure/spec-v3";
 import { V3PublishPanel } from "@/components/play/v3/publish-panel";
-import { button, Page } from "@/components/ui";
+import { compactButton as button, Page } from "@/components/ui";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -68,6 +68,7 @@ export default async function ReviewPage({
         </div>
         <V3PublishPanel
           adventureId={id}
+          compact
           published={row.status === "published"}
           blockedReason={
             errors.length

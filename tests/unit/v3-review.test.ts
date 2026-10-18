@@ -5,6 +5,8 @@ import {
   documentSegments,
   issueTarget,
   reviewErrors,
+  reviewDiscoveryTitle,
+  reviewIndex,
   reviewSources,
   reviewTargets,
   safeSourceUrl,
@@ -128,6 +130,34 @@ describe("review navigation and evidence", () => {
     expect(documentSegments({ body: "unmarked", keyPassages: [] })).toEqual([
       { start: 0, text: "unmarked", passageIds: [] },
     ]);
+  });
+
+  it("names the character in possessive discovery topics without changing the saved content", () => {
+    const discovery = {
+      ...spec.discoveries.find((d) => "characterId" in d.holder)!,
+      topic: "his fears about Riau",
+    };
+    const holderId =
+      "characterId" in discovery.holder ? discovery.holder.characterId : "";
+    const holder = spec.characters.find((c) => c.id === holderId)!;
+    const before = JSON.stringify(discovery);
+    const title = reviewDiscoveryTitle(spec, discovery);
+    expect(title).toBe(
+      `${holder.name}${/s$/i.test(holder.name) ? "’" : "’s"} fears about Riau`,
+    );
+    const fixture = { ...spec, discoveries: [discovery] };
+    expect(
+      reviewIndex(fixture, "stages", discovery.stageId).find(
+        (entry) => entry.label === "Discoveries",
+      )?.children?.[0].label,
+    ).toBe(title);
+    expect(JSON.stringify(discovery)).toBe(before);
+    expect(
+      reviewDiscoveryTitle(spec, {
+        ...discovery,
+        holder: { documentId: spec.documents[0].id, keyPassageId: "passage" },
+      }),
+    ).toBe(discovery.text);
   });
 
   it("surfaces structural errors and rejects executable source URLs", () => {

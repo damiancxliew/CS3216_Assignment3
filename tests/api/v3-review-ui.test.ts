@@ -2,6 +2,12 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import {
+  reviewIndex,
+  reviewAnchor,
+  type ReviewIndexEntry,
+} from "@/lib/v3/review";
+import { DraftReady } from "@/app/v3/teacher/[id]/draft-ready";
 import { AdventureSpec } from "@adventure/spec-v3";
 import {
   Citations,
@@ -10,6 +16,7 @@ import {
 
 vi.mock("@/components/ui", () => ({
   button: { primary: "primary", subtle: "subtle" },
+  compactButton: { primary: "primary", subtle: "subtle" },
 }));
 const spec = AdventureSpec.parse(
   JSON.parse(readFileSync("fixtures/golden-1819.json", "utf8")),
@@ -53,6 +60,52 @@ describe("review screen rendering", () => {
     expect(html).toContain('aria-describedby="edit-coming-soon"');
     expect(html).toContain("Coming soon");
     expect(html).toContain(spec.stages[0].openingNarration);
+  });
+
+  it("renders every stage outline destination, including rooms, choices and outcomes", () => {
+    const html = renderToStaticMarkup(
+      createElement(ReviewScreen, {
+        spec,
+        sources: spec.sources,
+        errors: [],
+        warnings: [],
+      }),
+    );
+    const walk = (entries: ReviewIndexEntry[]) => {
+      for (const entry of entries) {
+        expect(html, entry.label).toContain(`id="${reviewAnchor(entry.id)}"`);
+        if (entry.children) walk(entry.children);
+      }
+    };
+    walk(reviewIndex(spec, "stages", spec.stages[0].id));
+    expect(html).toContain('aria-label="Review details"');
+  });
+
+  it("shows draft issues once and makes review and preview available", () => {
+    const html = renderToStaticMarkup(
+      createElement(DraftReady, {
+        adventureId: "draft",
+        blocked: true,
+        errors: [
+          { code: "fixture", path: "", message: "A specific blocking issue" },
+        ],
+        warnings: [
+          {
+            code: "fixture-warning",
+            path: "",
+            message: "A specific warning",
+            pass: "details",
+          },
+        ],
+        publishControl: createElement("button", { disabled: true }, "Publish"),
+      }),
+    );
+    expect(html.match(/A specific blocking issue/g)).toHaveLength(1);
+    expect(html.match(/A specific warning/g)).toHaveLength(1);
+    expect(html).toContain('href="/v3/teacher/draft/review"');
+    expect(html).toContain('href="/v3/teacher/draft/preview"');
+    expect(html).not.toContain("Review needed before publishing");
+    expect(html).not.toContain("share-title");
   });
 
   it("keeps source labels without citations and distinguishes missing quotes and origins", () => {

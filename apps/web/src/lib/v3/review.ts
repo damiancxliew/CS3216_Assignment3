@@ -4,6 +4,7 @@ import {
   type AdventureSpec,
   type CheckIssue,
   type SpecDocument,
+  type SpecDiscovery,
   type SpecSource,
   type Condition,
 } from "@adventure/spec-v3";
@@ -191,4 +192,118 @@ export function conditionText(
     return `Reach ${name(condition.outcome.outcomeId)}`;
   if ("inRoom" in condition) return `Enter ${name(condition.inRoom)}`;
   return `After ${condition.elapsedAtLeast} seconds`;
+}
+
+/** Conversational topics can say "his fears"; standalone review labels need the holder's name. */
+export function reviewDiscoveryTitle(
+  spec: AdventureSpec,
+  discovery: SpecDiscovery,
+): string {
+  const topic = discovery.topic?.trim();
+  if (!topic) return discovery.text || discovery.id;
+  const pronoun = /^(?:his|her|their|its)\b\s*/i.exec(topic);
+  if (!pronoun) return topic.charAt(0).toUpperCase() + topic.slice(1);
+  const holder = discovery.holder;
+  const character =
+    "characterId" in holder
+      ? spec.characters.find((character) => character.id === holder.characterId)
+      : undefined;
+  const rest = topic.slice(pronoun[0].length);
+  if (!character || !rest) return discovery.text || discovery.id;
+  return `${character.name}${/s$/i.test(character.name) ? "’" : "’s"} ${rest}`;
+}
+
+export const reviewSectionId = (ownerId: string, section: string) =>
+  `section:${ownerId}:${section}`;
+
+export type ReviewIndexEntry = {
+  id: string;
+  label: string;
+  children?: ReviewIndexEntry[];
+};
+
+/** The same section ids label the cards and their links in the review outline. */
+export function reviewIndex(
+  spec: AdventureSpec,
+  tab: ReviewTab,
+  itemId: string,
+): ReviewIndexEntry[] {
+  const section = (
+    name: string,
+    label: string,
+    children?: ReviewIndexEntry[],
+  ): ReviewIndexEntry => ({
+    id: reviewSectionId(itemId, name),
+    label,
+    ...(children?.length ? { children } : {}),
+  });
+  if (tab === "stages") {
+    const stage = spec.stages.find((stage) => stage.id === itemId);
+    if (!stage) return [];
+    return [
+      { id: stage.id, label: "Overview" },
+      section(
+        "rooms",
+        "Rooms and placements",
+        stage.rooms.map((room) => ({ id: room.id, label: room.name })),
+      ),
+      section(
+        "discoveries",
+        "Discoveries",
+        spec.discoveries
+          .filter((d) => d.stageId === itemId)
+          .map((d) => ({ id: d.id, label: reviewDiscoveryTitle(spec, d) })),
+      ),
+      section(
+        "events",
+        "Events",
+        spec.storyEvents
+          .filter((e) => e.stageId === itemId)
+          .map((e) => ({ id: e.id, label: e.text })),
+      ),
+      ...spec.definingMoments
+        .filter((m) => m.stageId === itemId)
+        .map((m) => ({
+          id: m.id,
+          label: "Defining moment",
+          children: [
+            {
+              id: reviewSectionId(m.id, "choices"),
+              label: "Choices",
+              children: m.acts.map((a) => ({ id: a.id, label: a.text })),
+            },
+            {
+              id: reviewSectionId(m.id, "outcomes"),
+              label: "Outcomes",
+              children: m.outcomes.map((o) => ({ id: o.id, label: o.summary })),
+            },
+          ],
+        })),
+    ];
+  }
+  if (tab === "characters")
+    return [
+      { id: itemId, label: "Overview" },
+      section("persona", "Persona"),
+      section("stances", "Stances"),
+      section("slants", "Slants"),
+      section("reactions", "Reactions and trust"),
+    ];
+  if (tab === "documents")
+    return [
+      { id: itemId, label: "Overview" },
+      section("text", "Document text"),
+      section(
+        "passages",
+        "Key passages",
+        spec.documents
+          .find((d) => d.id === itemId)
+          ?.keyPassages.map((p, i) => ({
+            id: p.id,
+            label: `Passage ${i + 1}`,
+          })),
+      ),
+      section("glossary", "Glossary"),
+    ];
+  return [{ id: itemId, label: "Overview" }, section("interview", "Interview")];
 }

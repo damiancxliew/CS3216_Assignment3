@@ -50,6 +50,7 @@ vi.mock("@/components/play/v3/publish-panel", () => ({
 vi.mock("@/components/ui", () => ({
   Page: () => null,
   button: { subtle: "", primary: "" },
+  compactButton: { subtle: "", primary: "" },
 }));
 
 import ReviewPage from "@/app/v3/teacher/[id]/review/page";

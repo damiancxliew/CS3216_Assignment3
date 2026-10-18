@@ -52,3 +52,16 @@ and the stage-two map and heading. It also checks browser errors and private
 fields in API responses. Screenshots are written to `/tmp/spatial-browser-*.png`.
 The separate `tests/db/release-gate.test.ts` covers the persisted three-stage
 journey through the ending and debrief.
+
+## V3 review layout
+
+The review regression uses the real component and application CSS in an isolated
+Vite fixture; Supabase and a Next server are not required:
+
+```sh
+RUN_REVIEW_BROWSER_TESTS=1 npx vitest run tests/browser/v3-review.test.ts
+```
+
+It checks stable page, tab and pane heights across all four tabs at desktop and
+mobile sizes, tree-index destinations, scroll resets, keyboard navigation, issue
+links and a long unbroken persona field. It also captures browser errors.

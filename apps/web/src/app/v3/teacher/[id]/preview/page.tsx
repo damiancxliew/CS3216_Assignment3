@@ -44,7 +44,7 @@ export default async function V3TeacherPreviewPage({ params }: { params: Promise
       initialToken={body.token}
       initialView={body.view}
       publishControl={
-        publish.kind === "hidden" ? null : <V3PublishPanel adventureId={id} published={publish.kind === "published"} blockedReason={publish.kind === "unpublished" ? publish.blockedReason : undefined} />
+        publish.kind === "hidden" ? null : <V3PublishPanel adventureId={id} published={publish.kind === "published"} compact blockedReason={publish.kind === "unpublished" ? publish.blockedReason : undefined} />
       }
     />
   );
