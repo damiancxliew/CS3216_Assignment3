@@ -273,14 +273,17 @@ describe('generateReveal', () => {
     expect(llm.requests).toHaveLength(1)
   })
 
-  it('fails fast, with no model call, when the draft already fails checkSpec', async () => {
+  it('carries errors already in the draft through without repairing them (#209)', async () => {
     const broken = baseDraft()
     broken.definingMoments[0]!.rules = broken.definingMoments[0]!.rules.map((r) => ({ ...r, outcomeId: 'nope' }))
-    const llm = new RevealLlm([])
+    const llm = new RevealLlm([{ json: revealOutput() }])
     const result = await generateReveal({ draft: broken, sources, slantedDocuments }, { llm })
     expect(result.ok).toBe(false)
-    expect(llm.requests).toHaveLength(0)
-    expect(result.issues.every((i) => i.message.startsWith('draft already fails'))).toBe(true)
+    expect(llm.requests).toHaveLength(1)
+    expect(result.spec?.reveal).toBeDefined()
+    expect(result.parts.reveal).toBeDefined()
+    expect(result.issues.length).toBeGreaterThan(0)
+    expect(result.issues.some((i) => i.path.startsWith('definingMoments.0.rules'))).toBe(true)
   })
 
   it('fewer than 2 interpretations needs the warning, which is surfaced', async () => {

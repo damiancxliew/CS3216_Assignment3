@@ -32,8 +32,8 @@ export function skeletonIds(s: SkeletonShape): Set<string> {
 export function checkSkeleton(spec: SkeletonShape): CheckResult {
   const issues: CheckIssue[] = []
   const add = (code: string, path: string, message: string) => issues.push({ code, path, message })
-  const ref = (ok: boolean, path: string, message: string) => {
-    if (!ok) add('ref', path, message)
+  const ref = (ok: boolean, path: string, message: string, ids: string[]) => {
+    if (!ok) issues.push({ code: 'ref', path, message, ids })
   }
 
   const stages = new Set(spec.stages.map((s) => s.id))
@@ -78,7 +78,7 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
   /** G13: a citation that grounds a core claim must quote its source; a bare source id proves nothing. */
   const quoted = (items: { sourceId: string; quote?: string | undefined }[] | undefined) => (items ?? []).some((c) => (c.quote ?? '').trim().length > 0)
   const citations = (items: { sourceId: string }[] | undefined, at: string) => {
-    for (const c of items ?? []) ref(sources.has(c.sourceId), at, `source '${c.sourceId}' does not exist`)
+    for (const c of items ?? []) ref(sources.has(c.sourceId), at, `source '${c.sourceId}' does not exist`, [c.sourceId])
   }
 
   // --- stages -----------------------------------------------------------------
@@ -89,13 +89,13 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
       add('core-missing', `${at}.id`, `stage '${stage.id}' has no core discovery`)
     if (stage.rooms.length < 2 || stage.rooms.length > 5)
       add('room-count', `${at}.rooms`, `stage '${stage.id}' has ${stage.rooms.length} rooms (2–5 required)`)
-    ref(stageRooms.has(stage.startRoomId), `${at}.startRoomId`, `start room '${stage.startRoomId}' is not a room of stage '${stage.id}'`)
+    ref(stageRooms.has(stage.startRoomId), `${at}.startRoomId`, `start room '${stage.startRoomId}' is not a room of stage '${stage.id}'`, [stage.startRoomId, stage.id])
     const moment = spec.definingMoments.find((m) => m.id === stage.definingMomentId)
-    ref(moment !== undefined, `${at}.definingMomentId`, `defining moment '${stage.definingMomentId}' does not exist`)
-    if (moment !== undefined) ref(moment.stageId === stage.id, `${at}.definingMomentId`, `moment '${moment.id}' has stageId '${moment.stageId}', not '${stage.id}'`)
+    ref(moment !== undefined, `${at}.definingMomentId`, `defining moment '${stage.definingMomentId}' does not exist`, [stage.definingMomentId])
+    if (moment !== undefined) ref(moment.stageId === stage.id, `${at}.definingMomentId`, `moment '${moment.id}' has stageId '${moment.stageId}', not '${stage.id}'`, [moment.id, moment.stageId, stage.id])
     for (const [characterId, roomId] of Object.entries(stage.placement)) {
-      ref(characters.has(characterId), `${at}.placement.${characterId}`, `placed character '${characterId}' does not exist`)
-      ref(stageRooms.has(roomId), `${at}.placement.${characterId}`, `room '${roomId}' is not a room of stage '${stage.id}'`)
+      ref(characters.has(characterId), `${at}.placement.${characterId}`, `placed character '${characterId}' does not exist`, [characterId])
+      ref(stageRooms.has(roomId), `${at}.placement.${characterId}`, `room '${roomId}' is not a room of stage '${stage.id}'`, [roomId, stage.id])
     }
   })
 
@@ -103,7 +103,7 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
   for (const stage of spec.stages) momentRefs.set(stage.definingMomentId, (momentRefs.get(stage.definingMomentId) ?? 0) + 1)
   spec.definingMoments.forEach((moment, i) => {
     const count = momentRefs.get(moment.id) ?? 0
-    ref(count === 1, `definingMoments.${i}.id`, `moment '${moment.id}' is referenced by ${count} stages`)
+    ref(count === 1, `definingMoments.${i}.id`, `moment '${moment.id}' is referenced by ${count} stages`, [moment.id])
   })
 
   // --- discoveries --------------------------------------------------------------
@@ -111,17 +111,17 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
   const placementByStage = new Map(spec.stages.map((s) => [s.id, new Set(Object.keys(s.placement))]))
   spec.discoveries.forEach((discovery, i) => {
     const at = `discoveries.${i}`
-    ref(stages.has(discovery.stageId), `${at}.stageId`, `stage '${discovery.stageId}' does not exist`)
+    ref(stages.has(discovery.stageId), `${at}.stageId`, `stage '${discovery.stageId}' does not exist`, [discovery.stageId])
     const holder = discovery.holder
     if ('characterId' in holder) {
-      ref(characters.has(holder.characterId), `${at}.holder`, `holder character '${holder.characterId}' does not exist`)
+      ref(characters.has(holder.characterId), `${at}.holder`, `holder character '${holder.characterId}' does not exist`, [holder.characterId])
       if (discovery.core) {
         if (characterTier.get(holder.characterId) !== 'major')
           add('core-holder', `${at}.holder`, `core discovery '${discovery.id}' is held by a non-major character`)
         else if (placementByStage.get(discovery.stageId)?.has(holder.characterId) !== true)
           add('core-holder-absent', `${at}.holder`, `core discovery '${discovery.id}' is held by '${holder.characterId}', who is not placed in stage '${discovery.stageId}'`)
       }
-    } else ref(documents.has(holder.documentId), `${at}.holder`, `holder document '${holder.documentId}' does not exist`)
+    } else ref(documents.has(holder.documentId), `${at}.holder`, `holder document '${holder.documentId}' does not exist`, [holder.documentId])
     if (discovery.core && !quoted(discovery.citations))
       add('core-uncited', `${at}.citations`, `core discovery '${discovery.id}' has no citation with a quote (G13)`)
     if (discovery.sourceLabel.trim().length === 0) add('source-label', `${at}.sourceLabel`, `discovery '${discovery.id}' has an empty sourceLabel`)
@@ -133,8 +133,8 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
   // --- defining moments -----------------------------------------------------------
   spec.definingMoments.forEach((moment, i) => {
     const at = `definingMoments.${i}`
-    ref(characters.has(moment.deciderId), `${at}.deciderId`, `decider '${moment.deciderId}' does not exist`)
-    ref(stages.has(moment.stageId), `${at}.stageId`, `stage '${moment.stageId}' does not exist`)
+    ref(characters.has(moment.deciderId), `${at}.deciderId`, `decider '${moment.deciderId}' does not exist`, [moment.deciderId])
+    ref(stages.has(moment.stageId), `${at}.stageId`, `stage '${moment.stageId}' does not exist`, [moment.stageId])
     const decider = spec.characters.find((c) => c.id === moment.deciderId)
     if (decider !== undefined) {
       if (decider.tier !== 'major')
@@ -153,12 +153,12 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
     moment.outcomes.forEach((outcome, j) => {
       if (!moment.rules.some((rule) => rule.outcomeId === outcome.id))
         add('rule-coverage', `${at}.outcomes.${j}.id`, `outcome '${outcome.id}' is targeted by no rule`)
-      for (const id of outcome.closesEndingIds) ref(endings.has(id), `${at}.outcomes.${j}.closesEndingIds`, `ending '${id}' does not exist`)
-      if (outcome.endingId !== undefined) ref(endings.has(outcome.endingId), `${at}.outcomes.${j}.endingId`, `ending '${outcome.endingId}' does not exist`)
+      for (const id of outcome.closesEndingIds) ref(endings.has(id), `${at}.outcomes.${j}.closesEndingIds`, `ending '${id}' does not exist`, [id])
+      if (outcome.endingId !== undefined) ref(endings.has(outcome.endingId), `${at}.outcomes.${j}.endingId`, `ending '${outcome.endingId}' does not exist`, [outcome.endingId])
     })
     moment.rules.forEach((rule, j) => {
-      ref(acts.get(moment.id)?.has(rule.actId) === true, `${at}.rules.${j}.actId`, `act '${rule.actId}' does not exist in moment '${moment.id}'`)
-      ref(outcomes.get(moment.id)?.has(rule.outcomeId) === true, `${at}.rules.${j}.outcomeId`, `outcome '${rule.outcomeId}' does not exist in moment '${moment.id}'`)
+      ref(acts.get(moment.id)?.has(rule.actId) === true, `${at}.rules.${j}.actId`, `act '${rule.actId}' does not exist in moment '${moment.id}'`, [rule.actId, moment.id])
+      ref(outcomes.get(moment.id)?.has(rule.outcomeId) === true, `${at}.rules.${j}.outcomeId`, `outcome '${rule.outcomeId}' does not exist in moment '${moment.id}'`, [rule.outcomeId, moment.id])
     })
   })
 

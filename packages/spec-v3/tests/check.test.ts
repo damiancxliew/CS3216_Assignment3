@@ -48,6 +48,15 @@ describe('checkSpec', () => {
       expect(result.errors).toContainEqual(expect.objectContaining({ code: 'ref', path: 'hintAngles.0.discoveryId' }))
     })
 
+    it('ref issues name the ids involved, the unresolved one first', () => {
+      const room = checked((s) => (s.stages[0].startRoomId = 'room-nope'))
+      expect(room.errors).toContainEqual(expect.objectContaining({ code: 'ref', path: 'stages.0.startRoomId', ids: ['room-nope', 'stage-1'] }))
+      const hint = checked((s) => {
+        s.hintAngles = [{ id: 'h-1', discoveryId: 'nope', kind: 'ask', text: 'h' }]
+      })
+      expect(hint.errors).toContainEqual(expect.objectContaining({ code: 'ref', path: 'hintAngles.0.discoveryId', ids: ['nope'] }))
+    })
+
     it('ref: citation sourceId', () => {
       const result = checked((s) => (s.discoveries[0].citations = [{ sourceId: 'nope' }]))
       expect(result.errors).toContainEqual(expect.objectContaining({ code: 'ref', path: 'discoveries.0.citations' }))

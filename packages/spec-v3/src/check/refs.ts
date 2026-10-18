@@ -14,8 +14,8 @@ import { skeletonIds } from './skeleton.js'
 export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
   const issues: CheckIssue[] = []
   const add = (code: string, path: string, message: string) => issues.push({ code, path, message })
-  const ref = (ok: boolean, path: string, message: string) => {
-    if (!ok) add('ref', path, message)
+  const ref = (ok: boolean, path: string, message: string, ids: string[]) => {
+    if (!ok) issues.push({ code: 'ref', path, message, ids })
   }
 
   // --- id indexes -------------------------------------------------------------
@@ -54,24 +54,24 @@ export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
     if ('all' in value) return value.all.forEach((inner) => condition(inner, at))
     if ('any' in value) return value.any.forEach((inner) => condition(inner, at))
     if ('not' in value) return condition(value.not, at)
-    if ('discovered' in value) return ref(discoveries.has(value.discovered), at, `discovery '${value.discovered}' does not exist`)
+    if ('discovered' in value) return ref(discoveries.has(value.discovered), at, `discovery '${value.discovered}' does not exist`, [value.discovered])
     if ('stanceAtLeast' in value || 'stanceIs' in value) {
       const { characterId, stanceId } = 'stanceAtLeast' in value ? value.stanceAtLeast : value.stanceIs
-      return ref(stances.get(characterId)?.has(stanceId) === true, at, `stance '${characterId}/${stanceId}' does not exist`)
+      return ref(stances.get(characterId)?.has(stanceId) === true, at, `stance '${characterId}/${stanceId}' does not exist`, [characterId, stanceId])
     }
     if ('notePassed' in value) {
-      ref(discoveries.has(value.notePassed.discoveryId), at, `discovery '${value.notePassed.discoveryId}' does not exist`)
-      return ref(spec.characters.some((c) => c.id === value.notePassed.characterId), at, `character '${value.notePassed.characterId}' does not exist`)
+      ref(discoveries.has(value.notePassed.discoveryId), at, `discovery '${value.notePassed.discoveryId}' does not exist`, [value.notePassed.discoveryId])
+      return ref(spec.characters.some((c) => c.id === value.notePassed.characterId), at, `character '${value.notePassed.characterId}' does not exist`, [value.notePassed.characterId])
     }
-    if ('slantConfronted' in value) return ref(slants.has(value.slantConfronted), at, `slant '${value.slantConfronted}' does not exist`)
-    if ('act' in value) return ref(acts.get(value.act.momentId)?.has(value.act.actId) === true, at, `act '${value.act.actId}' does not exist in moment '${value.act.momentId}'`)
+    if ('slantConfronted' in value) return ref(slants.has(value.slantConfronted), at, `slant '${value.slantConfronted}' does not exist`, [value.slantConfronted])
+    if ('act' in value) return ref(acts.get(value.act.momentId)?.has(value.act.actId) === true, at, `act '${value.act.actId}' does not exist in moment '${value.act.momentId}'`, [value.act.actId, value.act.momentId])
     if ('outcome' in value)
-      return ref(outcomes.get(value.outcome.momentId)?.has(value.outcome.outcomeId) === true, at, `outcome '${value.outcome.outcomeId}' does not exist in moment '${value.outcome.momentId}'`)
-    if ('inRoom' in value) return ref(rooms.has(value.inRoom), at, `room '${value.inRoom}' does not exist`)
+      return ref(outcomes.get(value.outcome.momentId)?.has(value.outcome.outcomeId) === true, at, `outcome '${value.outcome.outcomeId}' does not exist in moment '${value.outcome.momentId}'`, [value.outcome.outcomeId, value.outcome.momentId])
+    if ('inRoom' in value) return ref(rooms.has(value.inRoom), at, `room '${value.inRoom}' does not exist`, [value.inRoom])
   }
 
   const citations = (items: { sourceId: string }[] | undefined, at: string) => {
-    for (const c of items ?? []) ref(sources.has(c.sourceId), at, `source '${c.sourceId}' does not exist`)
+    for (const c of items ?? []) ref(sources.has(c.sourceId), at, `source '${c.sourceId}' does not exist`, [c.sourceId])
   }
 
   // --- timer --------------------------------------------------------------------
@@ -83,24 +83,24 @@ export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
     const at = `stages.${i}`
     const stageRooms = new Set(stage.rooms.map((r) => r.id))
     for (const [documentId, roomId] of Object.entries(stage.documentPlacement)) {
-      ref(documents.has(documentId), `${at}.documentPlacement.${documentId}`, `placed document '${documentId}' does not exist`)
-      ref(roomId === 'held' || stageRooms.has(roomId), `${at}.documentPlacement.${documentId}`, `room '${roomId}' is not a room of stage '${stage.id}'`)
+      ref(documents.has(documentId), `${at}.documentPlacement.${documentId}`, `placed document '${documentId}' does not exist`, [documentId])
+      ref(roomId === 'held' || stageRooms.has(roomId), `${at}.documentPlacement.${documentId}`, `room '${roomId}' is not a room of stage '${stage.id}'`, [roomId, stage.id])
     }
     stage.situations.forEach((situation, j) => {
       ref(
         outcomes.get(situation.whenOutcome.momentId)?.has(situation.whenOutcome.outcomeId) === true,
         `${at}.situations.${j}.whenOutcome`,
-        `outcome '${situation.whenOutcome.outcomeId}' does not exist in moment '${situation.whenOutcome.momentId}'`,
+        `outcome '${situation.whenOutcome.outcomeId}' does not exist in moment '${situation.whenOutcome.momentId}'`, [situation.whenOutcome.outcomeId, situation.whenOutcome.momentId],
       )
       for (const [characterId, stanceId] of Object.entries(situation.stances ?? {}))
-        ref(stances.get(characterId)?.has(stanceId) === true, `${at}.situations.${j}.stances.${characterId}`, `stance '${characterId}/${stanceId}' does not exist`)
+        ref(stances.get(characterId)?.has(stanceId) === true, `${at}.situations.${j}.stances.${characterId}`, `stance '${characterId}/${stanceId}' does not exist`, [characterId, stanceId])
       for (const [characterId, roomId] of Object.entries(situation.placement ?? {})) {
-        ref(spec.characters.some((c) => c.id === characterId), `${at}.situations.${j}.placement.${characterId}`, `placed character '${characterId}' does not exist`)
-        ref(stageRooms.has(roomId), `${at}.situations.${j}.placement.${characterId}`, `room '${roomId}' is not a room of stage '${stage.id}'`)
+        ref(spec.characters.some((c) => c.id === characterId), `${at}.situations.${j}.placement.${characterId}`, `placed character '${characterId}' does not exist`, [characterId])
+        ref(stageRooms.has(roomId), `${at}.situations.${j}.placement.${characterId}`, `room '${roomId}' is not a room of stage '${stage.id}'`, [roomId, stage.id])
       }
       for (const [documentId, roomId] of Object.entries(situation.documentPlacement ?? {})) {
-        ref(documents.has(documentId), `${at}.situations.${j}.documentPlacement.${documentId}`, `placed document '${documentId}' does not exist`)
-        ref(roomId === 'held' || stageRooms.has(roomId), `${at}.situations.${j}.documentPlacement.${documentId}`, `room '${roomId}' is not a room of stage '${stage.id}'`)
+        ref(documents.has(documentId), `${at}.situations.${j}.documentPlacement.${documentId}`, `placed document '${documentId}' does not exist`, [documentId])
+        ref(roomId === 'held' || stageRooms.has(roomId), `${at}.situations.${j}.documentPlacement.${documentId}`, `room '${roomId}' is not a room of stage '${stage.id}'`, [roomId, stage.id])
       }
     })
   })
@@ -120,8 +120,8 @@ export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
     } else if (character.stances.length !== 0)
       add('minor-stances', `${at}.stances`, `minor character '${character.id}' must have no stances`)
     character.slants.forEach((slant, j) => {
-      for (const id of slant.contradictedBy) ref(discoveries.has(id), `${at}.slants.${j}.contradictedBy`, `discovery '${id}' does not exist`)
-      if (slant.unlocksDiscoveryId !== undefined) ref(discoveries.has(slant.unlocksDiscoveryId), `${at}.slants.${j}.unlocksDiscoveryId`, `discovery '${slant.unlocksDiscoveryId}' does not exist`)
+      for (const id of slant.contradictedBy) ref(discoveries.has(id), `${at}.slants.${j}.contradictedBy`, `discovery '${id}' does not exist`, [id])
+      if (slant.unlocksDiscoveryId !== undefined) ref(discoveries.has(slant.unlocksDiscoveryId), `${at}.slants.${j}.unlocksDiscoveryId`, `discovery '${slant.unlocksDiscoveryId}' does not exist`, [slant.unlocksDiscoveryId])
     })
     character.persona.phrases.forEach((phrase, j) => citations(phrase.citations, `${at}.persona.phrases.${j}.citations`))
   })
@@ -132,7 +132,7 @@ export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
     if (!('characterId' in discovery.holder)) {
       const { documentId, keyPassageId } = discovery.holder
       const doc = spec.documents.find((d) => d.id === documentId)
-      ref(doc?.keyPassages.some((p) => p.id === keyPassageId) === true, `${at}.holder`, `key passage '${keyPassageId}' does not exist in document '${documentId}'`)
+      ref(doc?.keyPassages.some((p) => p.id === keyPassageId) === true, `${at}.holder`, `key passage '${keyPassageId}' does not exist in document '${documentId}'`, [keyPassageId, documentId])
     }
     condition(discovery.condition, `${at}.condition`)
   })
@@ -152,12 +152,12 @@ export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
   // --- triggers ------------------------------------------------------------------------
   spec.triggers.forEach((trigger, i) => {
     const at = `triggers.${i}`
-    ref(spec.characters.some((c) => c.id === trigger.characterId), `${at}.characterId`, `character '${trigger.characterId}' does not exist`)
-    if ('notePassed' in trigger.on) ref(discoveries.has(trigger.on.notePassed), `${at}.on`, `discovery '${trigger.on.notePassed}' does not exist`)
-    if ('discovered' in trigger.on) ref(discoveries.has(trigger.on.discovered), `${at}.on`, `discovery '${trigger.on.discovered}' does not exist`)
-    if ('slantConfronted' in trigger.on) ref(slants.has(trigger.on.slantConfronted), `${at}.on`, `slant '${trigger.on.slantConfronted}' does not exist`)
-    if ('toStance' in trigger.effect) ref(stances.get(trigger.characterId)?.has(trigger.effect.toStance) === true, `${at}.effect`, `stance '${trigger.characterId}/${trigger.effect.toStance}' does not exist`)
-    for (const id of trigger.handsOver ?? []) ref(documents.has(id), `${at}.handsOver`, `document '${id}' does not exist`)
+    ref(spec.characters.some((c) => c.id === trigger.characterId), `${at}.characterId`, `character '${trigger.characterId}' does not exist`, [trigger.characterId])
+    if ('notePassed' in trigger.on) ref(discoveries.has(trigger.on.notePassed), `${at}.on`, `discovery '${trigger.on.notePassed}' does not exist`, [trigger.on.notePassed])
+    if ('discovered' in trigger.on) ref(discoveries.has(trigger.on.discovered), `${at}.on`, `discovery '${trigger.on.discovered}' does not exist`, [trigger.on.discovered])
+    if ('slantConfronted' in trigger.on) ref(slants.has(trigger.on.slantConfronted), `${at}.on`, `slant '${trigger.on.slantConfronted}' does not exist`, [trigger.on.slantConfronted])
+    if ('toStance' in trigger.effect) ref(stances.get(trigger.characterId)?.has(trigger.effect.toStance) === true, `${at}.effect`, `stance '${trigger.characterId}/${trigger.effect.toStance}' does not exist`, [trigger.characterId, trigger.effect.toStance])
+    for (const id of trigger.handsOver ?? []) ref(documents.has(id), `${at}.handsOver`, `document '${id}' does not exist`, [id])
     condition(trigger.requires, `${at}.requires`)
   })
 
@@ -177,7 +177,7 @@ export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
     const at = `endings.${i}`
     ending.interview.verdicts.forEach((verdict, j) => {
       for (const id of verdict.counterPoints)
-        ref(discoveries.has(id) || documents.has(id), `${at}.interview.verdicts.${j}.counterPoints`, `counter-point '${id}' is not a discovery or document`)
+        ref(discoveries.has(id) || documents.has(id), `${at}.interview.verdicts.${j}.counterPoints`, `counter-point '${id}' is not a discovery or document`, [id])
     })
   })
 
@@ -185,13 +185,13 @@ export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
   spec.storyEvents.forEach((event, i) => {
     const at = `storyEvents.${i}`
     const stage = spec.stages.find((s) => s.id === event.stageId)
-    ref(stage !== undefined, `${at}.stageId`, `stage '${event.stageId}' does not exist`)
-    if ('characterId' in event && event.characterId !== undefined) ref(spec.characters.some((c) => c.id === event.characterId), `${at}.characterId`, `character '${event.characterId}' does not exist`)
+    ref(stage !== undefined, `${at}.stageId`, `stage '${event.stageId}' does not exist`, [event.stageId])
+    if ('characterId' in event && event.characterId !== undefined) ref(spec.characters.some((c) => c.id === event.characterId), `${at}.characterId`, `character '${event.characterId}' does not exist`, [event.characterId])
     if (event.effect === 'move') {
       const roomOk = stage !== undefined && stage.rooms.some((r) => r.id === event.toRoomId)
-      ref(roomOk, `${at}.toRoomId`, `room '${event.toRoomId}' is not a room of stage '${event.stageId}'`)
+      ref(roomOk, `${at}.toRoomId`, `room '${event.toRoomId}' is not a room of stage '${event.stageId}'`, [event.toRoomId, event.stageId])
     }
-    if (event.effect === 'deliverDocument') ref(documents.has(event.documentId), `${at}.documentId`, `document '${event.documentId}' does not exist`)
+    if (event.effect === 'deliverDocument') ref(documents.has(event.documentId), `${at}.documentId`, `document '${event.documentId}' does not exist`, [event.documentId])
     if ('condition' in event.when) condition(event.when.condition, `${at}.when.condition`)
   })
 
@@ -199,20 +199,20 @@ export function referenceIssues(spec: AdventureSpec): CheckIssue[] {
   const stages = new Set(spec.stages.map((s) => s.id))
   spec.openQuestions.forEach((question, i) => {
     const at = `openQuestions.${i}`
-    ref(stages.has(question.stageId), `${at}.stageId`, `stage '${question.stageId}' does not exist`)
+    ref(stages.has(question.stageId), `${at}.stageId`, `stage '${question.stageId}' does not exist`, [question.stageId])
     question.discoveryIds.forEach((id, j) => {
       const discovery = spec.discoveries.find((d) => d.id === id)
-      ref(discovery !== undefined, `${at}.discoveryIds.${j}`, `discovery '${id}' does not exist`)
-      if (discovery !== undefined) ref(discovery.stageId === question.stageId, `${at}.discoveryIds.${j}`, `discovery '${id}' belongs to stage '${discovery.stageId}', not '${question.stageId}'`)
+      ref(discovery !== undefined, `${at}.discoveryIds.${j}`, `discovery '${id}' does not exist`, [id])
+      if (discovery !== undefined) ref(discovery.stageId === question.stageId, `${at}.discoveryIds.${j}`, `discovery '${id}' belongs to stage '${discovery.stageId}', not '${question.stageId}'`, [id, discovery.stageId, question.stageId])
     })
   })
-  spec.hintAngles.forEach((hint, i) => ref(discoveries.has(hint.discoveryId), `hintAngles.${i}.discoveryId`, `discovery '${hint.discoveryId}' does not exist`))
+  spec.hintAngles.forEach((hint, i) => ref(discoveries.has(hint.discoveryId), `hintAngles.${i}.discoveryId`, `discovery '${hint.discoveryId}' does not exist`, [hint.discoveryId]))
 
   // --- conflicts -------------------------------------------------------------------------------------
   spec.conflicts.forEach((conflict, i) => {
     const at = `conflicts.${i}`
-    ref(sources.has(conflict.sourceId), `${at}.sourceId`, `source '${conflict.sourceId}' does not exist`)
-    conflict.itemIds.forEach((id, j) => ref(anyId.has(id) || spec.characters.some((c) => c.id === id) || rooms.has(id), `${at}.itemIds.${j}`, `item '${id}' is not any id in the spec`))
+    ref(sources.has(conflict.sourceId), `${at}.sourceId`, `source '${conflict.sourceId}' does not exist`, [conflict.sourceId])
+    conflict.itemIds.forEach((id, j) => ref(anyId.has(id) || spec.characters.some((c) => c.id === id) || rooms.has(id), `${at}.itemIds.${j}`, `item '${id}' is not any id in the spec`, [id]))
   })
 
   return issues

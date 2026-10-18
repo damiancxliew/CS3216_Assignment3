@@ -10,6 +10,8 @@ import { SKELETON_BUDGET_MS } from '../skeleton/generate'
 import { generateEnding, generateMoment } from './calls'
 import type { CallResult, DetailCallMetrics, DetailCallOptions } from '../details/calls'
 import { mergeEndings } from './merge'
+import { partId } from '../parts'
+import type { Parts } from '../parts'
 import type { EndingLlmOutput, MomentLlmOutput } from './schema'
 
 export const ENDINGS_BUDGET_MS = SKELETON_BUDGET_MS
@@ -32,6 +34,8 @@ export interface EndingsResult {
   issues: CheckIssue[]
   warnings: CheckIssue[]
   pendingPasses: string[]
+  /** every part that produced an output, for the final repair (#209) */
+  parts: Parts
   metrics: { calls: DetailCallMetrics[]; totalCostUsd: number }
 }
 
@@ -63,21 +67,40 @@ export async function generateEndings(input: GenerateEndingsInput, opts: Generat
     Promise.all(draft.definingMoments.map((m) => generateMoment(m.id, shared, opts))),
     Promise.all(draft.endings.map((e) => generateEnding(e.id, shared, opts))),
   ])
-  momentResults.forEach(collect)
-  endingResults.forEach(collect)
-
   const moments = new Map(draft.definingMoments.map((m, i) => [m.id, momentResults[i]!]))
   const endings = new Map(draft.endings.map((e, i) => [e.id, endingResults[i]!]))
-  const missingOutput = [...momentResults, ...endingResults].some((r) => r.output === undefined)
-  if (issues.length > 0 || missingOutput)
-    return { ok: false, issues, warnings: uniq(warnings), pendingPasses: [], metrics: { calls, totalCostUsd: totalCost() } }
+  const all = (): CallResult<unknown>[] => [...moments.values(), ...endings.values()]
+  all().forEach(countCalls)
+  /** issues of repair reruns that produced no output (the previous output was kept) */
+  const lost: CheckIssue[] = []
+
+  // A part with no output after its own repairs gets one fresh call; the other parts are kept.
+  await Promise.all([
+    ...[...moments].filter(([, r]) => r.output === undefined).map(async ([id]) => {
+      const r = await generateMoment(id, shared, opts)
+      countCalls(r)
+      moments.set(id, r)
+    }),
+    ...[...endings].filter(([, r]) => r.output === undefined).map(async ([id]) => {
+      const r = await generateEnding(id, shared, opts)
+      countCalls(r)
+      endings.set(id, r)
+    }),
+  ])
+  const partsOf = (): Parts => {
+    const parts: Parts = {}
+    for (const [id, r] of moments) if (r.output !== undefined) parts[partId.moment(id)] = { output: r.output, issues: r.issues }
+    for (const [id, r] of endings) if (r.output !== undefined) parts[partId.ending(id)] = { output: r.output, issues: r.issues }
+    return parts
+  }
+  const allIssues = (errs: CheckIssue[]) => uniq([...issues, ...lost, ...all().flatMap((r) => r.issues), ...errs])
+  const allWarnings = () => uniq([...warnings, ...all().flatMap((r) => r.warnings)])
+  if (all().some((r) => r.output === undefined))
+    return { ok: false, issues: allIssues([]), warnings: allWarnings(), pendingPasses: [], parts: partsOf(), metrics: { calls, totalCostUsd: totalCost() } }
 
   // --- merge + check ----------------------------------------------------------------------------
   const mergeAndCheck = () => {
-    const spec = mergeEndings(draft, {
-      moments: new Map([...moments].map(([id, r]) => [id, r.output!])),
-      endings: new Map([...endings].map(([id, r]) => [id, r.output!])),
-    })
+    const spec = assembleEndings(draft, partsOf())
     const validation = validateSpec(spec)
     const errors: CheckIssue[] = validation.ok
       ? [...checkSpec(spec).errors, ...pendingFieldIssues(spec)]
@@ -87,14 +110,19 @@ export async function generateEndings(input: GenerateEndingsInput, opts: Generat
   const merged = mergeAndCheck()
   const remaining = merged.errors
 
-  const finalSpec = (spec: AdventureSpec, errs: CheckIssue[]): EndingsResult => ({
-    ok: errs.length === 0 && issues.length === 0,
-    spec,
-    issues: [...issues, ...errs],
-    warnings: uniq(warnings),
-    pendingPasses: errs.length === 0 && issues.length === 0 ? ['reveal'] : [],
-    metrics: { calls, totalCostUsd: totalCost() },
-  })
+  /** `ok` = assembled and clean. A spec with errors is still returned, with its parts, for the final repair (#209). */
+  const finalSpec = (spec: AdventureSpec, errs: CheckIssue[]): EndingsResult => {
+    const all = allIssues(errs)
+    return {
+      ok: all.length === 0,
+      spec,
+      issues: all,
+      warnings: allWarnings(),
+      pendingPasses: all.length === 0 ? ['reveal'] : [],
+      parts: partsOf(),
+      metrics: { calls, totalCostUsd: totalCost() },
+    }
+  }
 
   if (remaining.length === 0) return finalSpec(merged.spec, [])
 
@@ -110,16 +138,16 @@ export async function generateEndings(input: GenerateEndingsInput, opts: Generat
     if (owner === null) issues.push(issue)
     else routed.set(owner, [...(routed.get(owner) ?? []), issue])
   }
-  const repairs = await Promise.all([...routed.entries()].map(([result, its]) => result.rerun(its)))
-  for (const repair of repairs) {
+  const repairs = await Promise.all([...routed.entries()].map(async ([original, its]) => [original, await original.rerun(its)] as const))
+  for (const [original, repair] of repairs) {
     countCalls(repair)
-    warnings.push(...repair.warnings)
-    issues.push(...repair.issues)
-    if (repair.output === undefined) continue
-    for (const [id, result] of moments) if (result === repair || result.calls === repair.calls) moments.get(id)!.output = repair.output as MomentLlmOutput
-    for (const [id, result] of endings) if (result === repair || result.calls === repair.calls) endings.get(id)!.output = repair.output as EndingLlmOutput
+    if (repair.output === undefined) {
+      lost.push(...repair.issues)
+      continue
+    }
+    for (const [id, result] of moments) if (result === original) moments.set(id, repair as CallResult<MomentLlmOutput>)
+    for (const [id, result] of endings) if (result === original) endings.set(id, repair as CallResult<EndingLlmOutput>)
   }
-  if (![...moments.values(), ...endings.values()].every((r) => r.output !== undefined)) return finalSpec(merged.spec, remaining)
 
   const remerged = mergeAndCheck()
   return finalSpec(remerged.spec, remerged.errors)
@@ -165,4 +193,12 @@ function routeIssue(
   if (head === 'endings') return endings.get(spec.endings[i]?.id ?? '') ?? null
   // verdict texts sit under endings paths only; anything else is unowned
   return null
+}
+
+/** The endings spec from saved parts, in code: the same parts always give the same spec. */
+export function assembleEndings(draft: AdventureSpec, parts: Parts): AdventureSpec {
+  return mergeEndings(draft, {
+    moments: new Map(draft.definingMoments.map((m) => [m.id, parts[partId.moment(m.id)]?.output as MomentLlmOutput])),
+    endings: new Map(draft.endings.map((e) => [e.id, parts[partId.ending(e.id)]?.output as EndingLlmOutput])),
+  })
 }
