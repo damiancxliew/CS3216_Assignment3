@@ -54,7 +54,7 @@ function Block({
       tabIndex={id ? -1 : undefined}
       className={
         card
-          ? "scroll-mt-4 space-y-4 rounded-surface border border-line bg-surface p-5 shadow-[0_3px_0_var(--shadow)] sm:p-6"
+          ? "scroll-mt-4 space-y-4 rounded-surface border border-line bg-surface p-5 shadow-[0_2px_10px_rgb(0_0_0/0.10)] sm:p-6"
           : "scroll-mt-4 space-y-3 border-t border-line pt-5 first:border-0 first:pt-0"
       }
     >
@@ -408,7 +408,7 @@ export function ReviewScreen({
             aria-selected={tab === t.id}
             aria-controls="review-content"
             tabIndex={tab === t.id ? 0 : -1}
-            className={`inline-flex h-10 items-center justify-center rounded-full border px-3.5 text-sm font-semibold transition-colors motion-reduce:transition-none ${tab === t.id ? "border-ink bg-signal text-on-signal shadow-[0_2px_0_var(--shadow)]" : "border-line bg-surface text-muted hover:border-ink hover:text-ink"}`}
+            className={`inline-flex h-10 items-center justify-center rounded-full border px-3.5 text-sm font-semibold transition-colors motion-reduce:transition-none ${tab === t.id ? "border-ink bg-signal text-on-signal" : "border-line bg-surface text-muted hover:border-ink hover:text-ink"}`}
             onClick={() => activateTab(t.id)}
             onKeyDown={(event) => {
               const next =
@@ -442,7 +442,7 @@ export function ReviewScreen({
       >
         <nav
           aria-label={`${tabs.find((t) => t.id === tab)?.label} items`}
-          className="h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_3px_0_var(--shadow)] [scrollbar-gutter:stable] md:h-full"
+          className="h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] md:h-full"
         >
           <h2 className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted">
             Index

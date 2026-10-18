@@ -37,7 +37,7 @@ export function DraftReady({
     <div className="space-y-6">
       <div>
         <section
-          className="flex flex-col rounded-surface border border-line bg-surface p-6 shadow-[0_3px_0_var(--shadow)] sm:p-8"
+          className="flex flex-col rounded-surface border border-line bg-surface p-6 shadow-[0_2px_10px_rgb(0_0_0/0.10)] sm:p-8"
           aria-labelledby="review-next"
         >
           <div className="mb-5 flex flex-wrap items-center gap-3">
@@ -73,7 +73,7 @@ export function DraftReady({
       </div>
       {blocked || warnings.length ? (
         <section
-          className="overflow-hidden rounded-surface border border-line bg-surface shadow-[0_3px_0_var(--shadow)]"
+          className="overflow-hidden rounded-surface border border-line bg-surface shadow-[0_2px_10px_rgb(0_0_0/0.10)]"
           aria-labelledby="attention-title"
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-sunken/40 px-6 py-4">
