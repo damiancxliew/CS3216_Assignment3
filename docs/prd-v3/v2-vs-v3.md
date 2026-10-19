@@ -123,7 +123,7 @@ are rebuilt.
 ## Evidence and documents
 | | v2 PRD | v2 as built | v3 |
 |---|---|---|---|
-| Form | Evidence items with source spans; later "progress-adaptive" AI-generated evidence in a notebook (FR-18a) | Scrolls picked up by walking onto them | **Real excerpts** where a source exists, with period-appropriate provenance; at least one slanted or contradicted document per stage (V46) |
+| Form | Evidence items with source spans; later "progress-adaptive" AI-generated evidence in a notebook (FR-18a) | Scrolls picked up by walking onto them | **Real excerpts** where a source exists, with period-appropriate provenance; at least one slanted or contradicted document per stage (V46). Walking onto one opens it; read documents stay on the floor, faded, with a "Read again" action. |
 | Reading | — | Picking up = done | **Close reading**: select the passage that matters to make a note (V47) |
 | Using evidence | — | `share_evidence` existed in the API only, with no effect | **Show** a document or **insert a note** into chat to someone; can fire triggers (P8, P13.5) |
 | Conflicting claims | — | "Account clues" (two characters' versions) | **Slants**, catchable through documents or other accounts, **with no "contradicted" labels** during play; corrected in the reveal (V48, V69) |

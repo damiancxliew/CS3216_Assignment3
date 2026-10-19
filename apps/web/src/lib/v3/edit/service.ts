@@ -28,6 +28,7 @@ export type SaveV3Result =
 export interface V3EditDeps {
   store: V3PlayStore;
   sources(id: string): Promise<CapturedSource[]>;
+  queueStageArt(adventureId: string, version: number): Promise<void>;
   validationContext?: (
     id: string,
   ) => Promise<
@@ -122,5 +123,13 @@ export async function saveAdventureEdits(
       message:
         "This adventure changed while saving. Your local edits are still here. Reload to use the saved version.",
     };
-  return { ok: true, spec, version: saved.version!, ...checks };
+  const version = saved.version!;
+  if (version !== expectedVersion) {
+    try {
+      await deps.queueStageArt(id, version);
+    } catch (error) {
+      console.error("Failed to queue v3 stage art", error);
+    }
+  }
+  return { ok: true, spec, version, ...checks };
 }

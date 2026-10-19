@@ -2,7 +2,15 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { spaceAt } from "@adventure/game-core";
 
-import { compileV3StageMap, nearbyCharacterId, roomIdToEnter, seatIn, v3DocumentProps, v3StageLayout } from "@/lib/play/v3/map";
+import {
+  compileV3StageMap,
+  nearbyCharacterId,
+  roomIdToEnter,
+  seatIn,
+  unreadDocumentAt,
+  v3DocumentProps,
+  v3StageLayout,
+} from "@/lib/play/v3/map";
 import type { PlayerView } from "@adventure/play-contract";
 
 const golden = JSON.parse(readFileSync(new URL("../../fixtures/golden-1819.json", import.meta.url), "utf8")) as {
@@ -50,8 +58,8 @@ describe("v3 stage map layout", () => {
   it("seats only the provided current-room documents after the characters", () => {
     const compiled = compileV3StageMap("attempt-one", stageId, 0, rooms, spawnRoomId);
     const documents = [
-      { id: "letter", kind: "letter", title: "A letter" },
-      { id: "minutes", kind: "minutes", title: "Council minutes" },
+      { id: "letter", kind: "letter", title: "A letter", read: false },
+      { id: "minutes", kind: "minutes", title: "Council minutes", read: false },
     ] as PlayerView["documentsHere"];
     const props = v3DocumentProps(compiled.map, spawnRoomId, documents, 3);
 
@@ -66,6 +74,26 @@ describe("v3 stage map layout", () => {
       const space = spaceAt(compiled.map, position);
       return space?.kind === "room" && space.roomId === spawnRoomId;
     })).toBe(true);
+  });
+
+  it("maps read documents to found map props", () => {
+    const compiled = compileV3StageMap("attempt-one", stageId, 0, rooms, spawnRoomId);
+    const props = v3DocumentProps(compiled.map, spawnRoomId, [
+      { id: "letter", kind: "letter", title: "A letter", read: true },
+    ], 3);
+
+    expect(props).toMatchObject([{ id: "letter", found: true }]);
+  });
+
+  it("finds an unread document at a tile but ignores read documents and empty tiles", () => {
+    const props = [
+      { id: "letter", name: "A letter", position: { x: 3, y: 4 }, found: false },
+      { id: "minutes", name: "Council minutes", position: { x: 4, y: 4 }, found: true },
+    ];
+
+    expect(unreadDocumentAt(props, { x: 3, y: 4 })).toBe("letter");
+    expect(unreadDocumentAt(props, { x: 4, y: 4 })).toBeNull();
+    expect(unreadDocumentAt(props, { x: 5, y: 4 })).toBeNull();
   });
 });
 

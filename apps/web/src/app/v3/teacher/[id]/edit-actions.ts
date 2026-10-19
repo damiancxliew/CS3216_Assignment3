@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SupabaseV3PlayStore } from "@/lib/play/v3/store";
-import { supabaseV3SourceStore } from "@/lib/v3/generation/deps";
+import { defaultGenerationDeps, supabaseV3SourceStore } from "@/lib/v3/generation/deps";
 import { saveAdventureEdits, type SaveV3Result } from "@/lib/v3/edit/service";
 import type { V3Edit } from "@/lib/v3/edit/commands";
 import { capturedSources } from "@/lib/v3/edit/apply";
@@ -30,9 +30,11 @@ export async function saveV3AdventureEdits(
       message: "Sign in again to save. Your local work is still here.",
     };
   const admin = createAdminClient();
+  const generation = defaultGenerationDeps();
   const result = await saveAdventureEdits(
     {
       store: new SupabaseV3PlayStore(admin),
+      queueStageArt: generation.queueStageArt,
       validationContext: async (id) => {
         const outputs = await supabaseJobStore(admin).outputs(id, [
           "details",

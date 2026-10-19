@@ -224,6 +224,11 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
       } catch (error) {
         console.error("Failed to queue v3 portraits", error);
       }
+      try {
+        await deps.queueStageArt(brief.adventureId, version);
+      } catch (error) {
+        console.error("Failed to queue v3 stage art", error);
+      }
       return { version };
     }),
     { maxAttempts: 3 },

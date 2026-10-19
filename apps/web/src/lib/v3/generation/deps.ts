@@ -18,6 +18,7 @@ import { generateDetails, generateEndings, generateReveal, finalRepair, generate
 import { recordLlmUsage, withJsonUsage } from "@/lib/usage/ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { portraitsStep } from "@/lib/v3/portraits/step";
+import { stageArtStep } from "@/lib/v3/stage-art/step";
 
 import type { GenerationBrief } from "./types";
 import { fakeGenerationPasses } from "./fake-passes";
@@ -62,6 +63,7 @@ export interface GenerationDeps {
   search(brief: GenerationBrief): WebSearchClient;
   recordSearchUsage(brief: GenerationBrief, usage: LlmUsage, model: string | null): Promise<void>;
   queuePortraits(adventureId: string, version: number): Promise<void>;
+  queueStageArt(adventureId: string, version: number): Promise<void>;
   sources: V3SourceStore;
   adventures: V3AdventureWriter;
   passes: {
@@ -273,6 +275,32 @@ export function defaultGenerationDeps(): GenerationDeps {
             input: step.input ?? null,
             deps: [],
             maxAttempts: 6,
+          },
+        ]);
+      } catch (error) {
+        if (typeof error === "object" && error !== null) {
+          const duplicate = error as { code?: unknown; message?: unknown };
+          if (
+            duplicate.code === "23505" &&
+            typeof duplicate.message === "string" &&
+            duplicate.message.includes('constraint "job_steps_job_id_name_key"')
+          ) {
+            return;
+          }
+        }
+        throw error;
+      }
+    },
+    async queueStageArt(adventureId, version) {
+      const step = stageArtStep(adventureId, version);
+      try {
+        await supabaseJobStore(createAdminClient()).enqueue(adventureId, [
+          {
+            name: step.name,
+            step: step.step ?? step.name,
+            input: step.input ?? null,
+            deps: [],
+            maxAttempts: 4,
           },
         ]);
       } catch (error) {

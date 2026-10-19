@@ -65,6 +65,9 @@
 .title { margin: 12px 0 20px; text-align: center; font: 600 clamp(1.65rem, 3.5vw, 2.4rem)/1.2 var(--font-record, Georgia), serif; text-wrap: balance; color: #3c2816; }
 .divider { display: flex; align-items: center; gap: 12px; width: 75%; margin: 0 auto 26px; color: #97703b; font-size: 11px; }
 .divider::before, .divider::after { content: ""; height: 1px; flex: 1; background: #a680465c; }
+.passageHint { display: flex; flex-shrink: 0; align-items: center; gap: 8px; margin: 8px 30px 0; padding: 8px 12px; border: 1px solid transparent; border-radius: 4px; font: 600 13px/1.4 var(--font-ui, system-ui), sans-serif; color: #77562f; }
+.passageTip { border-color: #b8863f; background: #f3d98a66; color: #58391f; }
+.passageAdded { border-color: #6f8a3f80; background: #c9dc9a55; color: #3f5320; }
 .text { white-space: pre-line; font: 400 1.2rem/1.85 var(--font-record, Georgia), serif; }
 .text::first-letter { float: left; font-size: 3.4rem; line-height: 1; padding: 6px 8px 0 0; color: #784423; }
 .source { margin-top: 28px; padding: 18px 0 0; border-top: 1px solid #a6804660; font: italic 1rem/1.75 var(--font-record, Georgia), serif; color: #674929; }
@@ -89,6 +92,7 @@
 :global([data-theme="dark"]) .roller::after { background: linear-gradient(#392c20, #776045 40%, #493725); border-color: #80684b; }
 :global([data-theme="dark"]) .title,
 :global([data-theme="dark"]) .text::first-letter { color: var(--ink); }
+:global([data-theme="dark"]) .passageHint,
 :global([data-theme="dark"]) .eyebrow,
 :global([data-theme="dark"]) .kicker,
 :global([data-theme="dark"]) .source,
@@ -97,6 +101,8 @@
 :global([data-theme="dark"]) .divider { color: #cfbda6; }
 :global([data-theme="dark"]) .source,
 :global([data-theme="dark"]) .footer { border-color: #80684b; }
+:global([data-theme="dark"]) .passageTip { border-color: #a07a45; background: #4a3b2466; }
+:global([data-theme="dark"]) .passageAdded { border-color: #6f8a3f; background: #33402266; }
 :global([data-theme="dark"]) .divider::before,
 :global([data-theme="dark"]) .divider::after { background: #80684b; }
 :global([data-theme="dark"]) .close,
@@ -119,6 +125,7 @@
   .navigation { margin-inline: 16px; }
   .eyebrow { font-size: 10px; letter-spacing: .08em; }
   .content { padding: 16px 22px 24px; }
+  .passageHint { margin-inline: 16px; font-size: 12px; }
   .text { font-size: 1.05rem; line-height: 1.75; }
   .footer { margin-inline: 16px; }
   .roller { height: 23px; }

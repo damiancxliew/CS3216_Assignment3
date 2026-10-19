@@ -36,6 +36,7 @@ const compiled = compileStage({ stageId: style, spawnRoomId: rooms[0]!.id, rooms
 }, `story-preview-${style}`)
 const actors = [{ id: 'player', name: 'You', position: compiled.playerSpawn, sprite: 'Boy' }, ...compiled.placements.filter((p) => p.kind === 'actor').map((p, i) => ({ id: p.id, name: ['Local guide', 'Keeper', 'Trader'][i]!, position: p.position, sprite: ['Inspector', 'OldMan', 'Villager2'][i]! }))]
 export const snapshot: PlaygroundSnapshot = {
+  ...(new URLSearchParams(location.search).has('crowd') ? { crowdContext: new URLSearchParams(location.search).get('crowd')! } : {}),
   seed: style, map: compiled.map, doors: compiled.initialDoors,
   actors: actors.map((a) => ({ ...a, space: spaceAt(compiled.map, a.position), targetRoomId: null, status: 'idle' })),
   playerGoal: null, playerStatus: 'idle', running: true, npcRoutes: false, revision: 0,
@@ -52,8 +53,8 @@ prototype.boot = function () { game = this; boot.call(this) }
 document.body.style.cssText = `margin:0;background:${profile.background};font-family:system-ui;color:#f0e4c9`
 const heading = document.createElement('header')
 heading.style.cssText = 'box-sizing:border-box;height:64px;padding:12px 24px;background:#1e302f'
-heading.textContent = production?.title ?? example.title
-const caption = document.createElement('div'); caption.style.cssText = 'font-size:12px;opacity:.7;margin-top:4px'; caption.textContent = production ? 'Preview / server LLM art direction · walk into a building to reveal its interior' : 'Authored preview fixture · production API authentication pending · walk into a building to reveal its interior'
+heading.textContent = snapshot.crowdContext ? `${snapshot.crowdContext.toUpperCase()} · crowd renderer preview` : production?.title ?? example.title
+const caption = document.createElement('div'); caption.style.cssText = 'font-size:12px;opacity:.7;margin-top:4px'; caption.textContent = snapshot.crowdContext ? 'Synthetic civic map · bundled character sprites · local greetings' : production ? 'Preview / server LLM art direction · walk into a building to reveal its interior' : 'Authored preview fixture · production API authentication pending · walk into a building to reveal its interior'
 heading.append(caption)
 const parent = document.createElement('div'); parent.style.cssText = 'width:100vw;height:calc(100vh - 64px)'
 document.body.replaceChildren(heading, parent)

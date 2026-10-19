@@ -7,7 +7,16 @@ import type { PlayerView } from "@adventure/play-contract";
 import { useEffect, useRef, useState } from "react";
 
 import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl } from "@/lib/play/appearance";
-import { compileV3StageMap, nearbyCharacterId, roomIdToEnter, seatIn, v3DocumentProps } from "@/lib/play/v3/map";
+import {
+  compileV3StageMap,
+  nearbyCharacterId,
+  roomIdToEnter,
+  seatIn,
+  unreadDocumentAt,
+  v3DocumentProps,
+} from "@/lib/play/v3/map";
+
+import { v3Atmosphere, v3Environment, v3RoomFixtures, type V3StageScenery } from "@/lib/play/v3/scenery";
 
 const STEP_MS = 160;
 
@@ -26,10 +35,12 @@ type V3Room = PlayerView["rooms"][number];
 type V3Character = PlayerView["characters"][number];
 
 interface V3MapProps {
+  crowdContext?: string;
   attemptId: string;
   stageId: string;
   stageIndex: number;
   rooms: V3Room[];
+  scenery?: V3StageScenery;
   spawnRoomId: string;
   currentRoomId: string | null;
   characters: V3Character[];
@@ -42,7 +53,21 @@ interface V3MapProps {
   onTalk: (characterId: string) => void;
   onNearbyCharacterChange: (characterId: string | null) => void;
   onOpenDocument: (documentId: string) => void;
+  ambient: NonNullable<PlaygroundSnapshot["ambient"]>;
+  audio: NonNullable<PlaygroundSnapshot["audio"]>;
   onReadyChange: (ready: boolean) => void;
+}
+
+export function v3AudioSnapshot(
+  ambient: NonNullable<PlaygroundSnapshot["ambient"]>,
+  audio: NonNullable<PlaygroundSnapshot["audio"]>,
+  scenery?: V3StageScenery,
+): Pick<PlaygroundSnapshot, "ambient" | "audio"> {
+  // Keep stage atmosphere, enriching a clear fallback with the public room setting.
+  const atmosphere = ambient.id === "clear" && scenery
+    ? v3Atmosphere(`${scenery.storyContext} ${Object.values(scenery.roomDescriptions).join(" ")}`)
+    : ambient;
+  return { ambient: atmosphere, audio };
 }
 
 function isTextEntryTarget(target: EventTarget | null): boolean {
@@ -71,6 +96,7 @@ export function V3Map(props: V3MapProps) {
     props.stageIndex,
     props.rooms,
     props.spawnRoomId,
+    props.scenery,
   ));
   const map = compiled.map;
 
@@ -79,7 +105,7 @@ export function V3Map(props: V3MapProps) {
     if (props.movementLocked) movementLockHandler.current();
     renderRef.current?.();
     nearbyChangeHandler.current();
-  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked]);
+  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio]);
 
   useEffect(() => {
     const parent = host.current;
@@ -94,6 +120,7 @@ export function V3Map(props: V3MapProps) {
     let revision = 0;
     let facing: "down" | "up" | "left" | "right" = "down";
     let transitioning = false;
+    let autoOpenedAt: string | null = null;
     let repeat: number | undefined;
     let lastWalkTo: string | null = null;
     let lastNearbyCharacterId: string | null | undefined;
@@ -104,6 +131,13 @@ export function V3Map(props: V3MapProps) {
       return [{ id: character.id, position, character }];
     });
 
+    const documentProps = () => v3DocumentProps(
+      map,
+      currentRoomRef.current,
+      latest.current.documents,
+      latest.current.characters.length + 1,
+    );
+
     const updateNearbyCharacter = () => {
       const characterId = nearbyCharacterId(playerPosition, facing, characterSeats());
       if (characterId === lastNearbyCharacterId) return;
@@ -113,6 +147,7 @@ export function V3Map(props: V3MapProps) {
 
     const snapshot = (): PlaygroundSnapshot => ({
       seed: `${latest.current.attemptId}:${latest.current.stageId}`,
+      crowdContext: latest.current.crowdContext,
       map,
       doors: compiled.initialDoors,
       actors: [
@@ -139,14 +174,19 @@ export function V3Map(props: V3MapProps) {
           };
         }),
       ],
-      props: v3DocumentProps(map, currentRoomRef.current, latest.current.documents, latest.current.characters.length + 1),
+      props: documentProps(),
       playerGoal: path.length ? { kind: "point", point: path[path.length - 1]! } : null,
       playerStatus: path.length ? "moving" : "idle",
       running: true,
       npcRoutes: false,
       roomWandering: false,
+      environment: v3Environment(latest.current.scenery),
       revision,
+      roomDescriptions: latest.current.scenery?.roomDescriptions,
+      storyContext: latest.current.scenery?.storyContext,
+      landmarks: v3RoomFixtures(map, latest.current.scenery),
       roomNames: Object.fromEntries(latest.current.rooms.map((room) => [room.id, room.name])),
+      ...v3AudioSnapshot(latest.current.ambient, latest.current.audio, latest.current.scenery),
     });
     const render = () => view?.render(snapshot());
     renderRef.current = render;
@@ -198,6 +238,7 @@ export function V3Map(props: V3MapProps) {
 
       const roomId = roomIdToEnter(map, next, currentRoomRef.current);
       if (roomId) {
+        autoOpenedAt = null;
         transitioning = true;
         let accepted = false;
         try {
@@ -216,6 +257,17 @@ export function V3Map(props: V3MapProps) {
         revision += 1;
         updateNearbyCharacter();
         render();
+      } else if (!latest.current.movementLocked) {
+        const documentId = unreadDocumentAt(documentProps(), next);
+        if (documentId === null) {
+          autoOpenedAt = null;
+        } else {
+          const key = `${documentId}:${next.x},${next.y}`;
+          if (key !== autoOpenedAt && latest.current.documents.some((document) => document.id === documentId)) {
+            autoOpenedAt = key;
+            latest.current.onOpenDocument(documentId);
+          }
+        }
       }
       finishWalk();
     };
@@ -252,6 +304,8 @@ export function V3Map(props: V3MapProps) {
         if (characterId) {
           event.preventDefault();
           latest.current.onTalk(characterId);
+        } else if (view?.greetNearby?.()) {
+          event.preventDefault();
         }
         return;
       }

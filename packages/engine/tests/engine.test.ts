@@ -219,13 +219,31 @@ describe('documents and close reading', () => {
     await game.start()
     await expect(game.act({ type: 'openDocument', documentId: 'letter' })).rejects.toMatchObject({ code: 'not_present' })
     const room = await game.act({ type: 'enterRoom', roomId: 'r2' })
-    expect(room.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter' }])
+    expect(room.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: false }])
+    expect(room.documentsHere.map((document) => document.id)).not.toContain('memo')
     const open = await game.act({ type: 'openDocument', documentId: 'letter' })
     expect(open.documents.find((document) => document.id === 'letter')).toMatchObject({ open: true, real: true, sourceLabel: 'A letter, 1819' })
-    expect(open.documentsHere).toEqual([])
+    expect(open.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: true }])
     expect(open.notes).toEqual([])
     const closed = await game.act({ type: 'closeDocument', documentId: 'letter' })
     expect(closed.documents.find((document) => document.id === 'letter')?.open).toBe(false)
+  })
+
+  it('keeps a read document on the floor and allows opening it again', async () => {
+    const game = new Harness(mini)
+    await game.start()
+    await game.act({ type: 'enterRoom', roomId: 'r2' })
+    await game.act({ type: 'openDocument', documentId: 'letter' })
+    await game.act({ type: 'closeDocument', documentId: 'letter' })
+
+    const away = await game.act({ type: 'enterRoom', roomId: 'r1' })
+    expect(away.documentsHere).toEqual([])
+    const back = await game.act({ type: 'enterRoom', roomId: 'r2' })
+    expect(back.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: true }])
+
+    const reopened = await game.act({ type: 'openDocument', documentId: 'letter' })
+    expect(reopened.documents.find((document) => document.id === 'letter')?.open).toBe(true)
+    expect(reopened.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: true }])
   })
 
   it('makes a note when the selection covers enough of a key passage, and not for a select-all', async () => {
@@ -270,7 +288,8 @@ describe('defining moments, outcomes and endings', () => {
     expect(game.eventsOf('outcome').at(-1)).toMatchObject({ outcomeId: 'o-refuse', closedEndingIds: ['e-hist'], endingId: null })
     expect(next.stage?.intro?.narration).toBe('After the refusal, stage two opens.')
     expect(game.state.characters.a?.stanceId).toBe('a1')
-    await game.act({ type: 'continue' })
+    const playing = await game.act({ type: 'continue' })
+    expect(playing.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: false }])
     const moment = await game.act({ type: 'endStage' })
     expect(moment.definingMoment?.acts.map((act) => act.id)).toEqual(['wait', 'alone'])
     await game.act({ type: 'act', actId: 'wait' })

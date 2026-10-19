@@ -68,6 +68,8 @@ export interface PlaygroundSnapshot {
   environment?: EnvironmentPlan | null
   /** Public setting and stage context only; never private agent or unrevealed evidence text. */
   storyContext?: string
+  /** Opt-in stage crowds; absent for v2 and the generic playground. Public framing only. */
+  crowdContext?: string
   /** Physical, inspectable fixtures placed within named rooms. Ready art is a 32px tile sheet. */
   landmarks?: Array<{ id: string; roomId: string; name: string; description?: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string }>
   /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */

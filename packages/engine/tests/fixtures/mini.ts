@@ -70,7 +70,12 @@ export const mini: EngineSpec = EngineSpec.parse({
       startRoomId: 'r1',
       placement: { a: 'r1', b: 'r1' },
       documentPlacement: {},
-      situations: [{ whenOutcome: { momentId: 'm1', outcomeId: 'o-refuse' }, stances: { a: 'a1' }, openingNarration: 'After the refusal, stage two opens.' }],
+      situations: [{
+        whenOutcome: { momentId: 'm1', outcomeId: 'o-refuse' },
+        stances: { a: 'a1' },
+        documentPlacement: { letter: 'r1' },
+        openingNarration: 'After the refusal, stage two opens.',
+      }],
       definingMomentId: 'm2',
     },
   ],
