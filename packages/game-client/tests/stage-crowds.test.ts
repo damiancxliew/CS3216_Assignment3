@@ -29,6 +29,16 @@ describe('public stage crowds', () => {
       expect(crowd.lines.every(line => line.length > 0 && line.length < 100)).toBe(true)
     }
   })
+
+  it('gives each crowd a distinct silhouette without sharing character sheets', () => {
+    const crowds = ['National Service', 'riots', 'police patrol'].map(context => stageCrowd(context)!)
+    for (let i = 0; i < crowds.length; i++) {
+      for (let j = i + 1; j < crowds.length; j++) {
+        expect(crowds[i]!.sprites.filter(sprite => crowds[j]!.sprites.includes(sprite))).toEqual([])
+      }
+    }
+    expect(crowds[1]!.sprites.length).toBeGreaterThan(1)
+  })
 })
 
 describe('troop drill geometry', () => {

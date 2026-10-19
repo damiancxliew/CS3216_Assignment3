@@ -10,7 +10,7 @@ export interface StageCrowd {
 }
 
 const TROOPS: StageCrowd = {
-  kind: 'troops', name: 'Recruit', sprites: ['Knight', 'Inspector'], movement: 'formation',
+  kind: 'troops', name: 'Recruit', sprites: ['Knight'], movement: 'formation',
   lines: ['Keep in step. We drill together until the turn is right.', 'There will be time to talk when the drill is over.'],
 }
 const RIOTERS: StageCrowd = {
@@ -18,7 +18,7 @@ const RIOTERS: StageCrowd = {
   lines: ['Stay close. It is hard to hear over the crowd.', 'People keep gathering here. Watch your footing.'],
 }
 const PATROL: StageCrowd = {
-  kind: 'patrol', name: 'Patrol officer', sprites: ['Inspector', 'Knight'], movement: 'patrol',
+  kind: 'patrol', name: 'Patrol officer', sprites: ['Inspector'], movement: 'patrol',
   lines: ['Keep the passage clear, please.', 'We are making another round of the street.'],
 }
 

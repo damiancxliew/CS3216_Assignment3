@@ -20,6 +20,7 @@ for (const [context, kind] of [['National Service', 'troops'], ['Street riots', 
       const harness = (window as any).storyHarness
       const scene = harness.game.scene.getScene('tiled-map')
       const residents = scene.ambientLife.residents.filter((r: any) => r.person)
+      harness.view.setReducedMotion(true)
       const first = residents[0]
       const before = JSON.stringify(harness.snapshot)
       const player = scene.current.actors.find((a: any) => a.id === 'player')
@@ -27,6 +28,7 @@ for (const [context, kind] of [['National Service', 'troops'], ['Street riots', 
       const greeted = harness.view.greetNearby()
       return { count: residents.length, greeted, lines: first.person.talk.lines,
         bubble: first.bubble?.text, names: residents.map((r: any) => r.sprite.name),
+        sheets: [...new Set(residents.map((r: any) => r.sheet))],
         missing: residents.filter((r: any) => r.sprite.texture.key === '__MISSING').length,
         hasDrill: residents.every((r: any) => !!r.drill),
         unchanged: JSON.stringify(harness.snapshot) === before }
@@ -34,11 +36,25 @@ for (const [context, kind] of [['National Service', 'troops'], ['Street riots', 
     expect(result.count).toBe(6)
     expect(result.names.every((name: string) => name.startsWith(`ambient-${kind}-`))).toBe(true)
     expect(result.missing).toBe(0)
+    expect(result.sheets).toEqual(kind === 'troops' ? ['char-Knight'] : kind === 'patrol' ? ['char-Inspector'] : ['char-Villager', 'char-Villager2', 'char-Villager3', 'char-Villager4', 'char-Villager5', 'char-Villager6'])
     expect(result.greeted).toBe(true)
     expect(result.lines).toContain(result.bubble)
     expect(result.unchanged).toBe(true)
     if (kind === 'troops') expect(result.hasDrill).toBe(true)
     expect(errors).toEqual([])
+    // Frame the actual crowd at readable scale, without relocating any sprites.
+    // This is a diagnostic camera view of the renderer, not the gameplay camera.
+    await page.evaluate(() => {
+      const scene = (window as any).storyHarness.game.scene.getScene('tiled-map')
+      const people = scene.ambientLife.residents.filter((r: any) => r.person)
+      const xs = people.map((r: any) => r.sprite.x), ys = people.map((r: any) => r.sprite.y)
+      const left = Math.min(...xs), right = Math.max(...xs), top = Math.min(...ys), bottom = Math.max(...ys)
+      const camera = scene.cameras.main
+      camera.stopFollow(); camera.removeBounds()
+      camera.setZoom(Math.min(5, camera.width / (right - left + 96), camera.height / (bottom - top + 112)))
+      camera.centerOn((left + right) / 2, (top + bottom) / 2 - 16)
+    })
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
     await page.screenshot({ path: testInfo.outputPath(`${kind}.png`) })
   })
 }
