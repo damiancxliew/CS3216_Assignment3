@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
-import { DialogueBox, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
+import { DialogueBox, nextAvailableIndex, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
 import { DocumentReader, passageStatus } from "@/components/play/v3/document-reader";
 import { NotePickup, unseenNotes } from "@/components/play/v3/note-pickup";
 import adventureStyles from "@/components/play/adventure-chrome.module.css";
@@ -21,6 +21,7 @@ import { V3PreviewClient, V3PreviewHeaderActions } from "@/components/play/v3/v3
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
+import { withPendingPlayerLine, withoutPendingLines } from "@/lib/play/v3/pending-lines";
 import { portraitFile, portraitStoragePrefix, portraitUrl, v3PortraitBase } from "@/lib/play/v3/portraits";
 import { createV3PreviewClient } from "@/lib/play/v3/preview-client";
 import { mockViews } from "@adventure/engine/mock";
@@ -585,7 +586,8 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("From your travels");
       expect(markup).toContain("From the historical record");
       expect(markup).toContain("A useful discovery.");
-      expect(markup).toContain("Optional comment for Temenggong");
+      expect(markup).not.toContain("Optional comment");
+      expect(markup).not.toContain("<textarea");
       expect(markup).toContain("Insert into chat");
       expect(markup).toContain("Roll up scroll");
       expect(emptyMarkup).toContain("No notes yet.");
@@ -874,6 +876,26 @@ describe("v3 story lines", () => {
   });
 });
 
+describe("v3 pending player lines", () => {
+  const base = { currentRoomId: "landing", messages: [] } as unknown as PlayerView;
+
+  it("shows a sent message or shown note straight away, in the current room", () => {
+    const sent = withPendingPlayerLine(base, { type: "message", characterId: "raffles", text: "Why here?" }, "1", 5);
+    expect(sent.messages).toEqual([
+      { id: "pending-1", kind: "player", text: "Why here?", roomId: "landing", characterId: "raffles", insertedNoteId: null, stageIndex: null, at: 5 },
+    ]);
+    const shown = withPendingPlayerLine(sent, { type: "insertNote", characterId: "raffles", noteId: "n1" }, "2", 6);
+    expect(shown.messages[1]).toMatchObject({ id: "pending-2", text: "", insertedNoteId: "n1" });
+  });
+
+  it("ignores other actions and drops pending lines after a failed send", () => {
+    expect(withPendingPlayerLine(base, { type: "tick" }, "1", 5)).toBe(base);
+    const sent = withPendingPlayerLine(base, { type: "message", characterId: "raffles", text: "Hi" }, "1", 5);
+    expect(withoutPendingLines(sent).messages).toEqual([]);
+    expect(withoutPendingLines(base)).toBe(base);
+  });
+});
+
 describe("v3 dialogue box", () => {
   const character = {
     id: "character-1",
@@ -961,6 +983,21 @@ describe("v3 dialogue box", () => {
     }
   });
 
+  it("says the character is thinking while the reply to the student's line is on its way", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const own = { ...message, id: "pending-1", kind: "player", text: "Why here?", insertedNoteId: null } as typeof message;
+      const props = { mode: "talk" as const, character, portraitBase: null, onSend: () => {}, onOpenNotes: () => {}, onClose: () => {} };
+      const waiting = renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message, own], busy: true }));
+      expect(waiting).toContain("Why here?");
+      expect(waiting).toContain(`${character.name} is thinking`);
+      expect(renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message, own], busy: false }))).not.toContain("is thinking");
+      expect(renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message], busy: true }))).not.toContain("is thinking");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("shows character initials when the portrait base is unavailable", () => {
     vi.stubGlobal("React", React);
     try {
@@ -979,6 +1016,30 @@ describe("v3 dialogue box", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("strikes out acts that can no longer happen and keeps the cursor off them", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "moment",
+        moment: { ...moment, acts: [{ id: "act-1", text: "Welcome the British ships.", available: false }, { id: "act-2", text: "Refuse their proposal.", available: true }] },
+        portraitBase: null,
+        busy: false,
+        onAct: () => {},
+        onPredict: () => {},
+      }));
+      expect(markup).toContain("line-through");
+      expect(markup).toContain("(no longer possible)");
+      expect(markup.match(/aria-disabled="true"/g)).toHaveLength(1);
+      expect(markup).toMatch(/aria-selected="true"[^>]*>[\s\S]*?Refuse their proposal/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(nextAvailableIndex(1, 1, [false, true, false, true])).toBe(3);
+    expect(nextAvailableIndex(3, 1, [false, true, false, true])).toBe(1);
+    expect(nextAvailableIndex(1, -1, [false, true, false, true])).toBe(3);
+    expect(nextAvailableIndex(0, 1, [false, false])).toBe(0);
   });
 
   it("renders all acts as listbox options with only the first selected", () => {
@@ -1117,6 +1178,26 @@ describe("interview answer form", () => {
 
 describe("v3 reveal screen", () => {
   const reveal = mockViews.reveal.reveal!;
+
+  it("lays the stages out as a timeline with the student's act, prediction and history side by side", () => {
+    vi.stubGlobal("React", React);
+    const markup = renderToStaticMarkup(createElement(RevealScreen, {
+      reveal: {
+        ...reveal,
+        pathVsHistory: [
+          { stageIndex: 0, yours: "He signed and sent for Hussein.", history: "He signed and sent for Hussein.", matched: true, closedEndings: [], act: "Warn him.", prediction: { text: "He will sign.", correct: true } },
+          { stageIndex: 1, yours: "Raffles waited.", history: "Raffles signed.", matched: false, closedEndings: ["One chief's word"], act: "Advise him to wait.", prediction: { text: "He will sign.", correct: false } },
+        ],
+      },
+    }));
+    expect(markup).toContain("<ol");
+    expect(markup).toContain("In your story and in history");
+    expect(markup).toContain("Went differently");
+    expect(markup).toContain("In history");
+    expect(markup).toContain("Advise him to wait.");
+    expect(markup).toContain("Not quite");
+    expect(markup).toContain("This closed off: One chief&#x27;s word");
+  });
 
   it("ends with a finished line for students", () => {
     vi.stubGlobal("React", React);

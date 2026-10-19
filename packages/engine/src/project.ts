@@ -52,7 +52,9 @@ function momentView(spec: EngineSpec, state: EngineState): DefiningMomentView | 
     status: current.status,
     acts:
       current.status === 'choosing'
-        ? moment.acts.filter((act) => current.availableActIds.includes(act.id)).map(({ id, text }) => ({ id, text }))
+        ? moment.acts
+            .filter((act) => act.secret === undefined || current.availableActIds.includes(act.id))
+            .map(({ id, text }) => ({ id, text, available: current.availableActIds.includes(id) }))
         : chosen === undefined
           ? []
           : [{ id: chosen.id, text: chosen.text }],
