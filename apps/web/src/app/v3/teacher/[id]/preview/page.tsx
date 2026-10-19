@@ -6,6 +6,7 @@ import { V3PreviewClient } from "@/components/play/v3/v3-preview-client";
 import { startPreview } from "@/lib/play/v3/preview";
 import { v3PreviewDeps, v3PublishDeps } from "@/lib/play/v3/http";
 import { EngineSpec } from "@adventure/engine";
+import { v3MapContext } from "@/lib/play/v3/map-context";
 import { versionedPortraitBase } from "@/lib/play/v3/portraits";
 import { v3StageArtBase } from "@/lib/play/v3/stage-art";
 import { createClient } from "@/lib/supabase/server";
@@ -69,6 +70,7 @@ export default async function V3TeacherPreviewPage({
           : null
       }
       stageArtBase={adventure ? v3StageArtBase(id, adventure.specVersion) : null}
+      mapContext={parsed.success ? v3MapContext(parsed.data) : null}
       adventureId={id}
       initialToken={body.token}
       initialView={body.view}

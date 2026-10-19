@@ -1,6 +1,7 @@
 "use client";
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
+import type { V3StageMapContext } from "@/lib/play/v3/map-context";
 
 import { ChevronDown, Timer } from "lucide-react";
 import type { Action, PlayerView } from "@adventure/play-contract";
@@ -41,13 +42,14 @@ function formatTime(milliseconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] } }: {
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, movementLocked: externalMovementLock = false, mapContext = null, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] } }: {
   view: PlayerView;
   busy: boolean;
   send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
   portraitBase?: PortraitBase;
   attemptId: string;
   movementLocked?: boolean;
+  mapContext?: V3StageMapContext[] | null;
   ambient?: NonNullable<PlaygroundSnapshot["ambient"]>;
   audio?: NonNullable<PlaygroundSnapshot["audio"]>;
 }) {
@@ -68,6 +70,10 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const talkingRoomId = useRef<string | null>(null);
   const stage = view.stage;
   const stageIndex = stage?.index ?? 0;
+  const stageContextIndex = stage?.index;
+  const stageMapContext = useMemo(() => (
+    stageContextIndex === undefined ? null : mapContext?.[stageContextIndex] ?? null
+  ), [mapContext, stageContextIndex]);
   const stageId = `stage-${stageIndex}`;
   const isMoment = view.definingMoment !== null;
   const openCharacter = talkingTo !== null &&
@@ -195,6 +201,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               onOpenDocument={openDocument}
               ambient={ambient}
               audio={audio}
+              mapContext={stageMapContext}
               onReadyChange={onMapReadyChange}
             />
           ) : null}

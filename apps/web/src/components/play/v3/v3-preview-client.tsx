@@ -1,6 +1,7 @@
 "use client";
 
 import type { PortraitBase } from "@/lib/play/v3/portraits";
+import type { V3StageMapContext } from "@/lib/play/v3/map-context";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useCallback } from "react";
@@ -42,12 +43,14 @@ export function V3PreviewClient({
   initialView,
   portraitBase,
   stageArtBase,
+  mapContext,
 }: {
   adventureId: string;
   initialToken: string;
   initialView: PlayerView;
   portraitBase?: PortraitBase;
   stageArtBase?: string | null;
+  mapContext?: V3StageMapContext[] | null;
 }) {
   const makeClient = useCallback(
     () => createV3PreviewClient(adventureId, initialToken, initialView),
@@ -58,6 +61,7 @@ export function V3PreviewClient({
     <V3PlayClient
       portraitBase={portraitBase}
       stageArtBase={stageArtBase}
+      mapContext={mapContext}
       attemptId={`preview-${adventureId}`}
       initialRevision={0}
       initialView={initialView}

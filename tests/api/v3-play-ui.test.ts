@@ -11,7 +11,7 @@ import { RevealScreen } from "@/components/play/v3/reveal-screen";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
-import { v3AudioSnapshot } from "@/components/play/v3/v3-map";
+import { v3AudioSnapshot, v3MapContextSnapshot } from "@/components/play/v3/v3-map";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { V3PreviewClient, V3PreviewHeaderActions } from "@/components/play/v3/v3-preview-client";
 import { createV3PlayClient } from "@/lib/play/v3/client";
@@ -564,6 +564,18 @@ describe("v3 cinematic", () => {
     const ambient = { id: "rain", intensity: 1 } as const;
     const audio = { muted: false, cues: [{ key: "accept:0:1", id: "accept" as const }] };
     expect(v3AudioSnapshot(ambient, audio)).toEqual({ ambient, audio });
+  });
+
+  it("adds public story framing and room descriptions to the V3Map snapshot", () => {
+    const mapContext = {
+      storyContext: "Singapore, 1819 The Singapore River The landing",
+      roomDescriptions: { landing: "A strip of beach by the river mouth." },
+    };
+    expect(v3MapContextSnapshot(mapContext)).toEqual({
+      ...mapContext,
+      visualStyle: "auto",
+    });
+    expect(v3MapContextSnapshot(null)).toEqual({});
   });
 });
 

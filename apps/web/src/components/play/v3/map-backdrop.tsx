@@ -2,9 +2,11 @@
 
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { ReactNode } from "react";
+import { useMemo } from "react";
 
 import { V3Map } from "@/components/play/v3/v3-map";
 import type { V3MapBackdrop } from "@/lib/play/v3/backdrop";
+import type { V3StageMapContext } from "@/lib/play/v3/map-context";
 
 const noop = () => {};
 const stayPut = async () => false;
@@ -13,17 +15,24 @@ const stayPut = async () => false;
 export function MapBackdrop({
   attemptId,
   backdrop,
+  mapContext,
   ambient,
   audio,
   children,
 }: {
   attemptId: string;
   backdrop: V3MapBackdrop | null;
+  mapContext: V3StageMapContext[] | null;
   ambient: NonNullable<PlaygroundSnapshot["ambient"]>;
   audio: NonNullable<PlaygroundSnapshot["audio"]>;
   children: ReactNode;
 }) {
   const stageId = backdrop ? `stage-${backdrop.stageIndex}` : "";
+  const stageIndex = backdrop?.stageIndex ?? -1;
+  const stageMapContext = useMemo(
+    () => (stageIndex < 0 ? null : mapContext?.[stageIndex] ?? null),
+    [mapContext, stageIndex],
+  );
   return (
     <section aria-label="Map" className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-sunken">
       {backdrop ? (
@@ -48,6 +57,7 @@ export function MapBackdrop({
             onOpenDocument={noop}
             ambient={ambient}
             audio={audio}
+            mapContext={stageMapContext}
             onReadyChange={noop}
           />
         </div>

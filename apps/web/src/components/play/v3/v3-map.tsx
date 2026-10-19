@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl } from "@/lib/play/appearance";
 import { compileV3StageMap, nearbyCharacterId, roomIdToEnter, seatIn, v3DocumentProps } from "@/lib/play/v3/map";
+import type { V3StageMapContext } from "@/lib/play/v3/map-context";
 
 const STEP_MS = 160;
 
@@ -42,6 +43,7 @@ interface V3MapProps {
   onTalk: (characterId: string) => void;
   onNearbyCharacterChange: (characterId: string | null) => void;
   onOpenDocument: (documentId: string) => void;
+  mapContext: V3StageMapContext | null;
   ambient: NonNullable<PlaygroundSnapshot["ambient"]>;
   audio: NonNullable<PlaygroundSnapshot["audio"]>;
   onReadyChange: (ready: boolean) => void;
@@ -52,6 +54,18 @@ export function v3AudioSnapshot(
   audio: NonNullable<PlaygroundSnapshot["audio"]>,
 ): Pick<PlaygroundSnapshot, "ambient" | "audio"> {
   return { ambient, audio };
+}
+
+export function v3MapContextSnapshot(
+  context: V3StageMapContext | null,
+): Pick<PlaygroundSnapshot, "storyContext" | "roomDescriptions" | "visualStyle"> {
+  return context
+    ? {
+        storyContext: context.storyContext,
+        roomDescriptions: context.roomDescriptions,
+        visualStyle: "auto",
+      }
+    : {};
 }
 
 function isTextEntryTarget(target: EventTarget | null): boolean {
@@ -88,7 +102,7 @@ export function V3Map(props: V3MapProps) {
     if (props.movementLocked) movementLockHandler.current();
     renderRef.current?.();
     nearbyChangeHandler.current();
-  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio]);
+  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.mapContext, props.ambient, props.audio]);
 
   useEffect(() => {
     const parent = host.current;
@@ -157,6 +171,7 @@ export function V3Map(props: V3MapProps) {
       revision,
       roomNames: Object.fromEntries(latest.current.rooms.map((room) => [room.id, room.name])),
       ...v3AudioSnapshot(latest.current.ambient, latest.current.audio),
+      ...v3MapContextSnapshot(latest.current.mapContext),
     });
     const render = () => view?.render(snapshot());
     renderRef.current = render;
