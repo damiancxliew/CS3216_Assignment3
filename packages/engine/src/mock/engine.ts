@@ -333,10 +333,10 @@ export function projectMock(state: MockState): PlayerView {
       stage === null || state.introPending
         ? []
         : Object.entries(stage.documentPlacement)
-            .filter(([id, room]) => room === state.roomId && !state.held.includes(id))
+            .filter(([, room]) => room === state.roomId)
             .map(([id]) => {
               const { kind, title } = documents[id] as (typeof documents)[string]
-              return { id, kind, title }
+              return { id, kind, title, read: state.held.includes(id) }
             }),
     definingMoment: moment,
     timer: inStage && state.timerEndsAt !== null ? { endsAt: state.timerEndsAt, durationMs: MOCK_STAGE_MS } : null,

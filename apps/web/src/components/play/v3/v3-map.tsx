@@ -7,7 +7,14 @@ import type { PlayerView } from "@adventure/play-contract";
 import { useEffect, useRef, useState } from "react";
 
 import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl } from "@/lib/play/appearance";
-import { compileV3StageMap, nearbyCharacterId, roomIdToEnter, seatIn, v3DocumentProps } from "@/lib/play/v3/map";
+import {
+  compileV3StageMap,
+  nearbyCharacterId,
+  roomIdToEnter,
+  seatIn,
+  unreadDocumentAt,
+  v3DocumentProps,
+} from "@/lib/play/v3/map";
 
 const STEP_MS = 160;
 
@@ -94,6 +101,7 @@ export function V3Map(props: V3MapProps) {
     let revision = 0;
     let facing: "down" | "up" | "left" | "right" = "down";
     let transitioning = false;
+    let autoOpenedAt: string | null = null;
     let repeat: number | undefined;
     let lastWalkTo: string | null = null;
     let lastNearbyCharacterId: string | null | undefined;
@@ -103,6 +111,13 @@ export function V3Map(props: V3MapProps) {
       if (!position || spaceAt(map, position)?.kind !== "room") return [];
       return [{ id: character.id, position, character }];
     });
+
+    const documentProps = () => v3DocumentProps(
+      map,
+      currentRoomRef.current,
+      latest.current.documents,
+      latest.current.characters.length + 1,
+    );
 
     const updateNearbyCharacter = () => {
       const characterId = nearbyCharacterId(playerPosition, facing, characterSeats());
@@ -139,7 +154,7 @@ export function V3Map(props: V3MapProps) {
           };
         }),
       ],
-      props: v3DocumentProps(map, currentRoomRef.current, latest.current.documents, latest.current.characters.length + 1),
+      props: documentProps(),
       playerGoal: path.length ? { kind: "point", point: path[path.length - 1]! } : null,
       playerStatus: path.length ? "moving" : "idle",
       running: true,
@@ -198,6 +213,7 @@ export function V3Map(props: V3MapProps) {
 
       const roomId = roomIdToEnter(map, next, currentRoomRef.current);
       if (roomId) {
+        autoOpenedAt = null;
         transitioning = true;
         let accepted = false;
         try {
@@ -216,6 +232,17 @@ export function V3Map(props: V3MapProps) {
         revision += 1;
         updateNearbyCharacter();
         render();
+      } else if (!latest.current.movementLocked) {
+        const documentId = unreadDocumentAt(documentProps(), next);
+        if (documentId === null) {
+          autoOpenedAt = null;
+        } else {
+          const key = `${documentId}:${next.x},${next.y}`;
+          if (key !== autoOpenedAt && latest.current.documents.some((document) => document.id === documentId)) {
+            autoOpenedAt = key;
+            latest.current.onOpenDocument(documentId);
+          }
+        }
       }
       finishWalk();
     };

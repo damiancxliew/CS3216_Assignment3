@@ -118,8 +118,8 @@ export const DocumentView = z.object({
 })
 export type DocumentView = z.infer<typeof DocumentView>
 
-/** A document lying in the current room that the student hasn't picked up yet. */
-export const DocumentHereView = z.object({ id: Id, kind: z.enum(DOCUMENT_KINDS), title: z.string() })
+/** A document lying in the current room; read documents remain visible on the floor. */
+export const DocumentHereView = z.object({ id: Id, kind: z.enum(DOCUMENT_KINDS), title: z.string(), read: z.boolean() })
 
 export const DefiningMomentView = z.object({
   momentId: Id,
