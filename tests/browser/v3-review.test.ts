@@ -28,6 +28,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
     const root = resolve("apps/web");
     const vite = await createServer({
       configFile: false,
+      cacheDir: resolve("node_modules/.vite/v3-review"),
       root,
       publicDir: false,
       server: {
@@ -61,7 +62,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           import '/src/app/globals.css';
           const spec = ${JSON.stringify(spec)};
           createRoot(document.getElementById('root')).render(
-            <main className="mx-auto max-w-6xl p-5">
+            <main className="mx-auto max-w-6xl p-5 md:pb-0">
               <header className="mb-8 h-32"><h1>Review fixture</h1></header>
               <ReviewScreen spec={spec} sources={spec.sources} errors={[{code:'fixture', path:'documents.0.body', message:'Inspect document fixture'}]} warnings={[]} />
             </main>
@@ -112,6 +113,38 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         await page.setViewportSize(viewport);
         await page.goto(vite.resolvedUrls!.local[0]!);
         await page.getByRole("tab", { name: "Stages", exact: true }).waitFor();
+        await page
+          .getByRole("tablist")
+          .evaluate((element) =>
+            element.scrollIntoView({ block: "start", behavior: "instant" }),
+          );
+        expect(
+          await page
+            .getByRole("tablist")
+            .evaluate((element) =>
+              Math.abs(element.getBoundingClientRect().top),
+            ),
+        ).toBeLessThanOrEqual(1);
+        if (viewport.width >= 768) {
+          // At the end of the page, the tabs and both scrolling panes must fit.
+          await page.evaluate(() =>
+            window.scrollTo(0, document.documentElement.scrollHeight),
+          );
+          const bounds = await page.evaluate(() => ({
+            tabsTop: document
+              .querySelector('[role="tablist"]')!
+              .getBoundingClientRect().top,
+            detailsBottom: document
+              .querySelector('[data-review-scroll]')!
+              .getBoundingClientRect().bottom,
+            indexBottom: document.querySelector('nav')!.getBoundingClientRect().bottom,
+            viewport: innerHeight,
+          }));
+          expect(bounds.tabsTop).toBeGreaterThanOrEqual(-1);
+          expect(bounds.tabsTop).toBeLessThanOrEqual(1);
+          expect(bounds.detailsBottom).toBeCloseTo(bounds.viewport - 16, 0);
+          expect(bounds.indexBottom).toBeCloseTo(bounds.viewport - 16, 0);
+        }
         const panel = page.getByRole("region", { name: "Review details" });
         const dimensions: { height: number; tabs: number; panel: number }[] =
           [];
@@ -120,7 +153,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           const navigation = page.getByRole("navigation", {
             name: `${label} items`,
           });
-          const owner = spec[tab as ReviewTab][0].id;
+          const owner =
+            spec[tab as "stages" | "characters" | "documents" | "endings"][0]
+              .id;
           const visit = async (entries: ReviewIndexEntry[]) => {
             for (const entry of entries) {
               await navigation
@@ -240,7 +275,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         expect(headings).toContain("Passage 1");
         for (const passage of spec.documents[0].keyPassages) {
           expect(headings).not.toContain(passage.id);
-          expect(await panel.locator("code").filter({ hasText: passage.id }).count()).toBeGreaterThan(0);
+          expect(
+            await panel.locator("code").filter({ hasText: passage.id }).count(),
+          ).toBeGreaterThan(0);
         }
 
         for (const theme of ["light", "dark"]) {

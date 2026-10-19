@@ -18,17 +18,19 @@ export const metadata: Metadata = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function V3JoinPage({ params }: { params: Promise<{ adventureId: string }> }) {
+export default async function V3JoinPage({ params, searchParams }: { params: Promise<{ adventureId: string }>; searchParams: Promise<{ release?: string }> }) {
   if (!v3Enabled()) notFound();
   const { adventureId } = await params;
+  const { release } = await searchParams;
   if (!UUID.test(adventureId)) {
     return <Shell intro="This link isn’t open" title="Ask your teacher for the current one" />;
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const view = await loadJoinView(v3PublishDeps(), user?.id ?? null, adventureId);
-  const path = `/v3/join/${adventureId}`;
+  const view = await loadJoinView(v3PublishDeps(), user?.id ?? null, adventureId, release);
+  const suffix = release ? `?release=${encodeURIComponent(release)}` : "";
+  const path = `/v3/join/${adventureId}${suffix}`;
 
   if (view.kind === "closed") {
     return <Shell intro="This link isn’t open" title="Ask your teacher for the current one" />;
@@ -52,7 +54,7 @@ export default async function V3JoinPage({ params }: { params: Promise<{ adventu
   return (
     <Shell intro="You’ve been invited to play" title={title}>
       <div className="pt-2">
-        <Link href={`/v3/play/start/${adventureId}`} prefetch={false} className={button.primary}>
+        <Link href={`/v3/play/start/${adventureId}${suffix}`} prefetch={false} className={button.primary}>
           Enter the adventure
         </Link>
       </div>

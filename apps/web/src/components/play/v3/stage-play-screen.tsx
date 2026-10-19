@@ -1,4 +1,5 @@
 "use client";
+import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import { ChevronDown, Timer } from "lucide-react";
 import type { Action, PlayerView } from "@adventure/play-contract";
@@ -43,7 +44,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   view: PlayerView;
   busy: boolean;
   send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
-  portraitBase?: string | null;
+  portraitBase?: PortraitBase;
   attemptId: string;
 }) {
   const [characterId, setCharacterId] = useState<string | null>(null);

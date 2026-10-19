@@ -65,3 +65,29 @@ RUN_REVIEW_BROWSER_TESTS=1 npx vitest run tests/browser/v3-review.test.ts
 It checks stable page, tab and pane heights across all four tabs at desktop and
 mobile sizes, tree-index destinations, scroll resets, keyboard navigation, issue
 links and a long unbroken persona field. It also captures browser errors.
+
+## V3 direct editor
+
+Use Node 22. The UI acceptance fixture mocks only the server-action transport and
+runs the real editor and schema forms. It covers edit/save/reload, cross-tab local
+state, discard, unsaved navigation, network failures, conflicts, keyboard tabs and
+mobile overflow:
+
+```sh
+RUN_REVIEW_BROWSER_TESTS=1 npx vitest run tests/browser/v3-editor.test.ts tests/browser/v3-review.test.ts
+```
+
+For the signed-in local Supabase/Next walkthrough, start the development server
+on `http://localhost:3000`, with an allowed **test** school in
+`apps/web/.env.local`. Apply the additive publication migration first. This test
+creates disposable teacher/student accounts and a copy of the generated 1819
+fixture (correcting its historical-diversion rule only in that copy), plus local
+captured source fixtures. It checks review → edit → save → preview → publish →
+student start, the published version, and that preview inserted no attempt:
+
+```sh
+RUN_EDITOR_LOCAL_TESTS=1 npx vitest run tests/browser/v3-editor-local.test.ts
+```
+
+This fixture walkthrough does not call a live model or test full generation from
+a new brief. Set `PLAYWRIGHT_BROWSERS_PATH` if Chromium is installed elsewhere.

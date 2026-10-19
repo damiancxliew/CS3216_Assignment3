@@ -1,4 +1,5 @@
 "use client";
+import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import type { CharacterView, DefiningMomentView, MessageView } from "@adventure/play-contract";
 import { Pixelify_Sans } from "next/font/google";
@@ -20,7 +21,7 @@ type DialogueMessage = MessageView & {
 type TalkProps = {
   mode: "talk";
   character: CharacterView;
-  portraitBase: string | null;
+  portraitBase: PortraitBase;
   messages: DialogueMessage[];
   busy: boolean;
   onSend: (text: string) => void;
@@ -32,7 +33,7 @@ type MomentProps = {
   mode: "moment";
   moment: DefiningMomentView;
   decider?: CharacterView;
-  portraitBase: string | null;
+  portraitBase: PortraitBase;
   busy: boolean;
   onAct: (actId: string) => void;
   onPredict: (outcomeId: string) => void;
@@ -125,7 +126,7 @@ function isSkipKey(event: KeyboardEvent) {
   return key === "enter" || key === "e" || event.key === " " || event.code === "Space";
 }
 
-function DialoguePortrait({ character, portraitBase }: { character: CharacterView; portraitBase: string | null }) {
+function DialoguePortrait({ character, portraitBase }: { character: CharacterView; portraitBase: PortraitBase }) {
   const url = portraitUrl(character.portraitKey, portraitBase);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const src = url !== failedUrl ? url : null;

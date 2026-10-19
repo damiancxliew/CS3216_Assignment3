@@ -9,6 +9,7 @@ export interface V3Adventure {
   schoolId: string;
   ownerId: string;
   status: string;
+  publishedVersion?: number | null;
   specVersion: number;
   spec: unknown | null;
 }
@@ -30,9 +31,19 @@ export interface V3FlagInput {
   result: { reason: string | null; characterId: string; stageIndex: number };
 }
 
+export interface V3Publication {
+  linkKey: string;
+  version: number;
+  firstPublishedAt: string | null;
+  lastPublishedAt: string | null;
+}
+
 export interface V3PlayStore {
+  listPublications(id: string): Promise<V3Publication[]>;
   loadAdventure(id: string): Promise<V3Adventure | null>;
   loadCheckErrors(id: string): Promise<CheckIssue[]>;
+  saveDraft(id: string, expectedVersion: number, spec: unknown): Promise<{ saved: boolean; version?: number }>;
+  publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean): Promise<boolean>;
   setAdventureStatus(id: string, status: string): Promise<void>;
   loadVersionSpec(adventureId: string, version: number): Promise<unknown | null>;
   isActiveMember(schoolId: string, userId: string): Promise<boolean>;
@@ -40,13 +51,14 @@ export interface V3PlayStore {
   listAttempts(adventureId: string): Promise<{ id: string; specVersion: number; studentId: string }[]>;
   loadEvents(attemptIds: readonly string[]): Promise<Map<string, GameEvent[]>>;
   studentEmail(userId: string): Promise<string | null>;
-  findLatestAttempt(adventureId: string, studentId: string): Promise<V3Attempt | null>;
+  findLatestAttempt(adventureId: string, studentId: string, version?: number): Promise<V3Attempt | null>;
   createAttempt(input: {
     adventureId: string;
     specVersion: number;
     studentId: string;
     state: unknown;
-  }): Promise<{ id: string; revision: 0 }>;
+    release?: string;
+  }): Promise<{ id: string; revision: 0 } | null>;
   loadAttempt(id: string): Promise<V3Attempt | null>;
   save(
     id: string,
@@ -63,6 +75,7 @@ type AdventureRow = {
   school_id: string;
   owner_id: string;
   status: string;
+  published_version: number | null;
   spec_version: number;
   spec: unknown | null;
 };
@@ -92,10 +105,22 @@ type AttemptEventRow = {
 export class SupabaseV3PlayStore implements V3PlayStore {
   constructor(private readonly admin: SupabaseClient) {}
 
+  async listPublications(id: string): Promise<V3Publication[]> {
+    const rows: V3Publication[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await this.admin.from("adventure_publications_v3")
+        .select("version, link_key, first_published_at, last_published_at").eq("adventure_id", id)
+        .order("version", { ascending: false }).range(from, from + 999);
+      if (error) throw error;
+      for (const row of data ?? []) rows.push({ linkKey: row.link_key, version: row.version, firstPublishedAt: row.first_published_at, lastPublishedAt: row.last_published_at });
+      if ((data?.length ?? 0) < 1000) return rows;
+    }
+  }
+
   async loadAdventure(id: string): Promise<V3Adventure | null> {
     const { data, error } = await this.admin
       .from("adventures_v3")
-      .select("id, school_id, owner_id, status, spec_version, spec")
+      .select("id, school_id, owner_id, status, published_version, spec_version, spec")
       .eq("id", id)
       .maybeSingle<AdventureRow>();
     if (error) throw error;
@@ -105,6 +130,7 @@ export class SupabaseV3PlayStore implements V3PlayStore {
       schoolId: data.school_id,
       ownerId: data.owner_id,
       status: data.status,
+      publishedVersion: data.published_version,
       specVersion: data.spec_version,
       spec: data.spec,
     };
@@ -113,6 +139,20 @@ export class SupabaseV3PlayStore implements V3PlayStore {
   async loadCheckErrors(id: string): Promise<CheckIssue[]> {
     const outputs = await supabaseJobStore(this.admin).outputs(id, ["check"]);
     return finalCheckErrors(outputs.check as FinalCheckOutput | undefined);
+  }
+
+  async saveDraft(id: string, expectedVersion: number, spec: unknown): Promise<{ saved: boolean; version?: number }> {
+    const { data, error } = await this.admin.rpc("save_adventure_v3", { p_id: id, p_expected_version: expectedVersion, p_spec: spec });
+    if (error) throw error;
+    return data;
+  }
+
+  async publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean): Promise<boolean> {
+    const { data, error } = await this.admin.rpc("publish_adventure_v3", {
+      p_id: id, p_expected_version: expectedVersion, p_expected_published: expectedPublished, p_publish: publish,
+    });
+    if (error) throw error;
+    return data === true;
   }
 
   async setAdventureStatus(id: string, status: string): Promise<void> {
@@ -235,12 +275,14 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     return data.user?.email ?? null;
   }
 
-  async findLatestAttempt(adventureId: string, studentId: string): Promise<V3Attempt | null> {
-    const { data, error } = await this.admin
+  async findLatestAttempt(adventureId: string, studentId: string, version?: number): Promise<V3Attempt | null> {
+    let query = this.admin
       .from("attempts_v3")
       .select("id, adventure_id, spec_version, student_id, state, revision")
       .eq("adventure_id", adventureId)
-      .eq("student_id", studentId)
+      .eq("student_id", studentId);
+    if (version !== undefined) query = query.eq("spec_version", version);
+    const { data, error } = await query
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle<AttemptRow>();
@@ -253,19 +295,15 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     specVersion: number;
     studentId: string;
     state: unknown;
-  }): Promise<{ id: string; revision: 0 }> {
-    const { data, error } = await this.admin
-      .from("attempts_v3")
-      .insert({
-        adventure_id: input.adventureId,
-        spec_version: input.specVersion,
-        student_id: input.studentId,
-        state: input.state,
-      })
-      .select("id, revision")
-      .single<{ id: string; revision: 0 }>();
+    release?: string;
+  }): Promise<{ id: string; revision: 0 } | null> {
+    const { data, error } = await this.admin.rpc("start_attempt_v3", {
+      p_adventure_id: input.adventureId, p_spec_version: input.specVersion,
+      p_student_id: input.studentId, p_state: input.state,
+      ...(input.release ? { p_release: input.release } : {}),
+    });
     if (error) throw error;
-    return { id: data.id, revision: 0 };
+    return data as { id: string; revision: 0 } | null;
   }
 
   async loadAttempt(id: string): Promise<V3Attempt | null> {
@@ -327,6 +365,7 @@ type MemoryAttempt = Omit<V3Attempt, "schoolId"> & {
 };
 
 export class MemoryV3PlayStore implements V3PlayStore {
+  private readonly publications = new Map<string, V3Publication[]>();
   private readonly adventures = new Map<string, V3Adventure>();
   private readonly versions = new Map<string, unknown>();
   private readonly attempts = new Map<string, MemoryAttempt>();
@@ -340,7 +379,7 @@ export class MemoryV3PlayStore implements V3PlayStore {
   readonly flags: ({ attemptId: string } & V3FlagInput)[] = [];
 
   addAdventure(adventure: V3Adventure): void {
-    this.adventures.set(adventure.id, structuredClone(adventure));
+    this.adventures.set(adventure.id, structuredClone({ ...adventure, publishedVersion: adventure.publishedVersion === undefined ? (adventure.status === "published" ? adventure.specVersion : null) : adventure.publishedVersion }));
     if (adventure.spec !== null) {
       this.addVersionSpec(adventure.id, adventure.specVersion, adventure.spec);
     }
@@ -393,6 +432,10 @@ export class MemoryV3PlayStore implements V3PlayStore {
     this.tokenCounts.set(attemptId, tokens);
   }
 
+  async listPublications(id: string): Promise<V3Publication[]> {
+    return structuredClone(this.publications.get(id) ?? []);
+  }
+
   async loadAdventure(id: string): Promise<V3Adventure | null> {
     const adventure = this.adventures.get(id);
     return adventure ? structuredClone(adventure) : null;
@@ -402,6 +445,30 @@ export class MemoryV3PlayStore implements V3PlayStore {
 
   async loadCheckErrors(id: string): Promise<CheckIssue[]> {
     return structuredClone(this.checkErrors.get(id) ?? []);
+  }
+
+  async saveDraft(id: string, expectedVersion: number, spec: unknown): Promise<{ saved: boolean; version?: number }> {
+    const a = this.adventures.get(id);
+    if (!a || a.specVersion !== expectedVersion || !["draft", "published", "archived"].includes(a.status)) return { saved: false };
+    if (JSON.stringify(a.spec) !== JSON.stringify(spec)) {
+      a.spec = structuredClone(spec);
+      a.specVersion++;
+      this.addVersionSpec(id, a.specVersion, spec);
+    }
+    return { saved: true, version: a.specVersion };
+  }
+
+  async publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean): Promise<boolean> {
+    const a = this.adventures.get(id);
+    if (!a || a.specVersion !== expectedVersion || a.publishedVersion !== expectedPublished) return false;
+    a.status = publish ? "published" : "draft";
+    a.publishedVersion = publish ? a.specVersion : null;
+    if (publish) {
+      const rows = this.publications.get(id) ?? [];
+      if (!rows.some(row => row.version === a.specVersion)) rows.push({ linkKey: crypto.randomUUID(), version: a.specVersion, firstPublishedAt: null, lastPublishedAt: null });
+      this.publications.set(id, rows);
+    }
+    return true;
   }
 
   async setAdventureStatus(id: string, status: string): Promise<void> {
@@ -441,9 +508,9 @@ export class MemoryV3PlayStore implements V3PlayStore {
     return this.studentEmails.get(userId) ?? null;
   }
 
-  async findLatestAttempt(adventureId: string, studentId: string): Promise<V3Attempt | null> {
+  async findLatestAttempt(adventureId: string, studentId: string, version?: number): Promise<V3Attempt | null> {
     const latest = [...this.attempts.values()]
-      .filter((attempt) => attempt.adventureId === adventureId && attempt.studentId === studentId)
+      .filter((attempt) => attempt.adventureId === adventureId && attempt.studentId === studentId && (version === undefined || attempt.specVersion === version))
       .sort((a, b) => b.order - a.order)[0];
     return latest ? this.toAttempt(latest) : null;
   }
@@ -453,7 +520,10 @@ export class MemoryV3PlayStore implements V3PlayStore {
     specVersion: number;
     studentId: string;
     state: unknown;
-  }): Promise<{ id: string; revision: 0 }> {
+    release?: string;
+  }): Promise<{ id: string; revision: 0 } | null> {
+    const a = this.adventures.get(input.adventureId);
+    if (!a || a.status !== "published" || (input.release ? !(this.publications.get(a.id) ?? []).some(p => p.linkKey === input.release && p.version === input.specVersion) : a.publishedVersion !== input.specVersion)) return null;
     const id = crypto.randomUUID();
     this.attempts.set(id, {
       id,

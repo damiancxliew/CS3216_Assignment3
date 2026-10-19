@@ -75,6 +75,7 @@ export function buildReveal(spec: EngineSpec, state: EngineState): RevealView {
     }
   })
   const sources = { teacher: new Set<string>(), other: new Set<string>(), invented: new Set<string>() }
+  if (spec.authoring?.teacherContributions?.length) sources.teacher.add('From the teacher')
   for (const item of [...spec.discoveries, ...spec.documents]) sources[sourceGroup(item.sourceLabel)].add(item.sourceLabel)
   const moments = spec.definingMoments
   return {

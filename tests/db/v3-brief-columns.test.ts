@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import {
+  serviceClient,
   addMember,
   createOrganization,
   createUserClient,
@@ -20,7 +21,7 @@ let owner: Awaited<ReturnType<typeof createUserClient>>;
 let otherTeacher: Awaited<ReturnType<typeof createUserClient>>;
 
 async function insertAdventure(over: Record<string, unknown> = {}) {
-  return owner.client
+  return serviceClient()
     .from("adventures_v3")
     .insert({ school_id: schoolId, owner_id: owner.userId, ...over })
     .select("id")

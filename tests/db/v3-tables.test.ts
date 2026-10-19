@@ -20,7 +20,7 @@ async function createMember(schoolId: string, role: "admin" | "teacher" | "stude
 }
 
 async function createAdventure(spec: unknown = { title: "Initial" }) {
-  const { data, error } = await owner.client
+  const { data, error } = await admin
     .from("adventures_v3")
     .insert({ school_id: schoolId, owner_id: owner.userId, spec })
     .select("id, spec_version")
@@ -92,7 +92,7 @@ describe("adventures_v3 and pinned versions", () => {
     const adventure = await createAdventure(null);
     expect(adventure.spec_version).toBe(0);
 
-    const { data: firstUpdate, error: firstError } = await owner.client
+    const { data: firstUpdate, error: firstError } = await admin
       .from("adventures_v3")
       .update({ spec: { title: "First" }, spec_version: 400 })
       .eq("id", adventure.id)
@@ -101,7 +101,7 @@ describe("adventures_v3 and pinned versions", () => {
     expect(firstError).toBeNull();
     expect(firstUpdate?.spec_version).toBe(1);
 
-    const { data: unchanged, error: unchangedError } = await owner.client
+    const { data: unchanged, error: unchangedError } = await admin
       .from("adventures_v3")
       .update({ status: "draft", spec_version: 999 })
       .eq("id", adventure.id)
@@ -110,7 +110,7 @@ describe("adventures_v3 and pinned versions", () => {
     expect(unchangedError).toBeNull();
     expect(unchanged?.spec_version).toBe(1);
 
-    const { data: secondUpdate, error: secondError } = await owner.client
+    const { data: secondUpdate, error: secondError } = await admin
       .from("adventures_v3")
       .update({ spec: { title: "Second" } })
       .eq("id", adventure.id)
@@ -130,7 +130,7 @@ describe("adventures_v3 and pinned versions", () => {
       { version: 2, spec: { title: "Second" } },
     ]);
 
-    const { data: staleRows, error: staleError } = await owner.client
+    const { data: staleRows, error: staleError } = await admin
       .from("adventures_v3")
       .update({ spec: { title: "Stale edit" } })
       .eq("id", adventure.id)

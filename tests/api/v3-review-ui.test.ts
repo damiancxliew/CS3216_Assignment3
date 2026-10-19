@@ -23,7 +23,7 @@ const spec = AdventureSpec.parse(
 );
 
 describe("review screen rendering", () => {
-  it("shows blocking errors, grouped warnings, conflict fixtures and accessible edit placeholders", () => {
+  it("shows blocking errors, grouped warnings, conflict fixtures and settings/reveal tabs", () => {
     const html = renderToStaticMarkup(
       createElement(ReviewScreen, {
         spec: {
@@ -54,11 +54,12 @@ describe("review screen rendering", () => {
     );
     expect(html).toContain("Needs fixing (1)");
     expect(html).toContain("Global blocking issue");
+    expect(html).toContain("View details");
     expect(html).toContain("Teacher claim");
     expect(html).toContain("Source correction");
     expect(html).toContain('role="tablist"');
-    expect(html).toContain('aria-describedby="edit-coming-soon"');
-    expect(html).toContain("Coming soon");
+    expect(html).toContain("Settings");
+    expect(html).toContain("Reveal and questions");
     expect(html).toContain(spec.stages[0].openingNarration);
   });
 
@@ -102,7 +103,7 @@ describe("review screen rendering", () => {
     );
     expect(html.match(/A specific blocking issue/g)).toHaveLength(1);
     expect(html.match(/A specific warning/g)).toHaveLength(1);
-    expect(html).toContain('href="/v3/teacher/draft/review"');
+    expect(html).toContain('href="/v3/teacher/draft"');
     expect(html).toContain('href="/v3/teacher/draft/preview"');
     expect(html).not.toContain("Review needed before publishing");
     expect(html).not.toContain("share-title");
@@ -142,7 +143,7 @@ describe("review screen rendering", () => {
     expect(html).toContain("No quoted passage available");
   });
 
-  it("describes empty generated conflicts as detection pending", () => {
+  it("shows a green success card with optional review notes when checks pass", () => {
     const html = renderToStaticMarkup(
       createElement(ReviewScreen, {
         spec: { ...spec, conflicts: [] },
@@ -151,6 +152,11 @@ describe("review screen rendering", () => {
         warnings: [],
       }),
     );
-    expect(html).toContain("Source comparison is not available yet");
+    expect(html).toContain("Checks passed");
+    expect(html).not.toContain("Needs fixing (0)");
+    expect(html).not.toContain("Conflicts (0)");
+    expect(html).toContain("bg-world-wash");
+    expect(html).not.toContain("View details");
+    expect(html).not.toContain('<details open=""');
   });
 });

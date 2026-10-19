@@ -1,6 +1,6 @@
 # Review screen handoff (#212)
 
-The generated adventure now links to `/v3/teacher/[id]/review`. The route requires
+The generated adventure opens directly at `/v3/teacher/[id]`. The route requires
 an enabled v3 school, a staff viewer, ownership, and a draft, published or archived
 adventure. It shows stages, characters, documents and endings, with linked final
 errors (including remaining part errors), warnings grouped by pass, and conflicts.
@@ -61,3 +61,96 @@ Migration request to coordinate with Damian (prepared here; not sent externally)
 
 No `spec_draft` column is needed. The source-policy, evaluation, Guided checkpoints
 and optional regeneration issues remain separate follow-up PRs as planned.
+
+## #213 publication foundation
+
+The additive `20261019000000_v3_publication.sql` migration must deploy before
+editor writes are enabled. It backfills published pointers, enforces same-adventure
+snapshot references, and provides service-only atomic save, publication and start
+operations. Authenticated direct insert/update access is revoked; application
+services retain the existing staff and school boundaries. Student starts initialize
+from the published snapshot and retry a publication race; attempts remain pinned.
+
+Platform/migration review: Damian. Contract changes in subsequent PR: Kevin.
+No production migration has been applied from this workspace.
+
+## #213 editor and acceptance (2026-10-19)
+
+Three ordered implementation branches build on open prerequisite #262. The review
+workspace now has explicit Edit/Save/Discard controls and Settings and Reveal and
+questions tabs. Schema-driven forms cover nested content, reference selection,
+recursive condition variants, ordering and dependency disclosures. Local changes
+survive tab changes and failed/stale saves; Preview/Publish require saved work.
+Real bodies require captured-source selection or explicit invented conversion.
+The server derives teacher attribution and portrait reuse metadata, creates no
+model/image jobs, and accepts structurally valid drafts with semantic blockers.
+
+New deterministic runtime checks apply to authored versions. Existing fixtures
+and immutable snapshots retain their prior shape and behavior. Saved generation
+errors are retired only for constraints rechecked from the current saved spec;
+part-local obligations requiring missing context remain blockers. Historical job
+outputs are never rewritten. This conservative behavior means some old generation
+blockers still need generation/context repair rather than an unrelated edit.
+
+Verified locally:
+
+- 205 targeted authoring/review/publishing/preview/attempt tests passed before the
+  final additional portrait and form coverage; web/spec/engine/generation typechecks
+  pass. Lint has no errors (four existing warnings in unrelated UI).
+- Spec package: 59 tests. Engine: 77 tests, including golden build/reachability.
+- Local database: 12 publication/table integration tests passed without resetting
+  seeded data. The additive migration was applied locally only.
+- Real Chromium: review layout at 1440, 1024, 375 and 320px; editor save/reload,
+  discard, navigation cancellation, failure/conflict retention, keyboard tabs,
+  desktop/mobile overflow.
+- Signed-in local test school: disposable generated-fixture creation → review →
+  title edit → Save v2 → preview (zero attempts) → publish v2 → student start
+  pinned to v2. No live model or image call was made. This is fixture acceptance,
+  not a new-brief/live-generation walkthrough or the full two-student reveal run.
+
+Deploy migration before enabling editor writes. Damian reviews platform/migration
+changes; Kevin reviews contract/check behavior. Merge #262 and the implementation
+stack in dependency order. Production deployment and human approvals are pending.
+
+Final checks: all 18 affected local database tests pass (publication, tables,
+brief columns and flag saves). Generation package: 217 passed, one pre-existing
+opt-in test skipped. The editor browser regression passed after fixing array
+schema unwrapping; signed-in fixture acceptance passed on the configured localhost
+origin. Production deployment remains unperformed.
+
+### Contextual controls and link history
+
+Review shows Edit only; a clean editing form shows Done editing; dirty edits show
+Save and Discard. Successful save/discard returns to review mode.
+`/v3/teacher/[id]/links` lists the permanent student link for each published
+version with started/in-progress/completed totals and rates. Completion means
+reaching the reveal. New publications issue one link atomically; existing release
+links remain pinned and cannot be regenerated for old versions. Unpublish closes
+all release links to new starts. Students resume an existing attempt for the
+requested release, while the original unversioned link retains its resume behavior.
+The history migration backfills legacy live/attempt versions with unknown dates.
+Deploy `20261019010000_v3_publication_history.sql` before these controls are enabled.
+
+Reference selectors preserve full text and wrap long options using the shared
+Select component. Labels omit storage ID suffixes. The unused `/review` route
+and runtime history inference for missing publication records were removed;
+publication history comes directly from its authoritative table.
+
+### UI audit follow-up
+
+Teacher navigation is shared across the workspace, version history and class
+summary. Preview has only Restart and Back to adventure; publication controls
+remain on the workspace. Checks passed uses a green card with collapsed review
+notes. Actual blockers remain expanded. Version history has one record per
+release and responsive mobile cards rather than a clipped table.
+
+Fixed character-local stance IDs overwriting stage names/anchors, scoped reference
+choices to their owners, replaced raw citation JSON with source disclosures, and
+kept selection valid after removing an item. Class Summary defaults to the live
+release and excludes unpublished draft versions. Reload rechecks edited versions
+rather than resurrecting corrected generation errors.
+
+Verified with 214 targeted API/unit tests and all three browser regressions,
+including signed-in fixture acceptance and screenshots of adventure/history/
+summary/preview at 1440px and 375px in both light and dark themes. Typecheck passes;
+lint has no errors and four existing unrelated warnings.

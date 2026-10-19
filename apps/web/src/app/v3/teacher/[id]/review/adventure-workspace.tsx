@@ -1,10 +1,8 @@
 import React from "react";
-import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { validateSpec } from "@adventure/spec-v3";
-import { V3PublishPanel } from "@/components/play/v3/publish-panel";
-import { compactButton as button, Page } from "@/components/ui";
+import { validateEditedSpec } from "@/lib/v3/edit/validation";
+import { Page } from "@/components/ui";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -15,15 +13,9 @@ import { reviewErrors, reviewSources } from "@/lib/v3/review";
 import { SupabaseV3PlayStore } from "@/lib/play/v3/store";
 import { getV3GenerationProgress } from "../../actions";
 import { ReviewIssue } from "@/components/teacher/review-issue";
-import { ReviewScreen } from "./review-screen";
+import { EditorWorkspace } from "./editor-workspace";
 
-export const dynamic = "force-dynamic";
-export const metadata: Metadata = {
-  title: "Review adventure",
-  robots: { index: false },
-};
-
-export default async function ReviewPage({
+export default async function AdventureWorkspace({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -50,37 +42,32 @@ export default async function ReviewPage({
   // A failed progress read must not silently remove the final part errors.
   if (!progress || "error" in progress)
     throw new Error("Could not load generation checks");
-  const errors = reviewErrors(adventure.spec, progress.checkErrors);
   const parsed = validateSpec(adventure.spec);
+  const sources = documents.map((d) => ({
+    id: d.id,
+    title: d.title,
+    text: d.pages.map((p) => p.text).join("\n"),
+  }));
+  const checks =
+    parsed.ok && parsed.spec.authoring
+      ? validateEditedSpec(parsed.spec, sources, progress.checkErrors)
+      : null;
+  const errors =
+    checks?.errors ?? reviewErrors(adventure.spec, progress.checkErrors);
   return (
     <Page
-      title={parsed.ok ? parsed.spec.title : "Review adventure"}
-      lede="Review the story, its evidence and the final checks before publishing."
+      title={parsed.ok ? parsed.spec.title : "Adventure"}
       width="wide"
+      className="md:pb-0"
     >
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap gap-3">
-          <Link href={`/v3/teacher/${id}`} className={button.subtle}>
-            Back to adventure
-          </Link>
-          <Link href={`/v3/teacher/${id}/preview`} className={button.primary}>
-            Preview
-          </Link>
-        </div>
-        <V3PublishPanel
-          adventureId={id}
-          compact
-          published={row.status === "published"}
-          blockedReason={
-            errors.length
-              ? "Fix the blocking errors before publishing."
-              : undefined
-          }
-        />
-      </header>
       {parsed.ok ? (
-        <ReviewScreen
-          spec={parsed.spec}
+        <EditorWorkspace
+          adventureId={id}
+          initialVersion={adventure.specVersion}
+          publishedVersion={adventure.publishedVersion ?? null}
+          published={adventure.status === "published"}
+          capturedSources={sources}
+          initial={parsed.spec}
           sources={reviewSources(parsed.spec, documents)}
           errors={errors}
           warnings={progress.warnings}

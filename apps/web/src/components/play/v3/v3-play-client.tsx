@@ -1,4 +1,5 @@
 "use client";
+import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import { Compass } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -29,7 +30,7 @@ export function V3PlayClient({
   attemptId: string;
   initialView: PlayerView;
   initialRevision: number;
-  portraitBase?: string | null;
+  portraitBase?: PortraitBase;
   backdrop?: V3MapBackdrop | null;
   makeClient?: () => PlayClient;
   notice?: ReactNode;

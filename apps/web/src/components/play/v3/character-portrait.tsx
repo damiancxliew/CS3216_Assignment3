@@ -1,4 +1,5 @@
 "use client";
+import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import { useState } from "react";
 
@@ -13,7 +14,7 @@ export function CharacterPortrait({
 }: {
   name: string;
   portraitKey: string;
-  portraitBase: string | null;
+  portraitBase: PortraitBase;
   selected: boolean;
   onSelect: () => void;
 }) {

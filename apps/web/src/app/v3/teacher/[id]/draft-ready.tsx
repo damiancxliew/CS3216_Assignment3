@@ -27,7 +27,7 @@ export function DraftReady({
   blocked: boolean;
   publishControl: ReactNode;
 }) {
-  const reviewUrl = `/v3/teacher/${adventureId}/review`;
+  const reviewUrl = `/v3/teacher/${adventureId}`;
   const byPass = new Map<string, Warning[]>();
   for (const warning of warnings) {
     const group = byPass.get(warning.pass) ?? [];

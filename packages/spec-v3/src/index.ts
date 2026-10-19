@@ -249,6 +249,16 @@ const HintAngle = z.strictObject({
 })
 
 export const AdventureSpec = z.strictObject({
+  authoring: z.strictObject({
+    sourcePolicy: z.strictObject({ allowAny: z.boolean().optional(), extraDomains: z.array(Text).optional() }).optional(),
+    teacherContributions: z.array(z.strictObject({ entity: Text, field: Text })).optional(),
+    retainedErrors: z.array(z.strictObject({ code: Text, path: Text, message: Text, ids: z.array(Text).optional() })).optional(),
+    validationContext: z.strictObject({
+      slantedDocuments: z.array(z.strictObject({ documentId: Id, note: Text })),
+      generationParts: z.record(Text, z.unknown()).optional(),
+    }).optional(),
+    portraitVersions: z.record(Text, z.number().int().positive().nullable()).optional(),
+  }).optional(),
   id: Id,
   title: Text,
   readingLevel: z.enum(['sec', 'jc']),
@@ -319,3 +329,5 @@ export { checkSpec } from './check/index.js'
 export { checkSkeleton } from './check/skeleton.js'
 export { SkeletonSpec, validateSkeleton } from './skeleton.js'
 export type { SkeletonShape, ValidateSkeletonResult } from './skeleton.js'
+
+export { editableIssues } from './check/editable.js'
