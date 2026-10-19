@@ -193,9 +193,15 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
     input.current?.focus();
   }, []);
 
+  const pinnedToLatest = useRef(true);
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage?.kind === "player" && !seenAtOpen.current.has(lastMessage.id)) {
+    pinnedToLatest.current = true;
+  }
+
   useEffect(() => {
     const element = body.current;
-    if (element) element.scrollTop = element.scrollHeight;
+    if (element && pinnedToLatest.current) element.scrollTop = element.scrollHeight;
   }, [messages.length, typedText]);
 
   useEffect(() => {
@@ -237,7 +243,7 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
   return (
     <section
       aria-label={`Conversation with ${character.name}`}
-      className={`${boxClass} flex-row items-stretch gap-2 px-2 py-2 sm:gap-3 sm:px-3 sm:py-3`}
+      className={`${boxClass} h-[min(22rem,55%)] flex-row items-stretch gap-2 px-2 py-2 sm:h-[min(23rem,55%)] sm:gap-3 sm:px-3 sm:py-3`}
     >
       <div className="flex shrink-0 items-center">
         <DialoguePortrait character={character} portraitBase={portraitBase} />
@@ -259,6 +265,11 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
         <div
           ref={body}
           aria-live="polite"
+          onScroll={(event) => {
+            const element = event.currentTarget;
+            pinnedToLatest.current =
+              element.scrollHeight - element.scrollTop - element.clientHeight < 24;
+          }}
           onClickCapture={(event) => {
             if (typingDone) return;
             event.preventDefault();
@@ -267,13 +278,24 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
           }}
           className="relative min-h-[3.5rem] min-w-0 flex-1 space-y-3 overflow-y-auto pb-7 pr-2 text-sm leading-relaxed sm:text-base"
         >
-          {messages.length ? messages.map((message) => (
-            <article key={message.id} className="break-words">
-              <p className="mb-0.5 text-xs font-black uppercase tracking-wide text-[#5c6472]">
-                {message.speaker ?? (message.kind === "player" ? "You" : message.characterId === character.id ? character.name : "Story")}
-              </p>
+          {messages.length ? messages.map((message) => {
+            const fromPlayer = message.kind === "player";
+            const speaker = fromPlayer
+              ? null
+              : message.speaker ?? (message.characterId === character.id ? character.name : null);
+            return (
+            <article
+              key={message.id}
+              className={fromPlayer
+                ? "ml-auto w-fit max-w-[85%] break-words rounded-lg rounded-br-none bg-[#e7edff] px-3 py-1.5"
+                : "max-w-[95%] break-words"}
+            >
+              {fromPlayer ? <p className="sr-only">You</p> : null}
+              {speaker ? (
+                <p className="mb-0.5 text-xs font-bold uppercase tracking-wide text-[#5c6472]">{speaker}</p>
+              ) : null}
               {message.text ? (
-                <p className={`${pixelFont.className} whitespace-pre-wrap text-base leading-relaxed sm:text-lg`}>
+                <p className={`whitespace-pre-wrap text-[15px] leading-relaxed sm:text-[17px] ${message.kind === "narration" || message.kind === "thought" ? "italic text-[#3b4252]" : ""}`}>
                   {message.id === animatingMessage?.id ? (
                     <>
                       <span className="sr-only">{message.text}</span>
@@ -288,12 +310,12 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
                 </blockquote>
               ) : null}
             </article>
-          )) : (
+            );
+          }) : (
             <p className={`${pixelFont.className} py-2 text-base leading-relaxed text-[#1f2433] sm:text-lg`}>
               Say hello, or ask {character.name} a question.
             </p>
           )}
-          {messages.length > 0 && typingDone ? <ContinueIndicator /> : null}
         </div>
 
         <form onSubmit={submit} className="mt-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2 border-t-2 border-[#1f2433]/20 pt-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">

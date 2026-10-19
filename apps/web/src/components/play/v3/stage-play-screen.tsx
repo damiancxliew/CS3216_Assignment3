@@ -83,9 +83,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     if (!ready) setNearbyId(null);
   }, []);
   const messages = useMemo(
-    // Conversation is per room; story lines (narration, notices, the role's own thoughts) follow the student.
+    // The talk box shows the room's conversation only; story lines (narration, notices, thoughts) stay out of it.
     () => view.messages.filter((item) =>
-      item.roomId === view.currentRoomId || item.kind === "notice" || item.kind === "narration" || item.kind === "thought",
+      item.roomId === view.currentRoomId && (item.kind === "player" || item.kind === "character"),
     ),
     [view.currentRoomId, view.messages],
   );
