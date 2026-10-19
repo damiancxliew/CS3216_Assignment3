@@ -12,7 +12,9 @@ import {
   quickReplies,
   READING_LEVEL_LABELS,
   MODE_LABELS,
+  ANY_SOURCE_WARNING,
   SOURCES_DONE,
+  sourcePolicyLabel,
   timerLabel,
 } from "@/lib/v3/brief/schema";
 
@@ -260,12 +262,18 @@ function SourceStep({
 
 function Summary({ state, pending, onChange }: { state: BriefStateV3; pending: boolean; onChange: (slot: string) => void }) {
   const draft = state.draft;
-  const rows: { slot: string; label: string; value: string }[] = [
+  const rows: { slot: string; label: string; value: string; warning?: string }[] = [
     { slot: "episode", label: "Episode", value: draft.episode ?? "" },
     { slot: "focus", label: "Focus", value: draft.focus === "" ? "—" : (draft.focus ?? "—") },
     { slot: "readingLevel", label: "Reading level", value: draft.readingLevel ? READING_LEVEL_LABELS[draft.readingLevel] : "" },
     { slot: "timer", label: "Timer", value: draft.timerMinutes !== undefined ? timerLabel(draft.timerMinutes) : "" },
     { slot: "mode", label: "Mode", value: draft.mode ? MODE_LABELS[draft.mode] : "" },
+    {
+      slot: "allowlist",
+      label: "Outside sources",
+      value: sourcePolicyLabel(draft.sourcePolicy ?? undefined),
+      ...(draft.sourcePolicy?.allowAny ? { warning: ANY_SOURCE_WARNING } : {}),
+    },
   ];
   return (
     <div className="mt-4 rounded-surface border-2 border-line bg-surface p-5">
@@ -275,6 +283,7 @@ function Summary({ state, pending, onChange }: { state: BriefStateV3; pending: b
             <div className="min-w-0">
               <dt className="text-xs font-black uppercase tracking-[0.14em] text-muted">{row.label}</dt>
               <dd className="mt-0.5 whitespace-pre-wrap text-ink">{row.value}</dd>
+              {row.warning ? <p className="mt-1 text-xs text-amber-700">{row.warning}</p> : null}
             </div>
             <button type="button" onClick={() => onChange(row.slot)} disabled={pending} className={button.subtle + " shrink-0"}>
               Change

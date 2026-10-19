@@ -84,6 +84,7 @@ export async function startFromBrief(
     readingLevel: draft.readingLevel,
     timerMinutes: draft.timerMinutes,
     mode: draft.mode,
+    ...(draft.sourcePolicy ? { sourcePolicy: draft.sourcePolicy } : {}),
   };
 
   if (!(await briefStore.startFromBrief(adventureId, draft.episode))) return { error: "already started" };
@@ -135,6 +136,7 @@ export async function restartGeneration(
         readingLevel: oldBrief?.readingLevel ?? "sec",
         timerMinutes: oldBrief?.timerMinutes === undefined ? 45 : oldBrief.timerMinutes,
         mode: oldBrief?.mode ?? "quick",
+        ...(oldBrief?.sourcePolicy ? { sourcePolicy: oldBrief.sourcePolicy } : {}),
       },
       messages: [
         {

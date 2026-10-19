@@ -33,7 +33,7 @@ function isLocalHostname(hostname: string): boolean {
     || hostname.endsWith('.internal')
 }
 
-function normaliseDomain(input: string): string | null {
+export function normaliseDomain(input: string): string | null {
   const value = input.trim()
   if (!value) return null
 

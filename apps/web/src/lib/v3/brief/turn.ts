@@ -11,6 +11,7 @@
 import { z } from "zod";
 
 import type { ExtractedDocument } from "@adventure/generation/ingest";
+import { normaliseDomain } from "@adventure/generation";
 import { DEFAULT_MODELS, type LlmClient } from "@adventure/generation/llm";
 import { formatDocuments } from "@adventure/generation/planner";
 
@@ -20,6 +21,9 @@ import {
   type BriefInputV3,
   type BriefStateV3,
   type ChatMessage,
+  ALLOWLIST_ANY,
+  ALLOWLIST_DEFAULT,
+  ANY_SOURCE_WARNING,
   clearSlot,
   currentSlot,
   EPISODE_MAX,
@@ -126,6 +130,40 @@ export async function briefTurnV3(state: BriefStateV3, input: BriefInputV3, deps
       }
       return ask({ ...state.draft, mode: parsed[0].toLowerCase() as "standard" | "quick" }, ctx);
     }
+    case "allowlist": {
+      const normalized = text.toLowerCase();
+      if (normalized === ALLOWLIST_DEFAULT.toLowerCase() || normalized === "default") {
+        return ask({ ...state.draft, sourcePolicy: { allowAny: false, extraDomains: [] } }, ctx);
+      }
+      if (normalized === ALLOWLIST_ANY.toLowerCase() || normalized === "any") {
+        messages.push({ role: "assistant", text: ANY_SOURCE_WARNING, slot: key });
+        return ask({ ...state.draft, sourcePolicy: { allowAny: true, extraDomains: [] } }, ctx);
+      }
+
+      const entries = text.split(/[,\s]+/).filter(Boolean);
+      if (entries.length === 0) {
+        messages.push({ role: "assistant", text: "Type sites like example.org, separated by commas.", slot: key });
+        return { ok: true, state: { ...state, messages } };
+      }
+      const extraDomains: string[] = [];
+      for (const entry of entries) {
+        const domain = normaliseDomain(entry);
+        if (!domain) {
+          messages.push({
+            role: "assistant",
+            text: `I couldn’t read ${entry} as a website. Type sites like example.org, separated by commas.`,
+            slot: key,
+          });
+          return { ok: true, state: { ...state, messages } };
+        }
+        if (!extraDomains.includes(domain)) extraDomains.push(domain);
+      }
+      if (extraDomains.length > 20) {
+        messages.push({ role: "assistant", text: "Please add at most 20 sites.", slot: key });
+        return { ok: true, state: { ...state, messages } };
+      }
+      return ask({ ...state.draft, sourcePolicy: { allowAny: false, extraDomains } }, ctx);
+    }
   }
 }
 
@@ -145,7 +183,7 @@ export function parseTimerAnswer(text: string): number | null | undefined {
   return Number.isInteger(value) && value >= 10 && value <= 120 ? value : undefined;
 }
 
-const SLOT_NAMES: string[] = ["sources", "episode", "focus", "readingLevel", "timer", "mode", "confirm"];
+const SLOT_NAMES: string[] = ["sources", "episode", "focus", "readingLevel", "timer", "mode", "allowlist", "confirm"];
 
 /**
  * Where a consulted slot leaves the conversation: back at a slot the teacher
