@@ -9,6 +9,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/components/play/adventure-chrome.module.css";
 import { DialogueBox } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
+import { NotePickup, useNotePickups } from "@/components/play/v3/note-pickup";
+import pickupStyles from "@/components/play/v3/note-pickup.module.css";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
@@ -67,6 +69,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   );
   const [now, setNow] = useState<number | null>(null);
   const mapSection = useRef<HTMLElement>(null);
+  const pickup = useNotePickups(view.notes);
   const talkingRoomId = useRef<string | null>(null);
   const stage = view.stage;
   const stageIndex = stage?.index ?? 0;
@@ -217,7 +220,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-2">
               <button
                 type="button"
-                className={`${styles.tool} flex min-h-10 items-center gap-2 px-3 text-sm font-bold`}
+                key={pickup.current?.id ?? "notes"}
+                className={`${styles.tool} ${pickup.current ? pickupStyles.pulse : ""} flex min-h-10 items-center gap-2 px-3 text-sm font-bold`}
                 onClick={() => setNotesOpen(true)}
               >
                 Notes ({view.notes.length})
@@ -388,14 +392,31 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
         </V3ScrollDialog>
       ) : null}
 
+      {pickup.current ? (
+        <NotePickup
+          key={pickup.current.id}
+          note={pickup.current}
+          onOpen={() => {
+            pickup.dismiss();
+            if (openedDocument) closeDocument();
+            setNotesOpen(true);
+          }}
+        />
+      ) : null}
+
       {openedDocument || emptyDocumentsOpen ? (
         <DocumentReader
           document={openedDocument}
           documents={view.documents}
           onSelectDocument={openDocument}
           onClose={closeDocument}
+          noteCount={view.notes.length}
+          hasDocumentNote={view.notes.some((note) => note.source === "document")}
           {...(openedDocument && !isMoment
-            ? { onSelectPassage: (start: number, end: number) => send(v3SelectPassageAction(openedDocument.id, start, end)) }
+            ? {
+                onSelectPassage: (start: number, end: number, onSettled: (succeeded: boolean) => void) =>
+                  send(v3SelectPassageAction(openedDocument.id, start, end), onSettled),
+              }
             : {})}
         />
       ) : null}
