@@ -10,6 +10,7 @@ import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3PreviewClient, V3PreviewHeaderActions } from "@/components/play/v3/v3-preview-client";
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
@@ -27,6 +28,16 @@ import {
 
 vi.mock("next/font/google", () => ({
   Pixelify_Sans: () => ({ className: "pixelify-sans" }),
+}));
+
+vi.mock("@/components/play/v3/use-v3-play", () => ({
+  useV3Play: (_attemptId: string, initialView: unknown) => ({
+    view: initialView,
+    busy: false,
+    banner: null,
+    send: () => {},
+    clearBanner: () => {},
+  }),
 }));
 
 const view = { phase: "briefing", pendingCheck: false } as unknown as PlayerView;
@@ -167,6 +178,53 @@ describe("v3 preview browser client", () => {
       method: "POST",
       body: JSON.stringify({ token: nextToken, messageId: "message-1" }),
     }));
+  });
+});
+
+describe("v3 preview toolbar", () => {
+  it("renders preview actions in the header without the unsaved-progress banner", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const previewView = { ...stagePlayView(), phase: "briefing" } as PlayerView;
+      const markup = renderToStaticMarkup(createElement(V3PreviewClient, {
+        adventureId: "adventure-1",
+        initialToken: "preview-token",
+        initialView: previewView,
+      }));
+      const header = markup.match(/<header[\s\S]*?<\/header>/)?.[0] ?? "";
+
+      expect(markup).not.toContain("Progress is not saved.");
+      expect(markup).not.toContain("Student preview");
+      expect(header).toContain('aria-label="Restart preview"');
+      expect(header).toContain("Restart preview");
+      expect(header).toContain('aria-label="Back to adventure"');
+      expect(header).toContain("Back to adventure");
+      expect(header).toContain('href="/v3/teacher/adventure-1"');
+      expect(header).toContain("hidden sm:inline");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reloads the current preview and links back to its adventure", () => {
+    const reload = vi.fn();
+    vi.stubGlobal("React", React);
+    vi.stubGlobal("window", { location: { reload } });
+    try {
+      const actions = V3PreviewHeaderActions({ adventureId: "adventure-1" });
+      const actionElements = React.Children.toArray(actions.props.children);
+      const restartButton = actionElements[0] as React.ReactElement<{ onClick: () => void; "aria-label": string }>;
+      const backLink = actionElements[1] as React.ReactElement<{ href: string; "aria-label": string }>;
+
+      expect(restartButton.type).toBe("button");
+      expect(restartButton.props["aria-label"]).toBe("Restart preview");
+      restartButton.props.onClick();
+      expect(reload).toHaveBeenCalledOnce();
+      expect(backLink.props.href).toBe("/v3/teacher/adventure-1");
+      expect(backLink.props["aria-label"]).toBe("Back to adventure");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
