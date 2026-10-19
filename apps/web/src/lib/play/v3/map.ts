@@ -106,6 +106,13 @@ export function v3DocumentProps(
 ): NonNullable<PlaygroundSnapshot["props"]> {
   return documents.flatMap((document, index) => {
     const position = seatIn(map, roomId, firstSeat + index);
-    return position ? [{ id: document.id, name: document.title, position, found: false }] : [];
+    return position ? [{ id: document.id, name: document.title, position, found: document.read }] : [];
   });
+}
+
+export function unreadDocumentAt(
+  props: NonNullable<PlaygroundSnapshot["props"]>,
+  point: Point,
+): string | null {
+  return props.find(({ found, position }) => !found && position.x === point.x && position.y === point.y)?.id ?? null;
 }

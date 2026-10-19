@@ -12,7 +12,7 @@ import { buildReveal } from './reveal'
 import { projectInterview } from './interview'
 import { predictionOptions } from './rules/moment'
 import { noteText } from './rules/knowledge'
-import { stageDurationMs } from './rules/stages'
+import { stageDocumentPlacement, stageDurationMs } from './rules/stages'
 import type { EngineSpec, SpecDocument } from './spec'
 import type { EngineState } from './state'
 
@@ -113,12 +113,19 @@ export function project(spec: EngineSpec, state: EngineState): PlayerView {
       .map((id) => spec.documents.find((document) => document.id === id))
       .filter((document): document is SpecDocument => document !== undefined)
       .map((document) => documentView(document, state.openDocumentId === document.id)),
-    documentsHere: playing
-      ? Object.entries(state.documentRooms)
-          .filter(([, room]) => room === state.playerRoomId)
-          .map(([id]) => spec.documents.find((document) => document.id === id))
-          .filter((document): document is SpecDocument => document !== undefined)
-          .map(({ id, kind, title }) => ({ id, kind, title }))
+    documentsHere: playing && stage !== undefined
+      ? Object.entries(stageDocumentPlacement(state, stage)).flatMap(([id, room]) => {
+          if (room === 'held' || room !== state.playerRoomId) return []
+          const read =
+            state.documentRooms[id] === state.playerRoomId
+              ? false
+              : state.heldDocuments.includes(id) && state.documentRooms[id] === undefined
+                ? true
+                : null
+          if (read === null) return []
+          const document = spec.documents.find((candidate) => candidate.id === id)
+          return document === undefined ? [] : [{ id: document.id, kind: document.kind, title: document.title, read }]
+        })
       : [],
     definingMoment: inStage ? momentView(spec, state) : null,
     timer: playing && state.stageEndsAt !== null && duration !== null ? { endsAt: state.stageEndsAt, durationMs: duration } : null,

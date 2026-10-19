@@ -300,7 +300,7 @@ describe("v3 stage play screen", () => {
         glossary: [],
         open: false,
       }],
-      documentsHere: [{ id: "document-1", kind: "letter", title: "A letter from the harbour" }],
+      documentsHere: [{ id: "document-1", kind: "letter", title: "A letter from the harbour", read: false }],
     });
 
     vi.stubGlobal("React", React);
