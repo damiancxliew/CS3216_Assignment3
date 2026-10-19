@@ -1,5 +1,6 @@
 "use client";
 
+import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { ReactNode } from "react";
 
 import { V3Map } from "@/components/play/v3/v3-map";
@@ -12,10 +13,14 @@ const stayPut = async () => false;
 export function MapBackdrop({
   attemptId,
   backdrop,
+  ambient,
+  audio,
   children,
 }: {
   attemptId: string;
   backdrop: V3MapBackdrop | null;
+  ambient: NonNullable<PlaygroundSnapshot["ambient"]>;
+  audio: NonNullable<PlaygroundSnapshot["audio"]>;
   children: ReactNode;
 }) {
   const stageId = backdrop ? `stage-${backdrop.stageIndex}` : "";
@@ -41,6 +46,8 @@ export function MapBackdrop({
             onTalk={noop}
             onNearbyCharacterChange={noop}
             onOpenDocument={noop}
+            ambient={ambient}
+            audio={audio}
             onReadyChange={noop}
           />
         </div>

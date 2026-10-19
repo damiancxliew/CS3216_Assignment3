@@ -11,6 +11,7 @@ import { RevealScreen } from "@/components/play/v3/reveal-screen";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
+import { v3AudioSnapshot } from "@/components/play/v3/v3-map";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { V3PreviewClient, V3PreviewHeaderActions } from "@/components/play/v3/v3-preview-client";
 import { createV3PlayClient } from "@/lib/play/v3/client";
@@ -513,12 +514,16 @@ describe("v3 cinematic", () => {
         beats,
         beginLabel: "Enter the first stage",
         onBegin: () => {},
+        muted: true,
+        onToggleMuted: () => {},
       }));
       const settled = renderToStaticMarkup(createElement(V3Cinematic, {
         artUrl: "https://assets.example/stage-0.webp",
         beats,
         beginLabel: "Enter the first stage",
         onBegin: () => {},
+        muted: false,
+        onToggleMuted: () => {},
         initiallySettled: true,
       }));
 
@@ -528,6 +533,7 @@ describe("v3 cinematic", () => {
       expect(markup).not.toContain("<img");
       expect(markup).toContain("radial-gradient");
       expect(markup).toContain("Skip");
+      expect(markup).toContain('aria-label="Sound off"');
       expect(settled).toContain("Enter the first stage");
       expect(settled.match(/data-active="true"/g)).toHaveLength(2);
     } finally {
@@ -547,9 +553,17 @@ describe("v3 cinematic", () => {
       expect(markup).toContain('aria-label="Role brief"');
       expect(markup).toContain("Role brief");
       expect(markup).toContain('aria-expanded="false"');
+      expect(markup).toContain('aria-label="Sound off"');
+      expect(markup).toContain('aria-pressed="false"');
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("passes atmosphere and sound cues into the V3Map snapshot", () => {
+    const ambient = { id: "rain", intensity: 1 } as const;
+    const audio = { muted: false, cues: [{ key: "accept:0:1", id: "accept" as const }] };
+    expect(v3AudioSnapshot(ambient, audio)).toEqual({ ambient, audio });
   });
 });
 

@@ -42,7 +42,16 @@ interface V3MapProps {
   onTalk: (characterId: string) => void;
   onNearbyCharacterChange: (characterId: string | null) => void;
   onOpenDocument: (documentId: string) => void;
+  ambient: NonNullable<PlaygroundSnapshot["ambient"]>;
+  audio: NonNullable<PlaygroundSnapshot["audio"]>;
   onReadyChange: (ready: boolean) => void;
+}
+
+export function v3AudioSnapshot(
+  ambient: NonNullable<PlaygroundSnapshot["ambient"]>,
+  audio: NonNullable<PlaygroundSnapshot["audio"]>,
+): Pick<PlaygroundSnapshot, "ambient" | "audio"> {
+  return { ambient, audio };
 }
 
 function isTextEntryTarget(target: EventTarget | null): boolean {
@@ -79,7 +88,7 @@ export function V3Map(props: V3MapProps) {
     if (props.movementLocked) movementLockHandler.current();
     renderRef.current?.();
     nearbyChangeHandler.current();
-  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked]);
+  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio]);
 
   useEffect(() => {
     const parent = host.current;
@@ -147,6 +156,7 @@ export function V3Map(props: V3MapProps) {
       roomWandering: false,
       revision,
       roomNames: Object.fromEntries(latest.current.rooms.map((room) => [room.id, room.name])),
+      ...v3AudioSnapshot(latest.current.ambient, latest.current.audio),
     });
     const render = () => view?.render(snapshot());
     renderRef.current = render;

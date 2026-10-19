@@ -1,4 +1,5 @@
 "use client";
+import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import { ChevronDown, Timer } from "lucide-react";
@@ -40,13 +41,15 @@ function formatTime(milliseconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, movementLocked: externalMovementLock = false }: {
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] } }: {
   view: PlayerView;
   busy: boolean;
   send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
   portraitBase?: PortraitBase;
   attemptId: string;
   movementLocked?: boolean;
+  ambient?: NonNullable<PlaygroundSnapshot["ambient"]>;
+  audio?: NonNullable<PlaygroundSnapshot["audio"]>;
 }) {
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [talkingTo, setTalkingTo] = useState<string | null>(null);
@@ -190,6 +193,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               onTalk={openTalk}
               onNearbyCharacterChange={setNearbyId}
               onOpenDocument={openDocument}
+              ambient={ambient}
+              audio={audio}
               onReadyChange={onMapReadyChange}
             />
           ) : null}
