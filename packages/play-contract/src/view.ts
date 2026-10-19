@@ -56,11 +56,16 @@ export type StageView = z.infer<typeof StageView>
 export const RoomView = z.object({ id: Id, name: z.string() })
 
 /** A character in the student's current room. `stanceId` picks the portrait; it is never shown as text (P6.5). */
+/** The character's current stance as the student sees it: its label, and its step on the ladder (0 = lowest). */
+export const StanceView = z.object({ label: z.string(), level: z.number().int().min(0) })
+export type StanceView = z.infer<typeof StanceView>
+
 export const CharacterView = z.object({
   id: Id,
   name: z.string(),
   title: z.string(),
   stanceId: Id.nullable(),
+  stance: StanceView.nullable().optional(),
   /** `${characterId}` for characters without stances, `${characterId}:${stanceId}` otherwise. */
   portraitKey: z.string(),
 })

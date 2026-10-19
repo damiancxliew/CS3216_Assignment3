@@ -29,6 +29,7 @@ import type { Engine, StepDeps, StepInput, StepResult } from '../types'
 import { briefing, characters, documents, epilogue, interview, reveal, stages } from './script'
 
 export const MOCK_STAGE_MS = 15 * 60_000
+const MOCK_STANCE_LABELS = ['wary', 'warming', 'trusting']
 
 export interface MockState {
   seed: string
@@ -324,7 +325,9 @@ export function projectMock(state: MockState): PlayerView {
             .map(([id]) => {
               const character = characters[id] as (typeof characters)[string]
               const stanceId = character.stances === null ? null : (state.stances[id] ?? null)
-              return { id, name: character.name, title: character.title, stanceId, portraitKey: stanceId === null ? id : `${id}:${stanceId}` }
+              const level = stanceId === null ? -1 : (character.stances?.indexOf(stanceId) ?? -1)
+              const stance = level < 0 ? null : { label: MOCK_STANCE_LABELS[level] ?? stanceId!, level }
+              return { id, name: character.name, title: character.title, stanceId, stance, portraitKey: stanceId === null ? id : `${id}:${stanceId}` }
             }),
     messages: state.messages.map((message) => ({ ...message })),
     notes: state.notes.map((note) => ({ ...note })),

@@ -8,6 +8,7 @@ import { DialogueBox, nextChoiceIndex, typewriterSlice } from "@/components/play
 import { DocumentReader, passageStatus } from "@/components/play/v3/document-reader";
 import { NotePickup, unseenNotes } from "@/components/play/v3/note-pickup";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
+import { StanceTag, StoryToast, stanceShifts, storyKicker, talkLines } from "@/components/play/v3/story-lines";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
@@ -642,6 +643,63 @@ describe("v3 cinematic", () => {
   });
 });
 
+describe("v3 story lines", () => {
+  const line = (id: string, kind: MessageView["kind"], extra: Partial<MessageView> = {}) =>
+    ({ id, kind, text: id, roomId: "balai", characterId: null, insertedNoteId: null, at: 1, ...extra }) as MessageView;
+
+  it("shows the room's talk, the open character's reactions, and only story lines that arrived while talking", () => {
+    const messages = [
+      line("old-hint", "thought"),
+      line("q", "player", { characterId: "temenggong" }),
+      line("a", "character", { characterId: "temenggong" }),
+      line("his-notice", "notice", { characterId: "temenggong" }),
+      line("other-notice", "notice", { characterId: "batin" }),
+      line("elsewhere", "character", { roomId: "landing", characterId: "raffles" }),
+      line("new-hint", "thought"),
+      line("new-event", "narration"),
+    ];
+    const seen = new Set(["old-hint", "q", "a", "his-notice", "other-notice", "elsewhere"]);
+    expect(talkLines(messages, "balai", "temenggong", seen).map((message) => message.id))
+      .toEqual(["q", "a", "his-notice", "new-hint", "new-event"]);
+  });
+
+  it("labels hints, story events and reactions", () => {
+    const characters = [{ id: "temenggong", name: "Temenggong Abdul Rahman" }];
+    expect(storyKicker(line("h", "thought"), characters)).toBe("A thought");
+    expect(storyKicker(line("e", "narration"), characters)).toBe("Meanwhile");
+    expect(storyKicker(line("n", "notice", { characterId: "temenggong" }), characters)).toBe("Temenggong Abdul Rahman");
+  });
+
+  it("reports which way a stance moved", () => {
+    const before = new Map([["temenggong", 0], ["raffles", 2]]);
+    const shifts = stanceShifts(before, [
+      { id: "temenggong", stance: { label: "bargaining", level: 1 } },
+      { id: "raffles", stance: { label: "wary", level: 0 } },
+      { id: "batin", stance: null },
+    ]);
+    expect([...shifts]).toEqual([["temenggong", "up"], ["raffles", "down"]]);
+    expect(stanceShifts(new Map(), [{ id: "temenggong", stance: { label: "wary", level: 0 } }]).size).toBe(0);
+  });
+
+  it("renders a reaction toast with the character's new stance, and the stance tag on its own", () => {
+    vi.stubGlobal("React", React);
+    const characters = [{ id: "temenggong", name: "Temenggong Abdul Rahman", title: "", stanceId: "t2", stance: { label: "bargaining", level: 1 }, portraitKey: "temenggong:t2" }] as CharacterView[];
+    const markup = renderToStaticMarkup(createElement(StoryToast, {
+      message: line("The Temenggong is silent for a long moment.", "notice", { characterId: "temenggong" }),
+      characters,
+      shift: "up",
+      onDismiss: () => {},
+    }));
+    expect(markup).toContain('popover="manual"');
+    expect(markup).toContain("Temenggong Abdul Rahman");
+    expect(markup).toContain("bargaining");
+    expect(markup).toContain("just warmed to you");
+    expect(markup).toContain('role="status"');
+    expect(renderToStaticMarkup(createElement(StanceTag, { label: "wary", shift: "down" }))).toContain("just cooled towards you");
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("v3 dialogue box", () => {
   const character = {
     id: "character-1",
@@ -701,6 +759,28 @@ describe("v3 dialogue box", () => {
       expect(markup).toContain('id="v3-message"');
       expect(markup).toContain("Insert a note");
       expect(markup).toContain('aria-label="Close conversation (Esc)"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows the character's stance by their name and their reactions in the chat", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "talk",
+        character: { ...character, stanceId: "t2", stance: { label: "bargaining", level: 1 } },
+        portraitBase: null,
+        messages: [{ ...message, id: "notice-1", kind: "notice", text: "The Temenggong is silent for a long moment.", insertedNoteId: null, speaker: "" }],
+        busy: false,
+        stanceShift: "up",
+        onSend: () => {},
+        onOpenNotes: () => {},
+        onClose: () => {},
+      }));
+      expect(markup).toContain("Stance: bargaining, just warmed to you");
+      expect(markup).toContain("The Temenggong is silent for a long moment.");
+      expect(markup).toContain("text-[#8a5a1c]");
     } finally {
       vi.unstubAllGlobals();
     }

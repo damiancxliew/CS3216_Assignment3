@@ -104,7 +104,9 @@ export function project(spec: EngineSpec, state: EngineState): PlayerView {
           .filter((character) => state.characters[character.id]?.roomId === state.playerRoomId)
           .map((character) => {
             const stanceId = state.characters[character.id]?.stanceId ?? null
-            return { id: character.id, name: character.name, title: character.title, stanceId, portraitKey: stanceId === null ? character.id : `${character.id}:${stanceId}` }
+            const level = stanceId === null ? -1 : character.stances.findIndex((stance) => stance.id === stanceId)
+            const stance = level < 0 ? null : { label: character.stances[level]!.label, level }
+            return { id: character.id, name: character.name, title: character.title, stanceId, stance, portraitKey: stanceId === null ? character.id : `${character.id}:${stanceId}` }
           })
       : [],
     messages: state.transcript.map((message) => ({ ...message })),
