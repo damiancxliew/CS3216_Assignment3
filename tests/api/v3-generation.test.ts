@@ -90,7 +90,7 @@ const skeleton = validateSkeleton({
 
 const schoolId = "school-1";
 const ownerId = "user-1";
-const env = { V3_ENABLED: "1", V3_SCHOOL_IDS: schoolId, NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED: "1" } as NodeJS.ProcessEnv;
+const env = { V3_ENABLED: "1", V3_SCHOOL_IDS: schoolId } as NodeJS.ProcessEnv;
 
 const uploadDoc: ExtractedDocument = {
   id: "handout",
@@ -887,10 +887,13 @@ describe("guided pauses", () => {
 });
 
 
-it("does not enqueue a crafted guided brief while the feature is disabled", async () => {
+it.each([
+  { V3_ENABLED: "0", V3_SCHOOL_IDS: schoolId },
+  { V3_ENABLED: "1", V3_SCHOOL_IDS: "another-school" },
+])("keeps Guided creation behind v3 school permissions: %j", async permissions => {
   const h = await makeJob();
   const id = await briefingAtConfirm(h, "guided");
-  const result = await startFromBrief(h.deps, h.jobs, h.briefStore, ownerId, id, { ...env, NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED: "0" });
+  const result = await startFromBrief(h.deps, h.jobs, h.briefStore, ownerId, id, permissions);
   expect(result).toHaveProperty("error");
   expect(await h.store.list(id)).toEqual([]);
   expect((await h.briefStore.load(id))!.status).toBe("briefing");
