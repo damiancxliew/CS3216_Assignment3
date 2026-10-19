@@ -35,7 +35,7 @@ export const briefDraftV3Schema = z.object({
   focus: z.string().max(FOCUS_MAX).optional(),
   readingLevel: z.enum(["sec", "jc"]).optional(),
   timerMinutes: z.union([z.number().int().min(10).max(120), z.null()]).optional(),
-  mode: z.enum(["standard", "quick"]).optional(),
+  mode: z.enum(["standard", "quick", "guided"]).optional(),
 });
 export type BriefDraftV3 = z.infer<typeof briefDraftV3Schema>;
 
@@ -141,9 +141,10 @@ export const TIMER_RECOMMENDED = "45 minutes (recommended)";
 export const TIMER_OFF = "No timer";
 
 const READING_LEVEL_LABELS: Record<"sec" | "jc", string> = { sec: "Sec", jc: "JC" };
-const MODE_LABELS: Record<"standard" | "quick", string> = {
+const MODE_LABELS: Record<"standard" | "quick" | "guided", string> = {
   standard: "Standard: check the skeleton first",
   quick: "Quick: check everything at the end",
+  guided: "Guided (check after every pass)",
 };
 export { READING_LEVEL_LABELS, MODE_LABELS };
 
@@ -166,7 +167,7 @@ export function quickReplies(draft: BriefDraftV3, slot: Slot): string[] {
     case "timer":
       return [TIMER_RECOMMENDED, TIMER_OFF];
     case "mode":
-      return [MODE_LABELS.standard, MODE_LABELS.quick];
+      return [MODE_LABELS.standard, MODE_LABELS.quick, "Guided: check after every pass"];
     case "confirm":
       return ["Create"];
   }

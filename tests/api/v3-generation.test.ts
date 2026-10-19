@@ -13,13 +13,14 @@ import type { ExtractedDocument, OutsideSource } from "@adventure/generation";
 import type { LlmUsage } from "@adventure/generation/llm";
 import { createJobs, memoryJobStore } from "@adventure/jobs";
 
+import { fakeGenerationPasses } from "@/lib/v3/generation/fake-passes";
 import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
 import { memoryV3AdventureWriter, memoryV3SourceStore } from "@/lib/v3/generation/deps";
 import type { GenerationDeps } from "@/lib/v3/generation/deps";
 import { portraitsStep } from "@/lib/v3/portraits/step";
 import { memoryV3BriefStore } from "@/lib/v3/brief/store";
 import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
-import { approveSkeleton, getGenerationProgress, restartGeneration, saveSkeletonDraft, startFromBrief, viewerSeesCost } from "@/lib/v3/generation/service";
+import { continueFromSources, continuePause, loadPause, pausedPass, savePauseEdits, approveSkeleton, getGenerationProgress, restartGeneration, saveSkeletonDraft, startFromBrief, viewerSeesCost } from "@/lib/v3/generation/service";
 import { PASS_LABELS, PASS_ORDER, stepDisplayStatus } from "@/lib/v3/generation/labels";
 import { v3GenerationSteps } from "@/lib/v3/generation/steps";
 import type { GenerationBrief } from "@/lib/v3/generation/types";
@@ -175,7 +176,7 @@ type Harness = Awaited<ReturnType<typeof makeJob>>;
 /** A briefing row with one upload and a draft at the confirm slot — what the chat leaves behind. */
 async function briefingAtConfirm(
   { briefStore, sources, adventures }: Harness,
-  mode: "quick" | "standard" = "quick",
+  mode: "quick" | "standard" | "guided" = "quick",
   { owner = ownerId, school = schoolId, timerMinutes = 45 }: { owner?: string; school?: string; timerMinutes?: number | null } = {},
 ) {
   const adventureId = await briefStore.create({ schoolId: school, ownerId: owner });
@@ -199,7 +200,7 @@ async function briefingAtConfirm(
 /** startFromBrief with the harness' own stores — the path the confirm button takes. */
 async function start(
   harness: Harness,
-  mode: "quick" | "standard" = "quick",
+  mode: "quick" | "standard" | "guided" = "quick",
   options: { owner?: string; school?: string; timerMinutes?: number | null } = {},
 ) {
   const adventureId = await briefingAtConfirm(harness, mode, options);
@@ -704,5 +705,113 @@ describe("skeleton drafts", () => {
     expect((await adventures.get(adventureId))!.status).toBe("needs_review");
     await jobs.drain({ jobId: adventureId });
     expect(passes.details).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("guided pauses", () => {
+  beforeEach(() => { vi.stubEnv("V3_ENABLED", "1"); vi.stubEnv("V3_SCHOOL_IDS", schoolId); });
+  async function atDetails() {
+    const harness = await makeJob();
+    const { adventureId } = await start(harness, "guided");
+    await harness.jobs.drain({ jobId: adventureId });
+    await continueFromSources(harness.deps, harness.jobs, harness.store, ownerId, adventureId, [], env);
+    await harness.jobs.drain({ jobId: adventureId });
+    expect(await approveSkeleton(harness.deps, harness.jobs, harness.store, ownerId, adventureId, undefined, env)).toEqual({ ok: true });
+    expect((await harness.store.list(adventureId)).map(row => row.name)).toEqual(["sources", "skeleton", "details"]);
+    await harness.jobs.drain({ jobId: adventureId });
+    return { ...harness, adventureId };
+  }
+  it("enqueues one pass at a time, exposes source metadata and guards source removal", async () => {
+    const h = await makeJob();
+    const { adventureId: id } = await start(h, "guided");
+    expect((await h.store.list(id)).map(row => row.name)).toEqual(["sources"]);
+    await h.jobs.drain({ jobId: id });
+    const adventure = (await h.adventures.get(id))!;
+    expect(adventure.status).toBe("needs_review");
+    expect(await loadPause(h.deps, h.store, adventure)).toMatchObject({ pass: "sources", index: 1, uploads: [{ id: "handout", title: "handout" }], outside: [{ id: "outside-1", title: outsideDoc.title, url: outsideSource.url }], rejected: [] });
+    expect(await getGenerationProgress(h.deps, h.jobs, h.store, adventure)).toMatchObject({ mode: "guided", pausedAt: "sources" });
+    for (const ids of [["handout"], ["unknown"]]) expect(await continueFromSources(h.deps, h.jobs, h.store, ownerId, id, ids, env)).toHaveProperty("error");
+    expect(await continueFromSources(h.deps, h.jobs, h.store, "outsider", id, [], env)).toHaveProperty("error");
+    expect(await continueFromSources(h.deps, h.jobs, h.store, ownerId, id, [outsideDoc.id], env)).toEqual({ ok: true });
+    expect((await h.sources.load(id)).map(doc => doc.id)).toEqual([uploadDoc.id]);
+    await h.jobs.drain({ jobId: id });
+    expect(pausedPass(await h.store.list(id))).toBe("skeleton");
+    expect(await loadPause(h.deps, h.store, (await h.adventures.get(id))!)).toEqual({ pass: "skeleton", index: 2 });
+  });
+  it("refuses removing the last source", async () => {
+    const h = await makeJob();
+    const { adventureId: id } = await start(h, "guided");
+    await h.jobs.drain({ jobId: id });
+    h.sources.rows.set(id, h.sources.rows.get(id)!.filter(row => row.outside));
+    expect(await continueFromSources(h.deps, h.jobs, h.store, ownerId, id, [outsideDoc.id], env)).toEqual({ error: "Keep at least one source." });
+  });
+  it("validates before saving or continuing and forwards changesets into the next pass", async () => {
+    const h = await atDetails(); const id = h.adventureId;
+    const write = vi.spyOn(h.adventures, "savePauseDraft");
+    const invalid = [{ type: "set", path: ["definingMoments", 0, "nudge"], value: "" }];
+    expect(await savePauseEdits(h.deps, h.store, ownerId, id, "details", invalid, env)).toMatchObject({ ok: false, errors: expect.arrayContaining([expect.objectContaining({ code: "empty-field" })]) });
+    expect(await continuePause(h.deps, h.jobs, h.store, ownerId, id, "details", invalid, env)).toMatchObject({ error: "invalid edits" });
+    expect(write).not.toHaveBeenCalled();
+    expect((await h.store.list(id)).map(row => row.name)).not.toContain("endings");
+    const edits = [{ type: "set", path: ["stages", 0, "title"], value: "Teacher's stage" }];
+    expect(await savePauseEdits(h.deps, h.store, ownerId, id, "details", edits, env)).toMatchObject({ ok: true });
+    expect(await loadPause(h.deps, h.store, (await h.adventures.get(id))!)).toMatchObject({ pass: "details", edits });
+    expect(await continuePause(h.deps, h.jobs, h.store, ownerId, id, "endings", [], env)).toHaveProperty("error");
+    expect(await continuePause(h.deps, h.jobs, h.store, ownerId, id, "details", edits, env)).toEqual({ ok: true });
+    expect(await h.adventures.loadPauseDraft(id)).toBeNull();
+    const row = (await h.store.list(id)).find(row => row.name === "endings")!;
+    expect(row.input).toMatchObject({ teacherEdits: { details: edits } });
+    await h.jobs.drain({ jobId: id });
+    expect(h.passes.endings.mock.calls[0][0].draft.stages[0].title).toBe("Teacher's stage");
+    expect(pausedPass(await h.store.list(id))).toBe("endings");
+  });
+  it("runs the complete offline guided flow with edits at every spec pause", async () => {
+    const h = await makeJob(fakeGenerationPasses({ V3_FAKE_PASSES: "1", NODE_ENV: "test" })!);
+    const { adventureId: id } = await start(h, "guided");
+    const seen: string[] = [];
+    await h.jobs.drain({ jobId: id }); seen.push(pausedPass(await h.store.list(id))!);
+    expect(await continueFromSources(h.deps, h.jobs, h.store, ownerId, id, [], env)).toEqual({ ok: true });
+    await h.jobs.drain({ jobId: id }); seen.push(pausedPass(await h.store.list(id))!);
+    expect(await approveSkeleton(h.deps, h.jobs, h.store, ownerId, id, undefined, env)).toEqual({ ok: true });
+    await h.jobs.drain({ jobId: id }); seen.push(pausedPass(await h.store.list(id))!);
+    expect(await continuePause(h.deps, h.jobs, h.store, ownerId, id, "details", [{ type: "set", path: ["stages", 0, "title"], value: "Teacher's stage" }], env)).toEqual({ ok: true });
+    await h.jobs.drain({ jobId: id }); seen.push(pausedPass(await h.store.list(id))!);
+    expect(await continuePause(h.deps, h.jobs, h.store, ownerId, id, "endings", [{ type: "set", path: ["endings", 0, "interview", "question"], value: "Teacher's question?" }], env)).toEqual({ ok: true });
+    await h.jobs.drain({ jobId: id }); seen.push(pausedPass(await h.store.list(id))!);
+    expect(await continuePause(h.deps, h.jobs, h.store, ownerId, id, "reveal", [{ type: "set", path: ["reveal", "whatHappened"], value: "Teacher's reveal" }], env)).toEqual({ ok: true });
+    expect((await h.jobs.drain({ jobId: id }))?.status).toBe("succeeded");
+    expect(seen).toEqual(["sources", "skeleton", "details", "endings", "reveal"]);
+    expect(h.adventures.rows.get(id)).toMatchObject({ row: { status: "draft" }, spec: { stages: [expect.objectContaining({ title: "Teacher's stage" }), expect.anything()], endings: expect.arrayContaining([expect.objectContaining({ interview: expect.objectContaining({ question: "Teacher's question?" }) })]), reveal: { whatHappened: "Teacher's reveal" } } });
+  });
+  it("rolls back the status and retains saved edits when enqueue fails", async () => {
+    const h = await atDetails(); const id = h.adventureId;
+    await savePauseEdits(h.deps, h.store, ownerId, id, "details", [], env);
+    const jobs = { ...h.jobs, enqueue: vi.fn(async () => { throw Error("queue unavailable"); }) };
+    expect(await continuePause(h.deps, jobs, h.store, ownerId, id, "details", [], env)).toEqual({ error: "queue unavailable" });
+    expect((await h.adventures.get(id))!.status).toBe("needs_review");
+    expect(await h.adventures.loadPauseDraft(id)).toEqual({ pass: "details", edits: [] });
+  });
+  it("preserves edits through repair, freezes their owning parts and keeps the edited spec if replay throws", async () => {
+    for (const replayFails of [false, true]) {
+      const h = await atDetails(); const id = h.adventureId;
+      const edits = [{ type: "set", path: ["stages", 0, "title"], value: "Teacher's stage" }];
+      // Force repair with a part-local obligation; no live LLM is used.
+      const details = (await h.store.outputs(id, ["details"])).details as unknown as { parts: unknown };
+      details.parts = { [`stage:${spec.stages[0].id}`]: { output: {}, issues: [{ code: "test", path: "stages.0", message: "Retained obligation" }] } };
+      h.passes.endings.mockImplementation(async input => ({ ok: true, spec: input.draft, parts: {}, warnings: [], metrics: { calls: [], totalCostUsd: 0 } }) as never);
+      h.passes.reveal.mockImplementation(async input => ({ ok: true, spec: input.draft, parts: {}, warnings: [], metrics: { calls: [], totalCostUsd: 0 } }) as never);
+      h.passes.check.mockImplementation(async input => ({ spec: replayFails ? { ...spec, stages: [] } : spec, parts: input.parts, errors: [], unresolved: [], partErrors: [], repaired: [], metrics: { calls: [], totalCostUsd: 0 } }) as never);
+      await continuePause(h.deps, h.jobs, h.store, ownerId, id, "details", edits, env);
+      await h.jobs.drain({ jobId: id });
+      await continuePause(h.deps, h.jobs, h.store, ownerId, id, "endings", [], env);
+      await h.jobs.drain({ jobId: id });
+      await continuePause(h.deps, h.jobs, h.store, ownerId, id, "reveal", [], env);
+      await h.jobs.drain({ jobId: id });
+      expect(h.passes.check).toHaveBeenCalledOnce();
+      expect(h.passes.check.mock.calls[0][0]).toMatchObject({ frozen: [`stage:${spec.stages[0].id}`] });
+      expect(h.adventures.rows.get(id)?.spec?.stages[0].title).toBe("Teacher's stage");
+      expect((await h.adventures.get(id))!.status).toBe("draft");
+    }
   });
 });

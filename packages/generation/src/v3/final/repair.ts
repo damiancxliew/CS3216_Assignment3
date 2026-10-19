@@ -26,6 +26,7 @@ export interface FinalRepairInput {
   readingLevel?: 'sec' | 'jc'
   timerMinutes?: number | null
   parts: Parts
+  frozen?: string[]
 }
 
 export interface FinalRepairResult {
@@ -119,7 +120,7 @@ export async function finalRepair(input: FinalRepairInput, opts: DetailCallOptio
   if (blamed.size === 0) return { spec: assembled.spec, parts: input.parts, errors, unresolved, partErrors: [], repaired: [], metrics: metrics() }
 
   const parts: Parts = { ...input.parts }
-  const repaired = [...blamed.keys()]
+  const repaired = [...blamed.keys()].filter(id => !input.frozen?.includes(id))
   await Promise.all(
     repaired.map(async (id) => {
       const saved = input.parts[id]!

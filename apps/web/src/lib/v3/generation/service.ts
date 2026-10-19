@@ -1,12 +1,12 @@
 /**
  * Orchestration for the v3 generation job: a confirmed brief enqueues the pass
- * steps (quick = all six, standard = sources + skeleton, then teacher review),
+ * steps (quick = all seven, standard = sources + skeleton, guided = one pass at a time),
  * approve resumes a reviewed skeleton, and progress reads the step rows.
  * No Next imports — deps and the flag env are injected.
  */
 import { checkSkeleton, validateSkeleton } from "@adventure/spec-v3";
 import { quoteIssues, sourceTexts } from "@adventure/generation/v3";
-import type { CheckIssue, SkeletonShape } from "@adventure/spec-v3";
+import type { AdventureSpec, CheckIssue, SkeletonShape } from "@adventure/spec-v3";
 import type { createJobs, EnqueueStep, JobStep, Json } from "@adventure/jobs";
 
 import type { Viewer } from "@/lib/auth/viewer";
@@ -17,6 +17,11 @@ import type { V3BriefStore } from "@/lib/v3/brief/store";
 import type { GenerationDeps, V3AdventureRow } from "./deps";
 import type { GenerationBrief } from "./types";
 import { finalCheckErrors, type FinalCheckOutput } from "./check-errors";
+
+import { capturedSources } from "@/lib/v3/edit/apply";
+import { checkTeacherEdits, validateEditedSpec } from "@/lib/v3/edit/validation";
+import { V3Edit } from "@/lib/v3/edit/commands";
+import type { TeacherEdits } from "./steps";
 
 type Jobs = Pick<ReturnType<typeof createJobs>, "enqueue" | "getProgress">;
 /** raw step rows — needed for the stored brief (skeleton input) and step outputs. */
@@ -38,7 +43,7 @@ const STEP_DEPS: Record<string, string[]> = {
 
 /** Enqueues the generation steps for a confirmed brief. The caller owns the row's status. */
 export async function enqueueGeneration(jobs: Jobs, brief: GenerationBrief): Promise<void> {
-  const names = brief.mode === "quick" ? QUICK_STEPS : STANDARD_STEPS;
+  const names = brief.mode === "quick" ? QUICK_STEPS : brief.mode === "guided" ? ["sources"] : STANDARD_STEPS;
   const steps: EnqueueStep[] = names.map((name) => ({
     name,
     step: `v3.gen.${name}`,
@@ -48,10 +53,11 @@ export async function enqueueGeneration(jobs: Jobs, brief: GenerationBrief): Pro
 }
 
 /** Rebuilds the stored brief from the skeleton (or sources) step's input. */
-async function storedBrief(store: StepStore, adventureId: string): Promise<GenerationBrief | null> {
+export async function storedBrief(store: StepStore, adventureId: string): Promise<GenerationBrief | null> {
   const rows = await store.list(adventureId);
   const row = rows.find((r) => r.name === "skeleton") ?? rows.find((r) => r.name === "sources");
-  return (row?.input as GenerationBrief | null) ?? null;
+  const input = (row?.input ?? null) as unknown as GenerationBrief | { brief: GenerationBrief } | null;
+  return input && "brief" in input ? input.brief : input;
 }
 
 /**
@@ -192,6 +198,26 @@ export function viewerSeesCost(viewer: Pick<Viewer, "membership" | "isSysadmin">
   return viewer.isSysadmin || viewer.membership?.role === "admin";
 }
 
+export async function skeletonIssues(deps: GenerationDeps, adventureId: string, raw: unknown): Promise<CheckIssue[]> {
+  const validated = validateSkeleton(raw);
+  if (!validated.ok) return validated.issues.map((i) => ({ code: "schema", path: i.path, message: i.message }));
+  const check = checkSkeleton(validated.spec);
+  if (check.errors.length > 0) return check.errors;
+  // every citation quote must occur in the cited source, exactly as the
+  // skeleton pass checks its own output (`sources_v3.source_key` is the id)
+  const texts = sourceTexts(await deps.sources.load(adventureId));
+  const quotes = [
+    ...validated.spec.discoveries.flatMap((d, i) =>
+      (d.citations ?? []).flatMap((c, j) => (c.quote !== undefined ? [{ path: `discoveries.${i}.citations.${j}.quote`, sourceId: c.sourceId, quote: c.quote }] : [])),
+    ),
+    ...validated.spec.endings.flatMap((e, i) =>
+      (e.citations ?? []).flatMap((c, j) => (c.quote !== undefined ? [{ path: `endings.${i}.citations.${j}.quote`, sourceId: c.sourceId, quote: c.quote }] : [])),
+    ),
+  ];
+  const quoteFailures = quoteIssues(quotes, texts);
+  return quoteFailures;
+}
+
 export async function approveSkeleton(
   deps: GenerationDeps,
   jobs: Jobs,
@@ -209,29 +235,17 @@ export async function approveSkeleton(
 
   let edited: SkeletonShape | undefined;
   if (editedSkeleton !== undefined) {
+    const issues = await skeletonIssues(deps, adventureId, editedSkeleton);
+    if (issues.length) return { error: "invalid skeleton", issues };
     const validated = validateSkeleton(editedSkeleton);
-    if (!validated.ok) return { error: "invalid skeleton", issues: validated.issues.map((i) => ({ code: "schema", path: i.path, message: i.message })) };
-    const check = checkSkeleton(validated.spec);
-    if (check.errors.length > 0) return { error: "invalid skeleton", issues: check.errors };
-    // every citation quote must occur in the cited source, exactly as the
-    // skeleton pass checks its own output (`sources_v3.source_key` is the id)
-    const texts = sourceTexts(await deps.sources.load(adventureId));
-    const quotes = [
-      ...validated.spec.discoveries.flatMap((d, i) =>
-        (d.citations ?? []).flatMap((c, j) => (c.quote !== undefined ? [{ path: `discoveries.${i}.citations.${j}.quote`, sourceId: c.sourceId, quote: c.quote }] : [])),
-      ),
-      ...validated.spec.endings.flatMap((e, i) =>
-        (e.citations ?? []).flatMap((c, j) => (c.quote !== undefined ? [{ path: `endings.${i}.citations.${j}.quote`, sourceId: c.sourceId, quote: c.quote }] : [])),
-      ),
-    ];
-    const quoteFailures = quoteIssues(quotes, texts);
-    if (quoteFailures.length > 0) return { error: "invalid skeleton", issues: quoteFailures };
-    edited = validated.spec;
+    if (validated.ok) edited = validated.spec;
   }
 
   // rebuild the brief from the skeleton step's stored input
   const brief = await storedBrief(store, adventureId);
   if (brief === null) return { error: "generation brief not found" };
+
+  if (brief.mode === "guided" && pausedPass(await store.list(adventureId)) !== "skeleton") return { error: "not awaiting skeleton review" };
 
   // guards double clicks: enqueue_job_steps raises on a duplicate step name anyway
   if (!(await deps.adventures.setStatus(adventureId, "generating", ["needs_review"]))) return { error: "already approved" };
@@ -245,7 +259,7 @@ export async function approveSkeleton(
         { name: "reveal", step: "v3.gen.reveal", input: STEP_INPUT(brief) },
         { name: "check", step: "v3.gen.check", input: STEP_INPUT(brief) },
         { name: "save", step: "v3.gen.save", input: STEP_INPUT(brief) },
-      ],
+      ].filter(step => brief.mode !== "guided" || step.name === "details"),
       { details: ["skeleton"], endings: ["details"], reveal: ["details", "endings"], check: ["details", "endings", "reveal"], save: ["check"] },
     );
   } catch (error) {
@@ -257,6 +271,8 @@ export async function approveSkeleton(
 }
 
 export interface GenerationProgress {
+  mode: GenerationBrief["mode"];
+  pausedAt?: GuidedPass;
   status: V3AdventureRow["status"];
   steps: { name: string; status: string; attempts: number; error: string | null }[];
   costUsd: number;
@@ -283,7 +299,11 @@ export async function getGenerationProgress(
     const output = outputs[pass] as { warnings?: CheckIssue[] } | undefined;
     for (const warning of output?.warnings ?? []) warnings.push({ ...warning, pass });
   }
+  const brief = await storedBrief(store, adventure.id);
+  const pausedAt = adventure.status === "needs_review" ? pausedPass(await store.list(adventure.id)) : null;
   return {
+    mode: brief?.mode ?? "quick",
+    ...(pausedAt ? { pausedAt } : {}),
     status: adventure.status,
     steps: (progress?.steps ?? []).map((s) => ({ name: s.name, status: s.status, attempts: s.attempts, error: s.error })),
     costUsd,
@@ -291,7 +311,7 @@ export async function getGenerationProgress(
     ...(outputs.check !== undefined
       ? { checkErrors: finalCheckErrors(outputs.check as FinalCheckOutput) }
       : {}),
-    ...(adventure.status === "needs_review"
+    ...(adventure.status === "needs_review" && pausedAt === "skeleton"
       ? await (async () => {
           const draft = await deps.adventures.loadSkeletonDraft(adventure.id);
           if (draft !== null && draft !== undefined) return { skeleton: draft, hasDraft: true };
@@ -299,4 +319,107 @@ export async function getGenerationProgress(
         })()
       : {}),
   };
+}
+
+export type GuidedPass = "sources" | "skeleton" | "details" | "endings" | "reveal";
+export type EditablePass = Extract<GuidedPass, "details" | "endings" | "reveal">;
+const PIPELINE = ["sources", "skeleton", "details", "endings", "reveal", "check", "save"] as const;
+export function pausedPass(steps: JobStep[]): GuidedPass | null {
+  for (let index = 4; index >= 0; index--) {
+    const pass = PIPELINE[index];
+    if (steps.some(row => row.name === pass && row.status === "succeeded") && !steps.some(row => row.name === PIPELINE[index + 1])) return pass as GuidedPass;
+  }
+  return null;
+}
+
+export type PauseView =
+  | { pass: "sources"; index: 1; uploads: { id: string; title: string }[]; outside: { id: string; title: string; url: string }[]; rejected: { url: string; reason: string }[] }
+  | { pass: "skeleton"; index: 2 }
+  | { pass: EditablePass; index: 3 | 4 | 5; base: AdventureSpec; edits: V3Edit[]; errors: CheckIssue[]; warnings: CheckIssue[] };
+
+/** Caller has checked access to the adventure. The base is the raw pass output. */
+export async function loadPause(deps: GenerationDeps, store: StepStore, adventure: V3AdventureRow): Promise<PauseView | null> {
+  if (adventure.status !== "needs_review") return null;
+  if ((await storedBrief(store, adventure.id))?.mode !== "guided") return null;
+  const pass = pausedPass(await store.list(adventure.id));
+  if (!pass) return null;
+  if (pass === "skeleton") return { pass, index: 2 };
+  const outputs = await store.outputs(adventure.id, [pass]);
+  const documents = await deps.sources.load(adventure.id);
+  if (pass === "sources") {
+    const output = outputs.sources as { rejected?: { url: string; reason: string }[] } | undefined;
+    return { pass, index: 1,
+      uploads: documents.filter(d => d.origin !== "outside").map(d => ({ id: d.id, title: d.title })),
+      outside: documents.filter(d => d.origin === "outside").map(d => ({ id: d.id, title: d.title, url: d.url ?? "" })),
+      rejected: output?.rejected ?? [] };
+  }
+  const output = outputs[pass] as unknown as { draft?: AdventureSpec; spec?: AdventureSpec } | undefined;
+  const base = pass === "details" ? output?.draft : output?.spec;
+  if (!base) return null;
+  const draft = await deps.adventures.loadPauseDraft(adventure.id);
+  return { pass, index: pass === "details" ? 3 : pass === "endings" ? 4 : 5, base,
+    edits: draft?.pass === pass ? draft.edits.map(edit => V3Edit.parse(edit)) : [],
+    ...validateEditedSpec(base, capturedSources(documents)) };
+}
+
+/** Every pause mutation requires the owner, flag, guided mode and the exact completed pass. */
+export async function requirePause(deps: GenerationDeps, store: StepStore, userId: string, adventureId: string, pass: GuidedPass, env: NodeJS.ProcessEnv): Promise<V3AdventureRow | null> {
+  const adventure = await deps.adventures.get(adventureId);
+  if (!adventure || adventure.ownerId !== userId || !v3SchoolAllowed(adventure.schoolId, env) || adventure.status !== "needs_review") return null;
+  if ((await storedBrief(store, adventureId))?.mode !== "guided" || pausedPass(await store.list(adventureId)) !== pass) return null;
+  return adventure;
+}
+
+export async function continueFromSources(deps: GenerationDeps, jobs: Jobs, store: StepStore, userId: string, adventureId: string, removedSourceIds: string[], env: NodeJS.ProcessEnv): Promise<{ ok: true } | { error: string }> {
+  if (!await requirePause(deps, store, userId, adventureId, "sources", env)) return { error: "not awaiting sources review" };
+  const documents = await deps.sources.load(adventureId);
+  if (!Array.isArray(removedSourceIds) || removedSourceIds.some(id => !documents.some(doc => doc.id === id && doc.origin === "outside"))) return { error: "Only outside sources from this adventure can be removed." };
+  if (!documents.some(doc => !removedSourceIds.includes(doc.id))) return { error: "Keep at least one source." };
+  const brief = await storedBrief(store, adventureId);
+  if (!brief) return { error: "generation brief not found" };
+  if (!await deps.adventures.setStatus(adventureId, "generating", ["needs_review"])) return { error: "already continued" };
+  try {
+    await deps.sources.removeOutside(adventureId, removedSourceIds);
+    await jobs.enqueue(adventureId, [{ name: "skeleton", step: "v3.gen.skeleton", input: STEP_INPUT(brief) }], { skeleton: ["sources"] });
+  } catch (error) {
+    await deps.adventures.setStatus(adventureId, "needs_review", ["generating"]);
+    return { error: error instanceof Error ? error.message : "could not queue generation" };
+  }
+  return { ok: true };
+}
+
+export async function savePauseEdits(deps: GenerationDeps, store: StepStore, userId: string, adventureId: string, pass: EditablePass, rawEdits: unknown, env: NodeJS.ProcessEnv): Promise<{ ok: true; warnings: CheckIssue[] } | { ok: false; errors: CheckIssue[] }> {
+  const adventure = ["details", "endings", "reveal"].includes(pass) ? await requirePause(deps, store, userId, adventureId, pass, env) : null;
+  const pause = adventure ? await loadPause(deps, store, adventure) : null;
+  if (!pause || !("base" in pause)) return { ok: false, errors: [{ code: "access", path: "", message: "Not awaiting this review." }] };
+  const checked = checkTeacherEdits(pause.base, rawEdits, capturedSources(await deps.sources.load(adventureId)));
+  if (!checked.ok) return checked;
+  await deps.adventures.savePauseDraft(adventureId, { pass, edits: checked.edits });
+  return { ok: true, warnings: checked.warnings };
+}
+
+export async function continuePause(deps: GenerationDeps, jobs: Jobs, store: StepStore, userId: string, adventureId: string, pass: EditablePass, rawEdits: unknown, env: NodeJS.ProcessEnv): Promise<{ ok: true } | { error: string; issues?: CheckIssue[] }> {
+  const adventure = ["details", "endings", "reveal"].includes(pass) ? await requirePause(deps, store, userId, adventureId, pass, env) : null;
+  const pause = adventure ? await loadPause(deps, store, adventure) : null;
+  if (!pause || !("base" in pause)) return { error: "not awaiting this review" };
+  const checked = checkTeacherEdits(pause.base, rawEdits, capturedSources(await deps.sources.load(adventureId)));
+  if (!checked.ok) return { error: "invalid edits", issues: checked.errors };
+  const brief = await storedBrief(store, adventureId);
+  if (!brief) return { error: "generation brief not found" };
+  const rows = await store.list(adventureId);
+  const prior = (rows.find(row => row.name === pass)?.input as unknown as { teacherEdits?: TeacherEdits })?.teacherEdits ?? {};
+  const teacherEdits = { ...prior, [pass]: checked.edits };
+  const next = pass === "details" ? "endings" : pass === "endings" ? "reveal" : "check";
+  if (!await deps.adventures.setStatus(adventureId, "generating", ["needs_review"])) return { error: "already continued" };
+  try {
+    await jobs.enqueue(adventureId, [
+      { name: next, step: `v3.gen.${next}`, input: { brief, teacherEdits } as unknown as Json },
+      ...(next === "check" ? [{ name: "save", step: "v3.gen.save", input: STEP_INPUT(brief) }] : []),
+    ], STEP_DEPS);
+  } catch (error) {
+    await deps.adventures.setStatus(adventureId, "needs_review", ["generating"]);
+    return { error: error instanceof Error ? error.message : "could not queue generation" };
+  }
+  await deps.adventures.clearPauseDraft(adventureId);
+  return { ok: true };
 }

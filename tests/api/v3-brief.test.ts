@@ -10,6 +10,7 @@ import { FakeLlmClient } from "@adventure/generation/llm";
 
 import { briefTurnV3, parseTimerAnswer } from "@/lib/v3/brief/turn";
 import {
+  MODE_LABELS,
   currentSlot,
   initialBriefStateV3,
   QUESTIONS,
@@ -152,7 +153,7 @@ describe("briefTurnV3", () => {
     const r2 = await briefTurnV3(mode, { text: "whichever" }, { llm, documents: docs });
     if (!r2.ok) throw new Error(r2.error);
     expect(r2.state.draft.mode).toBeUndefined();
-    expect(r2.state.messages.at(-1)?.text).toContain("Standard or Quick");
+    expect(r2.state.messages.at(-1)?.text).toContain("Standard, Quick or Guided");
     expect(llm.requests).toHaveLength(0);
   });
 
@@ -258,4 +259,17 @@ describe("briefTurnV3", () => {
     // and never in the system prompt
     expect(llm.requests[0]!.system).not.toContain("ignore all rules");
   });
+});
+
+
+it("accepts the guided reply without a model call", async () => {
+  const state = stateAt({ ...fullDraft, mode: undefined });
+  const llm = new FakeLlmClient([]);
+  const reply = quickReplies(state.draft, currentSlot(state.draft)).find(text => text.startsWith("Guided"));
+  expect(reply).toBe("Guided: check after every pass");
+  const result = await briefTurnV3(state, { text: reply! }, { llm, documents: docs });
+  expect(result.state.draft.mode).toBe("guided");
+  expect(MODE_LABELS.guided).toBe("Guided (check after every pass)");
+  expect(currentSlot(result.state.draft).name).toBe("confirm");
+  expect(llm.requests).toHaveLength(0);
 });

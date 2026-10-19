@@ -119,12 +119,12 @@ export async function briefTurnV3(state: BriefStateV3, input: BriefInputV3, deps
       return ask({ ...state.draft, timerMinutes }, ctx);
     }
     case "mode": {
-      const parsed = /standard|quick/i.exec(text);
+      const parsed = /standard|quick|guided/i.exec(text);
       if (!parsed) {
-        messages.push({ role: "assistant", text: "Choose Standard or Quick.", slot: key });
+        messages.push({ role: "assistant", text: "Choose Standard, Quick or Guided.", slot: key });
         return { ok: true, state: { ...state, messages } };
       }
-      return ask({ ...state.draft, mode: parsed[0].toLowerCase() as "standard" | "quick" }, ctx);
+      return ask({ ...state.draft, mode: parsed[0].toLowerCase() as "standard" | "quick" | "guided" }, ctx);
     }
   }
 }
