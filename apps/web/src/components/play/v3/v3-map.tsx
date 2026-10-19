@@ -16,7 +16,7 @@ import {
   v3DocumentProps,
 } from "@/lib/play/v3/map";
 
-import { v3Atmosphere, v3RoomFixtures, type V3StageScenery } from "@/lib/play/v3/scenery";
+import { v3Atmosphere, v3Environment, v3RoomFixtures, type V3StageScenery } from "@/lib/play/v3/scenery";
 
 const STEP_MS = 160;
 
@@ -81,6 +81,7 @@ export function V3Map(props: V3MapProps) {
     props.stageIndex,
     props.rooms,
     props.spawnRoomId,
+    props.scenery,
   ));
   const map = compiled.map;
 
@@ -163,6 +164,7 @@ export function V3Map(props: V3MapProps) {
       running: true,
       npcRoutes: false,
       roomWandering: false,
+      environment: v3Environment(latest.current.scenery),
       revision,
       roomDescriptions: latest.current.scenery?.roomDescriptions,
       storyContext: latest.current.scenery?.storyContext,

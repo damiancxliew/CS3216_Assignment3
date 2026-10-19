@@ -229,7 +229,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             <button
               type="button"
               onClick={() => openTalk(nearbyCharacter.id)}
-              className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
+              className="absolute bottom-16 left-1/2 z-10 -translate-x-1/2 sm:bottom-3 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
             >
               Press E to talk to {nearbyCharacter.name}
             </button>

@@ -91,3 +91,20 @@ RUN_EDITOR_LOCAL_TESTS=1 npx vitest run tests/browser/v3-editor-local.test.ts
 
 This fixture walkthrough does not call a live model or test full generation from
 a new brief. Set `PLAYWRIGHT_BROWSERS_PATH` if Chromium is installed elsewhere.
+
+## V3 map scenery
+
+Run the real v3 UI, application CSS, renderer and engine in an isolated Vite fixture:
+
+```sh
+RUN_V3_MAP_BROWSER_TESTS=1 PLAYWRIGHT_CHANNEL=chrome npx vitest run tests/browser/v3-map.test.ts
+```
+
+Omit `PLAYWRIGHT_CHANNEL` to use Playwright Chromium. The test checks scenery and
+weather, resident/animal counts and distinct spawns, keyboard movement and engine
+room entry, local greetings, reduced motion, and mobile layout. It uses the golden
+1819 adventure plus a clearly labelled synthetic rainy-office variant. HTTP transport
+and Next font/link adapters are replaced; authentication, persistence and model
+responses are not exercised. Screenshots and metrics go to `output/v3-map-check/`
+(or `V3_MAP_OUTPUT`). The population-overview screenshot changes camera zoom only
+inside the test; other screenshots use the actual play camera.

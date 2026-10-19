@@ -4,12 +4,16 @@ import type { PlayerView } from "@adventure/play-contract";
 
 import { layoutSeed } from "@/lib/play/layout";
 
+import { v3Environment, type V3StageScenery } from "./scenery";
+
 type V3Room = PlayerView["rooms"][number];
 
 const COMPILER_ANCHOR_ID = "v3-map-layout-anchor";
 
-export function v3StageLayout(stageId: string, rooms: readonly V3Room[], spawnRoomId: string): StageLayoutInput {
+export function v3StageLayout(stageId: string, rooms: readonly V3Room[], spawnRoomId: string, scenery?: V3StageScenery): StageLayoutInput {
+  const environment = v3Environment(scenery);
   return {
+    ...(environment ? { landscape: { layout: environment.layout ?? "meandering", water: environment.waterfront }, scenery: { palette: environment.props, density: environment.propDensity } } : {}),
     stageId,
     spawnRoomId,
     rooms: rooms.map(({ id }) => ({
@@ -28,8 +32,9 @@ export function compileV3StageMap(
   stageIndex: number,
   rooms: readonly V3Room[],
   spawnRoomId: string,
+  scenery?: V3StageScenery,
 ): Pick<CompiledStage, "map" | "playerSpawn" | "initialDoors"> {
-  const layout = v3StageLayout(stageId, rooms, spawnRoomId);
+  const layout = v3StageLayout(stageId, rooms, spawnRoomId, scenery);
   const compiled = compileStage({
     ...layout,
     placements: [{ id: COMPILER_ANCHOR_ID, kind: "decision", roomId: spawnRoomId }],

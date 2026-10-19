@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { roomInterior } from "@adventure/game-core";
+import { findPath, roomInterior } from "@adventure/game-core";
 import { compileV3StageMap } from "@/lib/play/v3/map";
-import { v3AdventureScenery, v3Atmosphere, v3RoomFixtures } from "@/lib/play/v3/scenery";
+import { v3AdventureScenery, v3Atmosphere, v3RoomFixtures, v3Environment } from "@/lib/play/v3/scenery";
 import type { EngineSpec } from "@adventure/engine";
 
 describe("v3 public map scenery", () => {
@@ -44,5 +44,25 @@ describe("v3 public map scenery", () => {
     expect(Object.fromEntries(fixtures.map(({ roomId, kind }) => [roomId, kind]))).toEqual({ office: "shelf", hall: "table" });
     expect(JSON.stringify(map)).toBe(before);
     expect(v3RoomFixtures(map)).toEqual([]);
+  });
+});
+
+
+describe("v2-style outdoor scenery for v3", () => {
+  it.each(["A river village", "A harbour quay", "An industrial factory", "A desert oasis"])("supplies street stops without disconnecting rooms: %s", (storyContext) => {
+    const rooms = [{ id: "a", name: "First room" }, { id: "b", name: "Second room" }];
+    const scenery = { storyContext, roomDescriptions: { a: storyContext, b: "A council table" } };
+    const environment = v3Environment(scenery)!;
+    const { map, playerSpawn, initialDoors } = compileV3StageMap("scenery-test", "s", 0, rooms, "a", scenery);
+    expect(map.scenery!.length).toBeGreaterThan(0);
+    expect(map.scenery!.every(prop => environment.props.includes(prop.kind))).toBe(true);
+    for (const door of map.doors) expect(findPath(map, initialDoors, playerSpawn, door.inside)).not.toBeNull();
+  });
+  it("uses the existing resident/trader/worker population categories", () => {
+    const plan = (storyContext: string) => v3Environment({ storyContext, roomDescriptions: {} });
+    expect(plan("village")?.population).toBe("residents");
+    expect(plan("harbour")?.population).toBe("traders");
+    expect(plan("factory")?.population).toBe("workers");
+    expect(v3Environment()).toBeUndefined();
   });
 });

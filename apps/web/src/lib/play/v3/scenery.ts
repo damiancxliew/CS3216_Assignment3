@@ -1,3 +1,4 @@
+import { MATERIAL_NAMES, storyArt, type EnvironmentPlan } from "@adventure/game-client/story-art";
 import type { EngineSpec } from "@adventure/engine";
 import { landmarkKindFor, roomInterior, type StageMap } from "@adventure/game-core";
 import type { PlaygroundSnapshot } from "@adventure/game-client";
@@ -47,4 +48,25 @@ export function v3RoomFixtures(map: StageMap, scenery?: V3StageScenery): NonNull
     }
     return [];
   });
+}
+
+/** Reuse v2's compiler environment inputs and renderer profiles, inferred locally
+ * from v3's public setting. Outdoor props also supply the existing street walkers
+ * with stops, instead of leaving them crowded onto the handful of room doors.
+ */
+export function v3Environment(scenery?: V3StageScenery): EnvironmentPlan | undefined {
+  if (!scenery) return undefined;
+  const rooms = Object.values(scenery.roomDescriptions).join(" ");
+  const art = storyArt("auto", "classic", scenery.storyContext, rooms);
+  const context = `${scenery.storyContext} ${rooms}`;
+  return {
+    description: scenery.storyContext,
+    ground: MATERIAL_NAMES[art.ground]!, accent: MATERIAL_NAMES[art.secondary]!, path: MATERIAL_NAMES[art.path]!,
+    pathStyle: art.id === "civic" || art.id === "palace" ? "formal" : "winding",
+    roof: art.id === "civic" ? "terracotta" : art.id === "desert" ? "canvas" : art.id === "jungle" || art.id === "village" ? "thatch" : art.id === "industrial" || art.id === "winter" ? "slate" : "timber",
+    waterfront: art.id === "harbor" ? "harbor" : /\briver\b/i.test(context) ? "river" : /\boasis\b/i.test(context) ? "oasis" : "none",
+    layout: art.id === "harbor" ? "quayside" : art.id === "civic" || art.id === "palace" ? "garden-loop" : "meandering",
+    population: art.id === "harbor" || art.id === "desert" ? "traders" : art.id === "industrial" ? "workers" : ["ruins", "jungle", "battlefield"].includes(art.id) ? "quiet" : "residents",
+    vegetation: art.vegetation, propDensity: "lived-in", props: [...art.decorations],
+  };
 }
