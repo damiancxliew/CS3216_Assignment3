@@ -12,6 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import styles from "@/components/play/adventure-chrome.module.css";
+import pickupStyles from "@/components/play/v3/note-pickup.module.css";
 
 type IslandTab = "notes" | "scrolls" | "log";
 
@@ -52,14 +53,9 @@ export function logLineCount(messages: MessageView[]): number {
   return messages.filter((message) => message.kind === "player" || message.kind === "character").length;
 }
 
-export function islandActivityText(kind: "note" | "scroll", item: NoteView | Pick<DocumentView, "title">, count = 1): string {
-  const prefix = kind === "note"
-    ? `+${count} ${count === 1 ? "note" : "notes"}: `
-    : `+${count} ${count === 1 ? "scroll" : "scrolls"}: `;
-  if (kind === "scroll") return `${prefix}${(item as Pick<DocumentView, "title">).title}`;
-  const words = (item as NoteView).text.trim().split(/\s+/).filter(Boolean);
-  const preview = words.slice(0, 6).join(" ");
-  return `${prefix}${preview}${words.length > 6 ? "…" : ""}`;
+export function islandActivityText(item: Pick<DocumentView, "title">, count = 1): string {
+  const prefix = `+${count} ${count === 1 ? "scroll" : "scrolls"}: `;
+  return `${prefix}${item.title}`;
 }
 
 export function filterLogByCharacter(messages: MessageView[], characterId: string): MessageView[] {
@@ -272,6 +268,9 @@ export function StageIsland({
   definingMoment = false,
   initialExpanded = false,
   initialTab = "notes",
+  pulseKey = null,
+  openRequest = null,
+  onOpenRequestHandled,
 }: {
   view: PlayerView;
   onOpenDocument: (id: string) => void;
@@ -279,16 +278,20 @@ export function StageIsland({
   definingMoment?: boolean;
   initialExpanded?: boolean;
   initialTab?: IslandTab;
+  pulseKey?: string | null;
+  openRequest?: { tab: IslandTab; key: number } | null;
+  onOpenRequestHandled?: (key: number) => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const [panelVisible, setPanelVisible] = useState(initialExpanded);
   const [panelOpen, setPanelOpen] = useState(initialExpanded);
   const [activeTab, setActiveTab] = useState<IslandTab>(definingMoment && initialTab === "notes" ? "scrolls" : initialTab);
   const [activity, setActivity] = useState("");
-  const previousCounts = useRef({ notes: view.notes.length, documents: view.documents.length });
+  const previousDocumentCount = useRef(view.documents.length);
   const clearActivityTimer = useRef<number | null>(null);
   const panelTimer = useRef<number | null>(null);
   const panelFrame = useRef<number | null>(null);
+  const lastOpenRequestKey = useRef<number | null>(null);
   const pillButton = useRef<HTMLButtonElement>(null);
   const activeTabButton = useRef<HTMLButtonElement>(null);
   const focusTabAfterOpen = useRef(false);
@@ -335,24 +338,18 @@ export function StageIsland({
   }, [closeIsland, expanded, openIsland]);
 
   useEffect(() => {
-    const previous = previousCounts.current;
-    const noteCount = view.notes.length;
-    const documentCount = view.documents.length;
-    previousCounts.current = { notes: noteCount, documents: documentCount };
-    const addedNotes = noteCount - previous.notes;
-    const addedDocuments = documentCount - previous.documents;
-    if (addedNotes <= 0 && addedDocuments <= 0) return;
+    const addedDocuments = view.documents.length - previousDocumentCount.current;
+    previousDocumentCount.current = view.documents.length;
+    const newestDocument = view.documents.at(-1);
+    if (addedDocuments <= 0 || !newestDocument) return;
 
-    const nextActivity = addedNotes > 0
-      ? islandActivityText("note", [...view.notes].sort((a, b) => b.at - a.at)[0] as NoteView, addedNotes)
-      : islandActivityText("scroll", view.documents.at(-1) as DocumentView, addedDocuments);
-    setActivity(nextActivity);
+    setActivity(islandActivityText(newestDocument, addedDocuments));
     if (clearActivityTimer.current !== null) window.clearTimeout(clearActivityTimer.current);
     clearActivityTimer.current = window.setTimeout(() => {
       setActivity("");
       clearActivityTimer.current = null;
     }, 4000);
-  }, [view.documents, view.notes]);
+  }, [view.documents]);
 
   useEffect(() => () => {
     if (clearActivityTimer.current !== null) window.clearTimeout(clearActivityTimer.current);
@@ -389,6 +386,14 @@ export function StageIsland({
   }, [activeTab, expanded, panelVisible]);
 
   useEffect(() => {
+    if (!openRequest || openRequest.key === lastOpenRequestKey.current) return;
+    lastOpenRequestKey.current = openRequest.key;
+    setActiveTab(openRequest.tab);
+    openIsland();
+    onOpenRequestHandled?.(openRequest.key);
+  }, [onOpenRequestHandled, openIsland, openRequest]);
+
+  useEffect(() => {
     if (definingMoment && activeTab === "notes") setActiveTab("scrolls");
   }, [activeTab, definingMoment]);
 
@@ -400,12 +405,13 @@ export function StageIsland({
       {!panelVisible ? (
         <button
           ref={pillButton}
+          key={pulseKey ?? "pill"}
           type="button"
           aria-expanded={false}
           aria-controls="stage-island-panel"
           aria-label={`Stage ${stage ? stage.index + 1 : 1} of ${stage?.count ?? 1}; ${view.notes.length} notes, ${view.documents.length} scrolls, ${logLineCount(view.messages)} log lines, expand island`}
           onClick={toggleIsland}
-          className={`${styles.tool} ${styles.islandPill} flex min-h-10 max-w-[calc(100vw-1.5rem)] items-center gap-2 px-3 text-sm font-bold transition-all duration-300 motion-reduce:transition-none`}
+          className={`${styles.tool} ${styles.islandPill} ${pulseKey === null ? "" : pickupStyles.pulse} flex min-h-10 max-w-[calc(100vw-1.5rem)] items-center gap-2 px-3 text-sm font-bold transition-all duration-300 motion-reduce:transition-none`}
         >
           <IslandCounts view={view} />
           {stage ? (

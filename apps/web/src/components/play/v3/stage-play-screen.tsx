@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/components/play/adventure-chrome.module.css";
 import { DialogueBox } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
+import { NotePickup, useNotePickups } from "@/components/play/v3/note-pickup";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { StageIsland } from "@/components/play/v3/stage-island";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
@@ -63,12 +64,20 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const [mapReady, setMapReady] = useState(false);
   const [missionCollapsed, setMissionCollapsed] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [islandRequest, setIslandRequest] = useState<{
+    tab: "notes" | "scrolls" | "log";
+    key: number;
+  } | null>(null);
   const [documentId, setDocumentId] = useState<string | null>(
     () => view.documents.find((document) => document.open)?.id ?? null,
   );
   const [now, setNow] = useState<number | null>(null);
   const mapSection = useRef<HTMLElement>(null);
+  const pickup = useNotePickups(view.notes);
   const talkingRoomId = useRef<string | null>(null);
+  const acknowledgeIslandRequest = useCallback((key: number) => {
+    setIslandRequest((current) => current?.key === key ? null : current);
+  }, []);
   const stage = view.stage;
   const stageIndex = stage?.index ?? 0;
   const stageId = `stage-${stageIndex}`;
@@ -198,6 +207,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               onOpenDocument={openDocument}
               onOpenRoleBrief={onOpenRoleBrief}
               definingMoment={isMoment}
+              pulseKey={pickup.current?.id ?? null}
+              openRequest={islandRequest}
+              onOpenRequestHandled={acknowledgeIslandRequest}
             />
           ) : null}
 
@@ -354,14 +366,32 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
         </V3ScrollDialog>
       ) : null}
 
+      {pickup.current ? (
+        <NotePickup
+          key={pickup.current.id}
+          note={pickup.current}
+          onOpen={() => {
+            pickup.dismiss();
+            if (openedDocument) closeDocument();
+            if (isTalkOpen) setNotesOpen(true);
+            else setIslandRequest({ tab: "notes", key: Date.now() });
+          }}
+        />
+      ) : null}
+
       {openedDocument ? (
         <DocumentReader
           document={openedDocument}
           documents={view.documents}
           onSelectDocument={openDocument}
           onClose={closeDocument}
+          noteCount={view.notes.length}
+          hasDocumentNote={view.notes.some((note) => note.source === "document")}
           {...(openedDocument && !isMoment
-            ? { onSelectPassage: (start: number, end: number) => send(v3SelectPassageAction(openedDocument.id, start, end)) }
+            ? {
+                onSelectPassage: (start: number, end: number, onSettled: (succeeded: boolean) => void) =>
+                  send(v3SelectPassageAction(openedDocument.id, start, end), onSettled),
+              }
             : {})}
         />
       ) : null}

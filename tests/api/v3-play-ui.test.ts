@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
 import { DialogueBox, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
-import { DocumentReader } from "@/components/play/v3/document-reader";
+import { DocumentReader, passageStatus } from "@/components/play/v3/document-reader";
+import { NotePickup, unseenNotes } from "@/components/play/v3/note-pickup";
+import pickupStyles from "@/components/play/v3/note-pickup.module.css";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
 import { StageIsland, filterLogByCharacter, groupMessagesByStage, groupNotesByStage, islandActivityText, logLineCount } from "@/components/play/v3/stage-island";
@@ -458,6 +460,20 @@ describe("v3 stage play screen", () => {
     }
   });
 
+  it("pulses the island pill for a new-note pickup", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(StageIsland, {
+        view: stagePlayView(),
+        onOpenDocument: () => {},
+        pulseKey: "note-1",
+      }));
+      expect(markup).toContain(pickupStyles.pulse);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("moves the pending note-check status to the island", () => {
     vi.stubGlobal("React", React);
     try {
@@ -489,8 +505,8 @@ describe("v3 stage play screen", () => {
     expect(groupNotesByStage([note("older", 2, 1), note("newer", 2, 2)])[0]?.notes.map(({ id }) => id))
       .toEqual(["newer", "older"]);
     expect(groupMessagesByStage(messages).map((group) => group.stageIndex)).toEqual([null, 0, 1]);
-    expect(islandActivityText("note", note("n", 0, 1, "One two three four five six seven eight"))).toBe("+1 note: One two three four five six…");
-    expect(islandActivityText("scroll", { title: "A dispatch" })).toBe("+1 scroll: A dispatch");
+    expect(islandActivityText({ title: "A dispatch" })).toBe("+1 scroll: A dispatch");
+    expect(islandActivityText({ title: "A dispatch" }, 2)).toBe("+2 scrolls: A dispatch");
   });
 
   it("filters a character's lines and the contiguous player turns immediately before them", () => {
@@ -603,7 +619,9 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("From your travels");
       expect(markup).toContain("A letter from the harbour");
       expect(markup).toContain("Choose a collected scroll");
-      expect(markup).toContain("Saved in your notes");
+      expect(markup).toContain("Collected");
+      expect(markup).not.toContain("Saved in your notes");
+      expect(markup).toContain("Tip: drag across the line that matters to save it as a note.");
       expect(markup).toContain("Roll up scroll");
       expect(markup).toContain("data-document-paragraph");
       expect(emptyMarkup).toContain("No scrolls collected yet.");
@@ -611,6 +629,68 @@ describe("v3 stage play screen", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("teaches highlighting until the first document note, and stops once close reading is over", () => {
+    const documents: PlayerView["documents"] = [{
+      id: "document-1",
+      kind: "letter",
+      title: "A letter from the harbour",
+      provenance: { masthead: null, date: null, sender: null, recipient: null, place: null },
+      body: "The harbour is busy.",
+      real: false,
+      sourceLabel: null,
+      glossary: [],
+      open: false,
+    }];
+    vi.stubGlobal("React", React);
+    try {
+      const render = (props: Partial<Parameters<typeof DocumentReader>[0]>) => renderToStaticMarkup(createElement(DocumentReader, {
+        document: documents[0]!,
+        documents,
+        onSelectDocument: () => {},
+        onClose: () => {},
+        ...props,
+      }));
+      const later = render({ onSelectPassage: () => {}, hasDocumentNote: true });
+      expect(later).toContain("Highlight the line that matters to save it as a note.");
+      expect(later).not.toContain("Tip:");
+      const moment = render({ hasDocumentNote: false });
+      expect(moment).toContain("time to decide now");
+      expect(moment).not.toContain("Tip:");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("announces each newly gained note as a pickup", () => {
+    const notes = [
+      { id: "n1", text: "The Temenggong governs here.", source: "conversation", stageIndex: 0, at: 1 },
+      { id: "n2", text: "The Dutch claim Riau.", source: "document", stageIndex: 0, at: 2 },
+    ] as const;
+    expect(unseenNotes(new Set(["n1"]), notes).map((note) => note.id)).toEqual(["n2"]);
+    expect(unseenNotes(new Set(["n1", "n2"]), notes)).toEqual([]);
+
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(NotePickup, { note: notes[1], onOpen: () => {} }));
+      expect(markup).toContain("New note · from a document");
+      expect(markup).toContain("The Dutch claim Riau.");
+      expect(markup).toContain('popover="manual"');
+      expect(markup).toContain('role="status"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reports whether a highlight added a note, only for the scroll it was made on", () => {
+    const pending = { documentId: "d1", notesBefore: 2, settled: false, succeeded: false };
+    expect(passageStatus(null, "d1", 2)).toBeNull();
+    expect(passageStatus(pending, "d1", 2)).toBe("checking");
+    expect(passageStatus({ ...pending, settled: true, succeeded: true }, "d1", 3)).toBe("added");
+    expect(passageStatus({ ...pending, settled: true, succeeded: true }, "d1", 2)).toBe("nothing");
+    expect(passageStatus({ ...pending, settled: true, succeeded: false }, "d1", 2)).toBeNull();
+    expect(passageStatus({ ...pending, settled: true, succeeded: true }, "d2", 3)).toBeNull();
   });
 
   it("opens the first collected scroll and preserves passage selection actions", () => {

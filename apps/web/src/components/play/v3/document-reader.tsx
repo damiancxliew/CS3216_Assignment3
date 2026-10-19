@@ -1,8 +1,8 @@
 "use client";
 
 import type { DocumentView } from "@adventure/play-contract";
-import { ScrollText } from "lucide-react";
-import { useRef } from "react";
+import { Check, Highlighter, ScrollText } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import styles from "@/components/play/document-reader.module.css";
@@ -26,21 +26,64 @@ export function selectionOffsets(container: HTMLElement, range: Range) {
   return offsetsFromParagraphs(paragraphs.map((paragraph) => paragraph.textContent ?? ""), start, end);
 }
 
+export type PassageCheck = { documentId: string; notesBefore: number; settled: boolean; succeeded: boolean };
+export type PassageStatus = "checking" | "added" | "nothing" | null;
+
+export function passageStatus(check: PassageCheck | null, documentId: string | null, noteCount: number): PassageStatus {
+  if (!check || check.documentId !== documentId) return null;
+  if (!check.settled) return "checking";
+  if (!check.succeeded) return null;
+  return noteCount > check.notesBefore ? "added" : "nothing";
+}
+
+const PASSAGE_MESSAGES: Record<Exclude<PassageStatus, null>, string> = {
+  checking: "Checking your highlight…",
+  added: "Added to your notes.",
+  nothing: "Nothing new in that highlight. Try just the line that matters.",
+};
+
+function PassageHint({ canSelect, firstTime, status }: { canSelect: boolean; firstTime: boolean; status: PassageStatus }) {
+  if (!canSelect) return <p className={styles.passageHint}>You can re-read this, but it&apos;s time to decide now.</p>;
+  if (status) {
+    return (
+      <p className={`${styles.passageHint} ${status === "added" ? styles.passageAdded : ""}`} role="status">
+        {status === "added" ? <Check size={17} aria-hidden="true" /> : <Highlighter size={17} aria-hidden="true" />}
+        {PASSAGE_MESSAGES[status]}
+      </p>
+    );
+  }
+  return (
+    <p className={`${styles.passageHint} ${firstTime ? styles.passageTip : ""}`} role="status">
+      <Highlighter size={17} aria-hidden="true" />
+      {firstTime
+        ? "Tip: drag across the line that matters to save it as a note."
+        : "Highlight the line that matters to save it as a note."}
+    </p>
+  );
+}
+
 export function DocumentReader({
   document,
   documents,
   onSelectDocument,
   onClose,
   onSelectPassage,
+  noteCount = 0,
+  hasDocumentNote = false,
 }: {
   document: DocumentView | null;
   documents: DocumentView[];
   onSelectDocument: (documentId: string) => void;
   onClose: () => void;
   /** Omitted once the defining moment is open: the document can be re-read, but close reading is over. */
-  onSelectPassage?: (start: number, end: number) => void;
+  onSelectPassage?: (start: number, end: number, onSettled: (succeeded: boolean) => void) => void;
+  noteCount?: number;
+  /** Until the student has a note from a document, the reader teaches highlighting more prominently. */
+  hasDocumentNote?: boolean;
 }) {
   const content = useRef<HTMLDivElement>(null);
+  const [check, setCheck] = useState<PassageCheck | null>(null);
+  const status = passageStatus(check, document?.id ?? null, noteCount);
   const index = document ? documents.findIndex((item) => item.id === document.id) : -1;
   const saved = index >= 0;
 
@@ -51,7 +94,11 @@ export function DocumentReader({
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
     const offsets = selectionOffsets(container, selection.getRangeAt(0));
     if (!offsets) return;
-    onSelectPassage(offsets.start, offsets.end);
+    const sent: PassageCheck = { documentId: document.id, notesBefore: noteCount, settled: false, succeeded: false };
+    setCheck(sent);
+    onSelectPassage(offsets.start, offsets.end, (succeeded) => {
+      setCheck((current) => (current === sent ? { ...sent, settled: true, succeeded } : current));
+    });
     selection.removeAllRanges();
   }
 
@@ -60,11 +107,12 @@ export function DocumentReader({
       eyebrow={document ? (saved ? `Collected scroll ${index + 1} of ${documents.length}` : "Evidence scroll") : "Collected scrolls"}
       title={document?.title ?? "Documents"}
       kicker="From your travels"
-      footerText={document ? (saved ? "Saved in your notes" : "Not saved yet") : "A record of your discoveries"}
+      footerText={document ? (saved ? "Collected" : "Not collected yet") : "A record of your discoveries"}
       footerSaved={saved}
       closeLabel={document ? `Put down ${document.title}` : "Close documents"}
       buttonLabel={document ? undefined : "Continue exploring"}
       onClose={onClose}
+      banner={document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
       navigation={document && saved && documents.length > 1 ? {
         items: documents.map((item) => ({ id: item.id, name: item.title })),
         selectedId: document.id,
@@ -72,12 +120,9 @@ export function DocumentReader({
       } : undefined}
     >
       {document ? (
-        <>
-          <p className={styles.eyebrow}>{onSelectPassage ? "Select a passage to add it to your notes." : "You can re-read this, but it's time to decide now."}</p>
-          <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text">
-            <p data-document-paragraph="" className={styles.text}>{document.body}</p>
-          </div>
-        </>
+        <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text">
+          <p data-document-paragraph="" className={styles.text}>{document.body}</p>
+        </div>
       ) : (
         <div className={styles.loading}>
           <ScrollText size={44} aria-hidden="true" />
