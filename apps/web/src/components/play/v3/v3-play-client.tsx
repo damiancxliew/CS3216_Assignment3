@@ -25,6 +25,7 @@ export function V3PlayClient({
   backdrop = null,
   makeClient,
   notice,
+  revealFooter,
   busyLabel = "Saving…",
 }: {
   attemptId: string;
@@ -34,6 +35,7 @@ export function V3PlayClient({
   backdrop?: V3MapBackdrop | null;
   makeClient?: () => PlayClient;
   notice?: ReactNode;
+  revealFooter?: ReactNode;
   busyLabel?: string;
 }) {
   const { view, busy, banner, send, clearBanner } = useV3Play(
@@ -128,7 +130,7 @@ export function V3PlayClient({
       ) : view.phase === "stage" ? (
         <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} />
       ) : view.phase === "reveal" && view.reveal ? (
-        <RevealScreen reveal={view.reveal} />
+        <RevealScreen reveal={view.reveal} footer={revealFooter} />
       ) : (
         <main className="mx-auto grid min-h-[60dvh] max-w-3xl place-items-center px-5 py-12">
           <section className="w-full rounded-3xl border-2 border-ink bg-surface p-8 text-center shadow-[0_5px_0_var(--ink)]">

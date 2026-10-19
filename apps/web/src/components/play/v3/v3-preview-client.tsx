@@ -32,6 +32,14 @@ export function V3PreviewClient({
       initialView={initialView}
       makeClient={makeClient}
       busyLabel="Working…"
+      revealFooter={
+        <Link
+          href="/teacher"
+          className="min-h-12 rounded-xl border-2 border-ink bg-surface px-5 py-3 font-black text-ink shadow-[0_3px_0_var(--ink)] hover:bg-world-wash"
+        >
+          Back to adventures
+        </Link>
+      }
       notice={
         <div className="mx-auto mt-4 flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-xl border border-signal bg-signal-wash px-4 py-3 text-sm font-semibold text-ink">
           <span>Student preview · Progress is not saved.</span>
