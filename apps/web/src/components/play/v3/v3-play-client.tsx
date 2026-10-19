@@ -1,9 +1,10 @@
 "use client";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
-import { Compass, ScrollText } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Compass, ScrollText, Volume2, VolumeX } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { PlayerView } from "@adventure/play-contract";
+import { selectMusicTrack } from "@adventure/game-client/music";
 
 import { EpilogueScreen } from "@/components/play/v3/epilogue-screen";
 import { InterviewScreen } from "@/components/play/v3/interview-screen";
@@ -21,7 +22,11 @@ import {
   stageIntroBeats,
 } from "@/lib/play/v3/cinematic";
 import { stageArtUrl } from "@/lib/play/v3/stage-art";
+import { v3Ambient } from "@/lib/play/v3/atmosphere";
 import type { V3PlayClient as PlayClient } from "@/lib/play/v3/client";
+import { useV3SoundCues } from "@/components/play/v3/v3-sound";
+import { ASSET_BASE } from "@/lib/play/appearance";
+import { useStageMusic } from "@/components/play/sound";
 
 export function V3PlayClient({
   attemptId,
@@ -53,6 +58,21 @@ export function V3PlayClient({
     initialRevision,
     makeClient,
   );
+  const { muted, toggleMuted, cues } = useV3SoundCues(view, banner?.message ?? null);
+  const endMusic = view.phase === "epilogue" || view.phase === "interview" || view.phase === "reveal";
+  const musicStageIndex = view.stage?.index ?? 0;
+  const musicTimePlace = view.stage?.timePlace ?? "";
+  const musicTitle = view.stage?.title ?? "";
+  const musicUrl = useMemo(() => {
+    if (endMusic) return "/game/ninja/audio/music/peaceful.ogg";
+    if (view.phase !== "briefing" && view.phase !== "stage") return null;
+    const track = selectMusicTrack(
+      v3Ambient({ timePlace: musicTimePlace, title: musicTitle }),
+      `${attemptId}:${musicStageIndex}`,
+    );
+    return `${ASSET_BASE}/audio/music/${track}.ogg`;
+  }, [attemptId, endMusic, musicStageIndex, musicTimePlace, musicTitle, view.phase]);
+  useStageMusic(musicUrl, muted, endMusic ? 0.22 : undefined);
   const stageMap = backdropFromView(view);
   const [lastMap, setLastMap] = useState(backdrop);
   if (
@@ -90,13 +110,26 @@ export function V3PlayClient({
       <span className="hidden sm:inline">Role brief</span>
     </button>
   ) : null;
-  const headerActionGroup = busy || headerActions || roleBriefButton ? (
+  const soundButton = (
+    <button
+      type="button"
+      className={`${styles.tool} inline-flex min-h-9 items-center justify-center gap-2 px-2.5 py-1 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffe0a2]`}
+      onClick={toggleMuted}
+      aria-label={muted ? "Sound off" : "Sound on"}
+      aria-pressed={!muted}
+    >
+      {muted ? <VolumeX className="h-4 w-4 shrink-0" aria-hidden /> : <Volume2 className="h-4 w-4 shrink-0" aria-hidden />}
+      <span className="hidden sm:inline">{muted ? "Sound off" : "Sound on"}</span>
+    </button>
+  );
+  const headerActionGroup = (
     <div className={styles.headerActions}>
       {busy ? <span role="status" className="text-sm font-semibold">{busyLabel}</span> : null}
       {headerActions}
       {roleBriefButton}
+      {soundButton}
     </div>
-  ) : null;
+  );
   const endScreen =
     view.phase === "epilogue" && view.epilogue
       ? { label: "Epilogue", screen: <EpilogueScreen epilogue={view.epilogue} busy={busy} send={send} /> }
@@ -115,7 +148,12 @@ export function V3PlayClient({
           {headerActionGroup}
         </header>
         {bannerAlert}
-        <MapBackdrop attemptId={attemptId} backdrop={lastMap}>
+        <MapBackdrop
+          attemptId={attemptId}
+          backdrop={lastMap}
+          ambient={{ id: view.stage ? v3Ambient(view.stage) : "clear", intensity: 1 }}
+          audio={{ muted, cues }}
+        >
           {endScreen.screen}
         </MapBackdrop>
       </div>
@@ -134,7 +172,7 @@ export function V3PlayClient({
           {headerActionGroup}
         </header>
         {bannerAlert}
-        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} />
+        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} ambient={{ id: v3Ambient(view.stage), intensity: 1 }} audio={{ muted, cues }} />
         {roleBriefOpen ? (
           <V3Cinematic
             artUrl={stageArtUrl(stageArtBase, 0)}
@@ -142,6 +180,8 @@ export function V3PlayClient({
             beginLabel="Back to the map"
             onBegin={() => setRoleBriefOpen(false)}
             onClose={() => setRoleBriefOpen(false)}
+            muted={muted}
+            onToggleMuted={toggleMuted}
             initiallySettled
           />
         ) : null}
@@ -166,6 +206,8 @@ export function V3PlayClient({
           beats={briefingBeats(view.briefing, view.stage?.index === 0 ? view.stage : undefined)}
           beginLabel={BRIEFING_BEGIN_LABEL}
           onBegin={() => { if (!busy) send({ type: "continue" }); }}
+          muted={muted}
+          onToggleMuted={toggleMuted}
         />
       ) : view.phase === "stage" && view.stage?.intro ? (
         <V3Cinematic
@@ -174,9 +216,11 @@ export function V3PlayClient({
           beats={stageIntroBeats(view.stage)}
           beginLabel={STAGE_INTRO_BEGIN_LABEL}
           onBegin={() => { if (!busy) send({ type: "continue" }); }}
+          muted={muted}
+          onToggleMuted={toggleMuted}
         />
       ) : view.phase === "stage" ? (
-        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} />
+        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} ambient={{ id: view.stage ? v3Ambient(view.stage) : "clear", intensity: 1 }} audio={{ muted, cues }} />
       ) : view.phase === "reveal" && view.reveal ? (
         <RevealScreen reveal={view.reveal} footer={revealFooter} />
       ) : (

@@ -49,8 +49,8 @@ it.runIf(process.env.RUN_CINEMATIC_BROWSER_TESTS === "1")(
             return <main>
               <button onClick={() => setRoleBriefOpen(true)}>Role brief</button>
               <p>{started ? 'Started' : 'Not started'}</p>
-              {!started ? <V3Cinematic artUrl="/broken.webp" beats={beats} beginLabel="Enter the first stage" onBegin={() => setStarted(true)} /> : null}
-              {roleBriefOpen ? <V3Cinematic artUrl={null} beats={beats} beginLabel="Back to the map" onBegin={() => setRoleBriefOpen(false)} onClose={() => setRoleBriefOpen(false)} initiallySettled /> : null}
+              {!started ? <V3Cinematic artUrl="/broken.webp" beats={beats} beginLabel="Enter the first stage" onBegin={() => setStarted(true)} muted={true} onToggleMuted={() => {}} /> : null}
+              {roleBriefOpen ? <V3Cinematic artUrl={null} beats={beats} beginLabel="Back to the map" onBegin={() => setRoleBriefOpen(false)} onClose={() => setRoleBriefOpen(false)} muted={true} onToggleMuted={() => {}} initiallySettled /> : null}
             </main>;
           }
           createRoot(document.getElementById('root')).render(<App />);

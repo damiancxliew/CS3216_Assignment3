@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ChevronRight, FastForward, Maximize, Minimize, Pause, Play, X } from "lucide-react";
+import { ArrowRight, ChevronRight, FastForward, Maximize, Minimize, Pause, Play, Volume2, VolumeX, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useFullscreen } from "@/lib/play/fullscreen";
@@ -18,6 +18,8 @@ export function V3Cinematic({
   beginLabel,
   onBegin,
   onClose,
+  muted,
+  onToggleMuted,
   initiallySettled = false,
 }: {
   artUrl: string | null;
@@ -25,6 +27,8 @@ export function V3Cinematic({
   beginLabel: string;
   onBegin: () => void;
   onClose?: () => void;
+  muted: boolean;
+  onToggleMuted: () => void;
   initiallySettled?: boolean;
 }) {
   const fullscreen = useFullscreen();
@@ -134,6 +138,16 @@ export function V3Cinematic({
           >
             {paused ? <Play size={16} aria-hidden /> : <Pause size={16} aria-hidden />}
             <span className={styles.controlLabel}>{paused ? "Play" : "Pause"}</span>
+          </button>
+          <button
+            type="button"
+            className={styles.control}
+            onClick={onToggleMuted}
+            aria-label={muted ? "Sound off" : "Sound on"}
+            aria-pressed={!muted}
+          >
+            {muted ? <VolumeX size={16} aria-hidden /> : <Volume2 size={16} aria-hidden />}
+            <span className={styles.controlLabel}>{muted ? "Sound off" : "Sound on"}</span>
           </button>
           {onClose ? (
             <button type="button" className={styles.control} onClick={onClose} aria-label="Close role brief">
