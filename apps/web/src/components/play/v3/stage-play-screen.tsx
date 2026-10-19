@@ -384,9 +384,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             notes={view.notes}
             busy={busy}
             selectedCharacterName={isTalkOpen ? openCharacter.name : null}
-            onInsert={(noteId, text) => {
+            onInsert={(noteId) => {
               if (!isTalkOpen || !openCharacter || characterId !== openCharacter.id) return;
-              submitV3NoteInsert(characterId, noteId, text, send, () => setNotesOpen(false));
+              submitV3NoteInsert(characterId, noteId, undefined, send, () => setNotesOpen(false));
             }}
           />
         </V3ScrollDialog>
