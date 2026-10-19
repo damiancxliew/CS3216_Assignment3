@@ -10,11 +10,17 @@ import { FakeLlmClient } from "@adventure/generation/llm";
 
 import { briefTurnV3, parseTimerAnswer } from "@/lib/v3/brief/turn";
 import {
+  ALLOWLIST_ANY,
+  ALLOWLIST_DEFAULT,
+  ANY_SOURCE_WARNING,
+  clearSlot,
+  completeDraft,
   currentSlot,
   initialBriefStateV3,
   QUESTIONS,
   quickReplies,
   SOURCES_DONE,
+  sourcePolicyLabel,
   TIMER_OFF,
   TIMER_RECOMMENDED,
   type BriefStateV3,
@@ -97,6 +103,59 @@ describe("briefTurnV3", () => {
 
     // exactly one model call for the whole walk: the digest
     expect(llm.requests).toHaveLength(1);
+  });
+
+  it("only asks about sources after Change, then accepts defaults, any sites, and typed domains", async () => {
+    expect(currentSlot(fullDraft).name).toBe("confirm");
+    const llm = new FakeLlmClient([]);
+    const changed = await briefTurnV3(stateAt(fullDraft), { change: "allowlist" }, { llm, documents: docs });
+    if (!changed.ok) throw new Error(changed.error);
+    expect(changed.state.draft.sourcePolicy).toBeNull();
+    expect(currentSlot(changed.state.draft).name).toBe("allowlist");
+    expect(changed.state.messages.at(-1)?.text).toBe(QUESTIONS.allowlist);
+    expect(clearSlot(fullDraft, { name: "allowlist" }).sourcePolicy).toBeNull();
+    expect(quickReplies(changed.state.draft, currentSlot(changed.state.draft))).toEqual([ALLOWLIST_DEFAULT, ALLOWLIST_ANY]);
+
+    const defaultResult = await briefTurnV3(changed.state, { text: ALLOWLIST_DEFAULT.toLowerCase() }, { llm, documents: docs });
+    if (!defaultResult.ok) throw new Error(defaultResult.error);
+    expect(defaultResult.state.draft.sourcePolicy).toEqual({ allowAny: false, extraDomains: [] });
+    expect(currentSlot(defaultResult.state.draft).name).toBe("confirm");
+
+    const anyState = { ...changed.state, messages: [...changed.state.messages] };
+    const anyResult = await briefTurnV3(anyState, { text: "any" }, { llm, documents: docs });
+    if (!anyResult.ok) throw new Error(anyResult.error);
+    expect(anyResult.state.draft.sourcePolicy).toEqual({ allowAny: true, extraDomains: [] });
+    expect(anyResult.state.messages.some((message) => message.role === "assistant" && message.text === ANY_SOURCE_WARNING)).toBe(true);
+
+    const typed = await briefTurnV3(changed.state, { text: "www.Example.org, biblioasia.nlb.gov.sg" }, { llm, documents: docs });
+    if (!typed.ok) throw new Error(typed.error);
+    expect(typed.state.draft.sourcePolicy).toEqual({ allowAny: false, extraDomains: ["example.org", "biblioasia.nlb.gov.sg"] });
+    expect(llm.requests).toHaveLength(0);
+  });
+
+  it("invalid allowlist entries keep the slot open and name the rejected entry", async () => {
+    const llm = new FakeLlmClient([]);
+    const state = stateAt({ ...fullDraft, sourcePolicy: null });
+    for (const entry of ["localhost", "10.0.0.1", "example.org:8080"]) {
+      const result = await briefTurnV3(state, { text: entry }, { llm, documents: docs });
+      if (!result.ok) throw new Error(result.error);
+      expect(currentSlot(result.state.draft).name).toBe("allowlist");
+      expect(result.state.messages.at(-1)?.text).toContain(entry);
+    }
+    const tooMany = Array.from({ length: 21 }, (_, index) => `site${index}.example`).join(", ");
+    const overLimit = await briefTurnV3(state, { text: tooMany }, { llm, documents: docs });
+    if (!overLimit.ok) throw new Error(overLimit.error);
+    expect(currentSlot(overLimit.state.draft).name).toBe("allowlist");
+    expect(overLimit.state.messages.at(-1)?.text).toContain("at most 20");
+  });
+
+  it("permits an unasked policy but not an explicitly cleared allowlist", () => {
+    expect(completeDraft(fullDraft)).toBe(true);
+    expect(completeDraft({ ...fullDraft, sourcePolicy: null })).toBe(false);
+    expect(sourcePolicyLabel(undefined)).toBe("Default sites");
+    expect(sourcePolicyLabel({ allowAny: false, extraDomains: [] })).toBe("Default sites");
+    expect(sourcePolicyLabel({ allowAny: false, extraDomains: ["a.org", "b.org"] })).toBe("Default sites + a.org, b.org");
+    expect(sourcePolicyLabel({ allowAny: true, extraDomains: [] })).toBe("Any credible cited source");
   });
 
   it("done with zero sources errors without a model call", async () => {
