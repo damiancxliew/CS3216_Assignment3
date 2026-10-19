@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { EmptyState, Page } from "@/components/ui";
+import { Page } from "@/components/ui";
 import { validateSkeleton } from "@adventure/spec-v3";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
@@ -19,6 +19,12 @@ import { GenerationProgress } from "./generation-progress";
 import { SkeletonEditor } from "./skeleton-editor";
 import { StartAgain } from "./review-actions";
 import AdventureWorkspace from "./review/adventure-workspace";
+
+import { supabaseJobStore } from "@adventure/jobs";
+import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
+import { loadPause } from "@/lib/v3/generation/service";
+import { capturedSources } from "@/lib/v3/edit/apply";
+import { GuidedSteps, SourcesReview, PauseEditor } from "./guided-review";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +78,49 @@ export default async function V3AdventurePage({
       );
     case "needs_review": {
       const progress = await getV3GenerationProgress(id);
+      const guided =
+        progress && !("error" in progress) && progress.mode === "guided";
+      if (guided) {
+        const deps = defaultGenerationDeps();
+        const adventure = await deps.adventures.get(id);
+        const pause = adventure
+          ? await loadPause(
+              deps,
+              supabaseJobStore(createAdminClient()),
+              adventure,
+            )
+          : null;
+        if (pause && pause.pass !== "skeleton")
+          return (
+            <Page
+              title={`Check ${pause.pass}`}
+              lede="Review this step, then continue generation when you are ready."
+              width="wide"
+            >
+              <GuidedSteps pass={pause.pass} />
+              {pause.pass === "sources" ? (
+                <SourcesReview adventureId={id} pause={pause} />
+              ) : (
+                <PauseEditor
+                  key={pause.pass}
+                  adventureId={id}
+                  pause={pause}
+                  sources={capturedSources(await deps.sources.load(id))}
+                />
+              )}
+            </Page>
+          );
+        if (!pause || !progress.pausedAt)
+          return (
+            <Page title="Loading your review">
+              <p role="status">Waiting for the generated output. Retrying…</p>
+              <GenerationProgress
+                adventureId={id}
+                seesCost={viewerSeesCost(viewer)}
+              />
+            </Page>
+          );
+      }
       // a saved draft may be mid-edit broken — still hand it to the editor (the checks inside flag it)
       const rawSkeleton =
         progress && !("error" in progress) ? progress.skeleton : undefined;
@@ -88,6 +137,7 @@ export default async function V3AdventurePage({
           lede="This is what the generator plans to build. Edit anything, then continue when it looks right."
           width="wide"
         >
+          {guided ? <GuidedSteps pass="skeleton" /> : null}
           {skeleton ? (
             <SkeletonEditor
               adventureId={id}
@@ -95,9 +145,13 @@ export default async function V3AdventurePage({
               hasDraft={hasDraft}
             />
           ) : (
-            <EmptyState title="No skeleton">
-              The skeleton could not be loaded.
-            </EmptyState>
+            <>
+              <p role="status">Waiting for the skeleton. Retrying…</p>
+              <GenerationProgress
+                adventureId={id}
+                seesCost={viewerSeesCost(viewer)}
+              />
+            </>
           )}
         </Page>
       );

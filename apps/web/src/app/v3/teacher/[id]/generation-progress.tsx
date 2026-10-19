@@ -14,14 +14,19 @@ type Progress = Awaited<ReturnType<typeof getV3GenerationProgress>>;
 export function GenerationProgress({ adventureId, seesCost }: { adventureId: string; seesCost: boolean }) {
   const router = useRouter();
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
-      const result = await getV3GenerationProgress(adventureId);
-      if (cancelled || "error" in result) return;
-      setProgress(result);
-      if (result.status !== "generating") router.refresh();
+      try {
+        const result = await getV3GenerationProgress(adventureId);
+        if (cancelled) return;
+        if ("error" in result) { setRetrying(true); return; }
+        setRetrying(false);
+        setProgress(result);
+        if (result.status !== "generating") router.refresh();
+      } catch { if (!cancelled) setRetrying(true); }
     };
     void tick();
     const timer = setInterval(() => void tick(), 4000);
@@ -38,6 +43,7 @@ export function GenerationProgress({ adventureId, seesCost }: { adventureId: str
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
+      {retrying ? <p role="status" className="text-sm">Could not refresh progress. Retrying…</p> : null}
       <ProgressBar value={done} max={PASS_ORDER.length} indeterminate={done === 0 && !anyRunning} label="Generation progress" />
       <ol className="flex flex-col gap-1">
         {PASS_ORDER.map((name) => {

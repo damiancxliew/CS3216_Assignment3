@@ -4,13 +4,16 @@ import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { checkSkeleton, DOCUMENT_KINDS } from "@adventure/spec-v3";
+import { checkSkeleton, validateSkeleton, DOCUMENT_KINDS } from "@adventure/spec-v3";
 import type { CheckIssue, SkeletonShape } from "@adventure/spec-v3";
 
 import { button, control, ErrorText, Section, StableLabel } from "@/components/ui";
 import { addItem, dependentsOf, issuesAt, removeItem, type AddKind, type Ref } from "@/lib/v3/skeleton-edit";
 
-import { approveV3Skeleton, discardV3SkeletonDraft, saveV3SkeletonDraft } from "../actions";
+import { approveV3Skeleton, discardV3SkeletonDraft, saveV3SkeletonDraft, getV3GenerationProgress } from "../actions";
+import { AiFixPanel } from "./review/ai-fix-panel";
+import { fixSkeletonWithAiAction } from "./pause-actions";
+import { useUnsavedEdits } from "./review/use-unsaved-edits";
 import { ConfirmButton } from "./confirm-button";
 
 type Draft = SkeletonShape;
@@ -50,6 +53,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
   const [continueError, setContinueError] = useState<string | null>(null);
   const [serverIssues, setServerIssues] = useState<CheckIssue[]>([]);
   const router = useRouter();
+  useUnsavedEdits(saveState === "dirty" || saveState === "saving" || saveState === "error");
 
   const { errors: checkErrors, warnings } = checkSkeleton(draft);
   const errors = [...checkErrors, ...serverIssues];
@@ -59,25 +63,36 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
   const inFlight = useRef(0);
+  const saving = useRef(new Set<Promise<unknown>>());
 
-  async function save(target: Draft, attempt: number) {
+  async function save(target: Draft, attempt: number, retry = 0) {
     const seq = ++inFlight.current;
-    const result = await saveV3SkeletonDraft(adventureId, target as unknown);
+    let result: Awaited<ReturnType<typeof saveV3SkeletonDraft>>;
+    const request = saveV3SkeletonDraft(adventureId, target as unknown);
+    saving.current.add(request);
+    try {
+      result = await request;
+    } catch {
+      result = { error: "Could not save" };
+    } finally {
+      saving.current.delete(request);
+    }
     if (seq !== inFlight.current || attempt !== attemptRef.current) return; // a newer edit won
     if ("ok" in result) {
+      pendingRef.current = null;
       setSaveState("saved");
       setSavedAt(new Date(result.savedAt));
       return;
     }
     setSaveState("error");
     timerRef.current = setTimeout(() => {
-      if (pendingRef.current) void save(pendingRef.current, ++attemptRef.current);
-    }, 2_000 * Math.max(1, attempt));
+      if (pendingRef.current) void save(pendingRef.current, ++attemptRef.current, retry + 1);
+    }, Math.min(30_000, 2_000 * 2 ** retry));
   }
 
-  function update(mutate: (draft: Draft) => void) {
-    const next = structuredClone(draft);
-    mutate(next);
+  function update(change: Draft | ((draft: Draft) => void)) {
+    const next = structuredClone(typeof change === "function" ? draft : change);
+    if (typeof change === "function") change(next);
     setDraft(next);
     // drop server issues under any subtree this edit touched
     setServerIssues((current) =>
@@ -89,12 +104,12 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
       }),
     );
     pendingRef.current = next;
+    attemptRef.current += 1;
     setSaveState((s) => (s === "error" ? "error" : "dirty"));
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       const target = pendingRef.current;
       if (target) {
-        pendingRef.current = null;
         setSaveState("saving");
         void save(target, ++attemptRef.current);
       }
@@ -103,6 +118,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    inFlight.current += 1;
   }, []);
 
   const add = (kind: AddKind, parentRef: Ref | undefined, path: string) => {
@@ -136,7 +152,13 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
   const continueConfirm = () =>
     startContinue(async () => {
       setContinueError(null);
-      const result = await approveV3Skeleton(adventureId, draft);
+      let result: Awaited<ReturnType<typeof approveV3Skeleton>>;
+      try {
+        result = await approveV3Skeleton(adventureId, draft);
+      } catch {
+        setContinueError("Couldn't continue. Your edits are still here. Please try again.");
+        return;
+      }
       if ("error" in result) {
         const issues = ("issues" in result ? result.issues : []) as CheckIssue[];
         setServerIssues(issues.map((issue) => ({ ...issue, message: friendlyMessage(issue) })));
@@ -154,14 +176,20 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
             ? `Some things need fixing before generation can continue: ${issues.length} issue${issues.length === 1 ? "" : "s"}.`
             : "Couldn't continue generation. Please try again.",
         );
-      } else router.refresh();
+      } else {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        inFlight.current += 1;
+        pendingRef.current = null;
+        setSaveState("idle");
+        router.refresh();
+      }
     });
 
   const momentOf = (stage: Stage): Moment | undefined => draft.definingMoments.find((m) => m.id === stage.definingMomentId);
   const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
   return (
-    <div className="flex flex-col gap-8">
+    <fieldset disabled={continuePending || discardPending} aria-label="Skeleton review" className="min-w-0 flex flex-col gap-8">
       {/* sticky status bar */}
       <div className="sticky top-0 z-30 -mx-2 flex flex-wrap items-center gap-3 border-b-2 border-line bg-paper/95 px-2 py-3 backdrop-blur">
         <button type="button" onClick={() => setShowIssues((v) => !v)} className={`${button.subtle} text-sm`} aria-expanded={showIssues}>
@@ -170,7 +198,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
         <span className="text-sm text-muted" role="status">
           {saveState === "saving" ? "Saving…" : saveState === "saved" && savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : saveState === "error" ? "Couldn't save — retrying" : saveState === "dirty" ? "Saving…" : hasDraft ? "Draft restored" : "No unsaved changes"}
         </span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <ConfirmButton
             label="Discard my edits"
             pendingLabel="Discarding…"
@@ -180,9 +208,23 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
             pending={discardPending}
             onConfirm={() =>
               startDiscard(async () => {
-                await discardV3SkeletonDraft(adventureId);
-                setServerIssues([]);
-                router.refresh();
+                if (timerRef.current) clearTimeout(timerRef.current);
+                inFlight.current += 1;
+                attemptRef.current += 1;
+                pendingRef.current = null;
+                try {
+                  await Promise.allSettled([...saving.current]);
+                  const result = await discardV3SkeletonDraft(adventureId);
+                  if ("error" in result) { setContinueError("Couldn't discard edits. Please try again."); return; }
+                  const progress = await getV3GenerationProgress(adventureId);
+                  const generated = validateSkeleton("error" in progress ? undefined : progress.skeleton);
+                  if (!generated.ok) { setContinueError("Couldn't reload the generated skeleton. Please try again."); return; }
+                  setDraft(generated.spec);
+                  setSaveState("idle");
+                  setSavedAt(null);
+                  setServerIssues([]);
+                  router.refresh();
+                } catch { setContinueError("Couldn't discard edits. Please try again."); }
               })
             }
           />
@@ -199,6 +241,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
           />
         </div>
       </div>
+      <AiFixPanel<{ skeleton: SkeletonShape }> revision={JSON.stringify(draft)} disabled={continuePending || discardPending} request={() => fixSkeletonWithAiAction(adventureId, draft)} apply={proposal => update(proposal.skeleton)} />
       {continueError ? <ErrorText>{continueError}</ErrorText> : null}
       {showIssues ? (
         <ul className="flex flex-col gap-1 rounded-surface border-2 border-line bg-sunken p-4 text-sm">
@@ -406,7 +449,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
         })}
         <AddButton label="Add ending" onClick={() => add("ending", undefined, `endings.${draft.endings.length}`)} />
       </Section>
-    </div>
+    </fieldset>
   );
 }
 
