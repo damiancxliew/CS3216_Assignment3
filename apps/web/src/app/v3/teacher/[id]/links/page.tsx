@@ -99,14 +99,10 @@ export default async function StudentLinkHistoryPage({
                       <p className="font-normal">{row.title}</p>
                     </th>
                     <td className="border-b border-line p-3">
-                      {row.linkKey ? (
-                        <div className="flex flex-wrap items-center gap-3">
-                          <ReleaseLink path={releasePath} url={releaseUrl} />
-                          <CopyStudentLink path={releasePath} />
-                        </div>
-                      ) : (
-                        "Unavailable"
-                      )}
+                      <div className="flex flex-wrap items-center gap-3">
+                        <ReleaseLink path={releasePath} url={releaseUrl} />
+                        <CopyStudentLink path={releasePath} />
+                      </div>
                     </td>
                     <td className="border-b border-line p-3">
                       {row.firstPublishedAt ? (

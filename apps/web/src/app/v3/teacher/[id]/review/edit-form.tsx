@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import { Select } from "@/components/select";
 import { z } from "zod";
 import { AdventureSpec, type AdventureSpec as Spec } from "@adventure/spec-v3";
 import { compactButton as button } from "@/components/ui";
@@ -319,29 +320,17 @@ export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
     );
   if (choices) {
     const unique = [...new Map(choices.map((c) => [c.value, c])).values()];
+    const options = unique.some(c => c.value === value) ? unique : [
+      { value: String(value) || "__unresolved__", label: `Unresolved: ${String(value) || "Choose an item"}` }, ...unique,
+    ];
     return (
-      <label htmlFor={id} className="block space-y-1 text-sm font-bold">
-        {name}
-        <select
-          id={id}
-          className={input}
-          value={String(value)}
-          onChange={(e) => set(e.target.value)}
-        >
-          {!unique.some((c) => c.value === value) ? (
-            <option value={String(value)}>
-              Unresolved: {String(value) || "Choose an item"}
-            </option>
-          ) : null}
-          {unique.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="space-y-1 text-sm font-bold">
+        <span>{name}</span>
+        <Select label={name} value={String(value) || "__unresolved__"} options={options} wrapLabel className={input} onValueChange={set} />
+      </div>
     );
   }
+
   if (kind === "literal")
     return (
       <p className="text-sm">

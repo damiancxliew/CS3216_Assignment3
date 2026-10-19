@@ -1,6 +1,6 @@
 # Review screen handoff (#212)
 
-The generated adventure now links to `/v3/teacher/[id]/review`. The route requires
+The generated adventure opens directly at `/v3/teacher/[id]`. The route requires
 an enabled v3 school, a staff viewer, ownership, and a draft, published or archived
 adventure. It shows stages, characters, documents and endings, with linked final
 errors (including remaining part errors), warnings grouped by pass, and conflicts.
@@ -130,3 +130,8 @@ all release links to new starts. Students resume an existing attempt for the
 requested release, while the original unversioned link retains its resume behavior.
 The history migration backfills legacy live/attempt versions with unknown dates.
 Deploy `20261019010000_v3_publication_history.sql` before these controls are enabled.
+
+Reference selectors preserve full text and wrap long options using the shared
+Select component. Labels omit storage ID suffixes. The unused `/review` route
+and runtime history inference for missing publication records were removed;
+publication history comes directly from its authoritative table.

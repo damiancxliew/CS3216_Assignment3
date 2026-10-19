@@ -67,7 +67,7 @@ export function template(schema: z.ZodType, depth = 0): unknown {
   }
 }
 export const fieldLabel = (key: string) =>
-  key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
+  key.replace(/Ids?$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
 export function references(
   spec: AdventureSpec,
   key: string,
@@ -99,7 +99,7 @@ export function references(
     ];
   if (["stageId"].includes(key)) return list(spec.stages, (s) => s.title);
   if (["definingMomentId", "momentId"].includes(key))
-    return list(spec.definingMoments, (m) => m.scene.slice(0, 65));
+    return list(spec.definingMoments, (m) => m.scene);
   if (["actId"].includes(key))
     return list(
       spec.definingMoments.flatMap((m) => m.acts),
@@ -127,14 +127,14 @@ export function references(
       "counterPoints",
     ].includes(key)
   )
-    return list(spec.discoveries, (d) => d.topic || d.note.slice(0, 65));
+    return list(spec.discoveries, (d) => d.topic || d.note);
   if (["documentId", "handsOver"].includes(key))
     return list(spec.documents, (d) => d.title);
   if (["keyPassageId"].includes(key))
     return spec.documents.flatMap((d) =>
       d.keyPassages.map((p) => ({
         value: p.id,
-        label: `${d.title}: ${d.body.slice(p.start, p.end).slice(0, 65)}`,
+        label: `${d.title}: ${d.body.slice(p.start, p.end)}`,
       })),
     );
   if (key === "slantConfronted")

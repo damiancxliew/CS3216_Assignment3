@@ -6,6 +6,7 @@ import {
   template,
   references,
   dependentPaths,
+  fieldLabel,
 } from "@/lib/v3/edit/form";
 import { readFileSync } from "node:fs";
 const spec = AdventureSpec.parse(
@@ -49,4 +50,12 @@ describe("schema-driven edit forms", () => {
       0,
     );
   });
+});
+
+it('keeps full reference labels and hides storage ID suffixes', () => {
+  const edited = structuredClone(spec);
+  edited.definingMoments[0].scene = 'A complete defining moment description. '.repeat(8);
+  expect(references(edited, 'definingMomentId')?.[0].label).toBe(edited.definingMoments[0].scene);
+  expect(fieldLabel('definingMomentId')).toBe('Defining Moment');
+  expect(fieldLabel('discoveryIds')).toBe('Discovery');
 });

@@ -28,9 +28,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         fs: { allow: [resolve(".")] },
       },
       esbuild: { jsx: "automatic" },
-      optimizeDeps: { include: ["react", "react-dom/client"] },
+      optimizeDeps: { include: ["react", "react-dom/client", "@radix-ui/react-select"] },
       css: { postcss: { plugins: [tailwind()] } },
-      resolve: { alias: { "@": resolve(root, "src") } },
+      resolve: { alias: { "@": resolve(root, "src") }, dedupe: ["react", "react-dom"] },
       plugins: [
         {
           name: "editor-harness",
@@ -107,6 +107,12 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           .count(),
       ).toBe(0);
       await page.getByRole("button", { name: "Edit", exact: true }).click();
+      await page.getByRole('combobox', { name: 'Defining Moment', exact: true }).first().click();
+      const option = page.getByRole('option', { name: spec.definingMoments[0].scene, exact: true });
+      await option.waitFor();
+      expect(await option.innerText()).toBe(spec.definingMoments[0].scene);
+      expect(await option.evaluate(e => getComputedStyle(e.querySelector('span')!).whiteSpace)).toBe('normal');
+      await page.keyboard.press('Escape');
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
       expect(
         await page

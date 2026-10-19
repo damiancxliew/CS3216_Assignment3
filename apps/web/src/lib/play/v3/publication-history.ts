@@ -17,28 +17,8 @@ export async function loadPublicationHistory(
     deps.store.listAttempts(id),
   ]);
   const events = await deps.store.loadEvents(attempts.map((a) => a.id));
-  const versions = new Map(publications.map((p) => [p.version, p]));
-  // Include legacy attempts even if history was introduced after they started.
-  for (const attempt of attempts)
-    if (!versions.has(attempt.specVersion))
-      versions.set(attempt.specVersion, {
-        linkKey: "",
-        version: attempt.specVersion,
-        firstPublishedAt: null,
-        lastPublishedAt: null,
-      });
-  if (
-    adventure.publishedVersion != null &&
-    !versions.has(adventure.publishedVersion)
-  )
-    versions.set(adventure.publishedVersion, {
-      linkKey: "",
-      version: adventure.publishedVersion,
-      firstPublishedAt: null,
-      lastPublishedAt: null,
-    });
   const rows = await Promise.all(
-    [...versions.values()]
+    publications
       .sort((a, b) => b.version - a.version)
       .map(async (publication) => {
         const mine = attempts.filter(

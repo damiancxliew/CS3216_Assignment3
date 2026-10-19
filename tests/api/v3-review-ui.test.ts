@@ -102,7 +102,7 @@ describe("review screen rendering", () => {
     );
     expect(html.match(/A specific blocking issue/g)).toHaveLength(1);
     expect(html.match(/A specific warning/g)).toHaveLength(1);
-    expect(html).toContain('href="/v3/teacher/draft/review"');
+    expect(html).toContain('href="/v3/teacher/draft"');
     expect(html).toContain('href="/v3/teacher/draft/preview"');
     expect(html).not.toContain("Review needed before publishing");
     expect(html).not.toContain("share-title");
