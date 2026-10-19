@@ -18,6 +18,7 @@ import { V3PreviewClient, V3PreviewHeaderActions } from "@/components/play/v3/v3
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
+import { withPendingPlayerLine, withoutPendingLines } from "@/lib/play/v3/pending-lines";
 import { portraitFile, portraitStoragePrefix, portraitUrl, v3PortraitBase } from "@/lib/play/v3/portraits";
 import { createV3PreviewClient } from "@/lib/play/v3/preview-client";
 import { mockViews } from "@adventure/engine/mock";
@@ -642,6 +643,26 @@ describe("v3 cinematic", () => {
   });
 });
 
+describe("v3 pending player lines", () => {
+  const base = { currentRoomId: "landing", messages: [] } as unknown as PlayerView;
+
+  it("shows a sent message or shown note straight away, in the current room", () => {
+    const sent = withPendingPlayerLine(base, { type: "message", characterId: "raffles", text: "Why here?" }, "1", 5);
+    expect(sent.messages).toEqual([
+      { id: "pending-1", kind: "player", text: "Why here?", roomId: "landing", characterId: "raffles", insertedNoteId: null, at: 5 },
+    ]);
+    const shown = withPendingPlayerLine(sent, { type: "insertNote", characterId: "raffles", noteId: "n1" }, "2", 6);
+    expect(shown.messages[1]).toMatchObject({ id: "pending-2", text: "", insertedNoteId: "n1" });
+  });
+
+  it("ignores other actions and drops pending lines after a failed send", () => {
+    expect(withPendingPlayerLine(base, { type: "tick" }, "1", 5)).toBe(base);
+    const sent = withPendingPlayerLine(base, { type: "message", characterId: "raffles", text: "Hi" }, "1", 5);
+    expect(withoutPendingLines(sent).messages).toEqual([]);
+    expect(withoutPendingLines(base)).toBe(base);
+  });
+});
+
 describe("v3 dialogue box", () => {
   const character = {
     id: "character-1",
@@ -701,6 +722,21 @@ describe("v3 dialogue box", () => {
       expect(markup).toContain('id="v3-message"');
       expect(markup).toContain("Insert a note");
       expect(markup).toContain('aria-label="Close conversation (Esc)"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("says the character is thinking while the reply to the student's line is on its way", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const own = { ...message, id: "pending-1", kind: "player", text: "Why here?", insertedNoteId: null } as typeof message;
+      const props = { mode: "talk" as const, character, portraitBase: null, onSend: () => {}, onOpenNotes: () => {}, onClose: () => {} };
+      const waiting = renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message, own], busy: true }));
+      expect(waiting).toContain("Why here?");
+      expect(waiting).toContain(`${character.name} is thinking`);
+      expect(renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message, own], busy: false }))).not.toContain("is thinking");
+      expect(renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message], busy: true }))).not.toContain("is thinking");
     } finally {
       vi.unstubAllGlobals();
     }

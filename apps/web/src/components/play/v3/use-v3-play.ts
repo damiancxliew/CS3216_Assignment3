@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import type { V3PlayClient } from "@/lib/play/v3/client";
+import { withPendingPlayerLine, withoutPendingLines } from "@/lib/play/v3/pending-lines";
 
 // Back off while the post-turn check is still running; it usually lands in 2–4 s, rarely after ~30 s.
 const PENDING_REFRESH_DELAYS = [2_000, 3_000, 5_000, 8_000, 12_000, 20_000];
@@ -30,6 +31,7 @@ export function useV3Play(
   const queue = useRef<QueuedAction[]>([]);
   const processing = useRef(false);
   const busyRef = useRef(false);
+  const pendingCount = useRef(0);
 
   const adopt = useCallback((nextView: PlayerView, nextRevision: number) => {
     revisionRef.current = nextRevision;
@@ -50,6 +52,11 @@ export function useV3Play(
 
   const send = useCallback((action: Action, onSettled?: (succeeded: boolean) => void) => {
     queue.current.push({ action, onSettled });
+    if (action.type === "message" || action.type === "insertNote") {
+      pendingCount.current += 1;
+      const id = String(pendingCount.current);
+      setView((current) => withPendingPlayerLine(current, action, id, Date.now()));
+    }
     if (processing.current) return;
     processing.current = true;
     busyRef.current = true;
@@ -70,6 +77,7 @@ export function useV3Play(
           adopt(result.view, result.revision);
           setBanner({ kind: result.kind, message: "The game moved on — refreshed." });
         } else {
+          setView(withoutPendingLines);
           setBanner({ kind: result.kind, message: result.message });
         }
         for (const queued of queue.current) queued.onSettled?.(false);

@@ -316,6 +316,11 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
               Say hello, or ask {character.name} a question.
             </p>
           )}
+          {busy && lastMessage?.kind === "player" ? (
+            <p role="status" className="text-sm font-bold text-[#5c6472]">
+              {character.name} is thinking<span aria-hidden="true" className="motion-safe:animate-pulse">…</span>
+            </p>
+          ) : null}
         </div>
 
         <form onSubmit={submit} className="mt-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2 border-t-2 border-[#1f2433]/20 pt-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
