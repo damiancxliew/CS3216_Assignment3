@@ -11,15 +11,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ adve
   if (!v3Enabled()) {
     return NextResponse.json({ error: { code: "not_found", message: "Not found." } }, { status: 404 });
   }
+  const navigationUrl = new URL(request.url);
+  // Preserve the browser host when the dev server listens on 0.0.0.0.
+  navigationUrl.host = request.headers.get("host") ?? navigationUrl.host;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { adventureId } = await params;
-  if (!user) return NextResponse.redirect(new URL(`/v3/join/${encodeURIComponent(adventureId)}`, request.url));
+  const release = new URL(request.url).searchParams.get("release") ?? undefined;
+  if (!user) return NextResponse.redirect(new URL(`/v3/join/${encodeURIComponent(adventureId)}${release ? `?release=${encodeURIComponent(release)}` : ""}`, navigationUrl));
 
-  const result = await createAttempt(v3PlayDeps(), user.id, adventureId);
+  const result = await createAttempt(v3PlayDeps(), user.id, adventureId, release);
   if (result.status === 201 || result.status === 200) {
     const body = result.body as { attemptId: string };
-    return NextResponse.redirect(new URL(`/v3/play/${body.attemptId}`, request.url));
+    return NextResponse.redirect(new URL(`/v3/play/${body.attemptId}`, navigationUrl));
   }
   if (result.status === 404) return new Response("Not found.", { status: 404 });
   return new Response("This adventure is not open for play.", { status: 409 });

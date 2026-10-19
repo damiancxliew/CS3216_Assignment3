@@ -36,3 +36,16 @@ export async function publishV3Adventure(adventureId: string, expected?: { versi
 export async function unpublishV3Adventure(adventureId: string, expected?: { version: number; publishedVersion: number | null }): Promise<PublishActionResult> {
   return run(adventureId, unpublishAdventure, expected);
 }
+
+/** Returns the already-issued current release link; never creates or rotates one. */
+export async function currentV3StudentLink(adventureId: string): Promise<{ ok: true; path: string } | { ok: false; message: string }> {
+  if (!v3Enabled()) return { ok: false, message: 'Not found.' };
+  const { data: { user } } = await (await createClient()).auth.getUser();
+  if (!user) return { ok: false, message: 'Sign in again.' };
+  const deps = v3PublishDeps();
+  const { loadPublicationHistory } = await import('@/lib/play/v3/publication-history');
+  const history = await loadPublicationHistory(deps, user.id, adventureId);
+  const current = history?.rows.find(row => row.live && row.linkKey);
+  if (!current) return { ok: false, message: 'Publish the current draft before copying its student link.' };
+  return { ok: true, path: `/v3/join/${encodeURIComponent(adventureId)}?release=${encodeURIComponent(current.linkKey)}` };
+}

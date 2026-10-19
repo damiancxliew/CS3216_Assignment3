@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { Check, Link2 } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import {
+  currentV3StudentLink,
   publishV3Adventure,
   unpublishV3Adventure,
 } from "@/app/v3/teacher/[id]/publish-actions";
@@ -29,9 +31,6 @@ export function V3PublishPanel({
   const [copied, setCopied] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const studentLink = () =>
-    `${window.location.origin}/v3/join/${encodeURIComponent(adventureId)}`;
-
   const [changes, setChanges] = useState(unpublishedChanges);
   const [pointer, setPointer] = useState(publishedVersion ?? null);
   const toggle = (publish = !isPublished) => {
@@ -48,12 +47,12 @@ export function V3PublishPanel({
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(studentLink());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setMessage(`Copy this link: ${studentLink()}`);
-    }
+      const result = await currentV3StudentLink(adventureId);
+      if (!result.ok) { setMessage(result.message); return; }
+      const url = new URL(result.path, window.location.origin).href;
+      try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+      catch { setMessage(`Copy this link: ${url}`); }
+    } catch { setMessage("Could not load the student link. Try again."); }
   };
 
   return (
@@ -115,6 +114,7 @@ export function V3PublishPanel({
           {copied ? "Copied" : "Copy student link"}
         </button>
       ) : null}
+      <Link href={`/v3/teacher/${adventureId}/links`} className={styles.subtle}>Link and version history</Link>
       {message ? (
         <p role="alert" className="w-full text-sm text-ink">
           {message}

@@ -98,9 +98,28 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         if (m.type() === "error") console.error(m.text());
       });
       await page.goto(vite.resolvedUrls!.local[0]!);
+      expect(
+        await page.getByRole("button", { name: "Save", exact: true }).count(),
+      ).toBe(0);
+      expect(
+        await page
+          .getByRole("button", { name: "Discard", exact: true })
+          .count(),
+      ).toBe(0);
       await page.getByRole("button", { name: "Edit", exact: true }).click();
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      expect(
+        await page
+          .getByRole("button", { name: "Done editing", exact: true })
+          .isVisible(),
+      ).toBe(true);
+      expect(
+        await page.getByRole("button", { name: "Save", exact: true }).count(),
+      ).toBe(0);
       await page.locator("#edit-title").fill("A saved teacher title");
+      expect(
+        await page.getByRole("button", { name: "Edit", exact: true }).count(),
+      ).toBe(0);
       expect(
         await page
           .getByRole("button", { name: "Preview", exact: true })
@@ -131,6 +150,12 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await page.locator("#edit-title").inputValue()).toBe("Unsaved");
       page.once("dialog", (d) => d.accept());
       await page.getByRole("button", { name: "Discard", exact: true }).click();
+      expect(
+        await page
+          .getByRole("button", { name: "Edit", exact: true })
+          .isVisible(),
+      ).toBe(true);
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
       expect(await page.locator("#edit-title").inputValue()).toBe(
         "A saved teacher title",
       );

@@ -150,7 +150,8 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
       ).toEqual([]);
       await page.context().clearCookies();
       await login(studentEmail);
-      await page.goto(`http://localhost:3000/v3/join/${row.id}`);
+      const { data: release } = await admin.from('adventure_publications_v3').select('link_key').eq('adventure_id', row.id).eq('version', 2).single();
+      await page.goto(`http://localhost:3000/v3/join/${row.id}?release=${release!.link_key}`);
       await page.getByRole("link", { name: "Enter the adventure" }).click();
       await page.waitForURL(/\/v3\/play\/(?!start)/);
       expect(
@@ -161,7 +162,14 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
             .eq("adventure_id", row.id)
         ).data,
       ).toEqual([{ spec_version: 2 }]);
-      expect(pageErrors).toEqual([]);
+      await page.context().clearCookies();
+    await login(email);
+    await page.goto(`http://localhost:3000/v3/teacher/${row.id}/links`);
+    await page.getByRole('heading', { name: 'Student link and version history', exact: true }).waitFor();
+    expect(await page.getByText('Version 2 · Live', { exact: true }).isVisible()).toBe(true);
+    expect(await page.getByRole('link', { name: 'View results' }).count()).toBe(1);
+    expect(await page.getByRole('table').innerText()).toContain('Teacher-edited acceptance adventure');
+    expect(pageErrors).toEqual([]);
     } finally {
       await browser.close();
     }

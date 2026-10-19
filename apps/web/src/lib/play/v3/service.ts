@@ -109,6 +109,7 @@ export async function createAttempt(
   deps: V3PlayServiceDeps,
   userId: string,
   adventureId: string,
+  release?: string,
 ): Promise<ServiceResponse> {
   let adventure = await permittedAdventure(deps, userId, adventureId);
   if (!adventure) return error(404, "not_found", "Not found.");
@@ -116,7 +117,9 @@ export async function createAttempt(
     return error(409, "not_open", "This adventure is not open for play.");
   }
 
-  const existing = await deps.store.findLatestAttempt(adventure.id, userId);
+  const publication = release ? (await deps.store.listPublications(adventureId)).find(p => p.linkKey === release) : undefined;
+  if (release && !publication) return error(404, "not_found", "Not found.");
+  const existing = await deps.store.findLatestAttempt(adventure.id, userId, publication?.version);
   if (existing) {
     const view = await currentView(deps, existing);
     return {
@@ -127,12 +130,12 @@ export async function createAttempt(
 
   for (let retry = 0; retry < 3; retry++) {
     if (adventure.status !== "published" || adventure.publishedVersion == null) return error(409, "not_open", "This adventure is not open for play.");
-    const version = adventure.publishedVersion;
+    const version = publication?.version ?? adventure.publishedVersion;
     const rawSpec = await deps.store.loadVersionSpec(adventure.id, version);
     if (rawSpec === null) throw new Error(`Missing published v3 spec ${adventure.id}:${version}`);
     const spec = EngineSpec.parse(rawSpec);
     const state = engine.createState(spec, crypto.randomUUID());
-    const attempt = await deps.store.createAttempt({ adventureId: adventure.id, specVersion: version, studentId: userId, state });
+    const attempt = await deps.store.createAttempt({ adventureId: adventure.id, specVersion: version, studentId: userId, state, ...(release ? { release } : {}) });
     if (attempt) return {
       status: 201,
       body: { attemptId: attempt.id, revision: attempt.revision, view: engine.project(spec, state), resumed: false },

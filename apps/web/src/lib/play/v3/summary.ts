@@ -47,6 +47,9 @@ export async function loadClassSummary(
   for (const attempt of attempts) {
     counts.set(attempt.specVersion, (counts.get(attempt.specVersion) ?? 0) + 1);
   }
+  for (const publication of await deps.store.listPublications(adventureId)) {
+    if (!counts.has(publication.version)) counts.set(publication.version, 0);
+  }
   if (!counts.has(adventure.specVersion)) counts.set(adventure.specVersion, 0);
 
   const versions = [...counts.entries()]

@@ -125,6 +125,7 @@ export function EditorWorkspace(props: Props) {
         setDraft(result.spec);
         setVersion(result.version);
         setEdits([]);
+        setEditMode(false);
         setSavedErrors(result.errors);
         setMessage(
           `Saved version ${result.version}.${result.errors.length ? " Fix blocking errors before publishing." : ""}`,
@@ -404,37 +405,50 @@ export function EditorWorkspace(props: Props) {
           >
             Back to adventure
           </Link>
-          <button
-            type="button"
-            className={button.quiet}
-            aria-pressed={editMode}
-            onClick={() => setEditMode(!editMode)}
-          >
-            {editMode ? "Review mode" : "Edit"}
-          </button>
-          <button
-            type="button"
-            className={button.primary}
-            disabled={pending || !dirty}
-            onClick={save}
-          >
-            {pending ? "Saving…" : "Save"}
-          </button>
-          <button
-            type="button"
-            className={button.subtle}
-            disabled={pending || !dirty}
-            onClick={() => {
-              if (window.confirm("Discard your unsaved edits?")) {
-                setDraft(saved);
-                setEdits([]);
-                setMessage("Edits discarded.");
-                setFailure(false);
-              }
-            }}
-          >
-            Discard
-          </button>
+          {!editMode ? (
+            <button
+              type="button"
+              className={button.quiet}
+              onClick={() => setEditMode(true)}
+            >
+              Edit
+            </button>
+          ) : dirty || pending ? (
+            <>
+              <button
+                type="button"
+                className={button.primary}
+                disabled={pending}
+                onClick={save}
+              >
+                {pending ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                className={button.subtle}
+                disabled={pending}
+                onClick={() => {
+                  if (window.confirm("Discard your unsaved edits?")) {
+                    setDraft(saved);
+                    setEdits([]);
+                    setEditMode(false);
+                    setMessage("Edits discarded.");
+                    setFailure(false);
+                  }
+                }}
+              >
+                Discard
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className={button.subtle}
+              onClick={() => setEditMode(false)}
+            >
+              Done editing
+            </button>
+          )}
           {dirty || pending ? (
             <button type="button" disabled className={button.subtle}>
               Preview

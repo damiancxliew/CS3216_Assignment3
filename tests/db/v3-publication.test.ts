@@ -151,3 +151,84 @@ describe("publication persistence", () => {
     ).toBe("42501");
   });
 });
+
+it("records publication history atomically and retains earlier releases after unpublishing", async () => {
+  const a = await adventure();
+  const publish = (v: number, p: number | null, enabled: boolean) =>
+    admin.rpc("publish_adventure_v3", {
+      p_id: a.id,
+      p_expected_version: v,
+      p_expected_published: p,
+      p_publish: enabled,
+    });
+  expect((await publish(1, null, true)).data).toBe(true);
+  await admin.rpc("save_adventure_v3", {
+    p_id: a.id,
+    p_expected_version: 1,
+    p_spec: { title: "v2" },
+  });
+  expect((await publish(1, 1, true)).data).toBe(false);
+  expect((await publish(2, 1, true)).data).toBe(true);
+  expect((await publish(2, 2, false)).data).toBe(true);
+  const history = await owner.client
+    .from("adventure_publications_v3")
+    .select()
+    .eq("adventure_id", a.id)
+    .order("version");
+  expect(history.error).toBeNull();
+  expect(history.data?.map((row) => row.version)).toEqual([1, 2]);
+  expect(
+    history.data?.every(
+      (row) => row.first_published_at && row.last_published_at,
+    ),
+  ).toBe(true);
+  expect(
+    (
+      await owner.client
+        .from("adventure_publications_v3")
+        .insert({ adventure_id: a.id, version: 2 })
+    ).error?.code,
+  ).toBe("42501");
+});
+
+it("keeps old release links playable and rejects mismatched or forged release keys", async () => {
+  const a = await adventure();
+  const publish = (v: number, p: number | null) =>
+    admin.rpc("publish_adventure_v3", {
+      p_id: a.id,
+      p_expected_version: v,
+      p_expected_published: p,
+      p_publish: true,
+    });
+  await publish(1, null);
+  const { data: first } = await admin
+    .from("adventure_publications_v3")
+    .select()
+    .eq("adventure_id", a.id)
+    .single();
+  await admin.rpc("save_adventure_v3", {
+    p_id: a.id,
+    p_expected_version: 1,
+    p_spec: { title: "v2" },
+  });
+  await publish(2, 1);
+  const start = (version: number, release: string) =>
+    admin.rpc("start_attempt_v3", {
+      p_adventure_id: a.id,
+      p_spec_version: version,
+      p_student_id: owner.userId,
+      p_state: {},
+      p_release: release,
+    });
+  expect((await start(1, first.link_key)).data?.id).toBeTruthy();
+  expect((await start(2, first.link_key)).data).toBeNull();
+  expect((await start(1, crypto.randomUUID())).data).toBeNull();
+  await publish(2, 2);
+  const history = await admin
+    .from("adventure_publications_v3")
+    .select()
+    .eq("adventure_id", a.id)
+    .order("version");
+  expect(history.data).toHaveLength(2);
+  expect(history.data?.[0].link_key).toBe(first.link_key);
+});

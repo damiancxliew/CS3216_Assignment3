@@ -54,3 +54,29 @@ describe('versioned publication', () => {
     expect((await store.loadAttempt(result.body.attemptId as string))?.specVersion).toBe(2);
   });
 });
+
+it('keeps issued release links pinned and reuses the same link rather than minting another', async () => {
+  const spec = JSON.parse(readFileSync('fixtures/golden-1819.json', 'utf8'));
+  const store = new MemoryV3PlayStore();
+  store.addAdventure({ id: 'a', ownerId: 'teacher', schoolId: 's', status: 'draft', specVersion: 1, spec });
+  for (const id of ['teacher', 'A', 'B', 'C']) store.addMember('s', id);
+  const deps = { store, env: { V3_ENABLED: 'true', V3_SCHOOL_IDS: 's' }, now: () => 0, llm: () => { throw Error('Unexpected model call'); } };
+  await publishAdventure(deps, 'teacher', 'a');
+  const first = (await store.listPublications('a'))[0];
+  await store.saveDraft('a', 1, { ...spec, title: 'Second release' });
+  await publishAdventure(deps, 'teacher', 'a');
+  const second = (await store.listPublications('a')).find(p => p.version === 2)!;
+  expect(first.linkKey).not.toBe(second.linkKey);
+  const oldStart = await createAttempt(deps, 'A', 'a', first.linkKey);
+  expect((await store.loadAttempt(oldStart.body.attemptId as string))?.specVersion).toBe(1);
+  const newStart = await createAttempt(deps, 'A', 'a', second.linkKey);
+  expect((await store.loadAttempt(newStart.body.attemptId as string))?.specVersion).toBe(2);
+  expect((await loadJoinView(deps, 'B', 'a', first.linkKey))).toMatchObject({ title: spec.title });
+  expect((await createAttempt(deps, 'B', 'a', 'unknown')).status).toBe(404);
+  await publishAdventure(deps, 'teacher', 'a');
+  expect((await store.listPublications('a')).find(p => p.version === 1)?.linkKey).toBe(first.linkKey);
+  expect(await store.publishVersion('a', 1, 2, true)).toBe(false);
+  expect(await store.listPublications('a')).toHaveLength(2);
+  await unpublishAdventure(deps, 'teacher', 'a');
+  expect((await createAttempt(deps, 'B', 'a', first.linkKey)).status).toBe(409);
+});

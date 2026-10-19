@@ -117,3 +117,16 @@ brief columns and flag saves). Generation package: 217 passed, one pre-existing
 opt-in test skipped. The editor browser regression passed after fixing array
 schema unwrapping; signed-in fixture acceptance passed on the configured localhost
 origin. Production deployment remains unperformed.
+
+### Contextual controls and link history
+
+Review shows Edit only; a clean editing form shows Done editing; dirty edits show
+Save and Discard. Successful save/discard returns to review mode.
+`/v3/teacher/[id]/links` lists the permanent student link for each published
+version with started/in-progress/completed totals and rates. Completion means
+reaching the reveal. New publications issue one link atomically; existing release
+links remain pinned and cannot be regenerated for old versions. Unpublish closes
+all release links to new starts. Students resume an existing attempt for the
+requested release, while the original unversioned link retains its resume behavior.
+The history migration backfills legacy live/attempt versions with unknown dates.
+Deploy `20261019010000_v3_publication_history.sql` before these controls are enabled.

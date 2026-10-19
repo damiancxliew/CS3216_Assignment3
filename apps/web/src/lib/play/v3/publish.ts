@@ -100,6 +100,7 @@ export async function loadJoinView(
   deps: V3PublishDeps,
   userId: string | null,
   adventureId: string,
+  release?: string,
 ): Promise<V3JoinView> {
   const adventure = await deps.store.loadAdventure(adventureId);
   if (
@@ -110,7 +111,10 @@ export async function loadJoinView(
   ) {
     return { kind: "closed" };
   }
-  const published = adventure.publishedVersion == null ? null : await deps.store.loadVersionSpec(adventure.id, adventure.publishedVersion);
+  const publication = release ? (await deps.store.listPublications(adventureId)).find(p => p.linkKey === release) : undefined;
+  if (release && !publication) return { kind: "closed" };
+  const version = publication?.version ?? adventure.publishedVersion;
+  const published = version == null ? null : await deps.store.loadVersionSpec(adventure.id, version);
   if (!published) return { kind: "closed" };
   const title = specTitle(published);
   if (!userId) return { kind: "sign_in", title };
