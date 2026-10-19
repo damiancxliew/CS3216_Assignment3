@@ -1,10 +1,8 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { V3AdventureNav } from "@/components/teacher/v3-adventure-nav";
-import { z } from "zod";
 import {
-  AdventureSpec,
   editableIssues,
   checkSpec,
   validateSpec,
@@ -19,10 +17,10 @@ import {
   type CapturedSource,
   type V3Edit,
 } from "@/lib/v3/edit/commands";
-import { fieldLabel, template, unwrap } from "@/lib/v3/edit/form";
-import { reviewAnchor, reviewSectionId, type ReviewTab } from "@/lib/v3/review";
-import { saveV3AdventureEdits } from "../edit-actions";
-import { EditField, EvidenceControls, Remove } from "./edit-form";
+import { AiFixPanel } from "./ai-fix-panel";
+import { saveV3AdventureEdits, fixV3EditsWithAiAction } from "../edit-actions";
+import { useUnsavedEdits } from "./use-unsaved-edits";
+import { ReviewEditorFields } from "./editor-fields";
 import { ReviewScreen } from "./review-screen";
 
 type Props = {
@@ -76,30 +74,7 @@ export function EditorWorkspace(props: Props) {
       ]),
     ).values(),
   ];
-  useEffect(() => {
-    if (!dirty) return;
-    const unload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    const navigate = (e: MouseEvent) => {
-      const link = (e.target as Element).closest("a[href]");
-      if (
-        link &&
-        !link.getAttribute("href")?.startsWith("#") &&
-        !window.confirm("You have unsaved edits. Leave and discard them?")
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-    window.addEventListener("beforeunload", unload);
-    document.addEventListener("click", navigate, true);
-    return () => {
-      window.removeEventListener("beforeunload", unload);
-      document.removeEventListener("click", navigate, true);
-    };
-  }, [dirty]);
+  useUnsavedEdits(dirty);
   const edit = (command: V3Edit) => {
     if (pending) return;
     try {
@@ -145,255 +120,7 @@ export function EditorWorkspace(props: Props) {
       setPending(false);
     }
   };
-  const renderEditor = (tab: ReviewTab, selected: string) => {
-    const field = (key: keyof Spec) => (
-      <EditField
-        key={key}
-        spec={draft}
-        schema={AdventureSpec.shape[key]}
-        value={draft[key]}
-        path={[key]}
-        name={fieldLabel(key)}
-        onEdit={edit}
-      />
-    );
-    if (tab === "settings")
-      return (
-        <div className="space-y-4 rounded-surface border border-line bg-surface p-4">
-          <p className="text-sm">
-            Reading level and source policy do not rewrite existing prose or
-            fetch new sources.
-          </p>
-          {(["title", "arc", "readingLevel", "timer", "role"] as const).map(
-            field,
-          )}
-          <EditField
-            spec={draft}
-            schema={AdventureSpec.shape.authoring
-              .unwrap()
-              .shape.sourcePolicy.unwrap()}
-            value={
-              draft.authoring?.sourcePolicy ?? {
-                allowAny: false,
-                extraDomains: [],
-              }
-            }
-            path={["sourcePolicy"]}
-            name="Source policy"
-            onEdit={(command) => {
-              const policy = structuredClone(
-                draft.authoring?.sourcePolicy ?? {
-                  allowAny: false,
-                  extraDomains: [],
-                },
-              );
-              // Reuse the reducer on a small, schema-shaped settings wrapper.
-              const holder = {
-                ...draft,
-                sourcePolicy: policy,
-              } as unknown as Spec;
-              const updated = applyV3Edits(
-                holder,
-                [command],
-                [],
-                true,
-              ) as unknown as {
-                sourcePolicy: NonNullable<
-                  NonNullable<Spec["authoring"]>["sourcePolicy"]
-                >;
-              };
-              edit({ type: "sourcePolicy", value: updated.sourcePolicy });
-            }}
-          />
-        </div>
-      );
-    if (tab === "reveal")
-      return (
-        <div className="space-y-4 rounded-surface border border-line bg-surface p-4">
-          {field("reveal")}
-          {field("teacherQuestions")}
-        </div>
-      );
-    const index = draft[tab].findIndex((item) => item.id === selected);
-    const list = draft[tab];
-    const associated =
-      tab === "stages"
-        ? ([
-            "discoveries",
-            "definingMoments",
-            "storyEvents",
-            "openQuestions",
-            "hintAngles",
-          ] as const)
-        : tab === "characters"
-          ? (["triggers"] as const)
-          : [];
-    return (
-      <div className="space-y-4 rounded-surface border border-line bg-surface p-4">
-        {index >= 0 ? (
-          <>
-            {tab === "documents" ? (
-              <EvidenceControls
-                spec={draft}
-                index={index}
-                sources={props.capturedSources}
-                onEdit={edit}
-              />
-            ) : null}
-            <EditField
-              spec={draft}
-              schema={AdventureSpec.shape[tab].element as z.ZodType}
-              value={list[index]}
-              path={[tab, index]}
-              name={fieldLabel(tab)}
-              onEdit={edit}
-            />
-            <div className="flex flex-wrap gap-2">
-              <Remove
-                spec={draft}
-                value={list[index]}
-                path={[tab, index]}
-                onEdit={edit}
-              />
-              <button
-                type="button"
-                className={button.subtle}
-                disabled={index === 0}
-                onClick={() =>
-                  edit({
-                    type: "move",
-                    path: [tab],
-                    from: index,
-                    to: index - 1,
-                  })
-                }
-              >
-                Move item up
-              </button>
-              <button
-                type="button"
-                className={button.subtle}
-                disabled={index === list.length - 1}
-                onClick={() =>
-                  edit({
-                    type: "move",
-                    path: [tab],
-                    from: index,
-                    to: index + 1,
-                  })
-                }
-              >
-                Move item down
-              </button>
-            </div>
-          </>
-        ) : (
-          <p>Select an item from the index.</p>
-        )}
 
-        <button
-          type="button"
-          className={button.quiet}
-          onClick={() =>
-            edit({
-              type: "insert",
-              path: [tab],
-              index: list.length,
-              value: template(AdventureSpec.shape[tab].element as z.ZodType),
-            })
-          }
-        >
-          Add {tab === "characters" ? "character" : tab.slice(0, -1)}
-        </button>
-        {associated.map((key) => {
-          const schema = AdventureSpec.shape[key];
-          const element = (unwrap(schema) as z.ZodArray<z.ZodType>).element;
-          return (
-            <section
-              key={key}
-              className="space-y-4"
-              id={reviewAnchor(
-                reviewSectionId(
-                  selected,
-                  key === "storyEvents" ? "events" : key,
-                ),
-              )}
-              tabIndex={-1}
-            >
-              <h3 className="font-bold">{fieldLabel(key)}</h3>
-              {draft[key].map((item, i) => {
-                const belongs =
-                  "stageId" in item
-                    ? item.stageId === selected
-                    : "characterId" in item
-                      ? item.characterId === selected
-                      : "discoveryId" in item
-                        ? draft.discoveries.find(
-                            (d) => d.id === item.discoveryId,
-                          )?.stageId === selected
-                        : true;
-                return belongs ? (
-                  <div key={item.id} className="space-y-2">
-                    <EditField
-                      spec={draft}
-                      schema={element}
-                      value={item}
-                      path={[key, i]}
-                      name={fieldLabel(key)}
-                      onEdit={edit}
-                    />
-                    <Remove
-                      spec={draft}
-                      value={item}
-                      path={[key, i]}
-                      onEdit={edit}
-                    />
-                    <button
-                      type="button"
-                      className={button.subtle}
-                      disabled={i === 0}
-                      onClick={() =>
-                        edit({ type: "move", path: [key], from: i, to: i - 1 })
-                      }
-                    >
-                      Move up
-                    </button>
-                    <button
-                      type="button"
-                      className={button.subtle}
-                      disabled={i === draft[key].length - 1}
-                      onClick={() =>
-                        edit({ type: "move", path: [key], from: i, to: i + 1 })
-                      }
-                    >
-                      Move down
-                    </button>
-                  </div>
-                ) : null;
-              })}
-              <button
-                type="button"
-                className={button.quiet}
-                onClick={() => {
-                  const value = template(element) as Record<string, unknown>;
-                  if ("stageId" in value) value.stageId = selected;
-                  if (key === "triggers") value.characterId = selected;
-                  edit({
-                    type: "insert",
-                    path: [key],
-                    index: draft[key].length,
-                    value,
-                  });
-                }}
-              >
-                Add {fieldLabel(key)}
-              </button>
-            </section>
-          );
-        })}
-      </div>
-    );
-  };
   return (
     <>
       <header className="space-y-4" aria-busy={pending}>
@@ -514,6 +241,36 @@ export function EditorWorkspace(props: Props) {
           </button>
         ) : null}
       </header>
+      {editMode ? (
+        <AiFixPanel<{ edits: V3Edit[] }>
+          revision={`${version}:${JSON.stringify(edits)}`}
+          disabled={pending}
+          request={() =>
+            fixV3EditsWithAiAction(props.adventureId, version, edits)
+          }
+          apply={(proposal) => {
+            try {
+              setDraft(
+                applyV3Edits(
+                  saved,
+                  proposal.edits,
+                  props.capturedSources,
+                  true,
+                ),
+              );
+              setEdits(proposal.edits);
+              setMessage("");
+              setFailure(false);
+            } catch (error) {
+              setMessage(
+                error instanceof Error
+                  ? error.message
+                  : "Could not apply suggestion.",
+              );
+            }
+          }}
+        />
+      ) : null}
       <ReviewScreen
         spec={draft}
         sources={props.sources}
@@ -523,7 +280,15 @@ export function EditorWorkspace(props: Props) {
           ...checks.warnings.map((w) => ({ ...w, pass: "editing" })),
         ]}
         editMode={editMode}
-        renderEditor={renderEditor}
+        renderEditor={(tab, selected) => (
+          <ReviewEditorFields
+            draft={draft}
+            sources={props.capturedSources}
+            edit={edit}
+            tab={tab}
+            selected={selected}
+          />
+        )}
       />
     </>
   );

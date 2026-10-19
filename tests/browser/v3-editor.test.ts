@@ -55,7 +55,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id === "\0publish")
               return `export async function currentV3StudentLink(){return {ok:true,path:"/v3/join/fixture?release=test"}}; export async function publishV3Adventure(){return {ok:true,status:'published'}}; export async function unpublishV3Adventure(){return {ok:true,status:'draft'}}`;
             if (id === "\0save")
-              return `import {applyV3Edits} from '/src/lib/v3/edit/commands.ts';
+              return `export async function fixV3EditsWithAiAction(){return {ok:true,notes:'I corrected the title.',edits:[{type:'set',path:['title'],value:'Suggested teacher title'}]}}; import {applyV3Edits} from '/src/lib/v3/edit/commands.ts';
           export async function saveV3AdventureEdits(id,version,edits){
             if(window.saveMode==='failure') throw Error('offline');
             if(window.saveMode==='conflict') return {ok:false,code:'conflict',message:'This adventure changed. Your local edits are still here.'};
@@ -199,6 +199,45 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             .isVisible(),
         ).toBe(true);
       }
+      await page
+        .getByRole("button", { name: "Fix with AI", exact: true })
+        .click();
+      await page.getByText("I corrected the title.", { exact: true }).waitFor();
+      expect(await page.locator("#edit-title").inputValue()).toBe(
+        "Keep this local work",
+      );
+      await page
+        .getByRole("button", { name: "Keep my edits", exact: true })
+        .click();
+      expect(await page.locator("#edit-title").inputValue()).toBe(
+        "Keep this local work",
+      );
+      await page
+        .getByRole("button", { name: "Fix with AI", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Apply suggested fix", exact: true })
+        .waitFor();
+      await page.locator("#edit-title").fill("Another teacher change");
+      expect(
+        await page
+          .getByRole("button", { name: "Apply suggested fix", exact: true })
+          .count(),
+      ).toBe(0);
+      await page
+        .getByRole("button", { name: "Fix with AI", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Apply suggested fix", exact: true })
+        .click();
+      expect(await page.locator("#edit-title").inputValue()).toBe(
+        "Suggested teacher title",
+      );
+      expect(
+        await page.evaluate(
+          () => JSON.parse(localStorage.getItem("spec")!).title,
+        ),
+      ).toBe("A saved teacher title");
       for (const width of [1440, 375, 320]) {
         await page.setViewportSize({ width, height: 812 });
         expect(
