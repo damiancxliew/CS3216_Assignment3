@@ -176,7 +176,7 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
         .getByRole("heading", { name: "Version history", exact: true })
         .waitFor();
       expect(
-        await page.getByText("Version 2 · Live", { exact: true }).isVisible(),
+        await page.getByRole("table").getByText("Live", { exact: true }).isVisible(),
       ).toBe(true);
       expect(
         await page.getByRole("link", { name: "View results" }).count(),

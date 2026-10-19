@@ -40,8 +40,8 @@ export default async function StudentLinkHistoryPage({
       </Link>
       <section className="my-6 flex flex-wrap items-center justify-between gap-4 rounded-surface border border-line bg-surface p-5">
         <div>
-          <h2 className="font-bold">
-            {live ? `Live · Version ${live.version}` : "Unpublished"}
+          <h2 className="flex items-center gap-2 font-bold">
+            {live ? <>Version {live.version} <LiveBadge /></> : "Unpublished"}
           </h2>
           <p className="mt-1 text-sm text-muted">
             {live
@@ -92,9 +92,9 @@ export default async function StudentLinkHistoryPage({
                 return (
                   <tr key={row.version}>
                     <th scope="row" className="border-b border-line p-3">
-                      <p>
+                      <p className="flex items-center gap-2">
                         Version {row.version}
-                        {row.live ? " · Live" : ""}
+                        {row.live ? <LiveBadge /> : null}
                       </p>
                       <p className="font-normal">{row.title}</p>
                     </th>
@@ -150,4 +150,8 @@ export default async function StudentLinkHistoryPage({
       )}
     </Page>
   );
+}
+
+function LiveBadge() {
+  return <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Live</span>;
 }
