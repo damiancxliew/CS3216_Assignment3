@@ -19,7 +19,9 @@ describe("teacher review language", () => {
       for (const slant of character.slants)
         expect(names.get(slant.id)).toBe(slant.claim);
       for (const stance of character.stances)
-        expect(names.get(stance.id)).toBe(stance.label);
+        expect(names.get(`stance:${character.id}:${stance.id}`)).toBe(
+          stance.label,
+        );
     }
     expect(names.get("held")).toBe("Carried by the student");
   });
@@ -80,4 +82,18 @@ describe("teacher review language", () => {
       }),
     ).toBe("This check reported a problem but did not explain what to change.");
   });
+});
+
+it("keeps stage names distinct from character-local stance IDs", () => {
+  const edited = structuredClone(spec);
+  edited.characters[0].stances[0].id = edited.stages[0].id;
+  edited.characters[1].stances[0].id = edited.stages[0].id;
+  const names = reviewNames(edited);
+  expect(names.get(edited.stages[0].id)).toBe(edited.stages[0].title);
+  expect(
+    names.get(`stance:${edited.characters[0].id}:${edited.stages[0].id}`),
+  ).toBe(edited.characters[0].stances[0].label);
+  expect(
+    names.get(`stance:${edited.characters[1].id}:${edited.stages[0].id}`),
+  ).toBe(edited.characters[1].stances[0].label);
 });

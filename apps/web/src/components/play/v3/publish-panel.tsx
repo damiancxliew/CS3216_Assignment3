@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Check, Copy } from "lucide-react";
 import { useState, useTransition } from "react";
 
@@ -16,7 +15,6 @@ export function V3PublishPanel({
   published,
   blockedReason,
   compact = false,
-  showHistory = true,
   version,
   publishedVersion,
   unpublishedChanges = false,
@@ -27,7 +25,6 @@ export function V3PublishPanel({
   published: boolean;
   blockedReason?: string;
   compact?: boolean;
-  showHistory?: boolean;
   onPublicationChange?: (published: boolean, version: number | null) => void;
   version?: number;
   publishedVersion?: number | null;
@@ -49,15 +46,19 @@ export function V3PublishPanel({
         version === undefined
           ? undefined
           : { version, publishedVersion: pointer };
-      const result = publish
-        ? await publishV3Adventure(adventureId, expected)
-        : await unpublishV3Adventure(adventureId, expected);
-      if (result.ok) {
-        setPublished(result.status === "published");
-        setPointer(publish ? (version ?? null) : null);
-        setChanges(false);
-        onPublicationChange?.(publish, publish ? (version ?? null) : null);
-      } else setMessage(result.message);
+      try {
+        const result = publish
+          ? await publishV3Adventure(adventureId, expected)
+          : await unpublishV3Adventure(adventureId, expected);
+        if (result.ok) {
+          setPublished(result.status === "published");
+          setPointer(publish ? (version ?? null) : null);
+          setChanges(false);
+          onPublicationChange?.(publish, publish ? (version ?? null) : null);
+        } else setMessage(result.message);
+      } catch {
+        setMessage("Could not update publication. Try again.");
+      }
     });
   };
 
@@ -123,51 +124,41 @@ export function V3PublishPanel({
       </div>
       {!isPublished || changes ? (
         <div className="flex flex-wrap items-center gap-2">
-          {!isPublished || changes ? (
-            <span
-              className="group/publish relative inline-flex rounded-full outline-offset-4"
-              tabIndex={blockedReason ? 0 : undefined}
-              role={blockedReason ? "group" : undefined}
-              aria-label={blockedReason ? "Publish unavailable" : undefined}
+          <span
+            className="group/publish relative inline-flex rounded-full outline-offset-4"
+            tabIndex={blockedReason ? 0 : undefined}
+            role={blockedReason ? "group" : undefined}
+            aria-label={blockedReason ? "Publish unavailable" : undefined}
+            aria-describedby={
+              blockedReason ? `publish-block-${adventureId}` : undefined
+            }
+          >
+            <button
+              type="button"
+              onClick={() => toggle(true)}
+              disabled={publishBlocked}
               aria-describedby={
                 blockedReason ? `publish-block-${adventureId}` : undefined
               }
+              className={styles.quiet + " disabled:pointer-events-none"}
             >
-              <button
-                type="button"
-                onClick={() => toggle(true)}
-                disabled={publishBlocked}
-                aria-describedby={
-                  blockedReason ? `publish-block-${adventureId}` : undefined
-                }
-                className={styles.quiet + " disabled:pointer-events-none"}
+              {pending
+                ? "Publishing…"
+                : isPublished
+                  ? "Publish changes"
+                  : "Publish"}
+            </button>
+            {blockedReason ? (
+              <span
+                id={`publish-block-${adventureId}`}
+                role="tooltip"
+                className="pointer-events-none invisible absolute top-full right-0 z-20 mt-2 w-56 max-w-[calc(100vw-2.5rem)] rounded-lg border border-danger/50 bg-danger-wash px-3 py-2 text-xs font-semibold leading-relaxed text-danger shadow-md group-hover/publish:visible group-focus-visible/publish:visible"
               >
-                {pending
-                  ? "Publishing…"
-                  : isPublished
-                    ? "Publish changes"
-                    : "Publish"}
-              </button>
-              {blockedReason ? (
-                <span
-                  id={`publish-block-${adventureId}`}
-                  role="tooltip"
-                  className="pointer-events-none invisible absolute top-full right-0 z-20 mt-2 w-56 max-w-[calc(100vw-2.5rem)] rounded-lg border border-danger/50 bg-danger-wash px-3 py-2 text-xs font-semibold leading-relaxed text-danger shadow-md group-hover/publish:visible group-focus-visible/publish:visible"
-                >
-                  {blockedReason}
-                </span>
-              ) : null}
-            </span>
-          ) : null}
+                {blockedReason}
+              </span>
+            ) : null}
+          </span>
         </div>
-      ) : null}
-      {showHistory ? (
-        <Link
-          href={`/v3/teacher/${adventureId}/links`}
-          className="inline-block text-sm text-muted underline underline-offset-4 hover:text-ink"
-        >
-          Version history
-        </Link>
       ) : null}
       {message ? (
         <p role="alert" className="text-sm text-ink">

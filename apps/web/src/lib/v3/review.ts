@@ -10,8 +10,16 @@ import {
 } from "@adventure/spec-v3";
 import type { ExtractedDocument } from "@adventure/generation";
 
-export type ReviewTab = "stages" | "characters" | "documents" | "endings" | "settings" | "reveal";
+export type ReviewTab =
+  | "stages"
+  | "characters"
+  | "documents"
+  | "endings"
+  | "settings"
+  | "reveal";
 export type ReviewTarget = { tab: ReviewTab; itemId: string; anchor: string };
+export const reviewStanceId = (characterId: string, stanceId: string) =>
+  `stance:${characterId}:${stanceId}`;
 export const reviewAnchor = (id: string) => `review-${encodeURIComponent(id)}`;
 
 /** Display-only enrichment: never write recovered provenance into a saved version. */
@@ -79,7 +87,7 @@ export function reviewTargets(spec: AdventureSpec): Map<string, ReviewTarget> {
   for (const character of spec.characters) {
     put(character.id, "characters", character.id);
     for (const stance of character.stances)
-      put(stance.id, "characters", character.id);
+      put(reviewStanceId(character.id, stance.id), "characters", character.id);
     for (const slant of character.slants)
       put(slant.id, "characters", character.id);
   }
@@ -114,6 +122,11 @@ export function issueTarget(
     return issue.ids?.map((id) => targets.get(id)).find(Boolean);
   }
   const keys = (localPath ?? "").replace(/\[(\d+)\]/g, ".$1").split(".");
+  if (keys[0] === "characters" && keys[2] === "stances") {
+    const character = spec.characters[Number(keys[1])];
+    const stance = character?.stances[Number(keys[3])];
+    if (stance) return targets.get(reviewStanceId(character.id, stance.id));
+  }
   let node: unknown = spec;
   let target: ReviewTarget | undefined;
   for (const key of keys) {
@@ -180,9 +193,9 @@ export function conditionText(
   if ("discovered" in condition)
     return `Discover ${name(condition.discovered)}`;
   if ("stanceAtLeast" in condition)
-    return `${name(condition.stanceAtLeast.characterId)} reaches at least ${name(condition.stanceAtLeast.stanceId)}`;
+    return `${name(condition.stanceAtLeast.characterId)} reaches at least ${name(reviewStanceId(condition.stanceAtLeast.characterId, condition.stanceAtLeast.stanceId))}`;
   if ("stanceIs" in condition)
-    return `${name(condition.stanceIs.characterId)} is ${name(condition.stanceIs.stanceId)}`;
+    return `${name(condition.stanceIs.characterId)} is ${name(reviewStanceId(condition.stanceIs.characterId, condition.stanceIs.stanceId))}`;
   if ("notePassed" in condition)
     return `Pass ${name(condition.notePassed.discoveryId)} to ${name(condition.notePassed.characterId)}`;
   if ("slantConfronted" in condition)
@@ -305,6 +318,10 @@ export function reviewIndex(
       ),
       section("glossary", "Glossary"),
     ];
-  if (tab === "endings") return [{ id: itemId, label: "Overview" }, section("interview", "Interview")];
+  if (tab === "endings")
+    return [
+      { id: itemId, label: "Overview" },
+      section("interview", "Interview"),
+    ];
   return [];
 }

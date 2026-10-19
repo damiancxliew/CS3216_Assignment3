@@ -52,10 +52,30 @@ describe("schema-driven edit forms", () => {
   });
 });
 
-it('keeps full reference labels and hides storage ID suffixes', () => {
+it("keeps full reference labels and hides storage ID suffixes", () => {
   const edited = structuredClone(spec);
-  edited.definingMoments[0].scene = 'A complete defining moment description. '.repeat(8);
-  expect(references(edited, 'definingMomentId')?.[0].label).toBe(edited.definingMoments[0].scene);
-  expect(fieldLabel('definingMomentId')).toBe('Defining Moment');
-  expect(fieldLabel('discoveryIds')).toBe('Discovery');
+  edited.definingMoments[0].scene =
+    "A complete defining moment description. ".repeat(8);
+  expect(references(edited, "definingMomentId")?.[0].label).toBe(
+    edited.definingMoments[0].scene,
+  );
+  expect(fieldLabel("definingMomentId")).toBe("Defining Moment");
+  expect(fieldLabel("discoveryIds")).toBe("Discovery");
+});
+
+it("limits local references to their owning character, moment, stage and document", () => {
+  const character = spec.characters[0];
+  expect(
+    references(spec, "initialStanceId", { characterId: character.id })?.map(
+      (o) => o.value,
+    ),
+  ).toEqual(character.stances.map((s) => s.id));
+  expect(
+    references(spec, "actId", { momentId: spec.definingMoments[0].id })?.length,
+  ).toBe(spec.definingMoments[0].acts.length);
+  expect(
+    references(spec, "startRoomId", { stageId: spec.stages[0].id })?.map(
+      (o) => o.value,
+    ),
+  ).toEqual(spec.stages[0].rooms.map((r) => r.id));
 });

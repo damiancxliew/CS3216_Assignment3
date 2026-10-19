@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { AdventureSpec } from "@adventure/spec-v3";
-import type { EditPath } from "./commands";
+import { atPath, type EditPath } from "./commands";
 
 export function unwrap(schema: z.ZodType): z.ZodType {
   const def = schema._zod.def;
@@ -67,10 +67,55 @@ export function template(schema: z.ZodType, depth = 0): unknown {
   }
 }
 export const fieldLabel = (key: string) =>
-  key.replace(/Ids?$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
+  key
+    .replace(/Ids?$/, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/^./, (c) => c.toUpperCase());
+export type ReferenceContext = {
+  stageId?: string;
+  characterId?: string;
+  momentId?: string;
+  documentId?: string;
+};
+export function referenceContext(
+  spec: AdventureSpec,
+  path: EditPath,
+): ReferenceContext {
+  const context: ReferenceContext = {};
+  if (path[0] === "characters")
+    context.characterId = spec.characters[Number(path[1])]?.id;
+  if (path[0] === "definingMoments") {
+    const moment = spec.definingMoments[Number(path[1])];
+    context.momentId = moment?.id;
+    context.stageId = moment?.stageId;
+  }
+  if (path[0] === "stages") context.stageId = spec.stages[Number(path[1])]?.id;
+  if (path[0] === "triggers")
+    context.characterId = spec.triggers[Number(path[1])]?.characterId;
+  if (path[0] === "storyEvents")
+    context.stageId = spec.storyEvents[Number(path[1])]?.stageId;
+  if (path[0] === "discoveries")
+    context.stageId = spec.discoveries[Number(path[1])]?.stageId;
+  if (path.at(-2) === "stances") context.characterId = String(path.at(-1));
+  try {
+    const parent = atPath(spec, path.slice(0, -1));
+    if (parent && typeof parent === "object") {
+      for (const key of ["characterId", "momentId", "documentId"] as const)
+        if (
+          key in parent &&
+          typeof (parent as Record<string, unknown>)[key] === "string"
+        )
+          context[key] = (parent as Record<string, string>)[key];
+    }
+  } catch {
+    /* A newly-added optional field can be incomplete while editing. */
+  }
+  return context;
+}
 export function references(
   spec: AdventureSpec,
   key: string,
+  context: ReferenceContext = {},
 ): { value: string; label: string }[] | undefined {
   const list = <T extends { id: string }>(
     items: T[],
@@ -90,7 +135,9 @@ export function references(
   )
     return [
       ...list(
-        spec.stages.flatMap((s) => s.rooms),
+        spec.stages
+          .filter((s) => !context.stageId || s.id === context.stageId)
+          .flatMap((s) => s.rooms),
         (r) => r.name,
       ),
       ...(key === "documentPlacement"
@@ -102,20 +149,26 @@ export function references(
     return list(spec.definingMoments, (m) => m.scene);
   if (["actId"].includes(key))
     return list(
-      spec.definingMoments.flatMap((m) => m.acts),
+      spec.definingMoments
+        .filter((m) => !context.momentId || m.id === context.momentId)
+        .flatMap((m) => m.acts),
       (a) => a.text,
     );
   if (["outcomeId"].includes(key))
     return list(
-      spec.definingMoments.flatMap((m) => m.outcomes),
+      spec.definingMoments
+        .filter((m) => !context.momentId || m.id === context.momentId)
+        .flatMap((m) => m.outcomes),
       (o) => o.summary,
     );
   if (["endingId", "closesEndingIds"].includes(key))
     return list(spec.endings, (e) => e.title);
   if (["stanceId", "initialStanceId", "toStance", "stances"].includes(key))
-    return spec.characters.flatMap((c) =>
-      c.stances.map((s) => ({ value: s.id, label: `${c.name}: ${s.label}` })),
-    );
+    return spec.characters
+      .filter((c) => !context.characterId || c.id === context.characterId)
+      .flatMap((c) =>
+        c.stances.map((s) => ({ value: s.id, label: `${c.name}: ${s.label}` })),
+      );
   if (
     [
       "discoveryId",
@@ -131,12 +184,14 @@ export function references(
   if (["documentId", "handsOver"].includes(key))
     return list(spec.documents, (d) => d.title);
   if (["keyPassageId"].includes(key))
-    return spec.documents.flatMap((d) =>
-      d.keyPassages.map((p) => ({
-        value: p.id,
-        label: `${d.title}: ${d.body.slice(p.start, p.end)}`,
-      })),
-    );
+    return spec.documents
+      .filter((d) => !context.documentId || d.id === context.documentId)
+      .flatMap((d) =>
+        d.keyPassages.map((p) => ({
+          value: p.id,
+          label: `${d.title}: ${d.body.slice(p.start, p.end)}`,
+        })),
+      );
   if (key === "slantConfronted")
     return list(
       spec.characters.flatMap((c) => c.slants),

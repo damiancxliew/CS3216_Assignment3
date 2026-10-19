@@ -24,6 +24,7 @@ import {
   documentSegments,
   issueTarget,
   reviewAnchor,
+  reviewStanceId,
   reviewIndex,
   reviewDiscoveryTitle,
   reviewSectionId,
@@ -224,7 +225,11 @@ export function ReviewScreen({
     settings: "settings",
     reveal: "reveal",
   }));
-  const selected = selection[tab];
+  const tabItems =
+    tab === "settings" || tab === "reveal" ? [{ id: tab }] : spec[tab];
+  const selected = tabItems.some((item) => item.id === selection[tab])
+    ? selection[tab]
+    : (tabItems[0]?.id ?? "");
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [activeAnchor, setActiveAnchor] = useState(reviewAnchor(selected));
   const [destination, setDestination] = useState<ReviewTarget | null>(null);
@@ -360,49 +365,63 @@ export function ReviewScreen({
   return (
     <div data-review-screen className="space-y-6 text-ink">
       <section
-        className="space-y-3 rounded-surface border border-line bg-surface p-5"
+        className={`space-y-3 rounded-surface border p-5 ${errors.length ? "border-line bg-surface" : "border-world/30 bg-world-wash"}`}
         aria-labelledby="needs-fixing"
       >
-        <h2 id="needs-fixing" className="text-xl font-bold">
-          Needs fixing ({errors.length})
+        <h2
+          id="needs-fixing"
+          className={`text-xl font-bold ${errors.length ? "text-ink" : "text-world"}`}
+        >
+          {errors.length ? `Needs fixing (${errors.length})` : "Checks passed"}
         </h2>
-        {errors.length ? (
-          issueList(errors)
-        ) : (
-          <p className="text-sm">Ready to publish.</p>
-        )}
-        {[...warningGroups].map(([pass, list]) => (
-          <div key={pass}>
-            <h3 className="mb-2 font-bold">
-              {REVIEW_PASS_LABELS[pass] ?? "Other checks"} warnings
-            </h3>
-            {issueList(list)}
-          </div>
-        ))}
-        <h3 className="font-bold">Conflicts ({spec.conflicts.length})</h3>
-        {spec.conflicts.length ? (
-          <ul className="space-y-4">
-            {spec.conflicts.map((conflict) => (
-              <li key={conflict.id} className="space-y-2 text-sm">
-                <Field title="Teacher brief">{conflict.teacherSays}</Field>
-                <Field title="Source says">{conflict.sourceSays}</Field>
-                <div className="flex flex-wrap gap-3">
-                  {conflict.itemIds.map((id) => (
-                    <span key={id}>{link(id)}</span>
-                  ))}
-                </div>
-                <Citations
-                  citations={[{ sourceId: conflict.sourceId }]}
-                  sources={sources}
-                />
-              </li>
+        {errors.length ? issueList(errors) : null}
+        <details open={errors.length ? true : undefined} className="text-sm">
+          <summary className="w-fit cursor-pointer font-semibold">
+            Warnings and conflicts
+            {warnings.length + spec.conflicts.length
+              ? ` (${warnings.length + spec.conflicts.length})`
+              : ""}
+          </summary>
+          <div className="mt-4 space-y-4">
+            {!warnings.length && !spec.conflicts.length ? (
+              <p className="text-muted">No warnings or conflicts recorded.</p>
+            ) : null}
+            {[...warningGroups].map(([pass, list]) => (
+              <div key={pass}>
+                <h3 className="mb-2 font-bold">
+                  {REVIEW_PASS_LABELS[pass] ?? "Other checks"} warnings
+                </h3>
+                {issueList(list)}
+              </div>
             ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-muted">
-            Source comparison is not available yet.
-          </p>
-        )}
+            {spec.conflicts.length ? (
+              <>
+                <h3 className="font-bold">
+                  Conflicts ({spec.conflicts.length})
+                </h3>
+                <ul className="space-y-4">
+                  {spec.conflicts.map((conflict) => (
+                    <li key={conflict.id} className="space-y-2 text-sm">
+                      <Field title="Teacher brief">
+                        {conflict.teacherSays}
+                      </Field>
+                      <Field title="Source says">{conflict.sourceSays}</Field>
+                      <div className="flex flex-wrap gap-3">
+                        {conflict.itemIds.map((id) => (
+                          <span key={id}>{link(id)}</span>
+                        ))}
+                      </div>
+                      <Citations
+                        citations={[{ sourceId: conflict.sourceId }]}
+                        sources={sources}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </div>
+        </details>
       </section>
       <div
         data-review-workspace
@@ -652,7 +671,7 @@ export function ReviewScreen({
                               {Object.entries(s.stances ?? {})
                                 .map(
                                   ([id, stance]) =>
-                                    `${name(id)} → ${name(stance)}`,
+                                    `${name(id)} → ${name(reviewStanceId(id, stance))}`,
                                 )
                                 .join(", ") || "Unchanged"}
                             </p>
@@ -863,7 +882,11 @@ export function ReviewScreen({
                         title="Stances"
                       >
                         {character.stances.map((s) => (
-                          <Block key={s.id} id={s.id} title={name(s.id)}>
+                          <Block
+                            key={s.id}
+                            id={reviewStanceId(character.id, s.id)}
+                            title={s.label}
+                          >
                             <p>{s.demeanour}</p>
                             <p>
                               {s.id === character.initialStanceId

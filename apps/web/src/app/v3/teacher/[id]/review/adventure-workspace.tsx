@@ -1,6 +1,7 @@
 import React from "react";
 import { notFound } from "next/navigation";
 import { validateSpec } from "@adventure/spec-v3";
+import { validateEditedSpec } from "@/lib/v3/edit/validation";
 import { Page } from "@/components/ui";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
@@ -41,25 +42,27 @@ export default async function AdventureWorkspace({
   // A failed progress read must not silently remove the final part errors.
   if (!progress || "error" in progress)
     throw new Error("Could not load generation checks");
-  const errors = reviewErrors(adventure.spec, progress.checkErrors);
   const parsed = validateSpec(adventure.spec);
+  const sources = documents.map((d) => ({
+    id: d.id,
+    title: d.title,
+    text: d.pages.map((p) => p.text).join("\n"),
+  }));
+  const checks =
+    parsed.ok && parsed.spec.authoring
+      ? validateEditedSpec(parsed.spec, sources, progress.checkErrors)
+      : null;
+  const errors =
+    checks?.errors ?? reviewErrors(adventure.spec, progress.checkErrors);
   return (
-    <Page
-      title={parsed.ok ? parsed.spec.title : "Adventure"}
-      lede="Review the story, its evidence and the final checks before publishing."
-      width="wide"
-    >
+    <Page title={parsed.ok ? parsed.spec.title : "Adventure"} width="wide">
       {parsed.ok ? (
         <EditorWorkspace
           adventureId={id}
           initialVersion={adventure.specVersion}
           publishedVersion={adventure.publishedVersion ?? null}
           published={adventure.status === "published"}
-          capturedSources={documents.map((d) => ({
-            id: d.id,
-            title: d.title,
-            text: d.pages.map((p) => p.text).join("\n"),
-          }))}
+          capturedSources={sources}
           initial={parsed.spec}
           sources={reviewSources(parsed.spec, documents)}
           errors={errors}

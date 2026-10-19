@@ -135,3 +135,22 @@ Reference selectors preserve full text and wrap long options using the shared
 Select component. Labels omit storage ID suffixes. The unused `/review` route
 and runtime history inference for missing publication records were removed;
 publication history comes directly from its authoritative table.
+
+### UI audit follow-up
+
+Teacher navigation is shared across the workspace, version history and class
+summary. Preview has only Restart and Back to adventure; publication controls
+remain on the workspace. Checks passed uses a green card with collapsed review
+notes. Actual blockers remain expanded. Version history has one record per
+release and responsive mobile cards rather than a clipped table.
+
+Fixed character-local stance IDs overwriting stage names/anchors, scoped reference
+choices to their owners, replaced raw citation JSON with source disclosures, and
+kept selection valid after removing an item. Class Summary defaults to the live
+release and excludes unpublished draft versions. Reload rechecks edited versions
+rather than resurrecting corrected generation errors.
+
+Verified with 214 targeted API/unit tests and all three browser regressions,
+including signed-in fixture acceptance and screenshots of adventure/history/
+summary/preview at 1440px and 375px in both light and dark themes. Typecheck passes;
+lint has no errors and four existing unrelated warnings.

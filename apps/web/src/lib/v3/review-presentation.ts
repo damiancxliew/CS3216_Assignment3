@@ -3,7 +3,7 @@ import type {
   CheckIssue,
   SpecStoryEvent,
 } from "@adventure/spec-v3";
-import { reviewDiscoveryTitle } from "./review";
+import { reviewDiscoveryTitle, reviewStanceId } from "./review";
 
 /** Labels for people; the original ids remain available as secondary references. */
 export function reviewNames(spec: AdventureSpec): Map<string, string> {
@@ -16,7 +16,10 @@ export function reviewNames(spec: AdventureSpec): Map<string, string> {
   for (const [i, character] of spec.characters.entries()) {
     names.set(character.id, character.name || `Character ${i + 1}`);
     for (const [j, stance] of character.stances.entries())
-      names.set(stance.id, stance.label || `Stance ${j + 1}`);
+      names.set(
+        reviewStanceId(character.id, stance.id),
+        stance.label || `Stance ${j + 1}`,
+      );
     for (const [j, slant] of character.slants.entries())
       names.set(slant.id, slant.claim || `Claim ${j + 1}`);
   }

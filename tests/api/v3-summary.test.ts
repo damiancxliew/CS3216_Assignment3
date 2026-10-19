@@ -19,16 +19,20 @@ const GOLDEN_SOURCE = resolve(process.cwd(), "fixtures/golden-1819.json");
 let goldenSpec: ReturnType<typeof EngineSpec.parse>;
 
 beforeAll(() => {
-  goldenSpec = EngineSpec.parse(JSON.parse(readFileSync(GOLDEN_SOURCE, "utf8")));
+  goldenSpec = EngineSpec.parse(
+    JSON.parse(readFileSync(GOLDEN_SOURCE, "utf8")),
+  );
 });
 
-function setup(options: {
-  ownerId?: string;
-  schoolId?: string;
-  specVersion?: number;
-  spec?: unknown | null;
-  env?: NodeJS.ProcessEnv;
-} = {}) {
+function setup(
+  options: {
+    ownerId?: string;
+    schoolId?: string;
+    specVersion?: number;
+    spec?: unknown | null;
+    env?: NodeJS.ProcessEnv;
+  } = {},
+) {
   const store = new MemoryV3PlayStore();
   store.addAdventure({
     id: ADVENTURE_ID,
@@ -49,14 +53,18 @@ function setup(options: {
   return { store, deps };
 }
 
-function eventsFor(options: { flag?: boolean; finalVerdict?: boolean; completed?: boolean } = {}): GameEvent[] {
+function eventsFor(
+  options: { flag?: boolean; finalVerdict?: boolean; completed?: boolean } = {},
+): GameEvent[] {
   const discovery = goldenSpec.discoveries[0]!;
   const moment = goldenSpec.definingMoments[0]!;
   const ending = goldenSpec.endings[0]!;
   const noteId = `note-${discovery.id}`;
   const initialVerdict = ending.interview.verdicts[0]!;
   const finalVerdict =
-    ending.interview.verdicts.find((verdict) => verdict.id !== initialVerdict.id) ?? initialVerdict;
+    ending.interview.verdicts.find(
+      (verdict) => verdict.id !== initialVerdict.id,
+    ) ?? initialVerdict;
   const outcome = moment.outcomes[0]!;
   const events: GameEvent[] = [
     {
@@ -114,7 +122,8 @@ function eventsFor(options: { flag?: boolean; finalVerdict?: boolean; completed?
     endingId: ending.id,
     closedEndingIds: [],
   });
-  if (options.completed) events.push({ type: "phase", at: 7, stageIndex: 0, to: "reveal" });
+  if (options.completed)
+    events.push({ type: "phase", at: 7, stageIndex: 0, to: "reveal" });
   if (options.flag) {
     events.push({
       type: "flag",
@@ -131,31 +140,56 @@ function eventsFor(options: { flag?: boolean; finalVerdict?: boolean; completed?
 describe("v3 class summary service", () => {
   it("allows the owner, a school admin, and a platform admin", async () => {
     const owner = setup();
-    expect((await loadClassSummary(owner.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(200);
+    expect(
+      (await loadClassSummary(owner.deps, OWNER_ID, ADVENTURE_ID)).status,
+    ).toBe(200);
 
     const schoolAdmin = setup();
     schoolAdmin.store.addSchoolAdmin(SCHOOL_ID, SCHOOL_ADMIN_ID);
-    expect((await loadClassSummary(schoolAdmin.deps, SCHOOL_ADMIN_ID, ADVENTURE_ID)).status).toBe(200);
+    expect(
+      (await loadClassSummary(schoolAdmin.deps, SCHOOL_ADMIN_ID, ADVENTURE_ID))
+        .status,
+    ).toBe(200);
 
     const platformAdmin = setup();
     platformAdmin.store.addPlatformAdmin(PLATFORM_ADMIN_ID);
-    expect((await loadClassSummary(platformAdmin.deps, PLATFORM_ADMIN_ID, ADVENTURE_ID)).status).toBe(200);
+    expect(
+      (
+        await loadClassSummary(
+          platformAdmin.deps,
+          PLATFORM_ADMIN_ID,
+          ADVENTURE_ID,
+        )
+      ).status,
+    ).toBe(200);
   });
 
   it("returns 404 for non-admin members, outsiders, disallowed schools, and unknown adventures", async () => {
     const fixture = setup();
     fixture.store.addMember(SCHOOL_ID, OTHER_USER_ID, true);
-    expect((await loadClassSummary(fixture.deps, OTHER_USER_ID, ADVENTURE_ID)).status).toBe(404);
-    expect((await loadClassSummary(fixture.deps, "outsider", ADVENTURE_ID)).status).toBe(404);
-    expect((await loadClassSummary(fixture.deps, OWNER_ID, "unknown-adventure")).status).toBe(404);
+    expect(
+      (await loadClassSummary(fixture.deps, OTHER_USER_ID, ADVENTURE_ID))
+        .status,
+    ).toBe(404);
+    expect(
+      (await loadClassSummary(fixture.deps, "outsider", ADVENTURE_ID)).status,
+    ).toBe(404);
+    expect(
+      (await loadClassSummary(fixture.deps, OWNER_ID, "unknown-adventure"))
+        .status,
+    ).toBe(404);
 
     const disallowed = setup({ env: { V3_SCHOOL_IDS: "school-2" } });
-    expect((await loadClassSummary(disallowed.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(404);
+    expect(
+      (await loadClassSummary(disallowed.deps, OWNER_ID, ADVENTURE_ID)).status,
+    ).toBe(404);
   });
 
   it("returns not_published before loading results for an unpublished adventure", async () => {
     const fixture = setup({ specVersion: 0 });
-    expect(await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID)).toMatchObject({
+    expect(
+      await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID),
+    ).toMatchObject({
       status: 409,
       code: "not_published",
       title: goldenSpec.title,
@@ -163,13 +197,19 @@ describe("v3 class summary service", () => {
   });
 
   it("logs and hides missing or invalid published specs", async () => {
-    const logger = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const logger = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
     try {
       const missing = setup({ spec: null });
-      expect((await loadClassSummary(missing.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(404);
+      expect(
+        (await loadClassSummary(missing.deps, OWNER_ID, ADVENTURE_ID)).status,
+      ).toBe(404);
 
       const invalid = setup({ spec: {} });
-      expect((await loadClassSummary(invalid.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(404);
+      expect(
+        (await loadClassSummary(invalid.deps, OWNER_ID, ADVENTURE_ID)).status,
+      ).toBe(404);
       expect(logger).toHaveBeenCalledTimes(2);
     } finally {
       logger.mockRestore();
@@ -179,7 +219,10 @@ describe("v3 class summary service", () => {
   it("summarises class events and names only students with flagged messages", async () => {
     const fixture = setup();
     fixture.store.setStudentEmail("flagged-student", "flagged@example.test");
-    fixture.store.setStudentEmail("unflagged-student", "unflagged@example.test");
+    fixture.store.setStudentEmail(
+      "unflagged-student",
+      "unflagged@example.test",
+    );
     const flaggedAttemptId = fixture.store.addAttemptWithEvents({
       adventureId: ADVENTURE_ID,
       specVersion: 1,
@@ -205,7 +248,11 @@ describe("v3 class summary service", () => {
     });
     expect(result.summary.verdicts[0]?.changedAfterPushBack).toBe(1);
     expect(result.flagged).toEqual([
-      { attemptId: flaggedAttemptId, count: 1, student: "flagged@example.test" },
+      {
+        attemptId: flaggedAttemptId,
+        count: 1,
+        student: "flagged@example.test",
+      },
     ]);
     expect(lookup.mock.calls).toEqual([["flagged-student"]]);
     const serialized = JSON.stringify(result);
@@ -245,9 +292,23 @@ describe("v3 class summary service", () => {
       events: eventsFor(),
     });
 
-    const current = await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID);
-    const requested = await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID, 1);
-    const unknown = await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID, 9);
+    const current = await loadClassSummary(
+      fixture.deps,
+      OWNER_ID,
+      ADVENTURE_ID,
+    );
+    const requested = await loadClassSummary(
+      fixture.deps,
+      OWNER_ID,
+      ADVENTURE_ID,
+      1,
+    );
+    const unknown = await loadClassSummary(
+      fixture.deps,
+      OWNER_ID,
+      ADVENTURE_ID,
+      9,
+    );
     expect(current).toMatchObject({
       status: 200,
       version: 2,
@@ -257,8 +318,16 @@ describe("v3 class summary service", () => {
         { version: 1, attempts: 1 },
       ],
     });
-    expect(requested).toMatchObject({ status: 200, version: 1, summary: { attempts: 1 } });
-    expect(unknown).toMatchObject({ status: 200, version: 2, summary: { attempts: 1 } });
+    expect(requested).toMatchObject({
+      status: 200,
+      version: 1,
+      summary: { attempts: 1 },
+    });
+    expect(unknown).toMatchObject({
+      status: 200,
+      version: 2,
+      summary: { attempts: 1 },
+    });
   });
 });
 
@@ -269,7 +338,12 @@ describe("Supabase v3 event loading", () => {
       attempt_id: attemptId,
       seq: index + 1,
       type: index === 1_000 ? "invalid" : "hint",
-      payload: { at: index, stageIndex: 0, level: 1, targetDiscoveryId: "discovery-1" },
+      payload: {
+        at: index,
+        stageIndex: 0,
+        level: 1,
+        targetDiscoveryId: "discovery-1",
+      },
     }));
     const ranges: [number, number][] = [];
     const query = {
@@ -284,10 +358,14 @@ describe("Supabase v3 event loading", () => {
     const admin = {
       from: vi.fn(() => query),
     } as unknown as SupabaseClient;
-    const logger = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const logger = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
 
     try {
-      const events = await new SupabaseV3PlayStore(admin).loadEvents([attemptId]);
+      const events = await new SupabaseV3PlayStore(admin).loadEvents([
+        attemptId,
+      ]);
       expect(events.get(attemptId)).toHaveLength(1_000);
       expect(ranges).toEqual([
         [0, 999],
@@ -298,5 +376,22 @@ describe("Supabase v3 event loading", () => {
     } finally {
       logger.mockRestore();
     }
+  });
+});
+
+it("defaults to the live release and excludes newer unpublished drafts from results", async () => {
+  const fixture = setup();
+  await fixture.store.publishVersion(ADVENTURE_ID, 1, 1, true);
+  await fixture.store.saveDraft(ADVENTURE_ID, 1, {
+    ...goldenSpec,
+    title: "Unpublished teacher draft",
+  });
+  expect(
+    await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID),
+  ).toMatchObject({
+    status: 200,
+    version: 1,
+    title: goldenSpec.title,
+    versions: [{ version: 1, attempts: 0 }],
   });
 });

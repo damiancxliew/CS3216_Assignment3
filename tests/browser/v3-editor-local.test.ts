@@ -129,6 +129,15 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
       });
       await page.getByRole("link", { name: "Preview", exact: true }).click();
       await page.waitForURL(`**/v3/teacher/${row.id}/preview`);
+      expect(
+        await page
+          .getByRole("button", { name: "Publish", exact: true })
+          .count(),
+      ).toBe(0);
+      await page
+        .getByRole("link", { name: "Back to adventure", exact: false })
+        .click();
+      await page.waitForURL(`**/v3/teacher/${row.id}`);
       await page.getByRole("button", { name: "Publish", exact: true }).click();
       await page.getByText("Published · v2", { exact: true }).waitFor();
       expect(
@@ -176,7 +185,10 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
         .getByRole("heading", { name: "Version history", exact: true })
         .waitFor();
       expect(
-        await page.getByRole("table").getByText("Live", { exact: true }).isVisible(),
+        await page
+          .getByRole("table")
+          .getByText("Live", { exact: true })
+          .isVisible(),
       ).toBe(true);
       expect(
         await page.getByRole("link", { name: "View results" }).count(),
@@ -193,10 +205,73 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
       );
       await page.keyboard.press("Escape");
       expect(await page.getByRole("tooltip").count()).toBe(0);
+      for (const [screen, suffix] of [
+        ["adventure", ""],
+        ["history", "/links"],
+        ["summary", "/summary"],
+        ["preview", "/preview"],
+      ] as const) {
+        await page.goto(`http://localhost:3000/v3/teacher/${row.id}${suffix}`);
+        if (screen !== "adventure") {
+          await page
+            .getByRole("link", { name: "Back to adventure", exact: false })
+            .waitFor();
+          expect(
+            await page
+              .getByRole("button", { name: "Unpublish", exact: true })
+              .count(),
+          ).toBe(0);
+          expect(
+            await page
+              .getByRole("link", { name: "Back to adventures", exact: true })
+              .count(),
+          ).toBe(0);
+        } else {
+          await page
+            .getByRole("heading", { name: spec.stages[0].title, exact: true })
+            .first()
+            .waitFor();
+          const checks = page.locator(
+            'section[aria-labelledby="needs-fixing"]',
+          );
+          await checks
+            .getByRole("heading", { name: "Checks passed", exact: true })
+            .waitFor();
+          expect(
+            await checks.locator("details").getAttribute("open"),
+          ).toBeNull();
+          await checks.locator("summary").click();
+          expect(
+            await checks
+              .getByText("No warnings or conflicts recorded.", { exact: true })
+              .isVisible(),
+          ).toBe(true);
+          await checks.locator("summary").click();
+        }
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate((t) => {
+            document.documentElement.dataset.theme = t;
+            localStorage.setItem("historical-adventures-theme", t);
+          }, theme);
+          for (const width of [1440, 375]) {
+            await page.setViewportSize({ width, height: 1000 });
+            expect(
+              await page.evaluate(
+                () => document.documentElement.scrollWidth <= innerWidth,
+              ),
+              `${screen} ${theme} ${width} overflow`,
+            ).toBe(true);
+            await page.screenshot({
+              animations: "disabled",
+              path: `/tmp/v3-audit-${screen}-${theme}-${width}.png`,
+            });
+          }
+        }
+      }
       expect(pageErrors).toEqual([]);
     } finally {
       await browser.close();
     }
   },
-  120_000,
+  180_000,
 );

@@ -8,11 +8,13 @@ import {
   unwrap,
   template,
   references,
+  referenceContext,
   dependentPaths,
   fieldLabel,
 } from "@/lib/v3/edit/form";
 import type { V3Edit, EditPath, CapturedSource } from "@/lib/v3/edit/commands";
-import { reviewAnchor, reviewSectionId } from "@/lib/v3/review";
+import { Citations } from "./review-screen";
+import { reviewAnchor, reviewSectionId, reviewStanceId } from "@/lib/v3/review";
 
 const input =
   "w-full min-w-0 rounded-lg border border-line bg-paper p-2 text-sm text-ink";
@@ -95,6 +97,14 @@ export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
   const unwrapped = unwrap(schema);
   const kind = unwrapped._zod.def.type;
   const optional = schema._zod.def.type === "optional";
+  if (key === "id") return null;
+  if (key === "citations")
+    return (
+      <Citations
+        citations={value as Spec["documents"][number]["citations"]}
+        sources={spec.sources}
+      />
+    );
   if (value === undefined || value === null)
     return (
       <div className="space-y-2">
@@ -109,7 +119,7 @@ export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
       </div>
     );
   if (
-    ["id", "sourceLabel", "citations"].includes(key) ||
+    ["sourceLabel"].includes(key) ||
     (key === "real" && path[0] === "documents")
   )
     return (
@@ -163,7 +173,9 @@ export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
                     ? Object.keys((option as z.ZodObject).shape)
                         .map(fieldLabel)
                         .join(", ")
-                    : option._zod.def.type}
+                    : option._zod.def.type === "literal"
+                      ? [...(option as z.ZodLiteral).values].join(" / ")
+                      : option._zod.def.type}
                 </option>
               );
             })}
@@ -178,9 +190,15 @@ export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
   }
   if (kind === "object") {
     const obj = value as Record<string, unknown>;
+    const entityId =
+      typeof obj.id === "string"
+        ? path[0] === "characters" && path[2] === "stances"
+          ? reviewStanceId(spec.characters[Number(path[1])].id, obj.id)
+          : obj.id
+        : undefined;
     return (
       <fieldset
-        id={typeof obj.id === "string" ? reviewAnchor(obj.id) : undefined}
+        id={entityId ? reviewAnchor(entityId) : undefined}
         tabIndex={typeof obj.id === "string" ? -1 : undefined}
         className="min-w-0 space-y-4 rounded-lg border border-line p-3"
       >
@@ -193,7 +211,7 @@ export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
                 typeof obj.id === "string"
                   ? reviewAnchor(
                       reviewSectionId(
-                        obj.id,
+                        entityId ?? obj.id,
                         (
                           {
                             acts: "choices",
@@ -317,16 +335,30 @@ export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
             )
           ? String(path.at(-2))
           : key,
+      referenceContext(spec, path),
     );
   if (choices) {
     const unique = [...new Map(choices.map((c) => [c.value, c])).values()];
-    const options = unique.some(c => c.value === value) ? unique : [
-      { value: String(value) || "__unresolved__", label: `Unresolved: ${String(value) || "Choose an item"}` }, ...unique,
-    ];
+    const options = unique.some((c) => c.value === value)
+      ? unique
+      : [
+          {
+            value: String(value) || "__unresolved__",
+            label: `Unresolved: ${String(value) || "Choose an item"}`,
+          },
+          ...unique,
+        ];
     return (
       <div className="space-y-1 text-sm font-bold">
         <span>{name}</span>
-        <Select label={name} value={String(value) || "__unresolved__"} options={options} wrapLabel className={input} onValueChange={set} />
+        <Select
+          label={name}
+          value={String(value) || "__unresolved__"}
+          options={options}
+          wrapLabel
+          className={input}
+          onValueChange={set}
+        />
       </div>
     );
   }

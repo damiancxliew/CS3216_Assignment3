@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { V3AdventureNav } from "@/components/teacher/v3-adventure-nav";
 import { z } from "zod";
 import {
   AdventureSpec,
@@ -52,18 +53,19 @@ export function EditorWorkspace(props: Props) {
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const checks = useMemo(() => {
     const parsed = validateSpec(draft);
-    return parsed.ok
-      ? {
-          ...checkSpec(parsed.spec),
-          errors: [
-            ...checkSpec(parsed.spec).errors,
-            ...(!parsed.spec.authoring ? editableIssues(parsed.spec) : []),
-          ],
-        }
-      : {
-          errors: parsed.issues.map((i) => ({ ...i, code: "schema" })),
-          warnings: [],
-        };
+    if (!parsed.ok)
+      return {
+        errors: parsed.issues.map((i) => ({ ...i, code: "schema" })),
+        warnings: [],
+      };
+    const current = checkSpec(parsed.spec);
+    return {
+      ...current,
+      errors: [
+        ...current.errors,
+        ...(!parsed.spec.authoring ? editableIssues(parsed.spec) : []),
+      ],
+    };
   }, [draft]);
   // Generation obligations remain visible locally; authoritative Save replaces this list.
   const errors = [
@@ -394,29 +396,8 @@ export function EditorWorkspace(props: Props) {
   };
   return (
     <>
-      <header className="mb-6 space-y-4" aria-busy={pending}>
-        <nav
-          aria-label="Adventure navigation"
-          className="flex items-center justify-between gap-4 border-b border-line pb-3 text-sm"
-        >
-          <Link href="/teacher" className="text-muted hover:text-ink">
-            ← Back to adventures
-          </Link>
-          <div className="flex flex-wrap items-center gap-4">
-            <Link
-              href={`/v3/teacher/${props.adventureId}/summary`}
-              className="text-muted underline underline-offset-4 hover:text-ink"
-            >
-              Class summary
-            </Link>
-            <Link
-              href={`/v3/teacher/${props.adventureId}/links`}
-              className="text-muted underline underline-offset-4 hover:text-ink"
-            >
-              Version history
-            </Link>
-          </div>
-        </nav>
+      <header className="space-y-4" aria-busy={pending}>
+        <V3AdventureNav adventureId={props.adventureId} page="adventure" />
         <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
           <section aria-label="Draft controls" className="space-y-3 py-2">
             <p className="text-sm font-bold">
@@ -503,17 +484,18 @@ export function EditorWorkspace(props: Props) {
                   : undefined
               }
               compact
-              showHistory={false}
             />
           </div>
         </div>
-        <p
-          className="w-full text-sm"
-          role={failure ? "alert" : "status"}
-          aria-live="polite"
-        >
-          {message}
-        </p>
+        {message ? (
+          <p
+            className="text-sm"
+            role={failure ? "alert" : "status"}
+            aria-live="polite"
+          >
+            {message}
+          </p>
+        ) : null}
         {failure ? (
           <button
             type="button"

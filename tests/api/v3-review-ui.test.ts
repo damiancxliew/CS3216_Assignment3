@@ -142,7 +142,7 @@ describe("review screen rendering", () => {
     expect(html).toContain("No quoted passage available");
   });
 
-  it("describes empty generated conflicts as detection pending", () => {
+  it("shows a green success card with optional review notes when checks pass", () => {
     const html = renderToStaticMarkup(
       createElement(ReviewScreen, {
         spec: { ...spec, conflicts: [] },
@@ -151,6 +151,11 @@ describe("review screen rendering", () => {
         warnings: [],
       }),
     );
-    expect(html).toContain("Source comparison is not available yet");
+    expect(html).toContain("Checks passed");
+    expect(html).not.toContain("Needs fixing (0)");
+    expect(html).not.toContain("Conflicts (0)");
+    expect(html).toContain("bg-world-wash");
+    expect(html).toContain("Warnings and conflicts");
+    expect(html).not.toContain('<details open=""');
   });
 });
