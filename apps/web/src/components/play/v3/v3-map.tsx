@@ -33,11 +33,11 @@ type V3Room = PlayerView["rooms"][number];
 type V3Character = PlayerView["characters"][number];
 
 interface V3MapProps {
+  crowdContext?: string;
   attemptId: string;
   stageId: string;
   stageIndex: number;
   rooms: V3Room[];
-  crowdContext?: string;
   spawnRoomId: string;
   currentRoomId: string | null;
   characters: V3Character[];
