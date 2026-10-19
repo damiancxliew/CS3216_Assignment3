@@ -2,7 +2,7 @@
 
 import type { NoteView } from "@adventure/play-contract";
 import { ScrollText } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import styles from "@/components/play/document-reader.module.css";
 
 export function NotesPanel({
@@ -14,9 +14,8 @@ export function NotesPanel({
   notes: NoteView[];
   busy: boolean;
   selectedCharacterName: string | null;
-  onInsert: (noteId: string, text?: string) => void;
+  onInsert: (noteId: string) => void;
 }) {
-  const [comments, setComments] = useState<Record<string, string>>({});
   const groups = useMemo(() => {
     const byStage = new Map<number, NoteView[]>();
     for (const note of [...notes].sort((a, b) => b.stageIndex - a.stageIndex || b.at - a.at)) {
@@ -42,23 +41,11 @@ export function NotesPanel({
                 <article key={note.id} className="border-b border-line pb-6 last:border-0">
                   <p className={styles.eyebrow}>{note.source === "document" ? "From the historical record" : "From a conversation"}</p>
                   <p className={`${styles.text} mt-3`}>{note.text}</p>
-                  <label className={`${styles.hint} mt-4 block font-semibold`} htmlFor={`note-comment-${note.id}`}>
-                    Optional comment for {selectedCharacterName ?? "a character"}
-                  </label>
-                  <textarea
-                    id={`note-comment-${note.id}`}
-                    value={comments[note.id] ?? ""}
-                    maxLength={500}
-                    rows={2}
-                    onChange={(event) => setComments((current) => ({ ...current, [note.id]: event.target.value }))}
-                    className={`${styles.select} mt-2 resize-y`}
-                  />
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <span className={styles.hint}>{(comments[note.id] ?? "").length}/500</span>
+                  <div className="mt-3 flex items-center justify-end gap-2">
                     <button
                       type="button"
                       disabled={busy || !selectedCharacterName}
-                      onClick={() => onInsert(note.id, comments[note.id]?.trim() || undefined)}
+                      onClick={() => onInsert(note.id)}
                       className={`${styles.button} disabled:cursor-not-allowed disabled:opacity-50`}
                     >
                       Insert into chat

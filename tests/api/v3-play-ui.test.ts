@@ -584,7 +584,8 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("From your travels");
       expect(markup).toContain("From the historical record");
       expect(markup).toContain("A useful discovery.");
-      expect(markup).toContain("Optional comment for Temenggong");
+      expect(markup).not.toContain("Optional comment");
+      expect(markup).not.toContain("<textarea");
       expect(markup).toContain("Insert into chat");
       expect(markup).toContain("Roll up scroll");
       expect(emptyMarkup).toContain("No notes yet.");
