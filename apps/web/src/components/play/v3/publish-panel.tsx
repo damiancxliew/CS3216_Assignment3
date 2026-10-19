@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Link2 } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import {
@@ -144,13 +144,18 @@ export function V3PublishPanel({
           </span>
         ) : null}
         {isPublished ? (
-          <button type="button" onClick={copy} className={styles.subtle}>
+          <button
+            type="button"
+            onClick={copy}
+            aria-label={copied ? "Copied" : "Copy link"}
+            title={copied ? "Copied" : "Copy link"}
+            className={styles.subtle + " !h-10 !w-10 !min-w-0 !p-0"}
+          >
             {copied ? (
               <Check aria-hidden className="size-4" />
             ) : (
-              <Link2 aria-hidden className="size-4" />
+              <Copy aria-hidden className="size-4" />
             )}
-            {copied ? "Copied" : "Copy link"}
           </button>
         ) : null}
       </div>

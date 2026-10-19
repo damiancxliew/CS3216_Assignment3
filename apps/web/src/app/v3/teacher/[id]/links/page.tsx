@@ -6,11 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
 import { v3PublishDeps } from "@/lib/play/v3/http";
 import { loadPublicationHistory } from "@/lib/play/v3/publication-history";
-import { CopyStudentLink } from "./student-link";
+import { CopyStudentLink, ReleaseLink } from "./student-link";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Student link and version history",
+  title: "Version history",
   robots: { index: false },
 };
 
@@ -34,42 +34,33 @@ export default async function StudentLinkHistoryPage({
   const path = `/v3/join/${encodeURIComponent(id)}${live?.linkKey ? `?release=${encodeURIComponent(live.linkKey)}` : ""}`;
   const url = host ? `${protocol}://${host}${path}` : path;
   return (
-    <Page
-      title="Student link and version history"
-      width="wide"
-      lede="See which version is live and how students are progressing on each published version."
-    >
+    <Page title="Version history" width="wide">
       <Link href={`/v3/teacher/${id}/review`} className={button.subtle}>
         Back to review
       </Link>
-      <section className="my-6 space-y-3 rounded-surface border border-line bg-surface p-5">
-        <h2 className="text-lg font-bold">Student link</h2>
-        <p className="break-all">
-          <a href={path} className="underline">
-            {url}
-          </a>
-        </p>
-        <CopyStudentLink path={path} />
-        <p>
-          {live
-            ? `New students start version ${live.version}.`
-            : "The link is closed to new starts."}
-        </p>
-        <p className="text-sm text-muted">
-          Each published version has one permanent link. Previously issued links
-          keep opening their original version while the adventure is published.
-          Publishing a new version issues its link once; it does not replace
-          earlier links. New links cannot be created for old versions.
-          Unpublishing closes all links to new starts.
-        </p>
+      <section className="my-6 flex flex-wrap items-center justify-between gap-4 rounded-surface border border-line bg-surface p-5">
+        <div>
+          <h2 className="font-bold">
+            {live ? `Live · Version ${live.version}` : "Unpublished"}
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            {live
+              ? "Each link stays with its version."
+              : "Links are closed to new starts."}
+          </p>
+        </div>
+        {live ? (
+          <div className="flex items-center gap-4">
+            <ReleaseLink path={path} url={url} />
+            <CopyStudentLink path={path} />
+          </div>
+        ) : null}
       </section>
       {history.rows.length ? (
         <div className="overflow-x-auto rounded-surface border border-line bg-surface">
           <table className="w-full text-left text-sm">
-            <caption className="p-4 text-left">
-              Published versions. Completed means the student reached the
-              reveal. Percentages use started attempts; students who have not
-              started are not counted.
+            <caption className="sr-only">
+              Published versions and completion stats
             </caption>
             <thead>
               <tr>
@@ -80,7 +71,6 @@ export default async function StudentLinkHistoryPage({
                   "Started",
                   "In progress",
                   "Completed",
-                  "Completion",
                   "Results",
                 ].map((label) => (
                   <th
@@ -104,28 +94,18 @@ export default async function StudentLinkHistoryPage({
                     <th scope="row" className="border-b border-line p-3">
                       <p>
                         Version {row.version}
-                        {row.live ? " · Live" : " · Previous"}
+                        {row.live ? " · Live" : ""}
                       </p>
                       <p className="font-normal">{row.title}</p>
                     </th>
                     <td className="border-b border-line p-3">
                       {row.linkKey ? (
-                        <>
-                          <Link
-                            href={releasePath}
-                            className="underline break-all"
-                          >
-                            {releaseUrl}
-                          </Link>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <ReleaseLink path={releasePath} url={releaseUrl} />
                           <CopyStudentLink path={releasePath} />
-                          <p className="text-xs text-muted">
-                            {history.adventure.status === "published"
-                              ? `Opens version ${row.version}`
-                              : "Closed to new starts"}
-                          </p>
-                        </>
+                        </div>
                       ) : (
-                        "Legacy link unavailable"
+                        "Unavailable"
                       )}
                     </td>
                     <td className="border-b border-line p-3">
@@ -137,20 +117,23 @@ export default async function StudentLinkHistoryPage({
                           )}
                         </time>
                       ) : (
-                        "Earlier publication; date unavailable"
+                        "—"
                       )}
                     </td>
                     <td className="border-b border-line p-3">{row.started}</td>
                     <td className="border-b border-line p-3">
                       {row.inProgress}
                     </td>
-                    <td className="border-b border-line p-3">
+                    <td
+                      className="border-b border-line p-3"
+                      title="Reached the reveal, as a share of started attempts"
+                    >
                       {row.completed}
-                    </td>
-                    <td className="border-b border-line p-3">
-                      {row.started
-                        ? `${Math.round((row.completed / row.started) * 100)}%`
-                        : "—"}
+                      {row.started ? (
+                        <span className="ml-2 text-muted">
+                          ({Math.round((row.completed / row.started) * 100)}%)
+                        </span>
+                      ) : null}
                     </td>
                     <td className="border-b border-line p-3">
                       <Link

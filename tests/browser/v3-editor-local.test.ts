@@ -130,7 +130,7 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
       await page.getByRole("link", { name: "Preview", exact: true }).click();
       await page.waitForURL(`**/v3/teacher/${row.id}/preview`);
       await page.getByRole("button", { name: "Publish", exact: true }).click();
-      await page.getByText("Published", { exact: true }).waitFor();
+      await page.getByText("Published · v2", { exact: true }).waitFor();
       expect(
         (
           await admin
@@ -150,8 +150,15 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
       ).toEqual([]);
       await page.context().clearCookies();
       await login(studentEmail);
-      const { data: release } = await admin.from('adventure_publications_v3').select('link_key').eq('adventure_id', row.id).eq('version', 2).single();
-      await page.goto(`http://localhost:3000/v3/join/${row.id}?release=${release!.link_key}`);
+      const { data: release } = await admin
+        .from("adventure_publications_v3")
+        .select("link_key")
+        .eq("adventure_id", row.id)
+        .eq("version", 2)
+        .single();
+      await page.goto(
+        `http://localhost:3000/v3/join/${row.id}?release=${release!.link_key}`,
+      );
       await page.getByRole("link", { name: "Enter the adventure" }).click();
       await page.waitForURL(/\/v3\/play\/(?!start)/);
       expect(
@@ -163,13 +170,30 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
         ).data,
       ).toEqual([{ spec_version: 2 }]);
       await page.context().clearCookies();
-    await login(email);
-    await page.goto(`http://localhost:3000/v3/teacher/${row.id}/links`);
-    await page.getByRole('heading', { name: 'Student link and version history', exact: true }).waitFor();
-    expect(await page.getByText('Version 2 · Live', { exact: true }).isVisible()).toBe(true);
-    expect(await page.getByRole('link', { name: 'View results' }).count()).toBe(1);
-    expect(await page.getByRole('table').innerText()).toContain('Teacher-edited acceptance adventure');
-    expect(pageErrors).toEqual([]);
+      await login(email);
+      await page.goto(`http://localhost:3000/v3/teacher/${row.id}/links`);
+      await page
+        .getByRole("heading", { name: "Version history", exact: true })
+        .waitFor();
+      expect(
+        await page.getByText("Version 2 · Live", { exact: true }).isVisible(),
+      ).toBe(true);
+      expect(
+        await page.getByRole("link", { name: "View results" }).count(),
+      ).toBe(1);
+      expect(await page.getByRole("table").innerText()).toContain(
+        "Teacher-edited acceptance adventure",
+      );
+      const openLink = page
+        .getByRole("link", { name: "Open link", exact: true })
+        .first();
+      await openLink.focus();
+      expect(await page.getByRole("tooltip").innerText()).toContain(
+        "?release=",
+      );
+      await page.keyboard.press("Escape");
+      expect(await page.getByRole("tooltip").count()).toBe(0);
+      expect(pageErrors).toEqual([]);
     } finally {
       await browser.close();
     }
