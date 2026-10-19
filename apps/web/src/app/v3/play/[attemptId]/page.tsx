@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { EngineSpec, type EngineState } from "@adventure/engine";
 
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
+import { v3AdventureScenery } from "@/lib/play/v3/scenery";
 import { backdropFromState } from "@/lib/play/v3/backdrop";
 import { getAttempt } from "@/lib/play/v3/service";
 import { v3PlayDeps } from "@/lib/play/v3/http";
@@ -40,6 +41,7 @@ export default async function V3PlayPage({ params }: { params: Promise<{ attempt
       initialView={body.view}
       initialRevision={body.revision}
       portraitBase={versionedPortraitBase(attempt.adventureId, attempt.specVersion, spec?.authoring?.portraitVersions)}
+      scenery={spec ? v3AdventureScenery(spec) : []}
       stageArtBase={v3StageArtBase(attempt.adventureId, attempt.specVersion)}
       backdrop={backdrop}
     />

@@ -1,0 +1,66 @@
+{
+  "checks": [
+    "public scenery projection",
+    "bundled fixtures",
+    "people and animals",
+    "sound toggle reaches map",
+    "role brief opens and returns to populated map",
+    "keyboard walk",
+    "local E greeting without engine mutation",
+    "animation and reduced motion",
+    "engine room entry",
+    "mobile controls do not overlap",
+    "rain surface",
+    "mobile overflow",
+    "no browser errors"
+  ],
+  "metrics": [
+    {
+      "scene": "1819",
+      "ready": true,
+      "descriptions": {
+        "landing": "A strip of beach by the river mouth, where the Company party has pitched its tents.",
+        "balai": "The Temenggong's audience hall, a raised timber hall a short walk upriver.",
+        "moorings": "Boats drawn up along the river bank, where the sea people live."
+      },
+      "outdoorProps": 24,
+      "streetStops": 51,
+      "fixtures": 3,
+      "people": 4,
+      "animals": 3,
+      "uniqueStarts": 7,
+      "weather": "clear",
+      "storyContext": "The Singapore River, 29–30 January 1819 The landing",
+      "weatherSurface": false
+    },
+    {
+      "scene": "rainy office",
+      "ready": true,
+      "descriptions": {
+        "landing": "A shortwave radio and telegraph on a desk beside the filing cabinet.",
+        "balai": "Shelves of records and a filing cabinet.",
+        "moorings": "A warehouse beside the harbour quay and docks."
+      },
+      "outdoorProps": 27,
+      "streetStops": 57,
+      "fixtures": 3,
+      "people": 6,
+      "animals": 1,
+      "uniqueStarts": 7,
+      "weather": "rain",
+      "storyContext": "Singapore harbour, a rainy afternoon in 1930 — visual test fixture Rain at the harbour records office",
+      "weatherSurface": true
+    },
+    {
+      "scene": "mobile",
+      "width": 390,
+      "scroll": 390,
+      "height": 844,
+      "scrollHeight": 844
+    }
+  ],
+  "actions": [
+    "enterRoom"
+  ],
+  "errors": []
+}

@@ -565,6 +565,16 @@ describe("v3 cinematic", () => {
     const audio = { muted: false, cues: [{ key: "accept:0:1", id: "accept" as const }] };
     expect(v3AudioSnapshot(ambient, audio)).toEqual({ ambient, audio });
   });
+
+  it("retains room-derived weather alongside sound controls and cues", () => {
+    const audio = { muted: false, cues: [{ key: "accept:0:1", id: "accept" as const }] };
+    const scenery = { storyContext: "Harbour office", roomDescriptions: { office: "Rainy streets outside the office." } };
+    expect(v3AudioSnapshot({ id: "clear", intensity: 1 }, audio, scenery)).toEqual({
+      ambient: { id: "rain", intensity: 1 }, audio,
+    });
+    const storm = { id: "thunderstorm", intensity: 0.5 } as const;
+    expect(v3AudioSnapshot(storm, audio, scenery)).toEqual({ ambient: storm, audio });
+  });
 });
 
 describe("v3 dialogue box", () => {

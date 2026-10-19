@@ -3,6 +3,7 @@
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { ReactNode } from "react";
 
+import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import { V3Map } from "@/components/play/v3/v3-map";
 import type { V3MapBackdrop } from "@/lib/play/v3/backdrop";
 
@@ -13,11 +14,13 @@ const stayPut = async () => false;
 export function MapBackdrop({
   attemptId,
   backdrop,
+  scenery,
   ambient,
   audio,
   children,
 }: {
   attemptId: string;
+  scenery?: V3StageScenery;
   backdrop: V3MapBackdrop | null;
   ambient: NonNullable<PlaygroundSnapshot["ambient"]>;
   audio: NonNullable<PlaygroundSnapshot["audio"]>;
@@ -33,6 +36,7 @@ export function MapBackdrop({
             attemptId={attemptId}
             stageId={stageId}
             stageIndex={backdrop.stageIndex}
+            scenery={scenery}
             rooms={backdrop.rooms}
             spawnRoomId={backdrop.rooms[0]?.id ?? ""}
             currentRoomId={backdrop.currentRoomId}

@@ -1,4 +1,5 @@
 "use client";
+import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import { Compass, ScrollText, Volume2, VolumeX } from "lucide-react";
@@ -30,6 +31,7 @@ import { useStageMusic } from "@/components/play/sound";
 
 export function V3PlayClient({
   attemptId,
+  scenery = [],
   initialView,
   initialRevision,
   portraitBase = null,
@@ -41,6 +43,7 @@ export function V3PlayClient({
   busyLabel = "Saving…",
 }: {
   attemptId: string;
+  scenery?: V3StageScenery[];
   initialView: PlayerView;
   initialRevision: number;
   portraitBase?: PortraitBase;
@@ -151,6 +154,7 @@ export function V3PlayClient({
         <MapBackdrop
           attemptId={attemptId}
           backdrop={lastMap}
+          scenery={scenery[lastMap?.stageIndex ?? 0]}
           ambient={{ id: view.stage ? v3Ambient(view.stage) : "clear", intensity: 1 }}
           audio={{ muted, cues }}
         >
@@ -172,7 +176,7 @@ export function V3PlayClient({
           {headerActionGroup}
         </header>
         {bannerAlert}
-        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} ambient={{ id: v3Ambient(view.stage), intensity: 1 }} audio={{ muted, cues }} />
+        <StagePlayScreen scenery={scenery[view.stage?.index ?? 0]} view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} ambient={{ id: v3Ambient(view.stage), intensity: 1 }} audio={{ muted, cues }} />
         {roleBriefOpen ? (
           <V3Cinematic
             artUrl={stageArtUrl(stageArtBase, 0)}
@@ -220,7 +224,7 @@ export function V3PlayClient({
           onToggleMuted={toggleMuted}
         />
       ) : view.phase === "stage" ? (
-        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} ambient={{ id: view.stage ? v3Ambient(view.stage) : "clear", intensity: 1 }} audio={{ muted, cues }} />
+        <StagePlayScreen scenery={scenery[view.stage?.index ?? 0]} view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} ambient={{ id: view.stage ? v3Ambient(view.stage) : "clear", intensity: 1 }} audio={{ muted, cues }} />
       ) : view.phase === "reveal" && view.reveal ? (
         <RevealScreen reveal={view.reveal} footer={revealFooter} />
       ) : (

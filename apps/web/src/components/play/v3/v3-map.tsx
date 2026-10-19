@@ -16,6 +16,8 @@ import {
   v3DocumentProps,
 } from "@/lib/play/v3/map";
 
+import { v3Atmosphere, v3Environment, v3RoomFixtures, type V3StageScenery } from "@/lib/play/v3/scenery";
+
 const STEP_MS = 160;
 
 const KEYS: Record<string, Point> = {
@@ -37,6 +39,7 @@ interface V3MapProps {
   stageId: string;
   stageIndex: number;
   rooms: V3Room[];
+  scenery?: V3StageScenery;
   spawnRoomId: string;
   currentRoomId: string | null;
   characters: V3Character[];
@@ -57,8 +60,13 @@ interface V3MapProps {
 export function v3AudioSnapshot(
   ambient: NonNullable<PlaygroundSnapshot["ambient"]>,
   audio: NonNullable<PlaygroundSnapshot["audio"]>,
+  scenery?: V3StageScenery,
 ): Pick<PlaygroundSnapshot, "ambient" | "audio"> {
-  return { ambient, audio };
+  // Keep stage atmosphere, enriching a clear fallback with the public room setting.
+  const atmosphere = ambient.id === "clear" && scenery
+    ? v3Atmosphere(`${scenery.storyContext} ${Object.values(scenery.roomDescriptions).join(" ")}`)
+    : ambient;
+  return { ambient: atmosphere, audio };
 }
 
 function isTextEntryTarget(target: EventTarget | null): boolean {
@@ -87,6 +95,7 @@ export function V3Map(props: V3MapProps) {
     props.stageIndex,
     props.rooms,
     props.spawnRoomId,
+    props.scenery,
   ));
   const map = compiled.map;
 
@@ -169,9 +178,13 @@ export function V3Map(props: V3MapProps) {
       running: true,
       npcRoutes: false,
       roomWandering: false,
+      environment: v3Environment(latest.current.scenery),
       revision,
+      roomDescriptions: latest.current.scenery?.roomDescriptions,
+      storyContext: latest.current.scenery?.storyContext,
+      landmarks: v3RoomFixtures(map, latest.current.scenery),
       roomNames: Object.fromEntries(latest.current.rooms.map((room) => [room.id, room.name])),
-      ...v3AudioSnapshot(latest.current.ambient, latest.current.audio),
+      ...v3AudioSnapshot(latest.current.ambient, latest.current.audio, latest.current.scenery),
     });
     const render = () => view?.render(snapshot());
     renderRef.current = render;
@@ -289,6 +302,8 @@ export function V3Map(props: V3MapProps) {
         if (characterId) {
           event.preventDefault();
           latest.current.onTalk(characterId);
+        } else if (view?.greetNearby?.()) {
+          event.preventDefault();
         }
         return;
       }
