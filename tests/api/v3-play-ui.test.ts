@@ -1075,6 +1075,26 @@ describe("interview answer form", () => {
 describe("v3 reveal screen", () => {
   const reveal = mockViews.reveal.reveal!;
 
+  it("lays the stages out as a timeline with the student's act, prediction and history side by side", () => {
+    vi.stubGlobal("React", React);
+    const markup = renderToStaticMarkup(createElement(RevealScreen, {
+      reveal: {
+        ...reveal,
+        pathVsHistory: [
+          { stageIndex: 0, yours: "He signed and sent for Hussein.", history: "He signed and sent for Hussein.", matched: true, closedEndings: [], act: "Warn him.", prediction: { text: "He will sign.", correct: true } },
+          { stageIndex: 1, yours: "Raffles waited.", history: "Raffles signed.", matched: false, closedEndings: ["One chief's word"], act: "Advise him to wait.", prediction: { text: "He will sign.", correct: false } },
+        ],
+      },
+    }));
+    expect(markup).toContain("<ol");
+    expect(markup).toContain("In your story and in history");
+    expect(markup).toContain("Went differently");
+    expect(markup).toContain("In history");
+    expect(markup).toContain("Advise him to wait.");
+    expect(markup).toContain("Not quite");
+    expect(markup).toContain("This closed off: One chief&#x27;s word");
+  });
+
   it("ends with a finished line for students", () => {
     vi.stubGlobal("React", React);
     const markup = renderToStaticMarkup(createElement(RevealScreen, { reveal }));

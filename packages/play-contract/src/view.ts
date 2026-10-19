@@ -172,7 +172,16 @@ export const RevealView = z.object({
   /** Shown by default (E3.8). */
   whatHappened: z.string(),
   pathVsHistory: z.array(
-    z.object({ stageIndex: StageIndex, yours: z.string(), history: z.string(), matched: z.boolean(), closedEndings: z.array(z.string()) }),
+    z.object({
+      stageIndex: StageIndex,
+      yours: z.string(),
+      history: z.string(),
+      matched: z.boolean(),
+      closedEndings: z.array(z.string()),
+      /** The act the student chose at this stage's defining moment, and their prediction, for the timeline. */
+      act: z.string().nullable().optional(),
+      prediction: z.object({ text: z.string(), correct: z.boolean() }).nullable().optional(),
+    }),
   ),
   corrections: z.array(z.string()),
   missedCore: z.array(z.string()),

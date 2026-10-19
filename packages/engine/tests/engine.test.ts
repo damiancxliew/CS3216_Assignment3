@@ -414,6 +414,8 @@ describe('end of game', () => {
     })
     expect(reveal.reveal?.missedCore).toEqual(['A fears Riau.', 'B will decide alone.'])
     expect(reveal.reveal?.pathVsHistory[0]).toMatchObject({ yours: 'A delayed.', history: 'A agreed.', matched: false })
+    expect(reveal.reveal?.pathVsHistory[0]?.act).toEqual(expect.any(String))
+    expect(reveal.reveal?.pathVsHistory[0]?.prediction).toMatchObject({ text: expect.any(String), correct: expect.any(Boolean) })
     expect(game.eventsOf('verdict').map((event) => event.stage)).toEqual(['initial', 'final'])
   })
 })
