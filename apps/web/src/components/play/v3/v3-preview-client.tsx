@@ -41,11 +41,13 @@ export function V3PreviewClient({
   initialToken,
   initialView,
   portraitBase,
+  stageArtBase,
 }: {
   adventureId: string;
   initialToken: string;
   initialView: PlayerView;
   portraitBase?: PortraitBase;
+  stageArtBase?: string | null;
 }) {
   const makeClient = useCallback(
     () => createV3PreviewClient(adventureId, initialToken, initialView),
@@ -55,6 +57,7 @@ export function V3PreviewClient({
   return (
     <V3PlayClient
       portraitBase={portraitBase}
+      stageArtBase={stageArtBase}
       attemptId={`preview-${adventureId}`}
       initialRevision={0}
       initialView={initialView}

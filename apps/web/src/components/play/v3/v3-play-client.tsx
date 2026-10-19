@@ -1,20 +1,26 @@
 "use client";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
-import { Compass } from "lucide-react";
+import { Compass, ScrollText } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { PlayerView } from "@adventure/play-contract";
 
-import { BriefingScreen } from "@/components/play/v3/briefing-screen";
 import { EpilogueScreen } from "@/components/play/v3/epilogue-screen";
 import { InterviewScreen } from "@/components/play/v3/interview-screen";
 import { MapBackdrop } from "@/components/play/v3/map-backdrop";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
-import { StageIntroScreen } from "@/components/play/v3/stage-intro-screen";
 import { StagePlayScreen } from "@/components/play/v3/stage-play-screen";
+import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
 import { useV3Play } from "@/components/play/v3/use-v3-play";
 import styles from "@/components/play/adventure-chrome.module.css";
 import { backdropFromView, type V3MapBackdrop } from "@/lib/play/v3/backdrop";
+import {
+  BRIEFING_BEGIN_LABEL,
+  briefingBeats,
+  STAGE_INTRO_BEGIN_LABEL,
+  stageIntroBeats,
+} from "@/lib/play/v3/cinematic";
+import { stageArtUrl } from "@/lib/play/v3/stage-art";
 import type { V3PlayClient as PlayClient } from "@/lib/play/v3/client";
 
 export function V3PlayClient({
@@ -22,6 +28,7 @@ export function V3PlayClient({
   initialView,
   initialRevision,
   portraitBase = null,
+  stageArtBase = null,
   backdrop = null,
   makeClient,
   headerActions,
@@ -32,12 +39,14 @@ export function V3PlayClient({
   initialView: PlayerView;
   initialRevision: number;
   portraitBase?: PortraitBase;
+  stageArtBase?: string | null;
   backdrop?: V3MapBackdrop | null;
   makeClient?: () => PlayClient;
   headerActions?: ReactNode;
   revealFooter?: ReactNode;
   busyLabel?: string;
 }) {
+  const [roleBriefOpen, setRoleBriefOpen] = useState(false);
   const { view, busy, banner, send, clearBanner } = useV3Play(
     attemptId,
     initialView,
@@ -68,10 +77,24 @@ export function V3PlayClient({
       </span>
     </h1>
   );
-  const headerActionGroup = busy || headerActions ? (
+  const roleBriefButton = view.phase === "stage" && view.stage?.intro === null ? (
+    <button
+      type="button"
+      aria-label="Role brief"
+      aria-haspopup="dialog"
+      aria-expanded={roleBriefOpen}
+      onClick={() => setRoleBriefOpen(true)}
+      className={`${styles.tool} inline-flex min-h-9 items-center justify-center gap-2 px-2.5 py-1 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffe0a2]`}
+    >
+      <ScrollText className="h-4 w-4 shrink-0" aria-hidden />
+      <span className="hidden sm:inline">Role brief</span>
+    </button>
+  ) : null;
+  const headerActionGroup = busy || headerActions || roleBriefButton ? (
     <div className={styles.headerActions}>
       {busy ? <span role="status" className="text-sm font-semibold">{busyLabel}</span> : null}
       {headerActions}
+      {roleBriefButton}
     </div>
   ) : null;
   const endScreen =
@@ -111,7 +134,17 @@ export function V3PlayClient({
           {headerActionGroup}
         </header>
         {bannerAlert}
-        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} />
+        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} />
+        {roleBriefOpen ? (
+          <V3Cinematic
+            artUrl={stageArtUrl(stageArtBase, 0)}
+            beats={briefingBeats(view.briefing)}
+            beginLabel="Back to the map"
+            onBegin={() => setRoleBriefOpen(false)}
+            onClose={() => setRoleBriefOpen(false)}
+            initiallySettled
+          />
+        ) : null}
       </div>
     );
   }
@@ -127,11 +160,23 @@ export function V3PlayClient({
       </header>
       {bannerAlert}
       {view.phase === "briefing" ? (
-        <BriefingScreen briefing={view.briefing} onContinue={() => { if (!busy) send({ type: "continue" }); }} />
+        <V3Cinematic
+          key="briefing"
+          artUrl={stageArtUrl(stageArtBase, 0)}
+          beats={briefingBeats(view.briefing, view.stage?.index === 0 ? view.stage : undefined)}
+          beginLabel={BRIEFING_BEGIN_LABEL}
+          onBegin={() => { if (!busy) send({ type: "continue" }); }}
+        />
       ) : view.phase === "stage" && view.stage?.intro ? (
-        <StageIntroScreen stage={view.stage} onContinue={() => { if (!busy) send({ type: "continue" }); }} />
+        <V3Cinematic
+          key={`stage-intro-${view.stage.index}`}
+          artUrl={stageArtUrl(stageArtBase, view.stage.index)}
+          beats={stageIntroBeats(view.stage)}
+          beginLabel={STAGE_INTRO_BEGIN_LABEL}
+          onBegin={() => { if (!busy) send({ type: "continue" }); }}
+        />
       ) : view.phase === "stage" ? (
-        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} />
+        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} />
       ) : view.phase === "reveal" && view.reveal ? (
         <RevealScreen reveal={view.reveal} footer={revealFooter} />
       ) : (

@@ -40,12 +40,13 @@ function formatTime(milliseconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId }: {
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, movementLocked: externalMovementLock = false }: {
   view: PlayerView;
   busy: boolean;
   send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
   portraitBase?: PortraitBase;
   attemptId: string;
+  movementLocked?: boolean;
 }) {
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [talkingTo, setTalkingTo] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     ? view.characters.find((character) => character.id === talkingTo) ?? null
     : null;
   const isTalkOpen = openCharacter !== null;
-  const movementLocked = isTalkOpen || isMoment;
+  const movementLocked = externalMovementLock || isTalkOpen || isMoment;
   const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
   const spawnRoomId = view.rooms[0]?.id ?? "";
   const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
