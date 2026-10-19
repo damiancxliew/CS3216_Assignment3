@@ -16,6 +16,7 @@ export function withPendingPlayerLine(view: PlayerView, action: Action, id: stri
         roomId: view.currentRoomId,
         characterId: action.characterId,
         insertedNoteId: action.type === "insertNote" ? action.noteId : null,
+        stageIndex: view.stage?.index ?? null,
         at,
       },
     ],

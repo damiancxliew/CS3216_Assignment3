@@ -823,7 +823,7 @@ describe("v3 pending player lines", () => {
   it("shows a sent message or shown note straight away, in the current room", () => {
     const sent = withPendingPlayerLine(base, { type: "message", characterId: "raffles", text: "Why here?" }, "1", 5);
     expect(sent.messages).toEqual([
-      { id: "pending-1", kind: "player", text: "Why here?", roomId: "landing", characterId: "raffles", insertedNoteId: null, at: 5 },
+      { id: "pending-1", kind: "player", text: "Why here?", roomId: "landing", characterId: "raffles", insertedNoteId: null, stageIndex: null, at: 5 },
     ]);
     const shown = withPendingPlayerLine(sent, { type: "insertNote", characterId: "raffles", noteId: "n1" }, "2", 6);
     expect(shown.messages[1]).toMatchObject({ id: "pending-2", text: "", insertedNoteId: "n1" });
