@@ -1,6 +1,7 @@
 "use client";
 
 import type { RevealView } from "@adventure/play-contract";
+import { Check, GitFork } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 function TextList({ items }: { items: string[] }) {
@@ -31,23 +32,68 @@ export function RevealScreen({ reveal, footer }: { reveal: RevealView; footer?: 
         <p className="mt-5 whitespace-pre-line text-base leading-8 text-ink">{reveal.whatHappened}</p>
       </header>
 
-      <section className="grid gap-4">
-        <h3 className="text-xl font-black text-ink">Your path and history</h3>
-        {reveal.pathVsHistory.map((path) => (
-          <article key={path.stageIndex} className="rounded-2xl border border-line bg-surface p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="font-black text-ink">Stage {path.stageIndex + 1}</h4>
-              {path.matched ? <span className="rounded-full bg-world-wash px-3 py-1 text-xs font-black text-world">✓ Matched history</span> : null}
-            </div>
-            <p className="mt-3 text-sm leading-relaxed text-ink"><strong>Your path:</strong> {path.yours}</p>
-            <p className="mt-2 text-sm leading-relaxed text-muted"><strong>History:</strong> {path.history}</p>
-            {path.closedEndings.length ? (
-              <p className="mt-3 rounded-lg bg-record-wash px-3 py-2 text-sm font-semibold text-record">
-                This closed: {path.closedEndings.join(", ")}
-              </p>
-            ) : null}
-          </article>
-        ))}
+      <section aria-labelledby="reveal-timeline" className="grid gap-4">
+        <h3 id="reveal-timeline" className="text-xl font-black text-ink">Your path and history</h3>
+        <ol className="relative grid gap-6 border-l-4 border-ink/20 pl-6 sm:pl-8">
+          {reveal.pathVsHistory.map((path) => (
+            <li key={path.stageIndex} className="relative">
+              <span
+                aria-hidden="true"
+                className={`absolute -left-[2.35rem] top-4 grid h-8 w-8 place-items-center rounded-full border-2 border-ink text-sm font-black shadow-[0_2px_0_var(--ink)] sm:-left-[2.85rem] ${
+                  path.matched ? "bg-world-wash text-world" : "bg-signal-wash text-signal"
+                }`}
+              >
+                {path.matched ? <Check size={16} /> : <GitFork size={16} />}
+              </span>
+              <article className="rounded-2xl border-2 border-ink bg-surface p-5 shadow-[0_3px_0_var(--ink)]">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-black text-ink">Stage {path.stageIndex + 1}</h4>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ${path.matched ? "bg-world-wash text-world" : "bg-signal-wash text-signal"}`}>
+                    {path.matched ? "Matched history" : "Went differently"}
+                  </span>
+                </div>
+                {path.act || path.prediction ? (
+                  <dl className="mt-4 grid gap-2 text-sm leading-relaxed">
+                    {path.act ? (
+                      <div className="flex gap-2">
+                        <dt className="w-24 shrink-0 font-black text-muted">You chose</dt>
+                        <dd className="text-ink">{path.act}</dd>
+                      </div>
+                    ) : null}
+                    {path.prediction ? (
+                      <div className="flex gap-2">
+                        <dt className="w-24 shrink-0 font-black text-muted">You predicted</dt>
+                        <dd className="text-ink">
+                          {path.prediction.text}{" "}
+                          <span className={`ml-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-black ${path.prediction.correct ? "bg-world-wash text-world" : "bg-record-wash text-record"}`}>
+                            {path.prediction.correct ? "Right" : "Not quite"}
+                          </span>
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                ) : null}
+                <div className={`mt-4 grid gap-3 ${path.matched ? "" : "sm:grid-cols-2"}`}>
+                  <div className="rounded-xl border border-line bg-paper p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-muted">{path.matched ? "In your story and in history" : "In your story"}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-ink">{path.yours}</p>
+                  </div>
+                  {path.matched ? null : (
+                    <div className="rounded-xl border border-line bg-record-wash p-3">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-record">In history</p>
+                      <p className="mt-1 text-sm leading-relaxed text-ink">{path.history}</p>
+                    </div>
+                  )}
+                </div>
+                {path.closedEndings.length ? (
+                  <p className="mt-3 text-sm font-semibold text-record">
+                    This closed off: {path.closedEndings.join(", ")}
+                  </p>
+                ) : null}
+              </article>
+            </li>
+          ))}
+        </ol>
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2">
