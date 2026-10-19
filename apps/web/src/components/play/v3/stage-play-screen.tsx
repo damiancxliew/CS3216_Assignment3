@@ -10,6 +10,7 @@ import { DialogueBox } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import { V3Map } from "@/components/play/v3/v3-map";
 
 export function v3InsertNoteAction(characterId: string, noteId: string, text?: string): Action {
@@ -40,12 +41,13 @@ function formatTime(milliseconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId }: {
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery }: {
   view: PlayerView;
   busy: boolean;
   send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
   portraitBase?: PortraitBase;
   attemptId: string;
+  scenery?: V3StageScenery;
 }) {
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [talkingTo, setTalkingTo] = useState<string | null>(null);
@@ -176,6 +178,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               attemptId={attemptId}
               stageId={stageId}
               stageIndex={stageIndex}
+              scenery={scenery}
               rooms={view.rooms}
               spawnRoomId={spawnRoomId}
               currentRoomId={view.currentRoomId}

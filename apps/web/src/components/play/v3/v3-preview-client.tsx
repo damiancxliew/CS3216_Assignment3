@@ -1,5 +1,6 @@
 "use client";
 
+import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import Link from "next/link";
@@ -39,11 +40,13 @@ export function V3PreviewHeaderActions({ adventureId }: { adventureId: string })
 export function V3PreviewClient({
   adventureId,
   initialToken,
+  scenery = [],
   initialView,
   portraitBase,
 }: {
   adventureId: string;
   initialToken: string;
+  scenery?: V3StageScenery[];
   initialView: PlayerView;
   portraitBase?: PortraitBase;
 }) {
@@ -54,6 +57,7 @@ export function V3PreviewClient({
 
   return (
     <V3PlayClient
+      scenery={scenery}
       portraitBase={portraitBase}
       attemptId={`preview-${adventureId}`}
       initialRevision={0}

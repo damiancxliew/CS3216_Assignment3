@@ -16,6 +16,8 @@ import {
   v3DocumentProps,
 } from "@/lib/play/v3/map";
 
+import { v3Atmosphere, v3RoomFixtures, type V3StageScenery } from "@/lib/play/v3/scenery";
+
 const STEP_MS = 160;
 
 const KEYS: Record<string, Point> = {
@@ -37,6 +39,7 @@ interface V3MapProps {
   stageId: string;
   stageIndex: number;
   rooms: V3Room[];
+  scenery?: V3StageScenery;
   spawnRoomId: string;
   currentRoomId: string | null;
   characters: V3Character[];
@@ -161,6 +164,10 @@ export function V3Map(props: V3MapProps) {
       npcRoutes: false,
       roomWandering: false,
       revision,
+      roomDescriptions: latest.current.scenery?.roomDescriptions,
+      storyContext: latest.current.scenery?.storyContext,
+      ambient: v3Atmosphere(`${latest.current.scenery?.storyContext ?? ""} ${Object.values(latest.current.scenery?.roomDescriptions ?? {}).join(" ")}`),
+      landmarks: v3RoomFixtures(map, latest.current.scenery),
       roomNames: Object.fromEntries(latest.current.rooms.map((room) => [room.id, room.name])),
     });
     const render = () => view?.render(snapshot());
@@ -279,6 +286,8 @@ export function V3Map(props: V3MapProps) {
         if (characterId) {
           event.preventDefault();
           latest.current.onTalk(characterId);
+        } else if (view?.greetNearby?.()) {
+          event.preventDefault();
         }
         return;
       }

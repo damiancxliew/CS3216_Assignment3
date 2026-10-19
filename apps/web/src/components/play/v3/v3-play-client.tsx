@@ -1,4 +1,5 @@
 "use client";
+import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import { Compass } from "lucide-react";
@@ -19,6 +20,7 @@ import type { V3PlayClient as PlayClient } from "@/lib/play/v3/client";
 
 export function V3PlayClient({
   attemptId,
+  scenery = [],
   initialView,
   initialRevision,
   portraitBase = null,
@@ -29,6 +31,7 @@ export function V3PlayClient({
   busyLabel = "Saving…",
 }: {
   attemptId: string;
+  scenery?: V3StageScenery[];
   initialView: PlayerView;
   initialRevision: number;
   portraitBase?: PortraitBase;
@@ -92,7 +95,7 @@ export function V3PlayClient({
           {headerActionGroup}
         </header>
         {bannerAlert}
-        <MapBackdrop attemptId={attemptId} backdrop={lastMap}>
+        <MapBackdrop attemptId={attemptId} backdrop={lastMap} scenery={scenery[lastMap?.stageIndex ?? 0]}>
           {endScreen.screen}
         </MapBackdrop>
       </div>
@@ -111,7 +114,7 @@ export function V3PlayClient({
           {headerActionGroup}
         </header>
         {bannerAlert}
-        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} />
+        <StagePlayScreen scenery={scenery[view.stage?.index ?? 0]} view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} />
       </div>
     );
   }
@@ -131,7 +134,7 @@ export function V3PlayClient({
       ) : view.phase === "stage" && view.stage?.intro ? (
         <StageIntroScreen stage={view.stage} onContinue={() => { if (!busy) send({ type: "continue" }); }} />
       ) : view.phase === "stage" ? (
-        <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} />
+        <StagePlayScreen scenery={scenery[view.stage?.index ?? 0]} view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} />
       ) : view.phase === "reveal" && view.reveal ? (
         <RevealScreen reveal={view.reveal} footer={revealFooter} />
       ) : (

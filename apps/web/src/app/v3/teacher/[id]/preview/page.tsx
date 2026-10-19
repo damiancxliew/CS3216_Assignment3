@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { V3PreviewClient } from "@/components/play/v3/v3-preview-client";
+import { v3AdventureScenery } from "@/lib/play/v3/scenery";
 import { startPreview } from "@/lib/play/v3/preview";
 import { v3PreviewDeps, v3PublishDeps } from "@/lib/play/v3/http";
 import { EngineSpec } from "@adventure/engine";
@@ -67,6 +68,7 @@ export default async function V3TeacherPreviewPage({
             )
           : null
       }
+      scenery={parsed.success ? v3AdventureScenery(parsed.data) : []}
       adventureId={id}
       initialToken={body.token}
       initialView={body.view}
