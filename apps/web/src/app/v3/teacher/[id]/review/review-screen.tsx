@@ -411,7 +411,7 @@ export function ReviewScreen({
         <div
           role="tablist"
           aria-label="Adventure content"
-          className="sticky top-0 z-10 flex shrink-0 w-fit max-w-full flex-wrap gap-2 rounded-[1.75rem] bg-paper/95 p-2 backdrop-blur-sm"
+          className="flex shrink-0 w-fit max-w-full flex-wrap gap-2 rounded-[1.75rem] bg-paper/95 p-2 backdrop-blur-sm"
         >
           {tabs.map((t, i) => (
             <button
