@@ -9,11 +9,13 @@ import {
   NotebookPen,
   ScrollText,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import styles from "@/components/play/adventure-chrome.module.css";
 
 type IslandTab = "notes" | "scrolls" | "log";
+
+const ISLAND_TRANSITION_MS = 200;
 
 type NoteGroup = {
   stageIndex: number;
@@ -235,13 +237,13 @@ function LogList({ view }: { view: PlayerView }) {
           const element = event.currentTarget;
           pinnedToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 24;
         }}
-        className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-3"
+        className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 pb-3"
       >
         {groups.length === 0 ? <p className="py-8 text-center text-sm text-[#5c6472]">No story lines yet.</p> : null}
         {groups.map((group) => (
           <section key={group.stageIndex ?? "briefing"} aria-label={group.stageIndex === null ? undefined : `Stage ${group.stageIndex + 1}`}>
             {group.stageIndex !== null ? (
-              <h3 className="sticky top-0 z-[1] mb-2 bg-[#fffaf0]/95 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-[#5c6472]">
+              <h3 className="sticky top-0 z-[1] mb-2 bg-[#fffaf0] pt-2 pb-1 text-[11px] font-black uppercase tracking-[0.14em] text-[#5c6472]">
                 Stage {group.stageIndex + 1}
               </h3>
             ) : null}
@@ -279,11 +281,58 @@ export function StageIsland({
   initialTab?: IslandTab;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
+  const [panelVisible, setPanelVisible] = useState(initialExpanded);
+  const [panelOpen, setPanelOpen] = useState(initialExpanded);
   const [activeTab, setActiveTab] = useState<IslandTab>(definingMoment && initialTab === "notes" ? "scrolls" : initialTab);
   const [activity, setActivity] = useState("");
   const previousCounts = useRef({ notes: view.notes.length, documents: view.documents.length });
   const clearActivityTimer = useRef<number | null>(null);
+  const panelTimer = useRef<number | null>(null);
+  const panelFrame = useRef<number | null>(null);
+  const pillButton = useRef<HTMLButtonElement>(null);
+  const activeTabButton = useRef<HTMLButtonElement>(null);
+  const focusTabAfterOpen = useRef(false);
+  const focusPillAfterClose = useRef(false);
   const stage = view.stage;
+
+  const openIsland = useCallback(() => {
+    if (panelTimer.current !== null) {
+      window.clearTimeout(panelTimer.current);
+      panelTimer.current = null;
+    }
+    if (panelFrame.current !== null) {
+      window.cancelAnimationFrame(panelFrame.current);
+      panelFrame.current = null;
+    }
+    setPanelVisible(true);
+    setPanelOpen(false);
+    setExpanded(true);
+    focusTabAfterOpen.current = true;
+    panelFrame.current = window.requestAnimationFrame(() => {
+      setPanelOpen(true);
+      panelFrame.current = null;
+    });
+  }, []);
+
+  const closeIsland = useCallback(() => {
+    if (panelFrame.current !== null) {
+      window.cancelAnimationFrame(panelFrame.current);
+      panelFrame.current = null;
+    }
+    setExpanded(false);
+    setPanelOpen(false);
+    focusPillAfterClose.current = true;
+    if (panelTimer.current !== null) window.clearTimeout(panelTimer.current);
+    panelTimer.current = window.setTimeout(() => {
+      setPanelVisible(false);
+      panelTimer.current = null;
+    }, ISLAND_TRANSITION_MS);
+  }, []);
+
+  const toggleIsland = useCallback(() => {
+    if (expanded) closeIsland();
+    else openIsland();
+  }, [closeIsland, expanded, openIsland]);
 
   useEffect(() => {
     const previous = previousCounts.current;
@@ -307,23 +356,37 @@ export function StageIsland({
 
   useEffect(() => () => {
     if (clearActivityTimer.current !== null) window.clearTimeout(clearActivityTimer.current);
+    if (panelTimer.current !== null) window.clearTimeout(panelTimer.current);
+    if (panelFrame.current !== null) window.cancelAnimationFrame(panelFrame.current);
   }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       const target = event.target;
       if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
       if (event.key.toLowerCase() === "j") {
         event.preventDefault();
-        setExpanded((current) => !current);
-      } else if (event.key === "Escape") {
-        setExpanded(false);
+        toggleIsland();
+      } else if (event.key === "Escape" && expanded) {
+        event.preventDefault();
+        closeIsland();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [closeIsland, expanded, toggleIsland]);
+
+  useEffect(() => {
+    if (expanded && panelVisible && focusTabAfterOpen.current && !activeTabButton.current?.disabled) {
+      activeTabButton.current?.focus();
+      focusTabAfterOpen.current = false;
+    } else if (!expanded && !panelVisible && focusPillAfterClose.current) {
+      pillButton.current?.focus();
+      focusPillAfterClose.current = false;
+    }
+  }, [activeTab, expanded, panelVisible]);
 
   useEffect(() => {
     if (definingMoment && activeTab === "notes") setActiveTab("scrolls");
@@ -334,13 +397,14 @@ export function StageIsland({
 
   return (
     <div className={`absolute bottom-3 ${positionClass}`}>
-      <div className="flex flex-col-reverse items-start gap-2">
+      {!panelVisible ? (
         <button
+          ref={pillButton}
           type="button"
-          aria-expanded={expanded}
+          aria-expanded={false}
           aria-controls="stage-island-panel"
-          aria-label={`Stage ${stage ? stage.index + 1 : 1} of ${stage?.count ?? 1}; ${view.notes.length} notes, ${view.documents.length} scrolls, ${logLineCount(view.messages)} log lines${expanded ? ", collapse island" : ", expand island"}`}
-          onClick={() => setExpanded((current) => !current)}
+          aria-label={`Stage ${stage ? stage.index + 1 : 1} of ${stage?.count ?? 1}; ${view.notes.length} notes, ${view.documents.length} scrolls, ${logLineCount(view.messages)} log lines, expand island`}
+          onClick={toggleIsland}
           className={`${styles.tool} ${styles.islandPill} flex min-h-10 max-w-[calc(100vw-1.5rem)] items-center gap-2 px-3 text-sm font-bold transition-all duration-300 motion-reduce:transition-none`}
         >
           <IslandCounts view={view} />
@@ -359,14 +423,17 @@ export function StageIsland({
               {activity}
             </span>
           ) : null}
-          <ChevronDown size={16} aria-hidden className={`shrink-0 transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} />
+          <ChevronDown size={16} aria-hidden className="shrink-0" />
         </button>
+      ) : null}
 
-        {expanded ? (
+      {panelVisible ? (
           <section
             id="stage-island-panel"
             aria-label="Notes, scrolls, and story log"
-            className="flex h-[min(60vh,28rem)] w-[min(26rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
+            className={`flex h-[min(60vh,28rem)] w-[min(26rem,calc(100vw-1.5rem))] origin-bottom-left flex-col overflow-hidden rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433] transition-[opacity,transform] duration-200 motion-reduce:transition-none motion-reduce:duration-0 ${
+              panelOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
+            }`}
           >
             <header className="flex shrink-0 items-center gap-2 border-b border-[#1f2433]/15 px-3 py-2.5">
               <IslandCounts view={view} />
@@ -374,7 +441,7 @@ export function StageIsland({
               <button
                 type="button"
                 aria-label="Collapse island"
-                onClick={() => setExpanded(false)}
+                onClick={closeIsland}
                 className="grid h-8 w-8 shrink-0 place-items-center rounded-md hover:bg-[#1f2433]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]"
               >
                 <ChevronDown size={17} aria-hidden />
@@ -395,6 +462,7 @@ export function StageIsland({
                     id={`stage-island-tab-${tab}`}
                     aria-selected={activeTab === tab}
                     aria-controls={`stage-island-tabpanel-${tab}`}
+                    ref={activeTab === tab ? activeTabButton : undefined}
                     disabled={disabled}
                     title={disabled ? "Notes are closed during the decision" : undefined}
                     onClick={() => setActiveTab(tab)}
@@ -426,8 +494,7 @@ export function StageIsland({
               </footer>
             ) : null}
           </section>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }

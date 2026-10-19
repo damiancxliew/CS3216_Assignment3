@@ -327,6 +327,7 @@ describe("v3 stage play screen", () => {
       expect(mission).toContain('aria-expanded="true"');
       expect(mission).toContain("Walk to");
       expect(markup).toContain('aria-expanded="false"');
+      expect(markup).not.toContain('id="stage-island-panel"');
       expect(markup).toContain('aria-label="1 note"');
       expect(markup).toContain('aria-label="1 scroll"');
       expect(markup).toContain('aria-label="0 log lines"');
@@ -417,6 +418,9 @@ describe("v3 stage play screen", () => {
       const scrollsMarkup = renderTab("scrolls");
       const logMarkup = renderTab("log");
 
+      expect(notesMarkup).toContain('id="stage-island-panel"');
+      expect(notesMarkup).not.toContain('aria-expanded="false"');
+      expect(notesMarkup).not.toContain('aria-expanded="true"');
       expect(notesMarkup.indexOf('<section aria-label="Stage 2 notes">'))
         .toBeLessThan(notesMarkup.indexOf('<section aria-label="Stage 1 notes">'));
       expect(notesMarkup).toContain("A later conversation.");
