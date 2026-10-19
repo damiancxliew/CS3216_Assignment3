@@ -146,7 +146,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       );
       await page.locator("#edit-title").fill("Unsaved");
       page.once("dialog", (d) => d.dismiss());
-      await page.getByRole("link", { name: "Back to adventure" }).click();
+      await page.getByRole("link", { name: "Back to adventures" }).click();
       expect(await page.locator("#edit-title").inputValue()).toBe("Unsaved");
       page.once("dialog", (d) => d.accept());
       await page.getByRole("button", { name: "Discard", exact: true }).click();

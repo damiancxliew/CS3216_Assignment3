@@ -103,7 +103,7 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
         );
       };
       await login(email);
-      await page.goto(`http://localhost:3000/v3/teacher/${row.id}/review`);
+      await page.goto(`http://localhost:3000/v3/teacher/${row.id}`);
       await page.getByRole("button", { name: "Edit", exact: true }).click();
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
       await page

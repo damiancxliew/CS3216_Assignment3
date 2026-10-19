@@ -53,7 +53,7 @@ vi.mock("@/components/ui", () => ({
   compactButton: { subtle: "", primary: "" },
 }));
 
-import ReviewPage from "@/app/v3/teacher/[id]/review/page";
+import ReviewPage from "@/app/v3/teacher/[id]/review/adventure-workspace";
 const visit = () =>
   ReviewPage({ params: Promise.resolve({ id: "adventure" }) });
 

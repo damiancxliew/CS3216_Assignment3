@@ -399,18 +399,23 @@ export function EditorWorkspace(props: Props) {
           aria-label="Adventure navigation"
           className="flex items-center justify-between gap-4 border-b border-line pb-3 text-sm"
         >
-          <Link
-            href={`/v3/teacher/${props.adventureId}`}
-            className="text-muted hover:text-ink"
-          >
-            ← Back to adventure
+          <Link href="/teacher" className="text-muted hover:text-ink">
+            ← Back to adventures
           </Link>
-          <Link
-            href={`/v3/teacher/${props.adventureId}/links`}
-            className="text-muted underline underline-offset-4 hover:text-ink"
-          >
-            Version history
-          </Link>
+          <div className="flex flex-wrap items-center gap-4">
+            <Link
+              href={`/v3/teacher/${props.adventureId}/summary`}
+              className="text-muted underline underline-offset-4 hover:text-ink"
+            >
+              Class summary
+            </Link>
+            <Link
+              href={`/v3/teacher/${props.adventureId}/links`}
+              className="text-muted underline underline-offset-4 hover:text-ink"
+            >
+              Version history
+            </Link>
+          </div>
         </nav>
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
           <section aria-label="Draft controls" className="space-y-3 py-2">

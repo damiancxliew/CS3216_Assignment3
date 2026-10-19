@@ -35,8 +35,8 @@ export default async function StudentLinkHistoryPage({
   const url = host ? `${protocol}://${host}${path}` : path;
   return (
     <Page title="Version history" width="wide">
-      <Link href={`/v3/teacher/${id}/review`} className={button.subtle}>
-        Back to review
+      <Link href={`/v3/teacher/${id}`} className={button.subtle}>
+        Back to adventure
       </Link>
       <section className="my-6 flex flex-wrap items-center justify-between gap-4 rounded-surface border border-line bg-surface p-5">
         <div>
