@@ -283,7 +283,7 @@ function Summary({ state, pending, onChange }: { state: BriefStateV3; pending: b
             <div className="min-w-0">
               <dt className="text-xs font-black uppercase tracking-[0.14em] text-muted">{row.label}</dt>
               <dd className="mt-0.5 whitespace-pre-wrap text-ink">{row.value}</dd>
-              {row.warning ? <p className="mt-1 text-xs text-amber-700">{row.warning}</p> : null}
+              {row.warning ? <p className="mt-1 text-xs text-signal">{row.warning}</p> : null}
             </div>
             <button type="button" onClick={() => onChange(row.slot)} disabled={pending} className={button.subtle + " shrink-0"}>
               Change
