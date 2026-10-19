@@ -402,7 +402,7 @@ class TiledScene extends Phaser.Scene {
           .text((room.x + room.width / 2) * T, doorOnTopWall ? room.y * T - 1 : room.y * T + 1, this.roomName(room.id), {
             color: '#fff8e7',
             fontFamily: 'system-ui, "Segoe UI", sans-serif',
-            fontSize: '8px',
+            fontSize: '6px',
             wordWrap: { width: room.width * T - 12, useAdvancedWrap: true },
             align: 'center',
             fontStyle: 'bold',
@@ -812,9 +812,9 @@ class TiledScene extends Phaser.Scene {
       let text = this.captions.get(target.id)
       if (!text) {
         text = this.add.text(0, 0, '', {
-          color: '#fff6df', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '7px', fontStyle: 'bold',
+          color: '#fff6df', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '5.5px', fontStyle: 'bold',
           backgroundColor: '#29322f', padding: { x: 3, y: 2 }, resolution: 8,
-          wordWrap: { width: 76, useAdvancedWrap: true }, align: 'center',
+          wordWrap: { width: 64, useAdvancedWrap: true }, align: 'center',
         }).setDepth(60)
         this.captions.set(target.id, text)
       }
