@@ -213,6 +213,31 @@ describe('runSources', () => {
     expect(result.rejected).toEqual([{ url: 'https://example.com/private', reason: 'not_allowlisted' }])
   })
 
+  it('accepts a teacher-added domain while rejecting the same hit under defaults', async () => {
+    const url = 'https://example.org/history'
+    const hit = { url, title: 'History record', snippet: '' }
+    const fetcher: typeof fetch = async () => textResponse(`<p>${LONG_TEXT}</p>`)
+    const allowed = await runSources({
+      episode: 'Singapore in 1819',
+      policy: { extraDomains: ['example.org'] },
+    }, {
+      search: new FakeWebSearch([hit]),
+      fetch: fetcher,
+      lookup: publicLookup,
+    })
+    const defaults = await runSources({ episode: 'Singapore in 1819' }, {
+      search: new FakeWebSearch([hit]),
+      fetch: fetcher,
+      lookup: publicLookup,
+    })
+
+    expect(allowed.sources).toHaveLength(1)
+    expect(allowed.sources[0]?.url).toBe(url)
+    expect(allowed.rejected).toEqual([])
+    expect(defaults.sources).toEqual([])
+    expect(defaults.rejected).toEqual([{ url, reason: 'not_allowlisted' }])
+  })
+
   it.skipIf(!isAllowedUrl('http://localhost:1234/', { allowAny: true }))(
     'blocks a rebinding response after the pre-check for an allowlisted localhost URL',
     async () => {

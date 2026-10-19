@@ -61,19 +61,34 @@ test('production environment plans render, reveal rooms, and animate the harbor'
         return boats.map((o: any) => o.y)
       })
       expect(boats).toHaveLength(1)
-      await expect.poll(() => page.evaluate((before) => {
-        const scene = (window as any).storyHarness.game.scene.getScene('tiled-map')
-        return scene.children.list.filter((o: any) => o.name === 'harbor-boat').some((o: any, i: number) => o.y !== before[i])
-      }, boats), { timeout: 10000 }).toBe(true)
-      const reducedStops = await page.evaluate(async () => {
-        const h = (window as any).storyHarness, scene = h.game.scene.getScene('tiled-map')
-        h.view.setReducedMotion(true)
-        const boats = scene.children.list.filter((o: any) => o.name === 'harbor-boat')
-        const stopped = boats.map((o: any) => o.y)
-        await new Promise(r => setTimeout(r, 200))
-        return boats.every((o: any, i: number) => o.y === stopped[i])
+      // Step scene updates by hand: on a loaded runner Phaser clamps each frame to ~16ms of game time,
+      // so a wall-clock wait can sit inside the bob's 1.4s rounded peak and see no movement.
+      const bob = await page.evaluate(() => {
+        const h = (window as any).storyHarness, game = h.game, scene = game.scene.getScene('tiled-map')
+        const ys = () => scene.children.list.filter((o: any) => o.name === 'harbor-boat').map((o: any) => o.y)
+        const run = (frames: number) => {
+          const seen = [ys()]
+          for (let i = 0; i < frames; i++) {
+            game.scene.update(performance.now(), 100)
+            seen.push(ys())
+          }
+          return seen
+        }
+        game.loop.sleep()
+        try {
+          const moving = run(30)
+          h.view.setReducedMotion(true)
+          const reduced = run(30)
+          h.view.setReducedMotion(false)
+          return {
+            moved: moving.some(y => y.some((v: number, i: number) => v !== moving[0][i])),
+            frozen: reduced.every(y => y.every((v: number, i: number) => v === reduced[0][i])),
+          }
+        } finally {
+          game.loop.wake()
+        }
       })
-      expect(reducedStops).toBe(true)
+      expect(bob).toEqual({ moved: true, frozen: true })
     }
   }
   expect(errors).toEqual([])

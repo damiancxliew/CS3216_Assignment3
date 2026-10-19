@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { V3Edit } from "./commands";
+import { applyTeacherEdits } from "./apply";
 import {
   editableIssues,
   checkSpec,
@@ -155,4 +158,23 @@ export function validateEditedSpec(
     ).values(),
   ];
   return result;
+}
+
+const issueKey = (issue: CheckIssue) => `${issue.code}|${issue.path}|${issue.message}`;
+export function introducedErrors(base: AdventureSpec, edited: AdventureSpec, sources: CapturedSource[], savedErrors: CheckIssue[] = []): CheckIssue[] {
+  const previous = new Set(validateEditedSpec(base, sources, savedErrors).errors.map(issueKey));
+  return validateEditedSpec(edited, sources, savedErrors).errors.filter(error => !previous.has(issueKey(error)));
+}
+
+export function checkTeacherEdits(base: AdventureSpec, rawEdits: unknown, sources: CapturedSource[], savedErrors: CheckIssue[] = []):
+  | { ok: true; spec: AdventureSpec; edits: V3Edit[]; warnings: CheckIssue[] }
+  | { ok: false; errors: CheckIssue[] } {
+  try {
+    const edits = z.array(V3Edit).max(2000).parse(rawEdits);
+    const spec = applyTeacherEdits(base, edits, sources);
+    const errors = introducedErrors(base, spec, sources, savedErrors);
+    return errors.length ? { ok: false, errors } : { ok: true, spec, edits, warnings: validateEditedSpec(spec, sources, savedErrors).warnings };
+  } catch (error) {
+    return { ok: false, errors: [{ code: "invalid-edit", path: "", message: error instanceof Error ? error.message : "Invalid editing commands." }] };
+  }
 }

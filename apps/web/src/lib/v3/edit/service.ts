@@ -7,8 +7,9 @@ import {
 import { canStaffAdventure } from "@/lib/play/v3/access";
 import type { V3PlayStore } from "@/lib/play/v3/store";
 import { stancePortraitRequests } from "@/lib/v3/portraits/generate";
-import { applyV3Edits, V3Edit, type CapturedSource } from "./commands";
-import { validateEditedSpec } from "./validation";
+import { V3Edit, type CapturedSource } from "./commands";
+import { applyTeacherEdits } from "./apply";
+import { introducedErrors, validateEditedSpec } from "./validation";
 
 export type SaveV3Result =
   | {
@@ -22,7 +23,8 @@ export type SaveV3Result =
       ok: false;
       code: "conflict" | "access" | "invalid-edit";
       message: string;
-    };
+    }
+  | { ok: false; code: "check-errors"; message: string; errors: CheckIssue[] };
 export interface V3EditDeps {
   store: V3PlayStore;
   sources(id: string): Promise<CapturedSource[]>;
@@ -35,105 +37,8 @@ export interface V3EditDeps {
   >;
   env?: NodeJS.ProcessEnv;
 }
-const same = (a: unknown, b: unknown) =>
-  JSON.stringify(a) === JSON.stringify(b);
-
-/** Mark changed prose at its nearest stable entity, preserving unchanged evidence. */
-export function deriveAttribution(
-  base: AdventureSpec,
-  edited: AdventureSpec,
-): void {
-  const contributions = [...(base.authoring?.teacherContributions ?? [])];
-  const walk = (old: unknown, next: unknown, entity: string, field: string) => {
-    if (!next || typeof next !== "object") return;
-    if (Array.isArray(next)) {
-      next.forEach((item, i) => {
-        if (
-          typeof item === "string" &&
-          (!Array.isArray(old) || !old.includes(item))
-        ) {
-          const local = `${field}.${i}`;
-          if (
-            !contributions.some((c) => c.entity === entity && c.field === local)
-          )
-            contributions.push({ entity, field: local });
-        }
-        const id =
-          item && typeof item === "object" && "id" in item
-            ? String(item.id)
-            : undefined;
-        const prior = Array.isArray(old)
-          ? id
-            ? old.find((x) => x?.id === id)
-            : (old.find((x) => same(x, item)) ?? old[i])
-          : undefined;
-        walk(prior, item, entity, `${field}.${i}`);
-      });
-      return;
-    }
-    const obj = next as Record<string, unknown>;
-    const prior =
-      old && typeof old === "object" ? (old as Record<string, unknown>) : {};
-    if (typeof obj.id === "string") {
-      entity =
-        entity === base.id || obj.id === base.id
-          ? obj.id
-          : `${entity}/${obj.id}`;
-      field = "";
-    }
-    let changedProse = false;
-    const technical = new Set([
-      "id",
-      "sourceLabel",
-      "citations",
-      "authoring",
-      "kind",
-      "type",
-      "effect",
-      "tier",
-      "readingLevel",
-    ]);
-    for (const [key, value] of Object.entries(obj)) {
-      if (technical.has(key)) continue;
-      const local = field ? `${field}.${key}` : key;
-      if (
-        typeof value === "string" &&
-        !key.endsWith("Id") &&
-        !same(prior[key], value)
-      ) {
-        changedProse = true;
-        if (
-          !contributions.some((c) => c.entity === entity && c.field === local)
-        )
-          contributions.push({ entity, field: local });
-      }
-      if (typeof value === "object") walk(prior[key], value, entity, local);
-    }
-    if (
-      "sourceLabel" in obj &&
-      !changedProse &&
-      !same(obj.sourceLabel, prior.sourceLabel) &&
-      !("body" in obj)
-    )
-      throw Error("Source labels are server managed");
-    if (changedProse) {
-      if ("sourceLabel" in obj)
-        obj.sourceLabel =
-          obj.real === false && "body" in obj ? "invented" : "from the teacher";
-      if ("citations" in obj && obj.real !== true) obj.citations = [];
-    }
-    // Citation editing cannot attach old evidence to new prose or fabricate provenance.
-    if (
-      "citations" in obj &&
-      !same(obj.citations, prior.citations) &&
-      !changedProse &&
-      !("body" in obj)
-    )
-      throw Error("Citations are server managed");
-  };
-  walk(base, edited, base.id, "");
-  (edited.authoring ??= {}).teacherContributions = contributions;
-}
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+export { applyTeacherEdits, deriveAttribution } from "./apply";
 
 export async function saveAdventureEdits(
   deps: V3EditDeps,
@@ -167,27 +72,11 @@ export async function saveAdventureEdits(
   const sources = await deps.sources(id);
   let spec: AdventureSpec;
   try {
-    spec = applyV3Edits(parsed.spec, commands.data, sources);
+    spec = applyTeacherEdits(parsed.spec, commands.data, sources);
     if (!same(spec, parsed.spec)) {
-      deriveAttribution(parsed.spec, spec);
       if (!spec.authoring?.validationContext && deps.validationContext) {
         const context = await deps.validationContext(id);
         if (context) (spec.authoring ??= {}).validationContext = context;
-      }
-      // Only the last evidence operation for a surviving real document supplies
-      // its source label. A later conversion/removal must not restore old cites.
-      const evidence = new Map<string, V3Edit>();
-      for (const command of commands.data) {
-        if (command.type === "replaceExcerpt" || command.type === "convertDocument") evidence.set(command.documentId, command);
-      }
-      for (const command of evidence.values()) {
-        if (command.type !== "replaceExcerpt") continue;
-        const doc = spec.documents.find(d => d.id === command.documentId);
-        const source = sources.find(s => s.id === command.sourceId);
-        if (doc?.real && source) {
-          doc.sourceLabel = source.title;
-          doc.citations = [{ sourceId: source.id, quote: doc.body }];
-        }
       }
       const oldPortraits = new Map(
         stancePortraitRequests(parsed.spec).map((p) => [
@@ -220,6 +109,8 @@ export async function saveAdventureEdits(
     };
   }
   const generationErrors = await deps.store.loadCheckErrors(id);
+  const added = introducedErrors(parsed.spec, spec, sources, generationErrors);
+  if (added.length) return { ok: false, code: "check-errors", message: "These edits add errors, so they weren't saved. Fix them or use Fix with AI.", errors: added };
   const checks = validateEditedSpec(spec, sources, generationErrors);
   // An empty/no-op Save must not create metadata or a snapshot.
   if (!same(spec, parsed.spec))

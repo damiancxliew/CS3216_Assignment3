@@ -66,12 +66,15 @@ export function buildReveal(spec: EngineSpec, state: EngineState): RevealView {
     const moment = spec.definingMoments.find((candidate) => candidate.id === stage.definingMomentId)
     const yours = moment?.outcomes.find((outcome) => outcome.id === state.outcomes[moment.id])
     const history = moment?.outcomes.find((outcome) => outcome.historical === true)
+    const predicted = moment?.outcomes.find((outcome) => outcome.id === state.predictions[moment.id])
     return {
       stageIndex,
       yours: yours?.summary ?? 'You did not reach this moment.',
       history: history?.summary ?? '',
       matched: yours !== undefined && yours.id === history?.id,
       closedEndings: (yours?.closesEndingIds ?? []).map((id) => visibleEndingTitle(spec, id)).filter((title): title is string => title !== null),
+      act: moment?.acts.find((act) => act.id === state.acts[moment.id])?.text ?? null,
+      prediction: predicted === undefined || yours === undefined ? null : { text: predicted.predictionText, correct: predicted.id === yours.id },
     }
   })
   const sources = { teacher: new Set<string>(), other: new Set<string>(), invented: new Set<string>() }

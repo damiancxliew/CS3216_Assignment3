@@ -5,6 +5,7 @@ import type { CharacterView, DefiningMomentView, MessageView } from "@adventure/
 import { Pixelify_Sans } from "next/font/google";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 
+import { StanceTag, type StanceShift } from "@/components/play/v3/story-lines";
 import { portraitUrl } from "@/lib/play/v3/portraits";
 
 export const pixelFont = Pixelify_Sans({
@@ -24,6 +25,7 @@ type TalkProps = {
   portraitBase: PortraitBase;
   messages: DialogueMessage[];
   busy: boolean;
+  stanceShift?: StanceShift | null;
   onSend: (text: string) => void;
   onOpenNotes: () => void;
   onClose: () => void;
@@ -41,8 +43,10 @@ type MomentProps = {
 
 export type DialogueBoxProps = TalkProps | MomentProps;
 
-export const boxClass =
-  "absolute bottom-2 left-1/2 z-20 flex max-h-[55%] w-[calc(100%-1rem)] max-w-[56rem] -translate-x-1/2 overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:bottom-4 sm:w-[calc(100%-2rem)]";
+const boxFrameClass =
+  "absolute left-1/2 z-20 flex max-h-[55%] w-[calc(100%-1rem)] max-w-[56rem] -translate-x-1/2 overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:w-[calc(100%-2rem)]";
+
+export const boxClass = `${boxFrameClass} bottom-2 sm:bottom-4`;
 
 function wordCount(text: string) {
   return text.match(/\S+/g)?.length ?? 0;
@@ -116,6 +120,15 @@ export function nextChoiceIndex(index: number, delta: number, count: number): nu
   return ((index + delta) % count + count) % count;
 }
 
+/** Moves the cursor in `delta`'s direction to the next choice that can be picked, wrapping around. */
+export function nextAvailableIndex(index: number, delta: number, available: readonly boolean[]): number {
+  for (let step = 1; step <= available.length; step += 1) {
+    const candidate = nextChoiceIndex(index, delta * step, available.length);
+    if (available[candidate]) return candidate;
+  }
+  return index;
+}
+
 function isTextEntryTarget(target: EventTarget | null) {
   return target instanceof HTMLElement
     && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
@@ -169,7 +182,7 @@ export function ContinueIndicator() {
   );
 }
 
-function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenNotes, onClose }: TalkProps) {
+function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = null, onSend, onOpenNotes, onClose }: TalkProps) {
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -250,8 +263,9 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
       </div>
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex shrink-0 items-start pr-9 pb-2 pt-1">
-          <h2 className="min-w-0 flex-1">
+          <h2 className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <NameTag>{character.name}</NameTag>
+            {character.stance ? <StanceTag label={character.stance.label} shift={stanceShift} /> : null}
           </h2>
         </header>
         <button
@@ -295,7 +309,7 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
                 <p className="mb-0.5 text-xs font-bold uppercase tracking-wide text-[#5c6472]">{speaker}</p>
               ) : null}
               {message.text ? (
-                <p className={`whitespace-pre-wrap text-[15px] leading-relaxed sm:text-[17px] ${message.kind === "narration" || message.kind === "thought" ? "italic text-[#3b4252]" : ""}`}>
+                <p className={`whitespace-pre-wrap text-[15px] leading-relaxed sm:text-[17px] ${message.kind === "narration" || message.kind === "thought" ? "italic text-[#3b4252]" : message.kind === "notice" ? "font-semibold italic text-[#8a5a1c]" : ""}`}>
                   {message.id === animatingMessage?.id ? (
                     <>
                       <span className="sr-only">{message.text}</span>
@@ -316,6 +330,11 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
               Say hello, or ask {character.name} a question.
             </p>
           )}
+          {busy && lastMessage?.kind === "player" ? (
+            <p role="status" className="text-sm font-bold text-[#5c6472]">
+              {character.name} is thinking<span aria-hidden="true" className="motion-safe:animate-pulse">…</span>
+            </p>
+          ) : null}
         </div>
 
         <form onSubmit={submit} className="mt-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2 border-t-2 border-[#1f2433]/20 pt-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
@@ -351,22 +370,26 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
 }
 
 function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict }: MomentProps) {
+  const section = useRef<HTMLElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { shown: reactionShown, done: reactionDone, skip: skipReaction } = useTypewriter(
     moment.reaction ?? "",
     moment.status === "predicting" && Boolean(moment.reaction),
   );
   const choices = moment.status === "choosing"
-    ? moment.acts.map((act) => ({ id: act.id, text: act.text }))
-    : moment.predictionOptions.map((option) => ({ id: option.outcomeId, text: option.text }));
+    ? moment.acts.map((act) => ({ id: act.id, text: act.text, available: act.available !== false }))
+    : moment.predictionOptions.map((option) => ({ id: option.outcomeId, text: option.text, available: true }));
+  const firstAvailable = Math.max(0, choices.findIndex((choice) => choice.available));
 
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [moment.status]);
+    setSelectedIndex(firstAvailable);
+  }, [moment.status, firstAvailable]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isTextEntryTarget(event.target)) return;
+      if (event.defaultPrevented || document.querySelector("dialog[open]") || isTextEntryTarget(event.target)) return;
+      // Global decision shortcuts must not activate while using another control, such as the Journal.
+      if (event.target instanceof HTMLElement && event.target.closest("button, a, [role='tab']") && !section.current?.contains(event.target)) return;
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       const delta = key === "ArrowUp" || key === "w" ? -1 : key === "ArrowDown" || key === "s" ? 1 : 0;
       const select = key === "Enter" || event.key === " " || event.code === "Space";
@@ -380,11 +403,11 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
         return;
       }
       if (delta !== 0) {
-        setSelectedIndex((current) => nextChoiceIndex(current, delta, choices.length));
+        setSelectedIndex((current) => nextAvailableIndex(current, delta, choices.map((item) => item.available)));
         return;
       }
       const choice = choices[selectedIndex];
-      if (!choice) return;
+      if (!choice?.available) return;
       if (moment.status === "choosing") onAct(choice.id);
       else onPredict(choice.id);
     };
@@ -401,8 +424,9 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
 
   return (
     <section
+      ref={section}
       aria-label="A defining moment"
-      className={`${boxClass} flex-row items-stretch gap-2 px-2 py-2 sm:gap-3 sm:px-3 sm:py-3`}
+      className={`${boxFrameClass} bottom-28 flex-row items-stretch gap-2 px-2 py-2 sm:gap-3 sm:px-3 sm:py-3`}
     >
       {decider ? (
         <div className="flex shrink-0 items-center">
@@ -448,12 +472,13 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
                   role="option"
                   aria-selected={selected}
                   tabIndex={selected ? 0 : -1}
-                  disabled={busy}
+                  disabled={busy || !choice.available}
+                  aria-disabled={!choice.available || undefined}
                   onMouseEnter={() => {
-                    if (!busy) setSelectedIndex(index);
+                    if (!busy && choice.available) setSelectedIndex(index);
                   }}
                   onClick={() => {
-                    if (busy) return;
+                    if (busy || !choice.available) return;
                     if (moment.status === "choosing") onAct(choice.id);
                     else onPredict(choice.id);
                   }}
@@ -466,7 +491,10 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
                   <span aria-hidden="true" className="text-sm font-black text-[#e36b33]">
                     {selected ? "▶" : ""}
                   </span>
-                  <span className={`${pixelFont.className} text-sm font-semibold sm:text-base`}>{choice.text}</span>
+                  <span className={`${pixelFont.className} text-sm font-semibold sm:text-base ${choice.available ? "" : "text-[#5c6472] line-through decoration-2"}`}>
+                    {choice.text}
+                    {choice.available ? null : <span className="sr-only"> (no longer possible)</span>}
+                  </span>
                 </button>
               );
             })}

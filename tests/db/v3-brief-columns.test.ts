@@ -59,6 +59,22 @@ describe("adventures_v3 brief columns (#223)", () => {
     expect(row).toEqual({ brief_state: null, skeleton_draft: null, title: null });
   });
 
+  it("stores and clears pause drafts through service-role writes only", async () => {
+    const { data, error } = await insertAdventure({ status: "needs_review" });
+    expect(error).toBeNull();
+    const id = data!.id;
+    const read = () => owner.client.from("adventures_v3").select("pause_draft").eq("id", id).single();
+    expect((await read()).data).toEqual({ pause_draft: null });
+    const draft = { pass: "details", edits: [{ type: "set", path: ["title"], value: "Teacher's title" }] };
+    expect((await serviceClient().from("adventures_v3").update({ pause_draft: draft }).eq("id", id)).error).toBeNull();
+    expect((await read()).data).toEqual({ pause_draft: draft });
+    expect((await owner.client.from("adventures_v3").update({ pause_draft: null }).eq("id", id)).error).not.toBeNull();
+    expect((await read()).data).toEqual({ pause_draft: draft });
+    expect((await otherTeacher.client.from("adventures_v3").select("pause_draft").eq("id", id)).data).toEqual([]);
+    expect((await serviceClient().from("adventures_v3").update({ pause_draft: null }).eq("id", id)).error).toBeNull();
+    expect((await read()).data).toEqual({ pause_draft: null });
+  });
+
   it("rejects a title longer than 200 characters", async () => {
     const { error } = await insertAdventure({ title: "x".repeat(201) });
     expect(error).not.toBeNull();

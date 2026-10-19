@@ -56,6 +56,18 @@ function unrequired(node: unknown, path = '$'): string[] {
 }
 
 describe('v3 persona prompt', () => {
+  it('pitches language to the reading level without thinning the history', () => {
+    const sec = buildPersonaSystemPrompt(persona)
+    expect(sec).toContain('lower-secondary')
+    expect(sec).toContain('unfamiliar title, term or political idea, explain it briefly')
+    expect(sec).toContain('simplify the words, never the history')
+    const jc = buildPersonaSystemPrompt({ ...persona, readingLevel: 'jc' })
+    expect(jc).toContain('fuller vocabulary')
+    expect(jc).toContain('genuinely unfamiliar')
+    expect(jc).toContain('keep the important historical meaning precise')
+    expect(jc).not.toContain('lower-secondary')
+  })
+
   it('carries only the revealable facts, and names held-back topics without their content', () => {
     const user = buildPersonaUserPrompt(persona)
     expect(user).toContain('He wants a share of the trade for his people.')

@@ -56,11 +56,16 @@ export type StageView = z.infer<typeof StageView>
 export const RoomView = z.object({ id: Id, name: z.string() })
 
 /** A character in the student's current room. `stanceId` picks the portrait; it is never shown as text (P6.5). */
+/** The character's current stance as the student sees it: its label, and its step on the ladder (0 = lowest). */
+export const StanceView = z.object({ label: z.string(), level: z.number().int().min(0) })
+export type StanceView = z.infer<typeof StanceView>
+
 export const CharacterView = z.object({
   id: Id,
   name: z.string(),
   title: z.string(),
   stanceId: Id.nullable(),
+  stance: StanceView.nullable().optional(),
   /** `${characterId}` for characters without stances, `${characterId}:${stanceId}` otherwise. */
   portraitKey: z.string(),
 })
@@ -79,6 +84,7 @@ export const MessageView = z.object({
   roomId: Id.nullable(),
   text: z.string(),
   insertedNoteId: Id.nullable(),
+  stageIndex: StageIndex.nullable(),
   at: Timestamp,
 })
 export type MessageView = z.infer<typeof MessageView>
@@ -130,7 +136,11 @@ export const DefiningMomentView = z.object({
   /** `choosing`: pick an act. `predicting`: the reaction is shown, pick a prediction. */
   status: z.enum(['choosing', 'predicting']),
   /** 2–4 written acts, plus the secret act once unlocked (P9.1, P9.11). Never labelled. */
-  acts: z.array(z.object({ id: Id, text: z.string() })),
+  /**
+   * While choosing: every written act, with `available: false` on acts that can no longer happen, so the student
+   * sees them struck out. A secret act appears only once unlocked.
+   */
+  acts: z.array(z.object({ id: Id, text: z.string(), available: z.boolean().optional() })),
   /** A non-blocking reminder when core discoveries are missing (P9.6). */
   nudge: z.string().nullable(),
   chosenActId: Id.nullable(),
@@ -171,7 +181,16 @@ export const RevealView = z.object({
   /** Shown by default (E3.8). */
   whatHappened: z.string(),
   pathVsHistory: z.array(
-    z.object({ stageIndex: StageIndex, yours: z.string(), history: z.string(), matched: z.boolean(), closedEndings: z.array(z.string()) }),
+    z.object({
+      stageIndex: StageIndex,
+      yours: z.string(),
+      history: z.string(),
+      matched: z.boolean(),
+      closedEndings: z.array(z.string()),
+      /** The act the student chose at this stage's defining moment, and their prediction, for the timeline. */
+      act: z.string().nullable().optional(),
+      prediction: z.object({ text: z.string(), correct: z.boolean() }).nullable().optional(),
+    }),
   ),
   corrections: z.array(z.string()),
   missedCore: z.array(z.string()),
@@ -197,6 +216,8 @@ export const PlayerView = z.object({
   currentRoomId: Id.nullable(),
   /** Characters in the current room only. */
   characters: z.array(CharacterView),
+  /** Characters who appear in the transcript (have a line with their characterId), so the log can name people outside the current room; only characters the student has already met. */
+  speakers: z.array(z.object({ id: Id, name: z.string(), title: z.string() })),
   messages: z.array(MessageView),
   notes: z.array(NoteView),
   documents: z.array(DocumentView),

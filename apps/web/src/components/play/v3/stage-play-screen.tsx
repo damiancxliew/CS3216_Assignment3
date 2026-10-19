@@ -10,8 +10,9 @@ import styles from "@/components/play/adventure-chrome.module.css";
 import { DialogueBox } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
 import { NotePickup, useNotePickups } from "@/components/play/v3/note-pickup";
-import pickupStyles from "@/components/play/v3/note-pickup.module.css";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
+import { StoryToast, talkLines, useStanceShifts, useStoryToasts } from "@/components/play/v3/story-lines";
+import { StageIsland } from "@/components/play/v3/stage-island";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import { V3Map } from "@/components/play/v3/v3-map";
@@ -44,7 +45,7 @@ function formatTime(milliseconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] } }: {
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] }, onOpenRoleBrief }: {
   view: PlayerView;
   busy: boolean;
   send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
@@ -54,6 +55,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   movementLocked?: boolean;
   ambient?: NonNullable<PlaygroundSnapshot["ambient"]>;
   audio?: NonNullable<PlaygroundSnapshot["audio"]>;
+  onOpenRoleBrief?: () => void;
 }) {
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [talkingTo, setTalkingTo] = useState<string | null>(null);
@@ -63,7 +65,10 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const [mapReady, setMapReady] = useState(false);
   const [missionCollapsed, setMissionCollapsed] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
-  const [emptyDocumentsOpen, setEmptyDocumentsOpen] = useState(false);
+  const [islandRequest, setIslandRequest] = useState<{
+    tab: "notes" | "documents" | "log";
+    key: number;
+  } | null>(null);
   const [documentId, setDocumentId] = useState<string | null>(
     () => view.documents.find((document) => document.open)?.id ?? null,
   );
@@ -71,6 +76,10 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const mapSection = useRef<HTMLElement>(null);
   const pickup = useNotePickups(view.notes);
   const talkingRoomId = useRef<string | null>(null);
+  const seenAtTalkOpen = useRef<ReadonlySet<string>>(new Set());
+  const acknowledgeIslandRequest = useCallback((key: number) => {
+    setIslandRequest((current) => current?.key === key ? null : current);
+  }, []);
   const stage = view.stage;
   const stageIndex = stage?.index ?? 0;
   const stageId = `stage-${stageIndex}`;
@@ -92,17 +101,22 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     if (!ready) setNearbyId(null);
   }, []);
   const messages = useMemo(
-    // The talk box shows the room's conversation only; story lines (narration, notices, thoughts) stay out of it.
-    () => view.messages.filter((item) =>
-      item.roomId === view.currentRoomId && (item.kind === "player" || item.kind === "character"),
-    ),
-    [view.currentRoomId, view.messages],
+    () => openCharacter ? talkLines(view.messages, view.currentRoomId, openCharacter.id, seenAtTalkOpen.current) : [],
+    [openCharacter, view.currentRoomId, view.messages],
   );
+  const storyToasts = useStoryToasts(view.messages, view.phase === "stage" && !isMoment && !isTalkOpen);
+  const stanceShifts = useStanceShifts(view.characters);
   const dialogueMessages = useMemo(() => messages.map((item) => ({
     ...item,
     speaker: item.kind === "player"
       ? "You"
-      : item.characterId === null
+      : item.kind === "thought"
+        ? "Your thought"
+        : item.kind === "narration"
+          ? "Meanwhile"
+          : item.kind === "notice"
+            ? ""
+            : item.characterId === null
         ? "Story"
         : view.characters.find((character) => character.id === item.characterId)?.name ?? "Character",
     insertedNoteText: item.insertedNoteId
@@ -116,9 +130,10 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const openTalk = useCallback((id: string) => {
     if (view.definingMoment !== null || !view.characters.some((character) => character.id === id)) return;
     talkingRoomId.current = view.currentRoomId;
+    seenAtTalkOpen.current = new Set(view.messages.map((message) => message.id));
     setCharacterId(id);
     setTalkingTo(id);
-  }, [view.characters, view.currentRoomId, view.definingMoment]);
+  }, [view.characters, view.currentRoomId, view.definingMoment, view.messages]);
 
   const closeTalk = useCallback(() => {
     setTalkingTo(null);
@@ -151,24 +166,12 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const remaining = view.timer && now !== null ? new Date(view.timer.endsAt).getTime() - now : null;
   const openDocument = useCallback((id: string) => {
     setDocumentId(id);
-    setEmptyDocumentsOpen(false);
     send({ type: "openDocument", documentId: id });
   }, [send]);
-
-  function openCollectedDocuments() {
-    const firstDocumentId = firstV3CollectedDocumentId(view.documents);
-    if (firstDocumentId) {
-      openDocument(firstDocumentId);
-    } else {
-      setDocumentId(null);
-      setEmptyDocumentsOpen(true);
-    }
-  }
 
   function closeDocument() {
     if (openedDocument) send({ type: "closeDocument", documentId: openedDocument.id });
     setDocumentId(null);
-    setEmptyDocumentsOpen(false);
   }
 
   return (
@@ -206,37 +209,19 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             />
           ) : null}
 
-          {isMoment ? (
-            <div className="absolute bottom-3 left-16 z-30 flex gap-2">
-              <button
-                type="button"
-                className={`${styles.tool} flex min-h-10 items-center gap-2 px-3 text-sm font-bold`}
-                onClick={openCollectedDocuments}
-              >
-                Documents ({view.documents.length})
-              </button>
-            </div>
-          ) : !isTalkOpen ? (
-            <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-2">
-              <button
-                type="button"
-                key={pickup.current?.id ?? "notes"}
-                className={`${styles.tool} ${pickup.current ? pickupStyles.pulse : ""} flex min-h-10 items-center gap-2 px-3 text-sm font-bold`}
-                onClick={() => setNotesOpen(true)}
-              >
-                Notes ({view.notes.length})
-              </button>
-              <button
-                type="button"
-                className={`${styles.tool} flex min-h-10 items-center gap-2 px-3 text-sm font-bold`}
-                onClick={openCollectedDocuments}
-              >
-                Documents ({view.documents.length})
-              </button>
-            </div>
+          {!isTalkOpen ? (
+            <StageIsland
+              view={view}
+              onOpenDocument={openDocument}
+              onOpenRoleBrief={onOpenRoleBrief}
+              definingMoment={isMoment}
+              pulseKey={pickup.current?.id ?? null}
+              openRequest={islandRequest}
+              onOpenRequestHandled={acknowledgeIslandRequest}
+            />
           ) : null}
 
-          {!isMoment && !isTalkOpen && mapReady && nearbyCharacter && !notesOpen && !openedDocument && !emptyDocumentsOpen ? (
+          {!isMoment && !isTalkOpen && mapReady && nearbyCharacter && !notesOpen && !openedDocument ? (
             <button
               type="button"
               onClick={() => openTalk(nearbyCharacter.id)}
@@ -264,6 +249,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               portraitBase={portraitBase}
               messages={dialogueMessages}
               busy={busy}
+              stanceShift={stanceShifts.get(openCharacter.id) ?? null}
               onSend={(text) => {
                 if (characterId) send({ type: "message", characterId, text });
               }}
@@ -344,9 +330,6 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                       I&apos;m ready to decide
                     </button>
                   )}
-                  {view.pendingCheck ? (
-                    <p role="status" className="text-xs font-bold text-[#5c6472]">Adding to your notes…</p>
-                  ) : null}
                   {!mapReady ? (
                     <label className="flex flex-col gap-1 border-t border-[#1f2433]/20 pt-2 text-[11px] font-black uppercase tracking-wide">
                       Walk to
@@ -384,14 +367,23 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             notes={view.notes}
             busy={busy}
             selectedCharacterName={isTalkOpen ? openCharacter.name : null}
-            onInsert={(noteId, text) => {
+            onInsert={(noteId) => {
               if (!isTalkOpen || !openCharacter || characterId !== openCharacter.id) return;
-              submitV3NoteInsert(characterId, noteId, text, send, () => setNotesOpen(false));
+              submitV3NoteInsert(characterId, noteId, undefined, send, () => setNotesOpen(false));
             }}
           />
         </V3ScrollDialog>
       ) : null}
 
+      {storyToasts.current ? (
+        <StoryToast
+          key={storyToasts.current.id}
+          message={storyToasts.current}
+          characters={view.characters}
+          shift={storyToasts.current.characterId ? stanceShifts.get(storyToasts.current.characterId) ?? null : null}
+          onDismiss={storyToasts.dismiss}
+        />
+      ) : null}
       {pickup.current ? (
         <NotePickup
           key={pickup.current.id}
@@ -399,12 +391,13 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
           onOpen={() => {
             pickup.dismiss();
             if (openedDocument) closeDocument();
-            setNotesOpen(true);
+            if (isTalkOpen) setNotesOpen(true);
+            else setIslandRequest({ tab: "notes", key: Date.now() });
           }}
         />
       ) : null}
 
-      {openedDocument || emptyDocumentsOpen ? (
+      {openedDocument ? (
         <DocumentReader
           document={openedDocument}
           documents={view.documents}
