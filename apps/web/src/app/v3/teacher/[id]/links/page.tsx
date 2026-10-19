@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { Page, button } from "@/components/ui";
+import { Page } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
 import { v3PublishDeps } from "@/lib/play/v3/http";
@@ -35,9 +35,11 @@ export default async function StudentLinkHistoryPage({
   const url = host ? `${protocol}://${host}${path}` : path;
   return (
     <Page title="Version history" width="wide">
-      <Link href={`/v3/teacher/${id}`} className={button.subtle}>
-        Back to adventure
-      </Link>
+      <nav aria-label="Adventure navigation" className="border-b border-line pb-3 text-sm">
+        <Link href={`/v3/teacher/${id}`} className="inline-flex items-center text-muted hover:text-ink">
+          ← Back to adventure
+        </Link>
+      </nav>
       <section className="my-6 flex flex-wrap items-center justify-between gap-4 rounded-surface border border-line bg-surface p-5">
         <div>
           <h2 className="flex items-center gap-2 font-bold">
