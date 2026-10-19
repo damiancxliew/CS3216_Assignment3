@@ -47,7 +47,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id === "\0link")
               return `import React from 'react'; export default function Link(props) { return React.createElement('a', props); }`;
             if (id === "\0publish")
-              return `export async function publishV3Adventure(){return {ok:true,status:'published'}}; export async function unpublishV3Adventure(){return {ok:true,status:'draft'}}`;
+              return `export async function currentV3StudentLink(){return {ok:true,path:"/v3/join/fixture?release=test"}}; export async function publishV3Adventure(){return {ok:true,status:'published'}}; export async function unpublishV3Adventure(){return {ok:true,status:'draft'}}`;
             if (id === "\0save")
               return `import {applyV3Edits} from '/src/lib/v3/edit/commands.ts';
           export async function saveV3AdventureEdits(id,version,edits){
@@ -191,6 +191,10 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         ).toBe("true");
         await page.getByRole("tab", { name: "Settings", exact: true }).click();
       }
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.screenshot({ path: '/tmp/v3-editor-toolbar-desktop.png', fullPage: true });
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.screenshot({ path: '/tmp/v3-editor-toolbar-mobile.png', fullPage: true });
       expect(errors).toEqual([]);
     } finally {
       await browser?.close();

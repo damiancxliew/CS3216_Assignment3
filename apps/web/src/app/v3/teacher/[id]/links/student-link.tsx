@@ -18,7 +18,7 @@ export function CopyStudentLink({ path }: { path: string }) {
           }
         }}
       >
-        Copy student link
+        Copy link
       </button>
       <p role="status" className="text-sm">
         {message}

@@ -394,96 +394,117 @@ export function EditorWorkspace(props: Props) {
   };
   return (
     <>
-      <header
-        className="mb-6 flex flex-wrap items-center justify-between gap-4"
-        aria-busy={pending}
-      >
-        <div className="flex flex-wrap items-center gap-2">
+      <header className="mb-6 space-y-4" aria-busy={pending}>
+        <nav
+          aria-label="Adventure navigation"
+          className="flex items-center justify-between gap-4 border-b border-line pb-3 text-sm"
+        >
           <Link
             href={`/v3/teacher/${props.adventureId}`}
-            className={button.subtle}
+            className="text-muted hover:text-ink"
           >
-            Back to adventure
+            ← Back to adventure
           </Link>
-          {!editMode ? (
-            <button
-              type="button"
-              className={button.quiet}
-              onClick={() => setEditMode(true)}
-            >
-              Edit
-            </button>
-          ) : dirty || pending ? (
-            <>
-              <button
-                type="button"
-                className={button.primary}
-                disabled={pending}
-                onClick={save}
-              >
-                {pending ? "Saving…" : "Save"}
-              </button>
-              <button
-                type="button"
-                className={button.subtle}
-                disabled={pending}
-                onClick={() => {
-                  if (window.confirm("Discard your unsaved edits?")) {
-                    setDraft(saved);
-                    setEdits([]);
-                    setEditMode(false);
-                    setMessage("Edits discarded.");
-                    setFailure(false);
-                  }
-                }}
-              >
-                Discard
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className={button.subtle}
-              onClick={() => setEditMode(false)}
-            >
-              Done editing
-            </button>
-          )}
-          {dirty || pending ? (
-            <button type="button" disabled className={button.subtle}>
-              Preview
-            </button>
-          ) : (
-            <Link
-              href={`/v3/teacher/${props.adventureId}/preview`}
-              className={button.quiet}
-            >
-              Preview
-            </Link>
-          )}
-          {dirty ? (
-            <span className="text-sm">
-              Unsaved edits. Save before Preview or Publish.
-            </span>
-          ) : null}
+          <Link
+            href={`/v3/teacher/${props.adventureId}/links`}
+            className="text-muted underline underline-offset-4 hover:text-ink"
+          >
+            Version history
+          </Link>
+        </nav>
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
+          <section aria-label="Draft controls" className="space-y-3 py-2">
+            <p className="text-sm font-bold">
+              {editMode ? "Editing draft" : "Adventure draft"}{" "}
+              <span className="font-normal text-muted">· v{version}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {!editMode ? (
+                <button
+                  type="button"
+                  className={button.quiet}
+                  onClick={() => setEditMode(true)}
+                >
+                  Edit
+                </button>
+              ) : dirty || pending ? (
+                <>
+                  <button
+                    type="button"
+                    className={button.primary}
+                    disabled={pending}
+                    onClick={save}
+                  >
+                    {pending ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    className={button.subtle}
+                    disabled={pending}
+                    onClick={() => {
+                      if (window.confirm("Discard your unsaved edits?")) {
+                        setDraft(saved);
+                        setEdits([]);
+                        setEditMode(false);
+                        setMessage("Edits discarded.");
+                        setFailure(false);
+                      }
+                    }}
+                  >
+                    Discard
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className={button.subtle}
+                  onClick={() => setEditMode(false)}
+                >
+                  Done editing
+                </button>
+              )}
+              {dirty || pending ? (
+                <button type="button" disabled className={button.subtle}>
+                  Preview
+                </button>
+              ) : (
+                <Link
+                  href={`/v3/teacher/${props.adventureId}/preview`}
+                  className={button.quiet}
+                >
+                  Preview
+                </Link>
+              )}
+            </div>
+            {dirty ? (
+              <span className="text-sm">
+                Unsaved edits. Save before Preview or Publish.
+              </span>
+            ) : null}
+          </section>
+          <div className="rounded-xl border border-line bg-surface px-4 py-3 md:min-w-64">
+            <V3PublishPanel
+              key={`${version}:${publishedVersion}`}
+              adventureId={props.adventureId}
+              version={version}
+              publishedVersion={publishedVersion}
+              published={published}
+              unpublishedChanges={published && version !== publishedVersion}
+              onPublicationChange={(live, pointer) => {
+                setPublished(live);
+                setPublishedVersion(pointer);
+              }}
+              disabled={dirty || pending}
+              blockedReason={
+                errors.length
+                  ? "Fix blocking errors before publishing."
+                  : undefined
+              }
+              compact
+              showHistory={false}
+            />
+          </div>
         </div>
-        <V3PublishPanel
-          key={`${version}:${publishedVersion}`}
-          adventureId={props.adventureId}
-          version={version}
-          publishedVersion={publishedVersion}
-          published={published}
-          unpublishedChanges={published && version !== publishedVersion}
-          onPublicationChange={(live, pointer) => {
-            setPublished(live);
-            setPublishedVersion(pointer);
-          }}
-          disabled={dirty || pending}
-          blockedReason={
-            errors.length ? "Fix blocking errors before publishing." : undefined
-          }
-          compact
-        />
         <p
           className="w-full text-sm"
           role={failure ? "alert" : "status"}
