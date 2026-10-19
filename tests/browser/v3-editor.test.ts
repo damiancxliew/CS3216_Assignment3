@@ -28,9 +28,14 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         fs: { allow: [resolve(".")] },
       },
       esbuild: { jsx: "automatic" },
-      optimizeDeps: { include: ["react", "react-dom/client", "@radix-ui/react-select"] },
+      optimizeDeps: {
+        include: ["react", "react-dom/client", "@radix-ui/react-select"],
+      },
       css: { postcss: { plugins: [tailwind()] } },
-      resolve: { alias: { "@": resolve(root, "src") }, dedupe: ["react", "react-dom"] },
+      resolve: {
+        alias: { "@": resolve(root, "src") },
+        dedupe: ["react", "react-dom"],
+      },
       plugins: [
         {
           name: "editor-harness",
@@ -103,20 +108,30 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       ).toBe(0);
       expect(
         await page
-          .getByRole("button", { name: "Discard", exact: true })
+          .getByRole("button", { name: "Discard edits", exact: true })
           .count(),
       ).toBe(0);
       await page.getByRole("button", { name: "Edit", exact: true }).click();
-      await page.getByRole('combobox', { name: 'Defining Moment', exact: true }).first().click();
-      const option = page.getByRole('option', { name: spec.definingMoments[0].scene, exact: true });
+      await page
+        .getByRole("combobox", { name: "Defining Moment", exact: true })
+        .first()
+        .click();
+      const option = page.getByRole("option", {
+        name: spec.definingMoments[0].scene,
+        exact: true,
+      });
       await option.waitFor();
       expect(await option.innerText()).toBe(spec.definingMoments[0].scene);
-      expect(await option.evaluate(e => getComputedStyle(e.querySelector('span')!).whiteSpace)).toBe('normal');
-      await page.keyboard.press('Escape');
+      expect(
+        await option.evaluate(
+          (e) => getComputedStyle(e.querySelector("span")!).whiteSpace,
+        ),
+      ).toBe("normal");
+      await page.keyboard.press("Escape");
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
       expect(
         await page
-          .getByRole("button", { name: "Done editing", exact: true })
+          .getByRole("button", { name: "Discard edits", exact: true })
           .isVisible(),
       ).toBe(true);
       expect(
@@ -155,7 +170,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await page.getByRole("link", { name: "Back to adventures" }).click();
       expect(await page.locator("#edit-title").inputValue()).toBe("Unsaved");
       page.once("dialog", (d) => d.accept());
-      await page.getByRole("button", { name: "Discard", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Discard edits", exact: true })
+        .click();
       expect(
         await page
           .getByRole("button", { name: "Edit", exact: true })
@@ -198,9 +215,15 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         await page.getByRole("tab", { name: "Settings", exact: true }).click();
       }
       await page.setViewportSize({ width: 1440, height: 1000 });
-      await page.screenshot({ path: '/tmp/v3-editor-toolbar-desktop.png', fullPage: true });
+      await page.screenshot({
+        path: "/tmp/v3-editor-toolbar-desktop.png",
+        fullPage: true,
+      });
       await page.setViewportSize({ width: 375, height: 812 });
-      await page.screenshot({ path: '/tmp/v3-editor-toolbar-mobile.png', fullPage: true });
+      await page.screenshot({
+        path: "/tmp/v3-editor-toolbar-mobile.png",
+        fullPage: true,
+      });
       expect(errors).toEqual([]);
     } finally {
       await browser?.close();

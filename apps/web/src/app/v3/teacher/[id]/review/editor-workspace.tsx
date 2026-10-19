@@ -417,7 +417,7 @@ export function EditorWorkspace(props: Props) {
             </Link>
           </div>
         </nav>
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
           <section aria-label="Draft controls" className="space-y-3 py-2">
             <p className="text-sm font-bold">
               {editMode ? "Editing draft" : "Adventure draft"}{" "}
@@ -432,22 +432,27 @@ export function EditorWorkspace(props: Props) {
                 >
                   Edit
                 </button>
-              ) : dirty || pending ? (
+              ) : (
                 <>
-                  <button
-                    type="button"
-                    className={button.primary}
-                    disabled={pending}
-                    onClick={save}
-                  >
-                    {pending ? "Saving…" : "Save"}
-                  </button>
+                  {dirty || pending ? (
+                    <button
+                      type="button"
+                      className={button.primary}
+                      disabled={pending}
+                      onClick={save}
+                    >
+                      {pending ? "Saving…" : "Save"}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className={button.subtle}
                     disabled={pending}
                     onClick={() => {
-                      if (window.confirm("Discard your unsaved edits?")) {
+                      if (
+                        !dirty ||
+                        window.confirm("Discard your unsaved edits?")
+                      ) {
                         setDraft(saved);
                         setEdits([]);
                         setEditMode(false);
@@ -456,17 +461,9 @@ export function EditorWorkspace(props: Props) {
                       }
                     }}
                   >
-                    Discard
+                    Discard edits
                   </button>
                 </>
-              ) : (
-                <button
-                  type="button"
-                  className={button.subtle}
-                  onClick={() => setEditMode(false)}
-                >
-                  Done editing
-                </button>
               )}
               {dirty || pending ? (
                 <button type="button" disabled className={button.subtle}>
@@ -487,7 +484,7 @@ export function EditorWorkspace(props: Props) {
               </span>
             ) : null}
           </section>
-          <div className="rounded-xl border border-line bg-surface px-4 py-3 md:min-w-64">
+          <div className="py-2 md:border-l md:border-line md:pl-6">
             <V3PublishPanel
               key={`${version}:${publishedVersion}`}
               adventureId={props.adventureId}

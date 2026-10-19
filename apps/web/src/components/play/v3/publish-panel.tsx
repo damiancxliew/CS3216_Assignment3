@@ -84,7 +84,7 @@ export function V3PublishPanel({
   const publishBlocked = disabled || pending || !!blockedReason;
   return (
     <section aria-label="Publication" className="min-w-0 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="text-sm">
           <p className="font-bold text-ink">
             {isPublished
@@ -98,58 +98,10 @@ export function V3PublishPanel({
         {isPublished ? (
           <button
             type="button"
-            onClick={() => toggle(false)}
-            disabled={disabled || pending}
-            className="text-sm text-muted underline underline-offset-4 hover:text-ink disabled:opacity-50"
-          >
-            Unpublish
-          </button>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {!isPublished || changes ? (
-          <span
-            className="group/publish relative inline-flex rounded-full outline-offset-4"
-            tabIndex={blockedReason ? 0 : undefined}
-            role={blockedReason ? "group" : undefined}
-            aria-label={blockedReason ? "Publish unavailable" : undefined}
-            aria-describedby={
-              blockedReason ? `publish-block-${adventureId}` : undefined
-            }
-          >
-            <button
-              type="button"
-              onClick={() => toggle(true)}
-              disabled={publishBlocked}
-              aria-describedby={
-                blockedReason ? `publish-block-${adventureId}` : undefined
-              }
-              className={styles.quiet + " disabled:pointer-events-none"}
-            >
-              {pending
-                ? "Publishing…"
-                : isPublished
-                  ? "Publish changes"
-                  : "Publish"}
-            </button>
-            {blockedReason ? (
-              <span
-                id={`publish-block-${adventureId}`}
-                role="tooltip"
-                className="pointer-events-none invisible absolute top-full right-0 z-20 mt-2 w-56 max-w-[calc(100vw-2.5rem)] rounded-lg border border-danger/50 bg-danger-wash px-3 py-2 text-xs font-semibold leading-relaxed text-danger shadow-md group-hover/publish:visible group-focus-visible/publish:visible"
-              >
-                {blockedReason}
-              </span>
-            ) : null}
-          </span>
-        ) : null}
-        {isPublished ? (
-          <button
-            type="button"
             onClick={copy}
             aria-label={copied ? "Copied" : "Copy link"}
             title={copied ? "Copied" : "Copy link"}
-            className={styles.subtle + " !h-10 !w-10 !min-w-0 !p-0"}
+            className="inline-flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-sunken hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           >
             {copied ? (
               <Check aria-hidden className="size-4" />
@@ -158,7 +110,57 @@ export function V3PublishPanel({
             )}
           </button>
         ) : null}
+        {isPublished ? (
+          <button
+            type="button"
+            onClick={() => toggle(false)}
+            disabled={disabled || pending}
+            className="text-sm text-muted underline underline-offset-4 hover:text-ink disabled:opacity-50"
+          >
+            Unpublish
+          </button>
+        ) : null}
       </div>
+      {!isPublished || changes ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {!isPublished || changes ? (
+            <span
+              className="group/publish relative inline-flex rounded-full outline-offset-4"
+              tabIndex={blockedReason ? 0 : undefined}
+              role={blockedReason ? "group" : undefined}
+              aria-label={blockedReason ? "Publish unavailable" : undefined}
+              aria-describedby={
+                blockedReason ? `publish-block-${adventureId}` : undefined
+              }
+            >
+              <button
+                type="button"
+                onClick={() => toggle(true)}
+                disabled={publishBlocked}
+                aria-describedby={
+                  blockedReason ? `publish-block-${adventureId}` : undefined
+                }
+                className={styles.quiet + " disabled:pointer-events-none"}
+              >
+                {pending
+                  ? "Publishing…"
+                  : isPublished
+                    ? "Publish changes"
+                    : "Publish"}
+              </button>
+              {blockedReason ? (
+                <span
+                  id={`publish-block-${adventureId}`}
+                  role="tooltip"
+                  className="pointer-events-none invisible absolute top-full right-0 z-20 mt-2 w-56 max-w-[calc(100vw-2.5rem)] rounded-lg border border-danger/50 bg-danger-wash px-3 py-2 text-xs font-semibold leading-relaxed text-danger shadow-md group-hover/publish:visible group-focus-visible/publish:visible"
+                >
+                  {blockedReason}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       {showHistory ? (
         <Link
           href={`/v3/teacher/${adventureId}/links`}
