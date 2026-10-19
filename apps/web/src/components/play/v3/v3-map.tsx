@@ -37,6 +37,7 @@ interface V3MapProps {
   stageId: string;
   stageIndex: number;
   rooms: V3Room[];
+  crowdContext?: string;
   spawnRoomId: string;
   currentRoomId: string | null;
   characters: V3Character[];
@@ -128,6 +129,7 @@ export function V3Map(props: V3MapProps) {
 
     const snapshot = (): PlaygroundSnapshot => ({
       seed: `${latest.current.attemptId}:${latest.current.stageId}`,
+      crowdContext: latest.current.crowdContext,
       map,
       doors: compiled.initialDoors,
       actors: [
@@ -279,6 +281,8 @@ export function V3Map(props: V3MapProps) {
         if (characterId) {
           event.preventDefault();
           latest.current.onTalk(characterId);
+        } else if (view?.greetNearby?.()) {
+          event.preventDefault();
         }
         return;
       }

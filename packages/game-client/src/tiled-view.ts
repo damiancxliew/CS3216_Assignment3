@@ -22,6 +22,7 @@ import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, roomFi
 import { isExposed, WeatherSurface } from './weather.js'
 import { RoomShells } from './room-shells.js'
 import { detailZoom, overviewZoom, scaledZoom } from './camera.js'
+import { STAGE_CROWD_SPRITES } from './stage-crowds.js'
 import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
 import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, roomMaterial, storyArt } from './story-art.js'
@@ -265,7 +266,7 @@ class TiledScene extends Phaser.Scene {
     if (!this.ready) return
     const mapChanged = snapshot.map.id !== previous.map.id || snapshot.visualStyle !== previous.visualStyle
       || JSON.stringify(snapshot.environment) !== JSON.stringify(previous.environment)
-      || snapshot.mapTheme !== previous.mapTheme || snapshot.storyContext !== previous.storyContext
+      || snapshot.mapTheme !== previous.mapTheme || snapshot.storyContext !== previous.storyContext || snapshot.crowdContext !== previous.crowdContext
       || JSON.stringify(snapshot.roomDescriptions) !== JSON.stringify(previous.roomDescriptions)
       || JSON.stringify(snapshot.roomKinds) !== JSON.stringify(previous.roomKinds)
       || JSON.stringify(snapshot.roomNames) !== JSON.stringify(previous.roomNames)
@@ -295,7 +296,7 @@ class TiledScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   private spriteKeys(snapshot: PlaygroundSnapshot): string[] {
-    return [...new Set([...RESIDENT_SPRITES, this.defaultSprite, ...snapshot.actors.map((a) => a.sprite ?? this.defaultSprite)])]
+    return [...new Set([...RESIDENT_SPRITES, ...(snapshot.crowdContext === undefined ? [] : STAGE_CROWD_SPRITES), this.defaultSprite, ...snapshot.actors.map((a) => a.sprite ?? this.defaultSprite)])]
   }
 
   private assetUrls(snapshot: PlaygroundSnapshot): string[] {

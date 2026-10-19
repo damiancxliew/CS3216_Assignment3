@@ -36,6 +36,7 @@ const compiled = compileStage({ stageId: style, spawnRoomId: rooms[0]!.id, rooms
 }, `story-preview-${style}`)
 const actors = [{ id: 'player', name: 'You', position: compiled.playerSpawn, sprite: 'Boy' }, ...compiled.placements.filter((p) => p.kind === 'actor').map((p, i) => ({ id: p.id, name: ['Local guide', 'Keeper', 'Trader'][i]!, position: p.position, sprite: ['Inspector', 'OldMan', 'Villager2'][i]! }))]
 export const snapshot: PlaygroundSnapshot = {
+  ...(new URLSearchParams(location.search).has('crowd') ? { crowdContext: new URLSearchParams(location.search).get('crowd')! } : {}),
   seed: style, map: compiled.map, doors: compiled.initialDoors,
   actors: actors.map((a) => ({ ...a, space: spaceAt(compiled.map, a.position), targetRoomId: null, status: 'idle' })),
   playerGoal: null, playerStatus: 'idle', running: true, npcRoutes: false, revision: 0,

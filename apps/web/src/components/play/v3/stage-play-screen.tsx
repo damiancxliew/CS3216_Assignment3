@@ -174,6 +174,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             <V3Map
               key={`${attemptId}:${stageId}`}
               attemptId={attemptId}
+              crowdContext={`${stage.timePlace} ${stage.title} ${stage.centralQuestion}`}
               stageId={stageId}
               stageIndex={stageIndex}
               rooms={view.rooms}
