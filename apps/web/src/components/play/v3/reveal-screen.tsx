@@ -56,13 +56,13 @@ export function RevealScreen({ reveal, footer }: { reveal: RevealView; footer?: 
                   <dl className="mt-4 grid gap-2 text-sm leading-relaxed">
                     {path.act ? (
                       <div className="flex gap-2">
-                        <dt className="w-24 shrink-0 font-black text-muted">You chose</dt>
+                        <dt className="w-28 shrink-0 font-black text-muted">You chose</dt>
                         <dd className="text-ink">{path.act}</dd>
                       </div>
                     ) : null}
                     {path.prediction ? (
                       <div className="flex gap-2">
-                        <dt className="w-24 shrink-0 font-black text-muted">You predicted</dt>
+                        <dt className="w-28 shrink-0 font-black text-muted">You predicted</dt>
                         <dd className="text-ink">
                           {path.prediction.text}{" "}
                           <span className={`ml-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-black ${path.prediction.correct ? "bg-world-wash text-world" : "bg-record-wash text-record"}`}>
