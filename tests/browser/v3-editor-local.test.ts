@@ -1,0 +1,170 @@
+import { readFileSync } from "node:fs";
+import { chromium } from "playwright";
+import { expect, it } from "vitest";
+import { AdventureSpec } from "@adventure/spec-v3";
+import {
+  serviceClient,
+  createUserClient,
+  addMember,
+  uniqueEmail,
+} from "../db/helpers";
+import { supabaseV3SourceStore } from "@/lib/v3/generation/deps";
+import { fakeOutsideSources } from "@/lib/v3/generation/fake-passes";
+import { validateEditedSpec } from "@/lib/v3/edit/validation";
+
+it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
+  "walks through fixture creation, review, edit, preview, publish and student start locally",
+  async () => {
+    const school = readFileSync("apps/web/.env.local", "utf8")
+      .match(/^V3_SCHOOL_IDS=(.*)$/m)![1]
+      .replaceAll('"', "")
+      .split(",")[0];
+    const admin = serviceClient();
+    const schoolRow = await admin
+      .from("organization")
+      .select("name")
+      .eq("id", school)
+      .single();
+    if (!/test|local/i.test(schoolRow.data?.name ?? ""))
+      throw Error("Acceptance requires a test school");
+    const email = uniqueEmail("editor-acceptance");
+    const teacher = await createUserClient(email);
+    await addMember(school, teacher.userId, "teacher");
+    const studentEmail = uniqueEmail("editor-student");
+    const student = await createUserClient(studentEmail);
+    await addMember(school, student.userId, "student");
+    const spec = AdventureSpec.parse(
+      JSON.parse(
+        readFileSync("fixtures/generated/singapore-1819.json", "utf8"),
+      ),
+    );
+    // The generated fixture has a historical-diversion rule. Fix only this disposable copy.
+    for (const m of spec.definingMoments)
+      m.rules = m.rules.filter(
+        (r) =>
+          !r.when ||
+          !m.outcomes.find(
+            (o) =>
+              o.id ===
+              m.rules.find((f) => f.actId === r.actId && !f.when)?.outcomeId,
+          )?.historical ||
+          m.outcomes.find((o) => o.id === r.outcomeId)?.historical,
+      );
+    const { data: row, error } = await admin
+      .from("adventures_v3")
+      .insert({
+        school_id: school,
+        owner_id: teacher.userId,
+        status: "draft",
+        spec,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    const captured = fakeOutsideSources(spec);
+    // Include real document bodies in the disposable source snapshots, too.
+    for (const d of captured.documents)
+      for (const doc of spec.documents.filter(
+        (doc) => doc.real && doc.citations?.some((c) => c.sourceId === d.id),
+      ))
+        d.pages[0].text += "\n\n" + doc.body;
+    await supabaseV3SourceStore(() => admin).saveOutside(
+      row.id,
+      captured.sources,
+      captured.documents,
+    );
+    expect(
+      validateEditedSpec(
+        spec,
+        captured.documents.map((d) => ({
+          id: d.id,
+          title: d.title,
+          text: d.pages.map((p) => p.text).join("\n"),
+        })),
+      ).errors,
+    ).toEqual([]);
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage();
+      const pageErrors: string[] = [];
+      page.on("pageerror", (e) => pageErrors.push(e.message));
+      const login = async (email: string) => {
+        await page.goto("http://localhost:3000/teacher");
+        await page
+          .getByText("Local dev sign-in (email/password)", { exact: true })
+          .click();
+        await page.locator('input[name="email"]').fill(email);
+        await page.locator('input[name="password"]').fill("password123!");
+        await page
+          .getByRole("button", { name: "Sign in or create account" })
+          .click();
+        await page.waitForFunction(
+          () => !document.querySelector('input[name="email"]'),
+        );
+      };
+      await login(email);
+      await page.goto(`http://localhost:3000/v3/teacher/${row.id}/review`);
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      await page
+        .locator("#edit-title")
+        .fill("Teacher-edited acceptance adventure");
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "Saved version 2" })
+        .waitFor();
+      expect(
+        (
+          await admin
+            .from("adventures_v3")
+            .select("spec_version,published_version,status")
+            .eq("id", row.id)
+            .single()
+        ).data,
+      ).toMatchObject({
+        spec_version: 2,
+        published_version: null,
+        status: "draft",
+      });
+      await page.getByRole("link", { name: "Preview", exact: true }).click();
+      await page.waitForURL(`**/v3/teacher/${row.id}/preview`);
+      await page.getByRole("button", { name: "Publish", exact: true }).click();
+      await page.getByText("Published", { exact: true }).waitFor();
+      expect(
+        (
+          await admin
+            .from("adventures_v3")
+            .select("published_version")
+            .eq("id", row.id)
+            .single()
+        ).data?.published_version,
+      ).toBe(2);
+      expect(
+        (
+          await admin
+            .from("attempts_v3")
+            .select("id")
+            .eq("adventure_id", row.id)
+        ).data,
+      ).toEqual([]);
+      await page.context().clearCookies();
+      await login(studentEmail);
+      await page.goto(`http://localhost:3000/v3/join/${row.id}`);
+      await page.getByRole("link", { name: "Enter the adventure" }).click();
+      await page.waitForURL(/\/v3\/play\/(?!start)/);
+      expect(
+        (
+          await admin
+            .from("attempts_v3")
+            .select("spec_version")
+            .eq("adventure_id", row.id)
+        ).data,
+      ).toEqual([{ spec_version: 2 }]);
+      expect(pageErrors).toEqual([]);
+    } finally {
+      await browser.close();
+    }
+  },
+  120_000,
+);

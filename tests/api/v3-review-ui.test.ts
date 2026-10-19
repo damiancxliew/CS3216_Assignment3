@@ -23,7 +23,7 @@ const spec = AdventureSpec.parse(
 );
 
 describe("review screen rendering", () => {
-  it("shows blocking errors, grouped warnings, conflict fixtures and accessible edit placeholders", () => {
+  it("shows blocking errors, grouped warnings, conflict fixtures and settings/reveal tabs", () => {
     const html = renderToStaticMarkup(
       createElement(ReviewScreen, {
         spec: {
@@ -57,8 +57,8 @@ describe("review screen rendering", () => {
     expect(html).toContain("Teacher claim");
     expect(html).toContain("Source correction");
     expect(html).toContain('role="tablist"');
-    expect(html).toContain('aria-describedby="edit-coming-soon"');
-    expect(html).toContain("Coming soon");
+    expect(html).toContain("Settings");
+    expect(html).toContain("Reveal and questions");
     expect(html).toContain(spec.stages[0].openingNarration);
   });
 

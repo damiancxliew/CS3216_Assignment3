@@ -5,6 +5,8 @@ import { V3PublishPanel } from "@/components/play/v3/publish-panel";
 import { V3PreviewClient } from "@/components/play/v3/v3-preview-client";
 import { startPreview } from "@/lib/play/v3/preview";
 import { v3PreviewDeps, v3PublishDeps } from "@/lib/play/v3/http";
+import { EngineSpec } from "@adventure/engine";
+import { versionedPortraitBase } from "@/lib/play/v3/portraits";
 import { loadPublishState } from "@/lib/play/v3/publish";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
@@ -38,8 +40,11 @@ export default async function V3TeacherPreviewPage({ params }: { params: Promise
 
   const body = result.body as { token: string; view: PlayerView };
   const publish = await loadPublishState(v3PublishDeps(), user.id, id);
+  const adventure = await v3PublishDeps().store.loadAdventure(id);
+  const parsed = EngineSpec.safeParse(adventure?.spec);
   return (
     <V3PreviewClient
+      portraitBase={adventure && parsed.success ? versionedPortraitBase(id, adventure.specVersion, parsed.data.authoring?.portraitVersions) : null}
       adventureId={id}
       initialToken={body.token}
       initialView={body.view}

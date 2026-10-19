@@ -14,12 +14,13 @@ export function V3PublishPanel({
   published,
   blockedReason,
   compact = false,
-  version, publishedVersion, unpublishedChanges = false, disabled = false,
+  version, publishedVersion, unpublishedChanges = false, disabled = false, onPublicationChange,
 }: {
   adventureId: string;
   published: boolean;
   blockedReason?: string;
   compact?: boolean;
+  onPublicationChange?: (published: boolean, version: number | null) => void;
   version?: number; publishedVersion?: number | null; unpublishedChanges?: boolean; disabled?: boolean;
 }) {
   const styles = compact ? compactButton : button;
@@ -40,7 +41,7 @@ export function V3PublishPanel({
       const result = publish
         ? await publishV3Adventure(adventureId, expected)
         : await unpublishV3Adventure(adventureId, expected);
-      if (result.ok) { setPublished(result.status === "published"); setPointer(publish ? version ?? null : null); setChanges(false); }
+      if (result.ok) { setPublished(result.status === "published"); setPointer(publish ? version ?? null : null); setChanges(false); onPublicationChange?.(publish, publish ? version ?? null : null); }
       else setMessage(result.message);
     });
   };

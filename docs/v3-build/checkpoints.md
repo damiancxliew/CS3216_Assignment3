@@ -62,3 +62,14 @@ create → review → edit → preview → play → reveal → class summary.
 | When | Checkpoint | Cut | Why |
 |---|---|---|---|
 | 2026-10-17 | 2 | Overheard conversations between characters [P12.2] (#229) | Low priority and "only if easily viable", but it needs a new spec field, generation, an engine event and play UI across all three owners. Characters are still summoned and moved by story events [P12, P12.1]. |
+
+### #213 local evidence — 2026-10-19
+
+Checkpoint 2 step 5 has fixture evidence: a signed-in disposable teacher saved a
+title edit as v2 and the saved edit persisted. Step 6 has fixture evidence: preview
+loaded v2 without creating an attempt. Publishing then pinned a disposable
+student's new attempt to v2. The three-student v1/save-v2/publish-v2 journey and a
+publication/start race have service coverage; atomic persistence has local DB
+coverage. Full Standard-mode generation and two students reaching the reveal
+remain separate checkpoint work. See `tests/browser/v3-editor-local.test.ts` and
+`docs/v3-build/review-handoff.md` for setup and exact scope.

@@ -73,3 +73,47 @@ from the published snapshot and retry a publication race; attempts remain pinned
 
 Platform/migration review: Damian. Contract changes in subsequent PR: Kevin.
 No production migration has been applied from this workspace.
+
+## #213 editor and acceptance (2026-10-19)
+
+Three ordered implementation branches build on open prerequisite #262. The review
+workspace now has explicit Edit/Save/Discard controls and Settings and Reveal and
+questions tabs. Schema-driven forms cover nested content, reference selection,
+recursive condition variants, ordering and dependency disclosures. Local changes
+survive tab changes and failed/stale saves; Preview/Publish require saved work.
+Real bodies require captured-source selection or explicit invented conversion.
+The server derives teacher attribution and portrait reuse metadata, creates no
+model/image jobs, and accepts structurally valid drafts with semantic blockers.
+
+New deterministic runtime checks apply to authored versions. Existing fixtures
+and immutable snapshots retain their prior shape and behavior. Saved generation
+errors are retired only for constraints rechecked from the current saved spec;
+part-local obligations requiring missing context remain blockers. Historical job
+outputs are never rewritten. This conservative behavior means some old generation
+blockers still need generation/context repair rather than an unrelated edit.
+
+Verified locally:
+
+- 205 targeted authoring/review/publishing/preview/attempt tests passed before the
+  final additional portrait and form coverage; web/spec/engine/generation typechecks
+  pass. Lint has no errors (four existing warnings in unrelated UI).
+- Spec package: 59 tests. Engine: 77 tests, including golden build/reachability.
+- Local database: 12 publication/table integration tests passed without resetting
+  seeded data. The additive migration was applied locally only.
+- Real Chromium: review layout at 1440, 1024, 375 and 320px; editor save/reload,
+  discard, navigation cancellation, failure/conflict retention, keyboard tabs,
+  desktop/mobile overflow.
+- Signed-in local test school: disposable generated-fixture creation → review →
+  title edit → Save v2 → preview (zero attempts) → publish v2 → student start
+  pinned to v2. No live model or image call was made. This is fixture acceptance,
+  not a new-brief/live-generation walkthrough or the full two-student reveal run.
+
+Deploy migration before enabling editor writes. Damian reviews platform/migration
+changes; Kevin reviews contract/check behavior. Merge #262 and the implementation
+stack in dependency order. Production deployment and human approvals are pending.
+
+Final checks: all 18 affected local database tests pass (publication, tables,
+brief columns and flag saves). Generation package: 217 passed, one pre-existing
+opt-in test skipped. The editor browser regression passed after fixing array
+schema unwrapping; signed-in fixture acceptance passed on the configured localhost
+origin. Production deployment remains unperformed.

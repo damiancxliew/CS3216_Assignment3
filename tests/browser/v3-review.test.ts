@@ -120,7 +120,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           const navigation = page.getByRole("navigation", {
             name: `${label} items`,
           });
-          const owner = spec[tab as ReviewTab][0].id;
+          const owner = spec[tab as "stages" | "characters" | "documents" | "endings"][0].id;
           const visit = async (entries: ReviewIndexEntry[]) => {
             for (const entry of entries) {
               await navigation

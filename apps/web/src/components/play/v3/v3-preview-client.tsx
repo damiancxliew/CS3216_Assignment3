@@ -1,5 +1,6 @@
 "use client";
 
+import type { PortraitBase } from "@/lib/play/v3/portraits";
 import Link from "next/link";
 import { useCallback, type ReactNode } from "react";
 import type { PlayerView } from "@adventure/play-contract";
@@ -12,11 +13,13 @@ export function V3PreviewClient({
   initialToken,
   initialView,
   publishControl,
+  portraitBase,
 }: {
   adventureId: string;
   initialToken: string;
   initialView: PlayerView;
   publishControl?: ReactNode;
+  portraitBase?: PortraitBase;
 }) {
   const makeClient = useCallback(
     () => createV3PreviewClient(adventureId, initialToken, initialView),
@@ -24,7 +27,7 @@ export function V3PreviewClient({
   );
 
   return (
-    <V3PlayClient
+    <V3PlayClient portraitBase={portraitBase}
       attemptId={`preview-${adventureId}`}
       initialRevision={0}
       initialView={initialView}

@@ -255,6 +255,7 @@ export const AdventureSpec = z.strictObject({
     retainedErrors: z.array(z.strictObject({ code: Text, path: Text, message: Text, ids: z.array(Text).optional() })).optional(),
     validationContext: z.strictObject({
       slantedDocuments: z.array(z.strictObject({ documentId: Id, note: Text })),
+      generationParts: z.record(Text, z.unknown()).optional(),
     }).optional(),
     portraitVersions: z.record(Text, z.number().int().positive().nullable()).optional(),
   }).optional(),

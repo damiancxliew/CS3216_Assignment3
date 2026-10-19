@@ -10,7 +10,7 @@ import {
 } from "@adventure/spec-v3";
 import type { ExtractedDocument } from "@adventure/generation";
 
-export type ReviewTab = "stages" | "characters" | "documents" | "endings";
+export type ReviewTab = "stages" | "characters" | "documents" | "endings" | "settings" | "reveal";
 export type ReviewTarget = { tab: ReviewTab; itemId: string; anchor: string };
 export const reviewAnchor = (id: string) => `review-${encodeURIComponent(id)}`;
 
@@ -305,5 +305,6 @@ export function reviewIndex(
       ),
       section("glossary", "Glossary"),
     ];
-  return [{ id: itemId, label: "Overview" }, section("interview", "Interview")];
+  if (tab === "endings") return [{ id: itemId, label: "Overview" }, section("interview", "Interview")];
+  return [];
 }

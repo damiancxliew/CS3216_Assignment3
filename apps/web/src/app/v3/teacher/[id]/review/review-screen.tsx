@@ -13,7 +13,6 @@ import type {
   SpecCitation,
   SpecSource,
 } from "@adventure/spec-v3";
-import { compactButton as button } from "@/components/ui";
 import { ReviewIssue } from "@/components/teacher/review-issue";
 import {
   reviewNames,
@@ -40,6 +39,8 @@ const tabs: { id: ReviewTab; label: string }[] = [
   { id: "characters", label: "Characters" },
   { id: "documents", label: "Documents" },
   { id: "endings", label: "Endings" },
+  { id: "settings", label: "Settings" },
+  { id: "reveal", label: "Reveal and questions" },
 ];
 
 function Block({
@@ -204,7 +205,11 @@ export function ReviewScreen({
   sources,
   errors,
   warnings,
+  editMode = false,
+  renderEditor,
 }: {
+  editMode?: boolean;
+  renderEditor?: (tab: ReviewTab, selected: string) => ReactNode;
   spec: AdventureSpec;
   sources: SpecSource[];
   errors: CheckIssue[];
@@ -216,6 +221,8 @@ export function ReviewScreen({
     characters: spec.characters[0]?.id ?? "",
     documents: spec.documents[0]?.id ?? "",
     endings: spec.endings[0]?.id ?? "",
+    settings: "settings",
+    reveal: "reveal",
   }));
   const selected = selection[tab];
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
@@ -327,6 +334,7 @@ export function ReviewScreen({
     );
   };
   const items =
+    tab === "settings" || tab === "reveal" ? [{ id: tab, title: tab === "settings" ? "Settings" : "Reveal and questions" }] :
     tab === "characters"
       ? spec.characters.map((c) => ({ id: c.id, title: name(c.id) }))
       : spec[tab].map((item) => ({ id: item.id, title: name(item.id) }));
@@ -515,19 +523,9 @@ export function ReviewScreen({
           className="h-[clamp(28rem,72dvh,56rem)] min-w-0 space-y-5 overflow-y-auto overscroll-contain break-words p-1 [overflow-anchor:none] [overflow-wrap:anywhere] [scrollbar-gutter:stable] md:h-full"
         >
           <React.Fragment key={`${tab}:${selected}`}>
-            <div className="flex flex-wrap items-center gap-3 rounded-surface border border-line bg-surface px-5 py-3">
-              <button
-                type="button"
-                disabled
-                aria-describedby="edit-coming-soon"
-                className={button.subtle}
-              >
-                Edit
-              </button>
-              <span id="edit-coming-soon" className="text-sm text-muted">
-                Coming soon
-              </span>
-            </div>
+            {editMode && renderEditor ? renderEditor(tab, selected) : <>
+            {tab === "settings" ? <Card title="Settings"><Field title="Title">{spec.title}</Field><Field title="Reading level">{spec.readingLevel}</Field><Field title="Timer">{spec.timer.enabled ? spec.timer.stageMinutes.join(", ") + " minutes" : "Disabled"}</Field><Field title="Source policy">{spec.authoring?.sourcePolicy?.allowAny ? "Any public source" : "Default allowed domains and teacher additions"}</Field></Card> : null}
+            {tab === "reveal" ? <Card title="Reveal and questions">{Object.entries(spec.reveal ?? {}).map(([key, value]) => <Field key={key} title={key}>{Array.isArray(value) ? value.join("\n") : value}</Field>)}<Field title="Teacher questions">{spec.teacherQuestions.join("\n") || "No teacher questions."}</Field></Card> : null}
             {stage ? (
               <>
                 <Card id={stage.id} title={name(stage.id)}>
@@ -991,6 +989,7 @@ export function ReviewScreen({
                 </Card>
               </>
             ) : null}
+            </>}
           </React.Fragment>
         </div>
       </div>
