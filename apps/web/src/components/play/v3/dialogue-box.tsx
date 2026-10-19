@@ -118,6 +118,15 @@ export function nextChoiceIndex(index: number, delta: number, count: number): nu
   return ((index + delta) % count + count) % count;
 }
 
+/** Moves the cursor in `delta`'s direction to the next choice that can be picked, wrapping around. */
+export function nextAvailableIndex(index: number, delta: number, available: readonly boolean[]): number {
+  for (let step = 1; step <= available.length; step += 1) {
+    const candidate = nextChoiceIndex(index, delta * step, available.length);
+    if (available[candidate]) return candidate;
+  }
+  return index;
+}
+
 function isTextEntryTarget(target: EventTarget | null) {
   return target instanceof HTMLElement
     && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
@@ -360,12 +369,13 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
     moment.status === "predicting" && Boolean(moment.reaction),
   );
   const choices = moment.status === "choosing"
-    ? moment.acts.map((act) => ({ id: act.id, text: act.text }))
-    : moment.predictionOptions.map((option) => ({ id: option.outcomeId, text: option.text }));
+    ? moment.acts.map((act) => ({ id: act.id, text: act.text, available: act.available !== false }))
+    : moment.predictionOptions.map((option) => ({ id: option.outcomeId, text: option.text, available: true }));
+  const firstAvailable = Math.max(0, choices.findIndex((choice) => choice.available));
 
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [moment.status]);
+    setSelectedIndex(firstAvailable);
+  }, [moment.status, firstAvailable]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -385,11 +395,11 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
         return;
       }
       if (delta !== 0) {
-        setSelectedIndex((current) => nextChoiceIndex(current, delta, choices.length));
+        setSelectedIndex((current) => nextAvailableIndex(current, delta, choices.map((item) => item.available)));
         return;
       }
       const choice = choices[selectedIndex];
-      if (!choice) return;
+      if (!choice?.available) return;
       if (moment.status === "choosing") onAct(choice.id);
       else onPredict(choice.id);
     };
@@ -454,12 +464,13 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
                   role="option"
                   aria-selected={selected}
                   tabIndex={selected ? 0 : -1}
-                  disabled={busy}
+                  disabled={busy || !choice.available}
+                  aria-disabled={!choice.available || undefined}
                   onMouseEnter={() => {
-                    if (!busy) setSelectedIndex(index);
+                    if (!busy && choice.available) setSelectedIndex(index);
                   }}
                   onClick={() => {
-                    if (busy) return;
+                    if (busy || !choice.available) return;
                     if (moment.status === "choosing") onAct(choice.id);
                     else onPredict(choice.id);
                   }}
@@ -472,7 +483,10 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
                   <span aria-hidden="true" className="text-sm font-black text-[#e36b33]">
                     {selected ? "▶" : ""}
                   </span>
-                  <span className={`${pixelFont.className} text-sm font-semibold sm:text-base`}>{choice.text}</span>
+                  <span className={`${pixelFont.className} text-sm font-semibold sm:text-base ${choice.available ? "" : "text-[#5c6472] line-through decoration-2"}`}>
+                    {choice.text}
+                    {choice.available ? null : <span className="sr-only"> (no longer possible)</span>}
+                  </span>
                 </button>
               );
             })}
