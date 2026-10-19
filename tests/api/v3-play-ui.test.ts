@@ -10,6 +10,9 @@ import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
+import { v3AudioSnapshot } from "@/components/play/v3/v3-map";
+import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { V3PreviewClient, V3PreviewHeaderActions } from "@/components/play/v3/v3-preview-client";
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
@@ -495,6 +498,82 @@ describe("v3 stage play screen", () => {
       text: "A short comment.",
     });
     expect(close).toHaveBeenCalledOnce();
+  });
+});
+
+describe("v3 cinematic", () => {
+  it("keeps every beat in the DOM and uses the dark fallback without art", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const beats = [
+        { id: "role", kicker: "Your role", title: "Ahmad", body: "Interpreter" },
+        { id: "question", kicker: "The question", body: "Who will shape the island?" },
+      ];
+      const markup = renderToStaticMarkup(createElement(V3Cinematic, {
+        artUrl: null,
+        beats,
+        beginLabel: "Enter the first stage",
+        onBegin: () => {},
+        muted: true,
+        onToggleMuted: () => {},
+      }));
+      const settled = renderToStaticMarkup(createElement(V3Cinematic, {
+        artUrl: "https://assets.example/stage-0.webp",
+        beats,
+        beginLabel: "Enter the first stage",
+        onBegin: () => {},
+        muted: false,
+        onToggleMuted: () => {},
+        initiallySettled: true,
+      }));
+
+      expect(markup).toContain("Your role");
+      expect(markup).toContain("The question");
+      expect(markup.match(/data-active="true"/g)).toHaveLength(1);
+      expect(markup).not.toContain("<img");
+      expect(markup).toContain("radial-gradient");
+      expect(markup).toContain("Skip");
+      expect(markup).toContain('aria-label="Sound off"');
+      expect(settled).toContain("Enter the first stage");
+      expect(settled.match(/data-active="true"/g)).toHaveLength(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("offers Role brief in the stage-play header", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(V3PlayClient, {
+        attemptId: "attempt",
+        initialView: stagePlayView(),
+        initialRevision: 1,
+        stageArtBase: "https://assets.example/stage-art",
+      }));
+      expect(markup).toContain('aria-label="Role brief"');
+      expect(markup).toContain("Role brief");
+      expect(markup).toContain('aria-expanded="false"');
+      expect(markup).toContain('aria-label="Sound off"');
+      expect(markup).toContain('aria-pressed="false"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("passes atmosphere and sound cues into the V3Map snapshot", () => {
+    const ambient = { id: "rain", intensity: 1 } as const;
+    const audio = { muted: false, cues: [{ key: "accept:0:1", id: "accept" as const }] };
+    expect(v3AudioSnapshot(ambient, audio)).toEqual({ ambient, audio });
+  });
+
+  it("retains room-derived weather alongside sound controls and cues", () => {
+    const audio = { muted: false, cues: [{ key: "accept:0:1", id: "accept" as const }] };
+    const scenery = { storyContext: "Harbour office", roomDescriptions: { office: "Rainy streets outside the office." } };
+    expect(v3AudioSnapshot({ id: "clear", intensity: 1 }, audio, scenery)).toEqual({
+      ambient: { id: "rain", intensity: 1 }, audio,
+    });
+    const storm = { id: "thunderstorm", intensity: 0.5 } as const;
+    expect(v3AudioSnapshot(storm, audio, scenery)).toEqual({ ambient: storm, audio });
   });
 });
 

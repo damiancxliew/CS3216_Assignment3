@@ -17,6 +17,7 @@ import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
 import { memoryV3AdventureWriter, memoryV3SourceStore } from "@/lib/v3/generation/deps";
 import type { GenerationDeps } from "@/lib/v3/generation/deps";
 import { portraitsStep } from "@/lib/v3/portraits/step";
+import { stageArtStep } from "@/lib/v3/stage-art/step";
 import { memoryV3BriefStore } from "@/lib/v3/brief/store";
 import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
 import { approveSkeleton, getGenerationProgress, restartGeneration, saveSkeletonDraft, startFromBrief, viewerSeesCost } from "@/lib/v3/generation/service";
@@ -108,6 +109,7 @@ function fakeDeps(overrides: Partial<GenerationDeps["passes"]> = {}) {
   const sources = memoryV3SourceStore();
   const adventures = memoryV3AdventureWriter();
   const portraitStore = memoryJobStore();
+  const stageArtStore = memoryJobStore();
   const queuePortraits = vi.fn(async (adventureId: string, version: number) => {
     const step = portraitsStep(adventureId, version);
     try {
@@ -118,6 +120,23 @@ function fakeDeps(overrides: Partial<GenerationDeps["passes"]> = {}) {
           input: step.input ?? null,
           deps: [],
           maxAttempts: 6,
+        },
+      ]);
+    } catch (error) {
+      if (error instanceof Error && error.message === `duplicate step name: ${step.name}`) return;
+      throw error;
+    }
+  });
+  const queueStageArt = vi.fn(async (adventureId: string, version: number) => {
+    const step = stageArtStep(adventureId, version);
+    try {
+      await stageArtStore.enqueue(adventureId, [
+        {
+          name: step.name,
+          step: step.step ?? step.name,
+          input: step.input ?? null,
+          deps: [],
+          maxAttempts: 4,
         },
       ]);
     } catch (error) {
@@ -155,19 +174,20 @@ function fakeDeps(overrides: Partial<GenerationDeps["passes"]> = {}) {
     search: () => ({ search: async () => ({ hits: [], usage, model: "m" }) }),
     recordSearchUsage: vi.fn(async () => {}),
     queuePortraits,
+    queueStageArt,
     sources,
     adventures,
     passes: passes as unknown as GenerationDeps["passes"],
   };
-  return { deps, sources, adventures, passes, portraitStore, queuePortraits };
+  return { deps, sources, adventures, passes, portraitStore, stageArtStore, queuePortraits, queueStageArt };
 }
 
 async function makeJob(overrides: Partial<GenerationDeps["passes"]> = {}) {
-  const { deps, sources, adventures, passes, portraitStore, queuePortraits } = fakeDeps(overrides);
+  const { deps, sources, adventures, passes, portraitStore, stageArtStore, queuePortraits, queueStageArt } = fakeDeps(overrides);
   const store = memoryJobStore();
   const jobs = createJobs(store, v3GenerationSteps(() => deps));
   const briefStore = memoryV3BriefStore();
-  return { deps, sources, adventures, passes, portraitStore, queuePortraits, store, jobs, briefStore };
+  return { deps, sources, adventures, passes, portraitStore, stageArtStore, queuePortraits, queueStageArt, store, jobs, briefStore };
 }
 
 type Harness = Awaited<ReturnType<typeof makeJob>>;
@@ -217,7 +237,7 @@ beforeEach(() => {
 describe("v3 generation job", () => {
   it("quick: runs all seven steps in order and lands the spec as a draft", async () => {
     const harness = await makeJob();
-    const { deps, jobs, adventures, sources, passes, store, queuePortraits } = harness;
+    const { deps, jobs, adventures, sources, passes, store, queuePortraits, queueStageArt } = harness;
     const { adventureId } = await start(harness, "quick");
 
     const progress = await jobs.drain({ jobId: adventureId });
@@ -242,6 +262,8 @@ describe("v3 generation job", () => {
     expect(entry.specVersion).toBe(1);
     expect(queuePortraits).toHaveBeenCalledOnce();
     expect(queuePortraits).toHaveBeenCalledWith(adventureId, entry.specVersion);
+    expect(queueStageArt).toHaveBeenCalledOnce();
+    expect(queueStageArt).toHaveBeenCalledWith(adventureId, entry.specVersion);
     await expect(adventures.get(adventureId)).resolves.toMatchObject({ status: "draft" });
     void store;
     void sources;
@@ -265,9 +287,27 @@ describe("v3 generation job", () => {
     }
   });
 
+  it("keeps a saved adventure in draft when stage-art queueing fails", async () => {
+    const harness = await makeJob();
+    const { jobs, adventures, queueStageArt } = harness;
+    const { adventureId } = await start(harness, "quick");
+    queueStageArt.mockRejectedValueOnce(new Error("stage-art enqueue failed"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const progress = await jobs.drain({ jobId: adventureId });
+      expect(progress?.status).toBe("succeeded");
+      expect((await adventures.get(adventureId))?.status).toBe("draft");
+      expect(adventures.rows.get(adventureId)?.spec).toEqual(spec);
+      expect(consoleError).toHaveBeenCalledWith("Failed to queue v3 stage art", expect.any(Error));
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("a save retry with the same version does not enqueue a duplicate portrait step", async () => {
     const harness = await makeJob();
-    const { deps, jobs, portraitStore, queuePortraits } = harness;
+    const { deps, jobs, portraitStore, stageArtStore, queuePortraits, queueStageArt } = harness;
     const { adventureId } = await start(harness, "quick");
     await jobs.drain({ jobId: adventureId });
 
@@ -284,6 +324,8 @@ describe("v3 generation job", () => {
     ).resolves.toEqual({ version: 1 });
     expect(queuePortraits).toHaveBeenCalledTimes(2);
     expect(await portraitStore.list(adventureId)).toHaveLength(1);
+    expect(queueStageArt).toHaveBeenCalledTimes(2);
+    expect(await stageArtStore.list(adventureId)).toHaveLength(1);
   });
 
   describe("standard", () => {

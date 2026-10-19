@@ -102,7 +102,8 @@ RUN_V3_MAP_BROWSER_TESTS=1 PLAYWRIGHT_CHANNEL=chrome npx vitest run tests/browse
 
 Omit `PLAYWRIGHT_CHANNEL` to use Playwright Chromium. The test checks scenery and
 weather, resident/animal counts and distinct spawns, keyboard movement and engine
-room entry, local greetings, reduced motion, and mobile layout. It uses the golden
+room entry, local greetings, reduced motion, sound-toggle propagation, Role brief
+opening/return, and mobile layout. It uses the golden
 1819 adventure plus a clearly labelled synthetic rainy-office variant. HTTP transport
 and Next font/link adapters are replaced; authentication, persistence and model
 responses are not exercised. Screenshots and metrics go to `output/v3-map-check/`

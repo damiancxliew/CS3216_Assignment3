@@ -52,7 +52,21 @@ interface V3MapProps {
   onTalk: (characterId: string) => void;
   onNearbyCharacterChange: (characterId: string | null) => void;
   onOpenDocument: (documentId: string) => void;
+  ambient: NonNullable<PlaygroundSnapshot["ambient"]>;
+  audio: NonNullable<PlaygroundSnapshot["audio"]>;
   onReadyChange: (ready: boolean) => void;
+}
+
+export function v3AudioSnapshot(
+  ambient: NonNullable<PlaygroundSnapshot["ambient"]>,
+  audio: NonNullable<PlaygroundSnapshot["audio"]>,
+  scenery?: V3StageScenery,
+): Pick<PlaygroundSnapshot, "ambient" | "audio"> {
+  // Keep stage atmosphere, enriching a clear fallback with the public room setting.
+  const atmosphere = ambient.id === "clear" && scenery
+    ? v3Atmosphere(`${scenery.storyContext} ${Object.values(scenery.roomDescriptions).join(" ")}`)
+    : ambient;
+  return { ambient: atmosphere, audio };
 }
 
 function isTextEntryTarget(target: EventTarget | null): boolean {
@@ -90,7 +104,7 @@ export function V3Map(props: V3MapProps) {
     if (props.movementLocked) movementLockHandler.current();
     renderRef.current?.();
     nearbyChangeHandler.current();
-  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked]);
+  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio]);
 
   useEffect(() => {
     const parent = host.current;
@@ -168,9 +182,9 @@ export function V3Map(props: V3MapProps) {
       revision,
       roomDescriptions: latest.current.scenery?.roomDescriptions,
       storyContext: latest.current.scenery?.storyContext,
-      ambient: v3Atmosphere(`${latest.current.scenery?.storyContext ?? ""} ${Object.values(latest.current.scenery?.roomDescriptions ?? {}).join(" ")}`),
       landmarks: v3RoomFixtures(map, latest.current.scenery),
       roomNames: Object.fromEntries(latest.current.rooms.map((room) => [room.id, room.name])),
+      ...v3AudioSnapshot(latest.current.ambient, latest.current.audio, latest.current.scenery),
     });
     const render = () => view?.render(snapshot());
     renderRef.current = render;

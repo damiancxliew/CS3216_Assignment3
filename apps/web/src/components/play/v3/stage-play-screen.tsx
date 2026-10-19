@@ -1,4 +1,5 @@
 "use client";
+import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import { ChevronDown, Timer } from "lucide-react";
@@ -41,13 +42,16 @@ function formatTime(milliseconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery }: {
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] } }: {
   view: PlayerView;
   busy: boolean;
   send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
   portraitBase?: PortraitBase;
   attemptId: string;
   scenery?: V3StageScenery;
+  movementLocked?: boolean;
+  ambient?: NonNullable<PlaygroundSnapshot["ambient"]>;
+  audio?: NonNullable<PlaygroundSnapshot["audio"]>;
 }) {
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [talkingTo, setTalkingTo] = useState<string | null>(null);
@@ -74,7 +78,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     ? view.characters.find((character) => character.id === talkingTo) ?? null
     : null;
   const isTalkOpen = openCharacter !== null;
-  const movementLocked = isTalkOpen || isMoment;
+  const movementLocked = externalMovementLock || isTalkOpen || isMoment;
   const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
   const spawnRoomId = view.rooms[0]?.id ?? "";
   const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
@@ -192,6 +196,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               onTalk={openTalk}
               onNearbyCharacterChange={setNearbyId}
               onOpenDocument={openDocument}
+              ambient={ambient}
+              audio={audio}
               onReadyChange={onMapReadyChange}
             />
           ) : null}

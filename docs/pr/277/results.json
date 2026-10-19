@@ -3,6 +3,8 @@
     "public scenery projection",
     "bundled fixtures",
     "people and animals",
+    "sound toggle reaches map",
+    "role brief opens and returns to populated map",
     "keyboard walk",
     "local E greeting without engine mutation",
     "animation and reduced motion",

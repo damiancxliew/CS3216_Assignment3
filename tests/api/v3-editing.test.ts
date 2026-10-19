@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AdventureSpec } from "@adventure/spec-v3";
 import { MemoryV3PlayStore } from "@/lib/play/v3/store";
 import { saveAdventureEdits } from "@/lib/v3/edit/service";
@@ -31,10 +31,13 @@ function setup() {
     store,
     env: { V3_ENABLED: "true", V3_SCHOOL_IDS: "s" },
     sources: async () => sources,
+    queueStageArt: async () => {},
   };
+  const queueStageArt = vi.fn(deps.queueStageArt);
+  deps.queueStageArt = queueStageArt;
   const save = (edits: V3Edit[], expected = 1) =>
     saveAdventureEdits(deps, "teacher", "a", expected, edits);
-  return { spec, store, deps, sources, save };
+  return { spec, store, deps, sources, save, queueStageArt };
 }
 
 describe("direct editing", () => {
@@ -54,11 +57,14 @@ describe("direct editing", () => {
     expect(await store.loadVersionSpec("a", 1)).toEqual(spec);
   });
   it("makes no snapshot for a no-op and rejects stale/access/structurally invalid changes", async () => {
-    const { save, deps } = setup();
+    const { save, deps, queueStageArt } = setup();
     expect(await save([])).toMatchObject({ ok: true, version: 1 });
+    expect(queueStageArt).not.toHaveBeenCalled();
     expect(
       await save([{ type: "set", path: ["title"], value: "New title" }]),
     ).toMatchObject({ ok: true, version: 2 });
+    expect(queueStageArt).toHaveBeenCalledOnce();
+    expect(queueStageArt).toHaveBeenCalledWith("a", 2);
     expect(await save([])).toMatchObject({ ok: false, code: "conflict" });
     expect(
       await save(
@@ -69,6 +75,18 @@ describe("direct editing", () => {
     expect(
       await saveAdventureEdits(deps, "outsider", "a", 2, []),
     ).toMatchObject({ ok: false, code: "access" });
+  });
+  it("keeps a saved edit successful when stage-art queueing fails", async () => {
+    const { save, queueStageArt } = setup();
+    queueStageArt.mockRejectedValueOnce(new Error("queue is unavailable"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(save([{ type: "set", path: ["title"], value: "New title" }]))
+        .resolves.toMatchObject({ ok: true, version: 2 });
+      expect(consoleError).toHaveBeenCalledWith("Failed to queue v3 stage art", expect.any(Error));
+    } finally {
+      consoleError.mockRestore();
+    }
   });
   it("attributes changed facts, clears obsolete citations and preserves unchanged evidence", async () => {
     const { spec, save } = setup();

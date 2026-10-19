@@ -92,6 +92,7 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1")("renders public scenery a
     await vite.listen();
     browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || undefined });
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
+    await page.addInitScript(() => localStorage.setItem("play.muted", "1"));
     page.on("pageerror", error => errors.push(error.message));
     page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
     await page.route("**/api/v3/attempts/**", async route => {
@@ -123,6 +124,18 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1")("renders public scenery a
     expect(first.weather).toBe("clear");
     await page.screenshot({ path: resolve(output, "1819-desktop.png") });
     metrics.push({ scene: "1819", ...first });
+    // The merged cinematic controls must coexist with the same mounted map.
+    await page.getByRole("button", { name: "Sound off", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.audio.muted)).toBe(false);
+    await page.getByRole("button", { name: "Sound on", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.audio.muted)).toBe(true);
+    await page.getByRole("button", { name: "Role brief", exact: true }).click();
+    const roleBrief = page.getByRole("dialog", { name: "Role brief" });
+    await roleBrief.waitFor();
+    await page.screenshot({ path: resolve(output, "1819-role-brief.png") });
+    await roleBrief.getByRole("button", { name: "Back to the map" }).click();
+    await roleBrief.waitFor({ state: "detached" });
+    expect(await inspect(page)).toEqual(first);
     // Diagnostic evidence only: zoom out to show the whole population in one frame.
     await page.evaluate(() => {
       const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
@@ -194,7 +207,7 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1")("renders public scenery a
     expect(size.scrollHeight).toBeLessThanOrEqual(size.height);
     metrics.push({ scene: "mobile", ...size });
     expect(errors).toEqual([]);
-    await writeFile(resolve(output, "results.json"), JSON.stringify({ checks: ["public scenery projection", "bundled fixtures", "people and animals", "keyboard walk", "local E greeting without engine mutation", "animation and reduced motion", "engine room entry", "mobile controls do not overlap", "rain surface", "mobile overflow", "no browser errors"], metrics, actions, errors }, null, 2));
+    await writeFile(resolve(output, "results.json"), JSON.stringify({ checks: ["public scenery projection", "bundled fixtures", "people and animals", "sound toggle reaches map", "role brief opens and returns to populated map", "keyboard walk", "local E greeting without engine mutation", "animation and reduced motion", "engine room entry", "mobile controls do not overlap", "rain surface", "mobile overflow", "no browser errors"], metrics, actions, errors }, null, 2));
   } finally {
     await browser?.close();
     await vite.close();
