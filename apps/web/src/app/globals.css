@@ -269,3 +269,14 @@ select {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Review tabs change content length. Anchor the wash to the viewport and reserve
+   the page scrollbar so neither the background nor the shell shifts with them. */
+html:has([data-review-screen]) {
+  scrollbar-gutter: stable;
+  overflow-anchor: none;
+}
+
+body:has([data-review-screen]) {
+  background-attachment: fixed;
+}

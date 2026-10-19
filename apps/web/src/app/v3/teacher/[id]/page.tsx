@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { V3PublishPanel } from "@/components/play/v3/publish-panel";
-import { button, EmptyState, Page, Section } from "@/components/ui";
+import { compactButton as button, EmptyState, Page } from "@/components/ui";
 import { validateSkeleton } from "@adventure/spec-v3";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
@@ -12,6 +12,8 @@ import { briefStateV3Schema } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PASS_LABELS } from "@/lib/v3/generation/labels";
+import { loadPublishState } from "@/lib/play/v3/publish";
+import { v3PublishDeps } from "@/lib/play/v3/http";
 import { viewerSeesCost } from "@/lib/v3/generation/service";
 import type { SkeletonShape } from "@adventure/spec-v3";
 
@@ -20,6 +22,7 @@ import { V3BriefChat } from "./brief-chat";
 import { GenerationProgress } from "./generation-progress";
 import { SkeletonEditor } from "./skeleton-editor";
 import { StartAgain } from "./review-actions";
+import { DraftReady } from "./draft-ready";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +40,9 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
 
   const row = await supabaseV3BriefStore(createAdminClient()).load(id);
   if (!row || row.ownerId !== viewer.user.id || !v3SchoolAllowed(row.schoolId)) notFound();
+
+  const publish = ["draft", "published", "archived"].includes(row.status) ? await loadPublishState(v3PublishDeps(), viewer.user.id, id) : undefined;
+  const blockedReason = publish?.kind === "unpublished" ? publish.blockedReason : undefined;
 
   switch (row.status) {
     case "briefing": {
@@ -75,43 +81,12 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
     }
     case "draft": {
       const progress = await getV3GenerationProgress(id);
+      const errors = progress && !("error" in progress) ? progress.checkErrors ?? [] : [];
       const warnings = progress && !("error" in progress) ? progress.warnings : [];
-      const byPass = new Map<string, typeof warnings>();
-      for (const warning of warnings) {
-        const list = byPass.get(warning.pass) ?? [];
-        list.push(warning);
-        byPass.set(warning.pass, list);
-      }
       return (
-        <Page title="Adventure ready" lede="Generation finished. Review it, then publish when you're happy.">
-          {byPass.size > 0 ? (
-            <Section title="Warnings">
-              <div className="flex flex-col gap-4">
-                {[...byPass.entries()].map(([pass, list]) => (
-                  <div key={pass}>
-                    <h3 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted">{PASS_LABELS[pass as keyof typeof PASS_LABELS] ?? pass}</h3>
-                    <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-ink">
-                      {list.map((warning, i) => (
-                        <li key={i}>{warning.message}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            </Section>
-          ) : null}
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Link href={`/v3/teacher/${id}/preview`} className={button.primary}>
-              Preview
-            </Link>
-            <button type="button" disabled className={button.subtle} title="Review and edit is coming soon">
-              Review and edit
-            </button>
-            <span className="text-xs text-muted">coming soon</span>
-          </div>
-          <div className="mt-6">
-            <V3PublishPanel adventureId={id} published={false} />
-          </div>
+        <Page kicker="Your adventure · Draft" title={row.title ?? "Adventure ready"} lede="Review the story, then share it with your class." width="wide">
+          <DraftReady adventureId={id} errors={errors} warnings={warnings} blocked={!!blockedReason}
+            publishControl={<V3PublishPanel adventureId={id} published={false} compact blockedReason={blockedReason ? "Fix the errors in review before publishing." : undefined} />} />
         </Page>
       );
     }
@@ -141,12 +116,13 @@ export default async function V3AdventurePage({ params }: { params: Promise<{ id
             <Link href={`/v3/teacher/${id}/preview`} className={button.primary}>
               Preview
             </Link>
+            <Link href={`/v3/teacher/${id}/review`} className={button.subtle}>Review and edit</Link>
             <Link href={`/v3/teacher/${id}/summary`} className={button.quiet}>
               Class summary
             </Link>
           </div>
           <div className="mt-6">
-            <V3PublishPanel adventureId={id} published={row.status === "published"} />
+            <V3PublishPanel adventureId={id} published={row.status === "published"} compact blockedReason={blockedReason} />
           </div>
         </Page>
       );

@@ -27,6 +27,14 @@ async function staffAdventure(deps: V3PublishDeps, userId: string, adventureId: 
   return adventure;
 }
 
+export async function publishBlockReason(deps: V3PublishDeps, adventure: V3Adventure): Promise<string | undefined> {
+  if (!PUBLISHABLE.has(adventure.status)) return "Finish generating this adventure before publishing it.";
+  const parsed = adventure.spec === null ? null : EngineSpec.safeParse(adventure.spec);
+  if (!parsed?.success || checkSpec(parsed.data).errors.length > 0 || (await deps.store.loadCheckErrors(adventure.id)).length > 0) {
+    return "This adventure's story has errors to fix before it can be published.";
+  }
+}
+
 export async function publishAdventure(
   deps: V3PublishDeps,
   userId: string,
@@ -34,13 +42,8 @@ export async function publishAdventure(
 ): Promise<ServiceResponse> {
   const adventure = await staffAdventure(deps, userId, adventureId);
   if (!adventure) return error(404, "not_found", "Not found.");
-  if (!PUBLISHABLE.has(adventure.status)) {
-    return error(409, "not_ready", "Finish generating this adventure before publishing it.");
-  }
-  const parsed = adventure.spec === null ? null : EngineSpec.safeParse(adventure.spec);
-  if (!parsed?.success || checkSpec(parsed.data).errors.length > 0) {
-    return error(409, "not_ready", "This adventure's story has errors to fix before it can be published.");
-  }
+  const reason = await publishBlockReason(deps, adventure);
+  if (reason) return error(409, "not_ready", reason);
   if (adventure.status !== "published") await deps.store.setAdventureStatus(adventure.id, "published");
   return { status: 200, body: { status: "published" } };
 }
@@ -58,7 +61,7 @@ export async function unpublishAdventure(
 
 export type V3PublishState =
   | { kind: "hidden" }
-  | { kind: "unpublished"; status: string }
+  | { kind: "unpublished"; status: string; blockedReason?: string }
   | { kind: "published" };
 
 /** What the teacher's publish control should show; staff of the adventure only. */
@@ -69,7 +72,9 @@ export async function loadPublishState(
 ): Promise<V3PublishState> {
   const adventure = await staffAdventure(deps, userId, adventureId);
   if (!adventure) return { kind: "hidden" };
-  return adventure.status === "published" ? { kind: "published" } : { kind: "unpublished", status: adventure.status };
+  if (adventure.status === "published") return { kind: "published" };
+  const blockedReason = await publishBlockReason(deps, adventure);
+  return { kind: "unpublished", status: adventure.status, ...(blockedReason ? { blockedReason } : {}) };
 }
 
 export type V3JoinView =

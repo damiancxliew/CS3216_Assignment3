@@ -118,7 +118,7 @@ export function toSkeleton(output: SkeletonLlmOutput, input: { readingLevel: 'se
     readingLevel: input.readingLevel,
     arc: output.arc,
     role: output.role,
-    sources: input.documents.map((doc) => ({ id: doc.id, title: doc.title, origin: 'teacher' as const })),
+    sources: input.documents.map((doc) => ({ id: doc.id, title: doc.title, origin: doc.origin ?? 'teacher', ...(doc.url ? { url: doc.url } : {}) })),
     characters: output.characters,
     stages: output.stages.map((stage) => ({
       ...stage,
