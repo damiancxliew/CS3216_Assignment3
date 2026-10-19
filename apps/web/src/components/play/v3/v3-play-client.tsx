@@ -24,7 +24,7 @@ export function V3PlayClient({
   portraitBase = null,
   backdrop = null,
   makeClient,
-  notice,
+  headerActions,
   revealFooter,
   busyLabel = "Saving…",
 }: {
@@ -34,7 +34,7 @@ export function V3PlayClient({
   portraitBase?: PortraitBase;
   backdrop?: V3MapBackdrop | null;
   makeClient?: () => PlayClient;
-  notice?: ReactNode;
+  headerActions?: ReactNode;
   revealFooter?: ReactNode;
   busyLabel?: string;
 }) {
@@ -68,6 +68,12 @@ export function V3PlayClient({
       </span>
     </h1>
   );
+  const headerActionGroup = busy || headerActions ? (
+    <div className={styles.headerActions}>
+      {busy ? <span role="status" className="text-sm font-semibold">{busyLabel}</span> : null}
+      {headerActions}
+    </div>
+  ) : null;
   const endScreen =
     view.phase === "epilogue" && view.epilogue
       ? { label: "Epilogue", screen: <EpilogueScreen epilogue={view.epilogue} busy={busy} send={send} /> }
@@ -83,9 +89,8 @@ export function V3PlayClient({
           <div className={`${styles.chapter} flex min-w-0 items-center gap-3`}>
             <span className={styles.chapterNumber}>{endScreen.label}</span>
           </div>
-          {busy ? <span role="status" className={`${styles.headerActions} text-sm font-semibold`}>{busyLabel}</span> : null}
+          {headerActionGroup}
         </header>
-        {notice}
         {bannerAlert}
         <MapBackdrop attemptId={attemptId} backdrop={lastMap}>
           {endScreen.screen}
@@ -103,9 +108,8 @@ export function V3PlayClient({
             <span className={styles.chapterNumber}>Stage {view.stage.index + 1} of {view.stage.count}</span>
             <span className={`${styles.chapterTitle} min-w-0 truncate`} title={view.stage.title}>{view.stage.title}</span>
           </div>
-          {busy ? <span role="status" className={`${styles.headerActions} text-sm font-semibold`}>{busyLabel}</span> : null}
+          {headerActionGroup}
         </header>
-        {notice}
         {bannerAlert}
         <StagePlayScreen view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} />
       </div>
@@ -119,9 +123,8 @@ export function V3PlayClient({
           <p className="text-xs font-black uppercase tracking-[0.2em] text-[#ead5ae]">Historical adventure</p>
           <h1 className={`${styles.adventureTitle} mt-1 break-words`}>{view.stage?.title ?? view.briefing.name}</h1>
         </div>
-        {busy ? <span role="status" className="text-sm font-semibold">{busyLabel}</span> : null}
+        {headerActionGroup}
       </header>
-      {notice}
       {bannerAlert}
       {view.phase === "briefing" ? (
         <BriefingScreen briefing={view.briefing} onContinue={() => { if (!busy) send({ type: "continue" }); }} />

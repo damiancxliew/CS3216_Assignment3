@@ -1,12 +1,40 @@
 "use client";
 
 import type { PortraitBase } from "@/lib/play/v3/portraits";
+import { ArrowLeft, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useCallback } from "react";
 import type { PlayerView } from "@adventure/play-contract";
 
+import styles from "@/components/play/adventure-chrome.module.css";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { createV3PreviewClient } from "@/lib/play/v3/preview-client";
+
+export function V3PreviewHeaderActions({ adventureId }: { adventureId: string }) {
+  const actionClass = `${styles.tool} inline-flex min-h-9 items-center justify-center gap-2 px-2.5 py-1 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffe0a2]`;
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        aria-label="Restart preview"
+        onClick={() => window.location.reload()}
+        className={actionClass}
+      >
+        <RotateCcw className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="hidden sm:inline">Restart preview</span>
+      </button>
+      <Link
+        href={`/v3/teacher/${adventureId}`}
+        aria-label="Back to adventure"
+        className={actionClass}
+      >
+        <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="hidden sm:inline">Back to adventure</span>
+      </Link>
+    </div>
+  );
+}
 
 export function V3PreviewClient({
   adventureId,
@@ -40,26 +68,7 @@ export function V3PreviewClient({
           Back to adventures
         </Link>
       }
-      notice={
-        <div className="mx-auto mt-4 flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-xl border border-signal bg-signal-wash px-4 py-3 text-sm font-semibold text-ink">
-          <span>Student preview · Progress is not saved.</span>
-          <div className="flex shrink-0 flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="min-h-9 rounded-lg px-2 underline"
-            >
-              Restart
-            </button>
-            <Link
-              href={`/v3/teacher/${adventureId}`}
-              className="min-h-9 rounded-lg px-2 py-2 underline"
-            >
-              ← Back to adventure
-            </Link>
-          </div>
-        </div>
-      }
+      headerActions={<V3PreviewHeaderActions adventureId={adventureId} />}
     />
   );
 }
