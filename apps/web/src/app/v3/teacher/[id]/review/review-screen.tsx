@@ -334,10 +334,16 @@ export function ReviewScreen({
     );
   };
   const items =
-    tab === "settings" || tab === "reveal" ? [{ id: tab, title: tab === "settings" ? "Settings" : "Reveal and questions" }] :
-    tab === "characters"
-      ? spec.characters.map((c) => ({ id: c.id, title: name(c.id) }))
-      : spec[tab].map((item) => ({ id: item.id, title: name(item.id) }));
+    tab === "settings" || tab === "reveal"
+      ? [
+          {
+            id: tab,
+            title: tab === "settings" ? "Settings" : "Reveal and questions",
+          },
+        ]
+      : tab === "characters"
+        ? spec.characters.map((c) => ({ id: c.id, title: name(c.id) }))
+        : spec[tab].map((item) => ({ id: item.id, title: name(item.id) }));
   const stage =
     tab === "stages" ? spec.stages.find((s) => s.id === selected) : undefined;
   const character =
@@ -399,598 +405,667 @@ export function ReviewScreen({
         )}
       </section>
       <div
-        role="tablist"
-        aria-label="Adventure content"
-        className="sticky top-3 z-10 flex w-fit max-w-full flex-wrap gap-2 rounded-[1.75rem] bg-paper/95 p-2 backdrop-blur-sm"
+        data-review-workspace
+        className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0"
       >
-        {tabs.map((t, i) => (
-          <button
-            key={t.id}
-            id={`tab-${t.id}`}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            aria-controls="review-content"
-            tabIndex={tab === t.id ? 0 : -1}
-            className={`inline-flex h-10 items-center justify-center rounded-full border px-3.5 text-sm font-semibold transition-colors motion-reduce:transition-none ${tab === t.id ? "border-ink bg-signal text-on-signal" : "border-line bg-surface text-muted hover:border-ink hover:text-ink"}`}
-            onClick={() => activateTab(t.id)}
-            onKeyDown={(event) => {
-              const next =
-                event.key === "ArrowRight"
-                  ? (i + 1) % tabs.length
-                  : event.key === "ArrowLeft"
-                    ? (i + tabs.length - 1) % tabs.length
-                    : event.key === "Home"
-                      ? 0
-                      : event.key === "End"
-                        ? tabs.length - 1
-                        : -1;
-              if (next < 0) return;
-              event.preventDefault();
-              const t = tabs[next];
-              activateTab(t.id);
-              document
-                .getElementById(`tab-${t.id}`)
-                ?.focus({ preventScroll: true });
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div
-        role="tabpanel"
-        id="review-content"
-        aria-labelledby={`tab-${tab}`}
-        className="grid min-w-0 gap-5 md:h-[clamp(28rem,72dvh,56rem)] md:grid-cols-[16rem_minmax(0,1fr)]"
-      >
-        <nav
-          aria-label={`${tabs.find((t) => t.id === tab)?.label} items`}
-          className="h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] md:h-full"
+        <div
+          role="tablist"
+          aria-label="Adventure content"
+          className="sticky top-0 z-10 flex shrink-0 w-fit max-w-full flex-wrap gap-2 rounded-[1.75rem] bg-paper/95 p-2 backdrop-blur-sm"
         >
-          <h2 className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted">
-            Index
-          </h2>
-          {items.length ? (
-            <ul className="space-y-2">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    aria-current={selected === item.id ? "true" : undefined}
-                    aria-expanded={
-                      selected === item.id &&
-                      !collapsed.has(`${tab}:${item.id}`)
-                    }
-                    className={`flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm ${selected === item.id ? "bg-sunken font-bold" : "hover:bg-sunken"}`}
-                    onClick={() => {
-                      if (selected === item.id) {
-                        setCollapsed((current) => {
-                          const next = new Set(current);
-                          const key = `${tab}:${item.id}`;
-                          if (next.has(key)) next.delete(key);
-                          else next.add(key);
-                          return next;
-                        });
-                      } else {
-                        choose({
-                          tab,
-                          itemId: item.id,
-                          anchor: reviewAnchor(item.id),
-                        });
+          {tabs.map((t, i) => (
+            <button
+              key={t.id}
+              id={`tab-${t.id}`}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              aria-controls="review-content"
+              tabIndex={tab === t.id ? 0 : -1}
+              className={`inline-flex h-10 items-center justify-center rounded-full border px-3.5 text-sm font-semibold transition-colors motion-reduce:transition-none ${tab === t.id ? "border-ink bg-signal text-on-signal" : "border-line bg-surface text-muted hover:border-ink hover:text-ink"}`}
+              onClick={() => activateTab(t.id)}
+              onKeyDown={(event) => {
+                const next =
+                  event.key === "ArrowRight"
+                    ? (i + 1) % tabs.length
+                    : event.key === "ArrowLeft"
+                      ? (i + tabs.length - 1) % tabs.length
+                      : event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? tabs.length - 1
+                          : -1;
+                if (next < 0) return;
+                event.preventDefault();
+                const t = tabs[next];
+                activateTab(t.id);
+                document
+                  .getElementById(`tab-${t.id}`)
+                  ?.focus({ preventScroll: true });
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div
+          role="tabpanel"
+          id="review-content"
+          aria-labelledby={`tab-${tab}`}
+          className="grid min-w-0 gap-5 md:min-h-0 md:flex-1 md:grid-cols-[16rem_minmax(0,1fr)]"
+        >
+          <nav
+            aria-label={`${tabs.find((t) => t.id === tab)?.label} items`}
+            className="h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] md:h-full"
+          >
+            <h2 className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted">
+              Index
+            </h2>
+            {items.length ? (
+              <ul className="space-y-2">
+                {items.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      aria-current={selected === item.id ? "true" : undefined}
+                      aria-expanded={
+                        selected === item.id &&
+                        !collapsed.has(`${tab}:${item.id}`)
                       }
-                    }}
-                  >
-                    <span aria-hidden className="mt-0.5 shrink-0 text-muted">
-                      {selected === item.id &&
-                      !collapsed.has(`${tab}:${item.id}`)
-                        ? "▾"
-                        : "▸"}
-                    </span>
-                    <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-                      {item.title}
-                    </span>
-                  </button>
-                  {selected === item.id &&
-                  !collapsed.has(`${tab}:${item.id}`) ? (
-                    <div className="my-2">
-                      <IndexBranch
-                        entries={reviewIndex(spec, tab, item.id)}
-                        activeAnchor={activeAnchor}
-                        onChoose={(id) =>
+                      className={`flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm ${selected === item.id ? "bg-sunken font-bold" : "hover:bg-sunken"}`}
+                      onClick={() => {
+                        if (selected === item.id) {
+                          setCollapsed((current) => {
+                            const next = new Set(current);
+                            const key = `${tab}:${item.id}`;
+                            if (next.has(key)) next.delete(key);
+                            else next.add(key);
+                            return next;
+                          });
+                        } else {
                           choose({
                             tab,
                             itemId: item.id,
-                            anchor: reviewAnchor(id),
-                          })
+                            anchor: reviewAnchor(item.id),
+                          });
                         }
-                      />
-                    </div>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="p-3 text-sm text-muted">No {tab}.</p>
-          )}
-        </nav>
-        <div
-          ref={detail}
-          data-review-scroll
-          tabIndex={-1}
-          role="region"
-          aria-label="Review details"
-          className="h-[clamp(28rem,72dvh,56rem)] min-w-0 space-y-5 overflow-y-auto overscroll-contain break-words p-1 [overflow-anchor:none] [overflow-wrap:anywhere] [scrollbar-gutter:stable] md:h-full"
-        >
-          <React.Fragment key={`${tab}:${selected}`}>
-            {editMode && renderEditor ? renderEditor(tab, selected) : <>
-            {tab === "settings" ? <Card title="Settings"><Field title="Title">{spec.title}</Field><Field title="Reading level">{spec.readingLevel}</Field><Field title="Timer">{spec.timer.enabled ? spec.timer.stageMinutes.join(", ") + " minutes" : "Disabled"}</Field><Field title="Source policy">{spec.authoring?.sourcePolicy?.allowAny ? "Any public source" : "Default allowed domains and teacher additions"}</Field></Card> : null}
-            {tab === "reveal" ? <Card title="Reveal and questions">{Object.entries(spec.reveal ?? {}).map(([key, value]) => <Field key={key} title={key}>{Array.isArray(value) ? value.join("\n") : value}</Field>)}<Field title="Teacher questions">{spec.teacherQuestions.join("\n") || "No teacher questions."}</Field></Card> : null}
-            {stage ? (
-              <>
-                <Card id={stage.id} title={name(stage.id)}>
-                  <p>{stage.timePlace}</p>
-                  <Field title="Central question">
-                    {stage.centralQuestion}
-                  </Field>
-                  <Field title="Opening narration">
-                    {stage.openingNarration}
-                  </Field>
-                  {sourceSummary([
-                    ...spec.discoveries.filter((d) => d.stageId === stage.id),
-                    ...spec.documents.filter(
-                      (d) => d.id in stage.documentPlacement,
-                    ),
-                  ])}
-                </Card>
-                <Card
-                  id={reviewSectionId(stage.id, "rooms")}
-                  title="Rooms and placements"
-                >
-                  {stage.rooms.map((room) => (
-                    <div
-                      id={reviewAnchor(room.id)}
-                      tabIndex={-1}
-                      key={room.id}
-                      className="scroll-mt-4 space-y-2 rounded-xl border border-line bg-sunken/40 p-4"
+                      }}
                     >
-                      <h4 className="font-bold">
-                        {room.name}
-                        {room.id === stage.startRoomId ? " · Start room" : ""}
-                      </h4>
-                      <p className="text-sm">{room.description}</p>
-                      <p className="text-sm">
-                        Characters:{" "}
-                        {Object.entries(stage.placement)
-                          .filter(([, roomId]) => roomId === room.id)
-                          .map(([id]) => name(id))
-                          .join(", ") || "None"}
-                      </p>
-                      <p className="text-sm">
-                        Documents:{" "}
-                        {Object.entries(stage.documentPlacement)
-                          .filter(([, roomId]) => roomId === room.id)
-                          .map(([id]) => name(id))
-                          .join(", ") || "None"}
-                      </p>
-                    </div>
-                  ))}
-                  <Field title="Documents held at start">
-                    {Object.entries(stage.documentPlacement)
-                      .filter(([, room]) => room === "held")
-                      .map(([id]) => name(id))
-                      .join(", ") || "None"}
-                  </Field>
-                  {stage.situations.map((s, i) => (
-                    <Field
-                      key={i}
-                      title={`After: ${name(s.whenOutcome.outcomeId)}`}
-                    >
-                      <p>{s.openingNarration}</p>
-                      <p>
-                        Character placements:{" "}
-                        {Object.entries(s.placement ?? {})
-                          .map(([id, room]) => `${name(id)} → ${name(room)}`)
-                          .join(", ") || "Unchanged"}
-                      </p>
-                      <p>
-                        Document placements:{" "}
-                        {Object.entries(s.documentPlacement ?? {})
-                          .map(([id, room]) => `${name(id)} → ${name(room)}`)
-                          .join(", ") || "Unchanged"}
-                      </p>
-                      <p>
-                        Stances:{" "}
-                        {Object.entries(s.stances ?? {})
-                          .map(
-                            ([id, stance]) => `${name(id)} → ${name(stance)}`,
-                          )
-                          .join(", ") || "Unchanged"}
-                      </p>
-                    </Field>
-                  ))}
-                </Card>
-                <Card
-                  id={reviewSectionId(stage.id, "discoveries")}
-                  title="Discoveries"
-                >
-                  {spec.discoveries
-                    .filter((d) => d.stageId === stage.id)
-                    .map((d) => (
-                      <Block
-                        key={d.id}
-                        id={d.id}
-                        title={reviewDiscoveryTitle(spec, d)}
-                      >
-                        <p className="text-sm">
-                          {d.core
-                            ? "Essential discovery"
-                            : "Optional discovery"}{" "}
-                          · Held by{" "}
-                          {"characterId" in d.holder
-                            ? link(d.holder.characterId)
-                            : link(d.holder.documentId)}
-                        </p>
-                        <Field title="Fact">{d.text}</Field>
-                        <Field title="Student note">{d.note}</Field>
-                        {d.condition ? (
-                          <Field title="Available when">
-                            {conditionText(d.condition, name)}
-                          </Field>
-                        ) : null}
-                        <Citations
-                          label={d.sourceLabel}
-                          citations={d.citations}
-                          sources={sources}
+                      <span aria-hidden className="mt-0.5 shrink-0 text-muted">
+                        {selected === item.id &&
+                        !collapsed.has(`${tab}:${item.id}`)
+                          ? "▾"
+                          : "▸"}
+                      </span>
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                        {item.title}
+                      </span>
+                    </button>
+                    {selected === item.id &&
+                    !collapsed.has(`${tab}:${item.id}`) ? (
+                      <div className="my-2">
+                        <IndexBranch
+                          entries={reviewIndex(spec, tab, item.id)}
+                          activeAnchor={activeAnchor}
+                          onChoose={(id) =>
+                            choose({
+                              tab,
+                              itemId: item.id,
+                              anchor: reviewAnchor(id),
+                            })
+                          }
                         />
-                      </Block>
-                    ))}
-                </Card>
-                <Card id={reviewSectionId(stage.id, "events")} title="Events">
-                  {spec.storyEvents
-                    .filter((e) => e.stageId === stage.id)
-                    .map((e) => (
-                      <Block
-                        key={e.id}
-                        id={e.id}
-                        title={REVIEW_EVENT_LABELS[e.effect]}
-                      >
-                        <p>{e.text}</p>
-                        <Field title="When">
-                          {"atSeconds" in e.when
-                            ? `After ${e.when.atSeconds} seconds`
-                            : "condition" in e.when
-                              ? conditionText(e.when.condition, name)
-                              : "stuck" in e.when
-                                ? "When the student is stuck"
-                                : "When time runs out"}
-                        </Field>
-                        {"characterId" in e && e.characterId ? (
-                          <p>Character: {link(e.characterId)}</p>
-                        ) : null}
-                        {"documentId" in e ? (
-                          <p>Document: {link(e.documentId)}</p>
-                        ) : null}
-                        {"toRoomId" in e ? (
-                          <p>Destination: {name(e.toRoomId)}</p>
-                        ) : null}
-                      </Block>
-                    ))}
-                </Card>
-                {spec.definingMoments
-                  .filter((m) => m.stageId === stage.id)
-                  .map((m) => (
-                    <Card key={m.id} id={m.id} title="Defining moment">
-                      <Field title="Who decides">{link(m.deciderId)}</Field>
-                      <Field title="Scene">{m.scene}</Field>
-                      <Field title="Prompt for the student">{m.nudge}</Field>
-                      <Field title="Decision narration">
-                        {m.finalCallNarration}
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="p-3 text-sm text-muted">No {tab}.</p>
+            )}
+          </nav>
+          <div
+            ref={detail}
+            data-review-scroll
+            tabIndex={-1}
+            role="region"
+            aria-label="Review details"
+            className="h-[clamp(28rem,72dvh,56rem)] min-w-0 space-y-5 overflow-y-auto overscroll-contain break-words p-1 [overflow-anchor:none] [overflow-wrap:anywhere] [scrollbar-gutter:stable] md:h-full"
+          >
+            <React.Fragment key={`${tab}:${selected}`}>
+              {editMode && renderEditor ? (
+                renderEditor(tab, selected)
+              ) : (
+                <>
+                  {tab === "settings" ? (
+                    <Card title="Settings">
+                      <Field title="Title">{spec.title}</Field>
+                      <Field title="Reading level">{spec.readingLevel}</Field>
+                      <Field title="Timer">
+                        {spec.timer.enabled
+                          ? spec.timer.stageMinutes.join(", ") + " minutes"
+                          : "Disabled"}
                       </Field>
-                      <Block
-                        id={reviewSectionId(m.id, "choices")}
-                        title="Choices"
-                      >
-                        {m.acts.map((a) => (
-                          <Block key={a.id} id={a.id} title={name(a.id)}>
-                            <p>{a.reaction}</p>
-                            {a.deception ? <p>Deception</p> : null}
-                            {a.secret ? (
-                              <Field title="How to reveal this choice">{`Meet ${a.secret.minMet} of: ${a.secret.unlock.map((c) => conditionText(c, name)).join("; ")}`}</Field>
-                            ) : null}
-                          </Block>
-                        ))}
-                      </Block>
-                      <Block
-                        id={reviewSectionId(m.id, "outcomes")}
-                        title="Outcomes"
-                      >
-                        {m.outcomes.map((o) => (
-                          <Block key={o.id} id={o.id} title={name(o.id)}>
-                            <p>
-                              {o.historical
-                                ? "Historical outcome"
-                                : "Alternative outcome"}
-                              {o.secret ? " · Secret" : ""}
-                            </p>
-                            <Field title="Prediction">{o.predictionText}</Field>
-                            <Field title="Because">{o.because}</Field>
-                            {o.endingId ? (
-                              <p>Ending: {link(o.endingId)}</p>
-                            ) : null}
-                            {o.closesEndingIds.length ? (
-                              <p>
-                                Closes: {o.closesEndingIds.map(name).join(", ")}
-                              </p>
-                            ) : null}
-                          </Block>
-                        ))}
-                      </Block>
-                      <Field title="How choices lead to outcomes">
-                        {m.rules.map((r, i) => (
-                          <p key={i}>
-                            {name(r.actId)} → {name(r.outcomeId)}
-                            {r.when
-                              ? ` when ${conditionText(r.when, name)}`
-                              : ""}
-                          </p>
-                        ))}
+                      <Field title="Source policy">
+                        {spec.authoring?.sourcePolicy?.allowAny
+                          ? "Any public source"
+                          : "Default allowed domains and teacher additions"}
                       </Field>
                     </Card>
-                  ))}
-              </>
-            ) : null}
-            {character ? (
-              <>
-                <Card id={character.id} title={name(character.id)}>
-                  <p>
-                    {character.title} ·{" "}
-                    {character.tier === "major"
-                      ? "Main character"
-                      : "Supporting character"}{" "}
-                    ·{" "}
-                    {character.real
-                      ? "Real historical person"
-                      : "Invented character"}
-                  </p>
-                  {sourceSummary([
-                    ...character.persona.phrases,
-                    ...spec.discoveries.filter(
-                      (d) =>
-                        "characterId" in d.holder &&
-                        d.holder.characterId === character.id,
-                    ),
-                  ])}
-                </Card>
-                <Card
-                  id={reviewSectionId(character.id, "persona")}
-                  title="Persona"
-                >
-                  {(
-                    [
-                      ["Voice", character.persona.voice],
-                      ["What they know", character.persona.knewThen],
-                      [
-                        "Wants from the student",
-                        character.persona.wantsFromStudent,
-                      ],
-                      ["Public position", character.persona.publicPosition],
-                      ["Private agenda", character.persona.privateAgenda],
-                    ] as const
-                  ).map(([title, text]) => (
-                    <Field key={title} title={title}>
-                      {text}
-                    </Field>
-                  ))}
-                  <Field title="What they keep to themselves">
-                    {character.persona.withholds.join("\n")}
-                  </Field>
-                  {character.persona.phrases.map((phrase, i) => (
-                    <div key={i} className="space-y-2">
-                      <p>{phrase.text}</p>
-                      <Citations
-                        label={phrase.sourceLabel}
-                        citations={phrase.citations}
-                        sources={sources}
-                      />
-                    </div>
-                  ))}
-                </Card>
-                <Card
-                  id={reviewSectionId(character.id, "stances")}
-                  title="Stances"
-                >
-                  {character.stances.map((s) => (
-                    <Block key={s.id} id={s.id} title={name(s.id)}>
-                      <p>{s.demeanour}</p>
-                      <p>
-                        {s.id === character.initialStanceId
-                          ? "Initial stance"
-                          : ""}
-                        {s.hidden ? " · Hidden" : ""}
-                      </p>
-                    </Block>
-                  ))}
-                </Card>
-                <Card
-                  id={reviewSectionId(character.id, "slants")}
-                  title="Biased claims"
-                >
-                  {character.slants.map((s) => (
-                    <Block key={s.id} id={s.id} title={name(s.id)}>
-                      <div className="flex flex-wrap gap-3">
-                        Evidence that challenges this claim:{" "}
-                        {s.contradictedBy.map((id) => (
-                          <span key={id}>{link(id)}</span>
-                        ))}
-                      </div>
-                      {s.unlocksDiscoveryId ? (
-                        <p>Unlocks: {link(s.unlocksDiscoveryId)}</p>
-                      ) : null}
-                    </Block>
-                  ))}
-                </Card>
-                <Card
-                  id={reviewSectionId(character.id, "reactions")}
-                  title="Reactions and trust"
-                >
-                  {character.trustNotice ? (
-                    <p>{character.trustNotice}</p>
                   ) : null}
-                  {spec.triggers
-                    .filter((t) => t.characterId === character.id)
-                    .map((t) => (
-                      <Block key={t.id} id={t.id} title={t.notice}>
-                        <Field title="When">
-                          {"notePassed" in t.on
-                            ? `Pass on ${name(t.on.notePassed)}`
-                            : "slantConfronted" in t.on
-                              ? `Confront ${name(t.on.slantConfronted)}`
-                              : `Discover ${name(t.on.discovered)}`}
+                  {tab === "reveal" ? (
+                    <Card title="Reveal and questions">
+                      {Object.entries(spec.reveal ?? {}).map(([key, value]) => (
+                        <Field key={key} title={key}>
+                          {Array.isArray(value) ? value.join("\n") : value}
                         </Field>
-                        {t.requires ? (
-                          <Field title="Only when">
-                            {conditionText(t.requires, name)}
+                      ))}
+                      <Field title="Teacher questions">
+                        {spec.teacherQuestions.join("\n") ||
+                          "No teacher questions."}
+                      </Field>
+                    </Card>
+                  ) : null}
+                  {stage ? (
+                    <>
+                      <Card id={stage.id} title={name(stage.id)}>
+                        <p>{stage.timePlace}</p>
+                        <Field title="Central question">
+                          {stage.centralQuestion}
+                        </Field>
+                        <Field title="Opening narration">
+                          {stage.openingNarration}
+                        </Field>
+                        {sourceSummary([
+                          ...spec.discoveries.filter(
+                            (d) => d.stageId === stage.id,
+                          ),
+                          ...spec.documents.filter(
+                            (d) => d.id in stage.documentPlacement,
+                          ),
+                        ])}
+                      </Card>
+                      <Card
+                        id={reviewSectionId(stage.id, "rooms")}
+                        title="Rooms and placements"
+                      >
+                        {stage.rooms.map((room) => (
+                          <div
+                            id={reviewAnchor(room.id)}
+                            tabIndex={-1}
+                            key={room.id}
+                            className="scroll-mt-4 space-y-2 rounded-xl border border-line bg-sunken/40 p-4"
+                          >
+                            <h4 className="font-bold">
+                              {room.name}
+                              {room.id === stage.startRoomId
+                                ? " · Start room"
+                                : ""}
+                            </h4>
+                            <p className="text-sm">{room.description}</p>
+                            <p className="text-sm">
+                              Characters:{" "}
+                              {Object.entries(stage.placement)
+                                .filter(([, roomId]) => roomId === room.id)
+                                .map(([id]) => name(id))
+                                .join(", ") || "None"}
+                            </p>
+                            <p className="text-sm">
+                              Documents:{" "}
+                              {Object.entries(stage.documentPlacement)
+                                .filter(([, roomId]) => roomId === room.id)
+                                .map(([id]) => name(id))
+                                .join(", ") || "None"}
+                            </p>
+                          </div>
+                        ))}
+                        <Field title="Documents held at start">
+                          {Object.entries(stage.documentPlacement)
+                            .filter(([, room]) => room === "held")
+                            .map(([id]) => name(id))
+                            .join(", ") || "None"}
+                        </Field>
+                        {stage.situations.map((s, i) => (
+                          <Field
+                            key={i}
+                            title={`After: ${name(s.whenOutcome.outcomeId)}`}
+                          >
+                            <p>{s.openingNarration}</p>
+                            <p>
+                              Character placements:{" "}
+                              {Object.entries(s.placement ?? {})
+                                .map(
+                                  ([id, room]) => `${name(id)} → ${name(room)}`,
+                                )
+                                .join(", ") || "Unchanged"}
+                            </p>
+                            <p>
+                              Document placements:{" "}
+                              {Object.entries(s.documentPlacement ?? {})
+                                .map(
+                                  ([id, room]) => `${name(id)} → ${name(room)}`,
+                                )
+                                .join(", ") || "Unchanged"}
+                            </p>
+                            <p>
+                              Stances:{" "}
+                              {Object.entries(s.stances ?? {})
+                                .map(
+                                  ([id, stance]) =>
+                                    `${name(id)} → ${name(stance)}`,
+                                )
+                                .join(", ") || "Unchanged"}
+                            </p>
                           </Field>
-                        ) : null}
-                        <Field title="What changes">
-                          {"toStance" in t.effect
-                            ? `Change stance to ${name(t.effect.toStance)}`
-                            : t.effect.stanceDelta > 0
-                              ? "Becomes more receptive"
-                              : "Becomes less receptive"}
+                        ))}
+                      </Card>
+                      <Card
+                        id={reviewSectionId(stage.id, "discoveries")}
+                        title="Discoveries"
+                      >
+                        {spec.discoveries
+                          .filter((d) => d.stageId === stage.id)
+                          .map((d) => (
+                            <Block
+                              key={d.id}
+                              id={d.id}
+                              title={reviewDiscoveryTitle(spec, d)}
+                            >
+                              <p className="text-sm">
+                                {d.core
+                                  ? "Essential discovery"
+                                  : "Optional discovery"}{" "}
+                                · Held by{" "}
+                                {"characterId" in d.holder
+                                  ? link(d.holder.characterId)
+                                  : link(d.holder.documentId)}
+                              </p>
+                              <Field title="Fact">{d.text}</Field>
+                              <Field title="Student note">{d.note}</Field>
+                              {d.condition ? (
+                                <Field title="Available when">
+                                  {conditionText(d.condition, name)}
+                                </Field>
+                              ) : null}
+                              <Citations
+                                label={d.sourceLabel}
+                                citations={d.citations}
+                                sources={sources}
+                              />
+                            </Block>
+                          ))}
+                      </Card>
+                      <Card
+                        id={reviewSectionId(stage.id, "events")}
+                        title="Events"
+                      >
+                        {spec.storyEvents
+                          .filter((e) => e.stageId === stage.id)
+                          .map((e) => (
+                            <Block
+                              key={e.id}
+                              id={e.id}
+                              title={REVIEW_EVENT_LABELS[e.effect]}
+                            >
+                              <p>{e.text}</p>
+                              <Field title="When">
+                                {"atSeconds" in e.when
+                                  ? `After ${e.when.atSeconds} seconds`
+                                  : "condition" in e.when
+                                    ? conditionText(e.when.condition, name)
+                                    : "stuck" in e.when
+                                      ? "When the student is stuck"
+                                      : "When time runs out"}
+                              </Field>
+                              {"characterId" in e && e.characterId ? (
+                                <p>Character: {link(e.characterId)}</p>
+                              ) : null}
+                              {"documentId" in e ? (
+                                <p>Document: {link(e.documentId)}</p>
+                              ) : null}
+                              {"toRoomId" in e ? (
+                                <p>Destination: {name(e.toRoomId)}</p>
+                              ) : null}
+                            </Block>
+                          ))}
+                      </Card>
+                      {spec.definingMoments
+                        .filter((m) => m.stageId === stage.id)
+                        .map((m) => (
+                          <Card key={m.id} id={m.id} title="Defining moment">
+                            <Field title="Who decides">
+                              {link(m.deciderId)}
+                            </Field>
+                            <Field title="Scene">{m.scene}</Field>
+                            <Field title="Prompt for the student">
+                              {m.nudge}
+                            </Field>
+                            <Field title="Decision narration">
+                              {m.finalCallNarration}
+                            </Field>
+                            <Block
+                              id={reviewSectionId(m.id, "choices")}
+                              title="Choices"
+                            >
+                              {m.acts.map((a) => (
+                                <Block key={a.id} id={a.id} title={name(a.id)}>
+                                  <p>{a.reaction}</p>
+                                  {a.deception ? <p>Deception</p> : null}
+                                  {a.secret ? (
+                                    <Field title="How to reveal this choice">{`Meet ${a.secret.minMet} of: ${a.secret.unlock.map((c) => conditionText(c, name)).join("; ")}`}</Field>
+                                  ) : null}
+                                </Block>
+                              ))}
+                            </Block>
+                            <Block
+                              id={reviewSectionId(m.id, "outcomes")}
+                              title="Outcomes"
+                            >
+                              {m.outcomes.map((o) => (
+                                <Block key={o.id} id={o.id} title={name(o.id)}>
+                                  <p>
+                                    {o.historical
+                                      ? "Historical outcome"
+                                      : "Alternative outcome"}
+                                    {o.secret ? " · Secret" : ""}
+                                  </p>
+                                  <Field title="Prediction">
+                                    {o.predictionText}
+                                  </Field>
+                                  <Field title="Because">{o.because}</Field>
+                                  {o.endingId ? (
+                                    <p>Ending: {link(o.endingId)}</p>
+                                  ) : null}
+                                  {o.closesEndingIds.length ? (
+                                    <p>
+                                      Closes:{" "}
+                                      {o.closesEndingIds.map(name).join(", ")}
+                                    </p>
+                                  ) : null}
+                                </Block>
+                              ))}
+                            </Block>
+                            <Field title="How choices lead to outcomes">
+                              {m.rules.map((r, i) => (
+                                <p key={i}>
+                                  {name(r.actId)} → {name(r.outcomeId)}
+                                  {r.when
+                                    ? ` when ${conditionText(r.when, name)}`
+                                    : ""}
+                                </p>
+                              ))}
+                            </Field>
+                          </Card>
+                        ))}
+                    </>
+                  ) : null}
+                  {character ? (
+                    <>
+                      <Card id={character.id} title={name(character.id)}>
+                        <p>
+                          {character.title} ·{" "}
+                          {character.tier === "major"
+                            ? "Main character"
+                            : "Supporting character"}{" "}
+                          ·{" "}
+                          {character.real
+                            ? "Real historical person"
+                            : "Invented character"}
+                        </p>
+                        {sourceSummary([
+                          ...character.persona.phrases,
+                          ...spec.discoveries.filter(
+                            (d) =>
+                              "characterId" in d.holder &&
+                              d.holder.characterId === character.id,
+                          ),
+                        ])}
+                      </Card>
+                      <Card
+                        id={reviewSectionId(character.id, "persona")}
+                        title="Persona"
+                      >
+                        {(
+                          [
+                            ["Voice", character.persona.voice],
+                            ["What they know", character.persona.knewThen],
+                            [
+                              "Wants from the student",
+                              character.persona.wantsFromStudent,
+                            ],
+                            [
+                              "Public position",
+                              character.persona.publicPosition,
+                            ],
+                            ["Private agenda", character.persona.privateAgenda],
+                          ] as const
+                        ).map(([title, text]) => (
+                          <Field key={title} title={title}>
+                            {text}
+                          </Field>
+                        ))}
+                        <Field title="What they keep to themselves">
+                          {character.persona.withholds.join("\n")}
                         </Field>
-                        {t.handsOver?.length ? (
-                          <p>Hands over: {t.handsOver.map(name).join(", ")}</p>
-                        ) : null}
-                      </Block>
-                    ))}
-                </Card>
-              </>
-            ) : null}
-            {doc ? (
-              <>
-                <Card id={doc.id} title={name(doc.id)}>
-                  <p>
-                    {doc.kind} ·{" "}
-                    {doc.real
-                      ? "Real historical document"
-                      : "Invented document"}
-                  </p>
-                  <p className="text-sm">
-                    {Object.values(doc.provenance).filter(Boolean).join(" · ")}
-                  </p>
-                  <Citations
-                    label={doc.sourceLabel}
-                    citations={doc.citations}
-                    sources={sources}
-                  />
-                </Card>
-                <Card
-                  id={reviewSectionId(doc.id, "text")}
-                  title="Document text"
-                >
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {documentSegments(doc).map((s) =>
-                      s.passageIds.length ? (
-                        <mark
-                          key={s.start}
-                          className="rounded-sm bg-sunshine text-ink"
-                        >
-                          {s.text}
-                        </mark>
-                      ) : (
-                        <span key={s.start}>{s.text}</span>
-                      ),
-                    )}
-                  </div>
-                </Card>
-                <Card
-                  id={reviewSectionId(doc.id, "passages")}
-                  title="Key passages"
-                >
-                  {doc.keyPassages.map((p, passageIndex) => (
-                    <Block
-                      key={p.id}
-                      id={p.id}
-                      title={`Passage ${passageIndex + 1}`}
-                      reference={p.id}
-                    >
-                      <blockquote>{doc.body.slice(p.start, p.end)}</blockquote>
-                      {spec.discoveries
-                        .filter(
-                          (d) =>
-                            "documentId" in d.holder &&
-                            d.holder.documentId === doc.id &&
-                            d.holder.keyPassageId === p.id,
-                        )
-                        .map((d) => (
-                          <div key={d.id}>
-                            <p>{link(d.id)}</p>
-                            <p>{d.text}</p>
+                        {character.persona.phrases.map((phrase, i) => (
+                          <div key={i} className="space-y-2">
+                            <p>{phrase.text}</p>
                             <Citations
-                              label={d.sourceLabel}
-                              citations={d.citations}
+                              label={phrase.sourceLabel}
+                              citations={phrase.citations}
                               sources={sources}
                             />
                           </div>
                         ))}
-                    </Block>
-                  ))}
-                </Card>
-                <Card id={reviewSectionId(doc.id, "glossary")} title="Glossary">
-                  {doc.glossary.map((g, i) => (
-                    <Field key={i} title={g.term}>
-                      {g.meaning}
-                    </Field>
-                  ))}
-                </Card>
-              </>
-            ) : null}
-            {ending ? (
-              <>
-                <Card id={ending.id} title={name(ending.id)}>
-                  <p>
-                    {ending.type === "historical"
-                      ? "Historical ending"
-                      : ending.type === "alternative"
-                        ? "Alternative ending"
-                        : "Hidden ending"}
-                  </p>
-                  <Field title="Summary">{ending.summary}</Field>
-                  <Field title="Epilogue">{ending.epilogue}</Field>
-                  <Citations
-                    label={ending.sourceLabel}
-                    citations={ending.citations}
-                    sources={sources}
-                  />
-                </Card>
-                <Card
-                  id={reviewSectionId(ending.id, "interview")}
-                  title="Interview"
-                >
-                  <Field title="Interviewer">
-                    {ending.interview.interviewer}
-                  </Field>
-                  <Field title="Question">{ending.interview.question}</Field>
-                  {ending.interview.verdicts.map((v) => (
-                    <Block key={v.id} id={v.id} title={name(v.id)}>
-                      <div className="flex flex-wrap gap-3">
-                        Evidence to discuss:{" "}
-                        {v.counterPoints.map((id) => (
-                          <span key={id}>{link(id)}</span>
+                      </Card>
+                      <Card
+                        id={reviewSectionId(character.id, "stances")}
+                        title="Stances"
+                      >
+                        {character.stances.map((s) => (
+                          <Block key={s.id} id={s.id} title={name(s.id)}>
+                            <p>{s.demeanour}</p>
+                            <p>
+                              {s.id === character.initialStanceId
+                                ? "Initial stance"
+                                : ""}
+                              {s.hidden ? " · Hidden" : ""}
+                            </p>
+                          </Block>
                         ))}
-                      </div>
-                    </Block>
-                  ))}
-                  <Field title="Follow-up response">
-                    {ending.interview.generalCounter}
-                  </Field>
-                </Card>
-              </>
-            ) : null}
-            </>}
-          </React.Fragment>
+                      </Card>
+                      <Card
+                        id={reviewSectionId(character.id, "slants")}
+                        title="Biased claims"
+                      >
+                        {character.slants.map((s) => (
+                          <Block key={s.id} id={s.id} title={name(s.id)}>
+                            <div className="flex flex-wrap gap-3">
+                              Evidence that challenges this claim:{" "}
+                              {s.contradictedBy.map((id) => (
+                                <span key={id}>{link(id)}</span>
+                              ))}
+                            </div>
+                            {s.unlocksDiscoveryId ? (
+                              <p>Unlocks: {link(s.unlocksDiscoveryId)}</p>
+                            ) : null}
+                          </Block>
+                        ))}
+                      </Card>
+                      <Card
+                        id={reviewSectionId(character.id, "reactions")}
+                        title="Reactions and trust"
+                      >
+                        {character.trustNotice ? (
+                          <p>{character.trustNotice}</p>
+                        ) : null}
+                        {spec.triggers
+                          .filter((t) => t.characterId === character.id)
+                          .map((t) => (
+                            <Block key={t.id} id={t.id} title={t.notice}>
+                              <Field title="When">
+                                {"notePassed" in t.on
+                                  ? `Pass on ${name(t.on.notePassed)}`
+                                  : "slantConfronted" in t.on
+                                    ? `Confront ${name(t.on.slantConfronted)}`
+                                    : `Discover ${name(t.on.discovered)}`}
+                              </Field>
+                              {t.requires ? (
+                                <Field title="Only when">
+                                  {conditionText(t.requires, name)}
+                                </Field>
+                              ) : null}
+                              <Field title="What changes">
+                                {"toStance" in t.effect
+                                  ? `Change stance to ${name(t.effect.toStance)}`
+                                  : t.effect.stanceDelta > 0
+                                    ? "Becomes more receptive"
+                                    : "Becomes less receptive"}
+                              </Field>
+                              {t.handsOver?.length ? (
+                                <p>
+                                  Hands over: {t.handsOver.map(name).join(", ")}
+                                </p>
+                              ) : null}
+                            </Block>
+                          ))}
+                      </Card>
+                    </>
+                  ) : null}
+                  {doc ? (
+                    <>
+                      <Card id={doc.id} title={name(doc.id)}>
+                        <p>
+                          {doc.kind} ·{" "}
+                          {doc.real
+                            ? "Real historical document"
+                            : "Invented document"}
+                        </p>
+                        <p className="text-sm">
+                          {Object.values(doc.provenance)
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                        <Citations
+                          label={doc.sourceLabel}
+                          citations={doc.citations}
+                          sources={sources}
+                        />
+                      </Card>
+                      <Card
+                        id={reviewSectionId(doc.id, "text")}
+                        title="Document text"
+                      >
+                        <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                          {documentSegments(doc).map((s) =>
+                            s.passageIds.length ? (
+                              <mark
+                                key={s.start}
+                                className="rounded-sm bg-sunshine text-ink"
+                              >
+                                {s.text}
+                              </mark>
+                            ) : (
+                              <span key={s.start}>{s.text}</span>
+                            ),
+                          )}
+                        </div>
+                      </Card>
+                      <Card
+                        id={reviewSectionId(doc.id, "passages")}
+                        title="Key passages"
+                      >
+                        {doc.keyPassages.map((p, passageIndex) => (
+                          <Block
+                            key={p.id}
+                            id={p.id}
+                            title={`Passage ${passageIndex + 1}`}
+                            reference={p.id}
+                          >
+                            <blockquote>
+                              {doc.body.slice(p.start, p.end)}
+                            </blockquote>
+                            {spec.discoveries
+                              .filter(
+                                (d) =>
+                                  "documentId" in d.holder &&
+                                  d.holder.documentId === doc.id &&
+                                  d.holder.keyPassageId === p.id,
+                              )
+                              .map((d) => (
+                                <div key={d.id}>
+                                  <p>{link(d.id)}</p>
+                                  <p>{d.text}</p>
+                                  <Citations
+                                    label={d.sourceLabel}
+                                    citations={d.citations}
+                                    sources={sources}
+                                  />
+                                </div>
+                              ))}
+                          </Block>
+                        ))}
+                      </Card>
+                      <Card
+                        id={reviewSectionId(doc.id, "glossary")}
+                        title="Glossary"
+                      >
+                        {doc.glossary.map((g, i) => (
+                          <Field key={i} title={g.term}>
+                            {g.meaning}
+                          </Field>
+                        ))}
+                      </Card>
+                    </>
+                  ) : null}
+                  {ending ? (
+                    <>
+                      <Card id={ending.id} title={name(ending.id)}>
+                        <p>
+                          {ending.type === "historical"
+                            ? "Historical ending"
+                            : ending.type === "alternative"
+                              ? "Alternative ending"
+                              : "Hidden ending"}
+                        </p>
+                        <Field title="Summary">{ending.summary}</Field>
+                        <Field title="Epilogue">{ending.epilogue}</Field>
+                        <Citations
+                          label={ending.sourceLabel}
+                          citations={ending.citations}
+                          sources={sources}
+                        />
+                      </Card>
+                      <Card
+                        id={reviewSectionId(ending.id, "interview")}
+                        title="Interview"
+                      >
+                        <Field title="Interviewer">
+                          {ending.interview.interviewer}
+                        </Field>
+                        <Field title="Question">
+                          {ending.interview.question}
+                        </Field>
+                        {ending.interview.verdicts.map((v) => (
+                          <Block key={v.id} id={v.id} title={name(v.id)}>
+                            <div className="flex flex-wrap gap-3">
+                              Evidence to discuss:{" "}
+                              {v.counterPoints.map((id) => (
+                                <span key={id}>{link(id)}</span>
+                              ))}
+                            </div>
+                          </Block>
+                        ))}
+                        <Field title="Follow-up response">
+                          {ending.interview.generalCounter}
+                        </Field>
+                      </Card>
+                    </>
+                  ) : null}
+                </>
+              )}
+            </React.Fragment>
+          </div>
         </div>
       </div>
     </div>

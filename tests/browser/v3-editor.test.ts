@@ -19,6 +19,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
     const root = resolve("apps/web");
     const vite = await createServer({
       configFile: false,
+      cacheDir: resolve("node_modules/.vite/v3-editor"),
       root,
       publicDir: false,
       server: {

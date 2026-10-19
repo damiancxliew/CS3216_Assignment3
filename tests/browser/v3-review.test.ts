@@ -28,6 +28,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
     const root = resolve("apps/web");
     const vite = await createServer({
       configFile: false,
+      cacheDir: resolve("node_modules/.vite/v3-review"),
       root,
       publicDir: false,
       server: {
@@ -112,6 +113,18 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         await page.setViewportSize(viewport);
         await page.goto(vite.resolvedUrls!.local[0]!);
         await page.getByRole("tab", { name: "Stages", exact: true }).waitFor();
+        await page
+          .getByRole("tablist")
+          .evaluate((element) =>
+            element.scrollIntoView({ block: "start", behavior: "instant" }),
+          );
+        expect(
+          await page
+            .getByRole("tablist")
+            .evaluate((element) =>
+              Math.abs(element.getBoundingClientRect().top),
+            ),
+        ).toBeLessThanOrEqual(1);
         const panel = page.getByRole("region", { name: "Review details" });
         const dimensions: { height: number; tabs: number; panel: number }[] =
           [];
@@ -120,7 +133,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           const navigation = page.getByRole("navigation", {
             name: `${label} items`,
           });
-          const owner = spec[tab as "stages" | "characters" | "documents" | "endings"][0].id;
+          const owner =
+            spec[tab as "stages" | "characters" | "documents" | "endings"][0]
+              .id;
           const visit = async (entries: ReviewIndexEntry[]) => {
             for (const entry of entries) {
               await navigation
@@ -240,7 +255,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         expect(headings).toContain("Passage 1");
         for (const passage of spec.documents[0].keyPassages) {
           expect(headings).not.toContain(passage.id);
-          expect(await panel.locator("code").filter({ hasText: passage.id }).count()).toBeGreaterThan(0);
+          expect(
+            await panel.locator("code").filter({ hasText: passage.id }).count(),
+          ).toBeGreaterThan(0);
         }
 
         for (const theme of ["light", "dark"]) {
