@@ -162,6 +162,12 @@ Retry appends:
 - new tests/api/v3-ai-fix.test.ts (fake LlmClient): good proposal → ok + converted edits (digit strings → numbers, value_json parsed); bad then good → ok after retry and the retry message contains `<still_failing>`; bad twice → no-fix; no errors → no-errors; skeleton fix happy path + skeletonChanges diff unit cases.
 - packages/generation tests: finalRepair with `frozen` does not redo the frozen part.
 
+## Backend implementation status
+
+PR #286 implements sections 1–8 and integrates the source allowlist from #281. Guided creation and its brief reply are gated by `NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED=1`; leave it unset or `0` until the pause screens, Fix-with-AI panel, and teacher-page routing are implemented. Existing guided jobs can still continue through the server actions.
+
+The remaining feature work is the React UI and a recorded browser walkthrough. The backend has an offline integration test covering all five pauses with teacher edits at details, endings, and reveal. The database test verifies pause drafts default to null, service-role writes and clears work, authenticated writes are refused, and other schools cannot read the draft.
+
 ## Verification (narrowest)
 `npm run lint`, `npm run typecheck`, `npx vitest run tests/api/v3-brief.test.ts tests/api/v3-generation.test.ts tests/api/v3-editing.test.ts tests/api/v3-ai-fix.test.ts tests/api/v3-fake-passes.test.ts`, the generation final-repair test file, `git diff --check`, migration applied locally without errors.
 
