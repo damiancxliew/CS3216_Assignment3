@@ -4,10 +4,12 @@
  * `turn.ts` when an answer isn't plain. Client-safe: no model access here.
  */
 import { z } from "zod";
+import { guidedModeEnabled } from "@/lib/v3/flag";
 
-export const SLOT_ORDER = ["sources", "episode", "focus", "readingLevel", "timer", "mode", "confirm"] as const;
+export const SLOT_ORDER = ["sources", "episode", "focus", "readingLevel", "timer", "mode", "allowlist", "confirm"] as const;
 export type SlotName = (typeof SLOT_ORDER)[number];
 export type Slot = { name: SlotName };
+export type BriefSourcePolicy = { allowAny: boolean; extraDomains: string[] };
 
 export const SLOT_KEYS = {
   episode: "episode",
@@ -36,20 +38,29 @@ export const briefDraftV3Schema = z.object({
   readingLevel: z.enum(["sec", "jc"]).optional(),
   timerMinutes: z.union([z.number().int().min(10).max(120), z.null()]).optional(),
   mode: z.enum(["standard", "quick", "guided"]).optional(),
+  sourcePolicy: z.union([
+    z.object({ allowAny: z.boolean(), extraDomains: z.array(z.string().max(253)).max(20) }),
+    z.null(),
+  ]).optional(),
 });
 export type BriefDraftV3 = z.infer<typeof briefDraftV3Schema>;
 
 /** What `startFromBrief` needs: every slot filled (focus may be the empty string). */
 export function completeDraft(
   draft: BriefDraftV3,
-): draft is Required<Omit<BriefDraftV3, "focus">> & { focus: string; timerMinutes: number | null } {
+): draft is Required<Omit<BriefDraftV3, "focus" | "sourcePolicy">> & {
+  focus: string;
+  timerMinutes: number | null;
+  sourcePolicy?: BriefSourcePolicy;
+} {
   return (
     draft.sources !== undefined &&
     draft.episode !== undefined &&
     draft.focus !== undefined &&
     draft.readingLevel !== undefined &&
     draft.timerMinutes !== undefined &&
-    draft.mode !== undefined
+    draft.mode !== undefined &&
+    draft.sourcePolicy !== null
   );
 }
 
@@ -102,6 +113,10 @@ export function currentSlot(draft: BriefDraftV3): Slot {
       if (draft.sources === undefined) return { name };
       continue;
     }
+    if (name === "allowlist") {
+      if (draft.sourcePolicy === null) return { name };
+      continue;
+    }
     if (draft[SLOT_KEYS[name]] === undefined) return { name };
   }
   return { name: "confirm" };
@@ -110,6 +125,7 @@ export function currentSlot(draft: BriefDraftV3): Slot {
 /** Clears a slot so the machine asks it again. */
 export function clearSlot(draft: BriefDraftV3, slot: Slot): BriefDraftV3 {
   if (slot.name === "confirm" || slot.name === "sources") return draft;
+  if (slot.name === "allowlist") return { ...draft, sourcePolicy: null };
   const next = { ...draft };
   delete next[SLOT_KEYS[slot.name]];
   return next;
@@ -134,11 +150,17 @@ export const QUESTIONS: Record<SlotName, string> = {
   readingLevel: "Which reading level is the class?",
   timer: "How long should the adventure run? Students see a countdown for each stage.",
   mode: "How do you want to check the adventure?",
+  allowlist:
+    "I look for outside sources only on trusted sites — national archives, the National Library Board, Roots.sg, universities, museums and encyclopaedias. Add other sites (for example biblioasia.nlb.gov.sg, example.org), or allow any credible cited source.",
   confirm: "Here’s the brief. Create the adventure, or change anything first.",
 };
 
 export const TIMER_RECOMMENDED = "45 minutes (recommended)";
 export const TIMER_OFF = "No timer";
+export const ALLOWLIST_DEFAULT = "Use the default sites";
+export const ALLOWLIST_ANY = "Allow any credible cited source";
+export const ANY_SOURCE_WARNING =
+  "Generation may cite pages from any site it finds. Review the content of each site before you use the adventure with students.";
 
 const READING_LEVEL_LABELS: Record<"sec" | "jc", string> = { sec: "Sec", jc: "JC" };
 const MODE_LABELS: Record<"standard" | "quick" | "guided", string> = {
@@ -167,8 +189,16 @@ export function quickReplies(draft: BriefDraftV3, slot: Slot): string[] {
     case "timer":
       return [TIMER_RECOMMENDED, TIMER_OFF];
     case "mode":
-      return [MODE_LABELS.standard, MODE_LABELS.quick, "Guided: check after every pass"];
+      return [MODE_LABELS.standard, MODE_LABELS.quick, ...(guidedModeEnabled() ? ["Guided: check after every pass"] : [])];
+    case "allowlist":
+      return [ALLOWLIST_DEFAULT, ALLOWLIST_ANY];
     case "confirm":
       return ["Create"];
   }
+}
+
+export function sourcePolicyLabel(policy: BriefSourcePolicy | undefined): string {
+  if (policy?.allowAny) return "Any credible cited source";
+  if (!policy || policy.extraDomains.length === 0) return "Default sites";
+  return `Default sites + ${policy.extraDomains.join(", ")}`;
 }

@@ -79,6 +79,7 @@ export const MessageView = z.object({
   roomId: Id.nullable(),
   text: z.string(),
   insertedNoteId: Id.nullable(),
+  stageIndex: StageIndex.nullable(),
   at: Timestamp,
 })
 export type MessageView = z.infer<typeof MessageView>
@@ -197,6 +198,8 @@ export const PlayerView = z.object({
   currentRoomId: Id.nullable(),
   /** Characters in the current room only. */
   characters: z.array(CharacterView),
+  /** Characters who appear in the transcript (have a line with their characterId), so the log can name people outside the current room; only characters the student has already met. */
+  speakers: z.array(z.object({ id: Id, name: z.string(), title: z.string() })),
   messages: z.array(MessageView),
   notes: z.array(NoteView),
   documents: z.array(DocumentView),

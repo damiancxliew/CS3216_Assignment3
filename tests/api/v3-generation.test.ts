@@ -90,7 +90,7 @@ const skeleton = validateSkeleton({
 
 const schoolId = "school-1";
 const ownerId = "user-1";
-const env = { V3_ENABLED: "1", V3_SCHOOL_IDS: schoolId } as NodeJS.ProcessEnv;
+const env = { V3_ENABLED: "1", V3_SCHOOL_IDS: schoolId, NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED: "1" } as NodeJS.ProcessEnv;
 
 const uploadDoc: ExtractedDocument = {
   id: "handout",
@@ -197,7 +197,17 @@ type Harness = Awaited<ReturnType<typeof makeJob>>;
 async function briefingAtConfirm(
   { briefStore, sources, adventures }: Harness,
   mode: "quick" | "standard" | "guided" = "quick",
-  { owner = ownerId, school = schoolId, timerMinutes = 45 }: { owner?: string; school?: string; timerMinutes?: number | null } = {},
+  {
+    owner = ownerId,
+    school = schoolId,
+    timerMinutes = 45,
+    sourcePolicy,
+  }: {
+    owner?: string;
+    school?: string;
+    timerMinutes?: number | null;
+    sourcePolicy?: { allowAny: boolean; extraDomains: string[] };
+  } = {},
 ) {
   const adventureId = await briefStore.create({ schoolId: school, ownerId: owner });
   adventures.rows.set(adventureId, { row: { id: adventureId, schoolId: school, ownerId: owner, status: "briefing" as const }, spec: null, specVersion: 0 });
@@ -211,6 +221,7 @@ async function briefingAtConfirm(
       readingLevel: "sec",
       timerMinutes,
       mode,
+      ...(sourcePolicy ? { sourcePolicy } : {}),
     },
     sources: [{ id: "handout", title: "handout", kind: "text" }],
   });
@@ -221,7 +232,7 @@ async function briefingAtConfirm(
 async function start(
   harness: Harness,
   mode: "quick" | "standard" | "guided" = "quick",
-  options: { owner?: string; school?: string; timerMinutes?: number | null } = {},
+  options: { owner?: string; school?: string; timerMinutes?: number | null; sourcePolicy?: { allowAny: boolean; extraDomains: string[] } } = {},
 ) {
   const adventureId = await briefingAtConfirm(harness, mode, options);
   const result = await startFromBrief(harness.deps, harness.jobs, harness.briefStore, options.owner ?? ownerId, adventureId, env);
@@ -260,6 +271,7 @@ describe("v3 generation job", () => {
     const entry = adventures.rows.get(adventureId)!;
     expect(entry.row.status).toBe("draft");
     expect(entry.spec).toEqual(spec);
+    expect(entry.spec?.authoring?.sourcePolicy).toBeUndefined();
     expect(entry.specVersion).toBe(1);
     expect(queuePortraits).toHaveBeenCalledOnce();
     expect(queuePortraits).toHaveBeenCalledWith(adventureId, entry.specVersion);
@@ -619,13 +631,28 @@ describe("startFromBrief guards", () => {
     expect(await startFromBrief(deps, jobs, briefStore, ownerId, standard, env)).toEqual({ ok: true });
     expect((await store.list(standard)).map((r) => r.name)).toEqual(["sources", "skeleton"]);
   });
+
+  it("carries a selected policy into the sources pass and saved spec", async () => {
+    const harness = await makeJob();
+    const { deps, jobs, adventures, passes, store } = harness;
+    const sourcePolicy = { allowAny: false, extraDomains: ["example.org"] };
+    const adventureId = await briefingAtConfirm(harness, "quick", { sourcePolicy });
+
+    expect(await startFromBrief(deps, jobs, harness.briefStore, ownerId, adventureId, env)).toEqual({ ok: true });
+    expect((await store.list(adventureId)).find((row) => row.name === "sources")?.input).toMatchObject({ sourcePolicy });
+    expect((await jobs.drain({ jobId: adventureId }))?.status).toBe("succeeded");
+    expect(passes.sources).toHaveBeenCalledWith(expect.objectContaining({ policy: sourcePolicy }), expect.anything());
+    expect(adventures.rows.get(adventureId)?.spec?.authoring?.sourcePolicy).toEqual(sourcePolicy);
+    expect(spec.authoring?.sourcePolicy).toBeUndefined();
+  });
 });
 
 describe("restartGeneration", () => {
   it("copies the uploads and reopens the old brief at confirm", async () => {
     const harness = await makeJob({ skeleton: vi.fn(async () => ({ ok: false, skeleton: undefined, issues: [{ code: "e", path: "x", message: "no" }], warnings: [], metrics: { calls: [], totalCostUsd: 0 } })) as never });
     const { deps, jobs, briefStore, sources, store } = harness;
-    const { adventureId } = await start(harness, "quick", { timerMinutes: null });
+    const sourcePolicy = { allowAny: true, extraDomains: [] };
+    const { adventureId } = await start(harness, "quick", { timerMinutes: null, sourcePolicy });
     await jobs.drain({ jobId: adventureId });
 
     const result = await restartGeneration(deps, briefStore, store, ownerId, adventureId, env);
@@ -639,6 +666,7 @@ describe("restartGeneration", () => {
     // the old brief is at the confirm slot
     expect(row.state?.draft.episode).toBe("Founding of Singapore, 1819");
     expect(row.state?.draft.mode).toBe("quick");
+    expect(row.state?.draft.sourcePolicy).toEqual(sourcePolicy);
     expect(row.state?.sources.map((s) => s.id)).toEqual(["handout", "outside-1"]);
     expect(row.state?.messages.at(-1)?.slot).toBe("confirm");
   });
@@ -856,4 +884,14 @@ describe("guided pauses", () => {
       expect((await h.adventures.get(id))!.status).toBe("draft");
     }
   });
+});
+
+
+it("does not enqueue a crafted guided brief while the feature is disabled", async () => {
+  const h = await makeJob();
+  const id = await briefingAtConfirm(h, "guided");
+  const result = await startFromBrief(h.deps, h.jobs, h.briefStore, ownerId, id, { ...env, NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED: "0" });
+  expect(result).toHaveProperty("error");
+  expect(await h.store.list(id)).toEqual([]);
+  expect((await h.briefStore.load(id))!.status).toBe("briefing");
 });

@@ -56,6 +56,7 @@ export function createContext(spec: EngineSpec, state: EngineState, action: Engi
         roomId: state.playerRoomId,
         text,
         insertedNoteId: extra.insertedNoteId ?? null,
+        stageIndex: state.phase === 'briefing' ? null : state.stageIndex,
         at: deps.now,
       }
       state.transcript.push(message)

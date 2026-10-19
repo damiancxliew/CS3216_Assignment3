@@ -64,7 +64,11 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
     "v3.gen.sources",
     guarded(2, async (_ctx, deps, brief) => {
       const result = await deps.passes.sources(
-        { episode: brief.episode, ...(brief.teacherNotes !== undefined ? { teacherNotes: brief.teacherNotes } : {}) },
+        {
+          episode: brief.episode,
+          ...(brief.teacherNotes !== undefined ? { teacherNotes: brief.teacherNotes } : {}),
+          ...(brief.sourcePolicy ? { policy: brief.sourcePolicy } : {}),
+        },
         { search: deps.search(brief) },
       );
       await deps.sources.saveOutside(brief.adventureId, result.sources, result.documents);
@@ -215,7 +219,13 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
     guarded(3, async (ctx, deps, brief) => {
       // jobs queued before the check step existed save the reveal spec
       const spec = ((ctx.outputs.check ?? ctx.outputs.reveal) as unknown as { spec: AdventureSpec }).spec;
-      const validated = validateSpec(spec);
+      const sourcePolicy = brief.sourcePolicy;
+      const specForValidation =
+        sourcePolicy && (sourcePolicy.allowAny || sourcePolicy.extraDomains.length > 0)
+          ? { ...spec, authoring: { ...(spec.authoring ?? {}), sourcePolicy } }
+          : spec;
+      // Fake-pass outside sources use example.invalid URLs, so leave default policy unset.
+      const validated = validateSpec(specForValidation);
       if (!validated.ok) throw asError("final spec", validated.issues);
       const version = await deps.adventures.saveSpec(brief.adventureId, validated.spec);
       await deps.adventures.setStatus(brief.adventureId, "draft", ["generating"]);

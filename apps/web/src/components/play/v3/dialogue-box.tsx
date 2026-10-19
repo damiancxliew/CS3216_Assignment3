@@ -41,8 +41,10 @@ type MomentProps = {
 
 export type DialogueBoxProps = TalkProps | MomentProps;
 
-export const boxClass =
-  "absolute bottom-2 left-1/2 z-20 flex max-h-[55%] w-[calc(100%-1rem)] max-w-[56rem] -translate-x-1/2 overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:bottom-4 sm:w-[calc(100%-2rem)]";
+const boxFrameClass =
+  "absolute left-1/2 z-20 flex max-h-[55%] w-[calc(100%-1rem)] max-w-[56rem] -translate-x-1/2 overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433] sm:w-[calc(100%-2rem)]";
+
+export const boxClass = `${boxFrameClass} bottom-2 sm:bottom-4`;
 
 function wordCount(text: string) {
   return text.match(/\S+/g)?.length ?? 0;
@@ -351,6 +353,7 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
 }
 
 function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict }: MomentProps) {
+  const section = useRef<HTMLElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { shown: reactionShown, done: reactionDone, skip: skipReaction } = useTypewriter(
     moment.reaction ?? "",
@@ -366,7 +369,9 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isTextEntryTarget(event.target)) return;
+      if (event.defaultPrevented || document.querySelector("dialog[open]") || isTextEntryTarget(event.target)) return;
+      // Global decision shortcuts must not activate while using another control, such as the Journal.
+      if (event.target instanceof HTMLElement && event.target.closest("button, a, [role='tab']") && !section.current?.contains(event.target)) return;
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       const delta = key === "ArrowUp" || key === "w" ? -1 : key === "ArrowDown" || key === "s" ? 1 : 0;
       const select = key === "Enter" || event.key === " " || event.code === "Space";
@@ -401,8 +406,9 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
 
   return (
     <section
+      ref={section}
       aria-label="A defining moment"
-      className={`${boxClass} flex-row items-stretch gap-2 px-2 py-2 sm:gap-3 sm:px-3 sm:py-3`}
+      className={`${boxFrameClass} bottom-28 flex-row items-stretch gap-2 px-2 py-2 sm:gap-3 sm:px-3 sm:py-3`}
     >
       {decider ? (
         <div className="flex shrink-0 items-center">

@@ -10,7 +10,7 @@ import type { AdventureSpec, CheckIssue, SkeletonShape } from "@adventure/spec-v
 import type { createJobs, EnqueueStep, JobStep, Json } from "@adventure/jobs";
 
 import type { Viewer } from "@/lib/auth/viewer";
-import { v3SchoolAllowed } from "@/lib/v3/flag";
+import { guidedModeEnabled, v3SchoolAllowed } from "@/lib/v3/flag";
 import { completeDraft, type BriefStateV3 } from "@/lib/v3/brief/schema";
 import type { V3BriefStore } from "@/lib/v3/brief/store";
 
@@ -81,6 +81,8 @@ export async function startFromBrief(
   const draft = row.state?.draft;
   if (!draft || !completeDraft(draft) || (row.state?.sources.length ?? 0) === 0) return { error: "The brief isn’t complete yet" };
 
+  if (draft.mode === "guided" && !guidedModeEnabled(env)) return { error: "Guided review is not available yet. Choose Standard or Quick." };
+
   const brief: GenerationBrief = {
     adventureId,
     schoolId: row.schoolId,
@@ -90,6 +92,7 @@ export async function startFromBrief(
     readingLevel: draft.readingLevel,
     timerMinutes: draft.timerMinutes,
     mode: draft.mode,
+    ...(draft.sourcePolicy ? { sourcePolicy: draft.sourcePolicy } : {}),
   };
 
   if (!(await briefStore.startFromBrief(adventureId, draft.episode))) return { error: "already started" };
@@ -141,6 +144,7 @@ export async function restartGeneration(
         readingLevel: oldBrief?.readingLevel ?? "sec",
         timerMinutes: oldBrief?.timerMinutes === undefined ? 45 : oldBrief.timerMinutes,
         mode: oldBrief?.mode ?? "quick",
+        ...(oldBrief?.sourcePolicy ? { sourcePolicy: oldBrief.sourcePolicy } : {}),
       },
       messages: [
         {

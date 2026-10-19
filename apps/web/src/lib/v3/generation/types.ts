@@ -9,4 +9,5 @@ export interface GenerationBrief {
   readingLevel: "sec" | "jc";
   timerMinutes?: number | null;
   mode: GenerationMode;
+  sourcePolicy?: { allowAny: boolean; extraDomains: string[] };
 }
