@@ -19,8 +19,8 @@ describe('flow', () => {
     expect(playing.stage?.intro).toBeNull()
     expect(playing.timer).toEqual({ endsAt: game.now + 10 * MINUTE, durationMs: 10 * MINUTE })
     expect(playing.characters.map((character) => character.id)).toEqual(['a', 'm'])
-    expect(playing.characters[0]).toMatchObject({ stanceId: 'a2', portraitKey: 'a:a2' })
-    expect(playing.characters[1]).toMatchObject({ stanceId: null, portraitKey: 'm' })
+    expect(playing.characters[0]).toMatchObject({ stanceId: 'a2', stance: { level: 1 }, portraitKey: 'a:a2' })
+    expect(playing.characters[1]).toMatchObject({ stanceId: null, stance: null, portraitKey: 'm' })
     expect(playing.documents.map((document) => document.id)).toEqual(['memo'])
   })
 

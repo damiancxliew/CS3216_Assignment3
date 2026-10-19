@@ -5,6 +5,7 @@ import type { CharacterView, DefiningMomentView, MessageView } from "@adventure/
 import { Pixelify_Sans } from "next/font/google";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 
+import { StanceTag, type StanceShift } from "@/components/play/v3/story-lines";
 import { portraitUrl } from "@/lib/play/v3/portraits";
 
 export const pixelFont = Pixelify_Sans({
@@ -24,6 +25,7 @@ type TalkProps = {
   portraitBase: PortraitBase;
   messages: DialogueMessage[];
   busy: boolean;
+  stanceShift?: StanceShift | null;
   onSend: (text: string) => void;
   onOpenNotes: () => void;
   onClose: () => void;
@@ -180,7 +182,7 @@ export function ContinueIndicator() {
   );
 }
 
-function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenNotes, onClose }: TalkProps) {
+function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = null, onSend, onOpenNotes, onClose }: TalkProps) {
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -261,8 +263,9 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
       </div>
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex shrink-0 items-start pr-9 pb-2 pt-1">
-          <h2 className="min-w-0 flex-1">
+          <h2 className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <NameTag>{character.name}</NameTag>
+            {character.stance ? <StanceTag label={character.stance.label} shift={stanceShift} /> : null}
           </h2>
         </header>
         <button
@@ -306,7 +309,7 @@ function TalkDialogue({ character, portraitBase, messages, busy, onSend, onOpenN
                 <p className="mb-0.5 text-xs font-bold uppercase tracking-wide text-[#5c6472]">{speaker}</p>
               ) : null}
               {message.text ? (
-                <p className={`whitespace-pre-wrap text-[15px] leading-relaxed sm:text-[17px] ${message.kind === "narration" || message.kind === "thought" ? "italic text-[#3b4252]" : ""}`}>
+                <p className={`whitespace-pre-wrap text-[15px] leading-relaxed sm:text-[17px] ${message.kind === "narration" || message.kind === "thought" ? "italic text-[#3b4252]" : message.kind === "notice" ? "font-semibold italic text-[#8a5a1c]" : ""}`}>
                   {message.id === animatingMessage?.id ? (
                     <>
                       <span className="sr-only">{message.text}</span>

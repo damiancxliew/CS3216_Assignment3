@@ -11,6 +11,7 @@ import { DialogueBox } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
 import { NotePickup, useNotePickups } from "@/components/play/v3/note-pickup";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
+import { StoryToast, talkLines, useStanceShifts, useStoryToasts } from "@/components/play/v3/story-lines";
 import { StageIsland } from "@/components/play/v3/stage-island";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
@@ -75,6 +76,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const mapSection = useRef<HTMLElement>(null);
   const pickup = useNotePickups(view.notes);
   const talkingRoomId = useRef<string | null>(null);
+  const seenAtTalkOpen = useRef<ReadonlySet<string>>(new Set());
   const acknowledgeIslandRequest = useCallback((key: number) => {
     setIslandRequest((current) => current?.key === key ? null : current);
   }, []);
@@ -99,17 +101,22 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     if (!ready) setNearbyId(null);
   }, []);
   const messages = useMemo(
-    // The talk box shows the room's conversation only; story lines (narration, notices, thoughts) stay out of it.
-    () => view.messages.filter((item) =>
-      item.roomId === view.currentRoomId && (item.kind === "player" || item.kind === "character"),
-    ),
-    [view.currentRoomId, view.messages],
+    () => openCharacter ? talkLines(view.messages, view.currentRoomId, openCharacter.id, seenAtTalkOpen.current) : [],
+    [openCharacter, view.currentRoomId, view.messages],
   );
+  const storyToasts = useStoryToasts(view.messages, view.phase === "stage" && !isMoment && !isTalkOpen);
+  const stanceShifts = useStanceShifts(view.characters);
   const dialogueMessages = useMemo(() => messages.map((item) => ({
     ...item,
     speaker: item.kind === "player"
       ? "You"
-      : item.characterId === null
+      : item.kind === "thought"
+        ? "Your thought"
+        : item.kind === "narration"
+          ? "Meanwhile"
+          : item.kind === "notice"
+            ? ""
+            : item.characterId === null
         ? "Story"
         : view.characters.find((character) => character.id === item.characterId)?.name ?? "Character",
     insertedNoteText: item.insertedNoteId
@@ -123,9 +130,10 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const openTalk = useCallback((id: string) => {
     if (view.definingMoment !== null || !view.characters.some((character) => character.id === id)) return;
     talkingRoomId.current = view.currentRoomId;
+    seenAtTalkOpen.current = new Set(view.messages.map((message) => message.id));
     setCharacterId(id);
     setTalkingTo(id);
-  }, [view.characters, view.currentRoomId, view.definingMoment]);
+  }, [view.characters, view.currentRoomId, view.definingMoment, view.messages]);
 
   const closeTalk = useCallback(() => {
     setTalkingTo(null);
@@ -241,6 +249,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               portraitBase={portraitBase}
               messages={dialogueMessages}
               busy={busy}
+              stanceShift={stanceShifts.get(openCharacter.id) ?? null}
               onSend={(text) => {
                 if (characterId) send({ type: "message", characterId, text });
               }}
@@ -366,6 +375,15 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
         </V3ScrollDialog>
       ) : null}
 
+      {storyToasts.current ? (
+        <StoryToast
+          key={storyToasts.current.id}
+          message={storyToasts.current}
+          characters={view.characters}
+          shift={storyToasts.current.characterId ? stanceShifts.get(storyToasts.current.characterId) ?? null : null}
+          onDismiss={storyToasts.dismiss}
+        />
+      ) : null}
       {pickup.current ? (
         <NotePickup
           key={pickup.current.id}
