@@ -365,12 +365,12 @@ export function StageIsland({
   }, [activeTab, definingMoment]);
 
   const showActivity = activity && !view.pendingCheck;
-  const positionClass = definingMoment ? "left-16 sm:left-16" : "left-2 sm:left-4";
+  const layerClass = definingMoment ? "z-30" : "z-10";
 
   return (
     <section
       aria-label="Journal"
-      className={`absolute bottom-2 z-10 w-[min(22rem,calc(100%_-_1rem))] rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433] sm:bottom-4 ${positionClass}`}
+      className={`absolute bottom-2 left-2 w-[min(22rem,calc(100%_-_1rem))] rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433] sm:bottom-4 sm:left-4 ${layerClass}`}
     >
       <header className="shrink-0 p-3">
         <h2 className="text-xs font-black uppercase tracking-[0.14em]">
@@ -381,26 +381,28 @@ export function StageIsland({
             aria-controls="stage-island-panel"
             aria-label={`Stage ${stage ? stage.index + 1 : 1} of ${stage?.count ?? 1}; ${view.notes.length} notes, ${view.documents.length} documents, ${logLineCount(view.messages)} log lines, ${expanded ? "collapse" : "expand"} island`}
             onClick={toggleIsland}
-            className="flex min-h-7 w-full items-center gap-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]"
+            className="grid min-h-7 w-full grid-cols-[1fr_auto_auto] items-center gap-x-2 gap-y-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]"
           >
             <span className="mr-auto shrink-0">Journal</span>
-            {view.pendingCheck ? (
-              <span role="status" className="flex min-w-0 flex-1 items-center gap-1.5 truncate normal-case text-xs font-bold tracking-normal">
-                <LoaderCircle size={14} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none" />
-                <span className="truncate">Adding to your notes…</span>
-              </span>
-            ) : showActivity ? (
-              <span aria-live="polite" className="min-w-0 flex-1 truncate normal-case text-xs font-bold tracking-normal">
-                {activity}
-              </span>
-            ) : (
-              <IslandCounts view={view} />
-            )}
             <span className="shrink-0 whitespace-nowrap rounded-full border border-[#1f2433]/35 bg-white/70 px-2 py-1 text-xs font-bold normal-case tracking-normal">
               Stage {stage ? stage.index + 1 : 1}/{stage?.count ?? 1}
             </span>
             <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-md">
               <ChevronDown size={16} className={`transition-transform duration-200 motion-reduce:transition-none ${expanded ? "" : "rotate-180"}`} />
+            </span>
+            <span className="col-span-3 min-h-5 min-w-0 normal-case tracking-normal">
+              {view.pendingCheck ? (
+                <span role="status" className="flex min-w-0 items-center gap-1.5 truncate normal-case text-xs font-bold tracking-normal">
+                  <LoaderCircle size={14} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none" />
+                  <span className="truncate">Adding to your notes…</span>
+                </span>
+              ) : showActivity ? (
+                <span aria-live="polite" className="block min-w-0 truncate normal-case text-xs font-bold tracking-normal">
+                  {activity}
+                </span>
+              ) : (
+                <IslandCounts view={view} />
+              )}
             </span>
           </button>
         </h2>

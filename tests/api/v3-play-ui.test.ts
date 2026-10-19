@@ -488,7 +488,7 @@ describe("v3 stage play screen", () => {
         pulseKey: "note-1",
       }));
       expect(markup).toContain(adventureStyles.islandPulse);
-      expect(markup).toMatch(new RegExp(`<span aria-hidden="" class="pointer-events-none absolute inset-0 rounded-\\[inherit\\] ${adventureStyles.islandPulse}"></span>`));
+      expect(markup).toMatch(new RegExp(`<span aria-hidden="true" class="pointer-events-none absolute inset-0 rounded-\\[inherit\\] ${adventureStyles.islandPulse}"></span>`));
     } finally {
       vi.unstubAllGlobals();
     }
