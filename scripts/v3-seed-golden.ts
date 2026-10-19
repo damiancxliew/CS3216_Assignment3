@@ -21,6 +21,17 @@ function assertLocalSupabaseUrl(value: string) {
   }
 }
 
+/** Publishing points students at a saved version; the upsert alone leaves `published_version` empty. */
+async function publishCurrentVersion(admin: ReturnType<typeof serviceClient>, id: string) {
+  const { data, error } = await admin.from("adventures_v3").select("spec_version").eq("id", id).single();
+  if (error) throw error;
+  const { error: publishError } = await admin
+    .from("adventures_v3")
+    .update({ published_version: data.spec_version })
+    .eq("id", id);
+  if (publishError) throw publishError;
+}
+
 async function seedGoldenAdventure() {
   const configuredUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? SUPABASE_URL;
   assertLocalSupabaseUrl(configuredUrl);
@@ -69,6 +80,7 @@ async function seedGoldenAdventure() {
     spec,
   }, { onConflict: "id" });
   if (adventureError) throw adventureError;
+  await publishCurrentVersion(admin, ADVENTURE_ID);
 
   const existingTeacher = users.users.find((user) => user.email === TEACHER_EMAIL);
   const teacherResult = existingTeacher
@@ -95,6 +107,7 @@ async function seedGoldenAdventure() {
     spec,
   }, { onConflict: "id" });
   if (teacherAdventureError) throw teacherAdventureError;
+  await publishCurrentVersion(admin, TEACHER_ADVENTURE_ID);
 
   const appUrl = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
   console.log([
