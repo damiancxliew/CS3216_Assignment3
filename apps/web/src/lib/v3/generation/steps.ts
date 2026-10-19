@@ -11,11 +11,16 @@ import type { AdventureSpec, CheckIssue, SkeletonShape } from "@adventure/spec-v
 import type { Json, StepContext, StepDefinition } from "@adventure/jobs";
 import { defineStep } from "@adventure/jobs";
 
+import { pathOwner } from "@adventure/generation/v3";
+import { applyTeacherEdits, capturedSources } from "@/lib/v3/edit/apply";
+import type { V3Edit } from "@/lib/v3/edit/commands";
 import { v3SchoolAllowed } from "@/lib/v3/flag";
 
 import type { GenerationDeps } from "./deps";
 import type { GenerationBrief } from "./types";
 
+export type TeacherEdits = Partial<Record<"details" | "endings" | "reveal", V3Edit[]>>;
+const editsOf = (input: Json) => (input as unknown as { teacherEdits?: TeacherEdits })?.teacherEdits ?? {};
 const PASS_BUDGET_MS = 240_000;
 
 /** Job row names (the `name` of the enqueued step); definitions are `v3.gen.*`. */
@@ -38,7 +43,8 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
   const guarded = <I extends Json, O extends Json>(maxAttempts: number, body: (ctx: StepContext<I>, deps: GenerationDeps, brief: GenerationBrief) => Promise<O>) =>
     async (ctx: StepContext<I>): Promise<O> => {
       const deps = getDeps();
-      const brief = (ctx.name === "details" ? (ctx.input as unknown as { brief: GenerationBrief }).brief : (ctx.input as unknown as GenerationBrief));
+      const input = ctx.input as unknown as GenerationBrief | { brief: GenerationBrief };
+      const brief = "brief" in input ? input.brief : input;
       if (!v3SchoolAllowed(brief.schoolId)) throw new Error(`v3 generation is not enabled for school ${brief.schoolId}`);
       try {
         return await body(ctx, deps, brief);
@@ -67,6 +73,7 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
       );
       await deps.sources.saveOutside(brief.adventureId, result.sources, result.documents);
       await deps.recordSearchUsage(brief, result.usage, null);
+      if (brief.mode === "guided") await deps.adventures.setStatus(brief.adventureId, "needs_review", ["generating"]);
       return {
         outsideSourceIds: result.sources.map((s) => s.id),
         rejected: result.rejected,
@@ -85,7 +92,7 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
         { llm: deps.llm(brief), budgetMs: PASS_BUDGET_MS },
       );
       if (!result.ok || result.skeleton === undefined) throw asError("skeleton pass", result.issues);
-      if (brief.mode === "standard") await deps.adventures.setStatus(brief.adventureId, "needs_review", ["generating"]);
+      if (brief.mode === "standard" || brief.mode === "guided") await deps.adventures.setStatus(brief.adventureId, "needs_review", ["generating"]);
       return { skeleton: result.skeleton, costUsd: result.metrics.totalCostUsd } as unknown as Json;
     }),
     { maxAttempts: 2 },
@@ -108,6 +115,7 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
         { llm: deps.llm(brief) },
       );
       if (result.draft === undefined) throw asError("details pass", result.issues);
+      if (brief.mode === "guided") await deps.adventures.setStatus(brief.adventureId, "needs_review", ["generating"]);
       return {
         draft: result.draft,
         skeleton: validated.spec,
@@ -125,12 +133,13 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
     "v3.gen.endings",
     guarded(2, async (ctx, deps, brief) => {
       const documents = await deps.sources.load(brief.adventureId);
-      const draft = (ctx.outputs.details as { draft: AdventureSpec }).draft;
+      const draft = applyTeacherEdits((ctx.outputs.details as { draft: AdventureSpec }).draft, editsOf(ctx.input).details ?? [], capturedSources(documents));
       const result = await deps.passes.endings(
         { draft, documents, readingLevel: brief.readingLevel },
         { llm: deps.llm(brief), budgetMs: PASS_BUDGET_MS },
       );
       if (result.spec === undefined) throw asError("endings pass", result.issues);
+      if (brief.mode === "guided") await deps.adventures.setStatus(brief.adventureId, "needs_review", ["generating"]);
       return { spec: result.spec, parts: result.parts ?? {}, warnings: result.warnings, costUsd: result.metrics.totalCostUsd } as unknown as Json;
     }),
     { maxAttempts: 2 },
@@ -140,13 +149,14 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
     "v3.gen.reveal",
     guarded(2, async (ctx, deps, brief) => {
       const documents = await deps.sources.load(brief.adventureId);
-      const spec = (ctx.outputs.endings as { spec: AdventureSpec }).spec;
+      const spec = applyTeacherEdits((ctx.outputs.endings as { spec: AdventureSpec }).spec, editsOf(ctx.input).endings ?? [], capturedSources(documents));
       const slantedDocuments = (ctx.outputs.details as { slantedDocuments: { stageId: string; documentId: string; note: string }[] }).slantedDocuments;
       const result = await deps.passes.reveal(
         { draft: spec, sources: documents, slantedDocuments, readingLevel: brief.readingLevel },
         { llm: deps.llm(brief), budgetMs: PASS_BUDGET_MS },
       );
       if (result.spec === undefined) throw asError("reveal pass", result.issues);
+      if (brief.mode === "guided") await deps.adventures.setStatus(brief.adventureId, "needs_review", ["generating"]);
       return { spec: result.spec, parts: result.parts ?? {}, warnings: result.warnings, costUsd: result.metrics.totalCostUsd } as unknown as Json;
     }),
     { maxAttempts: 2 },
@@ -156,15 +166,26 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
     "v3.gen.check",
     guarded(2, async (ctx, deps, brief) => {
       const reveal = ctx.outputs.reveal as unknown as { spec: AdventureSpec; parts?: Parts };
-      const details = ctx.outputs.details as unknown as { skeleton?: SkeletonShape; parts?: Parts };
-      const endings = ctx.outputs.endings as unknown as { parts?: Parts };
-      const errors = specErrors(reveal.spec);
+      const details = ctx.outputs.details as unknown as { draft: AdventureSpec; skeleton?: SkeletonShape; parts?: Parts };
+      const endings = ctx.outputs.endings as unknown as { spec: AdventureSpec; parts?: Parts };
+      const documents = await deps.sources.load(brief.adventureId);
+      const sources = capturedSources(documents);
+      const teacherEdits = editsOf(ctx.input);
+      const edited = applyTeacherEdits(reveal.spec, teacherEdits.reveal ?? [], sources);
+      const errors = specErrors(edited);
       // outputs from before parts were saved have nothing to redo
       const parts = details.parts !== undefined ? { ...details.parts, ...endings.parts, ...reveal.parts } : undefined;
       const partErrors = Object.entries(parts ?? {}).flatMap(([part, record]) => record.issues.map((issue) => ({ part, issue })));
-      const asIs = { spec: reveal.spec, errors, partErrors, repaired: [], costUsd: 0 };
-      if ((errors.length === 0 && partErrors.length === 0) || parts === undefined || details.skeleton === undefined) return asIs as unknown as Json;
-      const documents = await deps.sources.load(brief.adventureId);
+      const teacherEdited = [...new Set((["details", "endings", "reveal"] as const).flatMap(pass => {
+        const spec = pass === "details" ? details.draft : pass === "endings" ? endings.spec : reveal.spec;
+        if (!details.skeleton || !spec || !parts) return [];
+        return (teacherEdits[pass] ?? []).map(edit => {
+          const path = "path" in edit ? edit.path.join(".") : "documentId" in edit ? `documents.${spec.documents.findIndex(d => d.id === edit.documentId)}` : "authoring.sourcePolicy";
+          return pathOwner(path, { skeleton: details.skeleton!, spec, parts });
+        }).filter((part): part is string => part !== null);
+      }))];
+      const asIs = { spec: edited, errors, partErrors, teacherEdited, repaired: [], costUsd: 0 };
+      if ((errors.length === 0 && partErrors.length === 0) || parts === undefined || Object.keys(parts).length === 0 || details.skeleton === undefined) return asIs as unknown as Json;
       const result = await deps.passes.check(
         {
           skeleton: details.skeleton,
@@ -172,15 +193,23 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
           readingLevel: brief.readingLevel,
           ...(brief.timerMinutes !== undefined ? { timerMinutes: brief.timerMinutes } : {}),
           parts,
+          frozen: teacherEdited,
         },
         { llm: deps.llm(brief) },
       );
-      // a repair that leaves more errors than it found is dropped
-      const kept =
-        result.errors.length + result.partErrors.length <= errors.length + partErrors.length
-          ? { spec: result.spec, errors: result.errors, partErrors: result.partErrors }
-          : { spec: reveal.spec, errors, partErrors };
-      return { ...kept, repaired: result.repaired, costUsd: result.metrics.totalCostUsd } as unknown as Json;
+      let final = result.spec;
+      try {
+        for (const pass of ["details", "endings", "reveal"] as const) final = applyTeacherEdits(final, teacherEdits[pass] ?? [], sources);
+      } catch (error) {
+        console.error("Could not replay teacher edits after repair", error);
+        return { ...asIs, costUsd: result.metrics.totalCostUsd } as unknown as Json;
+      }
+      const finalErrors = brief.mode === "guided" ? specErrors(final) : result.errors;
+      // A repair that leaves more errors than it found is dropped.
+      const kept = finalErrors.length + result.partErrors.length <= errors.length + partErrors.length
+        ? { spec: final, errors: finalErrors, partErrors: result.partErrors }
+        : { spec: edited, errors, partErrors };
+      return { ...kept, teacherEdited, repaired: result.repaired, costUsd: result.metrics.totalCostUsd } as unknown as Json;
     }),
     { maxAttempts: 2 },
   );

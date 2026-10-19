@@ -1,4 +1,4 @@
-export type GenerationMode = "quick" | "standard";
+export type GenerationMode = "quick" | "standard" | "guided";
 
 export interface GenerationBrief {
   adventureId: string;

@@ -37,10 +37,24 @@ describe('flow', () => {
   it('only lets the student talk to characters in their room', async () => {
     const game = new Harness(mini)
     await game.start()
-    await expect(game.act({ type: 'message', characterId: 'b', text: 'Hello' })).rejects.toMatchObject({ code: 'not_present' })
+    const spoken = await game.act({ type: 'message', characterId: 'a', text: 'Hello' })
+    expect(spoken.messages.at(-2)).toMatchObject({ kind: 'player', characterId: 'a', stageIndex: 0 })
+    expect(spoken.messages.at(-1)).toMatchObject({ kind: 'character', characterId: 'a', stageIndex: 0 })
     await game.act({ type: 'enterRoom', roomId: 'r2' })
-    await expect(game.act({ type: 'message', characterId: 'b', text: 'Hello' })).resolves.toBeDefined()
+    expect(game.view?.characters.map((character) => character.id)).not.toContain('a')
+    expect(game.view?.speakers).toEqual([{ id: 'a', name: 'A', title: 'Chief' }])
+    expect(game.view?.speakers.map((speaker) => speaker.id)).not.toContain('b')
     await expect(game.act({ type: 'enterRoom', roomId: 'nowhere' })).rejects.toMatchObject({ code: 'unknown_id' })
+  })
+
+  it('projects transcript messages without a stage as briefing or legacy messages', async () => {
+    const game = new Harness(mini)
+    await game.start()
+    const message = game.state.transcript[0]
+    expect(message).toBeDefined()
+    if (message === undefined) return
+    delete (message as { stageIndex?: number | null }).stageIndex
+    expect(project(mini, game.state).messages[0]).toMatchObject({ stageIndex: null })
   })
 })
 

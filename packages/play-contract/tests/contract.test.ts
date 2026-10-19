@@ -92,6 +92,7 @@ describe('PlayerView and ClassSummary', () => {
       rooms: [],
       currentRoomId: null,
       characters: [],
+      speakers: [],
       messages: [],
       notes: [],
       documents: [],

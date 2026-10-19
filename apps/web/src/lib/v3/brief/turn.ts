@@ -9,6 +9,7 @@
  * under vitest with a `FakeLlmClient`.
  */
 import { z } from "zod";
+import { guidedModeEnabled } from "@/lib/v3/flag";
 
 import type { ExtractedDocument } from "@adventure/generation/ingest";
 import { normaliseDomain } from "@adventure/generation";
@@ -123,12 +124,12 @@ export async function briefTurnV3(state: BriefStateV3, input: BriefInputV3, deps
       return ask({ ...state.draft, timerMinutes }, ctx);
     }
     case "mode": {
-      const parsed = /standard|quick/i.exec(text);
-      if (!parsed) {
-        messages.push({ role: "assistant", text: "Choose Standard or Quick.", slot: key });
+      const parsed = /standard|quick|guided/i.exec(text);
+      if (!parsed || (parsed[0].toLowerCase() === "guided" && !guidedModeEnabled())) {
+        messages.push({ role: "assistant", text: guidedModeEnabled() ? "Choose Standard, Quick or Guided." : "Choose Standard or Quick.", slot: key });
         return { ok: true, state: { ...state, messages } };
       }
-      return ask({ ...state.draft, mode: parsed[0].toLowerCase() as "standard" | "quick" }, ctx);
+      return ask({ ...state.draft, mode: parsed[0].toLowerCase() as "standard" | "quick" | "guided" }, ctx);
     }
     case "allowlist": {
       const normalized = text.toLowerCase();
