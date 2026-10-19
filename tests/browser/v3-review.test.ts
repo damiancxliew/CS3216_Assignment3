@@ -62,7 +62,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           import '/src/app/globals.css';
           const spec = ${JSON.stringify(spec)};
           createRoot(document.getElementById('root')).render(
-            <main className="mx-auto max-w-6xl p-5">
+            <main className="mx-auto max-w-6xl p-5 md:pb-0">
               <header className="mb-8 h-32"><h1>Review fixture</h1></header>
               <ReviewScreen spec={spec} sources={spec.sources} errors={[{code:'fixture', path:'documents.0.body', message:'Inspect document fixture'}]} warnings={[]} />
             </main>
@@ -125,6 +125,26 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
               Math.abs(element.getBoundingClientRect().top),
             ),
         ).toBeLessThanOrEqual(1);
+        if (viewport.width >= 768) {
+          // At the end of the page, the tabs and both scrolling panes must fit.
+          await page.evaluate(() =>
+            window.scrollTo(0, document.documentElement.scrollHeight),
+          );
+          const bounds = await page.evaluate(() => ({
+            tabsTop: document
+              .querySelector('[role="tablist"]')!
+              .getBoundingClientRect().top,
+            detailsBottom: document
+              .querySelector('[data-review-scroll]')!
+              .getBoundingClientRect().bottom,
+            indexBottom: document.querySelector('nav')!.getBoundingClientRect().bottom,
+            viewport: innerHeight,
+          }));
+          expect(bounds.tabsTop).toBeGreaterThanOrEqual(-1);
+          expect(bounds.tabsTop).toBeLessThanOrEqual(1);
+          expect(bounds.detailsBottom).toBeCloseTo(bounds.viewport - 16, 0);
+          expect(bounds.indexBottom).toBeCloseTo(bounds.viewport - 16, 0);
+        }
         const panel = page.getByRole("region", { name: "Review details" });
         const dimensions: { height: number; tabs: number; panel: number }[] =
           [];

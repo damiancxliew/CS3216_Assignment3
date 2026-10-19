@@ -55,7 +55,11 @@ export default async function AdventureWorkspace({
   const errors =
     checks?.errors ?? reviewErrors(adventure.spec, progress.checkErrors);
   return (
-    <Page title={parsed.ok ? parsed.spec.title : "Adventure"} width="wide">
+    <Page
+      title={parsed.ok ? parsed.spec.title : "Adventure"}
+      width="wide"
+      className="md:pb-0"
+    >
       {parsed.ok ? (
         <EditorWorkspace
           adventureId={id}

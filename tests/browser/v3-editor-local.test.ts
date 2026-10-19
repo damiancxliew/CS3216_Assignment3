@@ -237,16 +237,7 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
           await checks
             .getByRole("heading", { name: "Checks passed", exact: true })
             .waitFor();
-          expect(
-            await checks.locator("details").getAttribute("open"),
-          ).toBeNull();
-          await checks.locator("summary").click();
-          expect(
-            await checks
-              .getByText("No warnings or conflicts recorded.", { exact: true })
-              .isVisible(),
-          ).toBe(true);
-          await checks.locator("summary").click();
+          expect(await checks.locator("details").count()).toBe(0);
         }
         for (const theme of ["light", "dark"]) {
           await page.evaluate((t) => {

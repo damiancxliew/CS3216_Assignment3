@@ -54,6 +54,7 @@ describe("review screen rendering", () => {
     );
     expect(html).toContain("Needs fixing (1)");
     expect(html).toContain("Global blocking issue");
+    expect(html).toContain("View details");
     expect(html).toContain("Teacher claim");
     expect(html).toContain("Source correction");
     expect(html).toContain('role="tablist"');
@@ -155,7 +156,7 @@ describe("review screen rendering", () => {
     expect(html).not.toContain("Needs fixing (0)");
     expect(html).not.toContain("Conflicts (0)");
     expect(html).toContain("bg-world-wash");
-    expect(html).toContain("Warnings and conflicts");
+    expect(html).not.toContain("View details");
     expect(html).not.toContain('<details open=""');
   });
 });

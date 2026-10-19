@@ -375,57 +375,53 @@ export function ReviewScreen({
           {errors.length ? `Needs fixing (${errors.length})` : "Checks passed"}
         </h2>
         {errors.length ? issueList(errors) : null}
-        <details open={errors.length ? true : undefined} className="text-sm">
-          <summary className="w-fit cursor-pointer font-semibold">
-            Warnings and conflicts
-            {warnings.length + spec.conflicts.length
-              ? ` (${warnings.length + spec.conflicts.length})`
-              : ""}
-          </summary>
-          <div className="mt-4 space-y-4">
-            {!warnings.length && !spec.conflicts.length ? (
-              <p className="text-muted">No warnings or conflicts recorded.</p>
-            ) : null}
-            {[...warningGroups].map(([pass, list]) => (
-              <div key={pass}>
-                <h3 className="mb-2 font-bold">
-                  {REVIEW_PASS_LABELS[pass] ?? "Other checks"} warnings
-                </h3>
-                {issueList(list)}
-              </div>
-            ))}
-            {spec.conflicts.length ? (
-              <>
-                <h3 className="font-bold">
-                  Conflicts ({spec.conflicts.length})
-                </h3>
-                <ul className="space-y-4">
-                  {spec.conflicts.map((conflict) => (
-                    <li key={conflict.id} className="space-y-2 text-sm">
-                      <Field title="Teacher brief">
-                        {conflict.teacherSays}
-                      </Field>
-                      <Field title="Source says">{conflict.sourceSays}</Field>
-                      <div className="flex flex-wrap gap-3">
-                        {conflict.itemIds.map((id) => (
-                          <span key={id}>{link(id)}</span>
-                        ))}
-                      </div>
-                      <Citations
-                        citations={[{ sourceId: conflict.sourceId }]}
-                        sources={sources}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : null}
-          </div>
-        </details>
+        {warnings.length || spec.conflicts.length ? (
+          <details open={errors.length ? true : undefined} className="text-sm">
+            <summary className="w-fit cursor-pointer font-semibold">
+              View details
+            </summary>
+            <div className="mt-4 space-y-4">
+              {[...warningGroups].map(([pass, list]) => (
+                <div key={pass}>
+                  <h3 className="mb-2 font-bold">
+                    {REVIEW_PASS_LABELS[pass] ?? "Other checks"} warnings
+                  </h3>
+                  {issueList(list)}
+                </div>
+              ))}
+              {spec.conflicts.length ? (
+                <>
+                  <h3 className="font-bold">
+                    Conflicts ({spec.conflicts.length})
+                  </h3>
+                  <ul className="space-y-4">
+                    {spec.conflicts.map((conflict) => (
+                      <li key={conflict.id} className="space-y-2 text-sm">
+                        <Field title="Teacher brief">
+                          {conflict.teacherSays}
+                        </Field>
+                        <Field title="Source says">{conflict.sourceSays}</Field>
+                        <div className="flex flex-wrap gap-3">
+                          {conflict.itemIds.map((id) => (
+                            <span key={id}>{link(id)}</span>
+                          ))}
+                        </div>
+                        <Citations
+                          citations={[{ sourceId: conflict.sourceId }]}
+                          sources={sources}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+            </div>
+          </details>
+        ) : null}
       </section>
       <div
         data-review-workspace
-        className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0"
+        className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4"
       >
         <div
           role="tablist"
