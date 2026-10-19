@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
-import { DialogueBox, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
+import { DialogueBox, nextAvailableIndex, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
 import { DocumentReader, passageStatus } from "@/components/play/v3/document-reader";
 import { NotePickup, unseenNotes } from "@/components/play/v3/note-pickup";
 import adventureStyles from "@/components/play/adventure-chrome.module.css";
@@ -936,6 +936,30 @@ describe("v3 dialogue box", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("strikes out acts that can no longer happen and keeps the cursor off them", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "moment",
+        moment: { ...moment, acts: [{ id: "act-1", text: "Welcome the British ships.", available: false }, { id: "act-2", text: "Refuse their proposal.", available: true }] },
+        portraitBase: null,
+        busy: false,
+        onAct: () => {},
+        onPredict: () => {},
+      }));
+      expect(markup).toContain("line-through");
+      expect(markup).toContain("(no longer possible)");
+      expect(markup.match(/aria-disabled="true"/g)).toHaveLength(1);
+      expect(markup).toMatch(/aria-selected="true"[^>]*>[\s\S]*?Refuse their proposal/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(nextAvailableIndex(1, 1, [false, true, false, true])).toBe(3);
+    expect(nextAvailableIndex(3, 1, [false, true, false, true])).toBe(1);
+    expect(nextAvailableIndex(1, -1, [false, true, false, true])).toBe(3);
+    expect(nextAvailableIndex(0, 1, [false, false])).toBe(0);
   });
 
   it("renders all acts as listbox options with only the first selected", () => {

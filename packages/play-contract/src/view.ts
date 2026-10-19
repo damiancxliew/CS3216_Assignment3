@@ -131,7 +131,11 @@ export const DefiningMomentView = z.object({
   /** `choosing`: pick an act. `predicting`: the reaction is shown, pick a prediction. */
   status: z.enum(['choosing', 'predicting']),
   /** 2–4 written acts, plus the secret act once unlocked (P9.1, P9.11). Never labelled. */
-  acts: z.array(z.object({ id: Id, text: z.string() })),
+  /**
+   * While choosing: every written act, with `available: false` on acts that can no longer happen, so the student
+   * sees them struck out. A secret act appears only once unlocked.
+   */
+  acts: z.array(z.object({ id: Id, text: z.string(), available: z.boolean().optional() })),
   /** A non-blocking reminder when core discoveries are missing (P9.6). */
   nudge: z.string().nullable(),
   chosenActId: Id.nullable(),
