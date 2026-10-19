@@ -22,6 +22,7 @@ import { button, EmptyState, Field, Page, Section, SelectField, StatusBadge } fr
 import { getViewer } from "@/lib/auth/viewer";
 import { resolveSchoolContext } from "@/lib/school/context";
 import { createClient } from "@/lib/supabase/server";
+import { v3SchoolAllowed } from "@/lib/v3/flag";
 
 export const metadata: Metadata = { title: "School console", robots: { index: false } };
 
@@ -60,19 +61,22 @@ type JoinLinkRow = {
 type JoinerRow = { joined_via_link: string | null };
 type InviteRow = { id: string; email: string; role: "admin" | "teacher"; created_at: string };
 type UsageRow = {
+  kind: "v2" | "v3";
   adventure_id: string;
   share_token: string;
   shareable: boolean;
   title: string;
   owner_id: string;
   owner_name: string | null;
-  status: "draft" | "published" | "archived";
+  status: "briefing" | "generating" | "needs_review" | "failed" | "draft" | "published" | "archived";
   attempts: number;
   students: number;
+  school_students: number;
+  version_students: number;
   completed: number;
-  play_seconds: number;
+  play_seconds: number | null;
   play_tokens: number;
-  image_cost_usd: number | string;
+  image_cost_usd: number | string | null;
   updated_at: string;
 };
 
@@ -102,6 +106,7 @@ export default async function SchoolPage({
   const tabs = adminRole ? ADMIN_TABS : STAFF_TABS;
   const tab = tabs.find((item) => item.id === query.tab)?.id ?? "students";
   const organizationId = school.organizationId;
+  const allowV3 = v3SchoolAllowed(organizationId);
   const { data: rosterData, error: rosterError } = await supabase.rpc("school_roster", { p_org: organizationId });
   if (rosterError) console.error("could not load school roster", rosterError);
   const roster = (rosterData ?? []) as unknown as MemberRow[];
@@ -155,13 +160,13 @@ export default async function SchoolPage({
 
   let adventures: UsageRow[] = [];
   if (tab === "adventures" && adminRole) {
-    const { data, error } = await supabase.rpc("school_usage", { p_org: organizationId });
+    const { data, error } = await supabase.rpc("school_usage_all_versions", { p_org: organizationId, p_include_v3: allowV3 });
     if (error) console.error("could not load school adventure usage", error);
     adventures = (data ?? []) as unknown as UsageRow[];
   }
 
   return (
-    <Page title="School console" width="wide">
+    <Page title="School console" width={tab === "adventures" ? "full" : "wide"}>
       <nav aria-label="School console sections" className="flex gap-2 overflow-x-auto">
         {tabs.map((item) => (
           <Link
@@ -355,88 +360,141 @@ export default async function SchoolPage({
         </div>
       ) : null}
 
-      {tab === "adventures" && adminRole ? <AdventureUsageTable slug={slug} adventures={adventures} /> : null}
+      {tab === "adventures" && adminRole ? (
+        <div className="flex flex-col gap-10">
+          {adventures.length === 0 ? <EmptyState title="No school adventures yet." /> : null}
+          {(["v3", "v2"] as const).filter((kind) => adventures.some((adventure) => adventure.kind === kind)).map((kind) => (
+            <AdventureUsageTable key={kind} slug={slug} kind={kind}
+              adventures={adventures.filter((adventure) => adventure.kind === kind)}
+              studentCount={adventures.find((adventure) => adventure.kind === kind)?.version_students ?? 0} />
+          ))}
+        </div>
+      ) : null}
     </Page>
   );
 }
 
-function AdventureUsageTable({ slug, adventures }: { slug: string; adventures: UsageRow[] }) {
+function usageMetrics(adventure: Pick<UsageRow, "attempts" | "students" | "completed" | "play_seconds" | "play_tokens" | "image_cost_usd">, kind: "v2" | "v3") {
+  return [
+    { label: "Attempts", value: adventure.attempts.toLocaleString() },
+    { label: "Students", value: adventure.students.toLocaleString() },
+    { label: "Completed", value: adventure.completed.toLocaleString() },
+    ...(kind === "v2" ? [{ label: "Play time", value: playTime(adventure.play_seconds ?? 0) }] : []),
+    { label: "Tokens", value: adventure.play_tokens.toLocaleString() },
+    ...(kind === "v2" ? [{ label: "Image cost", value: currency(Number(adventure.image_cost_usd)) }] : []),
+  ];
+}
+
+function AdventureUsageActions({ slug, adventure }: { slug: string; adventure: UsageRow }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+      <SchoolLinkCopy
+        path={adventure.kind === "v3" ? `/v3/join/${adventure.adventure_id}` : `/join/${adventure.share_token}`}
+        label={`Copy share link for ${adventure.title}`}
+        disabledReason={adventure.shareable ? undefined : adventure.status === "archived"
+          ? "Archived adventures can't be shared" : adventure.status !== "published"
+            ? "Publish this adventure to share it" : "Artwork is still being prepared"}
+      />
+      {adventure.kind === "v3" ? <Link href={`/v3/teacher/${adventure.adventure_id}/summary`} className={button.subtle}>Results</Link> : null}
+      {adventure.kind === "v2" || ["draft", "published", "archived"].includes(adventure.status) ? (
+        <ActionButton
+          action={setAdventureArchived.bind(null, slug, adventure.adventure_id, adventure.status !== "archived", adventure.kind)}
+          label={adventure.status === "archived" ? "Unarchive" : "Archive"}
+          pendingLabel={<span className="sr-only">Updating adventure</span>}
+          className={button.subtle}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function AdventureUsageTitle({ adventure }: { adventure: UsageRow }) {
+  return (
+    <div className="min-w-0 space-y-1">
+      <Link href={adventure.kind === "v3" ? `/v3/teacher/${adventure.adventure_id}` : `/teacher/${adventure.adventure_id}?tab=attempts`}
+        className="font-bold leading-snug text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:text-record">
+        {adventure.title}
+      </Link>
+      <p className="truncate text-xs font-normal text-muted" title={adventure.owner_name || "School staff"}>
+        By {adventure.owner_name || "School staff"}
+      </p>
+    </div>
+  );
+}
+
+function AdventureUsageTable({ slug, adventures, studentCount, kind }: { slug: string; adventures: UsageRow[]; studentCount: number; kind: "v2" | "v3" }) {
   const totals = adventures.reduce((sum, adventure) => ({
     attempts: sum.attempts + adventure.attempts,
-    students: sum.students + adventure.students,
+    students: studentCount,
     completed: sum.completed + adventure.completed,
-    play_seconds: sum.play_seconds + adventure.play_seconds,
+    play_seconds: sum.play_seconds + (adventure.play_seconds ?? 0),
     play_tokens: sum.play_tokens + adventure.play_tokens,
     image_cost_usd: sum.image_cost_usd + Number(adventure.image_cost_usd),
   }), { attempts: 0, students: 0, completed: 0, play_seconds: 0, play_tokens: 0, image_cost_usd: 0 });
+  const metrics = usageMetrics(totals, kind);
   return (
-    <Section title="School adventures" lede="Read-only activity and cost oversight for your school.">
-      {adventures.length ? (
-        <div className="overflow-x-auto rounded-surface border border-line bg-surface">
-          <table className="w-full min-w-[68rem] border-collapse text-left text-sm">
-            <thead className="bg-sunken text-xs uppercase tracking-wide text-muted">
-              <tr>{["Adventure", "Owner", "Status", "Attempts", "Students", "Completed", "Play time", "Tokens", "Image cost", ""].map((heading, index) => <th key={`${heading}-${index}`} className="px-3 py-3 font-bold">{heading}</th>)}</tr>
-            </thead>
-            <tbody>
-              {adventures.map((adventure) => (
-                <tr key={adventure.adventure_id} className="border-t border-line">
-                  <td className="px-3 py-3 font-semibold text-ink">
-                    <Link
-                      href={`/teacher/${adventure.adventure_id}?tab=attempts`}
-                      className="underline decoration-line-strong underline-offset-4 transition-colors hover:text-record"
-                    >
-                      {adventure.title}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-3 text-muted">{adventure.owner_name || "School staff"}</td>
-                  <td className="px-3 py-3"><StatusBadge status={adventure.status} version={null} /></td>
-                  <td className="px-3 py-3 tabular-nums">{adventure.attempts}</td>
-                  <td className="px-3 py-3 tabular-nums">{adventure.students}</td>
-                  <td className="px-3 py-3 tabular-nums">{adventure.completed}</td>
-                  <td className="px-3 py-3 tabular-nums">{playTime(adventure.play_seconds)}</td>
-                  <td className="px-3 py-3 tabular-nums">{adventure.play_tokens.toLocaleString()}</td>
-                  <td className="px-3 py-3 tabular-nums">{currency(Number(adventure.image_cost_usd))}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-2">
-                      <SchoolLinkCopy
-                        path={`/join/${adventure.share_token}`}
-                        label={`Copy share link for ${adventure.title}`}
-                        disabledReason={
-                          adventure.shareable
-                            ? undefined
-                            : adventure.status === "archived"
-                              ? "Archived adventures can't be shared"
-                              : adventure.status !== "published"
-                                ? "Publish this adventure to share it"
-                                : "Artwork is still being prepared"
-                        }
-                      />
-                      <ActionButton
-                        action={setAdventureArchived.bind(null, slug, adventure.adventure_id, adventure.status !== "archived")}
-                        label={adventure.status === "archived" ? "Unarchive" : "Archive"}
-                        pendingLabel="Updating…"
-                        variant="quiet"
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="border-t-2 border-line-strong bg-sunken font-bold">
-              <tr>
-                <td className="px-3 py-3" colSpan={3}>Totals</td>
-                <td className="px-3 py-3 tabular-nums">{totals.attempts}</td>
-                <td className="px-3 py-3 tabular-nums">{totals.students}</td>
-                <td className="px-3 py-3 tabular-nums">{totals.completed}</td>
-                <td className="px-3 py-3 tabular-nums">{playTime(totals.play_seconds)}</td>
-                <td className="px-3 py-3 tabular-nums">{totals.play_tokens.toLocaleString()}</td>
-                <td className="px-3 py-3 tabular-nums">{currency(totals.image_cost_usd)}</td>
-                <td />
+    <Section title={`${kind.toUpperCase()} adventures`}>
+      <div className="hidden overflow-hidden rounded-surface border border-line bg-surface lg:block">
+        <table className="w-full table-fixed border-collapse text-left text-sm">
+          <caption className="sr-only">{kind.toUpperCase()} school adventures and usage</caption>
+          <colgroup>
+            <col style={{ width: kind === "v3" ? "36%" : "30%" }} />
+            <col style={{ width: "11%" }} />
+            {metrics.map(({ label }) => <col key={label} style={{ width: kind === "v3" ? "8%" : "7%" }} />)}
+            <col />
+          </colgroup>
+          <thead className="border-b border-line bg-sunken text-[11px] uppercase tracking-wide text-muted">
+            <tr>
+              <th scope="col" className="px-5 py-3 font-bold">Adventure / owner</th>
+              <th scope="col" className="px-2 py-3 font-bold">Status</th>
+              {metrics.map(({ label }) => <th key={label} scope="col" className="px-2 py-3 text-right font-bold">{label}</th>)}
+              <th scope="col" className="px-4 py-3 text-right font-bold">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {adventures.map((adventure) => (
+              <tr key={adventure.adventure_id} className="border-b border-line align-middle last:border-b-0">
+                <th scope="row" className="px-5 py-5 text-left"><AdventureUsageTitle adventure={adventure} /></th>
+                <td className="px-2 py-5"><StatusBadge status={adventure.status} version={null} /></td>
+                {usageMetrics(adventure, kind).map(({ label, value }) => <td key={label} className="px-2 py-5 text-right tabular-nums text-ink">{value}</td>)}
+                <td className="px-4 py-4"><AdventureUsageActions slug={slug} adventure={adventure} /></td>
               </tr>
-            </tfoot>
-          </table>
+            ))}
+          </tbody>
+          <tfoot className="border-t border-line-strong bg-sunken font-bold">
+            <tr>
+              <th scope="row" className="px-5 py-3 text-left" colSpan={2}>Totals</th>
+              {metrics.map(({ label, value }) => <td key={label} className="px-2 py-3 text-right tabular-nums">{value}</td>)}
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div className="grid gap-4 lg:hidden">
+        {adventures.map((adventure) => (
+          <article key={adventure.adventure_id} className="min-w-0 rounded-surface border border-line bg-surface p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1"><AdventureUsageTitle adventure={adventure} /></div>
+              <StatusBadge status={adventure.status} version={null} />
+            </div>
+            <dl className="my-4 grid grid-cols-2 gap-4 border-y border-line py-4 sm:grid-cols-4">
+              {usageMetrics(adventure, kind).map(({ label, value }) => <div key={label}>
+                <dt className="text-xs text-muted">{label}</dt><dd className="mt-1 font-bold tabular-nums text-ink">{value}</dd>
+              </div>)}
+            </dl>
+            <AdventureUsageActions slug={slug} adventure={adventure} />
+          </article>
+        ))}
+        <div className="rounded-surface bg-sunken p-4">
+          <h3 className="mb-3 text-sm font-bold text-ink">Totals</h3>
+          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {metrics.map(({ label, value }) => <div key={label}>
+              <dt className="text-xs text-muted">{label}</dt><dd className="mt-1 font-bold tabular-nums text-ink">{value}</dd>
+            </div>)}
+          </dl>
         </div>
-      ) : <EmptyState title="No school adventures yet." />}
+      </div>
+      {kind === "v3" ? <p className="text-sm text-muted">Play time and image costs are not recorded for V3 adventures.</p> : null}
     </Section>
   );
 }

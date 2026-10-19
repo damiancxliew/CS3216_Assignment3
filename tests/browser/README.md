@@ -1,5 +1,20 @@
 # Student browser acceptance
 
+The shared v2/v3 listings regression uses local Next and Supabase with disposable
+accounts and adventures. Apply migrations first. Configure Next with
+`V3_ENABLED=1` and a local test school's UUID in `V3_SCHOOL_IDS`, then run:
+
+```sh
+RUN_SHARED_LOCAL_TESTS=1 \
+SHARED_LOCAL_BASE_URL=http://localhost:3105 \
+SHARED_LOCAL_SCHOOL_ID="your-local-test-school-uuid" \
+npx vitest run tests/browser/v3-shared-local.test.ts
+```
+
+It checks separate V3/V2 sections, desktop/mobile layouts, archive/unarchive,
+published metadata, version-pinned start, resume, and completed results. It does
+not call a model or reset the database.
+
 The document-reader regression test runs without Supabase or a Next server. It
 starts a temporary Vite harness with the real play UI, map, and session, holds the
 movement response, and checks immediate pickup, pending Notes, modal focus, and
