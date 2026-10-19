@@ -35,6 +35,7 @@ type V3Room = PlayerView["rooms"][number];
 type V3Character = PlayerView["characters"][number];
 
 interface V3MapProps {
+  crowdContext?: string;
   attemptId: string;
   stageId: string;
   stageIndex: number;
@@ -146,6 +147,7 @@ export function V3Map(props: V3MapProps) {
 
     const snapshot = (): PlaygroundSnapshot => ({
       seed: `${latest.current.attemptId}:${latest.current.stageId}`,
+      crowdContext: latest.current.crowdContext,
       map,
       doors: compiled.initialDoors,
       actors: [

@@ -5,13 +5,14 @@ import type { StoryArt } from './story-art.js'
 import { makeFaunaSheet, storyFauna } from './fauna.js'
 import { isExposed } from './weather.js'
 import { passingRemark, streetTalk, type StreetTalk } from './street-talk.js'
+import { drillFormation, crowdForStage } from './stage-crowds.js'
 import { overlaps, type LabelRect } from './map-labels.js'
 
 export const RESIDENT_SPRITES = ['Villager', 'Villager2', 'Woman', 'OldMan', 'Monk2']
 /** A passer-by the player can hear or greet. Flavour only, so it carries no actor id. */
 export interface StreetPerson { id: string; name: string; at: Point }
-type Talker = { id: string; talk: StreetTalk; line: number; cooldown: number }
-type Resident = { sprite: Phaser.GameObjects.Sprite; shadow: Phaser.GameObjects.Ellipse; sheet: string; stepMs: number; at: Point; path: Point[]; progress: number; pause: number; stop: number; person?: Talker; bubble: Phaser.GameObjects.Text | null; bubbleFor: number }
+type Talker = { id: string; talk: StreetTalk; line: number; cooldown: number; crowd: boolean }
+type Resident = { sprite: Phaser.GameObjects.Sprite; shadow: Phaser.GameObjects.Ellipse; sheet: string; stepMs: number; at: Point; path: Point[]; progress: number; pause: number; stop: number; person?: Talker; bubble: Phaser.GameObjects.Text | null; bubbleFor: number; drill?: Point[] }
 
 const REMARK_RANGE = 2
 const REMARK_COOLDOWN_MS = 11000
@@ -26,6 +27,8 @@ const BUBBLE_LIFT = 12
 export class AmbientLife {
   private residents: Resident[] = []
   private stops: Point[] = []
+  private drillClock = 0
+  private drillPausedFor = 0
   private routes: StageMap
   private readonly scene: Phaser.Scene
   private readonly art: StoryArt['id']
@@ -43,15 +46,22 @@ export class AmbientLife {
     if (this.stops.length < 3) for (let y = 3; y < map.height - 3; y += 4) for (let x = 3; x < map.width - 3; x += 5) if (map.tiles[y]?.[x] === 'path' && allowed({ x, y })) this.stops.push({ x, y })
     if (this.stops.length < 2) return
     const population = snapshot.environment?.population ?? (['ruins', 'jungle', 'battlefield'].includes(art.id) ? 'quiet' : 'residents')
-    const sheets = art.id === 'desert' || art.id === 'palace' ? ['Monk2', 'Villager2', 'OldMan'] : population === 'workers' ? ['Villager', 'Villager2', 'OldMan'] : ['Woman', 'Villager2', 'OldMan', 'Villager']
-    const count = population === 'quiet' ? 0 : population === 'residents' ? 4 : 6
+    const crowd = crowdForStage(snapshot)
+    const drill = crowd?.movement === 'formation' ? drillFormation(map) : null
+    if (crowd?.movement === 'gathering') {
+      const centre = this.stops[Math.floor(this.stops.length / 2)]!
+      this.stops.sort((a, b) => Math.abs(a.x - centre.x) + Math.abs(a.y - centre.y) - Math.abs(b.x - centre.x) - Math.abs(b.y - centre.y))
+      this.stops = this.stops.slice(0, 8)
+    }
+    const sheets = crowd?.sprites ?? (art.id === 'desert' || art.id === 'palace' ? ['Monk2', 'Villager2', 'OldMan'] : population === 'workers' ? ['Villager', 'Villager2', 'OldMan'] : ['Woman', 'Villager2', 'OldMan', 'Villager'])
+    const count = crowd ? 6 : population === 'quiet' ? 0 : population === 'residents' ? 4 : 6
     for (let i = 0; i < count; i++) {
-      const stop = Math.floor(i * this.stops.length / count), at = this.stops[stop]!, sheet = sheets[i % sheets.length]!
+      const stop = Math.floor(i * this.stops.length / count), at = drill?.[i]?.[0] ?? this.stops[stop]!, sheet = sheets[i % sheets.length]!
       const shadow = scene.add.ellipse(at.x * 16 + 8, at.y * 16 + 13, 10, 4, 0x243d35, .22).setDepth(8)
-      const sprite = scene.add.sprite(at.x * 16 + 8, at.y * 16 + 6, `char-${sheet}`, 0).setDepth(12).setName(`ambient-${population}-${i}`)
+      const sprite = scene.add.sprite(at.x * 16 + 8, at.y * 16 + 6, `char-${sheet}`, 0).setDepth(12).setName(`ambient-${crowd?.kind ?? population}-${i}`)
       const id = `street-${i}`
-      const person: Talker = { id, talk: streetTalk(`${snapshot.map.id}:${id}`, art.id, snapshot.storyContext ?? ''), line: -1, cooldown: 2000 + i * 900 }
-      this.residents.push({ sprite, shadow, sheet: `char-${sheet}`, stepMs: 430, at, path: [], progress: 0, pause: i * 450, stop, person, bubble: null, bubbleFor: 0 })
+      const person: Talker = { id, talk: crowd ? { name: crowd.name, lines: crowd.lines } : streetTalk(`${snapshot.map.id}:${id}`, art.id, snapshot.storyContext ?? ''), line: -1, cooldown: 2000 + i * 900, crowd: crowd !== null }
+      this.residents.push({ sprite, shadow, sheet: `char-${sheet}`, stepMs: 430, at, path: [], progress: 0, pause: i * 450, stop, person, bubble: null, bubbleFor: 0, ...(drill?.[i] ? { drill: drill[i]! } : {}) })
     }
     for (const [index, species] of storyFauna(snapshot.environment, art, snapshot.storyContext ?? '').entries()) {
       const sheet = makeFaunaSheet(scene, species)
@@ -99,6 +109,7 @@ export class AmbientLife {
     const line = person.talk.lines[person.line]!
     this.say(resident, line, 4200)
     resident.pause = Math.max(resident.pause, 2600)
+    if (resident.drill) this.drillPausedFor = 2600
     return line
   }
 
@@ -134,6 +145,9 @@ export class AmbientLife {
 
   update(delta: number, reduced: boolean, running: boolean, player?: Point): void {
     const dt = Math.min(delta, 80)
+    const drilling = !reduced && running && !document.hidden && this.drillPausedFor <= 0
+    if (drilling) this.drillClock += dt
+    this.drillPausedFor = Math.max(0, this.drillPausedFor - dt)
     for (const person of this.residents) {
       if (person.bubble) {
         person.bubbleFor -= dt
@@ -145,10 +159,22 @@ export class AmbientLife {
         if (player && person.person.cooldown <= 0 && running
           && Math.abs(person.at.x - player.x) <= REMARK_RANGE && Math.abs(person.at.y - player.y) <= REMARK_RANGE) {
           person.person.cooldown = REMARK_COOLDOWN_MS
-          const line = passingRemark(`${person.person.id}:${person.at.x},${person.at.y}`, this.art)
+          const line = person.person.crowd ? person.person.talk.lines[0]! : passingRemark(`${person.person.id}:${person.at.x},${person.at.y}`, this.art)
           this.say(person, line, 2400)
           this.onRemark?.({ id: person.person.id, name: person.person.talk.name, at: person.at }, line)
         }
+      }
+      if (person.drill) {
+        if (!drilling) { person.sprite.anims.pause(); continue }
+        const tick = this.drillClock / person.stepMs
+        const index = Math.floor(tick) % person.drill.length
+        const from = person.drill[index]!, to = person.drill[(index + 1) % person.drill.length]!
+        person.at = from
+        person.sprite.anims.resume()
+        person.sprite.play(`${person.sheet}-${to.y > from.y ? 'down' : 'up'}`, true)
+        person.sprite.setPosition(from.x * 16 + 8, (from.y + (to.y - from.y) * (tick % 1)) * 16 + 6)
+        person.shadow.setPosition(person.sprite.x, person.sprite.y + 7)
+        continue
       }
       if (reduced || !running || document.hidden) { person.sprite.anims.pause(); continue }
       person.sprite.anims.resume()
