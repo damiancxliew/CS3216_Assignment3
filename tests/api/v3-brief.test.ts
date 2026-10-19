@@ -10,6 +10,7 @@ import { FakeLlmClient } from "@adventure/generation/llm";
 
 import { briefTurnV3, parseTimerAnswer } from "@/lib/v3/brief/turn";
 import {
+  MODE_LABELS,
   ALLOWLIST_ANY,
   ALLOWLIST_DEFAULT,
   ANY_SOURCE_WARNING,
@@ -317,4 +318,33 @@ describe("briefTurnV3", () => {
     // and never in the system prompt
     expect(llm.requests[0]!.system).not.toContain("ignore all rules");
   });
+});
+
+
+it("accepts the guided reply without a model call", async () => {
+  vi.stubEnv("NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED", "1");
+  try {
+  const state = stateAt({ ...fullDraft, mode: undefined });
+  const llm = new FakeLlmClient([]);
+  const reply = quickReplies(state.draft, currentSlot(state.draft)).find(text => text.startsWith("Guided"));
+  expect(reply).toBe("Guided: check after every pass");
+  const result = await briefTurnV3(state, { text: reply! }, { llm, documents: docs });
+  expect(result.state.draft.mode).toBe("guided");
+  expect(MODE_LABELS.guided).toBe("Guided (check after every pass)");
+  expect(currentSlot(result.state.draft).name).toBe("confirm");
+  expect(llm.requests).toHaveLength(0);
+  } finally { vi.unstubAllEnvs(); }
+});
+
+it("hides and rejects Guided creation until its review screens are enabled", async () => {
+  vi.stubEnv("NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED", "0");
+  try {
+    const state = stateAt({ ...fullDraft, mode: undefined });
+    expect(quickReplies(state.draft, currentSlot(state.draft)).some(reply => reply.startsWith("Guided"))).toBe(false);
+    const llm = new FakeLlmClient([]);
+    const result = await briefTurnV3(state, { text: "guided" }, { llm, documents: docs });
+    expect(result.state.draft.mode).toBeUndefined();
+    expect(result.state.messages.at(-1)?.text).toContain("Choose Standard or Quick");
+    expect(llm.requests).toHaveLength(0);
+  } finally { vi.unstubAllEnvs(); }
 });

@@ -4,6 +4,7 @@
  * `turn.ts` when an answer isn't plain. Client-safe: no model access here.
  */
 import { z } from "zod";
+import { guidedModeEnabled } from "@/lib/v3/flag";
 
 export const SLOT_ORDER = ["sources", "episode", "focus", "readingLevel", "timer", "mode", "allowlist", "confirm"] as const;
 export type SlotName = (typeof SLOT_ORDER)[number];
@@ -36,7 +37,7 @@ export const briefDraftV3Schema = z.object({
   focus: z.string().max(FOCUS_MAX).optional(),
   readingLevel: z.enum(["sec", "jc"]).optional(),
   timerMinutes: z.union([z.number().int().min(10).max(120), z.null()]).optional(),
-  mode: z.enum(["standard", "quick"]).optional(),
+  mode: z.enum(["standard", "quick", "guided"]).optional(),
   sourcePolicy: z.union([
     z.object({ allowAny: z.boolean(), extraDomains: z.array(z.string().max(253)).max(20) }),
     z.null(),
@@ -162,9 +163,10 @@ export const ANY_SOURCE_WARNING =
   "Generation may cite pages from any site it finds. Review the content of each site before you use the adventure with students.";
 
 const READING_LEVEL_LABELS: Record<"sec" | "jc", string> = { sec: "Sec", jc: "JC" };
-const MODE_LABELS: Record<"standard" | "quick", string> = {
+const MODE_LABELS: Record<"standard" | "quick" | "guided", string> = {
   standard: "Standard: check the skeleton first",
   quick: "Quick: check everything at the end",
+  guided: "Guided (check after every pass)",
 };
 export { READING_LEVEL_LABELS, MODE_LABELS };
 
@@ -187,7 +189,7 @@ export function quickReplies(draft: BriefDraftV3, slot: Slot): string[] {
     case "timer":
       return [TIMER_RECOMMENDED, TIMER_OFF];
     case "mode":
-      return [MODE_LABELS.standard, MODE_LABELS.quick];
+      return [MODE_LABELS.standard, MODE_LABELS.quick, ...(guidedModeEnabled() ? ["Guided: check after every pass"] : [])];
     case "allowlist":
       return [ALLOWLIST_DEFAULT, ALLOWLIST_ANY];
     case "confirm":
