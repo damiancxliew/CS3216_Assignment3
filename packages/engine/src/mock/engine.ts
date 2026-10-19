@@ -100,6 +100,7 @@ export function advanceMock(previous: MockState, action: Action, now: number): {
       roomId: state.roomId,
       text,
       insertedNoteId: extra.insertedNoteId ?? null,
+      stageIndex: state.phase === 'briefing' ? null : state.stageIndex,
       at: now,
     })
   }
@@ -326,7 +327,12 @@ export function projectMock(state: MockState): PlayerView {
               const stanceId = character.stances === null ? null : (state.stances[id] ?? null)
               return { id, name: character.name, title: character.title, stanceId, portraitKey: stanceId === null ? id : `${id}:${stanceId}` }
             }),
-    messages: state.messages.map((message) => ({ ...message })),
+    messages: state.messages.map((message) => ({ ...message, stageIndex: message.stageIndex ?? null })),
+    speakers: [...new Set(state.messages.flatMap((message) => message.characterId === null ? [] : [message.characterId]))]
+      .flatMap((id) => {
+        const character = characters[id]
+        return character ? [{ id, name: character.name, title: character.title }] : []
+      }),
     notes: state.notes.map((note) => ({ ...note })),
     documents: state.held.map(document),
     documentsHere:
