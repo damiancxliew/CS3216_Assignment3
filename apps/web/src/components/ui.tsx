@@ -295,7 +295,7 @@ export function Page({
   kicker?: React.ReactNode;
   title: React.ReactNode;
   lede?: React.ReactNode;
-  width?: "narrow" | "wide";
+  width?: "narrow" | "wide" | "full";
   /** Fill the viewport on large screens so children can scroll inside the page. */
   fill?: boolean;
   className?: string;
@@ -304,7 +304,7 @@ export function Page({
   return (
     <div className={`flex min-h-screen flex-col${fill ? " lg:h-dvh lg:overflow-hidden" : ""}`}>
       <SiteHeader />
-      <main className={`mx-auto flex w-full flex-1 flex-col gap-6 px-5 py-5 sm:gap-8 sm:px-6 sm:py-8 ${width === "wide" ? "max-w-6xl" : "max-w-3xl"}${fill ? " lg:min-h-0 lg:overflow-hidden" : ""} ${className}`}>
+      <main className={`mx-auto flex w-full flex-1 flex-col gap-6 px-5 py-5 sm:gap-8 sm:px-6 sm:py-8 ${width === "full" ? "max-w-[100rem]" : width === "wide" ? "max-w-6xl" : "max-w-3xl"}${fill ? " lg:min-h-0 lg:overflow-hidden" : ""} ${className}`}>
         {kicker ? <div className="text-base text-muted">{kicker}</div> : null}
         <header className="flex flex-col gap-3">
           <h1 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">{title}</h1>

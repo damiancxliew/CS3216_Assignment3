@@ -1,5 +1,20 @@
 # Student browser acceptance
 
+The shared v2/v3 listings regression uses local Next and Supabase with disposable
+accounts and adventures. Apply migrations first. Configure Next with
+`V3_ENABLED=1` and a local test school's UUID in `V3_SCHOOL_IDS`, then run:
+
+```sh
+RUN_SHARED_LOCAL_TESTS=1 \
+SHARED_LOCAL_BASE_URL=http://localhost:3105 \
+SHARED_LOCAL_SCHOOL_ID="your-local-test-school-uuid" \
+npx vitest run tests/browser/v3-shared-local.test.ts
+```
+
+It checks separate V3/V2 sections, desktop/mobile layouts, archive/unarchive,
+published metadata, version-pinned start, resume, and completed results. It does
+not call a model or reset the database.
+
 The v3 Journal regression uses an isolated Vite fixture with the real stage UI
 and CSS. It checks desktop and mobile decision layouts, document access, stable
 activity height, and keyboard controls that must not submit a decision:
