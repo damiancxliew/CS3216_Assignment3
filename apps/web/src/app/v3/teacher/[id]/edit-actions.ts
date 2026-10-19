@@ -1,6 +1,6 @@
 "use server";
 import { supabaseJobStore } from "@adventure/jobs";
-import type { AdventureSpec } from "@adventure/spec-v3";
+import { validateSpec, type AdventureSpec } from "@adventure/spec-v3";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,6 +8,10 @@ import { SupabaseV3PlayStore } from "@/lib/play/v3/store";
 import { defaultGenerationDeps, supabaseV3SourceStore } from "@/lib/v3/generation/deps";
 import { saveAdventureEdits, type SaveV3Result } from "@/lib/v3/edit/service";
 import type { V3Edit } from "@/lib/v3/edit/commands";
+import { capturedSources } from "@/lib/v3/edit/apply";
+import { canStaffAdventure } from "@/lib/play/v3/access";
+import { proposeEditFix } from "@/lib/v3/edit/ai-fix";
+import { editFixLlm } from "@/lib/v3/edit/ai-deps";
 import { v3Enabled } from "@/lib/v3/flag";
 
 export async function saveV3AdventureEdits(
@@ -58,11 +62,7 @@ export async function saveV3AdventureEdits(
         >;
       },
       sources: async (id) =>
-        (await supabaseV3SourceStore(() => admin).load(id)).map((d) => ({
-          id: d.id,
-          title: d.title,
-          text: d.pages.map((p) => p.text).join("\n"),
-        })),
+        capturedSources(await supabaseV3SourceStore(() => admin).load(id)),
     },
     user.id,
     adventureId,
@@ -71,4 +71,21 @@ export async function saveV3AdventureEdits(
   );
   if (result.ok) revalidatePath(`/v3/teacher/${adventureId}`, "layout");
   return result;
+}
+
+
+export async function fixV3EditsWithAiAction(adventureId: string, expectedVersion: number, edits: V3Edit[]) {
+  if (!v3Enabled()) return { error: "not_found" };
+  const { data: { user } } = await (await createClient()).auth.getUser();
+  if (!user) return { error: "not_found" };
+  const admin = createAdminClient();
+  const store = new SupabaseV3PlayStore(admin);
+  const adventure = await store.loadAdventure(adventureId);
+  if (!adventure || !await canStaffAdventure(store, adventure, user.id) || !["draft", "published", "archived"].includes(adventure.status)) return { error: "not_found" };
+  if (adventure.specVersion !== expectedVersion) return { error: "This adventure changed. Reload to use the saved version." };
+  const parsed = validateSpec(adventure.spec);
+  if (!parsed.ok) return { error: "Invalid stored adventure." };
+  return proposeEditFix({ llm: editFixLlm(adventureId, adventure.schoolId, user.id) }, {
+    base: parsed.spec, edits, sources: capturedSources(await supabaseV3SourceStore(() => admin).load(adventureId)), savedErrors: await store.loadCheckErrors(adventureId),
+  });
 }

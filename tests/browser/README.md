@@ -1,5 +1,13 @@
 # Student browser acceptance
 
+The v3 Journal regression uses an isolated Vite fixture with the real stage UI
+and CSS. It checks desktop and mobile decision layouts, document access, stable
+activity height, and keyboard controls that must not submit a decision:
+
+```sh
+RUN_JOURNAL_BROWSER_TESTS=1 npx vitest run tests/browser/v3-journal.test.ts
+```
+
 The document-reader regression test runs without Supabase or a Next server. It
 starts a temporary Vite harness with the real play UI, map, and session, holds the
 movement response, and checks immediate pickup, pending Notes, modal focus, and

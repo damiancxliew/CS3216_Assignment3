@@ -11,6 +11,7 @@ function view(overrides: Partial<PlayerView> = {}): PlayerView {
     rooms: [],
     currentRoomId: null,
     characters: [],
+    speakers: [],
     messages: [],
     notes: [],
     documents: [],
@@ -32,8 +33,8 @@ describe("v3CuesBetween", () => {
     const after = view({
       notes: [{ id: "note-1", text: "A fact", source: "conversation", stageIndex: 0, at: "2026-10-19T00:00:00.000Z" }],
       messages: [
-        { id: "m1", kind: "character", characterId: "c1", roomId: "r1", text: "Hello", insertedNoteId: null, at: "2026-10-19T00:00:00.000Z" },
-        { id: "m2", kind: "narration", characterId: null, roomId: null, text: "The room settles.", insertedNoteId: null, at: "2026-10-19T00:00:01.000Z" },
+        { id: "m1", kind: "character", characterId: "c1", roomId: "r1", text: "Hello", insertedNoteId: null, stageIndex: 0, at: "2026-10-19T00:00:00.000Z" },
+        { id: "m2", kind: "narration", characterId: null, roomId: null, text: "The room settles.", insertedNoteId: null, stageIndex: 0, at: "2026-10-19T00:00:01.000Z" },
       ],
     });
     const cues = v3CuesBetween(before, after);
