@@ -65,7 +65,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const [missionCollapsed, setMissionCollapsed] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [islandRequest, setIslandRequest] = useState<{
-    tab: "notes" | "scrolls" | "log";
+    tab: "notes" | "documents" | "log";
     key: number;
   } | null>(null);
   const [documentId, setDocumentId] = useState<string | null>(

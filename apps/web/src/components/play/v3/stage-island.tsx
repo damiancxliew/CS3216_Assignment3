@@ -12,11 +12,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import styles from "@/components/play/adventure-chrome.module.css";
-import pickupStyles from "@/components/play/v3/note-pickup.module.css";
 
-type IslandTab = "notes" | "scrolls" | "log";
-
-const ISLAND_TRANSITION_MS = 200;
+type IslandTab = "notes" | "documents" | "log";
 
 type NoteGroup = {
   stageIndex: number;
@@ -53,8 +50,8 @@ export function logLineCount(messages: MessageView[]): number {
   return messages.filter((message) => message.kind === "player" || message.kind === "character").length;
 }
 
-export function islandActivityText(item: Pick<DocumentView, "title">, count = 1): string {
-  const prefix = `+${count} ${count === 1 ? "scroll" : "scrolls"}: `;
+export function documentActivityText(item: Pick<DocumentView, "title">, count = 1): string {
+  const prefix = `+${count} ${count === 1 ? "document" : "documents"}: `;
   return `${prefix}${item.title}`;
 }
 
@@ -72,16 +69,16 @@ export function filterLogByCharacter(messages: MessageView[], characterId: strin
 
 function IslandCounts({ view }: { view: PlayerView }) {
   return (
-    <span className="inline-flex items-center gap-2.5">
-      <span aria-label={`${view.notes.length} ${view.notes.length === 1 ? "note" : "notes"}`} className="inline-flex items-center gap-1">
+    <span className="mr-auto inline-flex min-w-0 items-center gap-2.5 normal-case text-xs font-bold tracking-normal">
+      <span aria-label={`${view.notes.length} ${view.notes.length === 1 ? "note" : "notes"}`} className="inline-flex shrink-0 items-center gap-1">
         <NotebookPen size={15} aria-hidden />
         {view.notes.length}
       </span>
-      <span aria-label={`${view.documents.length} ${view.documents.length === 1 ? "scroll" : "scrolls"}`} className="inline-flex items-center gap-1">
+      <span aria-label={`${view.documents.length} ${view.documents.length === 1 ? "document" : "documents"}`} className="inline-flex shrink-0 items-center gap-1">
         <ScrollText size={15} aria-hidden />
         {view.documents.length}
       </span>
-      <span aria-label={`${logLineCount(view.messages)} ${logLineCount(view.messages) === 1 ? "log line" : "log lines"}`} className="inline-flex items-center gap-1">
+      <span aria-label={`${logLineCount(view.messages)} ${logLineCount(view.messages) === 1 ? "log line" : "log lines"}`} className="inline-flex shrink-0 items-center gap-1">
         <MessagesSquare size={15} aria-hidden />
         {logLineCount(view.messages)}
       </span>
@@ -116,12 +113,12 @@ function NotesList({ notes }: { notes: NoteView[] }) {
   );
 }
 
-function ScrollsList({ documents, onOpenDocument }: { documents: PlayerView["documents"]; onOpenDocument: (id: string) => void }) {
+function DocumentsList({ documents, onOpenDocument }: { documents: PlayerView["documents"]; onOpenDocument: (id: string) => void }) {
   if (documents.length === 0) {
     return (
       <div className="space-y-1 px-4 py-8 text-center text-sm text-[#5c6472]">
-        <p>No scrolls collected yet.</p>
-        <p>Walk to a document to read it. Every scroll you collect will be saved here.</p>
+        <p>No documents collected yet.</p>
+        <p>Walk to a document to read it. Every document you collect will be saved here.</p>
       </div>
     );
   }
@@ -283,53 +280,25 @@ export function StageIsland({
   onOpenRequestHandled?: (key: number) => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
-  const [panelVisible, setPanelVisible] = useState(initialExpanded);
-  const [panelOpen, setPanelOpen] = useState(initialExpanded);
-  const [activeTab, setActiveTab] = useState<IslandTab>(definingMoment && initialTab === "notes" ? "scrolls" : initialTab);
+  const [activeTab, setActiveTab] = useState<IslandTab>(definingMoment && initialTab === "notes" ? "documents" : initialTab);
   const [activity, setActivity] = useState("");
   const previousDocumentCount = useRef(view.documents.length);
   const clearActivityTimer = useRef<number | null>(null);
-  const panelTimer = useRef<number | null>(null);
-  const panelFrame = useRef<number | null>(null);
   const lastOpenRequestKey = useRef<number | null>(null);
-  const pillButton = useRef<HTMLButtonElement>(null);
+  const headerButton = useRef<HTMLButtonElement>(null);
   const activeTabButton = useRef<HTMLButtonElement>(null);
   const focusTabAfterOpen = useRef(false);
-  const focusPillAfterClose = useRef(false);
+  const focusHeaderAfterClose = useRef(false);
   const stage = view.stage;
 
   const openIsland = useCallback(() => {
-    if (panelTimer.current !== null) {
-      window.clearTimeout(panelTimer.current);
-      panelTimer.current = null;
-    }
-    if (panelFrame.current !== null) {
-      window.cancelAnimationFrame(panelFrame.current);
-      panelFrame.current = null;
-    }
-    setPanelVisible(true);
-    setPanelOpen(false);
     setExpanded(true);
     focusTabAfterOpen.current = true;
-    panelFrame.current = window.requestAnimationFrame(() => {
-      setPanelOpen(true);
-      panelFrame.current = null;
-    });
   }, []);
 
   const closeIsland = useCallback(() => {
-    if (panelFrame.current !== null) {
-      window.cancelAnimationFrame(panelFrame.current);
-      panelFrame.current = null;
-    }
     setExpanded(false);
-    setPanelOpen(false);
-    focusPillAfterClose.current = true;
-    if (panelTimer.current !== null) window.clearTimeout(panelTimer.current);
-    panelTimer.current = window.setTimeout(() => {
-      setPanelVisible(false);
-      panelTimer.current = null;
-    }, ISLAND_TRANSITION_MS);
+    focusHeaderAfterClose.current = true;
   }, []);
 
   const toggleIsland = useCallback(() => {
@@ -343,7 +312,7 @@ export function StageIsland({
     const newestDocument = view.documents.at(-1);
     if (addedDocuments <= 0 || !newestDocument) return;
 
-    setActivity(islandActivityText(newestDocument, addedDocuments));
+    setActivity(documentActivityText(newestDocument, addedDocuments));
     if (clearActivityTimer.current !== null) window.clearTimeout(clearActivityTimer.current);
     clearActivityTimer.current = window.setTimeout(() => {
       setActivity("");
@@ -353,8 +322,6 @@ export function StageIsland({
 
   useEffect(() => () => {
     if (clearActivityTimer.current !== null) window.clearTimeout(clearActivityTimer.current);
-    if (panelTimer.current !== null) window.clearTimeout(panelTimer.current);
-    if (panelFrame.current !== null) window.cancelAnimationFrame(panelFrame.current);
   }, []);
 
   useEffect(() => {
@@ -376,14 +343,14 @@ export function StageIsland({
   }, [closeIsland, expanded, toggleIsland]);
 
   useEffect(() => {
-    if (expanded && panelVisible && focusTabAfterOpen.current && !activeTabButton.current?.disabled) {
+    if (expanded && focusTabAfterOpen.current && !activeTabButton.current?.disabled) {
       activeTabButton.current?.focus();
       focusTabAfterOpen.current = false;
-    } else if (!expanded && !panelVisible && focusPillAfterClose.current) {
-      pillButton.current?.focus();
-      focusPillAfterClose.current = false;
+    } else if (!expanded && focusHeaderAfterClose.current) {
+      headerButton.current?.focus();
+      focusHeaderAfterClose.current = false;
     }
-  }, [activeTab, expanded, panelVisible]);
+  }, [activeTab, expanded]);
 
   useEffect(() => {
     if (!openRequest || openRequest.key === lastOpenRequestKey.current) return;
@@ -394,69 +361,65 @@ export function StageIsland({
   }, [onOpenRequestHandled, openIsland, openRequest]);
 
   useEffect(() => {
-    if (definingMoment && activeTab === "notes") setActiveTab("scrolls");
+    if (definingMoment && activeTab === "notes") setActiveTab("documents");
   }, [activeTab, definingMoment]);
 
   const showActivity = activity && !view.pendingCheck;
-  const positionClass = definingMoment ? "left-16 z-10" : "left-3 z-10";
+  const positionClass = definingMoment ? "left-16 sm:left-16" : "left-2 sm:left-4";
 
   return (
-    <div className={`absolute bottom-3 ${positionClass}`}>
-      {!panelVisible ? (
-        <button
-          ref={pillButton}
-          key={pulseKey ?? "pill"}
-          type="button"
-          aria-expanded={false}
-          aria-controls="stage-island-panel"
-          aria-label={`Stage ${stage ? stage.index + 1 : 1} of ${stage?.count ?? 1}; ${view.notes.length} notes, ${view.documents.length} scrolls, ${logLineCount(view.messages)} log lines, expand island`}
-          onClick={toggleIsland}
-          className={`${styles.tool} ${styles.islandPill} ${pulseKey === null ? "" : pickupStyles.pulse} flex min-h-10 max-w-[calc(100vw-1.5rem)] items-center gap-2 px-3 text-sm font-bold transition-all duration-300 motion-reduce:transition-none`}
-        >
-          <IslandCounts view={view} />
-          {stage ? (
-            <span className="whitespace-nowrap rounded-full border border-[#c5aa79]/60 bg-black/15 px-2 py-0.5 text-xs">
-              Stage {stage.index + 1}/{stage.count}
-            </span>
-          ) : null}
-          {view.pendingCheck ? (
-            <span role="status" className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-xs">
-              <LoaderCircle size={14} aria-hidden className="animate-spin motion-reduce:animate-none" />
-              Adding to your notes…
-            </span>
-          ) : showActivity ? (
-            <span aria-live="polite" className="max-w-[min(20rem,45vw)] truncate text-xs">
-              {activity}
-            </span>
-          ) : null}
-          <ChevronDown size={16} aria-hidden className="shrink-0" />
-        </button>
-      ) : null}
-
-      {panelVisible ? (
-          <section
-            id="stage-island-panel"
-            aria-label="Notes, scrolls, and story log"
-            className={`flex h-[min(60vh,28rem)] w-[min(26rem,calc(100vw-1.5rem))] origin-bottom-left flex-col overflow-hidden rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433] transition-[opacity,transform] duration-200 motion-reduce:transition-none motion-reduce:duration-0 ${
-              panelOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
-            }`}
+    <section
+      aria-label="Journal"
+      className={`absolute bottom-2 z-10 w-[min(22rem,calc(100%_-_1rem))] rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433] sm:bottom-4 ${positionClass}`}
+    >
+      <header className="shrink-0 p-3">
+        <h2 className="text-xs font-black uppercase tracking-[0.14em]">
+          <button
+            ref={headerButton}
+            type="button"
+            aria-expanded={expanded}
+            aria-controls="stage-island-panel"
+            aria-label={`Stage ${stage ? stage.index + 1 : 1} of ${stage?.count ?? 1}; ${view.notes.length} notes, ${view.documents.length} documents, ${logLineCount(view.messages)} log lines, ${expanded ? "collapse" : "expand"} island`}
+            onClick={toggleIsland}
+            className="flex min-h-7 w-full items-center gap-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]"
           >
-            <header className="flex shrink-0 items-center gap-2 border-b border-[#1f2433]/15 px-3 py-2.5">
+            <span className="mr-auto shrink-0">Journal</span>
+            {view.pendingCheck ? (
+              <span role="status" className="flex min-w-0 flex-1 items-center gap-1.5 truncate normal-case text-xs font-bold tracking-normal">
+                <LoaderCircle size={14} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none" />
+                <span className="truncate">Adding to your notes…</span>
+              </span>
+            ) : showActivity ? (
+              <span aria-live="polite" className="min-w-0 flex-1 truncate normal-case text-xs font-bold tracking-normal">
+                {activity}
+              </span>
+            ) : (
               <IslandCounts view={view} />
-              {stage ? <span className="ml-auto whitespace-nowrap rounded-full bg-[#1f2433]/5 px-2 py-1 text-xs font-bold">Stage {stage.index + 1}/{stage.count}</span> : null}
-              <button
-                type="button"
-                aria-label="Collapse island"
-                onClick={closeIsland}
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-md hover:bg-[#1f2433]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]"
-              >
-                <ChevronDown size={17} aria-hidden />
-              </button>
-            </header>
-            <div role="tablist" aria-label="Island sections" className="flex shrink-0 border-b border-[#1f2433]/15 px-2 pt-1">
+            )}
+            <span className="shrink-0 whitespace-nowrap rounded-full border border-[#1f2433]/35 bg-white/70 px-2 py-1 text-xs font-bold normal-case tracking-normal">
+              Stage {stage ? stage.index + 1 : 1}/{stage?.count ?? 1}
+            </span>
+            <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-md">
+              <ChevronDown size={16} className={`transition-transform duration-200 motion-reduce:transition-none ${expanded ? "" : "rotate-180"}`} />
+            </span>
+          </button>
+        </h2>
+      </header>
+
+      <div
+        id="stage-island-panel"
+        aria-hidden={!expanded}
+        inert={!expanded}
+        className={`grid overflow-hidden transition-[grid-template-rows,opacity,transform] duration-200 motion-reduce:transition-none motion-reduce:duration-0 ${
+          expanded ? "grid-rows-[1fr] border-t border-[#1f2433]/15 opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-1"
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="flex h-[min(55vh,26rem)] min-h-0 flex-col">
+            <div role="tablist" aria-label="Journal sections" className="flex shrink-0 border-b border-[#1f2433]/15 px-2 pt-1">
               {([
                 ["notes", "Notes", view.notes.length],
-                ["scrolls", "Scrolls", view.documents.length],
+                ["documents", "Documents", view.documents.length],
                 ["log", "Log", logLineCount(view.messages)],
               ] as const).map(([tab, label, count]) => {
                 const disabled = tab === "notes" && definingMoment;
@@ -484,7 +447,7 @@ export function StageIsland({
             <div className="min-h-0 flex-1 overflow-hidden">
               <div role="tabpanel" id={`stage-island-tabpanel-${activeTab}`} aria-labelledby={`stage-island-tab-${activeTab}`} className="h-full min-h-0 overflow-y-auto overscroll-contain">
                 {activeTab === "notes" ? <NotesList notes={view.notes} /> : null}
-                {activeTab === "scrolls" ? <ScrollsList documents={view.documents} onOpenDocument={onOpenDocument} /> : null}
+                {activeTab === "documents" ? <DocumentsList documents={view.documents} onOpenDocument={onOpenDocument} /> : null}
                 {activeTab === "log" ? <LogList key="log" view={view} /> : null}
               </div>
             </div>
@@ -499,8 +462,16 @@ export function StageIsland({
                 </button>
               </footer>
             ) : null}
-          </section>
+          </div>
+        </div>
+      </div>
+      {pulseKey !== null ? (
+        <span
+          aria-hidden
+          key={pulseKey}
+          className={`pointer-events-none absolute inset-0 rounded-[inherit] ${styles.islandPulse}`}
+        />
       ) : null}
-    </div>
+    </section>
   );
 }

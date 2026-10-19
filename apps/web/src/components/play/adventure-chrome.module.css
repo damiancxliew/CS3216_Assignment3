@@ -118,8 +118,15 @@
 .resolution { border: 2px solid var(--line-strong); border-radius: 4px 4px 18px 4px; background: var(--paper); box-shadow: 5px 5px 0 #382b2240; }
 .resolution > p:first-child { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
 .tool { border: 1px solid #c5aa79; border-radius: 8px; background: #453a2e; color: #fff1d3; box-shadow: 0 3px 0 #211d18; }
-.tool.islandPill { border-radius: 9999px; }
 .tool:hover { background: #64513b; }
+.islandPulse { animation: islandPulse 900ms ease-out 2; }
+@keyframes islandPulse {
+  from { box-shadow: 0 0 0 0 #f6c95ccc; }
+  to { box-shadow: 0 0 0 12px #f6c95c00; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .islandPulse { animation: none; }
+}
 .dialog { position: fixed; inset: 0; width: min(38rem, calc(100vw - 2rem)); max-width: none; max-height: calc(100dvh - 2rem); margin: auto; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: var(--wood); box-shadow: 0 22px 70px #0008; color: var(--ink); }
 .dialog::backdrop { background: #151a16b8; backdrop-filter: blur(3px); }
 .modalFrame { display: flex; flex-direction: column; max-height: calc(100dvh - 2rem); padding: 10px; background: repeating-linear-gradient(3deg, #ffffff04 0 2px, transparent 2px 9px), var(--wood); }
