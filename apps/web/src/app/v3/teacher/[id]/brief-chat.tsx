@@ -29,8 +29,8 @@ import { ChatSendButton } from "./chat-send-button";
  * and the summary once the draft is complete. State lives on the server; each
  * turn posts the input and renders the state that comes back.
  */
-export function V3BriefChat({ initial, active = true, statusMessage, generating = false, onStateChange, onGenerationStart, onGenerationError }: {
-  initial: BriefStateV3; active?: boolean; statusMessage?: string; generating?: boolean; onStateChange?: (state: BriefStateV3) => void; onGenerationStart?: () => void; onGenerationError?: () => void;
+export function V3BriefChat({ initial, active = true, statusMessage, generating = false, onStateChange, onGenerationStart, onGenerationError, compact = false }: {
+  compact?: boolean; initial: BriefStateV3; active?: boolean; statusMessage?: string; generating?: boolean; onStateChange?: (state: BriefStateV3) => void; onGenerationStart?: () => void; onGenerationError?: () => void;
 }) {
   const [state, setState] = useState<BriefStateV3>(initial);
   const [text, setText] = useState("");
@@ -138,8 +138,8 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
               key={index}
               className={
                 message.role === "user"
-                  ? "ml-10 self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper shadow-sm sm:ml-24"
-                  : "mr-10 self-start rounded-surface rounded-bl-sm border border-line bg-paper px-4 py-3 text-ink shadow-sm sm:mr-24"
+                  ? `${compact ? "ml-4" : "ml-10 sm:ml-24"} self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper shadow-sm`
+                  : `${compact ? "mr-4" : "mr-10 sm:mr-24"} self-start rounded-surface rounded-bl-sm border border-line bg-paper px-4 py-3 text-ink shadow-sm`
               }
             >
               <p className="whitespace-pre-wrap">{message.text}</p>
@@ -160,7 +160,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
         <div ref={endRef} />
       </div>
 
-      <footer className="flex min-h-0 shrink-0 flex-col gap-3 border-t border-line pt-4">
+      <footer className={`flex min-h-0 ${compact ? "shrink" : "shrink-0"} flex-col gap-3 border-t border-line pt-4`}>
         {error ? <ErrorText>{error}</ErrorText> : null}
         {!active || slot.name === "confirm" ? (
           <>

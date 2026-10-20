@@ -214,10 +214,16 @@ export function ReviewScreen({
   checksPassedLabel = "Checks passed",
   renderHeader,
   onEditIssue,
+  sidebar,
+  floatingChecks = false,
+  issueActions,
 }: {
   checksPassedLabel?: string;
   renderHeader?: (checks: ReactNode) => ReactNode;
   onEditIssue?: () => void;
+  sidebar?: ReactNode;
+  floatingChecks?: boolean;
+  issueActions?: ReactNode;
   allowedTabs?: ReviewTab[];
   indexEntries?: (tab: ReviewTab, itemId: string) => ReviewIndexEntry[];
   editMode?: boolean;
@@ -248,6 +254,7 @@ export function ReviewScreen({
   const [activeAnchor, setActiveAnchor] = useState(reviewAnchor(selected));
   const [destination, setDestination] = useState<(ReviewTarget & { fieldPath?: string }) | null>(null);
   const detail = useRef<HTMLDivElement>(null);
+  const checksDisclosure = useRef<HTMLDetailsElement>(null);
   const targets = useMemo(() => reviewTargets(spec), [spec]);
   const names = useMemo(() => reviewNames(spec), [spec]);
   const name = (id: string) =>
@@ -331,7 +338,7 @@ export function ReviewScreen({
       </span>
     );
   };
-  const issueList = (issues: CheckIssue[]) => (
+  const issueList = (issues: CheckIssue[], expandFirst = false) => (
     <ul className="space-y-2">
       {issues.map((issue, i) => {
         const target = issueTarget(spec, issue, targets);
@@ -339,9 +346,12 @@ export function ReviewScreen({
           <li key={i} className="text-sm">
             <ReviewIssue
               issue={issue}
+              expanded={expandFirst && i === 0}
               onSelect={
                 target && (!allowedTabs || allowedTabs.includes(target.tab))
                   ? () => {
+                      if (floatingChecks && checksDisclosure.current)
+                        checksDisclosure.current.open = false;
                       onEditIssue?.();
                       choose({ ...target, fieldPath: issue.path.replace(/\[(\d+)\]/g, ".$1") });
                     }
@@ -411,7 +421,7 @@ export function ReviewScreen({
           ? `Needs fixing (${errors.length})`
           : checksPassedLabel}
       </h2>
-      {errors.length ? issueList(errors) : null}
+      {errors.length ? issueList(errors, floatingChecks) : null}
       {warnings.length || spec.conflicts.length ? (
         <details open={errors.length ? true : undefined} className="text-sm">
           <summary className="w-fit cursor-pointer font-semibold">
@@ -457,19 +467,25 @@ export function ReviewScreen({
       ) : null}
     </>
   );
-  const checks = renderHeader ? (
+  const checks = renderHeader || floatingChecks ? (
     <details
+      ref={checksDisclosure}
       aria-label="Adventure checks"
-      className="rounded-control border border-line bg-surface p-3 text-sm"
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !floatingChecks) return;
+        event.currentTarget.open = false;
+        event.currentTarget.querySelector("summary")?.focus();
+      }}
+      className={floatingChecks ? "relative text-sm" : "rounded-control border border-line bg-surface p-3 text-sm"}
     >
-      <summary className="cursor-pointer font-semibold">
+      <summary className={floatingChecks ? "cursor-pointer whitespace-nowrap rounded-control px-3 py-2 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink" : "cursor-pointer font-semibold"}>
         {errors.length
           ? `${errors.length} ${errors.length === 1 ? "issue" : "issues"} to fix`
           : checksPassedLabel}
         {warnings.length ? ` · ${warnings.length} ${warnings.length === 1 ? "warning" : "warnings"}` : ""}
         {spec.conflicts.length ? ` · ${spec.conflicts.length} conflicts` : ""}
       </summary>
-      <div className="mt-3 max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-2">
+      <div className={floatingChecks ? "absolute bottom-full right-0 mb-4 max-h-[min(60dvh,32rem)] w-[min(32rem,calc(100vw-2rem))] space-y-3 overflow-y-auto overscroll-contain rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg" : "mt-3 max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-2"}>
         {checkDetails}
       </div>
     </details>
@@ -483,7 +499,13 @@ export function ReviewScreen({
   );
   return (
     <div data-review-screen className="space-y-6 text-ink">
-      {renderHeader ? renderHeader(checks) : checks}
+      {renderHeader ? renderHeader(floatingChecks ? null : checks) : floatingChecks ? null : checks}
+      {floatingChecks ? (
+        <aside aria-label="Adventure issue controls" className="fixed bottom-5 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-surface border border-line bg-paper p-2 shadow-lg sm:right-6">
+          {checks}
+          {issueActions}
+        </aside>
+      ) : null}
       <div
         data-review-workspace
         className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4"
@@ -532,8 +554,9 @@ export function ReviewScreen({
           role="tabpanel"
           id="review-content"
           aria-labelledby={`tab-${tab}`}
-          className="grid min-w-0 gap-5 md:min-h-0 md:flex-1 md:grid-cols-[16rem_minmax(0,1fr)]"
+          className={`grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${sidebar ? "xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(20rem,0.9fr)_15rem_minmax(0,2fr)]" : "md:min-h-0 md:flex-1"}`}
         >
+          {sidebar ? <div className="min-h-0 min-w-0 md:col-span-2 xl:col-span-1">{sidebar}</div> : null}
           <nav
             aria-label={`${tabs.find((t) => t.id === tab)?.label} items`}
             className="h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] md:h-full"

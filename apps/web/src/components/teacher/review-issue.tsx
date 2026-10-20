@@ -6,10 +6,12 @@ export function ReviewIssue({
   issue,
   onSelect,
   location,
+  expanded = false,
 }: {
   issue: CheckIssue;
   onSelect?: () => void;
   location?: string;
+  expanded?: boolean;
 }) {
   const message = reviewIssueMessage(issue);
   return (
@@ -30,7 +32,7 @@ export function ReviewIssue({
           <span className="text-xs text-muted">{location}</span>
         ) : null}
       </div>
-      <details className="text-xs text-muted">
+      <details open={expanded || undefined} className="text-xs text-muted">
         <summary className="w-fit cursor-pointer">Details</summary>
         <div className="mt-2 space-y-1 break-words rounded-lg bg-sunken p-3 [overflow-wrap:anywhere]">
           {message !== issue.message ? <p>{issue.message}</p> : null}

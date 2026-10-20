@@ -22,6 +22,7 @@ import { saveV3AdventureEdits, fixV3EditsWithAiAction } from "../edit-actions";
 import { useUnsavedEdits } from "./use-unsaved-edits";
 import { ReviewEditorFields } from "./editor-fields";
 import { ReviewScreen } from "./review-screen";
+import { EditorConversation } from "./editor-chat-workspace";
 import { useReviewChatTarget } from "../review-chat-context";
 
 type Props = {
@@ -143,40 +144,45 @@ export function EditorWorkspace(props: Props) {
 
   return (
     <>
-      {editMode ? (
-        <AiFixPanel<{ edits: V3Edit[] }>
-          hasIssues={errors.length + props.warnings.length + checks.warnings.length > 0}
-          revision={`${version}:${JSON.stringify(edits)}`}
-          disabled={pending}
-          request={() =>
-            fixV3EditsWithAiAction(props.adventureId, version, edits)
-          }
-          apply={(proposal) => {
-            try {
-              setDraft(
-                applyV3Edits(
-                  saved,
-                  proposal.edits,
-                  props.capturedSources,
-                  true,
-                ),
-              );
-              setEdits(proposal.edits);
-              setMessage("");
-              setFailure(false);
-            } catch (error) {
-              setMessage(
-                error instanceof Error
-                  ? error.message
-                  : "Could not apply suggestion.",
-              );
-            }
-          }}
-        />
-      ) : null}
       <ReviewScreen
+        sidebar={editMode ? <EditorConversation /> : undefined}
+        floatingChecks
+        issueActions={
+          <AiFixPanel<{ edits: V3Edit[] }>
+            floating={false}
+            inToolbar
+            hasIssues={errors.length + props.warnings.length + checks.warnings.length > 0}
+            revision={`${version}:${JSON.stringify(edits)}`}
+            disabled={pending}
+            request={() =>
+              fixV3EditsWithAiAction(props.adventureId, version, edits)
+            }
+            apply={(proposal) => {
+              try {
+                setDraft(
+                  applyV3Edits(
+                    saved,
+                    proposal.edits,
+                    props.capturedSources,
+                    true,
+                  ),
+                );
+                setEdits(proposal.edits);
+                setEditMode(true);
+                setMessage("");
+                setFailure(false);
+              } catch (error) {
+                setMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not apply suggestion.",
+                );
+              }
+            }}
+          />
+        }
         onEditIssue={() => setEditMode(true)}
-        renderHeader={(checks) => (
+        renderHeader={() => (
           <header className="space-y-4" aria-busy={pending}>
             <V3AdventureNav adventureId={props.adventureId} page="adventure" />
             <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
@@ -294,7 +300,6 @@ export function EditorWorkspace(props: Props) {
                 Reload saved version
               </button>
             ) : null}
-            {checks}
           </header>
         )}
         spec={draft}

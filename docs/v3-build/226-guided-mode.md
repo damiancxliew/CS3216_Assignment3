@@ -187,9 +187,14 @@ chat suggestions alongside manual changes, plus retaining requests after errors.
 It runs without Supabase or a model using the `RUN_REVIEW_BROWSER_TESTS` command
 below; server action permission and version checks are covered by API tests.
 
-Editor checks appear as a collapsed issue count beneath Save and Publish. The
-expanded list scrolls within the panel, retaining global errors, warnings and
-conflicts. Selecting a located issue enters edit mode, opens the relevant tab
+Chat appears only in edit mode, aligned with the index and content in a wider
+workspace. Only chat is constrained to the available viewport height, with
+its transcript and suggestion preview scrolling inside the panel.
+
+Editor checks appear as a clickable count alongside Resolve issues in a floating
+control. The expanded list scrolls within the panel and opens its first issue's
+details by default, retaining global errors, warnings and conflicts.
+Selecting a located issue enters edit mode, opens the relevant tab
 and focuses its field. Field errors appear beside their controls with an
 accessible description; part-local generation issues stay with their owning
 entity when a specific field cannot be identified.

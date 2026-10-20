@@ -23,6 +23,25 @@ const spec = AdventureSpec.parse(
 );
 
 describe("review screen rendering", () => {
+  it("puts checks beside the floating resolve control and expands the first issue", () => {
+    const html = renderToStaticMarkup(createElement(ReviewScreen, {
+      spec: { ...spec, conflicts: [] },
+      sources: [],
+      errors: [
+        { code: "first", path: "", message: "First blocking issue" },
+        { code: "second", path: "", message: "Second blocking issue" },
+      ],
+      warnings: [],
+      floatingChecks: true,
+      renderHeader: () => createElement("header", null, "Save controls"),
+      issueActions: createElement("button", null, "Resolve issues"),
+    }));
+    expect(html).toContain("<header>Save controls</header>");
+    expect(html).toContain('aria-label="Adventure issue controls"');
+    expect(html).toContain("Resolve issues");
+    expect(html.match(/<details open=""/g)).toHaveLength(1);
+    expect(html.indexOf('<details open=""')).toBeLessThan(html.indexOf("Second blocking issue"));
+  });
   it("keeps editor checks collapsed beside its controls and retains global issues", () => {
     const html = renderToStaticMarkup(
       createElement(ReviewScreen, {

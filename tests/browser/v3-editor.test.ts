@@ -90,7 +90,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           import {initialBriefStateV3} from '/src/lib/v3/brief/schema.ts';
           if(!localStorage.getItem('spec')) localStorage.setItem('spec',${JSON.stringify(JSON.stringify(spec))});
           const spec=AdventureSpec.parse(JSON.parse(localStorage.getItem('spec'))); localStorage.setItem('spec',JSON.stringify(spec));
-          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-7xl p-5"><EditorChatWorkspace brief={initialBriefStateV3('fixture')}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} sources={spec.sources} capturedSources={[]} errors={[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
+          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><EditorChatWorkspace brief={initialBriefStateV3('fixture')}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} sources={spec.sources} capturedSources={[]} errors={[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
         `,
                   "editor.tsx",
                   { loader: "tsx", jsx: "automatic" },
@@ -123,12 +123,14 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         if (m.type() === "error") console.error(m.text());
       });
       await page.goto(vite.resolvedUrls!.local[0]!);
+      expect(await page.getByRole("region", { name: "Adventure conversation" }).count()).toBe(0);
       const issues = page.getByRole("group", { name: "Adventure checks" });
       await issues.waitFor();
       expect(await issues.getAttribute("open")).toBeNull();
       expect(await issues.locator("summary").first().innerText()).toMatch(/\d+ issues to fix/);
       await issues.locator("summary").first().focus();
       await page.keyboard.press("Enter");
+      expect(await issues.locator("li details").first().getAttribute("open")).not.toBeNull();
       await issues.getByRole("button", { name: "Check this character voice", exact: true }).click();
       const voice = page.locator("#edit-characters-0-persona-voice");
       await voice.waitFor();
@@ -137,6 +139,20 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await fieldIssue.innerText()).toContain("Check this character voice");
       expect(await fieldIssue.getAttribute("aria-describedby")).toBeTruthy();
       expect(await page.getByRole("tab", { name: "Characters", exact: true }).getAttribute("aria-selected")).toBe("true");
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      for (const height of [1000, 720]) {
+        await page.setViewportSize({ width: 1440, height });
+        await page.waitForTimeout(150);
+        const chat = await page.getByRole("region", { name: "Adventure conversation" }).boundingBox();
+        const index = await page.getByRole("navigation", { name: "Characters items" }).boundingBox();
+        const content = await page.getByRole("region", { name: "Review details" }).boundingBox();
+        const composer = await page.getByRole("textbox", { name: "Message", exact: true }).boundingBox();
+        expect(Math.abs(chat!.y - index!.y)).toBeLessThan(2);
+        expect(Math.abs(chat!.y - content!.y)).toBeLessThan(2);
+        expect(chat!.width).toBeGreaterThanOrEqual(300);
+        expect(chat!.y + chat!.height).toBeLessThanOrEqual(height);
+        expect(composer!.y + composer!.height).toBeLessThanOrEqual(chat!.y + chat!.height);
+      }
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.screenshot({ path: "/tmp/v3-editor-field-errors-desktop.png", fullPage: true });
       await page.setViewportSize({ width: 375, height: 812 });
@@ -284,6 +300,11 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await message.fill("Give this a clearer title");
       await page.getByRole("button", { name: "Send message", exact: true }).click();
       await page.getByRole("region", { name: "Suggested changes" }).waitFor();
+      await page.setViewportSize({ width: 1440, height: 720 });
+      await page.waitForTimeout(150);
+      const suggestionComposer = await message.boundingBox();
+      expect(suggestionComposer!.y + suggestionComposer!.height).toBeLessThanOrEqual(720);
+      await page.setViewportSize({ width: 1440, height: 1000 });
       expect(await page.locator("#edit-title").inputValue()).toBe("Suggested teacher title");
       await page.getByRole("button", { name: "Keep my edits", exact: true }).click();
       await message.fill("Give this a clearer title");
@@ -294,11 +315,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await page.evaluate(() => { window.saveMode = 'success'; });
       await page.getByRole("button", { name: "Save", exact: true }).click();
       await page.getByRole("status").filter({ hasText: "Saved version 3" }).waitFor();
-      await message.fill("Suggest a title from the saved view");
-      await page.getByRole("button", { name: "Send message", exact: true }).click();
-      await page.getByRole("button", { name: "Apply changes", exact: true }).click();
-      expect(await page.getByRole("button", { name: "Discard edits", exact: true }).isVisible()).toBe(true);
-      await page.getByRole("button", { name: "Discard edits", exact: true }).click();
+      expect(await page.getByRole("region", { name: "Adventure conversation" }).count()).toBe(0);
       await page.getByRole("button", { name: "Edit", exact: true }).click();
       expect(await page.locator("#edit-title").inputValue()).toBe("Chat revised title");
       expect(await page.locator("#edit-characters-0-persona-voice").count()).toBe(0);

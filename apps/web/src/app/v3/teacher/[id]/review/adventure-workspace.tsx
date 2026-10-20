@@ -59,7 +59,7 @@ export default async function AdventureWorkspace({
   return (
     <Page
       title={parsed.ok ? parsed.spec.title : "Adventure"}
-      width="wide"
+      width="full"
       className="md:pb-0"
     >
       {parsed.ok ? (
