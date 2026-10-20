@@ -6,6 +6,8 @@ export interface V3CinematicBeat {
   title?: string;
   body?: string;
   items?: string[];
+  image?: { src: string; alt: string; caption: string; credit: string; href: string };
+  journey?: { stops: string[]; current: number };
 }
 
 export const BRIEFING_BEGIN_LABEL = "Enter the first stage";

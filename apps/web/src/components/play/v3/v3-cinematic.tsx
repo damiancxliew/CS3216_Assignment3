@@ -2,6 +2,7 @@
 
 import { ArrowRight, ChevronRight, FastForward, Maximize, Minimize, Pause, Play, Volume2, VolumeX, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 
 import { useFullscreen } from "@/lib/play/fullscreen";
 import type { V3CinematicBeat } from "@/lib/play/v3/cinematic";
@@ -21,6 +22,7 @@ export function V3Cinematic({
   muted,
   onToggleMuted,
   initiallySettled = false,
+  dialogLabel,
 }: {
   artUrl: string | null;
   beats: V3CinematicBeat[];
@@ -30,6 +32,7 @@ export function V3Cinematic({
   muted: boolean;
   onToggleMuted: () => void;
   initiallySettled?: boolean;
+  dialogLabel?: string;
 }) {
   const fullscreen = useFullscreen();
   const [step, setStep] = useState(() => initiallySettled ? beats.length : 0);
@@ -38,6 +41,7 @@ export function V3Cinematic({
   const scene = useRef<HTMLDivElement>(null);
   const beginButton = useRef<HTMLButtonElement>(null);
   const told = step >= beats.length;
+  const hasEvidence = beats.some((beat) => beat.image || beat.journey);
 
   useEffect(() => {
     setImageFailed(!artUrl);
@@ -47,6 +51,7 @@ export function V3Cinematic({
     const previousFocus = document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    scene.current?.focus({ preventScroll: true });
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setPaused(true);
       setStep(beats.length);
@@ -79,12 +84,24 @@ export function V3Cinematic({
       ref={scene}
       className={styles.scene}
       data-phase={told ? "told" : "telling"}
+      data-evidence={hasEvidence || undefined}
+      data-paused={paused || told}
       role="dialog"
       aria-modal="true"
-      aria-label={onClose ? "Role brief" : "Adventure opening"}
+      aria-label={dialogLabel ?? (onClose ? "Role brief" : "Adventure opening")}
       tabIndex={-1}
       onKeyDown={(event) => {
-        if (event.key === "Escape") {
+        if (event.key === "Tab") {
+          const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href]')].filter((element) => element.getClientRects().length > 0);
+          const first = controls[0], last = controls.at(-1);
+          if (event.shiftKey && (document.activeElement === first || document.activeElement === scene.current)) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        } else if (event.key === "Escape") {
           event.preventDefault();
           if (onClose) onClose();
           else onBegin();
@@ -107,7 +124,9 @@ export function V3Cinematic({
         } : undefined}
       >
         {artUrl && !imageFailed ? (
-          <img
+          <Image
+            unoptimized
+            fill
             src={artUrl}
             alt=""
             className="h-full w-full object-cover"
@@ -150,7 +169,7 @@ export function V3Cinematic({
             <span className={styles.controlLabel}>{muted ? "Sound off" : "Sound on"}</span>
           </button>
           {onClose ? (
-            <button type="button" className={styles.control} onClick={onClose} aria-label="Close role brief">
+            <button type="button" className={styles.control} onClick={onClose} aria-label={dialogLabel ? `Close ${dialogLabel.toLowerCase()}` : "Close role brief"}>
               <X size={16} aria-hidden />
             </button>
           ) : null}
@@ -164,6 +183,13 @@ export function V3Cinematic({
             className={`${styles.beat}${index === 0 ? ` ${styles.titleCard}` : ""}`}
             data-active={told || index === step}
           >
+            {beat.image ? (
+              <figure className={styles.evidenceImage}>
+                <Image unoptimized width={1200} height={800} src={beat.image.src} alt={beat.image.alt} />
+                <figcaption>{beat.image.caption} <a href={beat.image.href} target="_blank" rel="noreferrer">{beat.image.credit} ↗</a></figcaption>
+              </figure>
+            ) : null}
+            <div className={styles.beatCopy}>
             <p className={styles.kicker}>{beat.kicker}</p>
             {beat.title ? <h2 className={styles.title}>{beat.title}</h2> : null}
             {beat.body ? <p className={styles.text}>{beat.body}</p> : null}
@@ -172,6 +198,12 @@ export function V3Cinematic({
                 {beat.items.map((item) => <li key={item}>{item}</li>)}
               </ul>
             ) : null}
+            {beat.journey ? (
+              <ol className={styles.journey} aria-label="Story journey, schematic rather than a travel route">
+                {beat.journey.stops.map((stop, stopIndex) => <li key={stop} data-current={stopIndex === beat.journey!.current} aria-current={stopIndex === beat.journey!.current ? "step" : undefined}>{stop}</li>)}
+              </ol>
+            ) : null}
+            </div>
           </section>
         ))}
       </div>
