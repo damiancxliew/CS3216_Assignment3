@@ -29,6 +29,7 @@ import AdventureWorkspace from "./review/adventure-workspace";
 import { SourcesReview, PauseEditor } from "./guided-review";
 import { CreationWorkspace } from "./creation-workspace";
 import { GenerationHistory } from "./generation-history";
+import { DraftReview } from "./draft-review";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -136,7 +137,11 @@ export default async function V3AdventurePage({
     : (rawSkeleton as SkeletonShape | undefined);
   const final =
     row.status === "draft"
-      ? await admin.from("adventures_v3").select("spec").eq("id", id).single()
+      ? await admin
+          .from("adventures_v3")
+          .select("spec,spec_version")
+          .eq("id", id)
+          .single()
       : null;
   const finalSpec = final?.data ? validateSpec(final.data.spec) : null;
 
@@ -165,11 +170,26 @@ export default async function V3AdventurePage({
                 ) : null}
               </header>
               <GenerationHistory
-                steps={[...steps]}
+                steps={
+                  row.status === "draft"
+                    ? steps.filter(
+                        (step) =>
+                          step.name === "sources" || step.name === "skeleton",
+                      )
+                    : [...steps]
+                }
                 documents={[...documents]}
                 current={pass}
                 finalSpec={finalSpec?.ok ? finalSpec.spec : undefined}
               />
+              {row.status === "draft" && finalSpec?.ok && final?.data ? (
+                <DraftReview
+                  adventureId={id}
+                  initial={finalSpec.spec}
+                  initialVersion={final.data.spec_version}
+                  sources={capturedSources([...documents])}
+                />
+              ) : null}
               {generating ? (
                 <GenerationProgress
                   adventureId={id}

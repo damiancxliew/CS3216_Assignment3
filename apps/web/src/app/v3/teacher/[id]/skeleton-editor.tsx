@@ -15,6 +15,7 @@ import { AiFixPanel } from "./review/ai-fix-panel";
 import { fixSkeletonWithAiAction } from "./pause-actions";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
 import { ConfirmButton } from "./confirm-button";
+import { useReviewChatTarget } from "./review-chat-context";
 
 type Draft = SkeletonShape;
 type Moment = Draft["definingMoments"][number];
@@ -56,6 +57,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
   const router = useRouter();
   useUnsavedEdits(saveState === "dirty" || saveState === "saving" || saveState === "error");
 
+  useReviewChatTarget({ key: "skeleton", revision: JSON.stringify(draft), pending: continuePending || discardPending, input: { pass: "skeleton", skeleton: draft }, apply: proposal => { if (proposal.pass === "skeleton") { update(proposal.skeleton); setEditing(true); } } });
   const { errors: checkErrors, warnings } = checkSkeleton(draft);
   const errors = [...checkErrors, ...serverIssues];
 

@@ -24,6 +24,7 @@ import {
 import { AiFixPanel } from "./review/ai-fix-panel";
 import { PauseContentCards } from "./review/pause-content-cards";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
+import { useReviewChatTarget } from "./review-chat-context";
 
 const steps: GuidedPass[] = [
   "sources",
@@ -63,6 +64,15 @@ export function SourcesReview({
   const router = useRouter();
   useUnsavedEdits(removed.length > 0 && !pending);
   const empty = pause.uploads.length + pause.outside.length === removed.length;
+  useReviewChatTarget({
+    key: "sources",
+    revision: JSON.stringify(removed),
+    pending,
+    input: { pass: "sources", removedSourceIds: removed },
+    apply: (proposal) => {
+      if (proposal.pass === "sources") setRemoved(proposal.removedSourceIds);
+    },
+  });
   return (
     <div
       className="creation-card space-y-6 rounded-surface border-2 border-ink bg-surface p-5 sm:p-6"
@@ -207,6 +217,16 @@ export function PauseEditor({
       );
     }
   };
+  useReviewChatTarget({
+    key: pause.pass,
+    revision: JSON.stringify(edits),
+    pending,
+    input: { pass: pause.pass, edits },
+    apply: (proposal) => {
+      if (proposal.pass === pause.pass && "edits" in proposal)
+        replace(proposal.edits);
+    },
+  });
   const edit = (command: V3Edit) => {
     if (!pending) replace([...edits, command]);
   };
