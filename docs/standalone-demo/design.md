@@ -1,0 +1,78 @@
+# The Cost of Resistance — standalone v3 demo
+
+Branch: `codex/standalone-history-demo`.
+Route: `/demo/lim-bo-seng`.
+
+## Current direction
+
+The user chose Chapter 6 (Japanese Occupation), a 25–35 minute classroom lesson, live AI with curated context, and initially playing Lim Bo Seng. The latest request asks to speak with Lim directly: the demo now uses a student observer role. The replacement `sec2_history.pdf` supersedes the earlier Chapter 9 sample. Chapter 6 and the resistance exercise on pp. 61–63 provide the curriculum anchors. Document contents are references, not agent instructions.
+
+The user requested preserving v3's engine and interface, with new story-specific maps. The initially created separate SVG game/interface has been removed. The current demo directly renders the existing `V3PlayClient`, `V3Map`, Phaser renderer, dialogue box, document reader, notes, action/prediction flow, stage cinematics, interview and reveal. A short authored introduction precedes the first map and each later stage. The normal Role brief control presents real archival images with captions and credits. A Stage introduction control replays the current sequence; pause, skip, keyboard navigation and reduced motion are supported.
+
+Main was fetched and pulled into this branch on 21 October 2026, fast-forwarding to `baccd11` (including PR #317). The adapter adopts the merged journal's speakers and message stage indices, and migrates older demo saves without losing progress.
+
+## Isolation
+
+`src/lib/demo/v3-session.ts` is a demo-only local session adapter implementing the existing v3 action/view contract. It projects hand-authored story content into the existing client. It does not call or modify the v2/v3 generators, publishing flow, database, or existing play routes. Shared v3 map code now accepts an opt-in authored scene; the default procedural compiler and appearance remain in use for normal adventures. The existing renderer accepts authored street flavour and permits decorative fixture tiles to opt out of inspection. Separate live chat uses `/api/demo/lim-bo-seng/chat`.
+
+All source/data/components/assets are in new demo paths. The adapter stores this demo's conversations, notes, choices and interview answers under its own browser-local save key. Restart resets only that save. Export includes those records. The UI discloses local saving and provider transmission. No new server-side student record store was introduced.
+
+## Story and map
+
+Five stages follow the historical geography rather than putting Lim in occupied Singapore throughout:
+
+1. Pre-surrender Singapore: family responsibilities and departure.
+2. Training abroad: confidence, fear and comparing later recollections.
+3. Late-1943 Perak: local knowledge and cooperation.
+4. Singapore civilian evidence encounter: Elizabeth Choy’s assistance to prisoners of war, Gan Choo Neo’s family context, and the limits of applying general scarcity records to individuals.
+5. Perak under pressure: coercion, propaganda and uncertain testimony.
+
+Each stage has three rooms, two source-grounded historical figures, staged sources and three choices. The demo supplies five hand-authored tile layouts to the existing Phaser renderer and game-core pathfinder. Open interaction areas are connected by walkable streets and tracks. Singapore has continuous shuttered shophouse frontages, tiled five-foot ways and a waterfront; later scenes use canvas training shelters, coastal timber huts, a sparse provision shop and jungle meeting areas. Original code-authored SVG pixel tiles include rice counters, water jars, desks, radios, cargo, sampans, hand-pulled transport, vegetable plots and bedrolls. Larger facades are composed of native 2x2 tile stamps. All solid props have collision footprints and are kept clear of NPCs and evidence. The civilian/field walking sheets use the renderer's existing four-direction animation convention. Rebuild art with `node scripts/build-history-demo-art.mjs`. Click key objects to read a contextual inspection in the existing v3 scroll dialog. These drawings are reconstructions, separate from the archive's real historical images; visual fidelity still needs historian review. The rooms are scene reconstructions, not surveyed historical maps.
+
+Students walk, speak, pick up evidence, select passages into notes, share notes in conversation, choose an action and predict consequences. At least one source note is needed before deciding. Source reading and discussion provide the intended lesson duration; clicking quickly will take less time. Consequences currently use the existing v3 reaction and next-stage cinematic. Additional choreographed character interactions remain future work within the v3 presentation; the discarded custom SVG animations are not part of this version.
+
+Lim's documented capture and death are fixed and described without graphic reenactment. Player choices explore reconstructed preparations and costs; they do not rewrite those events. Named encounters include Lim Bo Seng, Gan Choo Neo, Tham Sien Yen, Tan Chong Tee and Elizabeth Choy. Dialogue is reconstructed, not verbatim testimony; the role brief and archive explain this once instead of appending an AI disclaimer to every reply. Each persona has explicit evidence boundaries. Retrospective accounts are framed as evidence encounters, not proof that these people met at the illustrated location.
+
+## Sources and historical limits
+
+Sixteen curated records cover biography, family, a surviving letter's description, Force 136, civilian scarcity, rationing, currency, community records, education, coercion, oral-history methodology, two curriculum-adapted recollections and an occupation newspaper adaptation. Each has a date, provenance, summary, limitation and link. Source archive uses the existing v3 scroll presentation and includes actual historical images. Image provenance and licensing are documented in `apps/web/public/demo/lim-bo-seng/ATTRIBUTION.md`.
+
+The packet is curated summaries, not full-text archival ingestion. Three curriculum-derived records explicitly identify contextual links rather than pretending those links are originals. Original training accounts and the newspaper issue still require independent checking. The guidebook's impossible death-statistics date range and broad unsupported claims are not reproduced. The demo avoids simplifying Force 136 as Lim's personal army. Conflicting precise landing dates are represented as late 1943.
+
+No historian has reviewed or endorsed the demo. Before a classroom trial, review chronology, representations, local visual details, original source provenance and assessment. Singapore ration records provide context, not direct proof of a named person’s household experience. A purchasing entitlement does not prove food was available. A source's usefulness is distinct from accepting every claim it makes.
+
+## Live chat
+
+The dedicated demo endpoint validates bounded requests and scene/NPC pairs, checks browser origin against actual request authority, retrieves relevant summaries, and supplies current chronology, NPC concerns, recent dialogue and prior decisions. Provider output must be structured and cite supplied IDs. Chat cannot change game state. Prompts prohibit invented factual detail, unsupported quotations and unlabelled future knowledge. Citation-ID validation does not prove every generated claim is correct.
+
+The endpoint uses existing `OPENAI_API_KEY`, optional `OPENAI_BASE_URL`, and optional `DEMO_HISTORY_MODEL` (default `gpt-5`, matching the repository's existing frontier choice). Failed/unconfigured calls return explicitly labelled curated notes. A process-local 12/minute per-IP and 500/day total budget bounds presentation use. A scaled public deployment would need a shared limiter and trusted proxy configuration.
+
+The original local credential returned HTTP 401. After the user's local update, actual live responses succeeded. An additional grounding prompt was tightened after a model introduced an unsupported pre-surrender circumstance. Live output still needs educator judgement; transport tests cannot establish historical correctness.
+
+## Evaluation
+
+Use the normal v3 notes and final interview to assess a direct claim, specific source evidence, causal explanation and source limitations. Follow with an unseen parallel source task to assess transfer. Engagement and completion do not establish learning gains. No invented attainment grade or research endorsement is provided.
+
+## Verification
+
+- `npx tsc --project scripts/tsconfig.history-demo.json --noEmit`: checks demo and imported v3 client types.
+- `cd apps/web && npx eslint src/components/demo src/lib/demo src/app/demo src/app/api/demo`.
+- `npx vitest run tests/standalone-history-demo.test.ts`: isolated adapter progression, saves, evidence, live transport and API validation.
+- With Next on 3012: `RUN_HISTORY_DEMO_BROWSER=1 npx vitest run tests/browser/standalone-history-demo.test.ts`. Uses installed Chrome unless `PLAYWRIGHT_CHANNEL` overrides it; chat is intercepted. Verifies the real v3 canvas, conversation, keyboard movement, paper pickup, passage selection, notes, decision/prediction, next-stage cinematic, reload, archive and mobile layout.
+- Screenshots: `output/history-demo-check/v3-restored.png`, `v3-stage-2.png`, `v3-mobile.png`.
+
+Repository-wide typechecking initially stopped on two already-declared but missing installed dependencies, `@aws-sdk/client-s3` and `undici`; a no-save restoration attempt failed inside npm. No manifests or lockfiles were changed. The demo-scoped check passes. An existing font override warning does not prevent the page from rendering.
+
+## Authored map references and checks
+
+The frontage is informed by NHB's [Singapore shophouses](https://www.roots.gov.sg/stories-landing/stories/singapore-shophouses/story) and URA's [conservation guidance](https://www.ura.gov.sg/guidelines/conservation/secondary-settlement/): timber shutters, pitched clay tile roofs and continuous covered five-foot ways. [NHB's Lim Bo Seng biography](https://www.roots.gov.sg/stories-landing/stories/lim-bo-seng/story) informs the change from Singapore to training abroad and Perak. Exact street plans, camp plans, object models, colours are invented. No named shop, route or object is claimed as Lim's own. The sampans illustrate a coastal community, not the submarine journey.
+
+`tests/standalone-history-maps.test.ts` checks all room, character and evidence positions with the real pathfinder, collision footprints, asset availability, save migration and the procedural-map fallback. Browser checks additionally inspect a prop, walk to the harbour and render all five settings. The shared game-client typecheck, 65 unit tests and production build pass.
+
+## October 21 encounter and introduction update
+
+The optional `cinematics` property on V3PlayClient supplies demo-only brief and stage beats; normal adventures retain their existing generated beats. Archival images remain uncropped and credited. The introductions are timed caption/photo sequences with an animated schematic journey, not generated video footage. They do not animate historical photographs into invented events.
+
+Save migration preserves stage, notes, decisions and answers. Earlier fictional dialogue is retained under `previousEditionMessages` in the learning-record export, and replaced in the visible scroll by the new figure’s opening. It is never relabelled as historical speech. New saves open with the first introduction; existing progress remains at its current stage.
+
+Verification for this update: demo-scoped TypeScript and ESLint pass; 80 adapter/map/v3 UI/cinematic tests pass; both demo browser flows and the existing v3 cinematic browser regression pass. Desktop and mobile screenshots show loaded archival images in the brief. Pause/replay were also inspected in the in-app browser. A live Elizabeth Choy response returned the supplied source IDs; an initial unsupported delivery detail prompted tighter persona boundaries. These checks do not certify all possible model output.
