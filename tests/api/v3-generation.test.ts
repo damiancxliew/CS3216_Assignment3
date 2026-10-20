@@ -615,20 +615,23 @@ describe("startFromBrief guards", () => {
     expect((await briefStore.load(partial))!.status).toBe("briefing");
   });
 
-  it("sets the title, clears the brief, and enqueues 7 steps for quick / 2 for standard", async () => {
+  it("sets the title, preserves the conversation, and enqueues 7 steps for quick / 2 for standard", async () => {
     const harness = await makeJob();
     const { deps, jobs, briefStore, store } = harness;
 
     const quick = await briefingAtConfirm(harness, "quick");
+    const quickState = (await briefStore.load(quick))!.state;
     expect(await startFromBrief(deps, jobs, briefStore, ownerId, quick, env)).toEqual({ ok: true });
     const quickRow = (await briefStore.load(quick))!;
     expect(quickRow.status).toBe("generating");
     expect((quickRow as { title?: string }).title ?? (await briefStore.listForOwner(ownerId)).find((r) => r.id === quick)?.title).toBe("Founding of Singapore, 1819");
-    expect(quickRow.state).toBeNull();
+    expect(quickRow.state).toEqual(quickState);
     expect((await store.list(quick)).map((r) => r.name)).toEqual(["sources", "skeleton", "details", "endings", "reveal", "check", "save"]);
 
     const standard = await briefingAtConfirm(harness, "standard");
+    const standardState = (await briefStore.load(standard))!.state;
     expect(await startFromBrief(deps, jobs, briefStore, ownerId, standard, env)).toEqual({ ok: true });
+    expect((await briefStore.load(standard))!.state).toEqual(standardState);
     expect((await store.list(standard)).map((r) => r.name)).toEqual(["sources", "skeleton"]);
   });
 
