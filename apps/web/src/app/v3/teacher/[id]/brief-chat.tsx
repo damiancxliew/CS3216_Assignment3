@@ -20,6 +20,7 @@ import {
 
 import { addV3BriefSource, createFromV3Brief, discardV3Brief, v3BriefTurn } from "../actions";
 import { ConfirmButton } from "./confirm-button";
+import { ReviewChatComposer } from "./review-chat-composer";
 
 /**
  * The v3 guided brief: the transcript, the controls the current slot allows,
@@ -151,14 +152,17 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
         <div ref={endRef} />
       </div>
 
-      <footer className={active || error ? "flex flex-col gap-3 border-t border-line pt-4" : "hidden"}>
+      <footer className="flex min-h-0 shrink-0 flex-col gap-3 border-t border-line pt-4">
         {error ? <ErrorText>{error}</ErrorText> : null}
-        {!active ? null : slot.name === "confirm" ? (
-          <div className="flex flex-wrap gap-2">
+        {!active || slot.name === "confirm" ? (
+          <>
+          {active ? <div className="flex flex-wrap gap-2">
             <button type="button" onClick={create} disabled={pending} className={button.primary}>
               {pending ? <Pending>Creating the adventure…</Pending> : "Create"}
             </button>
-          </div>
+          </div> : null}
+          <ReviewChatComposer adventureId={state.adventureId} onConversation={next => { setState(next); onStateChange?.(next); }} />
+          </>
         ) : slot.name === "sources" ? (
           <SourceStep pending={pending} replies={replies} onUpload={upload} onDone={() => send({ text: SOURCES_DONE })} />
         ) : (
