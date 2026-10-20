@@ -12,17 +12,14 @@ import { z } from "zod";
 
 import { extractDocument, ExtractionError, LIMITS, slugify } from "@adventure/generation";
 import type { ExtractedDocument } from "@adventure/generation";
-import { OpenAiLlmClient } from "@adventure/generation/llm";
 import { supabaseJobStore } from "@adventure/jobs";
 
-import { getViewer, isStaff, type Viewer } from "@/lib/auth/viewer";
 import { getJobs, kickTick } from "@/lib/jobs/runner";
 import { tickUrl } from "@/lib/jobs/tick";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { withJsonUsage } from "@/lib/usage/ledger";
-import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
-import { briefTurnV3 } from "@/lib/v3/brief/turn";
+import { v3SchoolAllowed } from "@/lib/v3/flag";
+import { requireStaff, requireBriefingRow, runV3BriefTurn } from "@/lib/v3/brief/service";
 import type { BriefInputV3, BriefStateV3 } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
@@ -62,22 +59,6 @@ async function kickAfter() {
     return;
   }
   after(() => kickTick(tickUrl("")));
-}
-
-async function requireStaff(): Promise<{ viewer: Viewer; userId: string; schoolId: string } | { error: string }> {
-  if (!v3Enabled()) return notFound;
-  const supabase = await createClient();
-  const viewer = await getViewer(supabase);
-  if (!viewer.user || !isStaff(viewer) || !viewer.membership) return notFound;
-  return { viewer, userId: viewer.user.id, schoolId: viewer.membership.organizationId };
-}
-
-/** Loads a briefing row and checks the caller owns it and the school is allowed. */
-async function requireBriefingRow(adventureId: string, userId: string) {
-  const store = supabaseV3BriefStore(createAdminClient());
-  const row = await store.load(adventureId);
-  if (!row || row.ownerId !== userId || !v3SchoolAllowed(row.schoolId)) return null;
-  return { store, row };
 }
 
 async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocument; storageKey: string } | { error: string }> {
@@ -142,35 +123,7 @@ export async function startV3Brief() {
 }
 
 export async function v3BriefTurn(adventureId: string, input: BriefInputV3) {
-  const auth = await requireStaff();
-  if ("error" in auth) return auth;
-  const context = await requireBriefingRow(adventureId, auth.userId);
-  if (!context || context.row.status !== "briefing" || !context.row.state) return notFound;
-
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("v3 brief assistant unavailable: OPENAI_API_KEY is missing");
-    return { ok: false as const, error: "This feature is temporarily unavailable. Please try again later." };
-  }
-
-  let documents: ExtractedDocument[];
-  try {
-    documents = await defaultGenerationDeps().sources.load(adventureId);
-  } catch (error) {
-    console.error("could not load v3 brief sources", adventureId, error);
-    return { ok: false as const, error: "Your sources can’t be loaded right now. Please try again later." };
-  }
-
-  const result = await briefTurnV3(context.row.state, input, {
-    llm: withJsonUsage(new OpenAiLlmClient({ timeoutMs: 90_000 }), {
-      purpose: "brief",
-      organizationId: context.row.schoolId,
-      userId: auth.userId,
-    }),
-    documents,
-  });
-  if (!result.ok) return result;
-  await context.store.save(adventureId, result.state);
-  return result;
+  return runV3BriefTurn(adventureId, input);
 }
 
 /** Adds one uploaded or pasted source to a briefing, deduped against the ids already there. */
