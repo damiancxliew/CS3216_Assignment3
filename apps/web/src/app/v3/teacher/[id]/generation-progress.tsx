@@ -43,7 +43,7 @@ export function GenerationProgress({ adventureId, seesCost, compact = false }: {
   const anyRunning = PASS_ORDER.some((name) => stepDisplayStatus(byName.get(name)?.status) === "running");
 
   const running = PASS_ORDER.find(name => stepDisplayStatus(byName.get(name)?.status) === "running") ?? PASS_ORDER.find(name => stepDisplayStatus(byName.get(name)?.status) !== "done");
-  if (compact) return <section className="rounded-surface border border-line bg-surface px-5 py-4" aria-label="Generation progress"><Thinking label={retrying ? "Reconnecting… Your content is still here." : running ? `Preparing ${PASS_LABELS[running].toLowerCase()}…` : "Finishing up…"} /><p className="mt-2 text-xs text-muted">{done} of {PASS_ORDER.length} steps complete · Your conversation and completed cards stay available.</p>{seesCost && progress && !("error" in progress) ? <p className="mt-1 text-xs text-muted">Cost so far: ${progress.costUsd.toFixed(4)}</p> : null}</section>;
+  if (compact) return <section className="creation-card rounded-surface border border-line-strong bg-surface px-5 py-4" aria-label="Generation progress"><Thinking label={retrying ? "Reconnecting…" : running ? `Preparing ${PASS_LABELS[running].toLowerCase()}…` : "Finishing up…"} /><p className="mt-2 text-xs text-muted">{done} of {PASS_ORDER.length} steps complete</p>{seesCost && progress && !("error" in progress) ? <p className="mt-1 text-xs text-muted">Cost so far: ${progress.costUsd.toFixed(4)}</p> : null}</section>;
   return (
     <div className="flex max-w-2xl flex-col gap-4">
       {retrying ? <p role="status" className="text-sm">Could not refresh progress. Retrying…</p> : null}

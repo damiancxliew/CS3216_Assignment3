@@ -97,9 +97,14 @@ export default async function V3AdventurePage({
     row.status === "generating" || (row.status === "needs_review" && !pass);
   const title =
     pass === "skeleton"
-      ? "Check the skeleton"
+      ? "Story outline"
       : pass
-        ? `Check ${pass}`
+        ? {
+            sources: "Choose sources",
+            details: "Stages and characters",
+            endings: "Decisions and endings",
+            reveal: "Reveal and questions",
+          }[pass]
         : row.status === "draft"
           ? "Your adventure is ready"
           : row.status === "failed"
@@ -109,12 +114,20 @@ export default async function V3AdventurePage({
     row.status === "briefing"
       ? ""
       : row.status === "draft"
-        ? "Your adventure is ready. All the generated content is on the right, and your conversation is still here."
+        ? "The draft is saved. Preview it to see what students will play, or open the editor to keep working."
         : row.status === "failed"
-          ? "Generation stopped. Your conversation and completed content are still here."
+          ? "Something went wrong. You can start again with the same sources."
           : generating
-            ? "I’m preparing the next part of your adventure."
-            : "The next part is ready. Review the cards on the right, make any edits, and continue when you’re happy with it.";
+            ? "Working on the next step…"
+            : pass === "sources"
+              ? "Choose which sources to use. Your uploads stay included."
+              : pass === "skeleton"
+                ? "Read through the outline before we write the scenes."
+                : pass === "details"
+                  ? "The scenes are ready. Make any changes before we write the endings."
+                  : pass === "endings"
+                    ? "Check where each decision leads. You can edit the choices and endings."
+                    : "Read through the reveal and discussion questions, then finish the draft.";
   const rawSkeleton = validProgress?.skeleton;
   const parsedSkeleton =
     rawSkeleton !== undefined ? validateSkeleton(rawSkeleton) : null;
@@ -142,7 +155,9 @@ export default async function V3AdventurePage({
           {row.status !== "briefing" ? (
             <>
               <header className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-ink">{title}</h2>
+                <h2 className="text-xl font-extrabold tracking-tight text-ink">
+                  {title}
+                </h2>
                 {pass && validProgress?.mode === "guided" ? (
                   <span className="text-xs text-muted">
                     Step {pause?.index ?? 2} of 5
@@ -178,11 +193,7 @@ export default async function V3AdventurePage({
                   compact
                 />
               ) : row.status === "draft" ? (
-                <section className="rounded-surface border border-line bg-surface p-5">
-                  <p className="mb-4 text-sm">
-                    Your adventure has been saved as a draft. You can preview it
-                    or open the full editor before publishing.
-                  </p>
+                <section className="creation-card rounded-surface border-2 border-ink bg-surface p-5">
                   <div className="flex flex-wrap gap-2">
                     <Link
                       className={button.primary}

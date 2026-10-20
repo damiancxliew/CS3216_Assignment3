@@ -88,7 +88,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     const waitTitle = async (title: string) => {
       await page
-        .getByRole("heading", { name: title, exact: true })
+        .getByRole("heading", { name: title, exact: true, level: 2 })
         .waitFor({ timeout: 90000 });
     };
     const conversation = page.getByRole("region", {
@@ -116,6 +116,44 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         const right = await content.boundingBox();
         expect(left).not.toBeNull();
         expect(right).not.toBeNull();
+        expect(
+          await page.getByText("Your conversation", { exact: true }).count(),
+        ).toBe(0);
+        expect(
+          await conversation.evaluate(
+            (element) => getComputedStyle(element).boxShadow,
+          ),
+        ).not.toBe("none");
+        if (pass === "sources") {
+          const source = content.locator("label").first();
+          const checkbox = await source.getByRole("checkbox").boundingBox();
+          const title = await source.locator("span").boundingBox();
+          const lineHeight = await source
+            .locator("span")
+            .evaluate((element) =>
+              parseFloat(getComputedStyle(element).lineHeight),
+            );
+          expect(checkbox).not.toBeNull();
+          expect(title).not.toBeNull();
+          expect(
+            Math.abs(
+              checkbox!.y + checkbox!.height / 2 - title!.y - lineHeight / 2,
+            ),
+          ).toBeLessThan(2);
+          const link = content.locator('a[href^="https:"]').first();
+          expect(
+            await link.evaluate((element) => getComputedStyle(element).color),
+          ).not.toBe(
+            await source
+              .locator("span")
+              .evaluate((element) => getComputedStyle(element).color),
+          );
+          expect(
+            await link.evaluate(
+              (element) => getComputedStyle(element).textDecorationLine,
+            ),
+          ).toContain("underline");
+        }
         if (width >= 768) {
           expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
           expect(Math.abs(left!.y - right!.y)).toBeLessThan(3);
@@ -225,7 +263,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       expect(
         await originalConversation!.evaluate((element) => element.isConnected),
       ).toBe(true);
-      await waitTitle("Check sources");
+      await waitTitle("Choose sources");
       expect(
         await originalConversation!.evaluate((element) => element.isConnected),
       ).toBe(true);
@@ -270,7 +308,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .getByRole("checkbox", { name: "Optional outside result" })
         .uncheck();
       await click("Continue generation");
-      await waitTitle("Check the skeleton");
+      await waitTitle("Story outline");
       await capture("skeleton");
       expect(await content.getByRole("textbox").count()).toBe(0);
       await click("Edit plan");
@@ -331,7 +369,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .getByRole("dialog")
         .getByRole("button", { name: "Continue", exact: true })
         .click();
-      await waitTitle("Check details");
+      await waitTitle("Stages and characters");
       expect(
         await content.locator("[data-review-card]").count(),
       ).toBeGreaterThan(5);
@@ -401,7 +439,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .getByRole("textbox", { name: "Voice", exact: true })
         .fill("A teacher's unsaved voice edit");
       await click("Continue generation");
-      await waitTitle("Check endings");
+      await waitTitle("Decisions and endings");
       await content
         .getByRole("heading", { name: "Endings produced", exact: true })
         .first()
@@ -439,7 +477,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       await editCard("Waiting for Calcutta");
       await savedReload("Title", "Guided ending title", "Endings");
       await click("Continue generation");
-      await waitTitle("Check reveal");
+      await waitTitle("Reveal and questions");
       await capture("reveal");
       await editCard("Reveal and questions");
       // Pick a prose field from reveal and retain its identity across reload.
@@ -520,9 +558,9 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         })
         .eq("job_id", waitingId)
         .eq("name", "sources");
-      await waitTitle("Check sources");
+      await waitTitle("Choose sources");
       await page
-        .getByText("https://rejected.example — Outside source policy", {
+        .getByText("Outside source policy", {
           exact: true,
         })
         .waitFor();

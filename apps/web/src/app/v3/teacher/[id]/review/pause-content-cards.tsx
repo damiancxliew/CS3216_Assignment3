@@ -45,7 +45,6 @@ export function PauseContentCards({
   if (pass === "endings")
     return (
       <div className="space-y-5">
-        <h2 className="text-lg font-bold">Decisions and endings</h2>
         {draft.stages.map((stage) => (
           <div key={stage.id} className="space-y-3">
             <h3 className="text-sm font-semibold text-muted">{stage.title}</h3>

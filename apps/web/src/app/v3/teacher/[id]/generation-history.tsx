@@ -124,7 +124,7 @@ export function GenerationHistory({
                   ? `${spec.stages.length} stages · ${spec.characters.length} characters · ${spec.documents.length} documents`
                   : pass === "endings"
                     ? `${spec.endings.length} endings`
-                    : `${spec.teacherQuestions.length} teacher questions`
+                    : `${spec.teacherQuestions.length} discussion ${spec.teacherQuestions.length === 1 ? "question" : "questions"}`
               }
             >
               {pass === "details" ? (
@@ -187,10 +187,10 @@ function HistoryCard({
 }) {
   return (
     <details
-      className="rounded-surface border border-line bg-surface p-4"
+      className="rounded-control border border-line-strong bg-surface px-4 py-3 shadow-sm transition-colors open:border-ink"
       data-generation-history-card
     >
-      <summary className="cursor-pointer text-sm font-semibold text-ink">
+      <summary className="cursor-pointer text-sm font-bold text-ink marker:text-world">
         {title}
         <span className="mt-1 block pl-4 text-xs font-normal text-muted">
           {detail}

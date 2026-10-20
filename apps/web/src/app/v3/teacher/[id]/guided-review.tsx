@@ -65,12 +65,12 @@ export function SourcesReview({
   const empty = pause.uploads.length + pause.outside.length === removed.length;
   return (
     <div
-      className="space-y-4 rounded-surface border border-line bg-surface p-5"
+      className="creation-card space-y-6 rounded-surface border-2 border-ink bg-surface p-5 sm:p-6"
       aria-busy={pending}
     >
       <section className="space-y-3">
-        <h2 className="text-xl font-bold">Your uploads</h2>
-        <p className="text-sm text-muted">Uploads stay included.</p>
+        <h2 className="text-lg font-extrabold">Uploads</h2>
+        <p className="text-sm text-muted">These are always included.</p>
         <ul className="space-y-2">
           {pause.uploads.map((source) => (
             <li key={source.id}>{source.title} · Included</li>
@@ -79,18 +79,17 @@ export function SourcesReview({
         {!pause.uploads.length ? <p>No uploads.</p> : null}
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl font-bold">Outside sources</h2>
-        <p className="text-sm">
-          Uncheck any outside sources you do not want to use.
-        </p>
+        <h2 className="text-lg font-extrabold">Outside sources</h2>
+        <p className="text-sm">Uncheck any you don’t want to use.</p>
         {pause.outside.map((source) => (
           <div
             key={source.id}
-            className="space-y-1 rounded-surface border border-line p-3"
+            className="space-y-1 rounded-control border border-line bg-paper/50 p-3"
           >
-            <label className="flex items-start gap-3">
+            <label className="grid grid-cols-[1rem_minmax(0,1fr)] items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
+                className="m-0 mt-1 h-4 w-4 accent-record"
                 checked={!removed.includes(source.id)}
                 disabled={pending}
                 onChange={(event) =>
@@ -105,7 +104,7 @@ export function SourcesReview({
             </label>
             {safeSourceUrl(source.url) ? (
               <a
-                className="block break-all text-sm underline"
+                className="ml-7 block text-sm text-record [overflow-wrap:anywhere] underline decoration-record/40 underline-offset-4 transition-colors hover:decoration-record focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-record"
                 href={safeSourceUrl(source.url)!}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -118,22 +117,34 @@ export function SourcesReview({
         {!pause.outside.length ? <p>No outside sources.</p> : null}
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl font-bold">Rejected results</h2>
+        <h2 className="text-lg font-extrabold">Not used</h2>
         <ul className="space-y-2 text-sm">
           {pause.rejected.map((source, index) => (
             <li key={index} className="break-words">
-              {source.url} — {source.reason}
+              {safeSourceUrl(source.url) ? (
+                <a
+                  className="text-record underline decoration-record/40 underline-offset-4 hover:decoration-record"
+                  href={safeSourceUrl(source.url)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {source.url}
+                </a>
+              ) : (
+                source.url
+              )}
+              <p className="mt-1 text-muted">{source.reason}</p>
             </li>
           ))}
         </ul>
         {!pause.rejected.length ? (
-          <p className="text-sm">No rejected results.</p>
+          <p className="text-sm text-muted">No sources were rejected.</p>
         ) : null}
       </section>
       {empty ? <p role="alert">Keep at least one source.</p> : null}
       {message ? <p role="alert">{message}</p> : null}
       <button
-        className={button.primary}
+        className={`${button.primary} border-2 font-bold shadow-[0_3px_0_var(--ink)]`}
         disabled={pending || empty}
         onClick={async () => {
           setPending(true);
@@ -241,7 +252,7 @@ export function PauseEditor({
   };
   return (
     <div className="space-y-5" aria-busy={pending}>
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-line bg-paper/95 py-3 backdrop-blur-sm">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-control border border-line-strong bg-surface/95 px-3 py-3 shadow-sm backdrop-blur-sm">
         <button
           type="button"
           className={button.quiet}
@@ -269,7 +280,7 @@ export function PauseEditor({
         </button>
         <button
           type="button"
-          className={button.primary}
+          className={`${button.primary} border-2 font-bold shadow-[0_3px_0_var(--ink)]`}
           disabled={pending || errors.length > 0}
           onClick={() => void submit(true)}
         >
@@ -299,8 +310,8 @@ export function PauseEditor({
             Existing generation issues ({pause.errors.length})
           </summary>
           <p className="my-2 text-sm">
-            These issues came from generation. Only new errors block Save and
-            Continue.
+            These were already in the generated draft. You can keep editing;
+            only new errors will stop you from saving or continuing.
           </p>
           <ul className="list-disc space-y-2 pl-5 text-sm">
             {pause.errors.map((issue, index) => (
@@ -312,7 +323,10 @@ export function PauseEditor({
       <div aria-live="polite">
         {errors.length ? (
           <p role="alert">
-            {errors.length} new error(s). Fix these before Save or Continue.
+            {errors.length === 1
+              ? "One issue needs attention"
+              : `${errors.length} issues need attention`}{" "}
+            before you can save or continue.
           </p>
         ) : null}
       </div>

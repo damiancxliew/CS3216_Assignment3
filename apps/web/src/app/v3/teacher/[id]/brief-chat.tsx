@@ -26,8 +26,8 @@ import { ConfirmButton } from "./confirm-button";
  * and the summary once the draft is complete. State lives on the server; each
  * turn posts the input and renders the state that comes back.
  */
-export function V3BriefChat({ initial, active = true, complete = false, statusMessage, generating = false, onStateChange, onGenerationStart, onGenerationError }: {
-  initial: BriefStateV3; active?: boolean; complete?: boolean; statusMessage?: string; generating?: boolean; onStateChange?: (state: BriefStateV3) => void; onGenerationStart?: () => void; onGenerationError?: () => void;
+export function V3BriefChat({ initial, active = true, statusMessage, generating = false, onStateChange, onGenerationStart, onGenerationError }: {
+  initial: BriefStateV3; active?: boolean; statusMessage?: string; generating?: boolean; onStateChange?: (state: BriefStateV3) => void; onGenerationStart?: () => void; onGenerationError?: () => void;
 }) {
   const [state, setState] = useState<BriefStateV3>(initial);
   const [text, setText] = useState("");
@@ -129,8 +129,8 @@ export function V3BriefChat({ initial, active = true, complete = false, statusMe
               key={index}
               className={
                 message.role === "user"
-                  ? "ml-10 self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper sm:ml-24"
-                  : "mr-10 self-start rounded-surface rounded-bl-sm bg-sunken px-4 py-3 text-ink sm:mr-24"
+                  ? "ml-10 self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper shadow-sm sm:ml-24"
+                  : "mr-10 self-start rounded-surface rounded-bl-sm border border-line bg-paper px-4 py-3 text-ink shadow-sm sm:mr-24"
               }
             >
               <p className="whitespace-pre-wrap">{message.text}</p>
@@ -145,15 +145,15 @@ export function V3BriefChat({ initial, active = true, complete = false, statusMe
             </li>
           ) : null}
         </ol>
-        {!active && statusMessage ? <div className="mt-4 mr-6 rounded-surface rounded-bl-sm bg-sunken px-4 py-3 text-sm text-ink" role="status">{generating ? <Thinking label={statusMessage} /> : statusMessage}</div> : null}
+        {!active && statusMessage ? <div className="mt-4 mr-6 rounded-surface rounded-bl-sm border border-line bg-paper px-4 py-3 text-sm text-ink shadow-sm" role="status">{generating ? <Thinking label={statusMessage} /> : statusMessage}</div> : null}
         {active && slot.name === "sources" && state.sources.length > 0 ? <SourceList sources={state.sources} /> : null}
         {active && slot.name === "confirm" ? <details className="mt-4 text-sm"><summary className="w-fit cursor-pointer font-semibold text-muted">Change the brief</summary><Summary state={state} pending={pending} onChange={(change) => send({ change })} /></details> : null}
         <div ref={endRef} />
       </div>
 
-      <footer className="flex flex-col gap-3 border-t border-line pt-4">
+      <footer className={active || error ? "flex flex-col gap-3 border-t border-line pt-4" : "hidden"}>
         {error ? <ErrorText>{error}</ErrorText> : null}
-        {!active ? <p className="text-sm text-muted">{generating ? "You can keep reading while the next cards are prepared." : complete ? "Your adventure is ready to preview." : "Review the generated cards and continue when you’re ready."}</p> : slot.name === "confirm" ? (
+        {!active ? null : slot.name === "confirm" ? (
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={create} disabled={pending} className={button.primary}>
               {pending ? <Pending>Creating the adventure…</Pending> : "Create"}

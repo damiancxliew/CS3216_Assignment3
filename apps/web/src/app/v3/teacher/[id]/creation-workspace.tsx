@@ -37,7 +37,7 @@ export function CreationWorkspace({
         <h1 className="text-2xl font-extrabold tracking-tight text-ink">
           {brief.draft.episode ?? "New adventure"}
         </h1>
-        <span className="shrink-0 text-xs font-semibold text-muted">
+        <span className="shrink-0 rounded-full border border-line-strong bg-surface px-3 py-1 text-xs font-semibold text-muted">
           {generating || starting
             ? "Creating"
             : active
@@ -50,13 +50,11 @@ export function CreationWorkspace({
       <div className="grid min-h-0 gap-5 md:flex-1 md:min-h-0 md:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.35fr)]">
         <section
           aria-label="Adventure conversation"
-          className={`flex h-[28rem] min-h-[24rem] md:min-h-0 min-w-0 flex-col rounded-surface border border-line bg-surface p-4 md:flex md:h-full sm:p-5`}
+          className="game-shadow flex h-[28rem] min-h-[24rem] min-w-0 flex-col rounded-surface border-2 border-ink bg-surface p-4 md:h-full md:min-h-0 sm:p-5"
         >
-          <h2 className="mb-4 text-sm font-bold text-ink">Your conversation</h2>
           <V3BriefChat
             initial={brief}
             active={active}
-            complete={complete}
             statusMessage={statusMessage}
             generating={generating || starting}
             onStateChange={setLiveBrief}
@@ -67,7 +65,7 @@ export function CreationWorkspace({
         <section
           aria-label="Generated content"
           data-generated-content
-          className={`block min-h-0 min-w-0 space-y-4 pb-24 md:block md:overflow-y-auto md:overscroll-contain md:pr-1 [scrollbar-gutter:stable] [overflow-wrap:anywhere]`}
+          className="block min-h-0 min-w-0 space-y-5 pb-24 md:overflow-y-auto md:overscroll-contain md:px-2 md:pt-1 [scrollbar-gutter:stable] [overflow-wrap:anywhere]"
         >
           {active ? (
             <>
@@ -75,12 +73,9 @@ export function CreationWorkspace({
               {startingGeneration ? (
                 <section
                   aria-label="Generation progress"
-                  className="rounded-surface border border-line bg-surface p-5"
+                  className="creation-card rounded-surface border border-line-strong bg-surface p-5"
                 >
                   <Thinking label="Preparing your adventure…" />
-                  <p className="mt-2 text-xs text-muted">
-                    Your conversation and brief stay here while we work.
-                  </p>
                 </section>
               ) : null}
             </>
@@ -128,11 +123,8 @@ function BriefOverview({ brief }: { brief: BriefStateV3 }) {
     ],
   ].filter((row): row is [string, string] => row[1] !== undefined);
   return (
-    <section className="rounded-surface border border-line bg-surface p-5">
-      <h2 className="text-lg font-bold">Your adventure brief</h2>
-      <p className="mt-1 text-sm text-muted">
-        The details take shape here as we talk.
-      </p>
+    <section className="creation-card rounded-surface border-2 border-ink bg-surface p-5 sm:p-6">
+      <h2 className="text-xl font-extrabold tracking-tight">The brief</h2>
       {brief.sources.length ? (
         <div className="mt-5">
           <h3 className="text-xs font-bold uppercase tracking-wide text-muted">

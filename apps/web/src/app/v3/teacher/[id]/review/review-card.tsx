@@ -16,13 +16,15 @@ export function ReviewCard({
   const [editing, setEditing] = useState(false);
   return (
     <section
-      className="min-w-0 rounded-surface border border-line bg-surface"
+      className="creation-card min-w-0 rounded-surface border border-line-strong bg-surface"
       aria-label={title}
       data-review-card
     >
       <header className="flex items-start justify-between gap-3 px-4 py-4 sm:px-5">
         <div className="min-w-0">
-          <h3 className="font-bold text-ink">{title}</h3>
+          <h3 className="text-lg font-extrabold tracking-tight text-ink">
+            {title}
+          </h3>
           {subtitle ? (
             <p className="mt-1 text-xs text-muted">{subtitle}</p>
           ) : null}
@@ -31,7 +33,7 @@ export function ReviewCard({
           type="button"
           aria-expanded={editing}
           onClick={() => setEditing(!editing)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-control px-2 py-1 text-sm font-semibold text-ink hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-line px-3 py-1 text-sm font-semibold text-ink hover:border-ink hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
         >
           {editing ? (
             <Check size={14} aria-hidden />
