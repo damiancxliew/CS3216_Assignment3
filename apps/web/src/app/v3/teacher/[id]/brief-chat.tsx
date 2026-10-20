@@ -147,7 +147,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
             </li>
           ) : null}
         </ol>
-        {!active && statusMessage ? <div className="mt-4 mr-6 rounded-surface rounded-bl-sm border border-line bg-paper px-4 py-3 text-sm text-ink shadow-sm" role="status">{statusMessage}</div> : null}
+        {!active && statusMessage ? <div className="mt-4 px-4 py-2 text-center text-sm text-muted" role="status">{statusMessage}</div> : null}
         {active && slot.name === "sources" && state.sources.length > 0 ? <SourceList sources={state.sources} /> : null}
         {active && slot.name === "confirm" ? <details className="mt-4 text-sm"><summary className="w-fit cursor-pointer font-semibold text-muted">Change the brief</summary><Summary state={state} pending={pending} onChange={(change) => send({ change })} /></details> : null}
         <div ref={endRef} />
