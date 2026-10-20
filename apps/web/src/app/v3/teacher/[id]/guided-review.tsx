@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AdventureSpec,
   type AdventureSpec as Spec,
   type CheckIssue,
 } from "@adventure/spec-v3";
@@ -14,7 +13,8 @@ import {
   type CapturedSource,
 } from "@/lib/v3/edit/commands";
 import { newLocalErrors } from "@/lib/v3/edit/local-checks";
-import { safeSourceUrl, reviewIndex, type ReviewTab } from "@/lib/v3/review";
+import { safeSourceUrl } from "@/lib/v3/review";
+import { reviewIssueMessage } from "@/lib/v3/review-presentation";
 import {
   continueFromSourcesAction,
   continuePauseAction,
@@ -22,9 +22,7 @@ import {
   fixPauseEditsWithAiAction,
 } from "./pause-actions";
 import { AiFixPanel } from "./review/ai-fix-panel";
-import { ReviewEditorFields } from "./review/editor-fields";
-import { EditField } from "./review/edit-form";
-import { ReviewScreen } from "./review/review-screen";
+import { PauseContentCards } from "./review/pause-content-cards";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
 
 const steps: GuidedPass[] = [
@@ -66,7 +64,10 @@ export function SourcesReview({
   useUnsavedEdits(removed.length > 0 && !pending);
   const empty = pause.uploads.length + pause.outside.length === removed.length;
   return (
-    <div className="max-w-3xl space-y-6" aria-busy={pending}>
+    <div
+      className="space-y-4 rounded-surface border border-line bg-surface p-5"
+      aria-busy={pending}
+    >
       <section className="space-y-3">
         <h2 className="text-xl font-bold">Your uploads</h2>
         <p className="text-sm text-muted">Uploads stay included.</p>
@@ -238,15 +239,9 @@ export function PauseEditor({
       setPending(false);
     }
   };
-  const tabs: ReviewTab[] =
-    pause.pass === "details"
-      ? ["stages", "characters", "documents"]
-      : pause.pass === "endings"
-        ? ["stages", "endings"]
-        : ["reveal"];
   return (
     <div className="space-y-5" aria-busy={pending}>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-line bg-paper/95 py-3 backdrop-blur-sm">
         <button
           type="button"
           className={button.quiet}
@@ -290,6 +285,7 @@ export function PauseEditor({
         </p>
       ) : null}
       <AiFixPanel<{ edits: V3Edit[] }>
+        floating
         revision={JSON.stringify(edits)}
         disabled={pending}
         request={() =>
@@ -308,7 +304,7 @@ export function PauseEditor({
           </p>
           <ul className="list-disc space-y-2 pl-5 text-sm">
             {pause.errors.map((issue, index) => (
-              <li key={index}>{issue.message}</li>
+              <li key={index}>{reviewIssueMessage(issue)}</li>
             ))}
           </ul>
         </details>
@@ -321,79 +317,23 @@ export function PauseEditor({
         ) : null}
       </div>
       <fieldset disabled={pending} className="min-w-0">
-        <ReviewScreen
-          checksPassedLabel="No new errors"
-          spec={draft}
-          sources={draft.sources}
-          errors={errors}
-          warnings={pause.warnings.map((issue) => ({
-            ...issue,
-            pass: pause.pass,
-          }))}
-          allowedTabs={tabs}
-          indexEntries={(tab, itemId) => {
-            const entries = reviewIndex(draft, tab, itemId);
-            if (tab !== "stages") return entries;
-            const moments = new Set(
-              draft.definingMoments.map((moment) => moment.id),
-            );
-            return entries.filter((entry) =>
-              pause.pass === "details"
-                ? !moments.has(entry.id)
-                : moments.has(entry.id),
-            );
-          }}
-          editMode
-          renderEditor={(tab, selected) => {
-            if (pause.pass === "endings" && tab === "stages")
-              return (
-                <section className="space-y-5 rounded-surface border border-line p-4">
-                  <h2 className="text-xl font-bold">
-                    Decisions ·{" "}
-                    {draft.stages.find((stage) => stage.id === selected)?.title}
-                  </h2>
-                  {draft.definingMoments.map((moment, index) =>
-                    moment.stageId === selected ? (
-                      <div key={moment.id} className="space-y-4">
-                        <EditField
-                          spec={draft}
-                          schema={AdventureSpec.shape.definingMoments.element}
-                          value={moment}
-                          path={["definingMoments", index]}
-                          name="Decision"
-                          onEdit={edit}
-                        />
-                        <h3 className="font-bold">Endings produced</h3>
-                        <ul className="list-disc pl-5">
-                          {[
-                            ...new Set(
-                              moment.outcomes
-                                .map((outcome) => outcome.endingId)
-                                .filter(Boolean),
-                            ),
-                          ].map((id) => (
-                            <li key={id}>
-                              {draft.endings.find((ending) => ending.id === id)
-                                ?.title ?? id}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null,
-                  )}
-                </section>
-              );
-            return (
-              <ReviewEditorFields
-                draft={draft}
-                sources={sources}
-                edit={edit}
-                tab={tab}
-                selected={selected}
-                detailsOnly={pause.pass === "details"}
-              />
-            );
-          }}
+        {errors.length ? (
+          <section
+            className="mb-4 rounded-surface border border-signal/40 bg-surface p-4"
+            aria-label="Issues to resolve"
+          >
+            <ul className="list-disc space-y-2 pl-4 text-sm">
+              {errors.map((issue, index) => (
+                <li key={index}>{reviewIssueMessage(issue)}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        <PauseContentCards
+          pass={pause.pass}
+          draft={draft}
+          sources={sources}
+          edit={edit}
         />
       </fieldset>
     </div>

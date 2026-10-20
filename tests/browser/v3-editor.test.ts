@@ -200,7 +200,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         ).toBe(true);
       }
       await page
-        .getByRole("button", { name: "Fix with AI", exact: true })
+        .getByRole("button", { name: "Resolve issues", exact: true })
         .click();
       await page.getByText("I corrected the title.", { exact: true }).waitFor();
       expect(await page.locator("#edit-title").inputValue()).toBe(
@@ -213,7 +213,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         "Keep this local work",
       );
       await page
-        .getByRole("button", { name: "Fix with AI", exact: true })
+        .getByRole("button", { name: "Resolve issues", exact: true })
         .click();
       await page
         .getByRole("button", { name: "Apply suggested fix", exact: true })
@@ -225,7 +225,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           .count(),
       ).toBe(0);
       await page
-        .getByRole("button", { name: "Fix with AI", exact: true })
+        .getByRole("button", { name: "Resolve issues", exact: true })
         .click();
       await page
         .getByRole("button", { name: "Apply suggested fix", exact: true })
