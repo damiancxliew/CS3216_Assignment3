@@ -6,7 +6,7 @@ import { createServer, transformWithEsbuild } from "vite";
 import { expect, it } from "vitest";
 
 it.runIf(process.env.RUN_JOURNAL_BROWSER_TESTS === "1")(
-  "keeps the Journal reachable during decisions without submitting acts from its controls",
+  "keeps the Journal reachable during decisions without submitting acts from its controls, and its shortcuts out of the player's way",
   async () => {
     const root = resolve("apps/web");
     const vite = await createServer({
@@ -42,12 +42,16 @@ it.runIf(process.env.RUN_JOURNAL_BROWSER_TESTS === "1")(
               definingMoment: {momentId:'moment', scene:'Decide the future of the harbour.', deciderId:'chief',
                 status:'choosing', acts:[{id:'welcome',text:'Welcome the ships.'}], predictionOptions:[]}
             };
+            const calm = new URLSearchParams(location.search).has('calm');
             function App() {
               const [pendingCheck, setPendingCheck] = useState(false);
+              const [locked, setLocked] = useState(false);
               window.setJournalPending = setPendingCheck;
+              window.setJournalLocked = setLocked;
               window.journalActions = [];
               return <main className="flex h-dvh flex-col"><StagePlayScreen
-                view={{...view, pendingCheck}} busy={false} attemptId="journal-browser"
+                view={{...view, pendingCheck, ...(calm ? {definingMoment: null} : {})}} busy={false} attemptId="journal-browser"
+                movementLocked={locked} onOpenRoleBrief={() => window.journalActions.push('roleBrief')}
                 send={action => window.journalActions.push(action.type)} /></main>;
             }
             createRoot(document.getElementById('root')).render(<App />);
@@ -55,7 +59,7 @@ it.runIf(process.env.RUN_JOURNAL_BROWSER_TESTS === "1")(
         },
         configureServer(server) {
           server.middlewares.use((request, response, next) => {
-            if (request.url !== "/") return next();
+            if (request.url?.split("?")[0] !== "/") return next();
             response.setHeader("Content-Type", "text/html");
             response.end('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/@id/__x00__virtual:journal-test"></script></body></html>');
           });
@@ -102,6 +106,34 @@ it.runIf(process.env.RUN_JOURNAL_BROWSER_TESTS === "1")(
         expect(await page.evaluate(() => (window as unknown as { journalActions: string[] }).journalActions.at(-1))).toBe("act");
         await page.close();
       }
+
+      const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });
+      page.on("pageerror", error => errors.push(error.message));
+      await page.goto(`${vite.resolvedUrls!.local[0]!}?calm`);
+      const journal = page.getByRole("region", { name: "Journal", exact: true });
+      const header = journal.locator("[aria-controls='stage-island-panel']");
+      await header.waitFor();
+      const focusInJournal = () => journal.evaluate((element) => element.contains(document.activeElement));
+      await page.keyboard.press("2");
+      expect(await header.getAttribute("aria-expanded")).toBe("true");
+      expect(await journal.getByRole("tab", { name: /Documents/ }).getAttribute("aria-selected")).toBe("true");
+      expect(await focusInJournal()).toBe(false);
+      await page.keyboard.press("Escape");
+      expect(await header.getAttribute("aria-expanded")).toBe("false");
+      expect(await focusInJournal()).toBe(false);
+      await header.click();
+      await expect.poll(() => journal.getByRole("tab", { name: /Documents/ }).evaluate((element) => element === document.activeElement)).toBe(true);
+      await page.keyboard.press("Escape");
+      await expect.poll(() => header.evaluate((element) => element === document.activeElement)).toBe(true);
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await page.evaluate(() => {
+        (window as unknown as { setJournalLocked(value: boolean): void }).setJournalLocked(true);
+        return new Promise((done) => requestAnimationFrame(() => setTimeout(done)));
+      });
+      for (const key of ["j", "1", "3", "r"]) await page.keyboard.press(key);
+      expect(await header.getAttribute("aria-expanded")).toBe("false");
+      expect(await page.evaluate(() => (window as unknown as { journalActions: string[] }).journalActions)).toEqual([]);
+      await page.close();
       expect(errors).toEqual([]);
     } finally {
       await browser?.close();

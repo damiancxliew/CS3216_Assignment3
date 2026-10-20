@@ -318,6 +318,7 @@ export function StageIsland({
   pulseKey = null,
   openRequest = null,
   onOpenRequestHandled,
+  shortcutsLocked = false,
 }: {
   view: PlayerView;
   onOpenDocument: (id: string) => void;
@@ -328,6 +329,7 @@ export function StageIsland({
   pulseKey?: string | null;
   openRequest?: { tab: IslandTab; key: number } | null;
   onOpenRequestHandled?: (key: number) => void;
+  shortcutsLocked?: boolean;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const [activeTab, setActiveTab] = useState<IslandTab>(definingMoment && initialTab === "notes" ? "documents" : initialTab);
@@ -335,25 +337,28 @@ export function StageIsland({
   const previousDocumentCount = useRef(view.documents.length);
   const clearActivityTimer = useRef<number | null>(null);
   const lastOpenRequestKey = useRef<number | null>(null);
+  const island = useRef<HTMLElement>(null);
   const headerButton = useRef<HTMLButtonElement>(null);
   const activeTabButton = useRef<HTMLButtonElement>(null);
   const focusTabAfterOpen = useRef(false);
   const focusHeaderAfterClose = useRef(false);
   const stage = view.stage;
 
-  const openIsland = useCallback(() => {
+  const focusInIsland = useCallback(() => Boolean(island.current?.contains(document.activeElement)), []);
+
+  const openIsland = useCallback((moveFocus = true) => {
     setExpanded(true);
-    focusTabAfterOpen.current = true;
+    focusTabAfterOpen.current = moveFocus;
   }, []);
 
   const closeIsland = useCallback(() => {
+    focusHeaderAfterClose.current = focusInIsland();
     setExpanded(false);
-    focusHeaderAfterClose.current = true;
-  }, []);
+  }, [focusInIsland]);
 
-  const toggleIsland = useCallback(() => {
+  const toggleIsland = useCallback((moveFocus = true) => {
     if (expanded) closeIsland();
-    else openIsland();
+    else openIsland(moveFocus);
   }, [closeIsland, expanded, openIsland]);
 
   useEffect(() => {
@@ -376,7 +381,7 @@ export function StageIsland({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
+      if (shortcutsLocked || event.defaultPrevented || document.querySelector("dialog[open]")) return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       const target = event.target;
       if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
@@ -384,17 +389,18 @@ export function StageIsland({
       const shortcut = journalShortcut(event.key, { expanded, activeTab, definingMoment, hasRoleBrief: Boolean(onOpenRoleBrief) });
       if (!shortcut) return;
       event.preventDefault();
-      if (shortcut.type === "toggle") toggleIsland();
+      const moveFocus = focusInIsland();
+      if (shortcut.type === "toggle") toggleIsland(moveFocus);
       else if (shortcut.type === "close") closeIsland();
       else if (shortcut.type === "roleBrief") onOpenRoleBrief?.();
       else {
         setActiveTab(shortcut.tab);
-        openIsland();
+        openIsland(moveFocus);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTab, closeIsland, definingMoment, expanded, onOpenRoleBrief, openIsland, toggleIsland]);
+  }, [activeTab, closeIsland, definingMoment, expanded, focusInIsland, onOpenRoleBrief, openIsland, shortcutsLocked, toggleIsland]);
 
   useEffect(() => {
     if (expanded && focusTabAfterOpen.current && !activeTabButton.current?.disabled) {
@@ -423,6 +429,7 @@ export function StageIsland({
 
   return (
     <section
+      ref={island}
       aria-label="Journal"
       className={`absolute bottom-2 left-2 w-[min(22rem,calc(100%_-_1rem))] rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433] sm:bottom-4 sm:left-4 ${layerClass}`}
     >
@@ -435,7 +442,7 @@ export function StageIsland({
             aria-controls="stage-island-panel"
             aria-keyshortcuts="J"
             aria-label={`Stage ${stage ? stage.index + 1 : 1} of ${stage?.count ?? 1}; ${view.notes.length} notes, ${view.documents.length} documents, ${logLineCount(view.messages)} log lines, ${expanded ? "collapse" : "expand"} island`}
-            onClick={toggleIsland}
+            onClick={() => toggleIsland()}
             className="grid min-h-7 w-full grid-cols-[1fr_auto_auto] items-center gap-x-2 gap-y-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#fffaf0]"
           >
             <span className={`${pixelFont.className} mr-auto flex shrink-0 items-center gap-2 text-base font-bold`}>
