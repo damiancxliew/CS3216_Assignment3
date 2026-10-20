@@ -67,7 +67,7 @@ export function CreationWorkspace({
           <section
             aria-label="Generated content"
             data-generated-content
-            className="block min-h-0 min-w-0 space-y-5 pb-24 md:overflow-y-auto md:overscroll-contain md:px-2 md:pt-1 [scrollbar-gutter:stable] [overflow-wrap:anywhere]"
+            className="block min-h-0 min-w-0 space-y-5 pb-24 md:overflow-y-auto md:overscroll-contain md:px-2 [scrollbar-gutter:stable] [overflow-wrap:anywhere]"
           >
             {active ? (
               <>

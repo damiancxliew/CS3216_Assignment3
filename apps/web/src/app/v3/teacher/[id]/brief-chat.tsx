@@ -183,7 +183,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
                 ))}
               </div>
             ) : null}
-            <div className="flex items-end gap-2">
+            <div className="flex items-center gap-2">
               <textarea
                 ref={composer}
                 value={text}

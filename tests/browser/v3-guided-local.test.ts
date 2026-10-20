@@ -123,6 +123,20 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         });
         expect(await composer.isVisible()).toBe(true);
         const composerBox = await composer.boundingBox();
+        const sendBox = await conversation
+          .getByRole("button", {
+            name: "Send message",
+            exact: true,
+          })
+          .boundingBox();
+        expect(sendBox).not.toBeNull();
+        expect(
+          Math.abs(
+            sendBox!.y +
+              sendBox!.height / 2 -
+              (composerBox!.y + composerBox!.height / 2),
+          ),
+        ).toBeLessThan(1);
         expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(
           left!.y + left!.height,
         );
@@ -192,7 +206,17 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         }
         if (width >= 768) {
           expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
-          expect(Math.abs(left!.y - right!.y)).toBeLessThan(3);
+          expect(Math.abs(left!.y - right!.y)).toBeLessThan(1);
+          if (pass === "brief") {
+            const briefCard = await content
+              .getByRole("heading", {
+                name: "The brief",
+                exact: true,
+              })
+              .locator("..")
+              .boundingBox();
+            expect(Math.abs(left!.y - briefCard!.y)).toBeLessThan(1);
+          }
           expect(
             await page.evaluate(
               () => document.documentElement.scrollHeight <= innerHeight + 1,

@@ -174,7 +174,7 @@ export function ReviewChatComposer({
           event.preventDefault();
           void send();
         }}
-        className="flex items-end gap-2"
+        className="flex items-center gap-2"
       >
         <textarea
           aria-label="Message"
