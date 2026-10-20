@@ -1,7 +1,7 @@
 import { compactButton } from "@/components/ui";
 
 export const reviewToolbar =
-  "flex min-w-0 flex-nowrap items-center whitespace-nowrap gap-2 rounded-full border border-line-strong bg-surface/95 p-3 shadow-lg backdrop-blur-sm [&>span]:min-w-0 [&>span]:truncate";
+  "flex min-w-0 flex-nowrap items-center whitespace-nowrap gap-2 rounded-full border border-line-strong bg-surface/95 p-3 shadow-xl backdrop-blur-sm [&>span]:min-w-0 [&>span]:truncate";
 export const reviewPrimary = `${compactButton.primary} border-2 font-bold shadow-[0_3px_0_var(--ink)]`;
 
 export const reviewEdit =
