@@ -150,7 +150,7 @@ function DialoguePortrait({ character, portraitBase }: { character: CharacterVie
   }, [url]);
 
   return (
-    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden border-4 border-[#1f2433] bg-[#2a2f3d] min-[480px]:h-24 min-[480px]:w-24 sm:h-28 sm:w-28">
+    <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden border-4 border-[#1f2433] bg-[#2a2f3d] min-[480px]:h-16 min-[480px]:w-16 sm:h-20 sm:w-20">
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element -- portraits use generated storage URLs
         <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailedUrl(src)} />
