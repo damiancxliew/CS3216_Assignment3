@@ -1,33 +1,36 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-
-import { Page } from "@/components/ui";
-import { validateSkeleton } from "@adventure/spec-v3";
+import { supabaseJobStore } from "@adventure/jobs";
+import {
+  validateSkeleton,
+  validateSpec,
+  type SkeletonShape,
+} from "@adventure/spec-v3";
+import { SiteHeader, compactButton as button } from "@/components/ui";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
-import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
-import { briefStateV3Schema } from "@/lib/v3/brief/schema";
-import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PASS_LABELS } from "@/lib/v3/generation/labels";
-import { viewerSeesCost } from "@/lib/v3/generation/service";
-import type { SkeletonShape } from "@adventure/spec-v3";
-
+import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
+import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
+import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
+import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
+import {
+  loadPause,
+  storedBrief,
+  viewerSeesCost,
+} from "@/lib/v3/generation/service";
+import { capturedSources } from "@/lib/v3/edit/apply";
 import { getV3GenerationProgress } from "../actions";
-import { V3BriefChat } from "./brief-chat";
 import { GenerationProgress } from "./generation-progress";
 import { SkeletonEditor } from "./skeleton-editor";
 import { StartAgain } from "./review-actions";
 import AdventureWorkspace from "./review/adventure-workspace";
-
-import { supabaseJobStore } from "@adventure/jobs";
-import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
-import { loadPause } from "@/lib/v3/generation/service";
-import { capturedSources } from "@/lib/v3/edit/apply";
-import { GuidedSteps, SourcesReview, PauseEditor } from "./guided-review";
+import { SourcesReview, PauseEditor } from "./guided-review";
+import { CreationWorkspace } from "./creation-workspace";
+import { GenerationHistory } from "./generation-history";
 
 export const dynamic = "force-dynamic";
-
 export const metadata: Metadata = {
   title: "Adventure",
   robots: { index: false },
@@ -35,160 +38,184 @@ export const metadata: Metadata = {
 
 export default async function V3AdventurePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ view?: string }>;
 }) {
   if (!v3Enabled()) notFound();
   const { id } = await params;
-  const supabase = await createClient();
-  const viewer = await getViewer(supabase);
+  const viewer = await getViewer(await createClient());
   if (!viewer.user || !isStaff(viewer)) notFound();
-
-  const row = await supabaseV3BriefStore(createAdminClient()).load(id);
+  const admin = createAdminClient();
+  const row = await supabaseV3BriefStore(admin).load(id);
   if (!row || row.ownerId !== viewer.user.id || !v3SchoolAllowed(row.schoolId))
     notFound();
+  const query = await searchParams;
+  if (
+    ["published", "archived"].includes(row.status) ||
+    (row.status === "draft" &&
+      (row.state?.draft.mode !== "guided" || query?.view === "editor"))
+  )
+    return AdventureWorkspace({ params: Promise.resolve({ id }) });
 
-  switch (row.status) {
-    case "briefing": {
-      const state = briefStateV3Schema.safeParse(row.state);
-      if (!state.success) notFound();
-      return (
-        <Page
-          title="New adventure"
-          lede="A few short questions, then the generator builds the world."
-          width="wide"
+  const store = supabaseJobStore(admin);
+  const deps = defaultGenerationDeps();
+  const [steps, documents, progress] =
+    row.status === "briefing"
+      ? ([[], [], null] as const)
+      : await Promise.all([
+          store.list(id),
+          deps.sources.load(id),
+          getV3GenerationProgress(id),
+        ]);
+  const brief = row.state ?? initialBriefStateV3(id);
+  if (!row.state && row.status !== "briefing") {
+    const generationBrief = await storedBrief(store, id);
+    brief.draft.episode = generationBrief?.episode ?? row.title ?? undefined;
+    brief.draft.mode = generationBrief?.mode;
+    brief.messages = [
+      {
+        role: "assistant",
+        text: "Your adventure is taking shape. You can review the generated content here as each part is ready.",
+        slot: "generation",
+      },
+    ];
+  }
+  const validProgress = progress && !("error" in progress) ? progress : null;
+  const pause =
+    row.status === "needs_review" && validProgress?.mode === "guided"
+      ? await loadPause(deps, store, {
+          id,
+          schoolId: row.schoolId,
+          ownerId: row.ownerId,
+          status: "needs_review",
+        })
+      : null;
+  const pass = pause?.pass ?? validProgress?.pausedAt;
+  const generating =
+    row.status === "generating" || (row.status === "needs_review" && !pass);
+  const title =
+    pass === "skeleton"
+      ? "Check the skeleton"
+      : pass
+        ? `Check ${pass}`
+        : row.status === "draft"
+          ? "Your adventure is ready"
+          : row.status === "failed"
+            ? "Generation paused"
+            : "Building your adventure";
+  const statusMessage =
+    row.status === "briefing"
+      ? ""
+      : row.status === "draft"
+        ? "Your adventure is ready. All the generated content is on the right, and your conversation is still here."
+        : row.status === "failed"
+          ? "Generation stopped. Your conversation and completed content are still here."
+          : generating
+            ? "I’m preparing the next part of your adventure."
+            : "The next part is ready. Review the cards on the right, make any edits, and continue when you’re happy with it.";
+  const rawSkeleton = validProgress?.skeleton;
+  const parsedSkeleton =
+    rawSkeleton !== undefined ? validateSkeleton(rawSkeleton) : null;
+  const skeleton = parsedSkeleton?.ok
+    ? parsedSkeleton.spec
+    : (rawSkeleton as SkeletonShape | undefined);
+  const final =
+    row.status === "draft"
+      ? await admin.from("adventures_v3").select("spec").eq("id", id).single()
+      : null;
+  const finalSpec = final?.data ? validateSpec(final.data.spec) : null;
+
+  return (
+    <div className="min-h-screen md:flex md:h-dvh md:flex-col md:overflow-hidden">
+      <SiteHeader />
+      <main className="md:min-h-0 md:flex-1">
+        <CreationWorkspace
+          key={id}
+          brief={brief}
+          active={row.status === "briefing"}
+          complete={row.status === "draft"}
+          generating={generating}
+          statusMessage={statusMessage}
         >
-          <div className="mx-auto flex min-h-[60vh] w-full max-w-3xl flex-col">
-            <V3BriefChat initial={state.data} />
-          </div>
-        </Page>
-      );
-    }
-    case "generating":
-      return (
-        <Page
-          title="Generating your adventure"
-          lede="The passes run in order — you can leave this page and come back."
-        >
-          <GenerationProgress
-            adventureId={id}
-            seesCost={viewerSeesCost(viewer)}
-          />
-        </Page>
-      );
-    case "needs_review": {
-      const progress = await getV3GenerationProgress(id);
-      const guided =
-        progress && !("error" in progress) && progress.mode === "guided";
-      if (guided) {
-        const deps = defaultGenerationDeps();
-        const adventure = await deps.adventures.get(id);
-        const pause = adventure
-          ? await loadPause(
-              deps,
-              supabaseJobStore(createAdminClient()),
-              adventure,
-            )
-          : null;
-        if (pause && pause.pass !== "skeleton")
-          return (
-            <Page
-              title={`Check ${pause.pass}`}
-              lede="Review this step, then continue generation when you are ready."
-              width="wide"
-            >
-              <GuidedSteps pass={pause.pass} />
-              {pause.pass === "sources" ? (
+          {row.status !== "briefing" ? (
+            <>
+              <header className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-ink">{title}</h2>
+                {pass && validProgress?.mode === "guided" ? (
+                  <span className="text-xs text-muted">
+                    Step {pause?.index ?? 2} of 5
+                  </span>
+                ) : null}
+              </header>
+              <GenerationHistory
+                steps={[...steps]}
+                documents={[...documents]}
+                current={pass}
+                finalSpec={finalSpec?.ok ? finalSpec.spec : undefined}
+              />
+              {generating ? (
+                <GenerationProgress
+                  adventureId={id}
+                  seesCost={viewerSeesCost(viewer)}
+                  compact
+                />
+              ) : pause?.pass === "sources" ? (
                 <SourcesReview adventureId={id} pause={pause} />
-              ) : (
+              ) : pause && "base" in pause ? (
                 <PauseEditor
                   key={pause.pass}
                   adventureId={id}
                   pause={pause}
-                  sources={capturedSources(await deps.sources.load(id))}
+                  sources={capturedSources([...documents])}
                 />
+              ) : skeleton && pass === "skeleton" ? (
+                <SkeletonEditor
+                  adventureId={id}
+                  initial={skeleton}
+                  hasDraft={validProgress?.hasDraft === true}
+                  compact
+                />
+              ) : row.status === "draft" ? (
+                <section className="rounded-surface border border-line bg-surface p-5">
+                  <p className="mb-4 text-sm">
+                    Your adventure has been saved as a draft. You can preview it
+                    or open the full editor before publishing.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      className={button.primary}
+                      href={`/v3/teacher/${id}/preview`}
+                    >
+                      Preview adventure
+                    </Link>
+                    <Link
+                      className={button.quiet}
+                      href={`/v3/teacher/${id}?view=editor`}
+                    >
+                      Open adventure editor
+                    </Link>
+                  </div>
+                </section>
+              ) : row.status === "failed" ? (
+                <StartAgain adventureId={id} />
+              ) : (
+                <>
+                  <p role="status" className="text-sm text-muted">
+                    The content is arriving. Retrying…
+                  </p>
+                  <GenerationProgress
+                    adventureId={id}
+                    seesCost={viewerSeesCost(viewer)}
+                    compact
+                  />
+                </>
               )}
-            </Page>
-          );
-        if (!pause || !progress.pausedAt)
-          return (
-            <Page title="Loading your review">
-              <p role="status">Waiting for the generated output. Retrying…</p>
-              <GenerationProgress
-                adventureId={id}
-                seesCost={viewerSeesCost(viewer)}
-              />
-            </Page>
-          );
-      }
-      // a saved draft may be mid-edit broken — still hand it to the editor (the checks inside flag it)
-      const rawSkeleton =
-        progress && !("error" in progress) ? progress.skeleton : undefined;
-      const parsed =
-        rawSkeleton !== undefined ? validateSkeleton(rawSkeleton) : undefined;
-      const skeleton = parsed?.ok
-        ? parsed.spec
-        : (rawSkeleton as SkeletonShape | undefined);
-      const hasDraft =
-        progress && !("error" in progress) && progress.hasDraft === true;
-      return (
-        <Page
-          title="Check the skeleton"
-          lede="This is what the generator plans to build. Edit anything, then continue when it looks right."
-          width="wide"
-        >
-          {guided ? <GuidedSteps pass="skeleton" /> : null}
-          {skeleton ? (
-            <SkeletonEditor
-              adventureId={id}
-              initial={skeleton}
-              hasDraft={hasDraft}
-            />
-          ) : (
-            <>
-              <p role="status">Waiting for the skeleton. Retrying…</p>
-              <GenerationProgress
-                adventureId={id}
-                seesCost={viewerSeesCost(viewer)}
-              />
             </>
-          )}
-        </Page>
-      );
-    }
-    case "draft":
-    case "published":
-    case "archived":
-      return AdventureWorkspace({ params: Promise.resolve({ id }) });
-    case "failed": {
-      const progress = await getV3GenerationProgress(id);
-      const failed =
-        progress && !("error" in progress)
-          ? progress.steps.find((s) => s.status === "failed")
-          : undefined;
-      const label = failed
-        ? (PASS_LABELS[failed.name as keyof typeof PASS_LABELS] ?? failed.name)
-        : "generation";
-      return (
-        <Page
-          title="Generation stopped"
-          lede={`Generation stopped at ${label}. You can start again with the same sources.`}
-        >
-          <StartAgain adventureId={id} />
-          {failed?.error ? (
-            <details className="mt-6 max-w-2xl text-sm text-muted">
-              <summary className="cursor-pointer font-semibold">
-                Technical details
-              </summary>
-              <pre className="mt-2 whitespace-pre-wrap rounded-surface border border-line bg-sunken p-3">
-                {failed.error}
-              </pre>
-            </details>
           ) : null}
-        </Page>
-      );
-    }
-    default:
-      notFound();
-  }
+        </CreationWorkspace>
+      </main>
+    </div>
+  );
 }

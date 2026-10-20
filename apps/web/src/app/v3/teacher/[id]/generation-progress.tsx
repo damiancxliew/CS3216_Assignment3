@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { Thinking } from "@/components/ui";
 import { ProgressBar } from "@/components/teacher/progress-bar";
 import { PASS_LABELS, PASS_ORDER, stepDisplayStatus } from "@/lib/v3/generation/labels";
 
@@ -11,7 +12,7 @@ import { getV3GenerationProgress } from "../actions";
 type Progress = Awaited<ReturnType<typeof getV3GenerationProgress>>;
 
 /** The generating view: one row per pass, refreshed every 4 s like the artwork poller. */
-export function GenerationProgress({ adventureId, seesCost }: { adventureId: string; seesCost: boolean }) {
+export function GenerationProgress({ adventureId, seesCost, compact = false }: { adventureId: string; seesCost: boolean; compact?: boolean }) {
   const router = useRouter();
   const [progress, setProgress] = useState<Progress | null>(null);
   const [retrying, setRetrying] = useState(false);
@@ -41,6 +42,8 @@ export function GenerationProgress({ adventureId, seesCost }: { adventureId: str
   const done = PASS_ORDER.filter((name) => stepDisplayStatus(byName.get(name)?.status) === "done").length;
   const anyRunning = PASS_ORDER.some((name) => stepDisplayStatus(byName.get(name)?.status) === "running");
 
+  const running = PASS_ORDER.find(name => stepDisplayStatus(byName.get(name)?.status) === "running") ?? PASS_ORDER.find(name => stepDisplayStatus(byName.get(name)?.status) !== "done");
+  if (compact) return <section className="rounded-surface border border-line bg-surface px-5 py-4" aria-label="Generation progress"><Thinking label={retrying ? "Reconnecting… Your content is still here." : running ? `Preparing ${PASS_LABELS[running].toLowerCase()}…` : "Finishing up…"} /><p className="mt-2 text-xs text-muted">{done} of {PASS_ORDER.length} steps complete · Your conversation and completed cards stay available.</p>{seesCost && progress && !("error" in progress) ? <p className="mt-1 text-xs text-muted">Cost so far: ${progress.costUsd.toFixed(4)}</p> : null}</section>;
   return (
     <div className="flex max-w-2xl flex-col gap-4">
       {retrying ? <p role="status" className="text-sm">Could not refresh progress. Retrying…</p> : null}

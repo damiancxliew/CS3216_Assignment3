@@ -41,8 +41,9 @@ function friendlyMessage(issue: CheckIssue): string {
  * when they carry errors or were just added. Continue is blocked while errors
  * remain.
  */
-export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId: string; initial: SkeletonShape; hasDraft: boolean }) {
+export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false }: { adventureId: string; initial: SkeletonShape; hasDraft: boolean; compact?: boolean }) {
   const [draft, setDraft] = useState<Draft>(initial);
+  const [editing, setEditing] = useState(!compact);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [addedPaths, setAddedPaths] = useState<Set<string>>(new Set());
   const [saveState, setSaveState] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
@@ -131,6 +132,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
   /** Expands every ancestor card of `path` and scrolls to its deepest anchor. */
   const openTo = (path: string) => {
     const segments = path.split(".");
+    setEditing(true);
     setOpen((o) => {
       const next = { ...o };
       for (let i = 1; i < segments.length; i += 1) next[segments.slice(0, i).join(".")] = true;
@@ -189,9 +191,9 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
   const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
   return (
-    <fieldset disabled={continuePending || discardPending} aria-label="Skeleton review" className="min-w-0 flex flex-col gap-8">
+    <fieldset disabled={continuePending || discardPending} aria-label="Skeleton review" className="min-w-0 flex flex-col gap-4">
       {/* sticky status bar */}
-      <div className="sticky top-0 z-30 -mx-2 flex flex-wrap items-center gap-3 border-b-2 border-line bg-paper/95 px-2 py-3 backdrop-blur">
+      <div className="sticky top-0 z-30 -mx-2 flex flex-wrap items-center gap-3 border-b border-line bg-paper/95 px-2 py-3 backdrop-blur">
         <button type="button" onClick={() => setShowIssues((v) => !v)} className={`${button.subtle} text-sm`} aria-expanded={showIssues}>
           <StableLabel label={`${errors.length} error${errors.length === 1 ? "" : "s"} · ${warnings.length} warning${warnings.length === 1 ? "" : "s"}`} pending={false} pendingLabel="" />
         </button>
@@ -241,7 +243,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
           />
         </div>
       </div>
-      <AiFixPanel<{ skeleton: SkeletonShape }> revision={JSON.stringify(draft)} disabled={continuePending || discardPending} request={() => fixSkeletonWithAiAction(adventureId, draft)} apply={proposal => update(proposal.skeleton)} />
+      <AiFixPanel<{ skeleton: SkeletonShape }> floating={compact} revision={JSON.stringify(draft)} disabled={continuePending || discardPending} request={() => fixSkeletonWithAiAction(adventureId, draft)} apply={proposal => update(proposal.skeleton)} />
       {continueError ? <ErrorText>{continueError}</ErrorText> : null}
       {showIssues ? (
         <ul className="flex flex-col gap-1 rounded-surface border-2 border-line bg-sunken p-4 text-sm">
@@ -256,6 +258,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
         </ul>
       ) : null}
 
+      {compact ? <section className="rounded-surface border border-line bg-surface p-5" aria-label="Adventure plan" data-review-card><div className="mb-3 flex items-center justify-between gap-3"><h2 className="font-bold">{draft.title}</h2><button type="button" className={button.subtle} aria-expanded={editing} onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit plan"}</button></div><p className="text-sm leading-relaxed">{draft.arc}</p><ol className="mt-4 list-decimal space-y-3 pl-5 text-sm">{draft.stages.map(stage => <li key={stage.id}><span className="font-semibold">{stage.title}</span><p className="text-muted">{stage.centralQuestion}</p></li>)}</ol><p className="mt-4 text-xs text-muted">{draft.characters.length} characters · {draft.documents.length} documents · {draft.endings.length} endings</p></section> : null}
+      {editing ? <div className={compact ? "space-y-6 rounded-surface border border-line bg-surface p-4 sm:p-5" : "space-y-8"}>
       {/* 1. Overview — always expanded */}
       <Section title="Overview">
         <ItemIssues issues={issuesAt(errors, "title")} />
@@ -449,6 +453,7 @@ export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId
         })}
         <AddButton label="Add ending" onClick={() => add("ending", undefined, `endings.${draft.endings.length}`)} />
       </Section>
+      </div> : null}
     </fieldset>
   );
 }
