@@ -16,14 +16,14 @@ export function editableIssues(spec: AdventureSpec): CheckIssue[] {
         : "not" in c
           ? atoms(c.not)
           : [c];
-  const minimumFacts = (c: Condition): number =>
+  const minimumFacts = (c: Condition, firing: string | null): number =>
     "all" in c
-      ? c.all.reduce((n, x) => n + minimumFacts(x), 0)
+      ? c.all.reduce((n, x) => n + minimumFacts(x, firing), 0)
       : "any" in c
         ? c.any.length
-          ? Math.min(...c.any.map(minimumFacts))
+          ? Math.min(...c.any.map((x) => minimumFacts(x, firing)))
           : 0
-        : "not" in c
+        : "not" in c || ("discovered" in c && c.discovered === firing)
           ? 0
           : 1;
   spec.characters.forEach((character, i) => {
@@ -46,10 +46,17 @@ export function editableIssues(spec: AdventureSpec): CheckIssue[] {
     for (const trigger of spec.triggers.filter(
       (t) => t.characterId === character.id,
     )) {
+      // Firing on a discovery or its note already implies that discovery.
+      const firing =
+        "discovered" in trigger.on
+          ? trigger.on.discovered
+          : "notePassed" in trigger.on
+            ? trigger.on.notePassed
+            : null;
       if (
         "toStance" in trigger.effect &&
         hidden.has(trigger.effect.toStance) &&
-        (!trigger.requires || minimumFacts(trigger.requires) < 1)
+        (!trigger.requires || minimumFacts(trigger.requires, firing) < 1)
       )
         add(
           "hidden-stance-guard",

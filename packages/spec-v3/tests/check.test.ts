@@ -30,6 +30,22 @@ describe('checkSpec', () => {
     expect(editableIssues(spec)).toContainEqual(expect.objectContaining({ code: 'hidden-stance-guard' }))
   })
 
+  it('does not count the fact that fires a hidden-entry trigger as its prerequisite', () => {
+    const parsed = validateSpec(clone())
+    if (!parsed.ok) throw new Error('sample spec must validate')
+    const spec = parsed.spec
+    const trigger = spec.triggers[0]!
+    trigger.effect = { toStance: 'st-3' }
+    const guardIssues = () => editableIssues(spec).filter((issue) => issue.code === 'hidden-stance-guard')
+    for (const on of [{ discovered: 'disc-2' }, { notePassed: 'disc-2' }]) {
+      trigger.on = on
+      trigger.requires = { discovered: 'disc-2' }
+      expect(guardIssues()).toHaveLength(1)
+      trigger.requires = { all: [{ discovered: 'disc-2' }, { discovered: 'disc-1' }] }
+      expect(guardIssues()).toEqual([])
+    }
+  })
+
   it('rejects negative secret achievements without authoring metadata', () => {
     const result = checked((s) => {
       s.definingMoments[0].acts[1].secret = { unlock: [{ not: { discovered: 'disc-2' } }, { not: { stanceAtLeast: { characterId: 'char-farquhar', stanceId: 'st-3' } } }], minMet: 2 }
