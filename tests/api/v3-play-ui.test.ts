@@ -11,7 +11,7 @@ import adventureStyles from "@/components/play/adventure-chrome.module.css";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { StanceTag, StoryToast, stanceShifts, storyKicker, talkLines } from "@/components/play/v3/story-lines";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
-import { StageIsland, documentActivityText, filterLogByCharacter, groupMessagesByStage, groupNotesByStage, logLineCount } from "@/components/play/v3/stage-island";
+import { StageIsland, documentActivityText, filterLogByCharacter, filterStoryLines, groupMessagesByStage, groupNotesByStage, logLineCount } from "@/components/play/v3/stage-island";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
@@ -436,6 +436,8 @@ describe("v3 stage play screen", () => {
       expect(documentsMarkup).toContain("1820");
       expect(documentsMarkup).toContain("A clerk");
       expect(logMarkup).toContain("The journey begins.");
+      expect(logMarkup).toContain("Story event");
+      expect(logMarkup).toContain("Hints &amp; story events");
       expect(logMarkup).toContain("Archivist");
       expect(logMarkup).toContain("The harbour is changing.");
       expect(logMarkup).toContain("<blockquote");
@@ -543,6 +545,17 @@ describe("v3 stage play screen", () => {
       { id: "a2", kind: "character", characterId: "a", roomId: "r", text: "Another answer", insertedNoteId: null, stageIndex: 0, at: 7 },
     ] satisfies MessageView[];
     expect(filterLogByCharacter(messages, "a").map((message) => message.id)).toEqual(["p1", "p2", "a1", "a2"]);
+  });
+
+  it("filters the log down to hints, reactions and story events", () => {
+    const messages = [
+      { id: "p1", kind: "player", characterId: "a", roomId: "r", text: "Question", insertedNoteId: null, stageIndex: 0, at: 1 },
+      { id: "a1", kind: "character", characterId: "a", roomId: "r", text: "Answer", insertedNoteId: null, stageIndex: 0, at: 2 },
+      { id: "hint", kind: "thought", characterId: null, roomId: null, text: "A thought", insertedNoteId: null, stageIndex: 0, at: 3 },
+      { id: "reaction", kind: "notice", characterId: "a", roomId: "r", text: "He bristles.", insertedNoteId: null, stageIndex: 0, at: 4 },
+      { id: "event", kind: "narration", characterId: null, roomId: null, text: "A boat arrives.", insertedNoteId: null, stageIndex: 1, at: 5 },
+    ] satisfies MessageView[];
+    expect(filterStoryLines(messages).map((message) => message.id)).toEqual(["hint", "reaction", "event"]);
   });
 
   it("builds the insertNote action used by the Notes modal", () => {
