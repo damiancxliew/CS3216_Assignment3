@@ -116,6 +116,16 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         const right = await content.boundingBox();
         expect(left).not.toBeNull();
         expect(right).not.toBeNull();
+        const composer = conversation.getByRole("textbox", {
+          name: "Message",
+          exact: true,
+        });
+        expect(await composer.isVisible()).toBe(true);
+        const composerBox = await composer.boundingBox();
+        expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(
+          left!.y + left!.height,
+        );
+
         expect(
           await page.getByText("Your conversation", { exact: true }).count(),
         ).toBe(0);
@@ -178,6 +188,18 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
     const click = async (name: string) => {
       await page.getByRole("button", { name, exact: true }).click();
       await page.waitForTimeout(1000);
+    };
+    const requestChange = async (text: string) => {
+      await conversation
+        .getByRole("textbox", { name: "Message", exact: true })
+        .fill(text);
+      await conversation
+        .getByRole("button", { name: "Send message", exact: true })
+        .click();
+      await conversation
+        .getByRole("region", { name: "Suggested changes", exact: true })
+        .waitFor({ timeout: 30000 });
+      await page.waitForTimeout(1500);
     };
     const savedReload = async (
       fieldName: string,
@@ -256,6 +278,11 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       await click("Guided: check after every pass");
       await capture("brief");
       const originalConversation = await conversation.elementHandle();
+      const composer = conversation.getByRole("textbox", {
+        name: "Message",
+        exact: true,
+      });
+      await composer.fill("A message drafted before generation");
       await click("Create");
       await content
         .getByRole("region", { name: "Generation progress", exact: true })
@@ -277,6 +304,9 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
           .getByText("Local handout · Included", { exact: true })
           .count(),
       ).toBe(1);
+      expect(await composer.inputValue()).toBe(
+        "A message drafted before generation",
+      );
       await capture("sources");
       // Exercise deselection without removing a source referenced by the fixture.
       const extra = {
@@ -304,11 +334,30 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         [{ ...extra, pages: [...extra.pages], warnings: [] }],
       );
       await page.reload();
-      await page
-        .getByRole("checkbox", { name: "Optional outside result" })
-        .uncheck();
+      expect(await composer.inputValue()).toBe(
+        "A message drafted before generation",
+      );
+      await requestChange("Exclude Optional outside result");
+      expect(
+        await page
+          .getByRole("checkbox", { name: "Optional outside result" })
+          .isChecked(),
+      ).toBe(true);
+      await capture("source-proposal");
+      await conversation
+        .getByRole("button", { name: "Apply changes", exact: true })
+        .click();
+      expect(
+        await page
+          .getByRole("checkbox", { name: "Optional outside result" })
+          .isChecked(),
+      ).toBe(false);
+      await composer.fill("A draft to carry to the outline");
       await click("Continue generation");
       await waitTitle("Story outline");
+      expect(await composer.inputValue()).toBe(
+        "A draft to carry to the outline",
+      );
       await capture("skeleton");
       expect(await content.getByRole("textbox").count()).toBe(0);
       await click("Edit plan");
@@ -316,6 +365,20 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .getByRole("textbox", { name: "Title", exact: true })
         .first()
         .inputValue();
+      await requestChange('Rename the outline to "Suggested outline title"');
+      await conversation
+        .getByRole("button", { name: "Apply changes", exact: true })
+        .click();
+      expect(
+        await page
+          .getByRole("textbox", { name: "Title", exact: true })
+          .first()
+          .inputValue(),
+      ).toBe("Suggested outline title");
+      await page
+        .getByRole("status")
+        .filter({ hasText: /^Saved / })
+        .waitFor();
       const skeletonUrl = `${origin}/v3/teacher/${id}`;
       await page.route(skeletonUrl, (route) =>
         route.request().method() === "POST"
@@ -375,6 +438,56 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       ).toBeGreaterThan(5);
       expect(await content.getByRole("textbox").count()).toBe(0);
       await capture("details");
+      const messageInput = conversation.getByRole("textbox", {
+        name: "Message",
+        exact: true,
+      });
+      await messageInput.fill(
+        'Rename the first stage to "Suggested stage title"',
+      );
+      const chatUrl = `${origin}/v3/teacher/${id}`;
+      await page.route(chatUrl, (route) =>
+        route.request().method() === "POST"
+          ? route.abort("failed")
+          : route.continue(),
+      );
+      await conversation
+        .getByRole("button", { name: "Send message", exact: true })
+        .click();
+      await conversation
+        .getByText(
+          "Could not prepare a suggestion. Your message is still here. Try again.",
+          { exact: true },
+        )
+        .waitFor();
+      expect(await messageInput.inputValue()).toBe(
+        'Rename the first stage to "Suggested stage title"',
+      );
+      await page.unroute(chatUrl);
+      await requestChange('Rename the first stage to "Suggested stage title"');
+      const beforeChatApply = await admin
+        .from("adventures_v3")
+        .select("pause_draft,status")
+        .eq("id", id)
+        .single();
+      expect(beforeChatApply.data?.pause_draft).toBeNull();
+      expect(beforeChatApply.data?.status).toBe("needs_review");
+      await conversation
+        .getByRole("button", { name: "Apply changes", exact: true })
+        .click();
+      await content
+        .getByRole("region", { name: "Suggested stage title", exact: true })
+        .waitFor();
+      expect(
+        (
+          await admin
+            .from("adventures_v3")
+            .select("pause_draft")
+            .eq("id", id)
+            .single()
+        ).data?.pause_draft,
+      ).toBeNull();
+
       await content
         .locator("[data-review-card]")
         .first()
@@ -383,6 +496,16 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       await page.keyboard.press("Enter");
       expect(
         await page.getByRole("textbox", { name: "Scene", exact: true }).count(),
+      ).toBe(0);
+      await requestChange('Rename the first stage to "Expired suggestion"');
+      await page
+        .getByRole("textbox", { name: "Title", exact: true })
+        .first()
+        .fill("A newer local edit");
+      expect(
+        await conversation
+          .getByRole("region", { name: "Suggested changes", exact: true })
+          .count(),
       ).toBe(0);
       await savedReload("Title", "Guided stage title", undefined, true);
       // Discard returns to the saved checkpoint; Continue need not follow another Save.
@@ -445,6 +568,18 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .first()
         .waitFor();
       await capture("endings");
+      await requestChange(
+        'Rename the alternative ending to "Unused suggested ending"',
+      );
+      await conversation
+        .getByRole("button", { name: "Keep my edits", exact: true })
+        .click();
+      expect(
+        await content
+          .getByRole("region", { name: "Waiting for Calcutta", exact: true })
+          .count(),
+      ).toBe(1);
+
       const historical = content
         .locator("[data-review-card]")
         .filter({ hasText: "Historical ending" });
@@ -479,6 +614,12 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       await click("Continue generation");
       await waitTitle("Reveal and questions");
       await capture("reveal");
+      await requestChange(
+        'Rewrite the reveal as "A suggested reveal explanation"',
+      );
+      await conversation
+        .getByRole("button", { name: "Apply changes", exact: true })
+        .click();
       await editCard("Reveal and questions");
       // Pick a prose field from reveal and retain its identity across reload.
       await savedReload("What Happened", "A teacher's reveal question?");
@@ -503,6 +644,34 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       expect(JSON.stringify(final.data?.spec.reveal)).toContain(
         "A teacher's reveal question?",
       );
+      await requestChange(
+        'Rename the first stage to "A title changed after generation"',
+      );
+      await conversation
+        .getByRole("button", { name: "Apply changes", exact: true })
+        .click();
+      expect(
+        (await admin.from("adventures_v3").select("spec").eq("id", id).single())
+          .data?.spec.stages[0].title,
+      ).toBe("Guided stage title");
+      await click("Save changes");
+      await page.getByText("Changes saved.", { exact: true }).waitFor();
+      await page.reload();
+      await page
+        .getByRole("heading", { name: "Your adventure is ready", exact: true })
+        .waitFor();
+      expect(
+        (await admin.from("adventures_v3").select("spec").eq("id", id).single())
+          .data?.spec.stages[0].title,
+      ).toBe("A title changed after generation");
+      expect(
+        await conversation
+          .getByText(
+            'Rename the first stage to "A title changed after generation"',
+            { exact: true },
+          )
+          .count(),
+      ).toBe(1);
       await capture("ready");
       // A status transition can arrive before the job's output is committed.
       const waitingId = await store.create({
