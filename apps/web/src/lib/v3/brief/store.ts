@@ -15,6 +15,7 @@ export interface V3BriefRow {
   status: string;
   title: string | null;
   state: BriefStateV3 | null;
+  updatedAt?: string;
 }
 
 export interface V3BriefListRow {
@@ -63,6 +64,7 @@ function toBriefRow(row: StoredRow): V3BriefRow {
     ownerId: row.owner_id,
     schoolId: row.school_id,
     status: row.status,
+    updatedAt: row.updated_at,
     title: row.title,
     state: state.success ? state.data : null,
   };
