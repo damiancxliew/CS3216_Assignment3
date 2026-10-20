@@ -1,8 +1,8 @@
 # Historical Adventures
 
-**Play the source material.** A teacher drops in historical sources; the system builds a
-small world around them, fills it with people who each want something different, and lets
-a student find out what their decisions cost.
+**Play the source material.** A teacher brings their history sources; the system turns them into a short adventure
+where students question the people involved, weigh conflicting evidence and make choices no one is fully happy with.
+Their thinking is played back to them and summarised for the teacher. Nothing is graded.
 
 Live at <https://historical-adventures-ten.vercel.app>.
 
@@ -10,30 +10,33 @@ Built for CS3216 Assignment 3, National University of Singapore.
 
 ## What it does
 
-- **AI-generated playable worlds** — historical material becomes a navigable environment
-  with meaningful locations, character placements, evidence, and objectives, generated
-  together as one coherent adventure.
-- **Interactive AI-driven gameplay** — stakeholders respond to the student's questions,
-  discoveries, and decisions within a persistent world where consequences carry forward.
-- **A simulation that admits it is one** — the debrief separates documented history, with
-  the source, page and quote behind each claim, from the assumptions the simulation made
-  where the record is silent.
+- **One history lesson, one adventure.** Built for Singapore secondary and junior college history classes, sized to
+  a 45-minute lesson by default, with reading levels for Sec and JC.
+- **Reasoning, not recall.** Students act as a go-between among real historical figures. What they ask, pass on or
+  hold back changes how characters stand and what becomes possible. Written rules, not an AI, decide what happens.
+- **Honest about what is real.** Real excerpts are checked word for word against their sources, invented detail is
+  labelled, and the reveal separates what happened from what the student's run simulated.
 
 ## Users and flows
 
 | User | Primary need |
 | --- | --- |
-| Secondary-school history teachers | Create curriculum-relevant adventures from their own material without game-development skills |
-| Secondary-school students | Explore historical situations through objectives, interactive characters, and consequential choices |
+| Secondary and JC history teachers | Turn their own material into a lesson-ready adventure they can check, edit and trust |
+| Secondary and JC students | Investigate a historical episode, decide under pressure and back a judgement with evidence |
 
-**Teacher:** create an adventure → provide material → generate map, characters, evidence,
-objectives → preview → correct or regenerate → publish and share → review attempts.
+**Teacher:** describe the adventure in a brief chat (sources, episode, focus, reading level, timer, mode, allowed
+outside sources) → review and edit the skeleton → background generation writes stages, characters, documents,
+endings and history checks → review and fix flagged issues → preview as a student → publish and share the join link
+→ read the class summary.
 
-**Student:** join and read the role brief → explore and meet stakeholders → ask questions,
-compare accounts, collect evidence → decide before the stage timer expires → observe
-persistent changes → reach an ending and reflect.
+**Student:** read the role brief → walk the map and talk to characters → read documents closely and highlight key
+passages to make notes → pass notes on or confront a slanted account → choose an act at each stage's defining moment
+and predict the outcome → see earlier outcomes shape the next stage → epilogue → the Interview (a verdict backed by
+notes, one push-back) → the reveal.
 
-`npm run db:seed` prints both the adventure share link and the school sign-up link; students should open the school link first.
+**Class summary** (teacher): endings reached, where students got stuck, how predictions split, Interview verdicts
+before and after push-back with the most-used evidence and anonymised answers, discoveries found or missed per
+character, and flagged messages.
 
 ## Quickstart
 
@@ -44,52 +47,40 @@ npm ci
 npx supabase start                   # local Postgres, Auth and Studio
 npx supabase db reset                # rebuilds the whole schema from migrations
 cp .env.example apps/web/.env.local  # fill in the keys printed by `supabase start`
-npm run dev --workspace apps/web     # http://localhost:3000
 ```
 
-Next.js only reads `.env.local` from `apps/web/`, not the repository root. Set `OPENAI_API_KEY`
-there too if you want "Generate from the sources" in the teacher console to work locally; without
-it the console still accepts a spec pasted into "Import an adventure spec".
+Next.js only reads `.env.local` from `apps/web/`, not the repository root. The database is **only ever** built from
+`supabase/migrations/`; a schema change that is not a migration does not exist. To apply new migrations without
+wiping local data, run `npx supabase migration up --local`.
 
-The database is **only ever** built from `supabase/migrations/`; `db reset` recreates it
-from scratch, so a schema change that is not a migration does not exist.
+v3 is enabled per school by a feature flag. Add to `apps/web/.env.local`:
 
-## Running the v3 version locally
+```
+V3_ENABLED=true
+V3_SCHOOL_IDS=00000000-0000-4000-8000-000000005c01
+OPENAI_API_KEY=...
+```
 
-The v3 rewrite (new play UI and teacher authoring) is behind a feature flag and is off by default.
+The school ID is the local "Testing School". Then seed and run:
 
-**What v3 changes**
+```bash
+npx vitest run --config scripts/vitest.v3-seed.config.ts   # idempotent, localhost Supabase only
+npm run dev --workspace apps/web                           # http://localhost:3000
+```
 
-- Play: a walkable map for each stage, parchment-scroll dialogs, a redesigned dialogue and mission layout, a scaled desktop layout, and an Interview and epilogue held over the last stage's map.
-- Teacher: a brief chat that describes the adventure, a skeleton editor with autosaved drafts and quote-checked approval, publish and join links, and a background generation job (stages, endings, history checks, portraits).
-- Data: `adventures_v3`, `sources_v3` and `job_steps` tables, added by the v3 migrations.
+The seed creates `teacher@local.test` (school admin) and `v3-student@local.test`, both with password
+`password123!`, plus a published golden 1819 adventure owned by each. Open <http://localhost:3000/teacher> and use
+"Local dev sign-in (email/password)".
 
-**Steps** (after the Quickstart above, with Supabase running)
+- New adventure: `/v3/teacher/new`
+- Teacher preview: `/v3/teacher/00000000-0000-4000-8000-000000005c03/preview`
+- Student play: sign in as the student, then `/v3/play/start/00000000-0000-4000-8000-000000005c02`
 
-1. Apply any new migrations without wiping data: `npx supabase migration up --local`
-   (`npx supabase db reset` also works but deletes local data).
-2. Turn v3 on in `apps/web/.env.local`:
-   ```
-   V3_ENABLED=true
-   V3_SCHOOL_IDS=00000000-0000-4000-8000-000000005c01
-   ```
-   The school ID is the local "Testing School".
-3. Seed the local data (idempotent, localhost Supabase only):
-   ```bash
-   npx vitest run --config scripts/vitest.v3-seed.config.ts
-   ```
-   It creates `teacher@local.test` (school admin) and `v3-student@local.test`, both with password
-   `password123!`, plus a published golden 1819 adventure owned by each.
-4. Start the app (`npm run dev --workspace apps/web`), open <http://localhost:3000/teacher> and use
-   "Local dev sign-in (email/password)".
-   - Teacher preview: `/v3/teacher/00000000-0000-4000-8000-000000005c03/preview`
-   - Student play: sign in as the student, then `/v3/play/start/00000000-0000-4000-8000-000000005c02`
-
-**Without an OpenAI key.** Set `V3_FAKE_PASSES=1` so generation uses canned passes over the golden 1819
-content. The brief chat and in-game character replies still call a model. For characters, run
+**Without an OpenAI key.** Set `V3_FAKE_PASSES=1` so generation uses canned passes over the golden 1819 content. The
+brief chat and in-game character replies still call a model. For characters, run
 `node tests/browser/model-server.mjs` and start the app with
-`OPENAI_API_KEY=local-browser-test OPENAI_BASE_URL=http://127.0.0.1:4010/v1`. Its replies are fixed, so it
-suits UI work only. The brief chat is not confirmed to work against it; use a real `OPENAI_API_KEY` for that.
+`OPENAI_API_KEY=local-browser-test OPENAI_BASE_URL=http://127.0.0.1:4010/v1`. Its replies are fixed, so it suits UI
+work only. The brief chat is not confirmed to work against it; use a real `OPENAI_API_KEY` for that.
 
 ## Checks
 
@@ -97,38 +88,43 @@ suits UI work only. The brief chat is not confirmed to work against it; use a re
 npm run lint
 npm run typecheck
 npm run build
-npx vitest run tests/api tests/unit   # Turn API, session and pure-function tests (no database)
+npx vitest run tests/api tests/unit   # API, session and pure-function tests (no database)
 npm run db:test                       # database, RLS and platform tests (needs supabase running)
 ```
 
-The browser acceptance suite in `tests/browser` is opt-in: it needs Playwright
-Chromium, the deterministic model server and the dev server pointed at the local
-stack — see [`tests/browser/README.md`](tests/browser/README.md).
+The browser acceptance suite in `tests/browser` is opt-in: it needs Playwright Chromium, the deterministic model
+server and the dev server pointed at the local stack — see [`tests/browser/README.md`](tests/browser/README.md).
 
 ## Layout
 
 ```
-apps/web            Next.js App Router app: landing, teacher console, play, debrief, Turn API
-packages/generation Adventure Spec v2 schema, planner and compiler
-packages/orchestration Resolver/Orchestrator runtime, character agents and safety rails
-packages/game-core  Deterministic game logic and pathfinding
-packages/game-client Phaser settlement-map playground client
-packages/game-integration Adventure Spec to game-core spatial adapter
-scripts             Demo seeding (seed-demo) and its vitest config
-supabase/migrations The schema, in order; the only way the database changes
-tests/api           Turn API and play-session tests over the in-memory store
-tests/unit          Pure-function unit tests (no database, no network)
-tests/db            RLS negative tests and platform behaviour tests
-tests/browser       Opt-in Playwright student acceptance suite
-docs/               PRD, execution spec, platform notes, launch kit, write-ups
+apps/web                   Next.js App Router app; v3 lives under src/app/v3, src/components/play/v3,
+                           src/lib/v3 and src/lib/play/v3
+packages/spec-v3           The v3 adventure spec schema and its validation
+packages/engine            Deterministic game rules: state, actions, triggers, outcomes, hints, Interview, reveal,
+                           class summary
+packages/play-contract     Schemas shared by the engine, API and student screens (actions, events, views)
+packages/generation        Source ingest and the v3 generation passes (skeleton, details, endings, reveal, repair)
+packages/orchestration     Character replies and post-turn checks, LLM client
+packages/jobs              Background job runner for generation steps
+packages/game-core         Map compilation and pathfinding
+packages/game-client       Phaser map renderer and music
+supabase/migrations        The schema, in order; the only way the database changes
+scripts                    Seeding and measurement scripts
+tests/api, tests/unit      API, session and pure-function tests
+tests/db                   RLS and platform tests
+tests/browser              Opt-in Playwright acceptance suite
+docs/                      PRD v3, rationale, build notes; docs/archive holds retired material
 ```
+
+Some routes and modules from before v3 are still in the codebase and are not the current product.
 
 ## Environment
 
 See [`.env.example`](.env.example). Deployment (Vercel) needs
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
 `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_POSTHOG_KEY` and `OPENAI_API_KEY`, with the Vercel
-project's root directory set to `apps/web` and the Next.js preset.
+project's root directory set to `apps/web` and the Next.js preset. v3 also needs `V3_ENABLED` and `V3_SCHOOL_IDS`.
 
 `main` is for development and deploys as a Vercel preview; `production` deploys to production.
 No other branch deploys automatically ([`apps/web/vercel.json`](apps/web/vercel.json), read from
@@ -141,13 +137,13 @@ To release, open a PR from `main` into `production`; merging it deploys to Verce
 
 ## Security model in one paragraph
 
-Every response a client sees is a public projection: private agent context, unrevealed
-events, probability rolls and Resolver rationale live in tables and columns no client
-role can select. Row Level Security isolates teachers to their own adventures and
-students to their own attempts, with a negative test per table using a second account.
-Published versions are immutable, so editing after publish creates a new version and
-leaves in-flight attempts on the one they started. Stage deadlines are held server-side;
-the client only renders the countdown, so a refresh or a changed clock buys no time.
+The student's screen is built field by field from public data only: personas, stances, slants, key passages, outcome
+rules and endings not reached never leave the server. Student actions are parsed with strict, bounded schemas, and
+discoveries are recorded only by the server, so a client cannot forge progress. Row Level Security isolates schools,
+teachers and students, with database tests for the v3 tables. Published versions are frozen, and each attempt stays
+on the version it started. The engine reads no clock of its own; the server supplies the time, so the timer cannot be
+gamed from the browser. Attempts are rate-limited and capped, and messages that break the rules are flagged to the
+teacher.
 
 ## Group 9
 
@@ -181,8 +177,8 @@ Game art and media:
 
 ## Documentation
 
-- [`docs/archive/PRD-v2.md`](docs/archive/PRD-v2.md) — v2 product requirements (superseded by [`docs/PRD-v3.md`](docs/PRD-v3.md)), schema and the public/private boundary
-- [`docs/PLATFORM.md`](docs/PLATFORM.md) — how auth, versioning, timers, resume and the debrief work
-- [`docs/EXECUTION_SPEC.md`](docs/EXECUTION_SPEC.md) — task breakdown and per-task validation
-- [`docs/launch/`](docs/launch) — Product Hunt kit and submission checklist
-- [`docs/specs.md`](docs/specs.md) — full system specification
+- [`docs/PRD-v3.md`](docs/PRD-v3.md) — product requirements
+- [`docs/PRD-v3-rationale.md`](docs/PRD-v3-rationale.md) — the reasoning and team decisions behind each requirement
+- [`docs/prd-v3/`](docs/prd-v3) — overview, glossary, diagrams and an example playthrough
+- [`docs/v3-build/`](docs/v3-build) — build plan, checkpoints and handoffs
+- [`docs/archive/`](docs/archive) — retired material, kept for reference only
