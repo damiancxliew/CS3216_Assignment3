@@ -4,8 +4,9 @@ import { Check, FileText, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { addBriefSource, briefTurn, discardBrief, finishBrief, startBrief } from "./actions";
+import { addBriefSource, discardBrief, finishBrief, startBrief } from "./actions";
 import { extractPdfPagesInBrowser } from "@/lib/brief/extract-pdf-client";
+import { useBriefStream } from "@/lib/brief/use-brief-stream";
 import { button, control, ErrorText, Pending, Thinking } from "@/components/ui";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/posthog";
@@ -45,7 +46,9 @@ export function BriefChat({
   const [state, setState] = useState<BriefState | null>(null);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [actionPending, startTransition] = useTransition();
+  const stream = useBriefStream(setState, setError);
+  const pending = actionPending || stream.streaming;
   const router = useRouter();
   const endRef = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
@@ -62,7 +65,7 @@ export function BriefChat({
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [state?.messages.length, pending]);
+  }, [state?.messages.length, stream.preview, pending]);
 
   useEffect(() => {
     autoGrow(composer.current, 240);
@@ -87,7 +90,12 @@ export function BriefChat({
   }
 
   function send(input: BriefInput) {
-    if (state) run(() => briefTurn(state, input));
+    if (!state || pending) return;
+    const sentText = "text" in input ? input.text.trim() : "accept" in input ? "Use this" : undefined;
+    const previousText = text;
+    setText("");
+    void stream.send("/api/brief/turn", { state, input }, sentText ? { role: "user", text: sentText, slot: slotKey(currentSlot(state.draft)) } : undefined)
+      .then((ok) => { if (!ok) setText((current) => current || previousText); });
   }
 
   function upload(formData: FormData, form: HTMLFormElement) {
@@ -187,7 +195,7 @@ export function BriefChat({
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         <ol className="flex flex-col gap-3 text-base" aria-live="polite">
-          {state.messages.map((message, index) => (
+          {[...state.messages, ...(stream.preview as BriefState["messages"])].map((message, index) => (
             <li
               key={index}
               className={

@@ -91,3 +91,15 @@ RUN_EDITOR_LOCAL_TESTS=1 npx vitest run tests/browser/v3-editor-local.test.ts
 
 This fixture walkthrough does not call a live model or test full generation from
 a new brief. Set `PLAYWRIGHT_BROWSERS_PATH` if Chromium is installed elsewhere.
+
+## Teacher brief streaming
+
+Run the real legacy and v3 brief components in an isolated Vite harness with a
+held-open HTTP response. Supabase, Next, and model credentials are not required:
+
+```sh
+RUN_BRIEF_BROWSER_TESTS=1 npx vitest run tests/browser/brief-stream.test.ts
+```
+
+The regression checks immediate sent bubbles, incremental assistant replies,
+final transcript reconciliation without duplicates, and retry after interruption.
