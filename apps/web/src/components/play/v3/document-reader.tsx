@@ -39,7 +39,7 @@ export function passageStatus(check: PassageCheck | null, documentId: string | n
 const PASSAGE_MESSAGES: Record<Exclude<PassageStatus, null>, string> = {
   checking: "Checking your highlight…",
   added: "Added to your notes.",
-  nothing: "Nothing new in that highlight. Try just the line that matters.",
+  nothing: "No new note added. This evidence may already be in your notes, or try another passage.",
 };
 
 function PassageHint({ canSelect, firstTime, status }: { canSelect: boolean; firstTime: boolean; status: PassageStatus }) {

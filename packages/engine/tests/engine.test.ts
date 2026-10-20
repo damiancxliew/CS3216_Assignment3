@@ -260,17 +260,20 @@ describe('documents and close reading', () => {
     expect(reopened.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: true }])
   })
 
-  it('makes a note when the selection covers enough of a key passage, and not for a select-all', async () => {
+  it.each([
+    ['a short phrase within the evidence', LETTER_KEY.start + 4, LETTER_KEY.start + 9],
+    ['a highlight extending beyond the evidence', 0, mini.documents[0]!.body.length],
+  ])('makes a note for %s without requiring an exact line', async (_label, start, end) => {
     const game = new Harness(mini)
     await game.start()
     await game.act({ type: 'enterRoom', roomId: 'r2' })
     await game.act({ type: 'openDocument', documentId: 'letter' })
     const body = mini.documents[0]?.body ?? ''
-    await game.act({ type: 'selectPassage', documentId: 'letter', start: 0, end: body.length })
-    expect(game.state.notes).toEqual([])
     await game.act({ type: 'selectPassage', documentId: 'letter', start: 0, end: 10 })
     expect(game.state.notes).toEqual([])
-    await game.act({ type: 'selectPassage', documentId: 'letter', start: LETTER_KEY.start + 4, end: LETTER_KEY.start + 30 })
+    await game.act({ type: 'selectPassage', documentId: 'letter', start, end })
+    expect(game.view?.notes.map((note) => note.source)).toEqual(['document'])
+    await game.act({ type: 'selectPassage', documentId: 'letter', start, end })
     expect(game.view?.notes.map((note) => note.source)).toEqual(['document'])
     await expect(game.act({ type: 'selectPassage', documentId: 'letter', start: 0, end: body.length + 5 })).rejects.toMatchObject({ code: 'invalid_action' })
   })
