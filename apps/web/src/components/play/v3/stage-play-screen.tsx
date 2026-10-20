@@ -218,6 +218,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               pulseKey={pickup.current?.id ?? null}
               openRequest={islandRequest}
               onOpenRequestHandled={acknowledgeIslandRequest}
+              shortcutsLocked={externalMovementLock}
             />
           ) : null}
 

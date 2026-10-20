@@ -11,7 +11,7 @@ import adventureStyles from "@/components/play/adventure-chrome.module.css";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { StanceTag, StoryToast, stanceShifts, storyKicker, talkLines } from "@/components/play/v3/story-lines";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
-import { StageIsland, documentActivityText, filterLogByCharacter, filterStoryLines, groupMessagesByStage, groupNotesByStage, logLineCount } from "@/components/play/v3/stage-island";
+import { StageIsland, documentActivityText, filterLogByCharacter, filterStoryLines, groupMessagesByStage, groupNotesByStage, journalShortcut, logLineCount } from "@/components/play/v3/stage-island";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
@@ -437,12 +437,15 @@ describe("v3 stage play screen", () => {
       expect(documentsMarkup).toContain("A clerk");
       expect(logMarkup).toContain("The journey begins.");
       expect(logMarkup).toContain("Story event");
-      expect(logMarkup).toContain("Hints &amp; story events");
+      expect(logMarkup).toContain("Hints &amp; events");
+      expect(logMarkup).toContain('aria-label="Filter the log"');
+      expect(logMarkup).toContain('aria-keyshortcuts="3"');
+      expect(logMarkup).not.toContain(">Role brief<");
       expect(logMarkup).toContain("Archivist");
       expect(logMarkup).toContain("The harbour is changing.");
       expect(logMarkup).toContain("<blockquote");
       expect(logMarkup).toContain("Stage 1");
-      expect(logLineCount(islandView.messages)).toBe(2);
+      expect(logLineCount(islandView.messages)).toBe(islandView.messages.length);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -545,6 +548,21 @@ describe("v3 stage play screen", () => {
       { id: "a2", kind: "character", characterId: "a", roomId: "r", text: "Another answer", insertedNoteId: null, stageIndex: 0, at: 7 },
     ] satisfies MessageView[];
     expect(filterLogByCharacter(messages, "a").map((message) => message.id)).toEqual(["p1", "p2", "a1", "a2"]);
+  });
+
+  it("maps Journal shortcuts: J toggles, 1-3 open or close a section, R opens the role brief", () => {
+    const closed = { expanded: false, activeTab: "notes" as const, definingMoment: false, hasRoleBrief: true };
+    const onLog = { ...closed, expanded: true, activeTab: "log" as const };
+    expect(journalShortcut("J", closed)).toEqual({ type: "toggle" });
+    expect(journalShortcut("2", closed)).toEqual({ type: "tab", tab: "documents" });
+    expect(journalShortcut("3", onLog)).toEqual({ type: "close" });
+    expect(journalShortcut("1", onLog)).toEqual({ type: "tab", tab: "notes" });
+    expect(journalShortcut("1", { ...onLog, definingMoment: true })).toBeNull();
+    expect(journalShortcut("r", closed)).toEqual({ type: "roleBrief" });
+    expect(journalShortcut("r", { ...closed, hasRoleBrief: false })).toBeNull();
+    expect(journalShortcut("Escape", closed)).toBeNull();
+    expect(journalShortcut("Escape", onLog)).toEqual({ type: "close" });
+    expect(["w", "a", "s", "d", "e"].map((key) => journalShortcut(key, closed))).toEqual([null, null, null, null, null]);
   });
 
   it("filters the log down to hints, reactions and story events", () => {

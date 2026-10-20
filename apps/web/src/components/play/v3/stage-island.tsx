@@ -2,7 +2,10 @@
 
 import type { DocumentView, MessageView, NoteView, PlayerView } from "@adventure/play-contract";
 import {
+  Activity,
+  BookOpen,
   ChevronDown,
+  Lightbulb,
   LoaderCircle,
   MessageCircle,
   MessagesSquare,
@@ -12,8 +15,32 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import styles from "@/components/play/adventure-chrome.module.css";
+import { pixelFont } from "@/components/play/v3/dialogue-box";
 
 type IslandTab = "notes" | "documents" | "log";
+
+export const JOURNAL_TAB_KEYS: Readonly<Record<string, IslandTab>> = { "1": "notes", "2": "documents", "3": "log" };
+
+export type JournalShortcut =
+  | { type: "toggle" }
+  | { type: "close" }
+  | { type: "tab"; tab: IslandTab }
+  | { type: "roleBrief" };
+
+export function journalShortcut(
+  key: string,
+  { expanded, activeTab, definingMoment, hasRoleBrief }: { expanded: boolean; activeTab: IslandTab; definingMoment: boolean; hasRoleBrief: boolean },
+): JournalShortcut | null {
+  const pressed = key.length === 1 ? key.toLowerCase() : key;
+  if (pressed === "j") return { type: "toggle" };
+  if (pressed === "Escape") return expanded ? { type: "close" } : null;
+  if (pressed === "r") return hasRoleBrief ? { type: "roleBrief" } : null;
+  const tab = JOURNAL_TAB_KEYS[pressed];
+  if (!tab || (tab === "notes" && definingMoment)) return null;
+  return expanded && activeTab === tab ? { type: "close" } : { type: "tab", tab };
+}
+
+const kbdClass = "inline-grid min-w-4 place-items-center rounded border px-1 font-mono text-[10px] font-bold leading-4";
 
 type NoteGroup = {
   stageIndex: number;
@@ -47,7 +74,7 @@ export function groupMessagesByStage(messages: MessageView[]): MessageGroup[] {
 }
 
 export function logLineCount(messages: MessageView[]): number {
-  return messages.filter((message) => message.kind === "player" || message.kind === "character").length;
+  return messages.length;
 }
 
 export function documentActivityText(item: Pick<DocumentView, "title">, count = 1): string {
@@ -102,7 +129,7 @@ function NotesList({ notes }: { notes: NoteView[] }) {
     <div className="space-y-4 p-3">
       {groups.map((group) => (
         <section key={group.stageIndex} aria-label={`Stage ${group.stageIndex + 1} notes`}>
-          <h3 className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#5c6472]">Stage {group.stageIndex + 1}</h3>
+          <h3 className={`${pixelFont.className} mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#5c6472]`}>Stage {group.stageIndex + 1}</h3>
           <div className="space-y-2">
             {group.notes.map((note) => (
               <article key={note.id} className="rounded-lg border border-[#1f2433]/15 bg-white/65 px-3 py-2.5">
@@ -170,27 +197,22 @@ function LogMessage({
       </article>
     );
   }
-  if (message.kind === "thought") {
+  const storyLine = message.kind === "thought"
+    ? { label: "Hint", Icon: Lightbulb, tone: "border-[#c98a1b] bg-[#fbf1dc]", textClass: "italic" }
+    : message.kind === "notice"
+      ? { label: speaker, Icon: Activity, tone: "border-[#b4475a] bg-[#f9e7ea]", textClass: "italic" }
+      : message.kind === "narration"
+        ? { label: "Story event", Icon: BookOpen, tone: "border-[#3659cf] bg-[#e9edfb]", textClass: "" }
+        : null;
+  if (storyLine) {
+    const { label, Icon, tone, textClass } = storyLine;
     return (
-      <article key={message.id} className="max-w-[92%] rounded-lg bg-[#f1eadb] px-3 py-2 text-sm italic">
-        <p className="mb-0.5 text-xs font-bold not-italic text-[#5c6472]">Hint · your thought</p>
-        <p className="whitespace-pre-wrap leading-relaxed">{message.text}</p>
-      </article>
-    );
-  }
-  if (message.kind === "notice") {
-    return (
-      <article key={message.id} className="px-2 py-1 text-center text-xs italic text-[#687080]">
-        <span className="font-bold not-italic text-[#5c6472]">{speaker} · </span>
-        {message.text}
-      </article>
-    );
-  }
-  if (message.kind === "narration") {
-    return (
-      <article key={message.id} className="rounded-lg border border-dashed border-[#1f2433]/20 px-3 py-2 text-center text-sm italic leading-relaxed text-[#5c6472]">
-        <p className="mb-0.5 text-[11px] font-black uppercase not-italic tracking-[0.12em]">Story event</p>
-        <p className="whitespace-pre-wrap">{message.text}</p>
+      <article key={message.id} className={`rounded-md border-l-4 px-3 py-2 text-sm ${tone}`}>
+        <p className="mb-0.5 flex items-center gap-1.5 text-xs font-bold text-[#3d4352]">
+          <Icon size={14} aria-hidden className="shrink-0" />
+          {label}
+        </p>
+        <p className={`whitespace-pre-wrap leading-relaxed ${textClass}`}>{message.text}</p>
       </article>
     );
   }
@@ -230,19 +252,27 @@ function LogList({ view }: { view: PlayerView }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {view.speakers.length > 0 || filterStoryLines(view.messages).length > 0 ? (
-        <label className="flex shrink-0 items-center gap-2 border-b border-[#1f2433]/15 px-3 py-2 text-xs font-bold">
-          <span className="shrink-0">Show</span>
-          <select
-            aria-label="Filter the log"
-            value={characterId}
-            onChange={(event) => setCharacterId(event.target.value)}
-            className="min-h-8 min-w-0 flex-1 rounded-md border border-[#1f2433]/25 bg-white px-2 text-sm font-medium"
-          >
-            <option value="">Everything</option>
-            <option value={STORY_LINES_FILTER}>Hints &amp; story events</option>
-            {view.speakers.map((speaker) => <option key={speaker.id} value={speaker.id}>{speaker.name}</option>)}
-          </select>
-        </label>
+        <div role="group" aria-label="Filter the log" className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-[#1f2433]/15 px-3 py-2">
+          {[
+            { id: "", name: "All" },
+            { id: STORY_LINES_FILTER, name: "Hints & events" },
+            ...view.speakers,
+          ].map((option) => (
+            <button
+              key={option.id || "all"}
+              type="button"
+              aria-pressed={characterId === option.id}
+              onClick={() => setCharacterId(option.id)}
+              className={`min-h-8 shrink-0 whitespace-nowrap rounded-full border px-3 text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#3659cf] ${
+                characterId === option.id
+                  ? "border-[#1f2433] bg-[#1f2433] text-[#fffaf0]"
+                  : "border-[#1f2433]/25 bg-white/70 text-[#1f2433] hover:bg-white"
+              }`}
+            >
+              {option.name}
+            </button>
+          ))}
+        </div>
       ) : null}
       <div
         ref={scrollArea}
@@ -256,7 +286,7 @@ function LogList({ view }: { view: PlayerView }) {
         {groups.map((group) => (
           <section key={group.stageIndex ?? "briefing"} aria-label={group.stageIndex === null ? undefined : `Stage ${group.stageIndex + 1}`}>
             {group.stageIndex !== null ? (
-              <h3 className="sticky top-0 z-[1] mb-2 bg-[#fffaf0] pt-2 pb-1 text-[11px] font-black uppercase tracking-[0.14em] text-[#5c6472]">
+              <h3 className={`${pixelFont.className} sticky top-0 z-[1] mb-2 bg-[#fffaf0] pt-2 pb-1 text-xs font-bold uppercase tracking-[0.12em] text-[#5c6472]`}>
                 Stage {group.stageIndex + 1}
               </h3>
             ) : null}
@@ -288,6 +318,7 @@ export function StageIsland({
   pulseKey = null,
   openRequest = null,
   onOpenRequestHandled,
+  shortcutsLocked = false,
 }: {
   view: PlayerView;
   onOpenDocument: (id: string) => void;
@@ -298,6 +329,7 @@ export function StageIsland({
   pulseKey?: string | null;
   openRequest?: { tab: IslandTab; key: number } | null;
   onOpenRequestHandled?: (key: number) => void;
+  shortcutsLocked?: boolean;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const [activeTab, setActiveTab] = useState<IslandTab>(definingMoment && initialTab === "notes" ? "documents" : initialTab);
@@ -305,25 +337,28 @@ export function StageIsland({
   const previousDocumentCount = useRef(view.documents.length);
   const clearActivityTimer = useRef<number | null>(null);
   const lastOpenRequestKey = useRef<number | null>(null);
+  const island = useRef<HTMLElement>(null);
   const headerButton = useRef<HTMLButtonElement>(null);
   const activeTabButton = useRef<HTMLButtonElement>(null);
   const focusTabAfterOpen = useRef(false);
   const focusHeaderAfterClose = useRef(false);
   const stage = view.stage;
 
-  const openIsland = useCallback(() => {
+  const focusInIsland = useCallback(() => Boolean(island.current?.contains(document.activeElement)), []);
+
+  const openIsland = useCallback((moveFocus = true) => {
     setExpanded(true);
-    focusTabAfterOpen.current = true;
+    focusTabAfterOpen.current = moveFocus;
   }, []);
 
   const closeIsland = useCallback(() => {
+    focusHeaderAfterClose.current = focusInIsland();
     setExpanded(false);
-    focusHeaderAfterClose.current = true;
-  }, []);
+  }, [focusInIsland]);
 
-  const toggleIsland = useCallback(() => {
+  const toggleIsland = useCallback((moveFocus = true) => {
     if (expanded) closeIsland();
-    else openIsland();
+    else openIsland(moveFocus);
   }, [closeIsland, expanded, openIsland]);
 
   useEffect(() => {
@@ -346,21 +381,26 @@ export function StageIsland({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
+      if (shortcutsLocked || event.defaultPrevented || document.querySelector("dialog[open]")) return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       const target = event.target;
       if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
-      if (event.key.toLowerCase() === "j") {
-        event.preventDefault();
-        toggleIsland();
-      } else if (event.key === "Escape" && expanded) {
-        event.preventDefault();
-        closeIsland();
+      if (event.repeat) return;
+      const shortcut = journalShortcut(event.key, { expanded, activeTab, definingMoment, hasRoleBrief: Boolean(onOpenRoleBrief) });
+      if (!shortcut) return;
+      event.preventDefault();
+      const moveFocus = focusInIsland();
+      if (shortcut.type === "toggle") toggleIsland(moveFocus);
+      else if (shortcut.type === "close") closeIsland();
+      else if (shortcut.type === "roleBrief") onOpenRoleBrief?.();
+      else {
+        setActiveTab(shortcut.tab);
+        openIsland(moveFocus);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeIsland, expanded, toggleIsland]);
+  }, [activeTab, closeIsland, definingMoment, expanded, focusInIsland, onOpenRoleBrief, openIsland, shortcutsLocked, toggleIsland]);
 
   useEffect(() => {
     if (expanded && focusTabAfterOpen.current && !activeTabButton.current?.disabled) {
@@ -389,28 +429,33 @@ export function StageIsland({
 
   return (
     <section
+      ref={island}
       aria-label="Journal"
       className={`absolute bottom-2 left-2 w-[min(22rem,calc(100%_-_1rem))] rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433] sm:bottom-4 sm:left-4 ${layerClass}`}
     >
-      <header className="shrink-0 p-3">
-        <h2 className="text-xs font-black uppercase tracking-[0.14em]">
+      <header className="shrink-0 rounded-t-[9px] bg-[#1f2433] px-3 py-2 text-[#fffaf0]">
+        <h2 className="text-xs font-bold">
           <button
             ref={headerButton}
             type="button"
             aria-expanded={expanded}
             aria-controls="stage-island-panel"
+            aria-keyshortcuts="J"
             aria-label={`Stage ${stage ? stage.index + 1 : 1} of ${stage?.count ?? 1}; ${view.notes.length} notes, ${view.documents.length} documents, ${logLineCount(view.messages)} log lines, ${expanded ? "collapse" : "expand"} island`}
-            onClick={toggleIsland}
-            className="grid min-h-7 w-full grid-cols-[1fr_auto_auto] items-center gap-x-2 gap-y-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]"
+            onClick={() => toggleIsland()}
+            className="grid min-h-7 w-full grid-cols-[1fr_auto_auto] items-center gap-x-2 gap-y-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#fffaf0]"
           >
-            <span className="mr-auto shrink-0">Journal</span>
-            <span className="shrink-0 whitespace-nowrap rounded-full border border-[#1f2433]/35 bg-white/70 px-2 py-1 text-xs font-bold normal-case tracking-normal">
+            <span className={`${pixelFont.className} mr-auto flex shrink-0 items-center gap-2 text-base font-bold`}>
+              Journal
+              <kbd aria-hidden className={`${kbdClass} border-[#fffaf0]/40 text-[#fffaf0]/80`}>J</kbd>
+            </span>
+            <span className="shrink-0 whitespace-nowrap rounded-full border border-[#fffaf0]/35 px-2 py-0.5 text-xs font-bold">
               Stage {stage ? stage.index + 1 : 1}/{stage?.count ?? 1}
             </span>
             <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-md">
               <ChevronDown size={16} className={`transition-transform duration-200 motion-reduce:transition-none ${expanded ? "" : "rotate-180"}`} />
             </span>
-            <span className="col-span-3 min-h-5 min-w-0 normal-case tracking-normal">
+            <span className={`col-span-3 min-h-5 min-w-0 text-[#fffaf0]/85 ${expanded && !view.pendingCheck && !showActivity ? "hidden" : ""}`}>
               {view.pendingCheck ? (
                 <span role="status" className="flex min-w-0 items-center gap-1.5 truncate normal-case text-xs font-bold tracking-normal">
                   <LoaderCircle size={14} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none" />
@@ -438,12 +483,12 @@ export function StageIsland({
       >
         <div className="min-h-0 overflow-hidden">
           <div className="flex h-[min(55vh,26rem)] min-h-0 flex-col">
-            <div role="tablist" aria-label="Journal sections" className="flex shrink-0 border-b border-[#1f2433]/15 px-2 pt-1">
+            <div role="tablist" aria-label="Journal sections" className="m-2 mb-0 flex shrink-0 gap-1 rounded-lg bg-[#1f2433]/[0.08] p-1">
               {([
                 ["notes", "Notes", view.notes.length],
                 ["documents", "Documents", view.documents.length],
                 ["log", "Log", logLineCount(view.messages)],
-              ] as const).map(([tab, label, count]) => {
+              ] as const).map(([tab, label, count], index) => {
                 const disabled = tab === "notes" && definingMoment;
                 return (
                   <button
@@ -453,15 +498,17 @@ export function StageIsland({
                     id={`stage-island-tab-${tab}`}
                     aria-selected={activeTab === tab}
                     aria-controls={`stage-island-tabpanel-${tab}`}
+                    aria-keyshortcuts={String(index + 1)}
                     ref={activeTab === tab ? activeTabButton : undefined}
                     disabled={disabled}
                     title={disabled ? "Notes are closed during the decision" : undefined}
                     onClick={() => setActiveTab(tab)}
-                    className={`min-h-10 flex-1 rounded-t-md px-2 text-xs font-bold sm:text-sm ${
-                      activeTab === tab ? "border-b-2 border-[#3659cf] text-[#263e99]" : "text-[#5c6472] hover:bg-[#1f2433]/5"
-                    } disabled:cursor-not-allowed disabled:text-[#8a8f99] disabled:hover:bg-transparent`}
+                    className={`flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-1.5 text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#3659cf] ${
+                      activeTab === tab ? "bg-[#1f2433] text-[#fffaf0] shadow-sm" : "text-[#3d4352] hover:bg-white/70"
+                    } disabled:cursor-not-allowed disabled:bg-transparent disabled:text-[#8a8f99]`}
                   >
-                    {label} <span className="text-[11px] font-semibold">({count})</span>
+                    {label}
+                    <span className={`rounded-full px-1.5 text-[10px] leading-4 ${activeTab === tab ? "bg-[#fffaf0]/20" : "bg-[#1f2433]/10"}`}>{count}</span>
                   </button>
                 );
               })}
@@ -473,17 +520,11 @@ export function StageIsland({
                 {activeTab === "log" ? <LogList key="log" view={view} /> : null}
               </div>
             </div>
-            {onOpenRoleBrief ? (
-              <footer className="flex shrink-0 justify-end border-t border-[#1f2433]/15 px-3 py-2">
-                <button
-                  type="button"
-                  onClick={onOpenRoleBrief}
-                  className="min-h-8 rounded-md px-2 text-xs font-bold text-[#3659cf] underline decoration-[#3659cf]/50 underline-offset-2 hover:bg-[#1f2433]/5"
-                >
-                  Role brief
-                </button>
-              </footer>
-            ) : null}
+            <footer className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-[#1f2433]/15 px-3 py-2 text-[11px] text-[#5c6472]">
+              <span><kbd className={`${kbdClass} border-[#1f2433]/30`}>1</kbd>–<kbd className={`${kbdClass} border-[#1f2433]/30`}>3</kbd> sections</span>
+              {onOpenRoleBrief ? <span><kbd className={`${kbdClass} border-[#1f2433]/30`}>R</kbd> role brief</span> : null}
+              <span><kbd className={`${kbdClass} border-[#1f2433]/30`}>Esc</kbd> close</span>
+            </footer>
           </div>
         </div>
       </div>
