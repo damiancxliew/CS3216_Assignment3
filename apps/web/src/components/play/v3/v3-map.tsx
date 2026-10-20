@@ -18,6 +18,7 @@ import {
 } from "@/lib/play/v3/map";
 
 import { v3Atmosphere, v3Environment, v3RoomFixtures, type V3StageScenery } from "@/lib/play/v3/scenery";
+import { V3ScrollDialog } from "./scroll-dialog";
 
 const STEP_MS = 160;
 
@@ -82,6 +83,7 @@ function isMovementTarget(target: EventTarget | null): boolean {
 }
 
 export function V3Map(props: V3MapProps) {
+  const [inspection, setInspection] = useState<{ name: string; description: string } | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const currentRoomRef = useRef(props.currentRoomId);
   const renderRef = useRef<(() => void) | null>(null);
@@ -89,7 +91,7 @@ export function V3Map(props: V3MapProps) {
   const nearbyChangeHandler = useRef<() => void>(() => {});
   const movementLockHandler = useRef<() => void>(() => {});
   const latest = useRef(props);
-  latest.current = props;
+  latest.current = { ...props, movementLocked: props.movementLocked || inspection !== null };
   const [failed, setFailed] = useState(false);
   const [compiled] = useState(() => compileV3StageMap(
     props.attemptId,
@@ -103,10 +105,10 @@ export function V3Map(props: V3MapProps) {
 
   useEffect(() => {
     currentRoomRef.current = props.currentRoomId;
-    if (props.movementLocked) movementLockHandler.current();
+    if (latest.current.movementLocked) movementLockHandler.current();
     renderRef.current?.();
     nearbyChangeHandler.current();
-  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio]);
+  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio, inspection]);
 
   useEffect(() => {
     const parent = host.current;
@@ -128,7 +130,8 @@ export function V3Map(props: V3MapProps) {
 
     const characterSeats = () => latest.current.characters.flatMap((character, index) => {
       const position = seatIn(map, currentRoomRef.current, index + 1);
-      if (!position || spaceAt(map, position)?.kind !== "room") return [];
+      const space = position && spaceAt(map, position);
+      if (!position || (space?.kind !== "room" && !(space?.kind === "outdoor" && space.locationId))) return [];
       return [{ id: character.id, position, character }];
     });
 
@@ -148,7 +151,8 @@ export function V3Map(props: V3MapProps) {
 
     const snapshot = (): PlaygroundSnapshot => ({
       seed: `${latest.current.attemptId}:${latest.current.stageId}`,
-      crowdContext: latest.current.crowdContext,
+      crowdContext: latest.current.scenery?.authored ? undefined : latest.current.crowdContext,
+      streetTalk: latest.current.scenery?.authored?.streetTalk,
       map,
       doors: compiled.initialDoors,
       actors: [
@@ -160,6 +164,7 @@ export function V3Map(props: V3MapProps) {
           targetRoomId: null,
           status: path.length ? "moving" : "idle",
           sprite: PLAYER_CHARACTER,
+          spriteSheetUrl: latest.current.scenery?.authored?.playerSheet,
           facing,
         },
         ...characterSeats().map(({ character, position }) => {
@@ -171,7 +176,7 @@ export function V3Map(props: V3MapProps) {
             space: spaceAt(map, position),
             targetRoomId: null,
             status: "idle" as const,
-            spriteSheetUrl: walkSheetUrl(sprite),
+            spriteSheetUrl: latest.current.scenery?.authored?.characterSheets?.[character.id] ?? walkSheetUrl(sprite),
             // While locked (a conversation, the defining moment, an end screen's backdrop) nobody offers "Talk".
             ...(latest.current.movementLocked ? { interactive: false } : {}),
           };
@@ -184,6 +189,8 @@ export function V3Map(props: V3MapProps) {
       npcRoutes: false,
       roomWandering: false,
       environment: v3Environment(latest.current.scenery),
+      visualStyle: latest.current.scenery?.authored?.style,
+      roomKinds: latest.current.scenery?.authored?.roomKinds,
       revision,
       roomDescriptions: latest.current.scenery?.roomDescriptions,
       storyContext: latest.current.scenery?.storyContext,
@@ -368,13 +375,20 @@ export function V3Map(props: V3MapProps) {
               latest.current.onOpenDocument(documentId);
             }
           },
+          ...(latest.current.scenery?.authored ? {
+            onLandmark: (id: string) => {
+              if (latest.current.movementLocked) return;
+              const fixture = latest.current.scenery?.authored?.fixtures.find(item => item.id === id);
+              if (fixture?.description) setInspection({ name: fixture.name, description: fixture.description });
+            },
+          } : {}),
           onRoomPointer: (roomId) => {
             if (latest.current.movementLocked) return;
             latest.current.onWalkDone();
             goToRoom(roomId);
           },
           camera: "detail",
-          zoomScale: window.matchMedia("(min-width: 1024px)").matches ? 0.75 : 1,
+          zoomScale: window.matchMedia("(min-width: 1024px)").matches ? (latest.current.scenery?.authored ? 0.5 : 0.75) : 1,
         });
         if (destroyed) {
           view.destroy();
@@ -423,11 +437,28 @@ export function V3Map(props: V3MapProps) {
 
   if (failed) return null;
   return (
-    <div
-      ref={host}
-      role="img"
-      aria-label="Walkable stage map"
-      className="absolute inset-0 overflow-hidden"
-    />
+    <>
+      <div
+        ref={host}
+        role="img"
+        aria-label="Walkable stage map"
+        className="absolute inset-0 overflow-hidden"
+      />
+      {inspection && (
+        <V3ScrollDialog
+          title={inspection.name}
+          eyebrow="Explore the setting"
+          footerText="Look around, then compare the sources."
+          closeLabel="Return to the map"
+          onClose={() => setInspection(null)}
+        >
+          <p className="whitespace-pre-line">{inspection.description}</p>
+          <p className="mt-4 text-sm opacity-70">
+            Illustrated reconstruction. This prop is not an archival object or evidence that Lim used this exact item.
+            Consult the Source archive for historical records.
+          </p>
+        </V3ScrollDialog>
+      )}
+    </>
   );
 }

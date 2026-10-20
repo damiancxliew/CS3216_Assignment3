@@ -245,7 +245,7 @@ class TiledScene extends Phaser.Scene {
       }
       const landmark = (this.current.landmarks ?? []).find((item) =>
         point.x >= item.position.x && point.x < item.position.x + item.width && point.y >= item.position.y && point.y < item.position.y + item.height)
-      if (landmark && this.onLandmark) {
+      if (landmark && landmark.interactive !== false && this.onLandmark) {
         this.onLandmark(landmark.id)
         this.game.canvas.focus()
         return
@@ -762,7 +762,7 @@ class TiledScene extends Phaser.Scene {
         bounds: person.bounds,
       })) : []),
       // A landmark with no inspect handler is scenery: an "Inspect" label that does nothing would mislead.
-      ...(this.onLandmark ? this.current.landmarks ?? [] : []).filter(landmark => this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
+      ...(this.onLandmark ? this.current.landmarks ?? [] : []).filter(landmark => landmark.interactive !== false && this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
         near: playerRoom !== null && landmark.roomId === playerRoom,
         bounds: { x: landmark.position.x * T, y: landmark.position.y * T, width: 32, height: 32 } })),
     ]
