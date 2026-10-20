@@ -21,6 +21,7 @@ import {
 import { addV3BriefSource, createFromV3Brief, discardV3Brief, v3BriefTurn } from "../actions";
 import { ConfirmButton } from "./confirm-button";
 import { ReviewChatComposer } from "./review-chat-composer";
+import { ChatSendButton } from "./chat-send-button";
 
 /**
  * The v3 guided brief: the transcript, the controls the current slot allows,
@@ -140,13 +141,13 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
               ) : null}
             </li>
           ))}
-          {pending ? (
+          {pending && !generating ? (
             <li className="mr-10 self-start px-4 py-2 sm:mr-24">
               <Thinking label={thinking} />
             </li>
           ) : null}
         </ol>
-        {!active && statusMessage ? <div className="mt-4 mr-6 rounded-surface rounded-bl-sm border border-line bg-paper px-4 py-3 text-sm text-ink shadow-sm" role="status">{generating ? <Thinking label={statusMessage} /> : statusMessage}</div> : null}
+        {!active && statusMessage ? <div className="mt-4 mr-6 rounded-surface rounded-bl-sm border border-line bg-paper px-4 py-3 text-sm text-ink shadow-sm" role="status">{statusMessage}</div> : null}
         {active && slot.name === "sources" && state.sources.length > 0 ? <SourceList sources={state.sources} /> : null}
         {active && slot.name === "confirm" ? <details className="mt-4 text-sm"><summary className="w-fit cursor-pointer font-semibold text-muted">Change the brief</summary><Summary state={state} pending={pending} onChange={(change) => send({ change })} /></details> : null}
         <div ref={endRef} />
@@ -188,7 +189,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
+                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                     event.preventDefault();
                     if (text.trim() && !pending) send({ text });
                   }
@@ -199,9 +200,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
                 placeholder="Type your answer…"
                 className={control + " min-h-0 flex-1 resize-none py-3"}
               />
-              <button type="submit" disabled={pending || !text.trim()} className={button.primary}>
-                Send
-              </button>
+              <ChatSendButton label="Send" disabled={pending || !text.trim()} hint={pending ? "Updating the brief…" : !text.trim() ? "Type an answer to send." : "Send message"} />
             </div>
           </form>
         )}

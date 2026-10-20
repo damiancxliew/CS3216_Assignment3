@@ -1,13 +1,13 @@
 "use client";
 
-import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2, Pencil, Check as CheckIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { checkSkeleton, validateSkeleton, DOCUMENT_KINDS } from "@adventure/spec-v3";
 import type { CheckIssue, SkeletonShape } from "@adventure/spec-v3";
 
-import { button, control, ErrorText, Section, StableLabel } from "@/components/ui";
+import { button, compactButton, control, ErrorText, Section, StableLabel } from "@/components/ui";
 import { addItem, dependentsOf, issuesAt, removeItem, type AddKind, type Ref } from "@/lib/v3/skeleton-edit";
 
 import { approveV3Skeleton, discardV3SkeletonDraft, saveV3SkeletonDraft, getV3GenerationProgress } from "../actions";
@@ -16,6 +16,7 @@ import { fixSkeletonWithAiAction } from "./pause-actions";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
 import { ConfirmButton } from "./confirm-button";
 import { useReviewChatTarget } from "./review-chat-context";
+import { reviewToolbar, reviewPrimary, reviewEdit } from "./creation-styles";
 
 type Draft = SkeletonShape;
 type Moment = Draft["definingMoments"][number];
@@ -195,8 +196,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
   return (
     <fieldset disabled={continuePending || discardPending} aria-label="Skeleton review" className="min-w-0 flex flex-col gap-4">
       {/* sticky status bar */}
-      <div className="sticky top-0 z-30 -mx-2 flex flex-wrap items-center gap-3 border-b border-line bg-paper/95 px-2 py-3 backdrop-blur">
-        <button type="button" onClick={() => setShowIssues((v) => !v)} className={`${button.subtle} text-sm`} aria-expanded={showIssues}>
+      <div className={compact ? reviewToolbar : "sticky top-0 z-30 -mx-2 flex flex-wrap items-center gap-3 border-b border-line bg-paper/95 px-2 py-3 backdrop-blur"} data-review-toolbar>
+        <button type="button" onClick={() => setShowIssues((v) => !v)} className={compact ? compactButton.subtle : `${button.subtle} text-sm`} aria-expanded={showIssues}>
           <StableLabel label={`${errors.length} error${errors.length === 1 ? "" : "s"} · ${warnings.length} warning${warnings.length === 1 ? "" : "s"}`} pending={false} pendingLabel="" />
         </button>
         <span className="text-sm text-muted" role="status">
@@ -205,9 +206,10 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
         <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <ConfirmButton
             label="Discard my edits"
+            className={compact ? compactButton.subtle : button.subtle}
             pendingLabel="Discarding…"
             title="Discard your edits?"
-            body="Your edits are thrown away and the generated skeleton is restored."
+            body="This restores the generated outline and removes your changes."
             confirmLabel="Discard edits"
             pending={discardPending}
             onConfirm={() =>
@@ -236,9 +238,9 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
             label="Continue generation"
             pendingLabel="Continuing…"
             title="Continue generation?"
-            body="The rest of the adventure is generated from the skeleton as you left it."
+            body="The next step will use this outline, including your changes."
             confirmLabel="Continue"
-            className={button.primary}
+            className={compact ? reviewPrimary : button.primary}
             disabled={errors.length > 0 || continuePending}
             pending={continuePending}
             onConfirm={continueConfirm}
@@ -260,8 +262,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
         </ul>
       ) : null}
 
-      {compact ? <section className="creation-card rounded-surface border border-line-strong bg-surface p-5" aria-label="Adventure plan" data-review-card><div className="mb-3 flex items-center justify-between gap-3"><h2 className="font-bold">{draft.title}</h2><button type="button" className={button.subtle} aria-expanded={editing} onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit plan"}</button></div><p className="text-sm leading-relaxed">{draft.arc}</p><ol className="mt-4 list-decimal space-y-3 pl-5 text-sm">{draft.stages.map(stage => <li key={stage.id}><span className="font-semibold">{stage.title}</span><p className="text-muted">{stage.centralQuestion}</p></li>)}</ol><p className="mt-4 text-xs text-muted">{draft.characters.length} characters · {draft.documents.length} documents · {draft.endings.length} endings</p></section> : null}
-      {editing ? <div className={compact ? "space-y-6 rounded-surface border border-line bg-surface p-4 sm:p-5" : "space-y-8"}>
+      {compact ? <section className="creation-card rounded-surface border border-line-strong bg-surface p-5" aria-label="Adventure plan" data-review-card><div className="mb-3 flex items-center justify-between gap-3"><h2 className="text-lg font-extrabold tracking-tight">{draft.title}</h2><button type="button" className={reviewEdit} aria-expanded={editing} onClick={() => setEditing(!editing)}>{editing ? <CheckIcon size={14} aria-hidden /> : <Pencil size={14} aria-hidden />}{editing ? "Done" : "Edit plan"}</button></div><p className="text-sm leading-relaxed">{draft.arc}</p><ol className="mt-4 list-decimal space-y-3 pl-5 text-sm">{draft.stages.map(stage => <li key={stage.id}><span className="font-semibold">{stage.title}</span><p className="text-muted">{stage.centralQuestion}</p></li>)}</ol><p className="mt-4 text-xs text-muted">{draft.characters.length} characters · {draft.documents.length} documents · {draft.endings.length} endings</p></section> : null}
+      {editing ? <div className={compact ? "creation-card space-y-6 rounded-surface border border-line-strong bg-surface p-5 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0" : "space-y-8"}>
       {/* 1. Overview — always expanded */}
       <Section title="Overview">
         <ItemIssues issues={issuesAt(errors, "title")} />

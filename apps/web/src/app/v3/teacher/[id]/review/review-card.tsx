@@ -1,6 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { Pencil, Check } from "lucide-react";
+import { reviewEdit } from "../creation-styles";
 
 export function ReviewCard({
   title,
@@ -33,7 +34,7 @@ export function ReviewCard({
           type="button"
           aria-expanded={editing}
           onClick={() => setEditing(!editing)}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-line px-3 py-1 text-sm font-semibold text-ink hover:border-ink hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          className={reviewEdit}
         >
           {editing ? (
             <Check size={14} aria-hidden />

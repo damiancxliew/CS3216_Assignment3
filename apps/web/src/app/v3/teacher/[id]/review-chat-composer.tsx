@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp } from "lucide-react";
-import { button, control, Thinking } from "@/components/ui";
+import { compactButton as button, control, Thinking } from "@/components/ui";
 import type { BriefStateV3 } from "@/lib/v3/brief/schema";
 import type { ReviewChatResult } from "@/lib/v3/review-chat/types";
 import { suggestReviewChangeAction } from "./chat-actions";
 import { useReviewChat } from "./review-chat-context";
+import { reviewPrimary } from "./creation-styles";
+import { ChatSendButton } from "./chat-send-button";
 
 type Suggestion = Extract<ReviewChatResult, { ok: true }> & {
   key: string;
@@ -46,7 +47,17 @@ export function ReviewChatComposer({
     }
   }, [storageKey, text, restored]);
   useEffect(() => setSuggestion(null), [target?.key, target?.revision]);
+  useEffect(() => setMessage(""), [target?.key]);
   const canSend = Boolean(target && !target.pending && text.trim() && !pending);
+  const sendHint = !target
+    ? "You can send this when the next review is ready."
+    : pending
+      ? "Preparing a suggestion…"
+      : target.pending
+        ? "Wait for the current action to finish."
+        : !text.trim()
+          ? "Write a message to send."
+          : "Send message";
   const send = async () => {
     const snapshot = current.current?.current();
     if (!snapshot || !canSend) return;
@@ -120,7 +131,7 @@ export function ReviewChatComposer({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className={button.quiet}
+              className={reviewPrimary}
               disabled={Boolean(target?.pending)}
               onClick={() => {
                 const latest = current.current?.current();
@@ -134,9 +145,7 @@ export function ReviewChatComposer({
                   return;
                 latest.apply(valid.proposal);
                 setSuggestion(null);
-                setMessage(
-                  "Applied. Review the cards before saving or continuing.",
-                );
+                setMessage("Applied to the cards.");
               }}
             >
               Apply changes
@@ -187,21 +196,8 @@ export function ReviewChatComposer({
             }
           }}
         />
-        <button
-          type="submit"
-          aria-label="Send message"
-          title="Send message"
-          disabled={!canSend}
-          className={button.quiet + " shrink-0 !px-3"}
-        >
-          <ArrowUp size={18} aria-hidden />
-        </button>
+        <ChatSendButton disabled={!canSend} hint={sendHint} />
       </form>
-      {!target && !pending ? (
-        <p className="text-xs text-muted">
-          You can send this when the next review is ready.
-        </p>
-      ) : null}
     </div>
   );
 }

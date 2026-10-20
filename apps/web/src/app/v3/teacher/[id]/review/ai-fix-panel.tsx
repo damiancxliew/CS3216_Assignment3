@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 import { compactButton as button } from "@/components/ui";
+import { reviewPrimary } from "../creation-styles";
 
 type Proposal<T> = { ok: true; notes: string } & T;
 /** A proposal is tied to the exact edits it was requested for. */
@@ -30,6 +31,7 @@ export function AiFixPanel<T>({
   useEffect(() => {
     generation.current += 1;
     setProposal(null);
+    setMessage("");
   }, [revision]);
   const current = proposal?.revision === revision ? proposal.value : null;
   return (
@@ -80,7 +82,7 @@ export function AiFixPanel<T>({
       </button>
       {current || message ? (
         <div
-          className="w-80 max-w-full space-y-3 rounded-surface border border-line bg-surface p-4 text-ink shadow-lg"
+          className="w-80 max-w-full space-y-3 rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg"
           aria-label="Suggested correction"
         >
           {current ? (
@@ -89,14 +91,12 @@ export function AiFixPanel<T>({
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className={button.primary}
+                  className={reviewPrimary}
                   disabled={disabled}
                   onClick={() => {
                     apply(current);
                     setProposal(null);
-                    setMessage(
-                      "Suggestion applied. Review your edits before continuing.",
-                    );
+                    setMessage("Applied to the cards.");
                   }}
                 >
                   Apply suggested fix
