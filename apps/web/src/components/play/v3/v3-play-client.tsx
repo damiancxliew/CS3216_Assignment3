@@ -96,7 +96,7 @@ export function V3PlayClient({
       <span className={styles.headerEmblem}><Compass size={24} aria-hidden /></span>
       <span className="min-w-0">
         <span className="block truncate">{view.briefing.name}</span>
-        <span className="hidden truncate text-xs font-normal text-[#ead5ae] sm:block">Historical adventure · {view.briefing.position}</span>
+        <span className="hidden truncate text-[13px] font-normal text-[#ead5ae] sm:block">Historical adventure · {view.briefing.position}</span>
       </span>
     </h1>
   );

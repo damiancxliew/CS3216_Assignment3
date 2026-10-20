@@ -116,7 +116,7 @@ export class AmbientLife {
   private say(resident: Resident, text: string, ms: number): void {
     resident.bubble?.destroy()
     resident.bubble = this.scene.add.text(resident.sprite.x, resident.sprite.y - 12, text, {
-      color: '#241f18', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '7px',
+      color: '#241f18', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '5.5px',
       backgroundColor: '#f6e7c1', padding: { x: 3, y: 2 }, resolution: 8,
       wordWrap: { width: 92, useAdvancedWrap: true }, align: 'center',
     }).setOrigin(.5, 1).setDepth(BUBBLE_DEPTH)

@@ -77,8 +77,8 @@ export const PERSONA_LLM_PROFILE = {
 }
 
 const READING_LEVEL: Record<ReadingLevel, string> = {
-  sec: 'Your listener is a lower-secondary student. Use plain, everyday words and short sentences, while keeping your own voice and period manner. Explain any title or term the first time you use it.',
-  jc: 'Your listener is a pre-university student. You may use a fuller vocabulary and longer sentences, keeping your own voice and period manner.',
+  sec: 'Your listener is a lower-secondary student. Use plain, everyday words and short sentences, while keeping your own voice and period manner. The first time you use an unfamiliar title, term or political idea, explain it briefly in your own words. Keep the important historical meaning: simplify the words, never the history.',
+  jc: 'Your listener is a pre-university student. You may use a fuller vocabulary and longer sentences, keeping your own voice and period manner. Still explain a title, term or political idea briefly if it would be genuinely unfamiliar to them, and keep the important historical meaning precise.',
 }
 
 export function buildPersonaSystemPrompt(input: PersonaInput): string {

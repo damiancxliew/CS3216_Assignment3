@@ -4,13 +4,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
-import { DialogueBox, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
+import { DialogueBox, nextAvailableIndex, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
 import { DocumentReader, passageStatus } from "@/components/play/v3/document-reader";
 import { NotePickup, unseenNotes } from "@/components/play/v3/note-pickup";
 import adventureStyles from "@/components/play/adventure-chrome.module.css";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
+import { StanceTag, StoryToast, stanceShifts, storyKicker, talkLines } from "@/components/play/v3/story-lines";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
-import { StageIsland, documentActivityText, filterLogByCharacter, groupMessagesByStage, groupNotesByStage, logLineCount } from "@/components/play/v3/stage-island";
+import { StageIsland, documentActivityText, filterLogByCharacter, filterStoryLines, groupMessagesByStage, groupNotesByStage, logLineCount } from "@/components/play/v3/stage-island";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
@@ -20,6 +21,7 @@ import { V3PreviewClient, V3PreviewHeaderActions } from "@/components/play/v3/v3
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
+import { withPendingPlayerLine, withoutPendingLines } from "@/lib/play/v3/pending-lines";
 import { portraitFile, portraitStoragePrefix, portraitUrl, v3PortraitBase } from "@/lib/play/v3/portraits";
 import { createV3PreviewClient } from "@/lib/play/v3/preview-client";
 import { mockViews } from "@adventure/engine/mock";
@@ -434,6 +436,8 @@ describe("v3 stage play screen", () => {
       expect(documentsMarkup).toContain("1820");
       expect(documentsMarkup).toContain("A clerk");
       expect(logMarkup).toContain("The journey begins.");
+      expect(logMarkup).toContain("Story event");
+      expect(logMarkup).toContain("Hints &amp; story events");
       expect(logMarkup).toContain("Archivist");
       expect(logMarkup).toContain("The harbour is changing.");
       expect(logMarkup).toContain("<blockquote");
@@ -543,6 +547,17 @@ describe("v3 stage play screen", () => {
     expect(filterLogByCharacter(messages, "a").map((message) => message.id)).toEqual(["p1", "p2", "a1", "a2"]);
   });
 
+  it("filters the log down to hints, reactions and story events", () => {
+    const messages = [
+      { id: "p1", kind: "player", characterId: "a", roomId: "r", text: "Question", insertedNoteId: null, stageIndex: 0, at: 1 },
+      { id: "a1", kind: "character", characterId: "a", roomId: "r", text: "Answer", insertedNoteId: null, stageIndex: 0, at: 2 },
+      { id: "hint", kind: "thought", characterId: null, roomId: null, text: "A thought", insertedNoteId: null, stageIndex: 0, at: 3 },
+      { id: "reaction", kind: "notice", characterId: "a", roomId: "r", text: "He bristles.", insertedNoteId: null, stageIndex: 0, at: 4 },
+      { id: "event", kind: "narration", characterId: null, roomId: null, text: "A boat arrives.", insertedNoteId: null, stageIndex: 1, at: 5 },
+    ] satisfies MessageView[];
+    expect(filterStoryLines(messages).map((message) => message.id)).toEqual(["hint", "reaction", "event"]);
+  });
+
   it("builds the insertNote action used by the Notes modal", () => {
     expect(v3InsertNoteAction("character-1", "note-1", "I noticed this detail.")).toEqual({
       type: "insertNote",
@@ -584,7 +599,8 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("From your travels");
       expect(markup).toContain("From the historical record");
       expect(markup).toContain("A useful discovery.");
-      expect(markup).toContain("Optional comment for Temenggong");
+      expect(markup).not.toContain("Optional comment");
+      expect(markup).not.toContain("<textarea");
       expect(markup).toContain("Insert into chat");
       expect(markup).toContain("Roll up scroll");
       expect(emptyMarkup).toContain("No notes yet.");
@@ -816,6 +832,83 @@ describe("v3 cinematic", () => {
   });
 });
 
+describe("v3 story lines", () => {
+  const line = (id: string, kind: MessageView["kind"], extra: Partial<MessageView> = {}) =>
+    ({ id, kind, text: id, roomId: "balai", characterId: null, insertedNoteId: null, at: 1, ...extra }) as MessageView;
+
+  it("shows the room's talk, the open character's reactions, and only story lines that arrived while talking", () => {
+    const messages = [
+      line("old-hint", "thought"),
+      line("q", "player", { characterId: "temenggong" }),
+      line("a", "character", { characterId: "temenggong" }),
+      line("his-notice", "notice", { characterId: "temenggong" }),
+      line("other-notice", "notice", { characterId: "batin" }),
+      line("elsewhere", "character", { roomId: "landing", characterId: "raffles" }),
+      line("new-hint", "thought"),
+      line("new-event", "narration"),
+    ];
+    const seen = new Set(["old-hint", "q", "a", "his-notice", "other-notice", "elsewhere"]);
+    expect(talkLines(messages, "balai", "temenggong", seen).map((message) => message.id))
+      .toEqual(["q", "a", "his-notice", "new-hint", "new-event"]);
+  });
+
+  it("labels hints, story events and reactions", () => {
+    const characters = [{ id: "temenggong", name: "Temenggong Abdul Rahman" }];
+    expect(storyKicker(line("h", "thought"), characters)).toBe("A thought");
+    expect(storyKicker(line("e", "narration"), characters)).toBe("Meanwhile");
+    expect(storyKicker(line("n", "notice", { characterId: "temenggong" }), characters)).toBe("Temenggong Abdul Rahman");
+  });
+
+  it("reports which way a stance moved", () => {
+    const before = new Map([["temenggong", 0], ["raffles", 2]]);
+    const shifts = stanceShifts(before, [
+      { id: "temenggong", stance: { label: "bargaining", level: 1 } },
+      { id: "raffles", stance: { label: "wary", level: 0 } },
+      { id: "batin", stance: null },
+    ]);
+    expect([...shifts]).toEqual([["temenggong", "up"], ["raffles", "down"]]);
+    expect(stanceShifts(new Map(), [{ id: "temenggong", stance: { label: "wary", level: 0 } }]).size).toBe(0);
+  });
+
+  it("renders a reaction toast with the character's new stance, and the stance tag on its own", () => {
+    vi.stubGlobal("React", React);
+    const characters = [{ id: "temenggong", name: "Temenggong Abdul Rahman", title: "", stanceId: "t2", stance: { label: "bargaining", level: 1 }, portraitKey: "temenggong:t2" }] as CharacterView[];
+    const markup = renderToStaticMarkup(createElement(StoryToast, {
+      message: line("The Temenggong is silent for a long moment.", "notice", { characterId: "temenggong" }),
+      characters,
+      shift: "up",
+      onDismiss: () => {},
+    }));
+    expect(markup).toContain('popover="manual"');
+    expect(markup).toContain("Temenggong Abdul Rahman");
+    expect(markup).toContain("bargaining");
+    expect(markup).toContain("just warmed to you");
+    expect(markup).toContain('role="status"');
+    expect(renderToStaticMarkup(createElement(StanceTag, { label: "wary", shift: "down" }))).toContain("just cooled towards you");
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("v3 pending player lines", () => {
+  const base = { currentRoomId: "landing", messages: [] } as unknown as PlayerView;
+
+  it("shows a sent message or shown note straight away, in the current room", () => {
+    const sent = withPendingPlayerLine(base, { type: "message", characterId: "raffles", text: "Why here?" }, "1", 5);
+    expect(sent.messages).toEqual([
+      { id: "pending-1", kind: "player", text: "Why here?", roomId: "landing", characterId: "raffles", insertedNoteId: null, stageIndex: null, at: 5 },
+    ]);
+    const shown = withPendingPlayerLine(sent, { type: "insertNote", characterId: "raffles", noteId: "n1" }, "2", 6);
+    expect(shown.messages[1]).toMatchObject({ id: "pending-2", text: "", insertedNoteId: "n1" });
+  });
+
+  it("ignores other actions and drops pending lines after a failed send", () => {
+    expect(withPendingPlayerLine(base, { type: "tick" }, "1", 5)).toBe(base);
+    const sent = withPendingPlayerLine(base, { type: "message", characterId: "raffles", text: "Hi" }, "1", 5);
+    expect(withoutPendingLines(sent).messages).toEqual([]);
+    expect(withoutPendingLines(base)).toBe(base);
+  });
+});
+
 describe("v3 dialogue box", () => {
   const character = {
     id: "character-1",
@@ -881,6 +974,43 @@ describe("v3 dialogue box", () => {
     }
   });
 
+  it("shows the character's stance by their name and their reactions in the chat", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "talk",
+        character: { ...character, stanceId: "t2", stance: { label: "bargaining", level: 1 } },
+        portraitBase: null,
+        messages: [{ ...message, id: "notice-1", kind: "notice", text: "The Temenggong is silent for a long moment.", insertedNoteId: null, speaker: "" }],
+        busy: false,
+        stanceShift: "up",
+        onSend: () => {},
+        onOpenNotes: () => {},
+        onClose: () => {},
+      }));
+      expect(markup).toContain("Stance: bargaining, just warmed to you");
+      expect(markup).toContain("The Temenggong is silent for a long moment.");
+      expect(markup).toContain("text-[#8a5a1c]");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("says the character is thinking while the reply to the student's line is on its way", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const own = { ...message, id: "pending-1", kind: "player", text: "Why here?", insertedNoteId: null } as typeof message;
+      const props = { mode: "talk" as const, character, portraitBase: null, onSend: () => {}, onOpenNotes: () => {}, onClose: () => {} };
+      const waiting = renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message, own], busy: true }));
+      expect(waiting).toContain("Why here?");
+      expect(waiting).toContain(`${character.name} is thinking`);
+      expect(renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message, own], busy: false }))).not.toContain("is thinking");
+      expect(renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message], busy: true }))).not.toContain("is thinking");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("shows character initials when the portrait base is unavailable", () => {
     vi.stubGlobal("React", React);
     try {
@@ -899,6 +1029,30 @@ describe("v3 dialogue box", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("strikes out acts that can no longer happen and keeps the cursor off them", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "moment",
+        moment: { ...moment, acts: [{ id: "act-1", text: "Welcome the British ships.", available: false }, { id: "act-2", text: "Refuse their proposal.", available: true }] },
+        portraitBase: null,
+        busy: false,
+        onAct: () => {},
+        onPredict: () => {},
+      }));
+      expect(markup).toContain("line-through");
+      expect(markup).toContain("(no longer possible)");
+      expect(markup.match(/aria-disabled="true"/g)).toHaveLength(1);
+      expect(markup).toMatch(/aria-selected="true"[^>]*>[\s\S]*?Refuse their proposal/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(nextAvailableIndex(1, 1, [false, true, false, true])).toBe(3);
+    expect(nextAvailableIndex(3, 1, [false, true, false, true])).toBe(1);
+    expect(nextAvailableIndex(1, -1, [false, true, false, true])).toBe(3);
+    expect(nextAvailableIndex(0, 1, [false, false])).toBe(0);
   });
 
   it("renders all acts as listbox options with only the first selected", () => {
@@ -1037,6 +1191,26 @@ describe("interview answer form", () => {
 
 describe("v3 reveal screen", () => {
   const reveal = mockViews.reveal.reveal!;
+
+  it("lays the stages out as a timeline with the student's act, prediction and history side by side", () => {
+    vi.stubGlobal("React", React);
+    const markup = renderToStaticMarkup(createElement(RevealScreen, {
+      reveal: {
+        ...reveal,
+        pathVsHistory: [
+          { stageIndex: 0, yours: "He signed and sent for Hussein.", history: "He signed and sent for Hussein.", matched: true, closedEndings: [], act: "Warn him.", prediction: { text: "He will sign.", correct: true } },
+          { stageIndex: 1, yours: "Raffles waited.", history: "Raffles signed.", matched: false, closedEndings: ["One chief's word"], act: "Advise him to wait.", prediction: { text: "He will sign.", correct: false } },
+        ],
+      },
+    }));
+    expect(markup).toContain("<ol");
+    expect(markup).toContain("In your story and in history");
+    expect(markup).toContain("Went differently");
+    expect(markup).toContain("In history");
+    expect(markup).toContain("Advise him to wait.");
+    expect(markup).toContain("Not quite");
+    expect(markup).toContain("This closed off: One chief&#x27;s word");
+  });
 
   it("ends with a finished line for students", () => {
     vi.stubGlobal("React", React);

@@ -52,7 +52,9 @@ function momentView(spec: EngineSpec, state: EngineState): DefiningMomentView | 
     status: current.status,
     acts:
       current.status === 'choosing'
-        ? moment.acts.filter((act) => current.availableActIds.includes(act.id)).map(({ id, text }) => ({ id, text }))
+        ? moment.acts
+            .filter((act) => act.secret === undefined || current.availableActIds.includes(act.id))
+            .map(({ id, text }) => ({ id, text, available: current.availableActIds.includes(id) }))
         : chosen === undefined
           ? []
           : [{ id: chosen.id, text: chosen.text }],
@@ -113,7 +115,9 @@ export function project(spec: EngineSpec, state: EngineState): PlayerView {
           .filter((character) => state.characters[character.id]?.roomId === state.playerRoomId)
           .map((character) => {
             const stanceId = state.characters[character.id]?.stanceId ?? null
-            return { id: character.id, name: character.name, title: character.title, stanceId, portraitKey: stanceId === null ? character.id : `${character.id}:${stanceId}` }
+            const level = stanceId === null ? -1 : character.stances.findIndex((stance) => stance.id === stanceId)
+            const stance = level < 0 ? null : { label: character.stances[level]!.label, level }
+            return { id: character.id, name: character.name, title: character.title, stanceId, stance, portraitKey: stanceId === null ? character.id : `${character.id}:${stanceId}` }
           })
       : [],
     messages: state.transcript.map((message) => ({ ...message, stageIndex: message.stageIndex ?? null })),

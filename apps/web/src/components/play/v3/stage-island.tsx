@@ -55,6 +55,13 @@ export function documentActivityText(item: Pick<DocumentView, "title">, count = 
   return `${prefix}${item.title}`;
 }
 
+const STORY_LINE_KINDS = new Set<MessageView["kind"]>(["thought", "notice", "narration"]);
+export const STORY_LINES_FILTER = "story-lines";
+
+export function filterStoryLines(messages: MessageView[]): MessageView[] {
+  return messages.filter((message) => STORY_LINE_KINDS.has(message.kind));
+}
+
 export function filterLogByCharacter(messages: MessageView[], characterId: string): MessageView[] {
   const included = new Set<number>();
   messages.forEach((message, index) => {
@@ -166,16 +173,26 @@ function LogMessage({
   if (message.kind === "thought") {
     return (
       <article key={message.id} className="max-w-[92%] rounded-lg bg-[#f1eadb] px-3 py-2 text-sm italic">
-        <p className="mb-0.5 text-xs font-bold not-italic text-[#5c6472]">Your thought</p>
+        <p className="mb-0.5 text-xs font-bold not-italic text-[#5c6472]">Hint · your thought</p>
         <p className="whitespace-pre-wrap leading-relaxed">{message.text}</p>
       </article>
     );
   }
   if (message.kind === "notice") {
-    return <article key={message.id} className="px-2 py-1 text-center text-xs italic text-[#687080]">{message.text}</article>;
+    return (
+      <article key={message.id} className="px-2 py-1 text-center text-xs italic text-[#687080]">
+        <span className="font-bold not-italic text-[#5c6472]">{speaker} · </span>
+        {message.text}
+      </article>
+    );
   }
   if (message.kind === "narration") {
-    return <article key={message.id} className="px-3 py-1 text-center text-sm italic leading-relaxed text-[#5c6472]">{message.text}</article>;
+    return (
+      <article key={message.id} className="rounded-lg border border-dashed border-[#1f2433]/20 px-3 py-2 text-center text-sm italic leading-relaxed text-[#5c6472]">
+        <p className="mb-0.5 text-[11px] font-black uppercase not-italic tracking-[0.12em]">Story event</p>
+        <p className="whitespace-pre-wrap">{message.text}</p>
+      </article>
+    );
   }
   return (
     <article key={message.id} className="max-w-[92%] rounded-lg border border-[#1f2433]/10 bg-white/65 px-3 py-2 text-sm">
@@ -191,7 +208,9 @@ function LogList({ view }: { view: PlayerView }) {
   const scrollArea = useRef<HTMLDivElement>(null);
   const pinnedToBottom = useRef(true);
   const messages = useMemo(
-    () => characterId ? filterLogByCharacter(view.messages, characterId) : view.messages,
+    () => characterId === STORY_LINES_FILTER
+      ? filterStoryLines(view.messages)
+      : characterId ? filterLogByCharacter(view.messages, characterId) : view.messages,
     [characterId, view.messages],
   );
   const groups = useMemo(() => groupMessagesByStage(messages), [messages]);
@@ -210,16 +229,17 @@ function LogList({ view }: { view: PlayerView }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {view.speakers.length > 0 ? (
+      {view.speakers.length > 0 || filterStoryLines(view.messages).length > 0 ? (
         <label className="flex shrink-0 items-center gap-2 border-b border-[#1f2433]/15 px-3 py-2 text-xs font-bold">
-          <span className="shrink-0">Person</span>
+          <span className="shrink-0">Show</span>
           <select
-            aria-label="Filter by person"
+            aria-label="Filter the log"
             value={characterId}
             onChange={(event) => setCharacterId(event.target.value)}
             className="min-h-8 min-w-0 flex-1 rounded-md border border-[#1f2433]/25 bg-white px-2 text-sm font-medium"
           >
-            <option value="">Everyone</option>
+            <option value="">Everything</option>
+            <option value={STORY_LINES_FILTER}>Hints &amp; story events</option>
             {view.speakers.map((speaker) => <option key={speaker.id} value={speaker.id}>{speaker.name}</option>)}
           </select>
         </label>

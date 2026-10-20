@@ -6,6 +6,7 @@ import type { ActionResult } from "@/app/teacher/actions";
 import { getViewer } from "@/lib/auth/viewer";
 import { resolveSchoolContext } from "@/lib/school/context";
 import { createClient } from "@/lib/supabase/server";
+import { v3SchoolAllowed } from "@/lib/v3/flag";
 
 type SchoolActionContext = NonNullable<Awaited<ReturnType<typeof resolveSchoolContext>>> & {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -135,14 +136,21 @@ export async function removeStaffMember(slug: string, userId: string): Promise<A
   return { notice: "Staff member removed." };
 }
 
-export async function setAdventureArchived(slug: string, adventureId: string, archived: boolean): Promise<ActionResult> {
+export async function setAdventureArchived(slug: string, adventureId: string, archived: boolean, kind: "v2" | "v3" = "v2"): Promise<ActionResult> {
   const context = await schoolContext(slug, true);
   if (!context) return accessError();
-  const { error } = await context.supabase.rpc("set_adventure_archived", {
-    p_adventure_id: adventureId,
-    p_archived: archived,
-  });
+  if (kind !== "v2" && kind !== "v3") return accessError();
+  if (kind === "v3" && !v3SchoolAllowed(context.organizationId)) return accessError();
+  const { error } = kind === "v3"
+    ? await context.supabase.rpc("set_adventure_archived_v3", {
+        p_org: context.organizationId, p_adventure_id: adventureId, p_archived: archived,
+      })
+    : await context.supabase.rpc("set_adventure_archived", {
+        p_adventure_id: adventureId, p_archived: archived,
+      });
   if (error) return rpcError(error, "Could not update this adventure. Please try again.");
   revalidateSchool(slug);
+  revalidatePath("/teacher");
+  revalidatePath(`${kind === "v3" ? "/v3" : ""}/teacher/${adventureId}`);
   return { notice: archived ? "Adventure archived." : "Adventure unarchived." };
 }

@@ -4,6 +4,7 @@ import { FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { useBriefStream } from "@/lib/brief/use-brief-stream";
 import { button, control, ErrorText, Pending, Thinking } from "@/components/ui";
 import {
   type BriefInputV3,
@@ -18,7 +19,7 @@ import {
   timerLabel,
 } from "@/lib/v3/brief/schema";
 
-import { addV3BriefSource, createFromV3Brief, discardV3Brief, v3BriefTurn } from "../actions";
+import { addV3BriefSource, createFromV3Brief, discardV3Brief } from "../actions";
 import { ConfirmButton } from "./confirm-button";
 import { ReviewChatComposer } from "./review-chat-composer";
 import { ChatSendButton } from "./chat-send-button";
@@ -34,7 +35,12 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
   const [state, setState] = useState<BriefStateV3>(initial);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [actionPending, startTransition] = useTransition();
+  const stream = useBriefStream((next: BriefStateV3) => {
+    setState(next);
+    onStateChange?.(next);
+  }, setError);
+  const pending = actionPending || stream.streaming;
   const router = useRouter();
   const endRef = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
@@ -44,7 +50,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [state.messages.length, pending, statusMessage]);
+  }, [state.messages.length, stream.preview, pending, statusMessage]);
 
   useEffect(() => {
     autoGrow(composer.current, 240);
@@ -70,11 +76,12 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
   }
 
   function send(input: BriefInputV3) {
-    run(async () => {
-      const result = await v3BriefTurn(state.adventureId, input);
-      if ("ok" in result) return result;
-      return { error: result.error };
-    });
+    if (pending) return;
+    const sentText = "text" in input ? input.text.trim() : "accept" in input ? "Use this" : undefined;
+    const previousText = text;
+    setText("");
+    void stream.send("/api/v3/brief/turn", { adventureId: state.adventureId, input }, sentText ? { role: "user", text: sentText, slot: slot.name } : undefined)
+      .then((ok) => { if (!ok) setText((current) => current || previousText); });
   }
 
   function upload(formData: FormData, form: HTMLFormElement) {
@@ -126,7 +133,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
 
       <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-4 [overflow-wrap:anywhere]" data-conversation-scroll>
         <ol className="flex flex-col gap-3 text-base" aria-live="polite">
-          {state.messages.map((message, index) => (
+          {[...state.messages, ...(stream.preview as BriefStateV3["messages"])].map((message, index) => (
             <li
               key={index}
               className={

@@ -87,7 +87,7 @@ export class RoomPointers {
       let text = this.texts.get(place.id)
       if (!text) {
         text = this.scene.add.text(0, 0, place.name, {
-          color: '#fff8e7', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '7px', fontStyle: 'bold',
+          color: '#fff8e7', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '5.5px', fontStyle: 'bold',
           padding: { x: 2, y: 1 }, resolution: 8, wordWrap: { width: 72, useAdvancedWrap: true }, align: 'center',
         }).setDepth(62)
         this.texts.set(place.id, text)
