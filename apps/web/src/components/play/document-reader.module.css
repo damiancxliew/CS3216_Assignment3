@@ -72,6 +72,14 @@
 .text::first-letter { float: left; font-size: 3.4rem; line-height: 1; padding: 6px 8px 0 0; color: #784423; }
 .source { margin-top: 28px; padding: 18px 0 0; border-top: 1px solid #a6804660; font: italic 1rem/1.75 var(--font-record, Georgia), serif; color: #674929; }
 .source > p:first-child { margin-bottom: 8px; }
+.provenance { margin: -12px 0 22px; text-align: center; font: italic 1rem/1.5 var(--font-record, Georgia), serif; color: #674929; }
+.glossaryHeading { font: 600 11px/1.5 var(--font-ui, system-ui), sans-serif; font-style: normal; letter-spacing: .14em; text-transform: uppercase; color: #856539; }
+.glossary { display: grid; gap: 8px; margin: 0 0 16px; font-style: normal; }
+.glossary dt { display: inline; font-weight: 700; color: #3c2816; }
+.glossary dt::after { content: " — "; font-weight: 400; color: #856539; }
+.glossary dd { display: inline; margin: 0; }
+.realSource summary { cursor: pointer; font: 600 13px/1.5 var(--font-ui, system-ui), sans-serif; font-style: normal; color: #77562f; }
+.realSource p { margin-top: 6px; font-size: .95rem; }
 .source > p:last-child { white-space: pre-line; }
 .footer { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 0 30px; border-top: 1px solid #a680464a; padding: 14px 0 20px; }
 .footer > p { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #6b5732; }
@@ -95,12 +103,16 @@
 :global([data-theme="dark"]) .passageHint,
 :global([data-theme="dark"]) .eyebrow,
 :global([data-theme="dark"]) .kicker,
+:global([data-theme="dark"]) .provenance,
+:global([data-theme="dark"]) .glossaryHeading,
+:global([data-theme="dark"]) .realSource summary,
 :global([data-theme="dark"]) .source,
 :global([data-theme="dark"]) .footer > p,
 :global([data-theme="dark"]) .loading,
 :global([data-theme="dark"]) .divider { color: #cfbda6; }
 :global([data-theme="dark"]) .source,
 :global([data-theme="dark"]) .footer { border-color: #80684b; }
+:global([data-theme="dark"]) .glossary dt { color: #ecdcc4; }
 :global([data-theme="dark"]) .passageTip { border-color: #a07a45; background: #4a3b2466; }
 :global([data-theme="dark"]) .passageAdded { border-color: #6f8a3f; background: #33402266; }
 :global([data-theme="dark"]) .divider::before,

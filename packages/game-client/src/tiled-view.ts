@@ -80,6 +80,8 @@ export interface TiledViewOptions {
   onProp?: (propId: string) => void
   /** Called when the player clicks an in-world landmark. */
   onLandmark?: (landmarkId: string) => void
+  /** Called when the player clicks the edge pointer to a room that is off screen. */
+  onRoomPointer?: (roomId: string) => void
   /** "detail" (play) magnifies around the player; "overview" fits the stage's width in a small preview. */
   camera?: 'detail' | 'overview'
   /** Optional scale for detail camera zoom. */
@@ -101,6 +103,7 @@ class TiledScene extends Phaser.Scene {
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
   private readonly onLandmark: ((landmarkId: string) => void) | undefined
+  private readonly onRoomPointer: ((roomId: string) => void) | undefined
   private reducedMotion: boolean
   private ready = false
   private map?: Phaser.Tilemaps.Tilemap
@@ -163,6 +166,7 @@ class TiledScene extends Phaser.Scene {
     this.onActor = options.onActor
     this.onProp = options.onProp
     this.onLandmark = options.onLandmark
+    this.onRoomPointer = options.onRoomPointer
   }
 
   preload(): void {
@@ -193,13 +197,21 @@ class TiledScene extends Phaser.Scene {
     this.buildMap()
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       this.hoveredTarget = this.hitTarget({ x: pointer.worldX, y: pointer.worldY })
-      this.game.canvas.style.cursor = this.hoveredTarget ? 'pointer' : 'default'
+      const overPointer = Boolean(this.onRoomPointer && this.roomPointers.hit({ x: pointer.worldX, y: pointer.worldY }))
+      this.game.canvas.style.cursor = this.hoveredTarget || overPointer ? 'pointer' : 'default'
     })
     this.input.on('gameout', () => {
       this.hoveredTarget = null
       this.game.canvas.style.cursor = 'default'
     })
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // Edge pointers sit above the world: clicking one heads for that room.
+      const pointedRoom = this.onRoomPointer ? this.roomPointers.hit({ x: pointer.worldX, y: pointer.worldY }) : null
+      if (pointedRoom) {
+        this.onRoomPointer!(pointedRoom)
+        this.game.canvas.focus()
+        return
+      }
       const target = this.hitTarget({ x: pointer.worldX, y: pointer.worldY })
       if (target && this.activateTarget(target)) {
         this.game.canvas.focus()
@@ -749,7 +761,8 @@ class TiledScene extends Phaser.Scene {
         near: Math.abs(person.at.x - player.position.x) <= 1 && Math.abs(person.at.y - player.position.y) <= 1,
         bounds: person.bounds,
       })) : []),
-      ...(this.current.landmarks ?? []).filter(landmark => this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
+      // A landmark with no inspect handler is scenery: an "Inspect" label that does nothing would mislead.
+      ...(this.onLandmark ? this.current.landmarks ?? [] : []).filter(landmark => this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
         near: playerRoom !== null && landmark.roomId === playerRoom,
         bounds: { x: landmark.position.x * T, y: landmark.position.y * T, width: 32, height: 32 } })),
     ]
@@ -838,9 +851,11 @@ class TiledScene extends Phaser.Scene {
     })
     const roomBounds = this.labels.map((label) => label.getBounds())
     const doorBounds = this.current.map.doors.map((door) => ({ x: door.position.x * T, y: door.position.y * T, width: T, height: T }))
-    // Room names and speech bubbles are text too: no name tag may sit on top of them.
+    // Room names and speech bubbles are text too: no name tag may sit on top of them. Nor may one hide the
+    // player's own sprite, or a student standing just north of someone loses sight of themselves.
+    const playerBounds = player ? [{ x: player.x - 7, y: player.y - 8, width: 14, height: 16 }] : []
     const placed = layoutMapLabels(candidates.filter((candidate) => overlaps(candidate.anchor, viewport, 0)), viewport,
-      [...doorBounds, ...targets.map((target) => target.bounds)], focused, [...roomBounds, ...(this.ambientLife?.bubbleBounds() ?? [])])
+      [...doorBounds, ...targets.map((target) => target.bounds)], focused, [...roomBounds, ...(this.ambientLife?.bubbleBounds() ?? []), ...playerBounds])
     this.captionLines?.clear().lineStyle(0.5, 0xe1d1af, 0.7)
     for (const target of targets) {
       const text = this.captions.get(target.id)!

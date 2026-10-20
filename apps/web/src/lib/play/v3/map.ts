@@ -103,6 +103,12 @@ export function seatIn(map: StageMap, roomId: string | null, index: number): Poi
   return interior[index % interior.length] ?? null;
 }
 
+/** Where the player stands on arriving in a room: just inside its door, clear of the people seated in the middle. */
+export function arrivalPoint(map: StageMap, roomId: string | null): Point | null {
+  const door = map.doors.find((candidate) => candidate.roomId === roomId);
+  return door?.inside ?? seatIn(map, roomId, 0);
+}
+
 export function v3DocumentProps(
   map: StageMap,
   roomId: string | null,

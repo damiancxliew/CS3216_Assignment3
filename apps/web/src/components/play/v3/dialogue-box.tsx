@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEve
 
 import { StanceTag, type StanceShift } from "@/components/play/v3/story-lines";
 import { portraitUrl } from "@/lib/play/v3/portraits";
+import { nameInitials } from "@/lib/play/v3/initials";
 
 export const pixelFont = Pixelify_Sans({
   subsets: ["latin"],
@@ -26,7 +27,8 @@ type TalkProps = {
   messages: DialogueMessage[];
   busy: boolean;
   stanceShift?: StanceShift | null;
-  onSend: (text: string) => void;
+  /** `onSettled(false)` hands the line back to the input, so a failed send never loses what the student wrote. */
+  onSend: (text: string, onSettled: (succeeded: boolean) => void) => void;
   onOpenNotes: () => void;
   onClose: () => void;
 };
@@ -143,17 +145,25 @@ function DialoguePortrait({ character, portraitBase }: { character: CharacterVie
   const url = portraitUrl(character.portraitKey, portraitBase);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const src = url !== failedUrl ? url : null;
-  const initials = character.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  const initials = nameInitials(character.name);
+
+  const image = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     setFailedUrl(null);
   }, [url]);
 
+  // A server-rendered <img> can fail before hydration attaches onError; catch that case on mount.
+  useEffect(() => {
+    const element = image.current;
+    if (src && element?.complete && element.naturalWidth === 0) setFailedUrl(src);
+  }, [src]);
+
   return (
     <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden border-4 border-[#1f2433] bg-[#2a2f3d] min-[480px]:h-16 min-[480px]:w-16 sm:h-20 sm:w-20">
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element -- portraits use generated storage URLs
-        <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailedUrl(src)} />
+        <img ref={image} src={src} alt="" className="h-full w-full object-cover" onError={() => setFailedUrl(src)} />
       ) : (
         <span className={`${pixelFont.className} text-2xl font-bold text-[#fffaf0] sm:text-4xl`}>
           {initials || "?"}
@@ -184,6 +194,7 @@ export function ContinueIndicator() {
 
 function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = null, onSend, onOpenNotes, onClose }: TalkProps) {
   const [text, setText] = useState("");
+  const [sendFailed, setSendFailed] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const seenAtOpen = useRef(new Set(messages.map((message) => message.id)));
@@ -249,7 +260,13 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
     event.preventDefault();
     const message = text.trim();
     if (!message || busy) return;
-    onSend(message);
+    setSendFailed(false);
+    onSend(message, (succeeded) => {
+      if (succeeded) return;
+      setSendFailed(true);
+      setText((current) => current.trim() ? current : message);
+      input.current?.focus();
+    });
     setText("");
   }
 
@@ -330,6 +347,11 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
               Say hello, or ask {character.name} a question.
             </p>
           )}
+          {sendFailed && !busy ? (
+            <p role="alert" className="text-sm font-bold text-[#a3341f]">
+              That didn&apos;t reach {character.name}. Your question is back in the box. Try sending it again.
+            </p>
+          ) : null}
           {busy && lastMessage?.kind === "player" ? (
             <p role="status" className="text-sm font-bold text-[#5c6472]">
               {character.name} is thinking<span aria-hidden="true" className="motion-safe:animate-pulse">…</span>
@@ -345,10 +367,10 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
             autoComplete="off"
             value={text}
             maxLength={1000}
-            disabled={busy}
+            aria-busy={busy}
             onChange={(event) => setText(event.target.value)}
             placeholder={`Ask ${character.name} a question`}
-            className="min-h-10 min-w-0 rounded-lg border-2 border-[#1f2433]/35 bg-white px-2.5 text-sm text-[#1f2433] placeholder:text-[#5c6472] disabled:opacity-60 sm:px-3"
+            className="min-h-10 min-w-0 rounded-lg border-2 border-[#1f2433]/35 bg-white px-2.5 text-sm text-[#1f2433] placeholder:text-[#5c6472] sm:px-3"
           />
           <button
             type="submit"
@@ -381,6 +403,7 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
     ? moment.acts.map((act) => ({ id: act.id, text: act.text, available: act.available !== false }))
     : moment.predictionOptions.map((option) => ({ id: option.outcomeId, text: option.text, available: true }));
   const firstAvailable = Math.max(0, choices.findIndex((choice) => choice.available));
+  const chosenAct = moment.chosenActId ? moment.acts.find((act) => act.id === moment.chosenActId) ?? null : null;
 
   useEffect(() => {
     setSelectedIndex(firstAvailable);
@@ -442,13 +465,19 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
           onClickCapture={handleBodyClickCapture}
           className="relative min-h-0 flex-1 overflow-y-auto pb-7 pr-2"
         >
-          <h2 className={`${pixelFont.className} text-base font-bold leading-snug sm:text-lg`}>{moment.scene}</h2>
+          <h2 className="text-[15px] font-bold leading-snug sm:text-[17px]">{moment.scene}</h2>
           {moment.nudge ? <p className="mt-1 text-xs leading-relaxed text-[#5c6472] sm:text-sm">{moment.nudge}</p> : null}
 
           {moment.status === "predicting" ? (
             <>
+              {chosenAct ? (
+                <p className="ml-auto mt-2 w-fit max-w-[85%] break-words rounded-lg rounded-br-none bg-[#e7edff] px-3 py-1.5 text-[15px] leading-relaxed sm:text-[17px]">
+                  <span className="sr-only">You chose: </span>
+                  {chosenAct.text}
+                </p>
+              ) : null}
               {moment.reaction ? (
-                <p aria-live="polite" className={`${pixelFont.className} mt-2 whitespace-pre-wrap text-base leading-relaxed sm:text-lg`}>
+                <p aria-live="polite" className="mt-2 whitespace-pre-wrap text-[15px] italic leading-relaxed text-[#3b4252] sm:text-[17px]">
                   <span className="sr-only">{moment.reaction}</span>
                   <span aria-hidden="true">{reactionShown}</span>
                 </p>
@@ -492,7 +521,7 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
                   <span aria-hidden="true" className="text-sm font-black text-[#e36b33]">
                     {selected ? "▶" : ""}
                   </span>
-                  <span className={`${pixelFont.className} text-sm font-semibold sm:text-base ${choice.available ? "" : "text-[#5c6472] line-through decoration-2"}`}>
+                  <span className={`text-[15px] font-semibold sm:text-base ${choice.available ? "" : "text-[#5c6472] line-through decoration-2"}`}>
                     {choice.text}
                     {choice.available ? null : <span className="sr-only"> (no longer possible)</span>}
                   </span>
@@ -501,7 +530,6 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
             })}
           </div>
         </div>
-        {moment.status === "choosing" || reactionDone ? <ContinueIndicator /> : null}
       </div>
     </section>
   );

@@ -86,7 +86,8 @@ export function V3PlayClient({
   }
 
   const bannerAlert = banner ? (
-    <div role="alert" className="mx-auto mt-4 flex max-w-4xl items-center justify-between gap-3 rounded-xl border border-signal bg-signal-wash px-4 py-3 text-sm font-semibold text-ink">
+    // Overlaid, so an error never shifts the map under the player's feet.
+    <div role="alert" className="fixed left-1/2 top-14 z-50 flex w-[min(56rem,calc(100%-2rem))] -translate-x-1/2 items-center justify-between gap-3 rounded-xl border border-signal bg-signal-wash px-4 py-3 text-sm font-semibold text-ink shadow-[3px_3px_0_var(--ink)]">
       <span>{banner.message}</span>
       <button type="button" onClick={clearBanner} className="min-h-9 rounded-lg px-2 underline">Dismiss</button>
     </div>

@@ -64,6 +64,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const [walkTo, setWalkTo] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [missionCollapsed, setMissionCollapsed] = useState(false);
+  const [touch, setTouch] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [islandRequest, setIslandRequest] = useState<{
     tab: "notes" | "documents" | "log";
@@ -155,6 +156,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
 
   useEffect(() => {
     setNow(Date.now());
+    // Phones have no E key, and the mission panel would cover a third of the map: start it folded.
+    setTouch(window.matchMedia?.("(hover: none) and (pointer: coarse)").matches ?? false);
+    if (window.innerWidth < 640) setMissionCollapsed(true);
   }, []);
 
   useEffect(() => {
@@ -226,9 +230,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             <button
               type="button"
               onClick={() => openTalk(nearbyCharacter.id)}
-              className="absolute bottom-16 left-1/2 z-10 -translate-x-1/2 sm:bottom-3 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
+              className="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 sm:bottom-3 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
             >
-              Press E to talk to {nearbyCharacter.name}
+              {touch ? "Tap to talk to" : "Press E to talk to"} {nearbyCharacter.name}
             </button>
           ) : null}
 
@@ -251,8 +255,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               messages={dialogueMessages}
               busy={busy}
               stanceShift={stanceShifts.get(openCharacter.id) ?? null}
-              onSend={(text) => {
-                if (characterId) send({ type: "message", characterId, text });
+              onSend={(text, onSettled) => {
+                if (characterId) send({ type: "message", characterId, text }, onSettled);
+                else onSettled(false);
               }}
               onOpenNotes={() => setNotesOpen(true)}
               onClose={closeTalk}

@@ -194,12 +194,15 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1")("renders public scenery a
     await page.waitForTimeout(400);
     await page.screenshot({ path: resolve(output, "rainy-office-desktop.png") });
     metrics.push({ scene: "rainy office", ...rain });
+    // The player arrives at the door, so walk up to someone before checking the talk prompt.
+    const seated = await page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.actors.find((a: any) => a.id !== "player").position);
+    await walkTo(page, seated, { stopBefore: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(500);
     expect(await page.locator("h1").count()).toBe(1);
     const talk = await page.getByRole("button", { name: /Press E to talk/ }).boundingBox();
-    const documents = await page.getByRole("button", { name: /^Documents/ }).boundingBox();
-    expect(talk!.y + talk!.height).toBeLessThanOrEqual(documents!.y);
+    const journal = await page.locator('section[aria-label="Journal"]').boundingBox();
+    expect(talk!.y + talk!.height).toBeLessThanOrEqual(journal!.y);
 
     await page.screenshot({ path: resolve(output, "rainy-office-mobile.png") });
     const size = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, height: innerHeight, scrollHeight: document.documentElement.scrollHeight }));
@@ -230,14 +233,17 @@ async function inspect(page: Page) {
   });
 }
 
-async function walkTo(page: Page, target: Point) {
+async function walkTo(page: Page, target: Point, { stopBefore = false } = {}) {
   const snapshot = await page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current);
   const player = snapshot.actors.find((a: any) => a.id === "player").position;
   const path = findPath(snapshot.map, snapshot.doors, player, target);
   expect(path).not.toBeNull();
   let from = player;
   await page.locator("canvas").focus();
-  for (const point of path!.filter(point => point.x !== player.x || point.y !== player.y)) {
+  const steps = path!.filter(point => point.x !== player.x || point.y !== player.y);
+  // Stopping one tile short of an occupied target leaves the player facing it.
+  if (stopBefore) steps.pop();
+  for (const point of steps) {
     await page.keyboard.press(point.x > from.x ? "ArrowRight" : point.x < from.x ? "ArrowLeft" : point.y > from.y ? "ArrowDown" : "ArrowUp");
     await expect.poll(() => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.actors.find((a: any) => a.id === "player").position)).toEqual(point);
     await page.getByText("Saving…", { exact: true }).waitFor({ state: "hidden" });

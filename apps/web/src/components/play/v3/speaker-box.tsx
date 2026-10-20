@@ -1,6 +1,16 @@
 "use client";
 
 import { boxClass, ContinueIndicator, NameTag, pixelFont } from "@/components/play/v3/dialogue-box";
+import { nameInitials } from "@/lib/play/v3/initials";
+
+function PlayerLine({ text }: { text: string }) {
+  return (
+    <p className="my-2 ml-auto w-fit max-w-[85%] whitespace-pre-line break-words rounded-lg rounded-br-none bg-[#e7edff] px-3 py-1.5 text-[15px] leading-relaxed sm:text-[17px]">
+      <span className="sr-only">You: </span>
+      {text}
+    </p>
+  );
+}
 
 /** The bottom dialogue box for one speaker's line, in the style of the talk and defining-moment box. */
 export function SpeakerBox({
@@ -8,6 +18,8 @@ export function SpeakerBox({
   tag,
   note,
   text,
+  before = null,
+  after = null,
   done,
   busy = false,
   continueLabel,
@@ -18,13 +30,17 @@ export function SpeakerBox({
   /** A small line above the text, such as the epilogue's "not the record" label. */
   note?: string | null;
   text: string;
+  /** The student's own earlier line, shown above this one (the answer a push-back replies to). */
+  before?: string | null;
+  /** The student's line that is on its way, shown below with a thinking mark. */
+  after?: string | null;
   done: boolean;
   busy?: boolean;
   /** Shown with ▼ once the line has finished; omit when the next step is a choice panel. */
   continueLabel?: string;
   onAdvance: () => void;
 }) {
-  const initials = speaker.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  const initials = nameInitials(speaker);
   return (
     <section
       aria-label={`${speaker} says`}
@@ -47,9 +63,18 @@ export function SpeakerBox({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto pb-7 pr-2">
           {note ? <p className="text-xs font-bold uppercase tracking-wide text-[#5c6472]">{note}</p> : null}
+          {before ? <PlayerLine text={before} /> : null}
           <p aria-live="polite" className={`${pixelFont.className} mt-1 whitespace-pre-line text-base leading-relaxed sm:text-lg`}>
             {text}
           </p>
+          {after ? (
+            <>
+              <PlayerLine text={after} />
+              <p role="status" className="mt-2 text-sm font-bold text-[#5c6472]">
+                {speaker} is thinking<span aria-hidden="true" className="motion-safe:animate-pulse">…</span>
+              </p>
+            </>
+          ) : null}
         </div>
         {done && continueLabel ? (
           <button
