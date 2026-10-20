@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
 import { DialogueBox, nextAvailableIndex, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
-import { DocumentReader, passageStatus } from "@/components/play/v3/document-reader";
+import { DocumentReader, documentProvenanceLine, passageStatus } from "@/components/play/v3/document-reader";
 import { NotePickup, unseenNotes } from "@/components/play/v3/note-pickup";
 import adventureStyles from "@/components/play/adventure-chrome.module.css";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
@@ -287,7 +287,7 @@ describe("v3 stance portrait paths", () => {
         selected: false,
         onSelect: () => {},
       }));
-      expect(fallback).toContain(">TA</span>");
+      expect(fallback).toContain(">TR</span>");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -671,7 +671,7 @@ describe("v3 stage play screen", () => {
       }));
 
       expect(markup).toContain("Collected scroll 1 of 2");
-      expect(markup).toContain("From your travels");
+      expect(markup).toContain(">Letter</p>");
       expect(markup).toContain("A letter from the harbour");
       expect(markup).toContain("Choose a collected scroll");
       expect(markup).toContain("Collected");
@@ -681,6 +681,38 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("data-document-paragraph");
       expect(emptyMarkup).toContain("No scrolls collected yet.");
       expect(emptyMarkup).toContain("Continue exploring");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows where a document comes from, its glossary and, for real excerpts, its source", () => {
+    const document: PlayerView["documents"][number] = {
+      id: "document-1",
+      kind: "letter",
+      title: "A letter from Riau",
+      provenance: { masthead: null, date: "January 1819", sender: "the court at Riau", recipient: "the Temenggong", place: "Riau" },
+      body: "Let him remember whose servant he is.",
+      real: true,
+      sourceLabel: "Letter of the Riau court, 1819",
+      glossary: [{ term: "Datoo Tumungong", meaning: "the title Dato' Temenggong, a senior Malay chief" }],
+      open: true,
+    };
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DocumentReader, {
+        document,
+        documents: [document],
+        onSelectDocument: () => {},
+        onClose: () => {},
+      }));
+      expect(documentProvenanceLine(document)).toBe("Letter · January 1819 · Riau");
+      expect(markup).toContain("Letter · January 1819 · Riau");
+      expect(markup).toContain("From the court at Riau · To the Temenggong");
+      expect(markup).toContain("Words to know");
+      expect(markup).toContain("<dt>Datoo Tumungong</dt>");
+      expect(markup).toContain("A real historical document");
+      expect(markup).toContain("Letter of the Riau court, 1819");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -1043,7 +1075,7 @@ describe("v3 dialogue box", () => {
         onClose: () => {},
       }));
 
-      expect(markup).toContain(">TA</span>");
+      expect(markup).toContain(">TR</span>");
     } finally {
       vi.unstubAllGlobals();
     }

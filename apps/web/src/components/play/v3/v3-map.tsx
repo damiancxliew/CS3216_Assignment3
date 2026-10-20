@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl } from "@/lib/play/appearance";
 import {
+  arrivalPoint,
   compileV3StageMap,
   nearbyCharacterId,
   roomIdToEnter,
@@ -115,7 +116,7 @@ export function V3Map(props: V3MapProps) {
     const held = new Map<string, Point>();
     let destroyed = false;
     let view: MapView | null = null;
-    let playerPosition = seatIn(map, latest.current.currentRoomId, 0) ?? compiled.playerSpawn;
+    let playerPosition = arrivalPoint(map, latest.current.currentRoomId) ?? compiled.playerSpawn;
     let path: Point[] = [];
     let revision = 0;
     let facing: "down" | "up" | "left" | "right" = "down";
@@ -171,6 +172,8 @@ export function V3Map(props: V3MapProps) {
             targetRoomId: null,
             status: "idle" as const,
             spriteSheetUrl: walkSheetUrl(sprite),
+            // While locked (a conversation, the defining moment, an end screen's backdrop) nobody offers "Talk".
+            ...(latest.current.movementLocked ? { interactive: false } : {}),
           };
         }),
       ],
@@ -251,7 +254,7 @@ export function V3Map(props: V3MapProps) {
           currentRoomRef.current = roomId;
         } else {
           path = [];
-          playerPosition = seatIn(map, currentRoomRef.current, 0) ?? compiled.playerSpawn;
+          playerPosition = arrivalPoint(map, currentRoomRef.current) ?? compiled.playerSpawn;
         }
         transitioning = false;
         revision += 1;
@@ -364,6 +367,11 @@ export function V3Map(props: V3MapProps) {
             if (latest.current.documents.some((document) => document.id === documentId)) {
               latest.current.onOpenDocument(documentId);
             }
+          },
+          onRoomPointer: (roomId) => {
+            if (latest.current.movementLocked) return;
+            latest.current.onWalkDone();
+            goToRoom(roomId);
           },
           camera: "detail",
           zoomScale: window.matchMedia("(min-width: 1024px)").matches ? 0.75 : 1,

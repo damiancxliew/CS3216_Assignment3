@@ -4,6 +4,7 @@ import type { PortraitBase } from "@/lib/play/v3/portraits";
 import { useState } from "react";
 
 import { portraitUrl } from "@/lib/play/v3/portraits";
+import { nameInitials } from "@/lib/play/v3/initials";
 
 export function CharacterPortrait({
   name,
@@ -22,7 +23,7 @@ export function CharacterPortrait({
   const url = portraitUrl(portraitKey, portraitBase);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const src = url !== failedUrl ? url : null;
-  const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  const initials = nameInitials(name);
 
   return (
     <button

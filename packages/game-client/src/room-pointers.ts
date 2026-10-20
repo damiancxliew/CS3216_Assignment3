@@ -71,6 +71,13 @@ export function layoutRoomPointers(candidates: readonly PointerCandidate[], view
 export class RoomPointers {
   private graphics?: Phaser.GameObjects.Graphics
   private readonly texts = new Map<string, Phaser.GameObjects.Text>()
+  private placed: PlacedPointer[] = []
+
+  /** The place whose pointer chip covers this world point, so a click can head there. */
+  hit(point: { x: number; y: number }): string | null {
+    return this.placed.find(({ bounds }) =>
+      point.x >= bounds.x && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height)?.id ?? null
+  }
 
   constructor(private readonly scene: Phaser.Scene) {}
 
@@ -96,6 +103,7 @@ export class RoomPointers {
       return { id: place.id, target: { x: place.bounds.x + place.bounds.width / 2, y: place.bounds.y + place.bounds.height / 2 }, width: text.width, height: text.height }
     })
     const placed = layoutRoomPointers(candidates, view, obstacles)
+    this.placed = placed
     const graphics = this.graphics ??= this.scene.add.graphics().setDepth(61)
     graphics.clear()
     for (const [id, text] of this.texts) text.setVisible(placed.some((pointer) => pointer.id === id))

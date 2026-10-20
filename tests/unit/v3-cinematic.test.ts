@@ -57,9 +57,32 @@ describe("V3 cinematic beats", () => {
 
     expect(stageIntroBeats(stage)).toEqual([
       { id: "place", kicker: "Stage 2 of 3", title: "The agreement", body: "Singapore, February 1819" },
-      { id: "what-happened", kicker: "What happened", body: "The talks continued.", items: ["Both parties returned to the table."] },
+      { id: "what-happened", kicker: "What happened", body: "The talks continued.", items: ["You predicted: The talks would be delayed.", "Why: Both parties returned to the table."] },
       { id: "narration", kicker: "Meanwhile", body: "The party returns to the river." },
       { id: "question", kicker: "The question", body: "Whose authority will the agreement recognize?" },
+    ]);
+  });
+
+  it("turns a generated reason fragment into a sentence", () => {
+    const stage = {
+      index: 1,
+      count: 2,
+      title: "The disputed throne",
+      timePlace: "Singapore, February 1819",
+      centralQuestion: "Whose authority will make the treaty lawful?",
+      intro: {
+        narration: "",
+        predictionReveal: {
+          predicted: "he will sign, and send for Tengku Hussein",
+          actual: "The Temenggong would not sign, and sent to Riau for word.",
+          because: "he did not yet trust the British, and feared what Riau would do",
+        },
+      },
+    } satisfies StageView;
+
+    expect(stageIntroBeats(stage)[1]?.items).toEqual([
+      "You predicted: He will sign, and send for Tengku Hussein.",
+      "Why: He did not yet trust the British, and feared what Riau would do.",
     ]);
   });
 });

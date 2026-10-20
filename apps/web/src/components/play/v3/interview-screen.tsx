@@ -24,6 +24,12 @@ function choiceDelta(key: string): number {
   return 0;
 }
 
+/** The student's verdict, with their own words if they added any. */
+function answerLine(interview: InterviewView, verdictId: string, text: string | null): string {
+  const verdict = interview.verdicts.find((option) => option.id === verdictId)?.text ?? "";
+  return text?.trim() ? `${verdict}\n“${text.trim()}”` : verdict;
+}
+
 /**
  * The Interview happens over the last stage's map: the interviewer's question, push-back and closing type out in
  * the bottom dialogue box, and the student's answer (verdict, then notes as evidence) pops up above it.
@@ -42,6 +48,12 @@ export function InterviewScreen({
   const line = interviewLine(interview);
   const typed = useTypewriter(line.text, true);
   const [ackedPushBack, setAckedPushBack] = useState<string | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+  const previous = line.kind === "pushBack" ? interview.answer : line.kind === "closing" ? interview.response ?? interview.answer : null;
+  const sendAnswer = (action: Action) => {
+    if (action.type === "interviewAnswer") setPending(answerLine(interview, action.verdictId, action.text ?? null));
+    send(action);
+  };
   const answering = typed.done && !busy && (line.next === "answer" || ackedPushBack === line.text);
 
   const advance = () => {
@@ -71,13 +83,15 @@ export function InterviewScreen({
           notes={notes}
           responding={line.next === "respond"}
           busy={busy}
-          send={send}
+          send={sendAnswer}
         />
       ) : null}
       <SpeakerBox
         speaker={interview.interviewer}
         tag={line.kind === "closing" ? "Closing thoughts" : null}
-        text={busy && typed.done && line.next !== "continue" ? `${typed.shown}\n\n…` : typed.shown}
+        text={typed.shown}
+        before={previous ? answerLine(interview, previous.verdictId, previous.text) : null}
+        after={busy && pending && line.next !== "continue" ? pending : null}
         done={typed.done && !answering}
         busy={busy}
         continueLabel={line.next === "continue" ? "See what really happened" : line.next === "respond" ? "Respond" : undefined}
@@ -194,6 +208,9 @@ function AnswerPanel({
 
       {step === "verdict" ? (
         <div role="listbox" aria-label="Verdict" className="min-h-0 overflow-y-auto p-2">
+          {responding ? (
+            <p className="px-2 pb-1 text-sm text-[#1f2433]/75">Keep your answer, or change it now you&apos;ve heard the push-back.</p>
+          ) : null}
           {interview.verdicts.map((option, index) => (
             <button
               key={option.id}
@@ -206,7 +223,12 @@ function AnswerPanel({
               className={rowClass(index === verdictIndex)}
             >
               <span aria-hidden className="w-4 shrink-0 text-sm font-black text-[#e36b33]">{index === verdictIndex ? "▶" : ""}</span>
-              <span className={`${pixelFont.className} text-sm font-semibold sm:text-base`}>{option.text}</span>
+              <span className="text-[15px] font-semibold sm:text-base">
+                {option.text}
+                {responding && option.id === interview.answer?.verdictId ? (
+                  <span className="ml-2 inline-block rounded border border-current px-1.5 text-[11px] font-bold uppercase tracking-wide opacity-70">Your answer</span>
+                ) : null}
+              </span>
             </button>
           ))}
         </div>

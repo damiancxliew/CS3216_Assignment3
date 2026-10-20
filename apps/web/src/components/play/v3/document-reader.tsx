@@ -62,6 +62,50 @@ function PassageHint({ canSelect, firstTime, status }: { canSelect: boolean; fir
   );
 }
 
+const KIND_LABELS: Record<DocumentView["kind"], string> = {
+  newspaper: "Newspaper", letter: "Letter", telegram: "Telegram", speech: "Speech", minutes: "Minutes",
+  memoir: "Memoir", treaty: "Treaty", report: "Report", other: "Document",
+};
+
+/** "Letter · 30 January 1819 · Singapoora": where and when the document comes from, before the student reads it. */
+export function documentProvenanceLine(document: Pick<DocumentView, "kind" | "provenance">): string {
+  const { masthead, date, place } = document.provenance;
+  return [masthead ?? KIND_LABELS[document.kind], date, place].filter(Boolean).join(" · ");
+}
+
+function DocumentDetails({ document }: { document: DocumentView }) {
+  const { sender, recipient } = document.provenance;
+  const fromTo = [sender ? `From ${sender}` : null, recipient ? `To ${recipient}` : null].filter(Boolean).join(" · ");
+  return fromTo ? <p className={styles.provenance}>{fromTo}</p> : null;
+}
+
+function DocumentNotes({ document }: { document: DocumentView }) {
+  if (document.glossary.length === 0 && !document.real) return null;
+  return (
+    <div className={styles.source}>
+      {document.glossary.length > 0 ? (
+        <>
+          <p className={styles.glossaryHeading}>Words to know</p>
+          <dl className={styles.glossary}>
+            {document.glossary.map((entry) => (
+              <div key={entry.term}>
+                <dt>{entry.term}</dt>
+                <dd>{entry.meaning}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      ) : null}
+      {document.real ? (
+        <details className={styles.realSource}>
+          <summary>A real historical document</summary>
+          <p>{document.sourceLabel ?? "Quoted from the historical record."}</p>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 export function DocumentReader({
   document,
   documents,
@@ -106,7 +150,7 @@ export function DocumentReader({
     <V3ScrollDialog
       eyebrow={document ? (saved ? `Collected scroll ${index + 1} of ${documents.length}` : "Evidence scroll") : "Collected scrolls"}
       title={document?.title ?? "Documents"}
-      kicker="From your travels"
+      kicker={document ? documentProvenanceLine(document) || "From your travels" : "From your travels"}
       footerText={document ? (saved ? "Collected" : "Not collected yet") : "A record of your discoveries"}
       footerSaved={saved}
       closeLabel={document ? `Put down ${document.title}` : "Close documents"}
@@ -120,9 +164,13 @@ export function DocumentReader({
       } : undefined}
     >
       {document ? (
-        <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text">
-          <p data-document-paragraph="" className={styles.text}>{document.body}</p>
-        </div>
+        <>
+          <DocumentDetails document={document} />
+          <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text">
+            <p data-document-paragraph="" className={styles.text}>{document.body}</p>
+          </div>
+          <DocumentNotes document={document} />
+        </>
       ) : (
         <div className={styles.loading}>
           <ScrollText size={44} aria-hidden="true" />
