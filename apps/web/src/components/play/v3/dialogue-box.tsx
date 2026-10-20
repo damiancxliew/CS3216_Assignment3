@@ -342,6 +342,7 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
           <input
             ref={input}
             id="v3-message"
+            autoComplete="off"
             value={text}
             maxLength={1000}
             disabled={busy}
