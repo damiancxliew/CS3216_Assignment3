@@ -217,3 +217,10 @@ cases: a supported paraphrase, an unrelated genuine quote, an unsupported additi
 and a partially supported compound claim. Results report quote occurrence separately from
 model-assessed support. This evaluation is advisory and does not run during generation;
 passing scripted-client tests verifies the evaluation plumbing, not the model's accuracy.
+
+The [recorded live run](evals/results/issue-298-postfix/grounding.report.json) passed all four
+constructed relevance cases. Separate [production-prompt probes](evals/results/issue-298-postfix/production-probes.report.json)
+passed stage details, linking, fallback-moment and secret-moment validation. Stage details
+needed one repair after quote validation caught an unsupported paragraph; the other calls
+passed first try. These samples establish targeted behavior, not a population accuracy rate
+or a complete adventure-generation result.
