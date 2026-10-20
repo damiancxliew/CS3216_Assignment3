@@ -187,3 +187,33 @@ compiler is passed in via the `compile` hook). Across cases: max pairwise struct
 → `ExtractedDocument { pages[{ page, text }], contentHash, warnings }`. PDFs go through `unpdf`
 (pdf.js) per page; pasted text is paginated on form feeds or cut into ~2.5k-char pseudo-pages.
 Limits in `LIMITS`. Scanned PDFs without a text layer are rejected with `no-text-layer`.
+
+## V3 generation checks and evidence evaluation
+
+Skeleton documents can hold at most two core discoveries, so their details can satisfy the
+two-passage limit. Hidden-entry persona triggers require at least one prerequisite in addition
+to their triggering action. Linking receives actual persona/stance metadata and existing
+guards; its unguarded note triggers cannot target hidden stances. Authored hidden-entry guards
+are preserved. Secret unlocks require positive achievements; ordinary conditional rules can
+still use negation.
+
+Moment context identifies current participants, includes their voices and agendas, and sends
+the first unconditional fallback plus ordered alternatives. Runtime still prefers matching
+rules whose endings are open. Shared source formatting includes teacher/outside origin and
+available URL; legacy documents default to teacher origin.
+
+Literal quote validation checks occurrence in the cited source. It cannot establish that a
+quotation supports every factual part of a discovery or its student note. The optional
+relevance evaluator judges those two fields independently using their quoted evidence:
+
+```bash
+npm run eval:v3-grounding --workspace @adventure/generation -- --help
+npm run eval:v3-grounding --workspace @adventure/generation -- --live --out /tmp/v3-grounding.json
+```
+
+The live command requires `OPENAI_API_KEY` and makes four calls using the shared `V3_MODEL`
+default in `src/v3/config.ts` over synthetic
+cases: a supported paraphrase, an unrelated genuine quote, an unsupported addition in a note,
+and a partially supported compound claim. Results report quote occurrence separately from
+model-assessed support. This evaluation is advisory and does not run during generation;
+passing scripted-client tests verifies the evaluation plumbing, not the model's accuracy.
