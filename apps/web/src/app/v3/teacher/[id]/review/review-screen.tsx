@@ -36,6 +36,8 @@ import {
   type ReviewTarget,
 } from "@/lib/v3/review";
 
+type ScreenTab = ReviewTab | "assets";
+
 const tabs: { id: ReviewTab; label: string }[] = [
   { id: "stages", label: "Stages" },
   { id: "characters", label: "Characters" },
@@ -217,6 +219,7 @@ export function ReviewScreen({
   sidebar,
   floatingChecks = false,
   issueActions,
+  assets,
 }: {
   checksPassedLabel?: string;
   renderHeader?: (checks: ReactNode) => ReactNode;
@@ -224,6 +227,7 @@ export function ReviewScreen({
   sidebar?: ReactNode;
   floatingChecks?: boolean;
   issueActions?: ReactNode;
+  assets?: ReactNode;
   allowedTabs?: ReviewTab[];
   indexEntries?: (tab: ReviewTab, itemId: string) => ReviewIndexEntry[];
   editMode?: boolean;
@@ -233,20 +237,22 @@ export function ReviewScreen({
   errors: CheckIssue[];
   warnings: (CheckIssue & { pass: string })[];
 }) {
-  const visibleTabs = tabs.filter(
-    (t) => !allowedTabs || allowedTabs.includes(t.id),
-  );
-  const [tab, setTab] = useState<ReviewTab>(allowedTabs?.[0] ?? "stages");
-  const [selection, setSelection] = useState<Record<ReviewTab, string>>(() => ({
+  const visibleTabs: { id: ScreenTab; label: string }[] = [
+    ...tabs.filter((t) => !allowedTabs || allowedTabs.includes(t.id)),
+    ...(assets ? [{ id: "assets" as const, label: "Generated assets" }] : []),
+  ];
+  const [tab, setTab] = useState<ScreenTab>(allowedTabs?.[0] ?? "stages");
+  const [selection, setSelection] = useState<Record<ScreenTab, string>>(() => ({
     stages: spec.stages[0]?.id ?? "",
     characters: spec.characters[0]?.id ?? "",
     documents: spec.documents[0]?.id ?? "",
     endings: spec.endings[0]?.id ?? "",
     settings: "settings",
     reveal: "reveal",
+    assets: "assets",
   }));
   const tabItems =
-    tab === "settings" || tab === "reveal" ? [{ id: tab }] : spec[tab];
+    tab === "assets" || tab === "settings" || tab === "reveal" ? [{ id: tab }] : spec[tab];
   const selected = tabItems.some((item) => item.id === selection[tab])
     ? selection[tab]
     : (tabItems[0]?.id ?? "");
@@ -313,7 +319,7 @@ export function ReviewScreen({
     }
     container.scrollIntoView({ block: "nearest", behavior });
   }, [destination, editMode]);
-  const activateTab = (next: ReviewTab) => {
+  const activateTab = (next: ScreenTab) => {
     if (next === tab) return;
     setDestination(null);
     setTab(next);
@@ -388,7 +394,7 @@ export function ReviewScreen({
     );
   };
   const items =
-    tab === "settings" || tab === "reveal"
+    tab === "assets" || tab === "settings" || tab === "reveal"
       ? [
           {
             id: tab,
@@ -467,7 +473,9 @@ export function ReviewScreen({
       ) : null}
     </>
   );
-  const checks = renderHeader || floatingChecks ? (
+  const checks = floatingChecks && !errors.length && !warnings.length && !spec.conflicts.length ? (
+    <p className="px-3 py-2 text-sm font-semibold text-muted">No issues</p>
+  ) : renderHeader || floatingChecks ? (
     <details
       ref={checksDisclosure}
       aria-label="Adventure checks"
@@ -554,8 +562,9 @@ export function ReviewScreen({
           role="tabpanel"
           id="review-content"
           aria-labelledby={`tab-${tab}`}
-          className={`grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${sidebar ? "xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(20rem,0.9fr)_15rem_minmax(0,2fr)]" : "md:min-h-0 md:flex-1"}`}
+          className={tab === "assets" ? "min-w-0" : `grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${sidebar ? "xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(20rem,0.9fr)_15rem_minmax(0,2fr)]" : "md:min-h-0 md:flex-1"}`}
         >
+          {tab === "assets" ? assets : <>
           {sidebar ? <div className="min-h-0 min-w-0 md:col-span-2 xl:col-span-1">{sidebar}</div> : null}
           <nav
             aria-label={`${tabs.find((t) => t.id === tab)?.label} items`}
@@ -1179,6 +1188,7 @@ export function ReviewScreen({
               )}
             </React.Fragment>
           </div>
+          </>}
         </div>
       </div>
     </div>

@@ -199,6 +199,21 @@ and focuses its field. Field errors appear beside their controls with an
 accessible description; part-local generation issues stay with their owning
 entity when a specific field cannot be identified.
 
+When there are no errors, warnings or conflicts, the floating control says
+“No issues” without an expandable list. Untouched legacy specs use the same
+checks as the server review and publication path; stricter editing checks are
+compared with the saved baseline so existing legacy omissions are not presented
+as newly introduced errors. Saved generation errors remain visible independently
+of edit mode.
+
+The Generated assets tab reviews stage artwork and character portraits for the
+saved spec version, including each major character's stance portraits. It uses
+the same storage URLs and portrait-version inheritance as student play, offers
+full image links, and shows unavailable/loading states with retry for missing
+images. Switching tabs preserves unsaved story edits. After saving a new version,
+the editor refreshes the asset inventory; older results are not relabeled as
+belonging to the new version.
+
 `tests/browser/v3-guided-local.test.ts` uses local Supabase and Next with `V3_FAKE_PASSES=1`, an isolated teacher in Testing School, and disposable adventures. It leaves existing seeded records untouched. Configure the usual local Supabase credentials and:
 
 ```sh

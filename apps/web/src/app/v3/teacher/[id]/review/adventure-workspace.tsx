@@ -13,6 +13,7 @@ import { reviewErrors, reviewSources } from "@/lib/v3/review";
 import { SupabaseV3PlayStore } from "@/lib/play/v3/store";
 import { getV3GenerationProgress } from "../../actions";
 import { ReviewIssue } from "@/components/teacher/review-issue";
+import { reviewAssets } from "@/lib/v3/review-assets";
 import { EditorWorkspace } from "./editor-workspace";
 import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
 import { EditorChatWorkspace } from "./editor-chat-workspace";
@@ -66,6 +67,7 @@ export default async function AdventureWorkspace({
         <EditorChatWorkspace brief={row.state ?? initialBriefStateV3(id)}>
           <EditorWorkspace
             adventureId={id}
+            assets={{ version: adventure.specVersion, items: reviewAssets(parsed.spec, id, adventure.specVersion) }}
             initialVersion={adventure.specVersion}
             publishedVersion={adventure.publishedVersion ?? null}
             published={adventure.status === "published"}

@@ -1,9 +1,12 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { ReviewAsset } from "@/lib/v3/review-assets";
+import { GeneratedAssets } from "./generated-assets";
+import { newLocalErrors } from "@/lib/v3/edit/local-checks";
 import { V3AdventureNav } from "@/components/teacher/v3-adventure-nav";
 import {
-  editableIssues,
   checkSpec,
   validateSpec,
   type AdventureSpec as Spec,
@@ -27,6 +30,7 @@ import { useReviewChatTarget } from "../review-chat-context";
 
 type Props = {
   adventureId: string;
+  assets?: { version: number; items: ReviewAsset[] };
   initial: Spec;
   initialVersion: number;
   publishedVersion: number | null;
@@ -37,6 +41,7 @@ type Props = {
   warnings: (CheckIssue & { pass: string })[];
 };
 export function EditorWorkspace(props: Props) {
+  const router = useRouter();
   const [published, setPublished] = useState(props.published);
   const [publishedVersion, setPublishedVersion] = useState(
     props.publishedVersion,
@@ -58,15 +63,14 @@ export function EditorWorkspace(props: Props) {
         errors: parsed.issues.map((i) => ({ ...i, code: "schema" })),
         warnings: [],
       };
+    // Match server review for untouched legacy specs; stricter editing checks
+    // report only issues introduced by local changes against that saved baseline.
     const current = checkSpec(parsed.spec);
     return {
       ...current,
-      errors: [
-        ...current.errors,
-        ...(!parsed.spec.authoring ? editableIssues(parsed.spec) : []),
-      ],
+      errors: [...current.errors, ...(!parsed.spec.authoring && dirty ? newLocalErrors(saved, draft) : [])],
     };
-  }, [draft]);
+  }, [draft, saved, dirty]);
   // Generation obligations remain visible locally; authoritative Save replaces this list.
   const errors = [
     ...new Map(
@@ -125,6 +129,7 @@ export function EditorWorkspace(props: Props) {
         setEdits([]);
         setEditMode(false);
         setSavedErrors(result.errors);
+        router.refresh();
         setMessage(
           `Saved version ${result.version}.${result.errors.length ? " Fix blocking errors before publishing." : ""}`,
         );
@@ -145,6 +150,13 @@ export function EditorWorkspace(props: Props) {
   return (
     <>
       <ReviewScreen
+        assets={props.assets && props.assets.version !== version ? (
+          <section className="space-y-3">
+            <h2 className="text-xl font-bold">Generated assets</h2>
+            <p className="text-sm text-muted">Reload assets for saved version {version}.</p>
+            <button type="button" className={button.quiet} onClick={() => router.refresh()}>Refresh assets</button>
+          </section>
+        ) : <GeneratedAssets key={version} assets={props.assets?.items ?? []} version={version} />}
         sidebar={editMode ? <EditorConversation /> : undefined}
         floatingChecks
         issueActions={

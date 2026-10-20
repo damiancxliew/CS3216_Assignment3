@@ -23,6 +23,16 @@ const spec = AdventureSpec.parse(
 );
 
 describe("review screen rendering", () => {
+  it("shows plain No issues without an empty dropdown in the editor", () => {
+    const html = renderToStaticMarkup(createElement(ReviewScreen, {
+      spec: { ...spec, conflicts: [] },
+      sources: [], errors: [], warnings: [], floatingChecks: true,
+      renderHeader: () => createElement("header", null, "Editor controls"),
+    }));
+    expect(html).toContain("No issues");
+    expect(html).not.toContain('aria-label="Adventure checks"');
+    expect(html).not.toContain("Needs fixing");
+  });
   it("puts checks beside the floating resolve control and expands the first issue", () => {
     const html = renderToStaticMarkup(createElement(ReviewScreen, {
       spec: { ...spec, conflicts: [] },
