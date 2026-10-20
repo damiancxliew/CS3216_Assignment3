@@ -65,17 +65,17 @@ const llmSkeleton: SkeletonLlmOutput = {
       id: 'd-treaty',
       stageId: 's1',
       holder: { kind: 'character', id: 'farquhar' },
-      text: 'Raffles negotiated the preliminary treaty himself.',
-      note: 'Raffles signed first.',
+      text: 'Farquhar called the settlement a free port.',
+      note: 'Farquhar called it a free port.',
       sourceLabel: 'from the teacher',
-      citations: [{ sourceId: 'singapore-1819', quote: SOURCE_TEXT }],
+      citations: [{ sourceId: 'singapore-1819', quote: 'Farquhar called it “a free port”.' }],
     },
     {
       id: 'd-dues',
       stageId: 's1',
       holder: { kind: 'document', id: 'doc-1' },
-      text: 'Some merchants resented new port dues.',
-      note: 'Not all welcomed the flag.',
+      text: 'The treaty was signed on 6 February 1819.',
+      note: 'They signed the treaty on 6 February 1819.',
       sourceLabel: 'from the teacher',
       citations: [{ sourceId: 'singapore-1819', quote: 'The treaty was signed on 6 February 1819.' }],
     },
@@ -327,6 +327,35 @@ const happyRoutes = () => ({
 // --- tests -----------------------------------------------------------------------------------
 
 describe('generateDetails', () => {
+  it('repairs an unguarded linker transition to a hidden stance', async () => {
+    const hidden = structuredClone(farquharOutput)
+    hidden.stances[2]!.hidden = true
+    const badLink = structuredClone(linkOutput)
+    badLink.noteTriggers.push({ id: 'link-hidden', characterId: 'farquhar', discoveryId: 's1-d-note', effect: { kind: 'toStance', stance: 's3', delta: null }, notice: 'He confides.' })
+    const llm = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: hidden }], link: [{ json: badLink }, { json: linkOutput }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.ok).toBe(true)
+    const calls = llm.requests.filter((r) => r.key === 'link')
+    expect(calls).toHaveLength(2)
+    expect(calls[1]!.request.user).toContain('hidden-stance-guard')
+    expect(result.draft!.triggers.some((t) => t.id === 'link-hidden')).toBe(false)
+  })
+
+  it('supplies actual persona, stance metadata and existing trigger guards/effects to linking', async () => {
+    const hidden = structuredClone(farquharOutput)
+    hidden.stances[2]!.hidden = true
+    const llm = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: hidden }] })
+    await generateDetails(input, { llm })
+    const context = JSON.parse(llm.requests.find((r) => r.key === 'link')!.request.user)
+    const farquhar = context.characters.find((c: { id: string }) => c.id === 'farquhar')
+    expect(farquhar).toMatchObject({
+      initialStanceId: 's1',
+      persona: { voice: hidden.persona.voice, ...skeleton.characters[0]!.persona },
+      stances: [{ id: 's1', label: 'Guarding', hidden: false }, { id: 's2', label: 'Weighing', hidden: false }, { id: 's3', label: 'Convinced', hidden: true }],
+      triggers: [{ on: hidden.triggers[0]!.on, requires: null, effect: hidden.triggers[0]!.effect }],
+    })
+  })
+
   it('happy path: merges a draft that validates and checks clean', async () => {
     const llm = new RoutingLlm(happyRoutes())
     const result = await generateDetails(input, { llm })
@@ -536,20 +565,31 @@ describe('generateDetails', () => {
     expect(llm.requests.filter((r) => r.key === 'link')[1]!.request.user).toContain('duplicate-trigger')
   })
 
-  it('requires ≥2 requires conditions on a toStance into the hidden stance', async () => {
+  it('requires one extra condition on entry to the hidden stance', async () => {
     const hidden = JSON.parse(JSON.stringify(farquharOutput))
     hidden.stances[2].hidden = true
-    hidden.triggers[0] = { id: 'farquhar-t1', on: { kind: 'discovered', id: 'd-dues' }, requires: { discoveries: ['d-treaty'], stanceAtLeast: null }, effect: { kind: 'toStance', stance: 's3', delta: null }, handsOver: [], notice: 'He opens fully.' }
+    hidden.triggers[0] = { id: 'farquhar-t1', on: { kind: 'discovered', id: 'd-dues' }, requires: { discoveries: [], stanceAtLeast: null }, effect: { kind: 'toStance', stance: 's3', delta: null }, handsOver: [], notice: 'He opens fully.' }
     const bad = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: hidden }, { json: farquharOutput }] })
     const res = await generateDetails(input, { llm: bad })
     expect(res.ok).toBe(true)
     expect(bad.requests.filter((r) => r.key === 'persona farquhar')[1]!.request.user).toContain('hidden-stance-guard')
 
-    hidden.triggers[0].requires = { discoveries: ['d-treaty'], stanceAtLeast: 's2' }
+    hidden.triggers[0].requires = { discoveries: [], stanceAtLeast: 's2' }
     const good = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: hidden }] })
     const res2 = await generateDetails(input, { llm: good })
     expect(res2.issues.filter((i) => i.code === 'hidden-stance-guard')).toEqual([])
     expect(good.count('persona farquhar')).toBe(1)
+  })
+
+  it.each(['discovered', 'notePassed'])('does not count the %s triggering discovery as an extra prerequisite', async (kind) => {
+    const hidden = structuredClone(farquharOutput)
+    hidden.stances[2]!.hidden = true
+    hidden.triggers[0] = { id: 'farquhar-t1', on: { kind: kind as 'discovered' | 'notePassed', id: 'd-dues' }, requires: { discoveries: ['d-dues'], stanceAtLeast: null }, effect: { kind: 'toStance', stance: 's3', delta: null }, handsOver: [], notice: 'He confides.' }
+    const llm = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: hidden }, { json: farquharOutput }] })
+    await generateDetails(input, { llm })
+    const calls = llm.requests.filter((r) => r.key === 'persona farquhar')
+    expect(calls).toHaveLength(2)
+    expect(calls[1]!.request.user).toContain('hidden-stance-guard')
   })
 
   it('flags a beginMoment event on discovered and converts allCore to the core conditions', async () => {

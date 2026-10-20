@@ -11,6 +11,7 @@ import type { ExtractedDocument } from '../../ingest/types'
 import { runCall } from '../details/calls'
 import type { CallResult, DetailCallMetrics, DetailCallOptions } from '../details/calls'
 import { sourceTexts } from '../grounding'
+import { V3_MODEL } from '../config'
 import { SKELETON_BUDGET_MS } from '../skeleton/generate'
 import { sourcesBlock } from '../skeleton/index'
 import { buildRevealContext, isSecretAct, revealIssues } from './checks'
@@ -21,7 +22,7 @@ import { fillRevealPrompt, REVEAL_SYSTEM_PROMPT } from './prompt'
 import { RevealLlmOutput as RevealWire } from './schema'
 import type { RevealLlmOutput } from './schema'
 
-export const REVEAL_MODEL = 'gpt-6-sol'
+export const REVEAL_MODEL = V3_MODEL
 export const REVEAL_BUDGET_MS = SKELETON_BUDGET_MS
 
 export interface GenerateRevealInput {

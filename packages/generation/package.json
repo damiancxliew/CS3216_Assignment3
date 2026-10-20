@@ -27,6 +27,7 @@
     "schema": "vite-node scripts/write-json-schema.ts",
     "schema:check": "vitest run tests/json-schema.test.ts",
     "eval": "vite-node evals/run.ts --",
+    "eval:v3-grounding": "vite-node evals/run-v3-grounding.ts --",
     "generate": "vite-node scripts/generate.ts --",
     "generate:v3": "vite-node scripts/generate-v3.ts --",
     "assets": "vite-node scripts/assets.ts --"

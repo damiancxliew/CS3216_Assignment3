@@ -6,6 +6,7 @@
 import type { AdventureSpec, CheckIssue, CheckResult } from '../index.js'
 import { editableIssues } from './editable.js'
 import { coreIssues } from './core.js'
+import { gameplayIssues } from './gameplay.js'
 import { labelIssues } from './labels.js'
 import { referenceIssues } from './refs.js'
 import { checkSkeleton } from './skeleton.js'
@@ -17,6 +18,7 @@ export function checkSpec(spec: AdventureSpec): CheckResult {
     ...referenceIssues(spec),
     ...coreIssues(spec),
     ...labelIssues(spec),
+    ...gameplayIssues(spec),
     ...(spec.authoring ? editableIssues(spec) : []),
   ]
   return { errors, warnings: skeleton.warnings }

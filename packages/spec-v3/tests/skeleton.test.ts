@@ -45,6 +45,18 @@ describe('SkeletonSpec', () => {
 })
 
 describe('checkSkeleton', () => {
+  it('rejects three core discoveries assigned to one two-passage document', () => {
+    const result = checked((s) => {
+      s.discoveries[0].holder = { documentId: 'doc-1' }
+      s.discoveries.push({ ...s.discoveries[1], id: 'd-third' })
+    })
+    expect(result.errors).toContainEqual(expect.objectContaining({ code: 'document-core-count', path: 'documents.0.id' }))
+  })
+
+  it('accepts two core discoveries in one document', () => {
+    expect(checked((s) => { s.discoveries[0].holder = { documentId: 'doc-1' } }).errors).toEqual([])
+  })
+
   it('reports no issues on the sample skeleton', () => {
     expect(checked()).toEqual({ errors: [], warnings: [] })
   })

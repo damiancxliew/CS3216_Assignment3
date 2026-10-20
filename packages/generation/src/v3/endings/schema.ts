@@ -27,7 +27,7 @@ export const MomentLlmOutput = z.object({
   acts: z.array(z.object({ id: Id, reaction: Text, deception: z.boolean() })),
   outcomes: z.array(z.object({ id: Id, predictionText: Text, because: Text })),
   conditionalRules: z.array(z.object({ actId: Id, outcomeId: Id, when: z.array(Atom) })),
-  secretUnlock: z.object({ actId: Id, conditions: z.array(Atom), minMet: z.number().int() }).nullable(),
+  secretUnlock: z.object({ actId: Id, conditions: z.array(Atom.extend({ negate: z.literal(false) })), minMet: z.number().int() }).nullable(),
 })
 export type MomentLlmOutput = z.infer<typeof MomentLlmOutput>
 

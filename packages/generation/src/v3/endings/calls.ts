@@ -4,9 +4,11 @@
  * message + previous raw JSON + the issues as a repair message).
  */
 import type { AdventureSpec } from '@adventure/spec-v3'
+import { unconditionalOutcomeIds } from '@adventure/spec-v3'
 
 import type { ExtractedDocument } from '../../ingest/types'
 import { runCall } from '../details/calls'
+import { V3_MODEL } from '../config'
 import type { PartResume } from '../parts'
 import type { CallResult, DetailCallOptions } from '../details/calls'
 import { detailsJsonSchema } from '../details/schema'
@@ -17,7 +19,7 @@ import { ENDING_SYSTEM_PROMPT, MOMENT_SYSTEM_PROMPT, fillEndingsPrompt } from '.
 import { EndingLlmOutput as EndingWire, MomentLlmOutput as MomentWire } from './schema'
 import type { EndingLlmOutput, MomentLlmOutput } from './schema'
 
-export const ENDINGS_MODEL = 'gpt-6-sol'
+export const ENDINGS_MODEL = V3_MODEL
 
 export interface EndingsShared {
   draft: AdventureSpec
@@ -28,7 +30,6 @@ export interface EndingsShared {
 function momentUserMessage(shared: EndingsShared, ctx: MomentContext): string {
   const { draft, momentId, stageIndex } = ctx
   const moment = draft.definingMoments.find((m) => m.id === momentId)!
-  const fallback = new Map(moment.rules.filter((r) => r.when === undefined).map((r) => [r.actId, r.outcomeId]))
   const secret = secretActIds(moment)
   const stage = draft.stages[stageIndex]!
 
@@ -41,7 +42,8 @@ function momentUserMessage(shared: EndingsShared, ctx: MomentContext): string {
       acts: moment.acts.map((a) => ({
         id: a.id,
         text: a.text,
-        fallbackOutcomeId: fallback.get(a.id) ?? null,
+        fallbackOutcomeId: unconditionalOutcomeIds(moment, a.id)[0] ?? null,
+        alternateOutcomeIds: unconditionalOutcomeIds(moment, a.id).slice(1),
         ...(secret.has(a.id) ? { secret: true } : {}),
       })),
       outcomes: moment.outcomes.map((o) => ({
@@ -59,6 +61,8 @@ function momentUserMessage(shared: EndingsShared, ctx: MomentContext): string {
         id: c.id,
         name: c.name,
         tier: c.tier,
+        presentInCurrentStage: Object.hasOwn(stage.placement, c.id),
+        persona: { voice: c.persona.voice, publicPosition: c.persona.publicPosition, privateAgenda: c.persona.privateAgenda, wantsFromStudent: c.persona.wantsFromStudent },
         stances: c.stances.map((s) => ({ id: s.id, label: s.label, hidden: s.hidden === true })),
         slants: c.slants.map((s) => ({ id: s.id, claim: s.claim, contradictedBy: s.contradictedBy })),
       })),

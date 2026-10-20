@@ -4,6 +4,7 @@
  * Errors route back through the call's own repair loop; warnings are advisory.
  */
 import type { AdventureSpec, CheckIssue } from '@adventure/spec-v3'
+import { unconditionalOutcomeIds } from '@adventure/spec-v3'
 
 import type { Atom, EndingLlmOutput, MomentLlmOutput } from './schema'
 
@@ -111,6 +112,7 @@ function atomIssues(atom: Atom, path: string, ctx: MomentContext): CheckIssue[] 
 /** G6.1.2: what a secret-unlock condition may be. */
 function unlockAtomIssues(atom: Atom, path: string, ctx: MomentContext): CheckIssue[] {
   const issues = atomIssues(atom, path, ctx)
+  if (atom.negate) issues.push(issue('secret-unlock', path, 'secret unlocks must require positive achievements, never their absence'))
   if (issues.length > 0) return issues
   const { draft, reachableDiscoveries, slants } = ctx
   switch (atom.kind) {
@@ -188,8 +190,7 @@ export function momentIssues(output: MomentLlmOutput, ctx: MomentContext): { err
   })
 
   // fallback outcome per act = the first unconditional rule (later ones are alternates)
-  const fallback = new Map<string, string>()
-  for (const r of moment.rules) if (r.when === undefined && !fallback.has(r.actId)) fallback.set(r.actId, r.outcomeId)
+  const fallback = new Map(moment.acts.map((a) => [a.id, unconditionalOutcomeIds(moment, a.id)[0]]))
   const secretOutcomes = new Set(moment.outcomes.filter((o) => o.secret === true).map((o) => o.id))
   const historicalOutcomes = new Set(moment.outcomes.filter((o) => o.historical === true).map((o) => o.id))
   const hiddenStances = new Map<string, Set<string>>()

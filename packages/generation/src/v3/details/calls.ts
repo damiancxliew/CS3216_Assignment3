@@ -10,6 +10,7 @@ import type { ExtractedDocument } from '../../ingest/types'
 import type { LlmClient, LlmUsage } from '../../llm/client'
 import { estimateCostUsd, ZERO_USAGE } from '../../llm/client'
 import { sourceTexts } from '../grounding'
+import { V3_MODEL } from '../config'
 import type { PartResume } from '../parts'
 import { MAX_REPAIRS, skeletonRepairMessage, sourcesBlock } from '../skeleton/index'
 import { linkIssues, minorsIssues, personaIssues, stageIssues } from './checks'
@@ -18,8 +19,8 @@ import { fillPrompt, LINK_SYSTEM_PROMPT, MINORS_SYSTEM_PROMPT, PERSONA_SYSTEM_PR
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, StageDetailsLlmOutput } from './schema'
 import { detailsJsonSchema, LinkLlmOutput as LinkWire, MinorsLlmOutput as MinorsWire, PersonaLlmOutput as PersonaWire, StageDetailsLlmOutput as StageWire } from './schema'
 
-export const DETAILS_MODEL = 'gpt-6-sol'
-export const LINK_MODEL = 'gpt-6-sol'
+export const DETAILS_MODEL = V3_MODEL
+export const LINK_MODEL = V3_MODEL
 
 export interface DetailCallMetrics {
   label: string
@@ -203,7 +204,9 @@ export function linkDetails(context: LinkContext, shared: DetailsShared, opts: D
       name: shared.skeleton.characters.find((x) => x.id === c.id)?.name ?? c.id,
       tier: c.tier,
       stageIds: c.stageIds,
-      stances: c.stances.map((id) => ({ id, label: id })),
+      persona: c.persona,
+      initialStanceId: c.initialStanceId,
+      stances: c.stances,
       slants: c.slants.map((s) => {
         const external = s.contradictedBy.filter((id) => context.discoveries.find((d) => d.id === id)?.holder !== `character:${c.id}`)
         return {
@@ -213,7 +216,7 @@ export function linkDetails(context: LinkContext, shared: DetailsShared, opts: D
           ...(external.length === 0 ? { note: 'needs evidence from a document or another character, or it will be dropped' } : {}),
         }
       }),
-      triggers: context.triggers.filter((t) => t.characterId === c.id).map((t) => ({ on: { kind: t.on.kind, id: t.on.id } })),
+      triggers: context.triggers.filter((t) => t.characterId === c.id).map((t) => ({ on: t.on, requires: t.requires, effect: t.effect })),
     })),
     discoveries: context.discoveries.map((d) => ({ id: d.id, stageId: d.stageId, holder: d.holder, text: d.text })),
     stages: shared.skeleton.stages.map((s, i) => ({ id: s.id, order: i })),

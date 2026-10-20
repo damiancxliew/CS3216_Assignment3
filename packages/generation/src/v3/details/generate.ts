@@ -257,7 +257,9 @@ function buildLinkContext(skeleton: SkeletonShape, bag: CallBag): LinkContext {
         id: c.id,
         tier: 'major' as const,
         stageIds,
-        stances: output.stances.map((_, i) => `s${i + 1}`),
+        persona: { ...c.persona, voice: output.persona.voice, wantsFromStudent: output.persona.wantsFromStudent, withholds: output.persona.withholds },
+        initialStanceId: `s${output.initialStance}`,
+        stances: output.stances.map((s, i) => ({ id: `s${i + 1}`, label: s.label, demeanour: s.demeanour, hidden: s.hidden })),
         slants: output.slants.map((s) => ({ id: s.id, claim: s.claim, contradictedBy: s.contradictedBy })),
       }
     }
@@ -266,6 +268,8 @@ function buildLinkContext(skeleton: SkeletonShape, bag: CallBag): LinkContext {
       id: c.id,
       tier: 'minor' as const,
       stageIds,
+      persona: { ...c.persona, voice: minor?.persona.voice ?? '', wantsFromStudent: minor?.persona.wantsFromStudent ?? '', withholds: minor?.persona.withholds ?? [] },
+      initialStanceId: null,
       stances: [],
       slants: (minor?.slants ?? []).map((s) => ({ id: s.id, claim: s.claim, contradictedBy: s.contradictedBy, unlocksDiscoveryId: s.unlocksDiscoveryId })),
     }
@@ -285,7 +289,7 @@ function buildLinkContext(skeleton: SkeletonShape, bag: CallBag): LinkContext {
     for (const d of minor.discoveries) discoveries.push({ id: d.id, stageId: d.stageId, holder: `character:${minor.characterId}`, text: d.text, core: false })
   const triggers: LinkContext['triggers'] = []
   for (const [characterId, result] of bag.persona)
-    for (const t of result.output?.triggers ?? []) triggers.push({ characterId, on: { kind: t.on.kind, id: t.on.id } })
+    for (const t of result.output?.triggers ?? []) triggers.push({ characterId, on: t.on, requires: t.requires, effect: t.effect })
   return { characters, discoveries, triggers, stageOrder }
 }
 

@@ -331,3 +331,4 @@ export { SkeletonSpec, validateSkeleton } from './skeleton.js'
 export type { SkeletonShape, ValidateSkeletonResult } from './skeleton.js'
 
 export { editableIssues } from './check/editable.js'
+export { unconditionalOutcomeIds } from './moments.js'

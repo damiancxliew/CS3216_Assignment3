@@ -1,4 +1,5 @@
 export * from './skeleton/index'
+export { V3_MODEL } from './config.js'
 export * from './details/index'
 export * from './endings/index'
 export * from './reveal/index'
