@@ -12,6 +12,8 @@ import type { LlmClient } from '../src/llm/client'
 import { generateEndings } from '../src/v3/index'
 import { buildMomentContext, momentIssues } from '../src/v3/endings/checks'
 import type { Atom, EndingLlmOutput, MomentLlmOutput } from '../src/v3/index'
+import { generateMoment } from '../src/v3/endings/calls'
+import { MomentLlmOutput as MomentWire } from '../src/v3/endings/schema'
 
 // allow tests to inject post-merge checkSpec errors (routing test)
 const injected = vi.hoisted(() => ({ issues: [] as CheckIssue[] }))
@@ -207,17 +209,21 @@ const draft: AdventureSpec = {
   hintAngles: [],
 }
 
-const atom = (kind: Atom['kind'], fields: Partial<Atom> = {}): Atom => ({
-  kind,
-  negate: false,
-  discoveryId: null,
-  characterId: null,
-  stanceId: null,
-  slantId: null,
-  momentId: null,
-  outcomeId: null,
-  ...fields,
-})
+function atom(kind: Atom['kind'], fields?: Partial<Atom> & { negate?: false }): Atom & { negate: false }
+function atom(kind: Atom['kind'], fields: Partial<Atom>): Atom
+function atom(kind: Atom['kind'], fields: Partial<Atom> = {}): Atom {
+  return {
+    kind,
+    negate: false,
+    discoveryId: null,
+    characterId: null,
+    stanceId: null,
+    slantId: null,
+    momentId: null,
+    outcomeId: null,
+    ...fields,
+  }
+}
 
 const momentOutput = (overrides: Partial<MomentLlmOutput> = {}, momentId = 'm1'): MomentLlmOutput => {
   const moment = draft.definingMoments.find((m) => m.id === momentId)!
@@ -291,6 +297,49 @@ const inputWithSource = {
 }
 
 describe('generateEndings', () => {
+  it('sends the first unconditional fallback and ordered alternate outcomes to the moment writer', async () => {
+    const withAlternates = structuredClone(draft)
+    withAlternates.definingMoments[0]!.rules.push({ actId: 'a1-yield', outcomeId: 'o1-hold' })
+    const llm = new RoutingLlm({ 'moment m1': [{ json: momentOutput() }] })
+    await generateMoment('m1', { draft: withAlternates, documents: [], readingLevel: 'sec' }, { llm })
+    const context = JSON.parse(llm.requests[0]!.request.user.split('\n\n')[1]!)
+
+    expect(context.moment.acts).toEqual([
+      expect.objectContaining({ id: 'a1-hold', fallbackOutcomeId: 'o1-hold', alternateOutcomeIds: [] }),
+      expect.objectContaining({ id: 'a1-yield', fallbackOutcomeId: 'o1-yield', alternateOutcomeIds: ['o1-stall', 'o1-hold'] }),
+    ])
+  })
+
+  it('gives the moment writer persona context and distinguishes earlier characters from current participants', async () => {
+    const earlierOnly = structuredClone(draft)
+    delete earlierOnly.stages[1]!.placement.farquhar
+    const llm = new RoutingLlm({ 'moment m2': [{ json: momentOutput({}, 'm2') }] })
+    await generateMoment('m2', { draft: earlierOnly, documents: [], readingLevel: 'sec' }, { llm })
+    const context = JSON.parse(llm.requests[0]!.request.user.split('\n\n')[1]!)
+
+    expect(context.characters).toEqual([
+      expect.objectContaining({
+        id: 'farquhar',
+        persona: expect.objectContaining({ voice: persona.voice, publicPosition: persona.publicPosition, privateAgenda: persona.privateAgenda }),
+        presentInCurrentStage: false,
+      }),
+      expect.objectContaining({
+        id: 'raffles',
+        persona: expect.objectContaining({ voice: persona.voice, publicPosition: persona.publicPosition, privateAgenda: persona.privateAgenda }),
+        presentInCurrentStage: true,
+      }),
+    ])
+  })
+
+  it('continues to accept negation in ordinary conditional rules', () => {
+    const output = momentOutput({ conditionalRules: [{
+      actId: 'a1-yield', outcomeId: 'o1-hold',
+      when: [atom('stanceAtLeast', { characterId: 'farquhar', stanceId: 's2', negate: true })],
+    }] })
+    expect(MomentWire.safeParse(output).success).toBe(true)
+    expect(momentIssues(output, buildMomentContext(draft, 'm1')).errors).toEqual([])
+  })
+
   it('merges a clean run: conditional rules before fallbacks, condition shapes, verdict ids', async () => {
     const llm = new RoutingLlm(happyRoutes())
     const result = await generateEndings(input, { llm })
@@ -445,6 +494,31 @@ describe('generateEndings', () => {
       'ending e-alt1': [{ json: endingOutput() }],
       'ending e-alt2': [{ json: endingOutput() }],
       'ending e-secret': [{ json: endingOutput() }],
+    })
+
+    it.each([
+      atom('stanceAtLeast', { characterId: 'farquhar', stanceId: 's4', negate: true }),
+      atom('discovered', { discoveryId: 'd-guarded', negate: true }),
+      atom('slantConfronted', { slantId: 'farquhar-sl1', negate: true }),
+      atom('notePassed', { discoveryId: 'd-doc-held', characterId: 'raffles', negate: true }),
+    ])('rejects a negated $kind secret-unlock achievement in the wire schema', (negated) => {
+      const positive = validUnlock.conditions.find((condition) => condition.kind !== negated.kind)!
+      const output = { ...secretMoment(validUnlock), secretUnlock: { actId: 'a2-secret', conditions: [negated, positive], minMet: 2 } }
+      expect(MomentWire.safeParse(output).success).toBe(false)
+    })
+
+    it.each([
+      atom('stanceAtLeast', { characterId: 'farquhar', stanceId: 's4', negate: true }),
+      atom('discovered', { discoveryId: 'd-guarded', negate: true }),
+      atom('slantConfronted', { slantId: 'farquhar-sl1', negate: true }),
+      atom('notePassed', { discoveryId: 'd-doc-held', characterId: 'raffles', negate: true }),
+    ])('rejects a negated $kind secret-unlock achievement in semantic validation', (negated) => {
+      const positive = validUnlock.conditions.find((condition) => condition.kind !== negated.kind)!
+      const output = { ...secretMoment(validUnlock), secretUnlock: { actId: 'a2-secret', conditions: [negated, positive], minMet: 2 } }
+      // Bypass the wire type deliberately to verify semantic validation also rejects malformed input.
+      expect(momentIssues(output as MomentLlmOutput, buildMomentContext(secretDraft, 'm2')).errors).toContainEqual(
+        expect.objectContaining({ code: 'secret-unlock', path: 'secretUnlock.conditions.0' }),
+      )
     })
 
     it('a missing secretUnlock is an issue', async () => {

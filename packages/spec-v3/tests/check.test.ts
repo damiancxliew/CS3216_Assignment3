@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import type { AdventureSpec } from '../src/index.js'
-import { checkSpec, validateSpec } from '../src/index.js'
+import { checkSpec, editableIssues, validateSpec } from '../src/index.js'
 import { sampleSpec } from './sample.js'
 
 const clone = () => JSON.parse(JSON.stringify(sampleSpec))
@@ -19,6 +19,24 @@ const checked = (mutate: (spec: any) => void = () => {}) => {
 const codes = (mutate: (spec: any) => void) => checked(mutate).errors.map((e) => e.code)
 
 describe('checkSpec', () => {
+  it('allows one prerequisite plus the triggering action for authored hidden entry', () => {
+    const parsed = validateSpec(clone())
+    if (!parsed.ok) throw new Error('sample spec must validate')
+    const spec = parsed.spec
+    spec.triggers[0]!.effect = { toStance: 'st-3' }
+    spec.triggers[0]!.requires = { stanceAtLeast: { characterId: 'char-farquhar', stanceId: 'st-2' } }
+    expect(editableIssues(spec).filter((issue) => issue.code === 'hidden-stance-guard')).toEqual([])
+    delete spec.triggers[0]!.requires
+    expect(editableIssues(spec)).toContainEqual(expect.objectContaining({ code: 'hidden-stance-guard' }))
+  })
+
+  it('rejects negative secret achievements without authoring metadata', () => {
+    const result = checked((s) => {
+      s.definingMoments[0].acts[1].secret = { unlock: [{ not: { discovered: 'disc-2' } }, { not: { stanceAtLeast: { characterId: 'char-farquhar', stanceId: 'st-3' } } }], minMet: 2 }
+    })
+    expect(result.errors).toContainEqual(expect.objectContaining({ code: 'secret-unlock', path: 'definingMoments.0.acts.1.secret.unlock.0' }))
+  })
+
   it('reports no issues on the sample spec', () => {
     expect(checked()).toEqual({ errors: [], warnings: [] })
   })

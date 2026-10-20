@@ -9,6 +9,7 @@ import type { ExtractedDocument } from '../../ingest/types'
 import type { LlmClient, LlmUsage } from '../../llm/client'
 import { estimateCostUsd, ZERO_USAGE } from '../../llm/client'
 import { quoteIssues, sourceTexts } from '../grounding'
+import { V3_MODEL } from '../config'
 import { skeletonRepairMessage, skeletonSystemPrompt, skeletonUserMessage } from './prompt'
 import type { SkeletonPromptInput } from './prompt'
 import { SkeletonLlmOutput, skeletonOutputJsonSchema, toSkeleton } from './schema'
@@ -21,8 +22,7 @@ export const MAX_REPAIRS = 2
  */
 export const SKELETON_BUDGET_MS = 270_000
 
-/** v3 skeleton pass runs on gpt-6-sol (v2 stays on DEFAULT_MODELS.frontier). */
-export const SKELETON_MODEL = 'gpt-6-sol'
+export const SKELETON_MODEL = V3_MODEL
 
 export interface SkeletonGenerationInput {
   episode: string

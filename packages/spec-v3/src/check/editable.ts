@@ -49,12 +49,12 @@ export function editableIssues(spec: AdventureSpec): CheckIssue[] {
       if (
         "toStance" in trigger.effect &&
         hidden.has(trigger.effect.toStance) &&
-        (!trigger.requires || minimumFacts(trigger.requires) < 2)
+        (!trigger.requires || minimumFacts(trigger.requires) < 1)
       )
         add(
           "hidden-stance-guard",
           "triggers",
-          "A trigger into a hidden stance needs at least two required facts.",
+          "A trigger into a hidden stance needs at least one prerequisite in addition to its triggering action.",
         );
     }
   });

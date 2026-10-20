@@ -130,6 +130,13 @@ export function checkSkeleton(spec: SkeletonShape): CheckResult {
     citations(discovery.citations, `${at}.citations`)
   })
 
+  // --- document capacity ---------------------------------------------------------
+  spec.documents.forEach((document, i) => {
+    const cores = spec.discoveries.filter((d) => d.core && 'documentId' in d.holder && d.holder.documentId === document.id)
+    if (cores.length > 2)
+      add('document-core-count', `documents.${i}.id`, `document '${document.id}' holds ${cores.length} core discoveries but supports at most 2 key passages; move excess cores to another document or a major character`)
+  })
+
   // --- defining moments -----------------------------------------------------------
   spec.definingMoments.forEach((moment, i) => {
     const at = `definingMoments.${i}`

@@ -354,9 +354,11 @@ export function personaIssues(characterId: string, output: PersonaLlmOutput, ctx
       issues.push(issue('ref', `${at}.effect.stance`, `stance '${trigger.effect.stance}' does not exist`))
     if (trigger.effect.kind === 'stanceDelta' && trigger.effect.delta !== 1 && trigger.effect.delta !== -1)
       issues.push(issue('ref', `${at}.effect.delta`, `stanceDelta must be 1 or -1, got ${trigger.effect.delta}`))
-    const requireCount = trigger.requires === null ? 0 : trigger.requires.discoveries.length + (trigger.requires.stanceAtLeast !== null ? 1 : 0)
-    if (trigger.effect.kind === 'toStance' && trigger.effect.stance !== null && hiddenStance >= 0 && trigger.effect.stance === `s${hiddenStance + 1}` && requireCount < 2)
-      issues.push(issue('hidden-stance-guard', `${at}.requires`, `a trigger into the hidden stance needs requires with ≥2 conditions, got ${requireCount}`))
+    // Discovering a fact (or passing its note) already implies discovering that same fact.
+    const extraDiscoveries = trigger.requires?.discoveries.filter((id) => trigger.on.kind === 'slantConfronted' || id !== trigger.on.id) ?? []
+    const requireCount = extraDiscoveries.length + (trigger.requires?.stanceAtLeast != null ? 1 : 0)
+    if (trigger.effect.kind === 'toStance' && trigger.effect.stance !== null && hiddenStance >= 0 && trigger.effect.stance === `s${hiddenStance + 1}` && requireCount < 1)
+      issues.push(issue('hidden-stance-guard', `${at}.requires`, 'a trigger into the hidden stance needs at least one prerequisite in addition to its triggering action'))
     if (trigger.requires !== null) {
       for (const id of trigger.requires.discoveries)
         if (!skelDiscoveryIds.has(id) && !ownDiscoveryIds.has(id)) issues.push(issue('ref', `${at}.requires.discoveries`, `discovery '${id}' does not exist`))
@@ -420,11 +422,18 @@ export function minorsIssues(output: MinorsLlmOutput, ctx: Ctx): { errors: Check
 // --- link --------------------------------------------------------------------------
 
 export interface LinkContext {
-  /** every character: id, tier, assigned stance ids (s1..sN for majors), slants, stages placed in */
-  characters: { id: string; tier: 'major' | 'minor'; stageIds: string[]; stances: string[]; slants: { id: string; claim: string; contradictedBy: string[]; unlocksDiscoveryId?: string | null }[] }[]
+  characters: {
+    id: string
+    tier: 'major' | 'minor'
+    stageIds: string[]
+    persona: { voice: string; publicPosition: string; privateAgenda: string; wantsFromStudent: string; withholds: string[] }
+    initialStanceId: string | null
+    stances: { id: string; label: string; demeanour: string; hidden: boolean }[]
+    slants: { id: string; claim: string; contradictedBy: string[]; unlocksDiscoveryId?: string | null }[]
+  }[]
   discoveries: { id: string; stageId: string; holder: string; text: string; core: boolean }[]
-  /** persona/minor triggers already written: characterId + on kind/id — link must not re-create them */
-  triggers: { characterId: string; on: { kind: string; id: string } }[]
+  /** Existing persona triggers, including their authored prerequisites and effects. */
+  triggers: ({ characterId: string } & Pick<PersonaLlmOutput['triggers'][number], 'on' | 'requires' | 'effect'>)[]
   stageOrder: Map<string, number>
 }
 
@@ -464,8 +473,10 @@ export function linkIssues(output: LinkLlmOutput, ctx: LinkContext): CheckIssue[
     const discovery = discoveries.get(trigger.discoveryId)
     if (discovery === undefined) issues.push(issue('ref', `${at}.discoveryId`, `discovery '${trigger.discoveryId}' does not exist`))
     else if (discovery.holder === `character:${trigger.characterId}`) issues.push(issue('ref', `${at}.discoveryId`, `discovery '${trigger.discoveryId}' is held by that same character`))
-    if (trigger.effect.kind === 'toStance' && (trigger.effect.stance === null || !(character?.stances.includes(trigger.effect.stance) ?? false)))
+    if (trigger.effect.kind === 'toStance' && (trigger.effect.stance === null || !(character?.stances.some((s) => s.id === trigger.effect.stance) ?? false)))
       issues.push(issue('ref', `${at}.effect.stance`, `stance '${trigger.effect.stance}' does not exist for '${trigger.characterId}'`))
+    if (trigger.effect.kind === 'toStance' && character?.stances.some((s) => s.id === trigger.effect.stance && s.hidden))
+      issues.push(issue('hidden-stance-guard', `${at}.effect.stance`, 'link triggers have no prerequisites and must not target a hidden stance; preserve the authored hidden-entry triggers'))
     if (trigger.effect.kind === 'stanceDelta' && trigger.effect.delta !== 1 && trigger.effect.delta !== -1)
       issues.push(issue('ref', `${at}.effect.delta`, `stanceDelta must be 1 or -1, got ${trigger.effect.delta}`))
     const pair = `${trigger.characterId}:${trigger.discoveryId}`
