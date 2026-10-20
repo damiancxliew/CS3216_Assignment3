@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runV3BriefTurn } from "@/lib/v3/brief/service";
 import { briefStreamResponse } from "@/lib/brief/stream";
@@ -10,6 +11,6 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "Invalid message" }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: "Invalid message" }, { status: 400 });
   return briefStreamResponse((onReply) => runV3BriefTurn(parsed.data.adventureId, parsed.data.input, onReply));
 }
