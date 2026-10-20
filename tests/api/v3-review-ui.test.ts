@@ -23,6 +23,22 @@ const spec = AdventureSpec.parse(
 );
 
 describe("review screen rendering", () => {
+  it("keeps editor checks collapsed beside its controls and retains global issues", () => {
+    const html = renderToStaticMarkup(
+      createElement(ReviewScreen, {
+        spec: { ...spec, conflicts: [] },
+        sources: [],
+        errors: [{ code: "global", path: "", message: "Review this adventure" }],
+        warnings: [],
+        renderHeader: (checks) => createElement("header", null, "Save controls", checks),
+      }),
+    );
+    expect(html).toContain("1 issue to fix");
+    expect(html).toContain("Review this adventure");
+    expect(html).toMatch(/<header>Save controls<details aria-label="Adventure checks"/);
+    expect(html).not.toContain('<details open=""');
+    expect(html.indexOf("1 issue to fix")).toBeLessThan(html.indexOf('role="tablist"'));
+  });
   it("shows blocking errors, grouped warnings, conflict fixtures and settings/reveal tabs", () => {
     const html = renderToStaticMarkup(
       createElement(ReviewScreen, {

@@ -13,6 +13,7 @@ import type {
   SpecCitation,
   SpecSource,
 } from "@adventure/spec-v3";
+import { FieldIssueProvider } from "./field-issues";
 import { ReviewIssue } from "@/components/teacher/review-issue";
 import {
   reviewNames,
@@ -211,8 +212,12 @@ export function ReviewScreen({
   allowedTabs,
   indexEntries,
   checksPassedLabel = "Checks passed",
+  renderHeader,
+  onEditIssue,
 }: {
   checksPassedLabel?: string;
+  renderHeader?: (checks: ReactNode) => ReactNode;
+  onEditIssue?: () => void;
   allowedTabs?: ReviewTab[];
   indexEntries?: (tab: ReviewTab, itemId: string) => ReviewIndexEntry[];
   editMode?: boolean;
@@ -241,12 +246,14 @@ export function ReviewScreen({
     : (tabItems[0]?.id ?? "");
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [activeAnchor, setActiveAnchor] = useState(reviewAnchor(selected));
-  const [destination, setDestination] = useState<ReviewTarget | null>(null);
+  const [destination, setDestination] = useState<(ReviewTarget & { fieldPath?: string }) | null>(null);
   const detail = useRef<HTMLDivElement>(null);
   const targets = useMemo(() => reviewTargets(spec), [spec]);
   const names = useMemo(() => reviewNames(spec), [spec]);
-  const name = (id: string) => names.get(id) ?? "Unavailable item";
-  const choose = (target: ReviewTarget) => {
+  const name = (id: string) =>
+    id === "settings" ? "Settings" : id === "reveal" ? "Reveal and questions" :
+      names.get(id) ?? "Unavailable item";
+  const choose = (target: ReviewTarget & { fieldPath?: string }) => {
     if (allowedTabs && !allowedTabs.includes(target.tab)) return;
     setCollapsed((current) => {
       const next = new Set(current);
@@ -266,7 +273,17 @@ export function ReviewScreen({
   useLayoutEffect(() => {
     if (!destination || !detail.current) return;
     const container = detail.current;
-    const element = document.getElementById(destination.anchor);
+    const field = destination.fieldPath
+      ? [...container.querySelectorAll<HTMLElement>("[data-edit-path]")]
+          .filter((node) =>
+            destination.fieldPath === node.dataset.editPath ||
+            destination.fieldPath?.startsWith(node.dataset.editPath + "."),
+          )
+          .sort((a, b) =>
+            (b.dataset.editPath?.length ?? 0) - (a.dataset.editPath?.length ?? 0),
+          )[0]
+      : undefined;
+    const element = field ?? document.getElementById(destination.anchor);
     const behavior = window.matchMedia("(prefers-reduced-motion: reduce)")
       .matches
       ? "instant"
@@ -278,12 +295,17 @@ export function ReviewScreen({
         container.scrollTop -
         12;
       container.scrollTo({ top, behavior });
-      element.focus({ preventScroll: true });
+      const control = destination.fieldPath && editMode
+        ? element.querySelector<HTMLElement>(
+            "textarea, input, button[role=combobox], select",
+          )
+        : null;
+      (control ?? element).focus({ preventScroll: true });
     } else {
       container.focus({ preventScroll: true });
     }
     container.scrollIntoView({ block: "nearest", behavior });
-  }, [destination]);
+  }, [destination, editMode]);
   const activateTab = (next: ReviewTab) => {
     if (next === tab) return;
     setDestination(null);
@@ -319,7 +341,10 @@ export function ReviewScreen({
               issue={issue}
               onSelect={
                 target && (!allowedTabs || allowedTabs.includes(target.tab))
-                  ? () => choose(target)
+                  ? () => {
+                      onEditIssue?.();
+                      choose({ ...target, fieldPath: issue.path.replace(/\[(\d+)\]/g, ".$1") });
+                    }
                   : undefined
               }
               location={target ? name(target.itemId) : undefined}
@@ -376,65 +401,89 @@ export function ReviewScreen({
   const ending =
     tab === "endings" ? spec.endings.find((e) => e.id === selected) : undefined;
 
+  const checkDetails = (
+    <>
+      <h2
+        id="needs-fixing"
+        className={`text-xl font-bold ${errors.length ? "text-ink" : "text-world"}`}
+      >
+        {errors.length
+          ? `Needs fixing (${errors.length})`
+          : checksPassedLabel}
+      </h2>
+      {errors.length ? issueList(errors) : null}
+      {warnings.length || spec.conflicts.length ? (
+        <details open={errors.length ? true : undefined} className="text-sm">
+          <summary className="w-fit cursor-pointer font-semibold">
+            View details
+          </summary>
+          <div className="mt-4 space-y-4">
+            {[...warningGroups].map(([pass, list]) => (
+              <div key={pass}>
+                <h3 className="mb-2 font-bold">
+                  {REVIEW_PASS_LABELS[pass] ?? "Other checks"} warnings
+                </h3>
+                {issueList(list)}
+              </div>
+            ))}
+            {spec.conflicts.length ? (
+              <>
+                <h3 className="font-bold">
+                  Conflicts ({spec.conflicts.length})
+                </h3>
+                <ul className="space-y-4">
+                  {spec.conflicts.map((conflict) => (
+                    <li key={conflict.id} className="space-y-2 text-sm">
+                      <Field title="Teacher brief">
+                        {conflict.teacherSays}
+                      </Field>
+                      <Field title="Source says">{conflict.sourceSays}</Field>
+                      <div className="flex flex-wrap gap-3">
+                        {conflict.itemIds.map((id) => (
+                          <span key={id}>{link(id)}</span>
+                        ))}
+                      </div>
+                      <Citations
+                        citations={[{ sourceId: conflict.sourceId }]}
+                        sources={sources}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
+    </>
+  );
+  const checks = renderHeader ? (
+    <details
+      aria-label="Adventure checks"
+      className="rounded-control border border-line bg-surface p-3 text-sm"
+    >
+      <summary className="cursor-pointer font-semibold">
+        {errors.length
+          ? `${errors.length} ${errors.length === 1 ? "issue" : "issues"} to fix`
+          : checksPassedLabel}
+        {warnings.length ? ` · ${warnings.length} ${warnings.length === 1 ? "warning" : "warnings"}` : ""}
+        {spec.conflicts.length ? ` · ${spec.conflicts.length} conflicts` : ""}
+      </summary>
+      <div className="mt-3 max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-2">
+        {checkDetails}
+      </div>
+    </details>
+  ) : (
+    <section
+      className={`space-y-3 rounded-surface border p-5 ${errors.length ? "border-line bg-surface" : "border-world/30 bg-world-wash"}`}
+      aria-labelledby="needs-fixing"
+    >
+      {checkDetails}
+    </section>
+  );
   return (
     <div data-review-screen className="space-y-6 text-ink">
-      <section
-        className={`space-y-3 rounded-surface border p-5 ${errors.length ? "border-line bg-surface" : "border-world/30 bg-world-wash"}`}
-        aria-labelledby="needs-fixing"
-      >
-        <h2
-          id="needs-fixing"
-          className={`text-xl font-bold ${errors.length ? "text-ink" : "text-world"}`}
-        >
-          {errors.length
-            ? `Needs fixing (${errors.length})`
-            : checksPassedLabel}
-        </h2>
-        {errors.length ? issueList(errors) : null}
-        {warnings.length || spec.conflicts.length ? (
-          <details open={errors.length ? true : undefined} className="text-sm">
-            <summary className="w-fit cursor-pointer font-semibold">
-              View details
-            </summary>
-            <div className="mt-4 space-y-4">
-              {[...warningGroups].map(([pass, list]) => (
-                <div key={pass}>
-                  <h3 className="mb-2 font-bold">
-                    {REVIEW_PASS_LABELS[pass] ?? "Other checks"} warnings
-                  </h3>
-                  {issueList(list)}
-                </div>
-              ))}
-              {spec.conflicts.length ? (
-                <>
-                  <h3 className="font-bold">
-                    Conflicts ({spec.conflicts.length})
-                  </h3>
-                  <ul className="space-y-4">
-                    {spec.conflicts.map((conflict) => (
-                      <li key={conflict.id} className="space-y-2 text-sm">
-                        <Field title="Teacher brief">
-                          {conflict.teacherSays}
-                        </Field>
-                        <Field title="Source says">{conflict.sourceSays}</Field>
-                        <div className="flex flex-wrap gap-3">
-                          {conflict.itemIds.map((id) => (
-                            <span key={id}>{link(id)}</span>
-                          ))}
-                        </div>
-                        <Citations
-                          citations={[{ sourceId: conflict.sourceId }]}
-                          sources={sources}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
-            </div>
-          </details>
-        ) : null}
-      </section>
+      {renderHeader ? renderHeader(checks) : checks}
       <div
         data-review-workspace
         className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4"
@@ -569,7 +618,9 @@ export function ReviewScreen({
           >
             <React.Fragment key={`${tab}:${selected}`}>
               {editMode && renderEditor ? (
-                renderEditor(tab, selected)
+                <FieldIssueProvider value={errors}>
+                  {renderEditor(tab, selected)}
+                </FieldIssueProvider>
               ) : (
                 <>
                   {tab === "settings" ? (

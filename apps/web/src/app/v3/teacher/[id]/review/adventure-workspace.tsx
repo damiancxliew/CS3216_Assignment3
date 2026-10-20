@@ -14,6 +14,8 @@ import { SupabaseV3PlayStore } from "@/lib/play/v3/store";
 import { getV3GenerationProgress } from "../../actions";
 import { ReviewIssue } from "@/components/teacher/review-issue";
 import { EditorWorkspace } from "./editor-workspace";
+import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
+import { EditorChatWorkspace } from "./editor-chat-workspace";
 
 export default async function AdventureWorkspace({
   params,
@@ -61,17 +63,19 @@ export default async function AdventureWorkspace({
       className="md:pb-0"
     >
       {parsed.ok ? (
-        <EditorWorkspace
-          adventureId={id}
-          initialVersion={adventure.specVersion}
-          publishedVersion={adventure.publishedVersion ?? null}
-          published={adventure.status === "published"}
-          capturedSources={sources}
-          initial={parsed.spec}
-          sources={reviewSources(parsed.spec, documents)}
-          errors={errors}
-          warnings={progress.warnings}
-        />
+        <EditorChatWorkspace brief={row.state ?? initialBriefStateV3(id)}>
+          <EditorWorkspace
+            adventureId={id}
+            initialVersion={adventure.specVersion}
+            publishedVersion={adventure.publishedVersion ?? null}
+            published={adventure.status === "published"}
+            capturedSources={sources}
+            initial={parsed.spec}
+            sources={reviewSources(parsed.spec, documents)}
+            errors={errors}
+            warnings={progress.warnings}
+          />
+        </EditorChatWorkspace>
       ) : (
         <section className="rounded-surface border border-line bg-surface p-5">
           <h2 className="text-xl font-bold">Needs fixing</h2>

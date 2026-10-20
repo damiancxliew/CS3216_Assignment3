@@ -176,6 +176,24 @@ The recorded flow exposed a persisted-base bug: JSONB key ordering could make un
 
 ## Browser verification
 
+The standard adventure editor also includes an **Edit with chat** conversation
+for draft, published and archived adventures. It reuses the Guided suggestion
+preview and conversation history. Requests include current unsaved edits;
+applying a suggestion enters edit mode and keeps the result local until Save.
+Published adventures retain their live version until Publish changes is used.
+Stale saved versions and edits made while a suggestion is pending invalidate it.
+The editor browser harness covers applying, declining, invalidating and saving
+chat suggestions alongside manual changes, plus retaining requests after errors.
+It runs without Supabase or a model using the `RUN_REVIEW_BROWSER_TESTS` command
+below; server action permission and version checks are covered by API tests.
+
+Editor checks appear as a collapsed issue count beneath Save and Publish. The
+expanded list scrolls within the panel, retaining global errors, warnings and
+conflicts. Selecting a located issue enters edit mode, opens the relevant tab
+and focuses its field. Field errors appear beside their controls with an
+accessible description; part-local generation issues stay with their owning
+entity when a specific field cannot be identified.
+
 `tests/browser/v3-guided-local.test.ts` uses local Supabase and Next with `V3_FAKE_PASSES=1`, an isolated teacher in Testing School, and disposable adventures. It leaves existing seeded records untouched. Configure the usual local Supabase credentials and:
 
 ```sh
