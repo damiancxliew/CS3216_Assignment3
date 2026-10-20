@@ -3,7 +3,8 @@
 ## Product
 
 Historical Adventures turns a teacher's history sources into a playable 2D adventure for one 45-minute lesson.
-Target users are Singapore secondary-school history teachers and their students. **v3 is the product.**
+Target users are Singapore **secondary and junior college (JC)** history teachers and their students; adventures set a
+reading level of `sec` or `jc`. **v3 is the product.**
 
 ## Sources of truth
 
@@ -24,21 +25,19 @@ them:
   `docs/gameplay-review.md`, `docs/prd-v3/v2-vs-v3.md`
 - Non-v3 play and teacher routes in `apps/web`
 
-## Current work: teacher lesson materials
+## Working on lessons and teacher materials
 
-- Lesson: **Sec 2 History, Unit 3, the Japanese Occupation**, built in v3.
-- Curriculum: MOE 2021 Lower Secondary History syllabus
-  (<https://www.moe.gov.sg/api/media/ae214ffc-611a-42e5-921d-388a44ceb416/2021-History-Lower-Secondary-Syllabus.pdf>).
-  Unit 3 key knowledge: "repression and resistance" and "economic hardships and resilience". Guiding questions 1–2.
-  Concepts: accounts, causation, change and continuity, diversity, significance. Link to it; do not commit the PDF.
-- Sec 2 assessment: source-based questions (inference, comparison, purpose) and structured questions (identify,
-  describe, explain).
-- No specific partner teacher or school is assumed.
-- The teacher report leads by breaking down a normal history lesson along the syllabus inquiry phases (sparking
-  curiosity, gathering evidence, exercising reasoning, reflective thinking), then shows how the game does each part.
-  Keep it short and structural; do not detail how individual characters reply. Present learning claims as hypotheses
-  for the teacher to judge.
-- Verify historical claims against sources; never present invented detail as fact.
+- Ground every lesson in the official MOE History syllabus for the level (Lower Secondary, Upper Secondary or
+  A-Level) and the teacher's own scheme of work, textbook and sources. Quote the syllabus wording; do not paraphrase
+  it from memory. Link to syllabus documents rather than committing them.
+- Ask for the level, topic and the teacher's materials before designing a lesson. Do not assume a particular teacher
+  or school.
+- Tie each game mechanic to a named syllabus outcome, historical concept or assessed skill, and state what the
+  teacher can see as evidence of it. Present learning claims as hypotheses for the teacher to judge, not as proven.
+- Teacher-facing documents speak the teacher's language: lesson parts, outcomes and skills, not internal
+  requirement IDs or implementation detail.
+- Verify historical claims against sources. Label anything invented; never present it as fact. Handle sensitive
+  history (violence, race, religion) without graphic detail, and flag it for teacher review.
 
 ## Commands
 
