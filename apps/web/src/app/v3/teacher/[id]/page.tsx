@@ -30,6 +30,7 @@ import { SourcesReview, PauseEditor } from "./guided-review";
 import { CreationWorkspace } from "./creation-workspace";
 import { GenerationHistory } from "./generation-history";
 import { DraftReview } from "./draft-review";
+import { validateEditedSpec } from "@/lib/v3/edit/validation";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -115,7 +116,7 @@ export default async function V3AdventurePage({
     row.status === "briefing"
       ? ""
       : row.status === "draft"
-        ? "The draft is saved. Preview it to see what students will play, or open the editor to keep working."
+        ? "Preview the adventure to see what students will play. You can keep editing the cards or ask for changes here."
         : row.status === "failed"
           ? "Something went wrong. You can start again with the same sources."
           : generating
@@ -187,6 +188,13 @@ export default async function V3AdventurePage({
                   adventureId={id}
                   initial={finalSpec.spec}
                   initialVersion={final.data.spec_version}
+                  initialErrors={
+                    validateEditedSpec(
+                      finalSpec.spec,
+                      capturedSources([...documents]),
+                      validProgress?.checkErrors,
+                    ).errors
+                  }
                   sources={capturedSources([...documents])}
                 />
               ) : null}

@@ -104,6 +104,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .getByRole("region", { name, exact: true })
         .getByRole("button", { name: "Edit", exact: true })
         .click();
+    let toolbarStyle: unknown = null;
     const capture = async (pass: string) => {
       await page.waitForTimeout(1500);
       await conversation
@@ -163,6 +164,31 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
               (element) => getComputedStyle(element).textDecorationLine,
             ),
           ).toContain("underline");
+        }
+        const toolbar = content.locator("[data-review-toolbar]");
+        if (await toolbar.count()) {
+          const currentStyle = await toolbar.evaluate((element) => {
+            const style = getComputedStyle(element);
+            return {
+              border: style.borderTopColor,
+              width: style.borderTopWidth,
+              radius: style.borderRadius,
+              shadow: style.boxShadow,
+              padding: style.paddingTop,
+            };
+          });
+          if (toolbarStyle) expect(currentStyle).toEqual(toolbarStyle);
+          else toolbarStyle = currentStyle;
+          const primary = toolbar.getByRole("button", {
+            name: /^(Continue generation|Save changes)$/,
+          });
+          expect((await primary.boundingBox())!.height).toBe(40);
+        }
+        if (pass === "send-tooltip") {
+          const tooltip = await conversation.getByRole("tooltip").boundingBox();
+          expect(tooltip).not.toBeNull();
+          expect(tooltip!.x).toBeGreaterThanOrEqual(0);
+          expect(tooltip!.x + tooltip!.width).toBeLessThanOrEqual(width);
         }
         if (width >= 768) {
           expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
@@ -277,6 +303,18 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       await page.goto(`${origin}/v3/teacher/${id}`);
       await click("Guided: check after every pass");
       await capture("brief");
+      const sendHint = conversation.getByRole("tooltip", {
+        includeHidden: true,
+      });
+      expect(await sendHint.textContent()).toBe(
+        "You can send this when the next review is ready.",
+      );
+      expect(await sendHint.isVisible()).toBe(false);
+      await conversation
+        .getByRole("group", { name: "Send message unavailable", exact: true })
+        .focus();
+      await conversation.getByRole("tooltip").waitFor();
+      await capture("send-tooltip");
       const originalConversation = await conversation.elementHandle();
       const composer = conversation.getByRole("textbox", {
         name: "Message",
@@ -355,12 +393,50 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       await composer.fill("A draft to carry to the outline");
       await click("Continue generation");
       await waitTitle("Story outline");
+      expect(
+        await conversation
+          .getByText("Applied to the cards.", { exact: true })
+          .count(),
+      ).toBe(0);
       expect(await composer.inputValue()).toBe(
         "A draft to carry to the outline",
       );
       await capture("skeleton");
       expect(await content.getByRole("textbox").count()).toBe(0);
       await click("Edit plan");
+      const overview = content
+        .getByRole("heading", { name: "Overview", exact: true })
+        .locator("..")
+        .locator("..");
+      expect(
+        await overview.evaluate(
+          (element) => getComputedStyle(element).borderTopWidth,
+        ),
+      ).toBe("0px");
+      expect(
+        await overview.evaluate(
+          (element) => getComputedStyle(element).paddingTop,
+        ),
+      ).toBe("0px");
+      const editingCard = overview.locator("..");
+      const planCard = content.getByRole("region", {
+        name: "Adventure plan",
+        exact: true,
+      });
+      const cardStyle = (element: Element) => {
+        const style = getComputedStyle(element);
+        return {
+          border: style.borderTopColor,
+          width: style.borderTopWidth,
+          radius: style.borderRadius,
+          shadow: style.boxShadow,
+          padding: style.paddingTop,
+        };
+      };
+      expect(await editingCard.evaluate(cardStyle)).toEqual(
+        await planCard.evaluate(cardStyle),
+      );
+      await capture("skeleton-editing");
       const generatedTitle = await page
         .getByRole("textbox", { name: "Title", exact: true })
         .first()
@@ -672,6 +748,39 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
           )
           .count(),
       ).toBe(1);
+      const savedAdventure = content.getByRole("region", {
+        name: "Saved adventure",
+        exact: true,
+      });
+      const savedStages = savedAdventure
+        .locator("summary")
+        .filter({ hasText: "Stages, characters and documents" });
+      await savedStages.click();
+      const savedCharacter = savedAdventure.getByRole("region", {
+        name: "Temenggong Abdul Rahman",
+        exact: true,
+      });
+      await savedCharacter
+        .getByRole("button", { name: "Edit", exact: true })
+        .click();
+      const trustNotice = savedCharacter.getByRole("textbox", {
+        name: "Trust Notice",
+        exact: true,
+      });
+      const savedNotice = await trustNotice.inputValue();
+      await trustNotice.fill("");
+      expect(
+        await savedAdventure
+          .getByRole("button", { name: "Save changes", exact: true })
+          .isDisabled(),
+      ).toBe(true);
+      await click("Resolve issues");
+      await click("Apply suggested fix");
+      expect(await trustNotice.inputValue()).toBe(savedNotice);
+      await savedCharacter
+        .getByRole("button", { name: "Done", exact: true })
+        .click();
+      await savedStages.click();
       await capture("ready");
       // A status transition can arrive before the job's output is committed.
       const waitingId = await store.create({

@@ -23,8 +23,10 @@ import {
 } from "./pause-actions";
 import { AiFixPanel } from "./review/ai-fix-panel";
 import { PauseContentCards } from "./review/pause-content-cards";
+import { ExistingIssues } from "./review/existing-issues";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
 import { useReviewChatTarget } from "./review-chat-context";
+import { reviewToolbar, reviewPrimary } from "./creation-styles";
 
 const steps: GuidedPass[] = [
   "sources",
@@ -154,7 +156,7 @@ export function SourcesReview({
       {empty ? <p role="alert">Keep at least one source.</p> : null}
       {message ? <p role="alert">{message}</p> : null}
       <button
-        className={`${button.primary} border-2 font-bold shadow-[0_3px_0_var(--ink)]`}
+        className={reviewPrimary}
         disabled={pending || empty}
         onClick={async () => {
           setPending(true);
@@ -272,7 +274,7 @@ export function PauseEditor({
   };
   return (
     <div className="space-y-5" aria-busy={pending}>
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-control border border-line-strong bg-surface/95 px-3 py-3 shadow-sm backdrop-blur-sm">
+      <div className={reviewToolbar} data-review-toolbar>
         <button
           type="button"
           className={button.quiet}
@@ -300,7 +302,7 @@ export function PauseEditor({
         </button>
         <button
           type="button"
-          className={`${button.primary} border-2 font-bold shadow-[0_3px_0_var(--ink)]`}
+          className={reviewPrimary}
           disabled={pending || errors.length > 0}
           onClick={() => void submit(true)}
         >
@@ -324,22 +326,7 @@ export function PauseEditor({
         }
         apply={(proposal) => replace(proposal.edits)}
       />
-      {pause.errors.length ? (
-        <details className="rounded-surface border border-line p-4">
-          <summary className="cursor-pointer font-bold">
-            Existing generation issues ({pause.errors.length})
-          </summary>
-          <p className="my-2 text-sm">
-            These were already in the generated draft. You can keep editing;
-            only new errors will stop you from saving or continuing.
-          </p>
-          <ul className="list-disc space-y-2 pl-5 text-sm">
-            {pause.errors.map((issue, index) => (
-              <li key={index}>{reviewIssueMessage(issue)}</li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+      <ExistingIssues issues={pause.errors} />
       <div aria-live="polite">
         {errors.length ? (
           <p role="alert">

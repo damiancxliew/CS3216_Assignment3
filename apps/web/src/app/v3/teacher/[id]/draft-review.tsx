@@ -10,8 +10,11 @@ import {
 } from "@/lib/v3/edit/commands";
 import { newLocalErrors } from "@/lib/v3/edit/local-checks";
 import { reviewIssueMessage } from "@/lib/v3/review-presentation";
-import { saveV3AdventureEdits } from "./edit-actions";
+import { saveV3AdventureEdits, fixV3EditsWithAiAction } from "./edit-actions";
+import { AiFixPanel } from "./review/ai-fix-panel";
+import { ExistingIssues } from "./review/existing-issues";
 import { useReviewChatTarget } from "./review-chat-context";
+import { reviewToolbar, reviewPrimary } from "./creation-styles";
 import { PauseContentCards } from "./review/pause-content-cards";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
 
@@ -19,11 +22,13 @@ export function DraftReview({
   adventureId,
   initial,
   initialVersion,
+  initialErrors,
   sources,
 }: {
   adventureId: string;
   initial: AdventureSpec;
   initialVersion: number;
+  initialErrors: CheckIssue[];
   sources: CapturedSource[];
 }) {
   const [base, setBase] = useState(initial);
@@ -31,6 +36,7 @@ export function DraftReview({
   const [version, setVersion] = useState(initialVersion);
   const [edits, setEdits] = useState<V3Edit[]>([]);
   const [pending, setPending] = useState(false);
+  const [existingErrors, setExistingErrors] = useState(initialErrors);
   const [message, setMessage] = useState("");
   const [serverErrors, setServerErrors] = useState<CheckIssue[]>([]);
   const [open, setOpen] = useState<string | null>(null);
@@ -75,10 +81,10 @@ export function DraftReview({
       aria-busy={pending}
     >
       <h3 className="text-lg font-extrabold tracking-tight">{draft.title}</h3>
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-control border border-line-strong bg-surface/95 p-3 shadow-sm backdrop-blur-sm">
+      <div className={reviewToolbar} data-review-toolbar>
         <button
           type="button"
-          className={button.primary}
+          className={reviewPrimary}
           disabled={!edits.length || pending || errors.length > 0}
           onClick={async () => {
             setPending(true);
@@ -95,6 +101,7 @@ export function DraftReview({
                 setVersion(result.version);
                 setEdits([]);
                 setServerErrors([]);
+                setExistingErrors(result.errors);
                 setMessage("Changes saved.");
                 router.refresh();
               } else {
@@ -132,6 +139,13 @@ export function DraftReview({
           {message}
         </p>
       ) : null}
+      <AiFixPanel<{ edits: V3Edit[] }>
+        revision={JSON.stringify([version, edits])}
+        disabled={pending}
+        request={() => fixV3EditsWithAiAction(adventureId, version, edits)}
+        apply={(proposal) => replace(proposal.edits)}
+      />
+      <ExistingIssues issues={existingErrors} />
       {errors.length ? (
         <ul role="alert" className="list-disc pl-5 text-sm">
           {errors.map((error, index) => (
