@@ -11,6 +11,7 @@ import { button, compactButton, control, ErrorText, Section, StableLabel } from 
 import { addItem, dependentsOf, issuesAt, removeItem, type AddKind, type Ref } from "@/lib/v3/skeleton-edit";
 
 import { approveV3Skeleton, discardV3SkeletonDraft, saveV3SkeletonDraft, getV3GenerationProgress } from "../actions";
+import { ReviewToolbar } from "./review-toolbar";
 import { AiFixPanel } from "./review/ai-fix-panel";
 import { fixSkeletonWithAiAction } from "./pause-actions";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
@@ -192,11 +193,12 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
 
   const momentOf = (stage: Stage): Moment | undefined => draft.definingMoments.find((m) => m.id === stage.definingMomentId);
   const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+  const fixPanel = <AiFixPanel<{ skeleton: SkeletonShape }> floating={false} inToolbar={compact} hasIssues={errors.length + warnings.length > 0} revision={JSON.stringify(draft)} disabled={continuePending || discardPending} request={() => fixSkeletonWithAiAction(adventureId, draft)} apply={proposal => update(proposal.skeleton)} />;
 
   return (
     <fieldset disabled={continuePending || discardPending} aria-label="Skeleton review" className="min-w-0 flex flex-col gap-4">
-      {/* sticky status bar */}
-      <div className={compact ? reviewToolbar : "sticky top-0 z-30 -mx-2 flex flex-wrap items-center gap-3 border-b border-line bg-paper/95 px-2 py-3 backdrop-blur"} data-review-toolbar>
+      {/* Review actions stay beside the cards. */}
+      <ReviewToolbar floating={compact} disabled={continuePending || discardPending} className={compact ? reviewToolbar : "sticky top-0 z-30 -mx-2 flex flex-wrap items-center gap-3 border-b border-line bg-paper/95 px-2 py-3 backdrop-blur"}>
         <button type="button" onClick={() => setShowIssues((v) => !v)} className={compact ? compactButton.subtle : `${button.subtle} text-sm`} aria-expanded={showIssues}>
           <StableLabel label={`${errors.length} error${errors.length === 1 ? "" : "s"} · ${warnings.length} warning${warnings.length === 1 ? "" : "s"}`} pending={false} pendingLabel="" />
         </button>
@@ -246,8 +248,9 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
             onConfirm={continueConfirm}
           />
         </div>
-      </div>
-      <AiFixPanel<{ skeleton: SkeletonShape }> floating={compact} revision={JSON.stringify(draft)} disabled={continuePending || discardPending} request={() => fixSkeletonWithAiAction(adventureId, draft)} apply={proposal => update(proposal.skeleton)} />
+        {compact ? fixPanel : null}
+      </ReviewToolbar>
+      {!compact ? fixPanel : null}
       {continueError ? <ErrorText>{continueError}</ErrorText> : null}
       {showIssues ? (
         <ul className="flex flex-col gap-1 rounded-surface border-2 border-line bg-sunken p-4 text-sm">

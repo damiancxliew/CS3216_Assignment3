@@ -83,7 +83,9 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       await issues.focus();
       await page.keyboard.press("Enter");
       expect(await issues.locator("..").getAttribute("open")).not.toBeNull();
-      for (const width of [320, 768, 1024, 1440]) {
+      for (const width of process.env.GUIDED_TEST_DESKTOP_ONLY === "1"
+        ? [1440]
+        : [320, 768, 1024, 1440]) {
         await page.setViewportSize({ width, height: 1000 });
         await page.waitForTimeout(1000);
         expect(
@@ -111,7 +113,8 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .first()
         .fill("A harmless title edit");
       expect(
-        await saved
+        await page
+          .locator("[data-review-toolbar]")
           .getByRole("button", { name: "Save changes", exact: true })
           .isEnabled(),
       ).toBe(true);

@@ -243,6 +243,7 @@ export function EditorWorkspace(props: Props) {
       </header>
       {editMode ? (
         <AiFixPanel<{ edits: V3Edit[] }>
+          hasIssues={errors.length + props.warnings.length + checks.warnings.length > 0}
           revision={`${version}:${JSON.stringify(edits)}`}
           disabled={pending}
           request={() =>

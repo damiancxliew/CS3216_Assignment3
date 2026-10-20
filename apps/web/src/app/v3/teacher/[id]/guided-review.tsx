@@ -21,12 +21,13 @@ import {
   savePauseEditsAction,
   fixPauseEditsWithAiAction,
 } from "./pause-actions";
+import { ReviewToolbar } from "./review-toolbar";
 import { AiFixPanel } from "./review/ai-fix-panel";
 import { PauseContentCards } from "./review/pause-content-cards";
 import { ExistingIssues } from "./review/existing-issues";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
 import { useReviewChatTarget } from "./review-chat-context";
-import { reviewToolbar, reviewPrimary } from "./creation-styles";
+import { reviewPrimary } from "./creation-styles";
 
 const steps: GuidedPass[] = [
   "sources",
@@ -155,30 +156,32 @@ export function SourcesReview({
       </section>
       {empty ? <p role="alert">Keep at least one source.</p> : null}
       {message ? <p role="alert">{message}</p> : null}
-      <button
-        className={reviewPrimary}
-        disabled={pending || empty}
-        onClick={async () => {
-          setPending(true);
-          setMessage("");
-          try {
-            const result = await continueFromSourcesAction(
-              adventureId,
-              removed,
-            );
-            if ("error" in result) setMessage(result.error);
-            else router.refresh();
-          } catch {
-            setMessage(
-              "Could not continue. Your selection is still here. Try again.",
-            );
-          } finally {
-            setPending(false);
-          }
-        }}
-      >
-        {pending ? "Continuing…" : "Continue generation"}
-      </button>
+      <ReviewToolbar>
+        <button
+          className={reviewPrimary}
+          disabled={pending || empty}
+          onClick={async () => {
+            setPending(true);
+            setMessage("");
+            try {
+              const result = await continueFromSourcesAction(
+                adventureId,
+                removed,
+              );
+              if ("error" in result) setMessage(result.error);
+              else router.refresh();
+            } catch {
+              setMessage(
+                "Could not continue. Your selection is still here. Try again.",
+              );
+            } finally {
+              setPending(false);
+            }
+          }}
+        >
+          {pending ? "Continuing…" : "Continue generation"}
+        </button>
+      </ReviewToolbar>
     </div>
   );
 }
@@ -274,7 +277,7 @@ export function PauseEditor({
   };
   return (
     <div className="space-y-5" aria-busy={pending}>
-      <div className={reviewToolbar} data-review-toolbar>
+      <ReviewToolbar>
         <button
           type="button"
           className={button.quiet}
@@ -311,21 +314,24 @@ export function PauseEditor({
         <span className="text-sm text-muted">
           {dirty ? "Unsaved edits" : "All edits saved"}
         </span>
-      </div>
+        <AiFixPanel<{ edits: V3Edit[] }>
+          floating={false}
+          inToolbar
+          hasIssues={errors.length + pause.errors.length > 0}
+          revision={JSON.stringify(edits)}
+          disabled={pending}
+          request={() =>
+            fixPauseEditsWithAiAction(adventureId, pause.pass, edits)
+          }
+          apply={(proposal) => replace(proposal.edits)}
+        />
+      </ReviewToolbar>
       {message ? (
         <p role="status" className="text-sm">
           {message}
         </p>
       ) : null}
-      <AiFixPanel<{ edits: V3Edit[] }>
-        floating
-        revision={JSON.stringify(edits)}
-        disabled={pending}
-        request={() =>
-          fixPauseEditsWithAiAction(adventureId, pause.pass, edits)
-        }
-        apply={(proposal) => replace(proposal.edits)}
-      />
+
       <ExistingIssues issues={pause.errors} />
       <div aria-live="polite">
         {errors.length ? (

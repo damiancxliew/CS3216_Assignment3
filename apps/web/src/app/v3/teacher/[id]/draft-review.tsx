@@ -11,10 +11,11 @@ import {
 import { newLocalErrors } from "@/lib/v3/edit/local-checks";
 import { reviewIssueMessage } from "@/lib/v3/review-presentation";
 import { saveV3AdventureEdits, fixV3EditsWithAiAction } from "./edit-actions";
+import { ReviewToolbar } from "./review-toolbar";
 import { AiFixPanel } from "./review/ai-fix-panel";
 import { ExistingIssues } from "./review/existing-issues";
 import { useReviewChatTarget } from "./review-chat-context";
-import { reviewToolbar, reviewPrimary } from "./creation-styles";
+import { reviewPrimary } from "./creation-styles";
 import { PauseContentCards } from "./review/pause-content-cards";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
 
@@ -81,7 +82,7 @@ export function DraftReview({
       aria-busy={pending}
     >
       <h3 className="text-lg font-extrabold tracking-tight">{draft.title}</h3>
-      <div className={reviewToolbar} data-review-toolbar>
+      <ReviewToolbar>
         <button
           type="button"
           className={reviewPrimary}
@@ -133,18 +134,22 @@ export function DraftReview({
         <span className="text-sm text-muted">
           {edits.length ? "Unsaved changes" : "Draft saved"}
         </span>
-      </div>
+        <AiFixPanel<{ edits: V3Edit[] }>
+          floating={false}
+          inToolbar
+          hasIssues={errors.length + existingErrors.length > 0}
+          revision={JSON.stringify([version, edits])}
+          disabled={pending}
+          request={() => fixV3EditsWithAiAction(adventureId, version, edits)}
+          apply={(proposal) => replace(proposal.edits)}
+        />
+      </ReviewToolbar>
       {message ? (
         <p role="status" className="text-sm">
           {message}
         </p>
       ) : null}
-      <AiFixPanel<{ edits: V3Edit[] }>
-        revision={JSON.stringify([version, edits])}
-        disabled={pending}
-        request={() => fixV3EditsWithAiAction(adventureId, version, edits)}
-        apply={(proposal) => replace(proposal.edits)}
-      />
+
       <ExistingIssues issues={existingErrors} />
       {errors.length ? (
         <ul role="alert" className="list-disc pl-5 text-sm">

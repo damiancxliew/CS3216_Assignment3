@@ -66,24 +66,32 @@ export function CreationWorkspace({
           </section>
           <section
             aria-label="Generated content"
-            data-generated-content
-            className="block min-h-0 min-w-0 space-y-5 pb-24 md:overflow-y-auto md:overscroll-contain md:px-2 [scrollbar-gutter:stable] [overflow-wrap:anywhere]"
+            className="relative min-h-0 min-w-0"
           >
-            {active ? (
-              <>
-                <BriefOverview brief={liveBrief} />
-                {startingGeneration ? (
-                  <section
-                    aria-label="Generation progress"
-                    className="creation-card rounded-surface border border-line-strong bg-surface p-5"
-                  >
-                    <Thinking label="Preparing your adventure…" />
-                  </section>
-                ) : null}
-              </>
-            ) : (
-              children
-            )}
+            <div
+              data-generated-content
+              className="block md:h-full min-h-0 min-w-0 space-y-5 pb-52 sm:pb-36 md:overflow-y-auto md:overscroll-contain md:px-2 [scrollbar-gutter:stable] [overflow-wrap:anywhere]"
+            >
+              {active ? (
+                <>
+                  <BriefOverview brief={liveBrief} />
+                  {startingGeneration ? (
+                    <section
+                      aria-label="Generation progress"
+                      className="creation-card rounded-surface border border-line-strong bg-surface p-5"
+                    >
+                      <Thinking label="Preparing your adventure…" />
+                    </section>
+                  ) : null}
+                </>
+              ) : (
+                children
+              )}
+            </div>
+            <div
+              data-review-dock
+              className="fixed bottom-4 left-4 right-4 z-40 md:absolute md:bottom-4 md:left-2 md:right-2"
+            />
           </section>
         </div>
       </div>

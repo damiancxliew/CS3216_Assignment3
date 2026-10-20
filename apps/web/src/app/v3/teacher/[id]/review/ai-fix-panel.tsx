@@ -12,6 +12,8 @@ export function AiFixPanel<T>({
   apply,
   disabled = false,
   floating = true,
+  inToolbar = false,
+  hasIssues = true,
 }: {
   revision: string;
   request: () => Promise<
@@ -20,6 +22,8 @@ export function AiFixPanel<T>({
   apply: (proposal: Proposal<T>) => void;
   disabled?: boolean;
   floating?: boolean;
+  inToolbar?: boolean;
+  hasIssues?: boolean;
 }) {
   const [proposal, setProposal] = useState<{
     revision: string;
@@ -39,7 +43,9 @@ export function AiFixPanel<T>({
       className={
         floating
           ? "fixed bottom-5 right-4 z-40 flex w-fit max-w-[calc(100vw-2rem)] flex-col-reverse items-end gap-3 sm:right-6"
-          : "space-y-3"
+          : inToolbar
+            ? "relative ml-auto"
+            : "space-y-3"
       }
       aria-label="Issue suggestions"
       aria-busy={pending}
@@ -51,7 +57,7 @@ export function AiFixPanel<T>({
             ? "inline-flex min-h-11 items-center gap-2 rounded-full border border-line-strong bg-ink px-4 py-3 text-sm font-semibold text-paper shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:opacity-50"
             : button.quiet
         }
-        disabled={disabled || pending}
+        disabled={disabled || pending || !hasIssues}
         onClick={async () => {
           const requested = generation.current;
           setPending(true);
@@ -82,7 +88,7 @@ export function AiFixPanel<T>({
       </button>
       {current || message ? (
         <div
-          className="w-80 max-w-full space-y-3 rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg"
+          className={`${inToolbar ? "absolute bottom-full right-0 mb-3 w-80 max-w-[calc(100vw-4rem)]" : "w-80 max-w-full"} space-y-3 rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg`}
           aria-label="Suggested correction"
         >
           {current ? (

@@ -86,6 +86,15 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
     );
     let passed = false;
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
+    page.on("response", async (response) => {
+      if (response.status() >= 400)
+        console.log(
+          "Browser HTTP failure",
+          response.status(),
+          response.url(),
+          (await response.text().catch(() => "")).slice(0, 500),
+        );
+    });
     const waitTitle = async (title: string) => {
       await page
         .getByRole("heading", { name: title, exact: true, level: 2 })
@@ -110,7 +119,9 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       await conversation
         .getByText("How would you like to generate?", { exact: true })
         .waitFor();
-      for (const width of [320, 768, 1024, 1440]) {
+      for (const width of process.env.GUIDED_TEST_DESKTOP_ONLY === "1"
+        ? [1440]
+        : [320, 768, 1024, 1440]) {
         await page.setViewportSize({ width, height: 1000 });
         await page.waitForTimeout(750);
         const left = await conversation.boundingBox();
@@ -122,6 +133,52 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
           exact: true,
         });
         expect(await composer.isVisible()).toBe(true);
+        if (
+          ["skeleton", "details", "endings", "reveal", "ready"].includes(pass)
+        ) {
+          const toolbar = content.locator("[data-review-toolbar]");
+          await toolbar.waitFor();
+          const toolbarBox = await toolbar.boundingBox();
+          expect(toolbarBox!.y + toolbarBox!.height).toBeLessThanOrEqual(1000);
+          expect(toolbarBox!.y + toolbarBox!.height).toBeGreaterThan(950);
+          expect(
+            await toolbar
+              .getByRole("button", { name: "Resolve issues", exact: true })
+              .count(),
+          ).toBe(1);
+          const scrollTop = await content
+            .locator("[data-generated-content]")
+            .evaluate((element) => {
+              const before = element.scrollTop;
+              element.scrollTop = element.scrollHeight;
+              return before;
+            });
+          expect((await toolbar.boundingBox())!.y).toBe(toolbarBox!.y);
+          await content
+            .locator("[data-generated-content]")
+            .evaluate((element, top) => {
+              element.scrollTop = top;
+            }, scrollTop);
+          const status = conversation
+            .getByRole("status")
+            .filter({
+              hasText:
+                /Choose which|Read through|The scenes|The endings|Preview the/,
+            })
+            .first();
+          if (await status.count()) {
+            expect(
+              await status.evaluate(
+                (element) => getComputedStyle(element).textAlign,
+              ),
+            ).toBe("center");
+            expect(
+              await status.evaluate(
+                (element) => getComputedStyle(element).boxShadow,
+              ),
+            ).toBe("none");
+          }
+        }
         const composerBox = await composer.boundingBox();
         const sendBox = await conversation
           .getByRole("button", {
@@ -794,7 +851,8 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       const savedNotice = await trustNotice.inputValue();
       await trustNotice.fill("");
       expect(
-        await savedAdventure
+        await content
+          .locator("[data-review-toolbar]")
           .getByRole("button", { name: "Save changes", exact: true })
           .isDisabled(),
       ).toBe(true);
