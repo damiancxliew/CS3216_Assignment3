@@ -159,6 +159,7 @@ export function SourcesReview({
       <ReviewToolbar>
         <button
           className={reviewPrimary}
+          aria-label="Continue generation"
           disabled={pending || empty}
           onClick={async () => {
             setPending(true);
@@ -179,7 +180,7 @@ export function SourcesReview({
             }
           }}
         >
-          {pending ? "Continuing…" : "Continue generation"}
+          {pending ? "Continuing…" : "Continue"}
         </button>
       </ReviewToolbar>
     </div>
@@ -289,6 +290,7 @@ export function PauseEditor({
         <button
           type="button"
           className={button.subtle}
+          aria-label="Discard unsaved edits"
           disabled={pending || !dirty}
           onClick={() => {
             if (
@@ -301,15 +303,16 @@ export function PauseEditor({
             }
           }}
         >
-          Discard unsaved edits
+          Discard
         </button>
         <button
           type="button"
           className={reviewPrimary}
+          aria-label="Continue generation"
           disabled={pending || errors.length > 0}
           onClick={() => void submit(true)}
         >
-          {pending ? "Working…" : "Continue generation"}
+          {pending ? "Working…" : "Continue"}
         </button>
         <span className="text-sm text-muted">
           {dirty ? "Unsaved edits" : "All edits saved"}

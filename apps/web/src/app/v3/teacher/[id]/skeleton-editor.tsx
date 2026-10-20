@@ -205,9 +205,10 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
         <span className="text-sm text-muted" role="status">
           {saveState === "saving" ? "Saving…" : saveState === "saved" && savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : saveState === "error" ? "Couldn't save — retrying" : saveState === "dirty" ? "Saving…" : hasDraft ? "Draft restored" : "No unsaved changes"}
         </span>
-        <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
+        <div className={compact ? "contents" : "ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto"}>
           <ConfirmButton
-            label="Discard my edits"
+            label={compact ? "Discard" : "Discard my edits"}
+            ariaLabel="Discard my edits"
             className={compact ? compactButton.subtle : button.subtle}
             pendingLabel="Discarding…"
             title="Discard your edits?"
@@ -237,7 +238,8 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
             }
           />
           <ConfirmButton
-            label="Continue generation"
+            label={compact ? "Continue" : "Continue generation"}
+            ariaLabel="Continue generation"
             pendingLabel="Continuing…"
             title="Continue generation?"
             body="The next step will use this outline, including your changes."

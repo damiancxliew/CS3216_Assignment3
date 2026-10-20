@@ -139,6 +139,20 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
           const toolbar = content.locator("[data-review-toolbar]");
           await toolbar.waitFor();
           const toolbarBox = await toolbar.boundingBox();
+          if (width === 1440) {
+            expect(toolbarBox!.height).toBeLessThan(75);
+            const buttonTops = await toolbar
+              .locator("button")
+              .evaluateAll((buttons) =>
+                buttons
+                  .map((button) => button.getBoundingClientRect())
+                  .filter((box) => box.width > 0)
+                  .map((box) => box.top),
+              );
+            expect(
+              Math.max(...buttonTops) - Math.min(...buttonTops),
+            ).toBeLessThan(2);
+          }
           expect(toolbarBox!.y + toolbarBox!.height).toBeLessThanOrEqual(1000);
           expect(toolbarBox!.y + toolbarBox!.height).toBeGreaterThan(950);
           expect(
