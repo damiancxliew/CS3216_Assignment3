@@ -765,6 +765,20 @@ describe('final check-and-repair (#209)', () => {
     expect(llm.requests[0]!.request.user).toContain('has no coreCondition')
   })
 
+  it('keeps frozen parts and their outstanding issues without an LLM call', async () => {
+    const result = await generated()
+    const broken = JSON.parse(JSON.stringify(rafflesOutput).replace('"d-dues"', '"raffles-nope"'))
+    const issue = { code: 'ref', path: 'discoveries.0', message: 'Still needs checking' }
+    const parts = { ...result.parts, 'persona:raffles': { output: broken, issues: [issue] } }
+    const llm = new RoutingLlm({})
+    const repair = await finalRepair({ skeleton, documents: [doc], parts, frozen: ['persona:raffles'] }, { llm })
+    expect(repair.repaired).toEqual([])
+    expect(repair.parts['persona:raffles']).toEqual(parts['persona:raffles'])
+    expect(repair.partErrors).toContainEqual({ part: 'persona:raffles', issue })
+    expect(repair.errors.length).toBeGreaterThan(0)
+    expect(llm.requests).toEqual([])
+  })
+
   it('does nothing on a clean spec', async () => {
     const result = await generated()
     const llm = new RoutingLlm({})

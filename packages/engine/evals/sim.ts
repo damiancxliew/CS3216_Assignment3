@@ -92,7 +92,10 @@ function describe(view: PlayerView): string {
     if (view.stage.intro) lines.push(`Stage opening (send continue to start): ${view.stage.intro.narration}`)
     lines.push(`Rooms: ${view.rooms.map((room) => `${room.id} (${room.name})`).join(', ')}. You are in: ${view.currentRoomId}.`)
     lines.push(`Characters here: ${view.characters.map((character) => `${character.id} (${character.name})`).join(', ') || 'nobody'}.`)
-    lines.push(`Documents lying here: ${view.documentsHere.map((document) => `${document.id} (${document.title})`).join(', ') || 'none'}.`)
+    const unreadDocuments = view.documentsHere
+      .filter((document) => !document.read)
+      .map((document) => `${document.id} (${document.title})`)
+    lines.push(`Documents lying here: ${unreadDocuments.join(', ') || 'none'}.`)
   }
   lines.push(`Your documents: ${view.documents.map((document) => `${document.id} (${document.title}${document.open ? ', open' : ''})`).join(', ') || 'none'}.`)
   const open = view.documents.find((document) => document.open)
@@ -310,5 +313,3 @@ export async function main(): Promise<void> {
   writeFileSync(join(dir, 'summary.md'), `${summary}\n`)
   console.log(summary)
 }
-
-

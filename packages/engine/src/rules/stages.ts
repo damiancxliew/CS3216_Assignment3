@@ -5,19 +5,25 @@
  */
 import { currentStage, type StepContext } from '../context'
 import type { SpecStage } from '../spec'
+import type { EngineState } from '../state'
 import { openMoment } from './moment'
 
-function matchingSituation(ctx: StepContext, stage: SpecStage) {
-  return stage.situations.find((situation) => ctx.state.outcomes[situation.whenOutcome.momentId] === situation.whenOutcome.outcomeId)
+function matchingSituation(state: Pick<EngineState, 'outcomes'>, stage: SpecStage) {
+  return stage.situations.find((situation) => state.outcomes[situation.whenOutcome.momentId] === situation.whenOutcome.outcomeId)
+}
+
+export function stageDocumentPlacement(state: Pick<EngineState, 'outcomes'>, stage: SpecStage) {
+  const situation = matchingSituation(state, stage)
+  return { ...stage.documentPlacement, ...situation?.documentPlacement }
 }
 
 /** Set up the current stage. Play starts on the `continue` past its opening. */
 export function enterStage(ctx: StepContext): void {
   const { state, spec } = ctx
   const stage = currentStage(ctx)
-  const situation = matchingSituation(ctx, stage)
+  const situation = matchingSituation(state, stage)
   const placement = { ...stage.placement, ...situation?.placement }
-  const documentPlacement = { ...stage.documentPlacement, ...situation?.documentPlacement }
+  const documentPlacement = stageDocumentPlacement(state, stage)
   for (const character of spec.characters) {
     const existing = state.characters[character.id]
     const stanceId = situation?.stances?.[character.id] ?? existing?.stanceId ?? character.initialStanceId

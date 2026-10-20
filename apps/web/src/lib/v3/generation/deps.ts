@@ -18,6 +18,7 @@ import { generateDetails, generateEndings, generateReveal, finalRepair, generate
 import { recordLlmUsage, withJsonUsage } from "@/lib/usage/ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { portraitsStep } from "@/lib/v3/portraits/step";
+import { stageArtStep } from "@/lib/v3/stage-art/step";
 
 import type { GenerationBrief } from "./types";
 import { fakeGenerationPasses } from "./fake-passes";
@@ -28,6 +29,7 @@ export interface V3SourceStore {
   saveUploads(adventureId: string, uploads: { doc: ExtractedDocument; storageKey: string }[]): Promise<void>;
   /** upsert keyed (adventureId, doc.id); retry-safe */
   saveOutside(adventureId: string, sources: OutsideSource[], documents: ExtractedDocument[]): Promise<void>;
+  removeOutside(adventureId: string, ids: string[]): Promise<void>;
   /** copies every stored row (uploads and outside docs) to another adventure */
   copyUploads(fromId: string, toId: string): Promise<void>;
 }
@@ -39,7 +41,12 @@ export interface V3AdventureRow {
   status: "briefing" | "generating" | "needs_review" | "draft" | "published" | "failed" | "archived";
 }
 
+export type PauseDraft = { pass: string; edits: unknown[] };
+
 export interface V3AdventureWriter {
+  loadPauseDraft(id: string): Promise<PauseDraft | null>;
+  savePauseDraft(id: string, draft: PauseDraft): Promise<void>;
+  clearPauseDraft(id: string): Promise<void>;
   get(id: string): Promise<V3AdventureRow | null>;
   /** conditional update; true if a row changed */
   setStatus(id: string, to: V3AdventureRow["status"], from: V3AdventureRow["status"][]): Promise<boolean>;
@@ -56,6 +63,7 @@ export interface GenerationDeps {
   search(brief: GenerationBrief): WebSearchClient;
   recordSearchUsage(brief: GenerationBrief, usage: LlmUsage, model: string | null): Promise<void>;
   queuePortraits(adventureId: string, version: number): Promise<void>;
+  queueStageArt(adventureId: string, version: number): Promise<void>;
   sources: V3SourceStore;
   adventures: V3AdventureWriter;
   passes: {
@@ -101,6 +109,19 @@ function supabaseV3AdventureWriter(getClient: () => SupabaseClient): V3Adventure
         .single<{ spec_version: number }>();
       if (error) throw error;
       return data.spec_version;
+    },
+    async loadPauseDraft(id) {
+      const { data, error } = await getClient().from("adventures_v3").select("pause_draft").eq("id", id).maybeSingle<{ pause_draft: PauseDraft | null }>();
+      if (error) throw error;
+      return data?.pause_draft ?? null;
+    },
+    async savePauseDraft(id, draft) {
+      const { error } = await getClient().from("adventures_v3").update({ pause_draft: draft }).eq("id", id);
+      if (error) throw error;
+    },
+    async clearPauseDraft(id) {
+      const { error } = await getClient().from("adventures_v3").update({ pause_draft: null }).eq("id", id);
+      if (error) throw error;
     },
     async loadSkeletonDraft(id) {
       const { data, error } = await getClient().from("adventures_v3").select("skeleton_draft").eq("id", id).maybeSingle<{ skeleton_draft: unknown }>();
@@ -189,6 +210,11 @@ export function supabaseV3SourceStore(getClient: () => SupabaseClient): V3Source
       );
       if (error) throw error;
     },
+    async removeOutside(adventureId, ids) {
+      if (!ids.length) return;
+      const { error } = await getClient().from("sources_v3").delete().eq("adventure_id", adventureId).eq("origin", "outside").in("source_key", ids);
+      if (error) throw error;
+    },
     async copyUploads(fromId, toId) {
       const { data, error } = await getClient()
         .from("sources_v3")
@@ -265,6 +291,32 @@ export function defaultGenerationDeps(): GenerationDeps {
         throw error;
       }
     },
+    async queueStageArt(adventureId, version) {
+      const step = stageArtStep(adventureId, version);
+      try {
+        await supabaseJobStore(createAdminClient()).enqueue(adventureId, [
+          {
+            name: step.name,
+            step: step.step ?? step.name,
+            input: step.input ?? null,
+            deps: [],
+            maxAttempts: 4,
+          },
+        ]);
+      } catch (error) {
+        if (typeof error === "object" && error !== null) {
+          const duplicate = error as { code?: unknown; message?: unknown };
+          if (
+            duplicate.code === "23505" &&
+            typeof duplicate.message === "string" &&
+            duplicate.message.includes('constraint "job_steps_job_id_name_key"')
+          ) {
+            return;
+          }
+        }
+        throw error;
+      }
+    },
     sources: supabaseV3SourceStore(createAdminClient),
     adventures: supabaseV3AdventureWriter(createAdminClient),
     passes:
@@ -298,6 +350,9 @@ export function memoryV3SourceStore() {
       }
       rows.set(adventureId, list);
     },
+    async removeOutside(adventureId: string, ids: string[]) {
+      rows.set(adventureId, (rows.get(adventureId) ?? []).filter(row => !row.outside || !ids.includes(row.doc.id)));
+    },
     async copyUploads(fromId: string, toId: string) {
       const list = rows.get(toId) ?? [];
       for (const row of rows.get(fromId) ?? []) if (!list.some((existing) => existing.doc.id === row.doc.id)) list.push({ ...row });
@@ -309,6 +364,7 @@ export function memoryV3SourceStore() {
 export function memoryV3AdventureWriter(initial: V3AdventureRow[] = []) {
   const rows = new Map<string, { row: V3AdventureRow; spec: AdventureSpec | null; specVersion: number }>();
   const skeletonDrafts = new Map<string, unknown>();
+  const pauseDrafts = new Map<string, PauseDraft>();
   for (const row of initial) rows.set(row.id, { row: { ...row }, spec: null, specVersion: 0 });
   return {
     rows,
@@ -331,6 +387,9 @@ export function memoryV3AdventureWriter(initial: V3AdventureRow[] = []) {
       }
       return entry.specVersion;
     },
+    async loadPauseDraft(id: string) { return structuredClone(pauseDrafts.get(id) ?? null); },
+    async savePauseDraft(id: string, draft: PauseDraft) { pauseDrafts.set(id, structuredClone(draft)); },
+    async clearPauseDraft(id: string) { pauseDrafts.delete(id); },
     skeletonDrafts,
     async loadSkeletonDraft(id: string) {
       return skeletonDrafts.get(id) ?? null;

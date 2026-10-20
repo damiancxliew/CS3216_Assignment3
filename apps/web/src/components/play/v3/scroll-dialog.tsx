@@ -14,6 +14,7 @@ export function V3ScrollDialog({
   buttonLabel = "Roll up scroll",
   onClose,
   navigation,
+  banner,
   children,
 }: {
   eyebrow: string;
@@ -29,6 +30,8 @@ export function V3ScrollDialog({
     selectedId: string;
     onSelect: (id: string) => void;
   };
+  /** Pinned above the scrolling contents, so it stays in view while reading. */
+  banner?: ReactNode;
   children: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -101,6 +104,7 @@ export function V3ScrollDialog({
               </button>
             </nav>
           ) : null}
+          {banner}
           <div className={styles.content} tabIndex={0} aria-label="Scroll contents">
             {kicker ? <p className={styles.kicker}>{kicker}</p> : null}
             <h2 id={titleId} className={styles.title}>{title}</h2>

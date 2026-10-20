@@ -3,10 +3,12 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { V3PreviewClient } from "@/components/play/v3/v3-preview-client";
+import { v3AdventureScenery } from "@/lib/play/v3/scenery";
 import { startPreview } from "@/lib/play/v3/preview";
 import { v3PreviewDeps, v3PublishDeps } from "@/lib/play/v3/http";
 import { EngineSpec } from "@adventure/engine";
 import { versionedPortraitBase } from "@/lib/play/v3/portraits";
+import { v3StageArtBase } from "@/lib/play/v3/stage-art";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
 import type { PlayerView } from "@adventure/play-contract";
@@ -67,6 +69,8 @@ export default async function V3TeacherPreviewPage({
             )
           : null
       }
+      scenery={parsed.success ? v3AdventureScenery(parsed.data) : []}
+      stageArtBase={adventure ? v3StageArtBase(id, adventure.specVersion) : null}
       adventureId={id}
       initialToken={body.token}
       initialView={body.view}

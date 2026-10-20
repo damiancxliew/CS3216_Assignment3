@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { ACTION_TYPES, Action, ClassSummary, DefiningMomentView, GameEvent, MAX_MESSAGE_LENGTH, PlayerView } from '../src'
+import { ACTION_TYPES, Action, ClassSummary, DefiningMomentView, DocumentHereView, GameEvent, MAX_MESSAGE_LENGTH, PlayerView } from '../src'
 
 const examples: Action[] = [
   { type: 'message', characterId: 'temenggong', text: 'Why did you leave Riau?' },
@@ -92,6 +92,7 @@ describe('PlayerView and ClassSummary', () => {
       rooms: [],
       currentRoomId: null,
       characters: [],
+      speakers: [],
       messages: [],
       notes: [],
       documents: [],
@@ -105,6 +106,12 @@ describe('PlayerView and ClassSummary', () => {
       ended: false,
     }
     expect(PlayerView.parse(view)).toEqual(view)
+    expect(DocumentHereView.parse({ id: 'document-1', kind: 'letter', title: 'A letter', read: true })).toEqual({
+      id: 'document-1',
+      kind: 'letter',
+      title: 'A letter',
+      read: true,
+    })
 
     const summary: ClassSummary = {
       adventureId: 'golden-1819',

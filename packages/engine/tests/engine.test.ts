@@ -19,8 +19,8 @@ describe('flow', () => {
     expect(playing.stage?.intro).toBeNull()
     expect(playing.timer).toEqual({ endsAt: game.now + 10 * MINUTE, durationMs: 10 * MINUTE })
     expect(playing.characters.map((character) => character.id)).toEqual(['a', 'm'])
-    expect(playing.characters[0]).toMatchObject({ stanceId: 'a2', portraitKey: 'a:a2' })
-    expect(playing.characters[1]).toMatchObject({ stanceId: null, portraitKey: 'm' })
+    expect(playing.characters[0]).toMatchObject({ stanceId: 'a2', stance: { level: 1 }, portraitKey: 'a:a2' })
+    expect(playing.characters[1]).toMatchObject({ stanceId: null, stance: null, portraitKey: 'm' })
     expect(playing.documents.map((document) => document.id)).toEqual(['memo'])
   })
 
@@ -37,10 +37,24 @@ describe('flow', () => {
   it('only lets the student talk to characters in their room', async () => {
     const game = new Harness(mini)
     await game.start()
-    await expect(game.act({ type: 'message', characterId: 'b', text: 'Hello' })).rejects.toMatchObject({ code: 'not_present' })
+    const spoken = await game.act({ type: 'message', characterId: 'a', text: 'Hello' })
+    expect(spoken.messages.at(-2)).toMatchObject({ kind: 'player', characterId: 'a', stageIndex: 0 })
+    expect(spoken.messages.at(-1)).toMatchObject({ kind: 'character', characterId: 'a', stageIndex: 0 })
     await game.act({ type: 'enterRoom', roomId: 'r2' })
-    await expect(game.act({ type: 'message', characterId: 'b', text: 'Hello' })).resolves.toBeDefined()
+    expect(game.view?.characters.map((character) => character.id)).not.toContain('a')
+    expect(game.view?.speakers).toEqual([{ id: 'a', name: 'A', title: 'Chief' }])
+    expect(game.view?.speakers.map((speaker) => speaker.id)).not.toContain('b')
     await expect(game.act({ type: 'enterRoom', roomId: 'nowhere' })).rejects.toMatchObject({ code: 'unknown_id' })
+  })
+
+  it('projects transcript messages without a stage as briefing or legacy messages', async () => {
+    const game = new Harness(mini)
+    await game.start()
+    const message = game.state.transcript[0]
+    expect(message).toBeDefined()
+    if (message === undefined) return
+    delete (message as { stageIndex?: number | null }).stageIndex
+    expect(project(mini, game.state).messages[0]).toMatchObject({ stageIndex: null })
   })
 })
 
@@ -219,13 +233,31 @@ describe('documents and close reading', () => {
     await game.start()
     await expect(game.act({ type: 'openDocument', documentId: 'letter' })).rejects.toMatchObject({ code: 'not_present' })
     const room = await game.act({ type: 'enterRoom', roomId: 'r2' })
-    expect(room.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter' }])
+    expect(room.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: false }])
+    expect(room.documentsHere.map((document) => document.id)).not.toContain('memo')
     const open = await game.act({ type: 'openDocument', documentId: 'letter' })
     expect(open.documents.find((document) => document.id === 'letter')).toMatchObject({ open: true, real: true, sourceLabel: 'A letter, 1819' })
-    expect(open.documentsHere).toEqual([])
+    expect(open.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: true }])
     expect(open.notes).toEqual([])
     const closed = await game.act({ type: 'closeDocument', documentId: 'letter' })
     expect(closed.documents.find((document) => document.id === 'letter')?.open).toBe(false)
+  })
+
+  it('keeps a read document on the floor and allows opening it again', async () => {
+    const game = new Harness(mini)
+    await game.start()
+    await game.act({ type: 'enterRoom', roomId: 'r2' })
+    await game.act({ type: 'openDocument', documentId: 'letter' })
+    await game.act({ type: 'closeDocument', documentId: 'letter' })
+
+    const away = await game.act({ type: 'enterRoom', roomId: 'r1' })
+    expect(away.documentsHere).toEqual([])
+    const back = await game.act({ type: 'enterRoom', roomId: 'r2' })
+    expect(back.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: true }])
+
+    const reopened = await game.act({ type: 'openDocument', documentId: 'letter' })
+    expect(reopened.documents.find((document) => document.id === 'letter')?.open).toBe(true)
+    expect(reopened.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: true }])
   })
 
   it('makes a note when the selection covers enough of a key passage, and not for a select-all', async () => {
@@ -270,9 +302,12 @@ describe('defining moments, outcomes and endings', () => {
     expect(game.eventsOf('outcome').at(-1)).toMatchObject({ outcomeId: 'o-refuse', closedEndingIds: ['e-hist'], endingId: null })
     expect(next.stage?.intro?.narration).toBe('After the refusal, stage two opens.')
     expect(game.state.characters.a?.stanceId).toBe('a1')
-    await game.act({ type: 'continue' })
+    const playing = await game.act({ type: 'continue' })
+    expect(playing.documentsHere).toEqual([{ id: 'letter', kind: 'letter', title: 'A letter', read: false }])
     const moment = await game.act({ type: 'endStage' })
-    expect(moment.definingMoment?.acts.map((act) => act.id)).toEqual(['wait', 'alone'])
+    expect(moment.definingMoment?.acts.filter((act) => act.available).map((act) => act.id)).toEqual(['wait', 'alone'])
+    expect(moment.definingMoment?.acts.filter((act) => !act.available).map((act) => act.id)).toEqual(['recognise'])
+    await expect(game.act({ type: 'act', actId: 'recognise' })).rejects.toThrow()
     await game.act({ type: 'act', actId: 'wait' })
     expect(game.view?.definingMoment?.predictionOptions.map((option) => option.outcomeId)).toEqual(['o-alt1', 'o-alt2'])
   })
@@ -381,6 +416,8 @@ describe('end of game', () => {
     })
     expect(reveal.reveal?.missedCore).toEqual(['A fears Riau.', 'B will decide alone.'])
     expect(reveal.reveal?.pathVsHistory[0]).toMatchObject({ yours: 'A delayed.', history: 'A agreed.', matched: false })
+    expect(reveal.reveal?.pathVsHistory[0]?.act).toEqual(expect.any(String))
+    expect(reveal.reveal?.pathVsHistory[0]?.prediction).toMatchObject({ text: expect.any(String), correct: expect.any(Boolean) })
     expect(game.eventsOf('verdict').map((event) => event.stage)).toEqual(['initial', 'final'])
   })
 })

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AdventureSpec } from "@adventure/spec-v3";
 import { MemoryV3PlayStore } from "@/lib/play/v3/store";
 import { saveAdventureEdits } from "@/lib/v3/edit/service";
@@ -31,34 +31,34 @@ function setup() {
     store,
     env: { V3_ENABLED: "true", V3_SCHOOL_IDS: "s" },
     sources: async () => sources,
+    queueStageArt: async () => {},
   };
+  const queueStageArt = vi.fn(deps.queueStageArt);
+  deps.queueStageArt = queueStageArt;
   const save = (edits: V3Edit[], expected = 1) =>
     saveAdventureEdits(deps, "teacher", "a", expected, edits);
-  return { spec, store, deps, sources, save };
+  return { spec, store, deps, sources, save, queueStageArt };
 }
 
 describe("direct editing", () => {
-  it("saves semantic errors while preserving the live pointer and immutable snapshot", async () => {
+  it("refuses new semantic errors without writing or moving the live version", async () => {
     const { spec, store, save } = setup();
     const result = await save([
       { type: "set", path: ["stages", 0, "startRoomId"], value: "missing" },
     ]);
-    expect(result.ok).toBe(true);
-    if (result.ok)
-      expect(result.errors.some((e) => e.code === "ref")).toBe(true);
-    expect(await store.loadAdventure("a")).toMatchObject({
-      publishedVersion: 1,
-      specVersion: 2,
-      status: "published",
-    });
+    expect(result).toMatchObject({ ok: false, code: "check-errors", errors: expect.arrayContaining([expect.objectContaining({ code: "ref" })]) });
+    expect(await store.loadAdventure("a")).toMatchObject({ publishedVersion: 1, specVersion: 1, status: "published", spec });
     expect(await store.loadVersionSpec("a", 1)).toEqual(spec);
   });
   it("makes no snapshot for a no-op and rejects stale/access/structurally invalid changes", async () => {
-    const { save, deps } = setup();
+    const { save, deps, queueStageArt } = setup();
     expect(await save([])).toMatchObject({ ok: true, version: 1 });
+    expect(queueStageArt).not.toHaveBeenCalled();
     expect(
       await save([{ type: "set", path: ["title"], value: "New title" }]),
     ).toMatchObject({ ok: true, version: 2 });
+    expect(queueStageArt).toHaveBeenCalledOnce();
+    expect(queueStageArt).toHaveBeenCalledWith("a", 2);
     expect(await save([])).toMatchObject({ ok: false, code: "conflict" });
     expect(
       await save(
@@ -70,24 +70,36 @@ describe("direct editing", () => {
       await saveAdventureEdits(deps, "outsider", "a", 2, []),
     ).toMatchObject({ ok: false, code: "access" });
   });
+  it("keeps a saved edit successful when stage-art queueing fails", async () => {
+    const { save, queueStageArt } = setup();
+    queueStageArt.mockRejectedValueOnce(new Error("queue is unavailable"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(save([{ type: "set", path: ["title"], value: "New title" }]))
+        .resolves.toMatchObject({ ok: true, version: 2 });
+      expect(consoleError).toHaveBeenCalledWith("Failed to queue v3 stage art", expect.any(Error));
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
   it("attributes changed facts, clears obsolete citations and preserves unchanged evidence", async () => {
     const { spec, save } = setup();
     const result = await save([
       {
         type: "set",
-        path: ["discoveries", 0, "text"],
+        path: ["discoveries", 4, "text"],
         value: "A teacher contribution",
       },
     ]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.spec.discoveries[0]).toMatchObject({
+    expect(result.spec.discoveries[4]).toMatchObject({
       sourceLabel: "from the teacher",
       citations: [],
     });
     expect(result.spec.documents).toEqual(spec.documents);
     expect(result.spec.authoring?.teacherContributions).toContainEqual({
-      entity: spec.discoveries[0].id,
+      entity: spec.discoveries[4].id,
       field: "text",
     });
   });
@@ -276,7 +288,7 @@ it("rejects crafted source-operation bypasses and prototype paths", () => {
 it("reuses portraits only for unchanged prompt inputs without generating assets", async () => {
   const { save, spec } = setup();
   const result = await save([
-    { type: "set", path: ["discoveries", 0, "text"], value: "Teacher prose" },
+    { type: "set", path: ["discoveries", 4, "text"], value: "Teacher prose" },
   ]);
   expect(result.ok).toBe(true);
   if (!result.ok) return;
@@ -308,7 +320,17 @@ it('keeps a later invented conversion after an excerpt replacement', async () =>
     { type: 'replaceExcerpt', documentId: spec.documents[0].id, sourceId: 'captured', start: 0, end: 20 },
     { type: 'convertDocument', documentId: spec.documents[0].id },
     { type: 'set', path: ['documents', 0, 'body'], value: 'Teacher invented prose' },
+    { type: 'insert', path: ['documents', 0, 'keyPassages'], index: 0, value: { ...spec.documents[0].keyPassages[0], start: 0, end: 7 } },
   ]);
+  if (!result.ok) throw Error(JSON.stringify(result));
   expect(result.ok).toBe(true);
   if (result.ok) expect(result.spec.documents[0]).toMatchObject({ real: false, sourceLabel: 'invented', citations: [], body: 'Teacher invented prose' });
+});
+
+
+it("adds no snapshot when an edit adds an empty required prose field", async () => {
+  const { save, store } = setup();
+  const write = vi.spyOn(store, "saveDraft");
+  expect(await save([{ type: "set", path: ["definingMoments", 0, "nudge"], value: "" }])).toMatchObject({ ok: false, code: "check-errors" });
+  expect(write).not.toHaveBeenCalled();
 });

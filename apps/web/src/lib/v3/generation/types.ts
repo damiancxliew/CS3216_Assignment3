@@ -1,4 +1,4 @@
-export type GenerationMode = "quick" | "standard";
+export type GenerationMode = "quick" | "standard" | "guided";
 
 export interface GenerationBrief {
   adventureId: string;
@@ -9,4 +9,5 @@ export interface GenerationBrief {
   readingLevel: "sec" | "jc";
   timerMinutes?: number | null;
   mode: GenerationMode;
+  sourcePolicy?: { allowAny: boolean; extraDomains: string[] };
 }

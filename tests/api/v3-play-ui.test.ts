@@ -4,16 +4,27 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { CharacterPortrait } from "@/components/play/v3/character-portrait";
-import { DialogueBox, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
-import { DocumentReader } from "@/components/play/v3/document-reader";
+import { DialogueBox, nextAvailableIndex, nextChoiceIndex, typewriterSlice } from "@/components/play/v3/dialogue-box";
+import { DocumentReader, passageStatus } from "@/components/play/v3/document-reader";
+import { NotePickup, unseenNotes } from "@/components/play/v3/note-pickup";
+import adventureStyles from "@/components/play/adventure-chrome.module.css";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
+import { StanceTag, StoryToast, stanceShifts, storyKicker, talkLines } from "@/components/play/v3/story-lines";
+import { RevealScreen } from "@/components/play/v3/reveal-screen";
+import { StageIsland, documentActivityText, filterLogByCharacter, groupMessagesByStage, groupNotesByStage, logLineCount } from "@/components/play/v3/stage-island";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
+import { v3AudioSnapshot } from "@/components/play/v3/v3-map";
+import { V3PlayClient } from "@/components/play/v3/v3-play-client";
+import { V3PreviewClient, V3PreviewHeaderActions } from "@/components/play/v3/v3-preview-client";
 import { createV3PlayClient } from "@/lib/play/v3/client";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
+import { withPendingPlayerLine, withoutPendingLines } from "@/lib/play/v3/pending-lines";
 import { portraitFile, portraitStoragePrefix, portraitUrl, v3PortraitBase } from "@/lib/play/v3/portraits";
 import { createV3PreviewClient } from "@/lib/play/v3/preview-client";
+import { mockViews } from "@adventure/engine/mock";
 import {
   MAX_EVIDENCE_NOTES,
   MAX_INTERVIEW_TEXT_LENGTH,
@@ -25,6 +36,16 @@ import {
 
 vi.mock("next/font/google", () => ({
   Pixelify_Sans: () => ({ className: "pixelify-sans" }),
+}));
+
+vi.mock("@/components/play/v3/use-v3-play", () => ({
+  useV3Play: (_attemptId: string, initialView: unknown) => ({
+    view: initialView,
+    busy: false,
+    banner: null,
+    send: () => {},
+    clearBanner: () => {},
+  }),
 }));
 
 const view = { phase: "briefing", pendingCheck: false } as unknown as PlayerView;
@@ -45,6 +66,7 @@ function stagePlayView(overrides: Partial<PlayerView> = {}): PlayerView {
     rooms: [{ id: "landing", name: "The landing" }, { id: "balai", name: "The balai" }],
     currentRoomId: "landing",
     characters: [{ id: "character-1", name: "Temenggong", title: "Temenggong", stanceId: null, portraitKey: "temenggong" }],
+    speakers: [],
     messages: [],
     notes: [],
     documents: [],
@@ -168,6 +190,53 @@ describe("v3 preview browser client", () => {
   });
 });
 
+describe("v3 preview toolbar", () => {
+  it("renders preview actions in the header without the unsaved-progress banner", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const previewView = { ...stagePlayView(), phase: "briefing" } as PlayerView;
+      const markup = renderToStaticMarkup(createElement(V3PreviewClient, {
+        adventureId: "adventure-1",
+        initialToken: "preview-token",
+        initialView: previewView,
+      }));
+      const header = markup.match(/<header[\s\S]*?<\/header>/)?.[0] ?? "";
+
+      expect(markup).not.toContain("Progress is not saved.");
+      expect(markup).not.toContain("Student preview");
+      expect(header).toContain('aria-label="Restart preview"');
+      expect(header).toContain("Restart preview");
+      expect(header).toContain('aria-label="Back to adventure"');
+      expect(header).toContain("Back to adventure");
+      expect(header).toContain('href="/v3/teacher/adventure-1"');
+      expect(header).toContain("hidden sm:inline");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reloads the current preview and links back to its adventure", () => {
+    const reload = vi.fn();
+    vi.stubGlobal("React", React);
+    vi.stubGlobal("window", { location: { reload } });
+    try {
+      const actions = V3PreviewHeaderActions({ adventureId: "adventure-1" });
+      const actionElements = React.Children.toArray(actions.props.children);
+      const restartButton = actionElements[0] as React.ReactElement<{ onClick: () => void; "aria-label": string }>;
+      const backLink = actionElements[1] as React.ReactElement<{ href: string; "aria-label": string }>;
+
+      expect(restartButton.type).toBe("button");
+      expect(restartButton.props["aria-label"]).toBe("Restart preview");
+      restartButton.props.onClick();
+      expect(reload).toHaveBeenCalledOnce();
+      expect(backLink.props.href).toBe("/v3/teacher/adventure-1");
+      expect(backLink.props["aria-label"]).toBe("Back to adventure");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("passage offsets", () => {
   it("maps a selection spanning paragraphs to exact body offsets", () => {
     const paragraphs = ["A letter from the harbour.", "", "The tide changed before dawn."];
@@ -226,7 +295,7 @@ describe("v3 stance portrait paths", () => {
 });
 
 describe("v3 stage play screen", () => {
-  it("shows the Mission card and map fallback while retaining notes and documents", () => {
+  it("shows the Mission card, map fallback, and collapsed Journal card", () => {
     const stageView = stagePlayView({
       notes: [{ id: "note-1", text: "A useful discovery.", source: "document", stageIndex: 0, at: "2026-01-01T00:00:00.000Z" }],
       documents: [{
@@ -240,7 +309,7 @@ describe("v3 stage play screen", () => {
         glossary: [],
         open: false,
       }],
-      documentsHere: [{ id: "document-1", kind: "letter", title: "A letter from the harbour" }],
+      documentsHere: [{ id: "document-1", kind: "letter", title: "A letter from the harbour", read: false }],
     });
 
     vi.stubGlobal("React", React);
@@ -261,8 +330,17 @@ describe("v3 stage play screen", () => {
       expect(mission).toContain("ready to decide");
       expect(mission).toContain('aria-expanded="true"');
       expect(mission).toContain("Walk to");
-      expect(markup).toContain("Notes (1)");
-      expect(markup).toContain("Documents (1)");
+      expect(markup).toContain('<section aria-label="Journal"');
+      expect(markup).toContain('aria-expanded="false"');
+      expect(markup).toContain('aria-controls="stage-island-panel"');
+      expect(markup).toContain('id="stage-island-panel" aria-hidden="true"');
+      expect(markup).toContain("w-[min(22rem,calc(100%_-_1rem))]");
+      expect(markup).toContain('aria-label="1 note"');
+      expect(markup).toContain('aria-label="1 document"');
+      expect(markup).toContain('aria-label="0 log lines"');
+      expect(markup).toContain("Stage 1/1");
+      expect(markup).toContain("Journal");
+      expect(mission).not.toContain("Adding to your notes…");
       expect(markup).not.toContain('id="v3-message"');
       expect(markup).not.toContain("Say hello");
       expect(markup).not.toContain("Move to");
@@ -297,12 +375,174 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("A defining moment");
       expect(markup).toContain("The landing may decide Singapore");
       expect(markup).toContain("Welcome the British ships.");
+      expect(markup).toContain('aria-expanded="false"');
+      expect(markup).not.toContain("Documents (");
       expect(mission).toContain("Who will shape the island?");
       expect(mission).not.toContain("I'm ready to decide");
       expect(mission).not.toContain("Walk to");
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("renders the expanded island with grouped notes, documents, and transcript speakers outside the room", () => {
+    const islandView = stagePlayView({
+      stage: { index: 1, count: 2, title: "The council", timePlace: "Singapore, 1820", centralQuestion: "What now?", intro: null },
+      notes: [
+        { id: "note-old", text: "An earlier record.", source: "document", stageIndex: 0, at: 10 },
+        { id: "note-new", text: "A later conversation.", source: "conversation", stageIndex: 1, at: 20 },
+      ],
+      documents: [{
+        id: "scroll-1",
+        kind: "letter",
+        title: "Letter from the harbour",
+        provenance: { masthead: null, date: "1820", sender: "A clerk", recipient: null, place: null },
+        body: "A letter body.",
+        real: false,
+        sourceLabel: null,
+        glossary: [],
+        open: false,
+      }],
+      messages: [
+        { id: "m-brief", kind: "narration", characterId: null, roomId: null, text: "The journey begins.", insertedNoteId: null, stageIndex: null, at: 1 },
+        { id: "m-player", kind: "player", characterId: "speaker-old", roomId: "room", text: "What do you think?", insertedNoteId: null, stageIndex: 0, at: 2 },
+        { id: "m-speaker", kind: "character", characterId: "speaker-old", roomId: "room", text: "The harbour is changing.", insertedNoteId: "note-new", stageIndex: 0, at: 3 },
+        { id: "m-later", kind: "narration", characterId: null, roomId: null, text: "The council gathers.", insertedNoteId: null, stageIndex: 1, at: 4 },
+      ],
+      speakers: [{ id: "speaker-old", name: "Archivist", title: "Keeper of records" }],
+    });
+
+    vi.stubGlobal("React", React);
+    try {
+      const renderTab = (initialTab: "notes" | "documents" | "log") => renderToStaticMarkup(createElement(StageIsland, {
+        view: islandView,
+        onOpenDocument: () => {},
+        initialExpanded: true,
+        initialTab,
+      }));
+      const notesMarkup = renderTab("notes");
+      const documentsMarkup = renderTab("documents");
+      const logMarkup = renderTab("log");
+
+      expect(notesMarkup).toContain('id="stage-island-panel"');
+      expect(notesMarkup).toContain('aria-expanded="true"');
+      expect(notesMarkup).toContain('id="stage-island-panel" aria-hidden="false"');
+      expect(notesMarkup).toContain("w-[min(22rem,calc(100%_-_1rem))]");
+      expect(notesMarkup.indexOf('<section aria-label="Stage 2 notes">'))
+        .toBeLessThan(notesMarkup.indexOf('<section aria-label="Stage 1 notes">'));
+      expect(notesMarkup).toContain("A later conversation.");
+      expect(notesMarkup).toContain("From a conversation");
+      expect(documentsMarkup).toContain("Letter from the harbour");
+      expect(documentsMarkup).toContain("1820");
+      expect(documentsMarkup).toContain("A clerk");
+      expect(logMarkup).toContain("The journey begins.");
+      expect(logMarkup).toContain("Archivist");
+      expect(logMarkup).toContain("The harbour is changing.");
+      expect(logMarkup).toContain("<blockquote");
+      expect(logMarkup).toContain("Stage 1");
+      expect(logLineCount(islandView.messages)).toBe(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps Notes visible but disabled during a defining moment", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(StageIsland, {
+        view: stagePlayView(),
+        onOpenDocument: () => {},
+        definingMoment: true,
+        initialExpanded: true,
+      }));
+      expect(markup).toContain('role="tab" id="stage-island-tab-notes"');
+      expect(markup).toContain('title="Notes are closed during the decision"');
+      expect(markup).toContain('disabled=""');
+      expect(markup).toContain('role="tab" id="stage-island-tab-documents"');
+      expect(markup).toContain('role="tab" id="stage-island-tab-log"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows the Documents empty state in the Journal tab", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(StageIsland, {
+        view: stagePlayView({ documents: [] }),
+        onOpenDocument: () => {},
+        initialExpanded: true,
+        initialTab: "documents",
+      }));
+      expect(markup).toContain("No documents collected yet.");
+      expect(markup).toContain("Every document you collect will be saved here.");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("renders a keyed pulse span in the Journal card for a new-note pickup", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(StageIsland, {
+        view: stagePlayView(),
+        onOpenDocument: () => {},
+        pulseKey: "note-1",
+      }));
+      expect(markup).toContain(adventureStyles.islandPulse);
+      expect(markup).toMatch(new RegExp(`<span aria-hidden="true" class="pointer-events-none absolute inset-0 rounded-\\[inherit\\] ${adventureStyles.islandPulse}"></span>`));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("moves the pending note-check status to the island", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(StagePlayScreen, {
+        view: stagePlayView({ pendingCheck: true }),
+        busy: false,
+        send: () => {},
+        attemptId: "preview-attempt",
+      }));
+      const mission = markup.match(/<section aria-label="Mission"[\s\S]*?<\/section>/)?.[0] ?? "";
+      expect(markup).toContain("Adding to your notes…");
+      expect(markup).toContain('role="status"');
+      expect(markup).not.toContain('aria-label="0 notes"');
+      expect(mission).not.toContain("Adding to your notes…");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("groups notes and messages by stage and formats activity summaries", () => {
+    const note = (id: string, stageIndex: number, at: number, text = id) => ({
+      id, text, source: "conversation" as const, stageIndex, at,
+    });
+    const messages = [
+      { id: "m-stage2", kind: "character", characterId: "c1", roomId: "r", text: "Second", insertedNoteId: null, stageIndex: 1, at: 3 },
+      { id: "m-brief", kind: "narration", characterId: null, roomId: null, text: "First", insertedNoteId: null, stageIndex: null, at: 1 },
+      { id: "m-stage1", kind: "player", characterId: null, roomId: "r", text: "Middle", insertedNoteId: null, stageIndex: 0, at: 2 },
+    ] satisfies MessageView[];
+    expect(groupNotesByStage([note("old", 0, 1), note("new", 2, 4), note("middle", 1, 3)]).map((group) => group.stageIndex)).toEqual([2, 1, 0]);
+    expect(groupNotesByStage([note("older", 2, 1), note("newer", 2, 2)])[0]?.notes.map(({ id }) => id))
+      .toEqual(["newer", "older"]);
+    expect(groupMessagesByStage(messages).map((group) => group.stageIndex)).toEqual([null, 0, 1]);
+    expect(documentActivityText({ title: "A dispatch" })).toBe("+1 document: A dispatch");
+    expect(documentActivityText({ title: "A dispatch" }, 2)).toBe("+2 documents: A dispatch");
+  });
+
+  it("filters a character's lines and the contiguous player turns immediately before them", () => {
+    const messages = [
+      { id: "p1", kind: "player", characterId: "a", roomId: "r", text: "First question", insertedNoteId: null, stageIndex: 0, at: 1 },
+      { id: "p2", kind: "player", characterId: "a", roomId: "r", text: "Follow-up", insertedNoteId: null, stageIndex: 0, at: 2 },
+      { id: "a1", kind: "character", characterId: "a", roomId: "r", text: "Answer", insertedNoteId: null, stageIndex: 0, at: 3 },
+      { id: "b1", kind: "character", characterId: "b", roomId: "r", text: "Other voice", insertedNoteId: null, stageIndex: 0, at: 4 },
+      { id: "p3", kind: "player", characterId: "b", roomId: "r", text: "Different question", insertedNoteId: null, stageIndex: 0, at: 5 },
+      { id: "thought", kind: "thought", characterId: null, roomId: null, text: "A thought", insertedNoteId: null, stageIndex: 0, at: 6 },
+      { id: "a2", kind: "character", characterId: "a", roomId: "r", text: "Another answer", insertedNoteId: null, stageIndex: 0, at: 7 },
+    ] satisfies MessageView[];
+    expect(filterLogByCharacter(messages, "a").map((message) => message.id)).toEqual(["p1", "p2", "a1", "a2"]);
   });
 
   it("builds the insertNote action used by the Notes modal", () => {
@@ -346,7 +586,8 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("From your travels");
       expect(markup).toContain("From the historical record");
       expect(markup).toContain("A useful discovery.");
-      expect(markup).toContain("Optional comment for Temenggong");
+      expect(markup).not.toContain("Optional comment");
+      expect(markup).not.toContain("<textarea");
       expect(markup).toContain("Insert into chat");
       expect(markup).toContain("Roll up scroll");
       expect(emptyMarkup).toContain("No notes yet.");
@@ -402,7 +643,9 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("From your travels");
       expect(markup).toContain("A letter from the harbour");
       expect(markup).toContain("Choose a collected scroll");
-      expect(markup).toContain("Saved in your notes");
+      expect(markup).toContain("Collected");
+      expect(markup).not.toContain("Saved in your notes");
+      expect(markup).toContain("Tip: drag across the line that matters to save it as a note.");
       expect(markup).toContain("Roll up scroll");
       expect(markup).toContain("data-document-paragraph");
       expect(emptyMarkup).toContain("No scrolls collected yet.");
@@ -410,6 +653,68 @@ describe("v3 stage play screen", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("teaches highlighting until the first document note, and stops once close reading is over", () => {
+    const documents: PlayerView["documents"] = [{
+      id: "document-1",
+      kind: "letter",
+      title: "A letter from the harbour",
+      provenance: { masthead: null, date: null, sender: null, recipient: null, place: null },
+      body: "The harbour is busy.",
+      real: false,
+      sourceLabel: null,
+      glossary: [],
+      open: false,
+    }];
+    vi.stubGlobal("React", React);
+    try {
+      const render = (props: Partial<Parameters<typeof DocumentReader>[0]>) => renderToStaticMarkup(createElement(DocumentReader, {
+        document: documents[0]!,
+        documents,
+        onSelectDocument: () => {},
+        onClose: () => {},
+        ...props,
+      }));
+      const later = render({ onSelectPassage: () => {}, hasDocumentNote: true });
+      expect(later).toContain("Highlight the line that matters to save it as a note.");
+      expect(later).not.toContain("Tip:");
+      const moment = render({ hasDocumentNote: false });
+      expect(moment).toContain("time to decide now");
+      expect(moment).not.toContain("Tip:");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("announces each newly gained note as a pickup", () => {
+    const notes = [
+      { id: "n1", text: "The Temenggong governs here.", source: "conversation", stageIndex: 0, at: 1 },
+      { id: "n2", text: "The Dutch claim Riau.", source: "document", stageIndex: 0, at: 2 },
+    ] as const;
+    expect(unseenNotes(new Set(["n1"]), notes).map((note) => note.id)).toEqual(["n2"]);
+    expect(unseenNotes(new Set(["n1", "n2"]), notes)).toEqual([]);
+
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(NotePickup, { note: notes[1], onOpen: () => {} }));
+      expect(markup).toContain("New note · from a document");
+      expect(markup).toContain("The Dutch claim Riau.");
+      expect(markup).toContain('popover="manual"');
+      expect(markup).toContain('role="status"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reports whether a highlight added a note, only for the scroll it was made on", () => {
+    const pending = { documentId: "d1", notesBefore: 2, settled: false, succeeded: false };
+    expect(passageStatus(null, "d1", 2)).toBeNull();
+    expect(passageStatus(pending, "d1", 2)).toBe("checking");
+    expect(passageStatus({ ...pending, settled: true, succeeded: true }, "d1", 3)).toBe("added");
+    expect(passageStatus({ ...pending, settled: true, succeeded: true }, "d1", 2)).toBe("nothing");
+    expect(passageStatus({ ...pending, settled: true, succeeded: false }, "d1", 2)).toBeNull();
+    expect(passageStatus({ ...pending, settled: true, succeeded: true }, "d2", 3)).toBeNull();
   });
 
   it("opens the first collected scroll and preserves passage selection actions", () => {
@@ -438,6 +743,159 @@ describe("v3 stage play screen", () => {
   });
 });
 
+describe("v3 cinematic", () => {
+  it("keeps every beat in the DOM and uses the dark fallback without art", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const beats = [
+        { id: "role", kicker: "Your role", title: "Ahmad", body: "Interpreter" },
+        { id: "question", kicker: "The question", body: "Who will shape the island?" },
+      ];
+      const markup = renderToStaticMarkup(createElement(V3Cinematic, {
+        artUrl: null,
+        beats,
+        beginLabel: "Enter the first stage",
+        onBegin: () => {},
+        muted: true,
+        onToggleMuted: () => {},
+      }));
+      const settled = renderToStaticMarkup(createElement(V3Cinematic, {
+        artUrl: "https://assets.example/stage-0.webp",
+        beats,
+        beginLabel: "Enter the first stage",
+        onBegin: () => {},
+        muted: false,
+        onToggleMuted: () => {},
+        initiallySettled: true,
+      }));
+
+      expect(markup).toContain("Your role");
+      expect(markup).toContain("The question");
+      expect(markup.match(/data-active="true"/g)).toHaveLength(1);
+      expect(markup).not.toContain("<img");
+      expect(markup).toContain("radial-gradient");
+      expect(markup).toContain("Skip");
+      expect(markup).toContain('aria-label="Sound off"');
+      expect(settled).toContain("Enter the first stage");
+      expect(settled.match(/data-active="true"/g)).toHaveLength(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("offers Role brief in the stage-play header", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(V3PlayClient, {
+        attemptId: "attempt",
+        initialView: stagePlayView(),
+        initialRevision: 1,
+        stageArtBase: "https://assets.example/stage-art",
+      }));
+      expect(markup).toContain('aria-label="Role brief"');
+      expect(markup).toContain("Role brief");
+      expect(markup).toContain('aria-expanded="false"');
+      expect(markup).toContain('aria-label="Sound off"');
+      expect(markup).toContain('aria-pressed="false"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("passes atmosphere and sound cues into the V3Map snapshot", () => {
+    const ambient = { id: "rain", intensity: 1 } as const;
+    const audio = { muted: false, cues: [{ key: "accept:0:1", id: "accept" as const }] };
+    expect(v3AudioSnapshot(ambient, audio)).toEqual({ ambient, audio });
+  });
+
+  it("retains room-derived weather alongside sound controls and cues", () => {
+    const audio = { muted: false, cues: [{ key: "accept:0:1", id: "accept" as const }] };
+    const scenery = { storyContext: "Harbour office", roomDescriptions: { office: "Rainy streets outside the office." } };
+    expect(v3AudioSnapshot({ id: "clear", intensity: 1 }, audio, scenery)).toEqual({
+      ambient: { id: "rain", intensity: 1 }, audio,
+    });
+    const storm = { id: "thunderstorm", intensity: 0.5 } as const;
+    expect(v3AudioSnapshot(storm, audio, scenery)).toEqual({ ambient: storm, audio });
+  });
+});
+
+describe("v3 story lines", () => {
+  const line = (id: string, kind: MessageView["kind"], extra: Partial<MessageView> = {}) =>
+    ({ id, kind, text: id, roomId: "balai", characterId: null, insertedNoteId: null, at: 1, ...extra }) as MessageView;
+
+  it("shows the room's talk, the open character's reactions, and only story lines that arrived while talking", () => {
+    const messages = [
+      line("old-hint", "thought"),
+      line("q", "player", { characterId: "temenggong" }),
+      line("a", "character", { characterId: "temenggong" }),
+      line("his-notice", "notice", { characterId: "temenggong" }),
+      line("other-notice", "notice", { characterId: "batin" }),
+      line("elsewhere", "character", { roomId: "landing", characterId: "raffles" }),
+      line("new-hint", "thought"),
+      line("new-event", "narration"),
+    ];
+    const seen = new Set(["old-hint", "q", "a", "his-notice", "other-notice", "elsewhere"]);
+    expect(talkLines(messages, "balai", "temenggong", seen).map((message) => message.id))
+      .toEqual(["q", "a", "his-notice", "new-hint", "new-event"]);
+  });
+
+  it("labels hints, story events and reactions", () => {
+    const characters = [{ id: "temenggong", name: "Temenggong Abdul Rahman" }];
+    expect(storyKicker(line("h", "thought"), characters)).toBe("A thought");
+    expect(storyKicker(line("e", "narration"), characters)).toBe("Meanwhile");
+    expect(storyKicker(line("n", "notice", { characterId: "temenggong" }), characters)).toBe("Temenggong Abdul Rahman");
+  });
+
+  it("reports which way a stance moved", () => {
+    const before = new Map([["temenggong", 0], ["raffles", 2]]);
+    const shifts = stanceShifts(before, [
+      { id: "temenggong", stance: { label: "bargaining", level: 1 } },
+      { id: "raffles", stance: { label: "wary", level: 0 } },
+      { id: "batin", stance: null },
+    ]);
+    expect([...shifts]).toEqual([["temenggong", "up"], ["raffles", "down"]]);
+    expect(stanceShifts(new Map(), [{ id: "temenggong", stance: { label: "wary", level: 0 } }]).size).toBe(0);
+  });
+
+  it("renders a reaction toast with the character's new stance, and the stance tag on its own", () => {
+    vi.stubGlobal("React", React);
+    const characters = [{ id: "temenggong", name: "Temenggong Abdul Rahman", title: "", stanceId: "t2", stance: { label: "bargaining", level: 1 }, portraitKey: "temenggong:t2" }] as CharacterView[];
+    const markup = renderToStaticMarkup(createElement(StoryToast, {
+      message: line("The Temenggong is silent for a long moment.", "notice", { characterId: "temenggong" }),
+      characters,
+      shift: "up",
+      onDismiss: () => {},
+    }));
+    expect(markup).toContain('popover="manual"');
+    expect(markup).toContain("Temenggong Abdul Rahman");
+    expect(markup).toContain("bargaining");
+    expect(markup).toContain("just warmed to you");
+    expect(markup).toContain('role="status"');
+    expect(renderToStaticMarkup(createElement(StanceTag, { label: "wary", shift: "down" }))).toContain("just cooled towards you");
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("v3 pending player lines", () => {
+  const base = { currentRoomId: "landing", messages: [] } as unknown as PlayerView;
+
+  it("shows a sent message or shown note straight away, in the current room", () => {
+    const sent = withPendingPlayerLine(base, { type: "message", characterId: "raffles", text: "Why here?" }, "1", 5);
+    expect(sent.messages).toEqual([
+      { id: "pending-1", kind: "player", text: "Why here?", roomId: "landing", characterId: "raffles", insertedNoteId: null, stageIndex: null, at: 5 },
+    ]);
+    const shown = withPendingPlayerLine(sent, { type: "insertNote", characterId: "raffles", noteId: "n1" }, "2", 6);
+    expect(shown.messages[1]).toMatchObject({ id: "pending-2", text: "", insertedNoteId: "n1" });
+  });
+
+  it("ignores other actions and drops pending lines after a failed send", () => {
+    expect(withPendingPlayerLine(base, { type: "tick" }, "1", 5)).toBe(base);
+    const sent = withPendingPlayerLine(base, { type: "message", characterId: "raffles", text: "Hi" }, "1", 5);
+    expect(withoutPendingLines(sent).messages).toEqual([]);
+    expect(withoutPendingLines(base)).toBe(base);
+  });
+});
+
 describe("v3 dialogue box", () => {
   const character = {
     id: "character-1",
@@ -453,6 +911,7 @@ describe("v3 dialogue box", () => {
     roomId: "landing",
     text: "The harbour is open to all who arrive in peace.",
     insertedNoteId: "note-1",
+    stageIndex: 0,
     at: "2026-01-01T00:00:00.000Z",
     speaker: character.name,
     insertedNoteText: "The tide changes before dawn.",
@@ -491,12 +950,49 @@ describe("v3 dialogue box", () => {
       expect(markup).toContain('src="https://assets.example/v3/portraits/temenggong.webp"');
       expect(markup).toContain("bg-[#1f2433]");
       expect(markup).toContain(`>${character.name}</span>`);
-      expect(markup).toContain("▼");
+      expect(markup).not.toContain("▼");
       expect(markup).toContain(message.text);
       expect(markup).toContain("The tide changes before dawn.");
       expect(markup).toContain('id="v3-message"');
       expect(markup).toContain("Insert a note");
       expect(markup).toContain('aria-label="Close conversation (Esc)"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows the character's stance by their name and their reactions in the chat", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "talk",
+        character: { ...character, stanceId: "t2", stance: { label: "bargaining", level: 1 } },
+        portraitBase: null,
+        messages: [{ ...message, id: "notice-1", kind: "notice", text: "The Temenggong is silent for a long moment.", insertedNoteId: null, speaker: "" }],
+        busy: false,
+        stanceShift: "up",
+        onSend: () => {},
+        onOpenNotes: () => {},
+        onClose: () => {},
+      }));
+      expect(markup).toContain("Stance: bargaining, just warmed to you");
+      expect(markup).toContain("The Temenggong is silent for a long moment.");
+      expect(markup).toContain("text-[#8a5a1c]");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("says the character is thinking while the reply to the student's line is on its way", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const own = { ...message, id: "pending-1", kind: "player", text: "Why here?", insertedNoteId: null } as typeof message;
+      const props = { mode: "talk" as const, character, portraitBase: null, onSend: () => {}, onOpenNotes: () => {}, onClose: () => {} };
+      const waiting = renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message, own], busy: true }));
+      expect(waiting).toContain("Why here?");
+      expect(waiting).toContain(`${character.name} is thinking`);
+      expect(renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message, own], busy: false }))).not.toContain("is thinking");
+      expect(renderToStaticMarkup(createElement(DialogueBox, { ...props, messages: [message], busy: true }))).not.toContain("is thinking");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -520,6 +1016,30 @@ describe("v3 dialogue box", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("strikes out acts that can no longer happen and keeps the cursor off them", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(DialogueBox, {
+        mode: "moment",
+        moment: { ...moment, acts: [{ id: "act-1", text: "Welcome the British ships.", available: false }, { id: "act-2", text: "Refuse their proposal.", available: true }] },
+        portraitBase: null,
+        busy: false,
+        onAct: () => {},
+        onPredict: () => {},
+      }));
+      expect(markup).toContain("line-through");
+      expect(markup).toContain("(no longer possible)");
+      expect(markup.match(/aria-disabled="true"/g)).toHaveLength(1);
+      expect(markup).toMatch(/aria-selected="true"[^>]*>[\s\S]*?Refuse their proposal/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(nextAvailableIndex(1, 1, [false, true, false, true])).toBe(3);
+    expect(nextAvailableIndex(3, 1, [false, true, false, true])).toBe(1);
+    expect(nextAvailableIndex(1, -1, [false, true, false, true])).toBe(3);
+    expect(nextAvailableIndex(0, 1, [false, false])).toBe(0);
   });
 
   it("renders all acts as listbox options with only the first selected", () => {
@@ -653,5 +1173,45 @@ describe("interview answer form", () => {
       { verdictId: "verdict-a", evidenceNoteIds: [], text: "x".repeat(MAX_INTERVIEW_TEXT_LENGTH + 1) },
       choices,
     )).toMatchObject({ ok: false, error: `Keep your response to ${MAX_INTERVIEW_TEXT_LENGTH} characters or fewer.` });
+  });
+});
+
+describe("v3 reveal screen", () => {
+  const reveal = mockViews.reveal.reveal!;
+
+  it("lays the stages out as a timeline with the student's act, prediction and history side by side", () => {
+    vi.stubGlobal("React", React);
+    const markup = renderToStaticMarkup(createElement(RevealScreen, {
+      reveal: {
+        ...reveal,
+        pathVsHistory: [
+          { stageIndex: 0, yours: "He signed and sent for Hussein.", history: "He signed and sent for Hussein.", matched: true, closedEndings: [], act: "Warn him.", prediction: { text: "He will sign.", correct: true } },
+          { stageIndex: 1, yours: "Raffles waited.", history: "Raffles signed.", matched: false, closedEndings: ["One chief's word"], act: "Advise him to wait.", prediction: { text: "He will sign.", correct: false } },
+        ],
+      },
+    }));
+    expect(markup).toContain("<ol");
+    expect(markup).toContain("In your story and in history");
+    expect(markup).toContain("Went differently");
+    expect(markup).toContain("In history");
+    expect(markup).toContain("Advise him to wait.");
+    expect(markup).toContain("Not quite");
+    expect(markup).toContain("This closed off: One chief&#x27;s word");
+  });
+
+  it("ends with a finished line for students", () => {
+    vi.stubGlobal("React", React);
+    const markup = renderToStaticMarkup(createElement(RevealScreen, { reveal }));
+    expect(markup).toContain("You&#x27;ve finished this adventure. You can close this tab.");
+  });
+
+  it("ends with the given footer instead, e.g. the preview's way back", () => {
+    vi.stubGlobal("React", React);
+    const markup = renderToStaticMarkup(createElement(RevealScreen, {
+      reveal,
+      footer: createElement("a", { href: "/teacher" }, "Back to adventures"),
+    }));
+    expect(markup).toContain('<a href="/teacher">Back to adventures</a>');
+    expect(markup).not.toContain("You can close this tab");
   });
 });

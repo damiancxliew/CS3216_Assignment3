@@ -1,5 +1,28 @@
 # Student browser acceptance
 
+The shared v2/v3 listings regression uses local Next and Supabase with disposable
+accounts and adventures. Apply migrations first. Configure Next with
+`V3_ENABLED=1` and a local test school's UUID in `V3_SCHOOL_IDS`, then run:
+
+```sh
+RUN_SHARED_LOCAL_TESTS=1 \
+SHARED_LOCAL_BASE_URL=http://localhost:3105 \
+SHARED_LOCAL_SCHOOL_ID="your-local-test-school-uuid" \
+npx vitest run tests/browser/v3-shared-local.test.ts
+```
+
+It checks separate V3/V2 sections, desktop/mobile layouts, archive/unarchive,
+published metadata, version-pinned start, resume, and completed results. It does
+not call a model or reset the database.
+
+The v3 Journal regression uses an isolated Vite fixture with the real stage UI
+and CSS. It checks desktop and mobile decision layouts, document access, stable
+activity height, and keyboard controls that must not submit a decision:
+
+```sh
+RUN_JOURNAL_BROWSER_TESTS=1 npx vitest run tests/browser/v3-journal.test.ts
+```
+
 The document-reader regression test runs without Supabase or a Next server. It
 starts a temporary Vite harness with the real play UI, map, and session, holds the
 movement response, and checks immediate pickup, pending Notes, modal focus, and
@@ -103,3 +126,21 @@ RUN_BRIEF_BROWSER_TESTS=1 npx vitest run tests/browser/brief-stream.test.ts
 
 The regression checks immediate sent bubbles, incremental assistant replies,
 final transcript reconciliation without duplicates, and retry after interruption.
+
+## V3 map scenery
+
+Run the real v3 UI, application CSS, renderer and engine in an isolated Vite fixture:
+
+```sh
+RUN_V3_MAP_BROWSER_TESTS=1 PLAYWRIGHT_CHANNEL=chrome npx vitest run tests/browser/v3-map.test.ts
+```
+
+Omit `PLAYWRIGHT_CHANNEL` to use Playwright Chromium. The test checks scenery and
+weather, resident/animal counts and distinct spawns, keyboard movement and engine
+room entry, local greetings, reduced motion, sound-toggle propagation, Role brief
+opening/return, and mobile layout. It uses the golden
+1819 adventure plus a clearly labelled synthetic rainy-office variant. HTTP transport
+and Next font/link adapters are replaced; authentication, persistence and model
+responses are not exercised. Screenshots and metrics go to `output/v3-map-check/`
+(or `V3_MAP_OUTPUT`). The population-overview screenshot changes camera zoom only
+inside the test; other screenshots use the actual play camera.

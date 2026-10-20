@@ -180,12 +180,12 @@ export function fakeGenerationPasses(env: NodeJS.ProcessEnv = process.env): Gene
         metrics: { calls: [], totalCostUsd: FAKE_COST },
       };
     },
-    endings: async () => {
+    endings: async (input: { draft: AdventureSpec }) => {
       await sleep(FAKE_DELAY_MS);
       if (failAt === "endings") return { ok: false as const, issues: failIssue("endings"), warnings: [], metrics: { calls: [], totalCostUsd: FAKE_COST } };
       return {
         ok: true as const,
-        spec: goldenSpec(),
+        spec: input.draft ?? goldenSpec(),
         issues: [],
         warnings: [{ code: "fake-warning", path: "endings", message: "Sample warning from the fake endings pass." }],
         pendingPasses: ["reveal"],
@@ -194,12 +194,12 @@ export function fakeGenerationPasses(env: NodeJS.ProcessEnv = process.env): Gene
     },
     // the fake specs check clean, so the final repair is never reached
     check: finalRepair,
-    reveal: async () => {
+    reveal: async (input: { draft: AdventureSpec }) => {
       await sleep(FAKE_DELAY_MS);
       if (failAt === "reveal") return { ok: false as const, issues: failIssue("reveal"), warnings: [], metrics: { calls: [], totalCostUsd: FAKE_COST } };
       return {
         ok: true as const,
-        spec: goldenSpec(),
+        spec: input.draft ?? goldenSpec(),
         issues: [],
         warnings: [{ code: "fake-warning", path: "reveal", message: "Sample warning from the fake reveal pass." }],
         pendingPasses: [],
