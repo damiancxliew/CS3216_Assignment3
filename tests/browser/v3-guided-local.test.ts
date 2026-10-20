@@ -68,17 +68,17 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         },
       },
     ]);
-    mkdirSync("output/guided-226", { recursive: true });
-    const browser = await chromium.launch({ headless: true });
+    mkdirSync("output/guided-226-redesign", { recursive: true });
+    const browser = await chromium.launch({ headless: true, slowMo: 650 });
     const context = await browser.newContext({
       recordVideo: {
-        dir: "output/guided-226",
+        dir: "output/guided-226-redesign",
         size: { width: 1440, height: 1000 },
       },
       viewport: { width: 1440, height: 1000 },
     });
     const page = await context.newPage();
-    page.setDefaultTimeout(20000);
+    page.setDefaultTimeout(30000);
     const runtimeErrors: string[] = [];
     const consoleMessages: { level: string; text: string }[] = [];
     page.on("console", (message) =>
@@ -91,11 +91,42 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .getByRole("heading", { name: title, exact: true })
         .waitFor({ timeout: 90000 });
     };
+    const conversation = page.getByRole("region", {
+      name: "Adventure conversation",
+      exact: true,
+    });
+    const content = page.getByRole("region", {
+      name: "Generated content",
+      exact: true,
+    });
+    const editCard = async (name: string) =>
+      content
+        .getByRole("region", { name, exact: true })
+        .getByRole("button", { name: "Edit", exact: true })
+        .click();
     const capture = async (pass: string) => {
+      await page.waitForTimeout(1500);
+      await conversation
+        .getByText("How would you like to generate?", { exact: true })
+        .waitFor();
       for (const width of [320, 768, 1024, 1440]) {
         await page.setViewportSize({ width, height: 1000 });
+        await page.waitForTimeout(750);
+        const left = await conversation.boundingBox();
+        const right = await content.boundingBox();
+        expect(left).not.toBeNull();
+        expect(right).not.toBeNull();
+        if (width >= 768) {
+          expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
+          expect(Math.abs(left!.y - right!.y)).toBeLessThan(3);
+          expect(
+            await page.evaluate(
+              () => document.documentElement.scrollHeight <= innerHeight + 1,
+            ),
+          ).toBe(true);
+        } else expect(right!.y).toBeGreaterThanOrEqual(left!.y + left!.height);
         await page.screenshot({
-          path: `output/guided-226/${pass}-${width}.png`,
+          path: `output/guided-226-redesign/${pass}-${width}.png`,
           fullPage: true,
           caret: "initial",
         });
@@ -106,8 +137,10 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         ).toBe(true);
       }
     };
-    const click = async (name: string) =>
-      page.getByRole("button", { name, exact: true }).click();
+    const click = async (name: string) => {
+      await page.getByRole("button", { name, exact: true }).click();
+      await page.waitForTimeout(1000);
+    };
     const savedReload = async (
       fieldName: string,
       value: string,
@@ -150,12 +183,9 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       expect(stored.data?.pause_draft.edits.length).toBeGreaterThan(0);
       await page.reload();
       await page.getByText("Saved edits restored.", { exact: true }).waitFor();
-      if (tabAfterReload)
-        await page
-          .getByRole("tab", { name: tabAfterReload, exact: true })
-          .click();
-      if (tabAfterReload === "Endings")
-        await page.getByRole("button", { name: new RegExp(value) }).click();
+      await editCard(
+        fieldName === "What Happened" ? "Reveal and questions" : value,
+      );
       expect(
         await page
           .getByRole("textbox", { name: fieldName, exact: true })
@@ -165,19 +195,45 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
     };
     try {
       await page.goto(`${origin}/teacher`);
-      await page
-        .getByText("Local dev sign-in (email/password)", { exact: true })
+      await page.waitForTimeout(2000);
+      const login = page.locator("main:visible");
+      await login
+        .locator("summary:visible")
+        .filter({ hasText: "Local dev sign-in (email/password)" })
         .click();
-      await page.locator('input[name="email"]').fill(email);
-      await page.locator('input[name="password"]').fill("password123!");
-      await click("Sign in or create account");
-      await page.waitForFunction(
-        () => !document.querySelector('input[name="email"]'),
-      );
+      await login.locator('input[name="email"]:visible').fill(email);
+      await login
+        .locator('input[name="password"]:visible')
+        .fill("password123!");
+      await login
+        .getByRole("button", { name: "Sign in or create account", exact: true })
+        .click();
+      await page
+        .getByRole("heading", {
+          name: "Choose your next adventure",
+          exact: true,
+        })
+        .waitFor();
       await page.goto(`${origin}/v3/teacher/${id}`);
       await click("Guided: check after every pass");
+      await capture("brief");
+      const originalConversation = await conversation.elementHandle();
       await click("Create");
+      await content
+        .getByRole("region", { name: "Generation progress", exact: true })
+        .waitFor();
+      expect(
+        await originalConversation!.evaluate((element) => element.isConnected),
+      ).toBe(true);
       await waitTitle("Check sources");
+      expect(
+        await originalConversation!.evaluate((element) => element.isConnected),
+      ).toBe(true);
+      expect(
+        (await store.load(id))!.state!.messages.some(
+          (message) => message.text === "How would you like to generate?",
+        ),
+      ).toBe(true);
       expect(
         await page
           .getByText("Local handout · Included", { exact: true })
@@ -216,6 +272,8 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       await click("Continue generation");
       await waitTitle("Check the skeleton");
       await capture("skeleton");
+      expect(await content.getByRole("textbox").count()).toBe(0);
+      await click("Edit plan");
       const generatedTitle = await page
         .getByRole("textbox", { name: "Title", exact: true })
         .first()
@@ -261,6 +319,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .filter({ hasText: /^Saved / })
         .waitFor();
       await page.reload();
+      await click("Edit plan");
       expect(
         await page
           .getByRole("textbox", { name: "Title", exact: true })
@@ -273,24 +332,21 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .getByRole("button", { name: "Continue", exact: true })
         .click();
       await waitTitle("Check details");
-      expect(await page.getByRole("tab").allTextContents()).toEqual([
-        "Stages",
-        "Characters",
-        "Documents",
-      ]);
+      expect(
+        await content.locator("[data-review-card]").count(),
+      ).toBeGreaterThan(5);
+      expect(await content.getByRole("textbox").count()).toBe(0);
+      await capture("details");
+      await content
+        .locator("[data-review-card]")
+        .first()
+        .getByRole("button", { name: "Edit", exact: true })
+        .focus();
+      await page.keyboard.press("Enter");
       expect(
         await page.getByRole("textbox", { name: "Scene", exact: true }).count(),
       ).toBe(0);
-      await page.getByRole("tab", { name: "Stages", exact: true }).focus();
-      await page.keyboard.press("ArrowLeft");
-      expect(
-        await page
-          .getByRole("tab", { name: "Documents", exact: true })
-          .getAttribute("aria-selected"),
-      ).toBe("true");
-      await page.keyboard.press("Home");
       await savedReload("Title", "Guided stage title", undefined, true);
-      await capture("details");
       // Discard returns to the saved checkpoint; Continue need not follow another Save.
       await page
         .getByRole("textbox", { name: "Title", exact: true })
@@ -304,7 +360,11 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
           .first()
           .inputValue(),
       ).toBe("Guided stage title");
-      await page.getByRole("tab", { name: "Characters", exact: true }).click();
+      await content
+        .getByRole("region", { name: "Guided stage title", exact: true })
+        .getByRole("button", { name: "Done", exact: true })
+        .click();
+      await editCard("Temenggong Abdul Rahman");
       await page
         .getByRole("textbox", { name: "Trust Notice", exact: true })
         .fill("");
@@ -318,7 +378,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
           .getByRole("button", { name: "Continue generation", exact: true })
           .isDisabled(),
       ).toBe(true);
-      await click("Fix with AI");
+      await click("Resolve issues");
       await page
         .getByRole("button", { name: "Apply suggested fix", exact: true })
         .waitFor({ timeout: 30000 });
@@ -342,16 +402,17 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .fill("A teacher's unsaved voice edit");
       await click("Continue generation");
       await waitTitle("Check endings");
-      expect(await page.getByRole("tab").allTextContents()).toEqual([
-        "Stages",
-        "Endings",
-      ]);
-      await page
+      await content
         .getByRole("heading", { name: "Endings produced", exact: true })
         .first()
         .waitFor();
       await capture("endings");
-      await page.getByRole("tab", { name: "Endings", exact: true }).click();
+      const historical = content
+        .locator("[data-review-card]")
+        .filter({ hasText: "Historical ending" });
+      await historical
+        .getByRole("button", { name: "Edit", exact: true })
+        .click();
       // A historical ending's supporting evidence is checked authoritatively on Save.
       await page
         .getByRole("textbox", { name: "Title", exact: true })
@@ -370,21 +431,22 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
           .first()
           .inputValue(),
       ).toBe("Unsupported historical edit");
-      await click("Fix with AI");
+      await click("Resolve issues");
       await click("Apply suggested fix");
-      await page.getByRole("button", { name: /Waiting for Calcutta/ }).click();
+      await historical
+        .getByRole("button", { name: "Done", exact: true })
+        .click();
+      await editCard("Waiting for Calcutta");
       await savedReload("Title", "Guided ending title", "Endings");
       await click("Continue generation");
       await waitTitle("Check reveal");
-      expect(await page.getByRole("tab").allTextContents()).toEqual([
-        "Reveal and questions",
-      ]);
       await capture("reveal");
+      await editCard("Reveal and questions");
       // Pick a prose field from reveal and retain its identity across reload.
       await savedReload("What Happened", "A teacher's reveal question?");
       await click("Continue generation");
       await page
-        .getByText("Adventure draft", { exact: false })
+        .getByRole("heading", { name: "Your adventure is ready", exact: true })
         .first()
         .waitFor({ timeout: 90000 });
       const final = await admin
@@ -403,6 +465,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       expect(JSON.stringify(final.data?.spec.reveal)).toContain(
         "A teacher's reveal question?",
       );
+      await capture("ready");
       // A status transition can arrive before the job's output is committed.
       const waitingId = await store.create({
         schoolId: TESTING_SCHOOL_ID,
@@ -441,7 +504,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         [{ ...extra, pages: [...extra.pages], warnings: [] }],
       );
       await page.goto(`${origin}/v3/teacher/${waitingId}`);
-      await waitTitle("Loading your review");
+      await waitTitle("Building your adventure");
       await admin
         .from("job_steps")
         .update({
@@ -486,7 +549,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       passed = true;
     } catch (error) {
       await page.screenshot({
-        path: "output/guided-226/failure.png",
+        path: "output/guided-226-redesign/failure.png",
         fullPage: true,
       });
       console.log((await page.locator("main").innerText()).slice(0, 7000));
@@ -496,10 +559,10 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       if (passed)
         copyFileSync(
           await page.video()!.path(),
-          "output/guided-226/walkthrough.webm",
+          "output/guided-226-redesign/walkthrough.webm",
         );
       writeFileSync(
-        "output/guided-226/runtime-console.json",
+        "output/guided-226-redesign/runtime-console.json",
         JSON.stringify({ runtimeErrors, consoleMessages }, null, 2),
       );
       await browser.close();
