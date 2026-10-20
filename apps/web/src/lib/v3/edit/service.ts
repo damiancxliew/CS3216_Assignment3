@@ -110,7 +110,7 @@ export async function saveAdventureEdits(
   }
   const generationErrors = await deps.store.loadCheckErrors(id);
   const added = introducedErrors(parsed.spec, spec, sources, generationErrors);
-  if (added.length) return { ok: false, code: "check-errors", message: "These edits add errors, so they weren't saved. Fix them or use Fix with AI.", errors: added };
+  if (added.length) return { ok: false, code: "check-errors", message: "These edits add errors, so they weren't saved. Fix them or use Resolve issues.", errors: added };
   const checks = validateEditedSpec(spec, sources, generationErrors);
   // An empty/no-op Save must not create metadata or a snapshot.
   if (!same(spec, parsed.spec))

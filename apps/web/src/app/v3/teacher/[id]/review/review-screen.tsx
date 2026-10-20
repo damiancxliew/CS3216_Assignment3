@@ -208,7 +208,13 @@ export function ReviewScreen({
   warnings,
   editMode = false,
   renderEditor,
+  allowedTabs,
+  indexEntries,
+  checksPassedLabel = "Checks passed",
 }: {
+  checksPassedLabel?: string;
+  allowedTabs?: ReviewTab[];
+  indexEntries?: (tab: ReviewTab, itemId: string) => ReviewIndexEntry[];
   editMode?: boolean;
   renderEditor?: (tab: ReviewTab, selected: string) => ReactNode;
   spec: AdventureSpec;
@@ -216,7 +222,10 @@ export function ReviewScreen({
   errors: CheckIssue[];
   warnings: (CheckIssue & { pass: string })[];
 }) {
-  const [tab, setTab] = useState<ReviewTab>("stages");
+  const visibleTabs = tabs.filter(
+    (t) => !allowedTabs || allowedTabs.includes(t.id),
+  );
+  const [tab, setTab] = useState<ReviewTab>(allowedTabs?.[0] ?? "stages");
   const [selection, setSelection] = useState<Record<ReviewTab, string>>(() => ({
     stages: spec.stages[0]?.id ?? "",
     characters: spec.characters[0]?.id ?? "",
@@ -238,6 +247,7 @@ export function ReviewScreen({
   const names = useMemo(() => reviewNames(spec), [spec]);
   const name = (id: string) => names.get(id) ?? "Unavailable item";
   const choose = (target: ReviewTarget) => {
+    if (allowedTabs && !allowedTabs.includes(target.tab)) return;
     setCollapsed((current) => {
       const next = new Set(current);
       next.delete(`${target.tab}:${target.itemId}`);
@@ -282,7 +292,7 @@ export function ReviewScreen({
   };
   const link = (id: string) => {
     const target = targets.get(id);
-    return target ? (
+    return target && (!allowedTabs || allowedTabs.includes(target.tab)) ? (
       <button
         type="button"
         className="text-left underline"
@@ -307,7 +317,11 @@ export function ReviewScreen({
           <li key={i} className="text-sm">
             <ReviewIssue
               issue={issue}
-              onSelect={target ? () => choose(target) : undefined}
+              onSelect={
+                target && (!allowedTabs || allowedTabs.includes(target.tab))
+                  ? () => choose(target)
+                  : undefined
+              }
               location={target ? name(target.itemId) : undefined}
             />
           </li>
@@ -372,7 +386,9 @@ export function ReviewScreen({
           id="needs-fixing"
           className={`text-xl font-bold ${errors.length ? "text-ink" : "text-world"}`}
         >
-          {errors.length ? `Needs fixing (${errors.length})` : "Checks passed"}
+          {errors.length
+            ? `Needs fixing (${errors.length})`
+            : checksPassedLabel}
         </h2>
         {errors.length ? issueList(errors) : null}
         {warnings.length || spec.conflicts.length ? (
@@ -428,7 +444,7 @@ export function ReviewScreen({
           aria-label="Adventure content"
           className="flex shrink-0 w-fit max-w-full flex-wrap gap-2 rounded-[1.75rem] bg-paper/95 p-2 shadow-[0_2px_10px_rgb(0_0_0/0.10)] backdrop-blur-sm"
         >
-          {tabs.map((t, i) => (
+          {visibleTabs.map((t, i) => (
             <button
               key={t.id}
               id={`tab-${t.id}`}
@@ -442,17 +458,17 @@ export function ReviewScreen({
               onKeyDown={(event) => {
                 const next =
                   event.key === "ArrowRight"
-                    ? (i + 1) % tabs.length
+                    ? (i + 1) % visibleTabs.length
                     : event.key === "ArrowLeft"
-                      ? (i + tabs.length - 1) % tabs.length
+                      ? (i + visibleTabs.length - 1) % visibleTabs.length
                       : event.key === "Home"
                         ? 0
                         : event.key === "End"
-                          ? tabs.length - 1
+                          ? visibleTabs.length - 1
                           : -1;
                 if (next < 0) return;
                 event.preventDefault();
-                const t = tabs[next];
+                const t = visibleTabs[next];
                 activateTab(t.id);
                 document
                   .getElementById(`tab-${t.id}`)
@@ -520,7 +536,11 @@ export function ReviewScreen({
                     !collapsed.has(`${tab}:${item.id}`) ? (
                       <div className="my-2">
                         <IndexBranch
-                          entries={reviewIndex(spec, tab, item.id)}
+                          entries={
+                            indexEntries
+                              ? indexEntries(tab, item.id)
+                              : reviewIndex(spec, tab, item.id)
+                          }
                           activeAnchor={activeAnchor}
                           onChoose={(id) =>
                             choose({

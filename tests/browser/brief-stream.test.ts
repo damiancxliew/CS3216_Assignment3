@@ -31,11 +31,13 @@ it.runIf(process.env.RUN_BRIEF_BROWSER_TESTS === "1")("renders sent bubbles and 
         if (id === "next/link") return "\0link";
         if (id === "next/navigation") return "\0navigation";
         if (id === "virtual:brief-test") return "\0brief-test";
+        if (id === "./chat-actions") return "\0chat-actions";
         if (id === "../actions" || id === "./actions") return "\0actions";
       },
       async load(id) {
         if (id === "\0link") return "import React from 'react'; export default function Link(p) { return React.createElement('a', p); }";
         if (id === "\0navigation") return "export const useRouter = () => ({ refresh() {}, push() {} }); export const usePathname = () => '/teacher'; export const useSearchParams = () => new URLSearchParams();";
+        if (id === "\0chat-actions") return "export const suggestReviewChangeAction = async () => ({error: 'Unexpected chat action'});";
         if (id === "\0actions") return ["addV3BriefSource", "createFromV3Brief", "discardV3Brief", "addBriefSource", "discardBrief", "finishBrief", "startBrief"].map((name) => `export const ${name} = async () => ({error:'Unexpected action'});`).join("\n");
         if (id === "\0brief-test") return (await transformWithEsbuild(`
           import React from 'react';
@@ -43,7 +45,7 @@ it.runIf(process.env.RUN_BRIEF_BROWSER_TESTS === "1")("renders sent bubbles and 
           import { V3BriefChat } from '/src/app/v3/teacher/[id]/brief-chat.tsx';
           import { BriefChat } from '/src/app/teacher/brief-chat.tsx';
           const initial = ${JSON.stringify(initial)};
-          createRoot(document.getElementById('root')).render(location.search === '?v2' ? <BriefChat resume={initial} /> : <V3BriefChat initial={initial} />);
+          createRoot(document.getElementById('root')).render(location.search === '?v2' ? <BriefChat resume={initial} /> : <V3BriefChat initial={initial} onStateChange={(state) => { window.__briefState = state; }} />);
         `, "brief-test.tsx", { loader: "tsx", jsx: "automatic" })).code;
       },
       configureServer(server) {
@@ -100,6 +102,9 @@ it.runIf(process.env.RUN_BRIEF_BROWSER_TESTS === "1")("renders sent bubbles and 
       expect(await page.getByText("My historical episode", { exact: true }).count()).toBe(1);
       expect(await page.getByText("Here is the partial reply", { exact: true }).count()).toBe(0);
       await expect.poll(() => composer.isDisabled()).toBe(false);
+      if (version === "v3") expect(await page.evaluate(() =>
+        (window as Window & { __briefState?: unknown }).__briefState,
+      )).toEqual(state);
       // A dropped connection restores the unsent text and leaves no partial transcript.
       await composer.fill("Please retry this");
       await composer.press("Enter");

@@ -67,6 +67,7 @@ export const REVIEW_EVENT_LABELS: Record<SpecStoryEvent["effect"], string> = {
 };
 
 const issueMessages: Record<string, string> = {
+  "source-unavailable": "A cited source is missing or unavailable.",
   "core-missing":
     "This stage needs an essential discovery for students to find.",
   "core-holder":

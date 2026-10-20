@@ -4,7 +4,6 @@
  * `turn.ts` when an answer isn't plain. Client-safe: no model access here.
  */
 import { z } from "zod";
-import { guidedModeEnabled } from "@/lib/v3/flag";
 
 export const SLOT_ORDER = ["sources", "episode", "focus", "readingLevel", "timer", "mode", "allowlist", "confirm"] as const;
 export type SlotName = (typeof SLOT_ORDER)[number];
@@ -189,7 +188,7 @@ export function quickReplies(draft: BriefDraftV3, slot: Slot): string[] {
     case "timer":
       return [TIMER_RECOMMENDED, TIMER_OFF];
     case "mode":
-      return [MODE_LABELS.standard, MODE_LABELS.quick, ...(guidedModeEnabled() ? ["Guided: check after every pass"] : [])];
+      return [MODE_LABELS.standard, MODE_LABELS.quick, "Guided: check after every pass"];
     case "allowlist":
       return [ALLOWLIST_DEFAULT, ALLOWLIST_ANY];
     case "confirm":

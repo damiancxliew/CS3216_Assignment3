@@ -21,18 +21,25 @@ import {
 
 import { addV3BriefSource, createFromV3Brief, discardV3Brief } from "../actions";
 import { ConfirmButton } from "./confirm-button";
+import { ReviewChatComposer } from "./review-chat-composer";
+import { ChatSendButton } from "./chat-send-button";
 
 /**
  * The v3 guided brief: the transcript, the controls the current slot allows,
  * and the summary once the draft is complete. State lives on the server; each
  * turn posts the input and renders the state that comes back.
  */
-export function V3BriefChat({ initial }: { initial: BriefStateV3 }) {
+export function V3BriefChat({ initial, active = true, statusMessage, generating = false, onStateChange, onGenerationStart, onGenerationError }: {
+  initial: BriefStateV3; active?: boolean; statusMessage?: string; generating?: boolean; onStateChange?: (state: BriefStateV3) => void; onGenerationStart?: () => void; onGenerationError?: () => void;
+}) {
   const [state, setState] = useState<BriefStateV3>(initial);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [actionPending, startTransition] = useTransition();
-  const stream = useBriefStream(setState, setError);
+  const stream = useBriefStream((next: BriefStateV3) => {
+    setState(next);
+    onStateChange?.(next);
+  }, setError);
   const pending = actionPending || stream.streaming;
   const router = useRouter();
   const endRef = useRef<HTMLDivElement>(null);
@@ -43,7 +50,7 @@ export function V3BriefChat({ initial }: { initial: BriefStateV3 }) {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [state.messages.length, stream.preview, pending]);
+  }, [state.messages.length, stream.preview, pending, statusMessage]);
 
   useEffect(() => {
     autoGrow(composer.current, 240);
@@ -56,6 +63,7 @@ export function V3BriefChat({ initial }: { initial: BriefStateV3 }) {
         const result = await work();
         if ("state" in result && result.ok) {
           setState(result.state);
+          onStateChange?.(result.state);
           setText("");
         } else if ("error" in result && result.error) {
           setError(result.error);
@@ -89,18 +97,24 @@ export function V3BriefChat({ initial }: { initial: BriefStateV3 }) {
 
   function create() {
     setError(null);
+    onGenerationStart?.();
     startTransition(async () => {
-      const result = await createFromV3Brief(state.adventureId);
-      if ("error" in result) setError(result.error);
-      else router.refresh();
+      try {
+        const result = await createFromV3Brief(state.adventureId);
+        if ("error" in result) { setError(result.error); onGenerationError?.(); }
+        else router.refresh();
+      } catch {
+        setError("Could not start generation. Please try again.");
+        onGenerationError?.();
+      }
     });
   }
 
-  const thinking = slot.name === "sources" ? "Reading your sources" : "Updating your brief";
+  const thinking = generating ? "Preparing your adventure" : slot.name === "sources" ? "Reading your sources" : "Updating your brief";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="flex justify-end">
+      {active ? <div className="flex justify-end">
         <ConfirmButton
           label="Discard this brief"
           title="Discard this brief?"
@@ -115,17 +129,17 @@ export function V3BriefChat({ initial }: { initial: BriefStateV3 }) {
             })
           }
         />
-      </div>
+      </div> : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-4 [overflow-wrap:anywhere]" data-conversation-scroll>
         <ol className="flex flex-col gap-3 text-base" aria-live="polite">
           {[...state.messages, ...(stream.preview as BriefStateV3["messages"])].map((message, index) => (
             <li
               key={index}
               className={
                 message.role === "user"
-                  ? "ml-10 self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper sm:ml-24"
-                  : "mr-10 self-start rounded-surface rounded-bl-sm bg-sunken px-4 py-3 text-ink sm:mr-24"
+                  ? "ml-10 self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper shadow-sm sm:ml-24"
+                  : "mr-10 self-start rounded-surface rounded-bl-sm border border-line bg-paper px-4 py-3 text-ink shadow-sm sm:mr-24"
               }
             >
               <p className="whitespace-pre-wrap">{message.text}</p>
@@ -134,25 +148,29 @@ export function V3BriefChat({ initial }: { initial: BriefStateV3 }) {
               ) : null}
             </li>
           ))}
-          {pending ? (
+          {pending && !generating ? (
             <li className="mr-10 self-start px-4 py-2 sm:mr-24">
               <Thinking label={thinking} />
             </li>
           ) : null}
         </ol>
-        {slot.name === "sources" && state.sources.length > 0 ? <SourceList sources={state.sources} /> : null}
-        {slot.name === "confirm" ? <Summary state={state} pending={pending} onChange={(change) => send({ change })} /> : null}
+        {!active && statusMessage ? <div className="mt-4 px-4 py-2 text-center text-sm text-muted" role="status">{statusMessage}</div> : null}
+        {active && slot.name === "sources" && state.sources.length > 0 ? <SourceList sources={state.sources} /> : null}
+        {active && slot.name === "confirm" ? <details className="mt-4 text-sm"><summary className="w-fit cursor-pointer font-semibold text-muted">Change the brief</summary><Summary state={state} pending={pending} onChange={(change) => send({ change })} /></details> : null}
         <div ref={endRef} />
       </div>
 
-      <footer className="flex flex-col gap-3 border-t border-line pt-4">
+      <footer className="flex min-h-0 shrink-0 flex-col gap-3 border-t border-line pt-4">
         {error ? <ErrorText>{error}</ErrorText> : null}
-        {slot.name === "confirm" ? (
-          <div className="flex flex-wrap gap-2">
+        {!active || slot.name === "confirm" ? (
+          <>
+          {active ? <div className="flex flex-wrap gap-2">
             <button type="button" onClick={create} disabled={pending} className={button.primary}>
               {pending ? <Pending>Creating the adventure…</Pending> : "Create"}
             </button>
-          </div>
+          </div> : null}
+          <ReviewChatComposer adventureId={state.adventureId} onConversation={next => { setState(next); onStateChange?.(next); }} />
+          </>
         ) : slot.name === "sources" ? (
           <SourceStep pending={pending} replies={replies} onUpload={upload} onDone={() => send({ text: SOURCES_DONE })} />
         ) : (
@@ -172,25 +190,24 @@ export function V3BriefChat({ initial }: { initial: BriefStateV3 }) {
                 ))}
               </div>
             ) : null}
-            <div className="flex items-end gap-2">
+            <div className="flex items-center gap-2">
               <textarea
                 ref={composer}
-                disabled={pending}
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
+                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                     event.preventDefault();
                     if (text.trim() && !pending) send({ text });
                   }
                 }}
                 rows={1}
+                aria-label="Your answer"
+                disabled={pending}
                 placeholder="Type your answer…"
                 className={control + " min-h-0 flex-1 resize-none py-3"}
               />
-              <button type="submit" disabled={pending || !text.trim()} className={button.primary}>
-                Send
-              </button>
+              <ChatSendButton label="Send" disabled={pending || !text.trim()} hint={pending ? "Updating the brief…" : !text.trim() ? "Type an answer to send." : "Send message"} />
             </div>
           </form>
         )}

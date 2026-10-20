@@ -177,6 +177,11 @@ select {
   box-shadow: 0 7px 0 color-mix(in srgb, var(--shadow) 12%, transparent), 0 22px 60px color-mix(in srgb, var(--shadow) 10%, transparent);
 }
 
+/* A smaller lift for cards inside the scrolling creation pane. */
+.creation-card {
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--shadow) 12%, transparent), 0 8px 20px color-mix(in srgb, var(--shadow) 6%, transparent);
+}
+
 .sticker {
   box-shadow: 0 4px 0 color-mix(in srgb, var(--shadow) 18%, transparent);
   transform: rotate(-1.5deg);

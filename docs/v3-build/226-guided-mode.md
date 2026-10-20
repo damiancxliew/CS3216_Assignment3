@@ -1,6 +1,6 @@
 # #226 Guided mode — backend + Fix-with-AI server (lead-authored spec)
 
-Branch: `feat/226-guided-mode`, stacked on `feat/231-source-allowlist` (PR #281, for its sourcePolicy code). Commit style: `feat(v3): ...`. Do NOT build any React UI; I build the UI myself. Server actions are in scope.
+Branch: `feat/226-guided-mode`, stacked on `feat/231-source-allowlist` (PR #281, for its sourcePolicy code). Commit style: `feat(v3): ...`. This document records the original backend specification. The follow-up UI implementation is described under Implementation status below.
 
 Glossary: Pass = sources, skeleton, details (stage details + personas), endings, reveal, checks. Guided = pause after every pass.
 
@@ -162,13 +162,49 @@ Retry appends:
 - new tests/api/v3-ai-fix.test.ts (fake LlmClient): good proposal → ok + converted edits (digit strings → numbers, value_json parsed); bad then good → ok after retry and the retry message contains `<still_failing>`; bad twice → no-fix; no errors → no-errors; skeleton fix happy path + skeletonChanges diff unit cases.
 - packages/generation tests: finalRepair with `frozen` does not redo the frozen part.
 
-## Backend implementation status
+## Implementation status
 
-PR #286 implements sections 1–8 and integrates the source allowlist from #281. Guided creation and its brief reply are gated by `NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED=1`; leave it unset or `0` until the pause screens, Fix-with-AI panel, and teacher-page routing are implemented. Existing guided jobs can still continue through the server actions.
+PR #286 implemented the backend and integrated the source allowlist from #281. The teacher page now routes all five Guided pauses and retries when the status arrives before the pass output. Guided follows `V3_ENABLED` and `V3_SCHOOL_IDS`; its temporary public gate has been removed after the local browser walkthrough passed.
 
-The remaining feature work is the React UI and a recorded browser walkthrough. The backend has an offline integration test covering all five pauses with teacher edits at details, endings, and reveal. The database test verifies pause drafts default to null, service-role writes and clears work, authenticated writes are refused, and other schools cannot read the draft.
+The creation screen keeps the conversation on the left and the accumulated content on the right at desktop widths. On mobile the panes stack. The original brief transcript stays in `brief_state` after creation and survives reloads. Completed passes remain available as disclosure cards, and loading appears inline in the content pane. The main panels use the app's ink borders and offset shadows; smaller cards have a lighter shadow. Source checkboxes align with the first line of wrapped titles, and source links use record blue with underlines. Review prompts describe the current task without repeating the layout. Review toolbars, primary actions and edit toggles share scoped styles. The outline editor matches its preview card and omits the redundant first-section divider. Send buttons share a keyboard-accessible tooltip; the waiting hint does not take up composer space. Applied messages clear when the review step changes, and the saved draft retains the same Resolve issues action and existing-issues disclosure as the pause editors. Cards open their editors on demand and share the normal adventure editor's fields. Details exposes stages, characters and documents; Endings groups decisions by stage alongside ending editors; Reveal exposes the reveal and teacher questions. Skeleton keeps its existing autosave. At the three spec pauses, Save stores the full changeset against an immutable generated base, Continue submits current edits, and Discard restores the saved checkpoint. Existing generation issues are shown separately from newly introduced errors. Local structural and semantic checks give immediate feedback; server source and quotation checks remain authoritative.
 
-## Verification (narrowest)
-`npm run lint`, `npm run typecheck`, `npx vitest run tests/api/v3-brief.test.ts tests/api/v3-generation.test.ts tests/api/v3-editing.test.ts tests/api/v3-ai-fix.test.ts tests/api/v3-fake-passes.test.ts`, the generation final-repair test file, `git diff --check`, migration applied locally without errors.
+The chat composer stays visible from brief confirmation through generation, all review pauses and the completed draft. Teachers can draft a request while a pass runs; sending becomes available when the next review is ready. Chat can suggest replacements for existing text or number fields, or outside-source selections. It shows the current and proposed values before Apply changes or Keep my edits. Applying updates the current cards; explicit Save/Continue remains in control, with the outline's existing autosave. Requests use the current unsaved edits. Changes to those edits invalidate proposals, including responses still in flight. Draft messages survive reloads in browser session storage; completed exchanges stay in `brief_state`. Conversation writes use an optimistic timestamp checkpoint to prevent one tab from overwriting another. Model output goes through protected-field checks and the existing authoritative validators before a proposal is offered.
 
-If any spec point turns out wrong against the code (e.g. a type that doesn't fit), stop and report rather than redesign.
+Resolve issues uses one proposal panel across pause, skeleton and normal editors. The button floats beside the content pane. It shows an explanation and waits for Apply suggested fix or Keep my edits. Changing the underlying edits invalidates the proposal, including responses still in flight. Applying updates only local state, with the skeleton's usual autosave.
+
+The recorded flow exposed a persisted-base bug: JSONB key ordering could make unchanged citations appear edited. `applyTeacherEdits` now normalizes both trees through the schema before attribution comparison; a regression test reproduces reordered persisted keys. Skeleton autosave also retains failed requests for retry, and discard waits for outstanding saves before restoring the generated plan.
+
+## Browser verification
+
+`tests/browser/v3-guided-local.test.ts` uses local Supabase and Next with `V3_FAKE_PASSES=1`, an isolated teacher in Testing School, and disposable adventures. It leaves existing seeded records untouched. Configure the usual local Supabase credentials and:
+
+```sh
+# Next environment (apps/web/.env.local or exported to the process):
+# V3_ENABLED=1
+# V3_SCHOOL_IDS=00000000-0000-4000-8000-000000005c01
+# V3_FAKE_PASSES=1
+# OPENAI_API_KEY=local-browser-test
+# JOBS_TICK_SECRET=226-local-test
+# JOBS_TICK_URL=http://127.0.0.1:3226/api/v3/jobs/tick
+# NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3226
+npm run dev --workspace web -- --port 3226
+
+# Test environment: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+RUN_GUIDED_LOCAL_TESTS=1 npx vitest run tests/browser/v3-guided-local.test.ts tests/browser/v3-guided-ready-local.test.ts
+RUN_REVIEW_BROWSER_TESTS=1 npx vitest run tests/browser/v3-editor.test.ts tests/browser/v3-review.test.ts
+```
+
+The Guided test covers creation through the brief, every pause route, fixed uploads, outside-source deselection, rejected results, refusing zero sources, delayed output, read-first cards and keyboard editing, explicit Save/reload, checkpoint discard, autosave and explicit-save network retries, new local validation errors, authoritative historical-quotation rejection, AI application without advancing, persistent composer drafts, chat proposals at every pause and after generation, proposal invalidation, conversation reloads, and preserving both saved and unsaved submitted edits in the final spec. Every pause is checked at 320, 768, 1024 and 1440 pixels for horizontal overflow and captured as a screenshot. Desktop checks also verify side-by-side panes and independent scrolling. The test also compares rendered toolbar and card styles, checks the divider removal, focuses the unavailable send button to reveal its tooltip at all four widths, and resolves an invalid edit on the completed draft. The browser runs with 650 ms action slowdown, pauses for 1 second after main actions, and waits 1.5 seconds before each screenshot set.
+
+Successful recordings, screenshots and raw browser console diagnostics are written under the gitignored `output/guided-226-redesign/`; the successful video is `walkthrough.webm`. These artifacts are local and are not part of the source diff. The targeted ready-draft test also records `ready-issues.webm` and screenshots for its existing-issues disclosure, including keyboard access and allowing harmless edits despite existing errors. The fake source snapshots do not contain complete real-document paragraphs, so the existing generation issues panel is intentionally populated during this fixture flow.
+
+The final Node 22 run passed with zero runtime exceptions and zero unexpected console errors. Its failed-resource messages are the deliberate skeleton-save, pause-save and chat-request network-abort cases. Next also emits its existing smooth-scroll configuration warning; the screenshots preserve caret styling to avoid interfering with hydration.
+
+## Other verification
+
+- `npx vitest run tests/api tests/unit/v3-local-edit-checks.test.ts`: 390 tests passed across 48 files, including Guided permissions, changeset replay and AI regressions.
+- `npx vitest run tests/unit/v3-local-edit-checks.test.ts`.
+- From `packages/generation`: `npx vitest run tests/v3-details.test.ts`: 29 tests passed, including frozen final repair.
+- `npm run lint`, `npm run typecheck`, `npm run build`, `git diff --check`.
+
+The conversational edit requests use a new server action. No new HTTP route or migration is required by this UI work. The existing database access tests continue to cover pause-draft service-role writes and isolation between schools.

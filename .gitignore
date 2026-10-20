@@ -17,3 +17,7 @@ supabase/.temp/
 play-cost*.jsonl
 # ...except measured runs kept as evidence for the M12 play write-up
 !docs/writeups/data/play-cost-*.jsonl
+
+# Recorded Guided acceptance walkthrough
+output/guided-226/
+output/guided-226-redesign/

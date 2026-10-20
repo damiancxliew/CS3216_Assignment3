@@ -212,7 +212,7 @@ describe("briefTurnV3", () => {
     const r2 = await briefTurnV3(mode, { text: "whichever" }, { llm, documents: docs });
     if (!r2.ok) throw new Error(r2.error);
     expect(r2.state.draft.mode).toBeUndefined();
-    expect(r2.state.messages.at(-1)?.text).toContain("Standard or Quick");
+    expect(r2.state.messages.at(-1)?.text).toContain("Standard, Quick or Guided");
     expect(llm.requests).toHaveLength(0);
   });
 
@@ -322,8 +322,6 @@ describe("briefTurnV3", () => {
 
 
 it("accepts the guided reply without a model call", async () => {
-  vi.stubEnv("NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED", "1");
-  try {
   const state = stateAt({ ...fullDraft, mode: undefined });
   const llm = new FakeLlmClient([]);
   const reply = quickReplies(state.draft, currentSlot(state.draft)).find(text => text.startsWith("Guided"));
@@ -333,18 +331,11 @@ it("accepts the guided reply without a model call", async () => {
   expect(MODE_LABELS.guided).toBe("Guided (check after every pass)");
   expect(currentSlot(result.state.draft).name).toBe("confirm");
   expect(llm.requests).toHaveLength(0);
-  } finally { vi.unstubAllEnvs(); }
 });
 
-it("hides and rejects Guided creation until its review screens are enabled", async () => {
-  vi.stubEnv("NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED", "0");
-  try {
-    const state = stateAt({ ...fullDraft, mode: undefined });
-    expect(quickReplies(state.draft, currentSlot(state.draft)).some(reply => reply.startsWith("Guided"))).toBe(false);
-    const llm = new FakeLlmClient([]);
-    const result = await briefTurnV3(state, { text: "guided" }, { llm, documents: docs });
-    expect(result.state.draft.mode).toBeUndefined();
-    expect(result.state.messages.at(-1)?.text).toContain("Choose Standard or Quick");
-    expect(llm.requests).toHaveLength(0);
-  } finally { vi.unstubAllEnvs(); }
+it("offers Guided alongside Standard and Quick", () => {
+  const state = stateAt({ ...fullDraft, mode: undefined });
+  expect(quickReplies(state.draft, currentSlot(state.draft))).toEqual([
+    MODE_LABELS.standard, MODE_LABELS.quick, "Guided: check after every pass",
+  ]);
 });

@@ -90,7 +90,7 @@ const skeleton = validateSkeleton({
 
 const schoolId = "school-1";
 const ownerId = "user-1";
-const env = { V3_ENABLED: "1", V3_SCHOOL_IDS: schoolId, NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED: "1" } as NodeJS.ProcessEnv;
+const env = { V3_ENABLED: "1", V3_SCHOOL_IDS: schoolId } as NodeJS.ProcessEnv;
 
 const uploadDoc: ExtractedDocument = {
   id: "handout",
@@ -615,20 +615,23 @@ describe("startFromBrief guards", () => {
     expect((await briefStore.load(partial))!.status).toBe("briefing");
   });
 
-  it("sets the title, clears the brief, and enqueues 7 steps for quick / 2 for standard", async () => {
+  it("sets the title, preserves the conversation, and enqueues 7 steps for quick / 2 for standard", async () => {
     const harness = await makeJob();
     const { deps, jobs, briefStore, store } = harness;
 
     const quick = await briefingAtConfirm(harness, "quick");
+    const quickState = (await briefStore.load(quick))!.state;
     expect(await startFromBrief(deps, jobs, briefStore, ownerId, quick, env)).toEqual({ ok: true });
     const quickRow = (await briefStore.load(quick))!;
     expect(quickRow.status).toBe("generating");
     expect((quickRow as { title?: string }).title ?? (await briefStore.listForOwner(ownerId)).find((r) => r.id === quick)?.title).toBe("Founding of Singapore, 1819");
-    expect(quickRow.state).toBeNull();
+    expect(quickRow.state).toEqual(quickState);
     expect((await store.list(quick)).map((r) => r.name)).toEqual(["sources", "skeleton", "details", "endings", "reveal", "check", "save"]);
 
     const standard = await briefingAtConfirm(harness, "standard");
+    const standardState = (await briefStore.load(standard))!.state;
     expect(await startFromBrief(deps, jobs, briefStore, ownerId, standard, env)).toEqual({ ok: true });
+    expect((await briefStore.load(standard))!.state).toEqual(standardState);
     expect((await store.list(standard)).map((r) => r.name)).toEqual(["sources", "skeleton"]);
   });
 
@@ -887,10 +890,13 @@ describe("guided pauses", () => {
 });
 
 
-it("does not enqueue a crafted guided brief while the feature is disabled", async () => {
+it.each([
+  { V3_ENABLED: "0", V3_SCHOOL_IDS: schoolId },
+  { V3_ENABLED: "1", V3_SCHOOL_IDS: "another-school" },
+])("keeps Guided creation behind v3 school permissions: %j", async permissions => {
   const h = await makeJob();
   const id = await briefingAtConfirm(h, "guided");
-  const result = await startFromBrief(h.deps, h.jobs, h.briefStore, ownerId, id, { ...env, NEXT_PUBLIC_V3_GUIDED_MODE_ENABLED: "0" });
+  const result = await startFromBrief(h.deps, h.jobs, h.briefStore, ownerId, id, permissions);
   expect(result).toHaveProperty("error");
   expect(await h.store.list(id)).toEqual([]);
   expect((await h.briefStore.load(id))!.status).toBe("briefing");

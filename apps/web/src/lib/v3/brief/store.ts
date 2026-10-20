@@ -15,6 +15,7 @@ export interface V3BriefRow {
   status: string;
   title: string | null;
   state: BriefStateV3 | null;
+  updatedAt?: string;
 }
 
 export interface V3BriefListRow {
@@ -29,7 +30,7 @@ export interface V3BriefStore {
   create(input: { schoolId: string; ownerId: string }): Promise<string>;
   load(id: string): Promise<V3BriefRow | null>;
   save(id: string, state: BriefStateV3): Promise<void>;
-  /** conditional briefing → generating; sets the title and clears brief_state */
+  /** conditional briefing → generating; sets the title and retains the conversation */
   startFromBrief(id: string, title: string): Promise<boolean>;
   /** deletes the row, only while briefing */
   discard(id: string): Promise<boolean>;
@@ -63,6 +64,7 @@ function toBriefRow(row: StoredRow): V3BriefRow {
     ownerId: row.owner_id,
     schoolId: row.school_id,
     status: row.status,
+    updatedAt: row.updated_at,
     title: row.title,
     state: state.success ? state.data : null,
   };
@@ -98,7 +100,7 @@ export function supabaseV3BriefStore(client: SupabaseClient): V3BriefStore {
     async startFromBrief(id, title) {
       const { data, error } = await client
         .from("adventures_v3")
-        .update({ status: "generating", title, brief_state: null })
+        .update({ status: "generating", title })
         .eq("id", id)
         .eq("status", "briefing")
         .select("id");
@@ -168,7 +170,6 @@ export function memoryV3BriefStore() {
       if (!row || row.status !== "briefing") return false;
       row.status = "generating";
       row.title = title;
-      row.brief_state = null;
       return true;
     },
     async discard(id) {

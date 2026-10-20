@@ -1,4 +1,4 @@
-import type { AdventureSpec } from "@adventure/spec-v3";
+import { AdventureSpec } from "@adventure/spec-v3";
 import type { ExtractedDocument } from "@adventure/generation";
 import { applyV3Edits, type V3Edit, type CapturedSource } from "./commands";
 
@@ -108,9 +108,12 @@ export function deriveAttribution(
 
 export function applyTeacherEdits(base: AdventureSpec, edits: V3Edit[], sources: CapturedSource[]): AdventureSpec {
   if (edits.length === 0) return base;
-  const spec = applyV3Edits(base, edits, sources);
-  if (!same(spec, base)) {
-    deriveAttribution(base, spec);
+  // JSONB can reorder citation keys. Compare two schema-normalized trees so
+  // harmless key order changes are not mistaken for teacher evidence edits.
+  const normalized = AdventureSpec.parse(base);
+  const spec = applyV3Edits(normalized, edits, sources);
+  if (!same(spec, normalized)) {
+    deriveAttribution(normalized, spec);
     // Only the last evidence operation for a surviving real document supplies
     // its source label. A later conversion/removal must not restore old cites.
     const evidence = new Map<string, V3Edit>();
