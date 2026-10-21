@@ -17,7 +17,7 @@ const surrender = {
   credit: "Australian War Memorial · 127902 · public domain",
   href: "https://commons.wikimedia.org/wiki/File:British_troops_surrender_in_Singapore.png",
 };
-const stops = ["Singapore · 1942", "India · 1943", "Malaya · late 1943–1944"];
+const stops = ["Singapore · 1942", "Malaya · late 1943–1944"];
 const briefing: V3CinematicBeat[] = [
   {
     id: "person",
@@ -54,7 +54,7 @@ export const demoCinematics = {
       ...(index === 0 ? { image: surrender } : {}),
       journey: {
         stops,
-        current: index === 0 ? 0 : 2,
+        current: index,
       },
       items: [
         stage.question,
