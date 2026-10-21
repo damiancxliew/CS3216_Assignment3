@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { chatInstructions, curatedReply, selectContext } from "@/lib/demo/chat";
 import { stages } from "@/lib/demo/lim-bo-seng";
+import { publicJson } from "@/lib/play/http";
 
 export const runtime = "nodejs";
 export const maxDuration = 35;
@@ -40,8 +41,9 @@ const output = z.object({
 // Presentation-scale guard, process-local. Production deployments need a shared limiter.
 const requests = new Map<string, { start: number; count: number }>();
 let daily = { start: Date.now(), count: 0 };
+// Not a v3 route, so replies go through the shared wrapper that refuses private keys.
 const json = (body: unknown, status = 200) =>
-  NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
+  publicJson(body, { status, headers: { "Cache-Control": "no-store" } });
 export async function POST(request: NextRequest) {
   // Next's development server can normalize nextUrl to localhost even when
   // the browser used 127.0.0.1. Compare the browser authority with the actual
