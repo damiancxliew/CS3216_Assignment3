@@ -27,6 +27,24 @@ describe("standalone v3 demo adapter", () => {
       restoreDemoV3State(JSON.stringify({ ...state, stage: 999 })).stage,
     ).toBe(0);
   });
+  it("removes saved source footers from character speech without editing student text or progress", () => {
+    const state = newDemoV3State();
+    const footer =
+      "Sources: Lim Bo Seng: the documented timeline; A family behind the public figure; A letter home survives. Inspect records in Source archive.";
+    state.messages[0].text = `The family matters.\n\n${footer}`;
+    state.messages.push({
+      ...state.messages[0],
+      id: "student-question",
+      kind: "player",
+      text: footer,
+    });
+    state.revision = 7;
+    const restored = restoreDemoV3State(JSON.stringify(state));
+    expect(restored.messages[0].text).toBe("The family matters.");
+    expect(restored.messages[1].text).toBe(footer);
+    expect(restored.revision).toBe(7);
+    expect(restored.notes).toEqual(state.notes);
+  });
   it("uses v3 document selection, decisions, predictions, interview and reveal across five stages", async () => {
     let saved = newDemoV3State();
     const client = createDemoV3Client(saved, (s) => {
@@ -96,8 +114,8 @@ describe("standalone v3 demo adapter", () => {
     });
     expect(result.ok).toBe(true);
     expect(fetcher.mock.calls[0][0]).toBe("/api/demo/lim-bo-seng/chat");
-    expect(projectDemoV3(saved).messages.at(-1)?.text).not.toContain(
-      "Live AI reconstruction",
+    expect(projectDemoV3(saved).messages.at(-1)?.text).toBe(
+      "The evidence shows a tension between duty and family.",
     );
     expect(
       selectContext(0, "ration cards food").some((s) => s.id === "ration"),

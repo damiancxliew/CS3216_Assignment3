@@ -309,7 +309,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                           type="button"
                           disabled={busy}
                           onClick={() => setConfirmEndStage(false)}
-                          className={`${styles.chip} min-h-8 border px-2 text-xs font-bold`}
+                          className="min-h-9 rounded-md border border-[#101522] bg-[#1f2433] px-3 text-xs font-bold text-[#fffaf0] shadow-[0_2px_0_#101522] hover:bg-[#343c50] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf] disabled:opacity-50"
                         >
                           Keep exploring
                         </button>

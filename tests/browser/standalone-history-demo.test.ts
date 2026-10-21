@@ -97,7 +97,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           .getByText(/The family record reminds us/)
           .last()
           .innerText(),
-      ).not.toMatch(/live (?:AI reconstruction|construction by AI)/i);
+      ).not.toMatch(/live (?:AI reconstruction|construction by AI)|Sources:|Inspect records in Source archive/i);
       await page
         .getByRole("button", { name: "Close conversation (Esc)" })
         .click();
@@ -124,6 +124,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           ).notes?.length === 1,
       );
       await page.getByRole("button", { name: /I'm ready to decide/ }).click();
+      await page.screenshot({ path: "output/history-demo-check/exploration-confirmation.png" });
       await page.getByRole("button", { name: "Continue to decision" }).click();
       await page.getByRole("listbox", { name: "Choose an action" }).waitFor();
       await page.getByRole("option").first().click();

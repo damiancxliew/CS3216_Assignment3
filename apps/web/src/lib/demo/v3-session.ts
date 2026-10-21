@@ -197,6 +197,16 @@ export function restoreDemoV3State(raw: string | null): DemoV3State {
       s.messages = s.messages.map((m) => ({
         ...m,
         stageIndex: m.stageIndex ?? null,
+        // Only remove the old generated footer from character replies, never student text.
+        text:
+          m.kind === "character" && typeof m.text === "string"
+            ? m.text
+                .replace(
+                  /(?:\n\n)?Sources: [^\n]*\. Inspect records in Source archive\.$/,
+                  "",
+                )
+                .trimEnd()
+            : m.text,
       }));
     // Preserve progress and export old fictional dialogue without attributing it to real people.
     if (s.castEdition !== 2) {
@@ -691,7 +701,9 @@ export function createDemoV3Client(
           addMessage(
             next,
             "character",
-            `${answer.reply}\n\n${answer.mode === "live" ? "" : "Research note · live conversation unavailable. "}Sources: ${answer.sources.map((id: string) => sourceById(id).title).join("; ")}. Inspect records in Source archive.`,
+            answer.mode === "live"
+              ? answer.reply
+              : `${answer.reply}\n\nResearch note · live conversation unavailable.`,
             npc.id,
           );
         } else if (action.type === "endStage") {
