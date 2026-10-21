@@ -603,7 +603,9 @@ class TiledScene extends Phaser.Scene {
       const requestedKey = actor.sprite ?? this.defaultSprite
       const fallbackKey = this.textures.exists(`char-${requestedKey}`) ? `char-${requestedKey}` : `char-${this.defaultSprite}`
       const generatedKey = actor.spriteSheetUrl ? assetTextureKey(actor.spriteSheetUrl) : null
-      const key = generatedKey && this.textures.exists(generatedKey) ? generatedKey : fallbackKey
+      // A generated sheet is cached as one image before registerAnimations slices its frames;
+      // keep the fallback until frame 0 exists so a marker is never sized from the whole sheet.
+      const key = generatedKey && this.textures.exists(generatedKey) && this.textures.get(generatedKey).has('0') ? generatedKey : fallbackKey
       const positionKey = `${actor.position.x},${actor.position.y}`
       const offset = occupied.get(positionKey) ?? 0
       occupied.set(positionKey, offset + 1)

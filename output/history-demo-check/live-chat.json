@@ -1,0 +1,25 @@
+[
+  {
+    "question": "Does leaving my family mean abandoning my responsibilities? What can the letter home help us understand?",
+    "status": 200,
+    "ms": 3590,
+    "reply": "Mei (softly): Leaving isn’t the same as abandoning. It’s choosing which duty you can still carry: to protect the family by stepping into danger, or to protect them by staying visible and near. Either way, someone pays a cost—your wife may shoulder the home alone; the children may miss a father; your civic partners may lose a coordinator if you stay. Historian note: A surviving letter shows you tried to hold both duties together—commitment to the war effort alongside hopes for your children’s schooling—so separation did not erase responsibility; it reframed it. What can you put in writing or arrangements now—money, guardians, instructions—that helps them cope without promising what you can’t control?",
+    "sources": [
+      "family",
+      "letter",
+      "life"
+    ],
+    "mode": "live"
+  },
+  {
+    "question": "Our rice-card evidence is from Singapore. Does that prove what your household experienced here in Perak? Why might having money still not provide enough food?",
+    "status": 200,
+    "ms": 3869,
+    "mode": "curated",
+    "reply": "Mrs Tan's scene concerns: The fictional Perak household is not proven by Singapore ration records.\n\nResearch note: A surviving rice purchasing card records a household's entitlement to buy a specified quantity of rice. War disrupted imports and the supply of necessities, prompting rationing. A purchasing entitlement is different from evidence that the rice was actually available.\n\nConsider this in your decision: How will you divide provisions when a paper entitlement and a bundle of money cannot guarantee a meal?",
+    "sources": [
+      "ration",
+      "food"
+    ]
+  }
+]
