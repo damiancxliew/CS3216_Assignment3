@@ -1,3 +1,4 @@
+import { buildWaterfrontMap } from "./waterfront-map";
 import {
   GENERATOR_VERSION,
   MAP_SCHEMA_VERSION,
@@ -168,6 +169,7 @@ export function buildStoryMap(
   roomIds: string[],
   characterIds: string[],
 ): AuthoredScene {
+  if (stage === 0) return buildWaterfrontMap(stageId, roomIds, characterIds);
   const plan = plans[stage];
   const town = stage === 0 || stage === 3;
   const coast = stage === 0 || stage === 2;

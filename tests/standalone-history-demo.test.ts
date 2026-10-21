@@ -58,6 +58,14 @@ describe("standalone v3 demo adapter", () => {
     expect((await client.act(999, { type: "tick" })).ok).toBe(false);
     expect((await client.act(0, { type: "endStage" })).ok).toBe(false);
     await act({ type: "continue" });
+    expect(
+      (
+        await client.act(saved.revision, {
+          type: "enterRoom",
+          roomId: "embark",
+        })
+      ).ok,
+    ).toBe(false);
     for (let i = 0; i < stages.length; i++) {
       const view = projectDemoV3(saved);
       const source = view.documentsHere[0];
@@ -72,6 +80,27 @@ describe("standalone v3 demo adapter", () => {
       await act({ type: "endStage" });
       await act({ type: "act", actId: stages[i].choices[0].id });
       await act({ type: "predict", outcomeId: "support" });
+      if (i === 0) {
+        expect(saved.stage).toBe(0);
+        expect(saved.departureReady).toBe(true);
+        expect(restoreDemoV3State(JSON.stringify(saved)).departureReady).toBe(
+          true,
+        );
+        expect(
+          (await client.act(saved.revision, { type: "endStage" })).ok,
+        ).toBe(false);
+        expect(
+          (
+            await client.act(saved.revision, {
+              type: "enterRoom",
+              roomId: "embark",
+            })
+          ).ok,
+        ).toBe(false);
+        await act({ type: "enterRoom", roomId: "quay" });
+        await act({ type: "enterRoom", roomId: "embark" });
+        expect(saved.stage).toBe(1);
+      }
       if (i < stages.length - 1) await act({ type: "continue" });
     }
     expect(projectDemoV3(saved).phase).toBe("epilogue");

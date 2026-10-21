@@ -16,6 +16,21 @@ import {
 import { stages } from "../apps/web/src/lib/demo/lim-bo-seng";
 
 describe("authored history maps on the v3 engine", () => {
+  it("makes the waterfront compact and keeps its boarding point reachable", () => {
+    const scene = demoScenery[0].authored;
+    expect(scene.map.width * scene.map.height).toBeLessThan(42 * 36 * 0.52);
+    expect(
+      findPath(scene.map, scene.initialDoors, scene.playerSpawn, {
+        x: 27,
+        y: 18,
+      }),
+    ).not.toBeNull();
+    expect(spaceAt(scene.map, { x: 27, y: 18 })).toEqual({
+      kind: "outdoor",
+      locationId: "quay",
+    });
+    expect(scene.cast?.map((person) => person.id)).toEqual(["lim", "gan"]);
+  });
   it.each(stages.map((stage, index) => [stage.title, index] as const))(
     "keeps every interaction reachable in %s",
     (_, index) => {

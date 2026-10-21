@@ -84,3 +84,15 @@ The standalone wrapper supplies archival chatbot avatars for Lim Bo Seng, Gan Ch
 Each historical NPC has its own photo-referenced, AI-generated walking sheet. Original outputs and prompts live beside this document; `scripts/pack-history-character-sheets.mjs` reproducibly aligns the frames. The existing Phaser renderer accepts higher-resolution 4×4 sheets while retaining the native 16px world footprint, direction order and movement logic. Existing 64×64 sheets remain compatible. Ordinary v2/v3 generation does not consume this cast or its assets.
 
 Verification: all five archival avatars and all five authored maps load in Chrome, with no page errors or missing demo assets. Existing movement, dialogue, documents, decisions, saved progress and mobile layout checks pass. Game-client typechecking, 65 unit tests and production build pass; the focused history/v3 suite passes 81 tests.
+
+### Compact opening: Singapore River waterfront
+
+Stage one uses a 32×24 map (768 tiles), down from 42×36 (1,512 tiles): 49% less area. Five adjoining shophouses, bilingual illustrative shop signs, a shared five-foot way, a godown, mooring posts, cargo boats and river steps replace the scattered blocks. Lim and Gan remain visible across interaction areas; clicking a distant figure routes the player to that area. Desktop framing shows the whole small scene; mobile retains the existing following camera.
+
+Two optional activities add purpose to the scenery: select two household commitments and consider the unresolved needs; identify what the dated surrender photograph can and cannot establish about an earlier departure. These are classroom exercises, not records of a documented allocation. Their progress is stored separately from the authoritative lesson decisions.
+
+The first prediction now saves a pending departure instead of immediately advancing. The student walks to the marked river steps, sees a skippable illustrated boarding sequence using the cast sprites, then continues to the existing India 1943 introduction. Reduced-motion users see a static scene and the same continuation. The adapter rejects boarding before a recorded decision or from outside the quay. Other stages retain their existing progression.
+
+`?preview=waterfront` has its own lesson and activity saves, including restart. It allows the new first stage to be tried without replacing an in-progress lesson. `StageExperience` is an optional host extension; standard v3 callers omit it. v2/v3 generation is unchanged.
+
+Visual references: [NHB, The Singapore Shophouses](https://www.roots.gov.sg/stories-landing/stories/singapore-shophouses/story), [NHB, The Singapore River Story](https://www.roots.gov.sg/stories-landing/stories/the-singapore-river-story/story), and [URA, Boat Quay Conservation Area](https://www.ura.gov.sg/conservation/find-a-building/conservation-portal/btqy/). These support the building types and waterfront commerce. They do not establish Lim’s precise boarding location, boat, route or a particular 1942 street layout. The demo does not claim to reconstruct those particulars.

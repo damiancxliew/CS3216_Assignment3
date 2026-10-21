@@ -1,4 +1,6 @@
 "use client";
+import type { ReactNode } from "react";
+import type { Point } from "@adventure/game-core";
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
@@ -45,7 +47,19 @@ function formatTime(milliseconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] }, onOpenRoleBrief }: {
+export type StageExperience = {
+  mission?: ReactNode;
+  overlay?: ReactNode;
+  hideDecision?: boolean;
+  decisionHint?: string;
+  movementLocked?: boolean;
+  destination?: Point | null;
+  onArrive?: (point: Point) => void;
+  onInspect?: (id: string, walkTo: (point: Point) => void) => boolean;
+};
+
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] }, onOpenRoleBrief, experience }: {
+  experience?: StageExperience;
   view: PlayerView;
   busy: boolean;
   send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
@@ -91,7 +105,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     ? view.characters.find((character) => character.id === talkingTo) ?? null
     : null;
   const isTalkOpen = openCharacter !== null;
-  const movementLocked = externalMovementLock || isTalkOpen || isMoment;
+  const movementLocked = externalMovementLock || isTalkOpen || isMoment || Boolean(experience?.movementLocked);
   const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
   const spawnRoomId = view.rooms[0]?.id ?? "";
   const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
@@ -180,6 +194,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
 
   return (
     <>
+      {experience?.overlay}
       <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col`}>
         <section
           ref={mapSection}
@@ -194,6 +209,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               stageId={stageId}
               stageIndex={stageIndex}
               scenery={scenery}
+              destination={experience?.destination}
+              onArrive={experience?.onArrive}
+              onInspectLandmark={experience?.onInspect}
               rooms={view.rooms}
               spawnRoomId={spawnRoomId}
               currentRoomId={view.currentRoomId}
@@ -293,7 +311,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
 
           {!missionCollapsed ? (
             <div className="mt-2 space-y-2">
-              {stage?.centralQuestion ? (
+              {experience?.mission}
+              {stage?.centralQuestion && !experience?.mission ? (
                 <p className="text-sm font-semibold leading-snug">{stage.centralQuestion}</p>
               ) : null}
               {!isMoment ? (
@@ -301,9 +320,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                   <p className="text-xs text-[#5c6472]">
                     You are in {view.rooms.find((room) => room.id === view.currentRoomId)?.name ?? "an unknown room"}
                   </p>
-                  {confirmEndStage ? (
+                  {experience?.hideDecision ? null : confirmEndStage ? (
                     <div role="alert" className="space-y-2">
-                      <p className="text-xs font-bold">You won&apos;t be able to explore after this.</p>
+                      <p className="text-xs font-bold">{experience?.decisionHint ?? "You won’t be able to explore after this."}</p>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"

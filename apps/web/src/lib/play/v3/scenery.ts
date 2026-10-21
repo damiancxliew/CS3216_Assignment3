@@ -14,8 +14,11 @@ export type V3StageScenery = {
     style: StoryStyle;
     fixtures: NonNullable<PlaygroundSnapshot["landmarks"]>;
     roomKinds: Record<string, string>;
+    desktopCamera?: "detail" | "overview";
     playerSheet?: string;
     characterSheets?: Record<string, string>;
+    /** Authored figures remain visible outside the current interaction area. */
+    cast?: { id: string; name: string; roomId: string }[];
     streetTalk?: PlaygroundSnapshot["streetTalk"];
   };
 };

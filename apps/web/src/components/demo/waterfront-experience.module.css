@@ -1,0 +1,242 @@
+.mission {
+  border-bottom: 1px solid #b6aa8d;
+  padding-bottom: 0.65rem;
+  color: #263b36;
+}
+.dateline {
+  color: #765331;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.title {
+  margin: 0.4rem 0;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.mission p:not(.title):not(.dateline) {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tasks {
+  display: grid;
+  gap: 4px;
+  margin: 0.6rem 0;
+  font-size: 12px;
+}
+.tasks button,
+.tasks span {
+  padding: 6px 8px;
+  text-align: left;
+  border: 1px solid #c9baa0;
+  background: #f2ead8;
+  border-radius: 3px;
+}
+.tasks button:hover {
+  background: #e2dcc6;
+}
+.primary {
+  display: inline-block;
+  background: #285c4d;
+  color: #fff9e9;
+  border: 2px solid #183e35;
+  border-radius: 4px;
+  padding: 10px 14px;
+  min-height: 44px;
+  font-weight: 800;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.primary:hover {
+  background: #193f35;
+}
+.activity {
+  display: grid;
+  gap: 14px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.cards button {
+  text-align: left;
+  padding: 14px;
+  color: #293a34;
+  background: #f5eedf;
+  border: 2px solid #bbac8d;
+  border-radius: 5px;
+}
+.cards button[aria-pressed="true"] {
+  border-color: #285c4d;
+  background: #dce6d5;
+}
+.cards button:disabled {
+  opacity: 0.5;
+}
+.cards span {
+  display: block;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.feedback {
+  background: #e4e9d8;
+  border-left: 4px solid #426556;
+  padding: 12px;
+}
+.record {
+  width: 100%;
+  max-height: 230px;
+  object-fit: contain;
+  background: #252d28;
+}
+.credit {
+  color: #665e4c;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.departure {
+  height: 240px;
+  position: relative;
+  overflow: hidden;
+  background: #c5c7aa;
+  border: 3px solid #38493d;
+  margin-bottom: 16px;
+  image-rendering: pixelated;
+}
+.skyline {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 96px;
+  background: url("/demo/lim-bo-seng/map/river-provision-full.svg") repeat-x;
+  background-size: 96px 96px;
+}
+.bank {
+  position: absolute;
+  top: 96px;
+  width: 100%;
+  height: 55px;
+  background: repeating-linear-gradient(
+    0deg,
+    #b7aa87 0 10px,
+    #8e886f 10px 12px
+  );
+  border-bottom: 7px solid #665d48;
+}
+.river {
+  position: absolute;
+  inset: 151px 0 0;
+  background: repeating-linear-gradient(
+    0deg,
+    #567f77 0 10px,
+    #668d80 10px 12px,
+    #567f77 12px 23px
+  );
+}
+.lim,
+.gan {
+  position: absolute;
+  top: 84px;
+  width: 64px;
+  height: 64px;
+  background-size: 256px 256px;
+  z-index: 3;
+}
+.lim {
+  left: 25%;
+  background-image: url("/demo/lim-bo-seng/sprites/lim.png");
+  background-position: -192px 0;
+  animation:
+    boarding 6s linear forwards,
+    walk 0.6s steps(4) infinite;
+}
+.gan {
+  left: 13%;
+  background-image: url("/demo/lim-bo-seng/sprites/gan.png");
+  background-position: -192px 0;
+}
+.boat {
+  position: absolute;
+  left: 64%;
+  top: 151px;
+  width: 144px;
+  height: 96px;
+  background: url("/demo/lim-bo-seng/map/river-boat-full.svg") center/contain
+    no-repeat;
+  animation: sailing 6s ease-in forwards;
+  z-index: 2;
+}
+.parcel {
+  position: absolute;
+  left: 22%;
+  top: 122px;
+  width: 32px;
+  height: 32px;
+  background: url("/demo/lim-bo-seng/map/household-parcels.svg") center/contain;
+  z-index: 4;
+}
+.sceneLabel {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #fff0c6;
+  font-weight: 900;
+}
+@keyframes walk {
+  from {
+    background-position-y: 0;
+  }
+  to {
+    background-position-y: -256px;
+  }
+}
+@keyframes boarding {
+  0%,
+  15% {
+    left: 25%;
+    top: 84px;
+    opacity: 1;
+  }
+  55% {
+    left: 66%;
+    top: 96px;
+    opacity: 1;
+  }
+  65%,
+  100% {
+    left: 69%;
+    top: 132px;
+    opacity: 0;
+  }
+}
+@keyframes sailing {
+  0%,
+  65% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(250px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lim,
+  .boat {
+    animation: none;
+  }
+  .lim {
+    left: 55%;
+  }
+}
+@media (max-width: 480px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+  .departure {
+    height: 220px;
+  }
+}

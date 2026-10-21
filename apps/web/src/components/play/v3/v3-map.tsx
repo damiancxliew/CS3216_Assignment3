@@ -37,6 +37,9 @@ type V3Room = PlayerView["rooms"][number];
 type V3Character = PlayerView["characters"][number];
 
 interface V3MapProps {
+  destination?: Point | null;
+  onArrive?: (point: Point) => void;
+  onInspectLandmark?: (id: string, walkTo: (point: Point) => void) => boolean;
   crowdContext?: string;
   attemptId: string;
   stageId: string;
@@ -87,6 +90,7 @@ export function V3Map(props: V3MapProps) {
   const host = useRef<HTMLDivElement>(null);
   const currentRoomRef = useRef(props.currentRoomId);
   const renderRef = useRef<(() => void) | null>(null);
+  const destinationHandler = useRef<(point: Point) => void>(() => {});
   const walkToHandler = useRef<(roomId: string | null) => void>(() => {});
   const nearbyChangeHandler = useRef<() => void>(() => {});
   const movementLockHandler = useRef<() => void>(() => {});
@@ -102,6 +106,10 @@ export function V3Map(props: V3MapProps) {
     props.scenery,
   ));
   const map = compiled.map;
+
+  useEffect(() => {
+    if (props.destination) destinationHandler.current(props.destination);
+  }, [props.destination]);
 
   useEffect(() => {
     currentRoomRef.current = props.currentRoomId;
@@ -167,6 +175,14 @@ export function V3Map(props: V3MapProps) {
           spriteSheetUrl: latest.current.scenery?.authored?.playerSheet,
           facing,
         },
+        ...(latest.current.scenery?.authored?.cast ?? []).filter(character => character.roomId !== currentRoomRef.current).flatMap(character => {
+          const position = seatIn(map, character.roomId, 1);
+          return position ? [{ id: character.id, name: character.name, position,
+            space: spaceAt(map, position), targetRoomId: null, status: "idle" as const,
+            spriteSheetUrl: latest.current.scenery?.authored?.characterSheets?.[character.id],
+            interactive: !latest.current.movementLocked,
+          }] : [];
+        }),
         ...characterSeats().map(({ character, position }) => {
           const sprite = characterFor({ id: character.id, name: character.name, role: character.title });
           return {
@@ -214,8 +230,13 @@ export function V3Map(props: V3MapProps) {
         : [];
       revision += 1;
       render();
-      if (!found || path.length === 0) latest.current.onWalkDone();
+      if (!found || path.length === 0) {
+        latest.current.onWalkDone();
+        if (found) latest.current.onArrive?.(playerPosition);
+      }
     };
+
+    destinationHandler.current = goTo;
 
     const goToRoom = (roomId: string) => {
       const room = map.rooms.find((candidate) => candidate.id === roomId);
@@ -267,7 +288,7 @@ export function V3Map(props: V3MapProps) {
         revision += 1;
         updateNearbyCharacter();
         render();
-      } else if (!latest.current.movementLocked) {
+      } else if (!latest.current.movementLocked && !latest.current.destination) {
         const documentId = unreadDocumentAt(documentProps(), next);
         if (documentId === null) {
           autoOpenedAt = null;
@@ -279,6 +300,7 @@ export function V3Map(props: V3MapProps) {
           }
         }
       }
+      latest.current.onArrive?.(playerPosition);
       finishWalk();
     };
 
@@ -368,6 +390,9 @@ export function V3Map(props: V3MapProps) {
           onActor: (actorId) => {
             if (latest.current.characters.some((character) => character.id === actorId)) {
               latest.current.onSelectCharacter(actorId);
+            } else {
+              const person = latest.current.scenery?.authored?.cast?.find(character => character.id === actorId);
+              if (person) goToRoom(person.roomId);
             }
           },
           onProp: (documentId) => {
@@ -378,6 +403,7 @@ export function V3Map(props: V3MapProps) {
           ...(latest.current.scenery?.authored ? {
             onLandmark: (id: string) => {
               if (latest.current.movementLocked) return;
+              if (latest.current.onInspectLandmark?.(id, goTo)) return;
               const fixture = latest.current.scenery?.authored?.fixtures.find(item => item.id === id);
               if (fixture?.description) setInspection({ name: fixture.name, description: fixture.description });
             },
@@ -387,7 +413,7 @@ export function V3Map(props: V3MapProps) {
             latest.current.onWalkDone();
             goToRoom(roomId);
           },
-          camera: "detail",
+          camera: window.matchMedia("(min-width: 1024px)").matches ? latest.current.scenery?.authored?.desktopCamera ?? "detail" : "detail",
           zoomScale: window.matchMedia("(min-width: 1024px)").matches ? (latest.current.scenery?.authored ? 0.5 : 0.75) : 1,
         });
         if (destroyed) {

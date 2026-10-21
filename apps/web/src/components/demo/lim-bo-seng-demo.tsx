@@ -18,6 +18,7 @@ import {
 } from "@/lib/demo/v3-session";
 import chrome from "@/components/play/adventure-chrome.module.css";
 import "./historical-portraits.css";
+import { useWaterfrontExperience } from "./waterfront-experience";
 
 export function LimBoSengDemo() {
   const [boot, setBoot] = useState<{
@@ -25,7 +26,13 @@ export function LimBoSengDemo() {
     client: PlayClient;
     key: number;
   } | null>(null);
+  const saveKey = useRef(DEMO_SAVE_KEY);
   const latest = useRef<DemoV3State>(newDemoV3State());
+  const stageExperience = useWaterfrontExperience(
+    () => latest.current,
+    boot?.key ?? 0,
+    boot ? saveKey.current : null,
+  );
   const [archive, setArchive] = useState(false);
   const [selectedSource, setSelectedSource] = useState("life");
   const [restart, setRestart] = useState(false);
@@ -35,7 +42,7 @@ export function LimBoSengDemo() {
     const client = createDemoV3Client(initial, (next) => {
       latest.current = next;
       try {
-        localStorage.setItem(DEMO_SAVE_KEY, JSON.stringify(next));
+        localStorage.setItem(saveKey.current, JSON.stringify(next));
       } catch {
         setSaveError(true);
       }
@@ -43,9 +50,14 @@ export function LimBoSengDemo() {
     return { initial, client, key };
   }
   useEffect(() => {
+    if (
+      new URLSearchParams(window.location.search).get("preview") ===
+      "waterfront"
+    )
+      saveKey.current = `${DEMO_SAVE_KEY}.waterfront-preview`;
     let state = newDemoV3State();
     try {
-      state = restoreDemoV3State(localStorage.getItem(DEMO_SAVE_KEY));
+      state = restoreDemoV3State(localStorage.getItem(saveKey.current));
     } catch {
       setSaveError(true);
     }
@@ -91,6 +103,7 @@ export function LimBoSengDemo() {
         initialView={projectDemoV3(boot.initial)}
         initialRevision={boot.initial.revision}
         scenery={demoScenery}
+        stageExperience={stageExperience}
         cinematics={demoCinematics}
         portraitBase="/demo/lim-bo-seng/portraits"
         makeClient={() => boot.client}
@@ -245,7 +258,7 @@ export function LimBoSengDemo() {
               onClick={() => {
                 const fresh = newDemoV3State();
                 try {
-                  localStorage.setItem(DEMO_SAVE_KEY, JSON.stringify(fresh));
+                  localStorage.setItem(saveKey.current, JSON.stringify(fresh));
                 } catch {
                   setSaveError(true);
                 }

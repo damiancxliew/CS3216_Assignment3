@@ -19,13 +19,13 @@ const roomSets = [
     },
     {
       id: "quay",
-      name: "Harbour quay",
+      name: "Singapore River quay",
       description:
         "A timber harbour quay with moored sampans, cargo crates, baskets, rope, a handcart and boat landing.",
     },
     {
       id: "records",
-      name: "Community office",
+      name: "Five-foot way · records",
       description:
         "A modest shophouse office with wooden desks, correspondence, household records, books and an oil lamp.",
     },
@@ -131,6 +131,7 @@ export type DemoV3State = {
   phase: PlayerView["phase"];
   stage: number;
   intro: boolean;
+  departureReady?: boolean;
   room: string;
   held: string[];
   open: string | null;
@@ -183,6 +184,10 @@ export function restoreDemoV3State(raw: string | null): DemoV3State {
       !Array.isArray(s.answers) ||
       s.answers.length > 2 ||
       typeof s.intro !== "boolean" ||
+      (s.departureReady !== undefined &&
+        typeof s.departureReady !== "boolean") ||
+      (s.departureReady === true &&
+        (s.stage !== 0 || !s.decisions.some((d) => d.stage === 0))) ||
       !roomSets[s.stage].some((r) => r.id === s.room) ||
       !Array.isArray(s.held) ||
       !s.held.every((id) => sources.some((source) => source.id === id)) ||
@@ -322,7 +327,9 @@ export function projectDemoV3(s: DemoV3State): PlayerView {
       count: stages.length,
       title: stage.title,
       timePlace: `${stage.place} · ${stage.date}`,
-      centralQuestion: stage.question,
+      centralQuestion: s.departureReady
+        ? "Your recommendation is saved. Walk to the river steps to continue the journey."
+        : stage.question,
       intro: s.intro
         ? {
             narration: `${stage.intro}\n\n${stage.objective}\n\n${stage.historian}`,
@@ -593,7 +600,19 @@ export function createDemoV3Client(
           });
         } else if (next.phase !== "stage" || next.intro)
           throw new Error("Open the map before taking this action.");
-        else if (action.type === "enterRoom") {
+        else if (action.type === "enterRoom" && action.roomId === "embark") {
+          if (
+            next.stage !== 0 ||
+            !next.departureReady ||
+            next.moment ||
+            next.room !== "quay"
+          )
+            throw new Error("Finish your recommendation before boarding.");
+          next.departureReady = false;
+          next.stage = 1;
+          next.intro = true;
+          next.room = roomSets[1][0].id;
+        } else if (action.type === "enterRoom") {
           if (
             next.moment ||
             !roomSets[next.stage].some((r) => r.id === action.roomId)
@@ -707,6 +726,10 @@ export function createDemoV3Client(
             npc.id,
           );
         } else if (action.type === "endStage") {
+          if (next.departureReady)
+            throw new Error(
+              "Your recommendation is saved. Walk to the river steps to leave.",
+            );
           if (!next.notes.some((n) => n.stageIndex === next.stage))
             throw new Error(
               "Read a source and select a passage to save an evidence note before deciding.",
@@ -743,7 +766,14 @@ export function createDemoV3Client(
           next.moment = null;
           next.chosen = null;
           next.open = null;
-          if (next.stage === stages.length - 1) next.phase = "epilogue";
+          if (next.stage === 0) {
+            next.departureReady = true;
+            addMessage(
+              next,
+              "narration",
+              "Your recommendation is recorded. Walk to the marked river steps to board. The departure scene is illustrative; it does not establish Lim’s precise route.",
+            );
+          } else if (next.stage === stages.length - 1) next.phase = "epilogue";
           else {
             next.stage++;
             next.intro = true;
