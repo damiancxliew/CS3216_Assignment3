@@ -21,7 +21,7 @@ import { matchMapPalette } from './pixel-art.js'
 import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, roomFinish, surfaceNoise } from './materials.js'
 import { isExposed, WeatherSurface } from './weather.js'
 import { RoomShells } from './room-shells.js'
-import { detailZoom, overviewZoom, scaledZoom } from './camera.js'
+import { coverZoom, detailZoom, overviewZoom, scaledZoom } from './camera.js'
 import { STAGE_CROWD_SPRITES } from './stage-crowds.js'
 import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
@@ -82,8 +82,8 @@ export interface TiledViewOptions {
   onLandmark?: (landmarkId: string) => void
   /** Called when the player clicks the edge pointer to a room that is off screen. */
   onRoomPointer?: (roomId: string) => void
-  /** "detail" (play) magnifies around the player; "overview" fits the stage's width in a small preview. */
-  camera?: 'detail' | 'overview'
+  /** "detail" magnifies around the player; "overview" fits small previews; opt-in "cover" fills the viewport. */
+  camera?: 'detail' | 'overview' | 'cover'
   /** Optional scale for detail camera zoom. */
   zoomScale?: number
   /** Treat detail frames under 900×600 as compact (3x, not 4x); see `detailZoom`. */
@@ -97,7 +97,7 @@ class TiledScene extends Phaser.Scene {
   private readonly base: string
   private readonly defaultSprite: string
   private readonly clickToWalk: boolean
-  private readonly cameraMode: 'detail' | 'overview'
+  private readonly cameraMode: 'detail' | 'overview' | 'cover'
   private readonly zoomScale: number
   private readonly laptopFrames: boolean
   private readonly onActor: ((actorId: string) => void) | undefined
@@ -909,6 +909,7 @@ class TiledScene extends Phaser.Scene {
     const { width, height } = this.scale.gameSize
     const zoom = this.cameraMode === 'overview'
       ? overviewZoom(width, mapW)
+      : this.cameraMode === 'cover' ? coverZoom(width, height, mapW, mapH)
       : scaledZoom(detailZoom(width, height, mapW, mapH, this.laptopFrames), this.zoomScale)
     cam.setZoom(zoom)
     cam.setRoundPixels(true)

@@ -105,6 +105,16 @@ export function buildWaterfrontMap(
     "Check the date before using a record to explain this departure.",
   );
   fixture(
+    "waterfront-newspaper",
+    "Newspaper board · inspect",
+    23,
+    8,
+    "newsstand",
+    2,
+    true,
+    "Examine a newspaper from after the surrender: The Shonan Times, 20 February 1942.",
+  );
+  fixture(
     "waterfront-exit",
     "Board at the river steps",
     28,
@@ -201,7 +211,7 @@ export function buildWaterfrontMap(
       [roomIds[1]]: "dock",
       [roomIds[2]]: "street",
     },
-    desktopCamera: "overview",
+    desktopCamera: "cover",
     playerSheet: asset("civilian"),
     characterSheets: Object.fromEntries(
       characterIds.map((id) => [id, `/demo/lim-bo-seng/sprites/${id}.png`]),

@@ -83,6 +83,7 @@
   margin-top: 6px;
 }
 .feedback {
+  color: #263b36;
   background: #e4e9d8;
   border-left: 4px solid #426556;
   padding: 12px;
@@ -99,7 +100,7 @@
   line-height: 1.5;
 }
 .departure {
-  height: 240px;
+  height: 330px;
   position: relative;
   overflow: hidden;
   background: #c5c7aa;
@@ -109,14 +110,14 @@
 }
 .skyline {
   position: absolute;
-  inset: 0 0 auto;
+  inset: 90px 0 auto;
   height: 96px;
   background: url("/demo/lim-bo-seng/map/river-provision-full.svg") repeat-x;
   background-size: 96px 96px;
 }
 .bank {
   position: absolute;
-  top: 96px;
+  top: 186px;
   width: 100%;
   height: 55px;
   background: repeating-linear-gradient(
@@ -128,7 +129,7 @@
 }
 .river {
   position: absolute;
-  inset: 151px 0 0;
+  inset: 241px 0 0;
   background: repeating-linear-gradient(
     0deg,
     #567f77 0 10px,
@@ -139,7 +140,7 @@
 .lim,
 .gan {
   position: absolute;
-  top: 84px;
+  top: 174px;
   width: 64px;
   height: 64px;
   background-size: 256px 256px;
@@ -150,7 +151,7 @@
   background-image: url("/demo/lim-bo-seng/sprites/lim.png");
   background-position: -192px 0;
   animation:
-    boarding 6s linear forwards,
+    boarding 18s linear forwards,
     walk 0.6s steps(4) infinite;
 }
 .gan {
@@ -161,18 +162,18 @@
 .boat {
   position: absolute;
   left: 64%;
-  top: 151px;
+  top: 241px;
   width: 144px;
   height: 96px;
   background: url("/demo/lim-bo-seng/map/river-boat-full.svg") center/contain
     no-repeat;
-  animation: sailing 6s ease-in forwards;
+  animation: sailing 18s ease-in forwards;
   z-index: 2;
 }
 .parcel {
   position: absolute;
   left: 22%;
-  top: 122px;
+  top: 212px;
   width: 32px;
   height: 32px;
   background: url("/demo/lim-bo-seng/map/household-parcels.svg") center/contain;
@@ -197,26 +198,26 @@
 }
 @keyframes boarding {
   0%,
-  15% {
+  65% {
     left: 25%;
-    top: 84px;
+    top: 174px;
     opacity: 1;
   }
-  55% {
+  85% {
     left: 66%;
-    top: 96px;
+    top: 186px;
     opacity: 1;
   }
-  65%,
+  90%,
   100% {
     left: 69%;
-    top: 132px;
+    top: 222px;
     opacity: 0;
   }
 }
 @keyframes sailing {
   0%,
-  65% {
+  90% {
     transform: translateX(0);
   }
   100% {
@@ -237,6 +238,21 @@
     grid-template-columns: 1fr;
   }
   .departure {
-    height: 220px;
+    height: 330px;
   }
 }
+
+.explorationImage { width: 100%; max-height: 440px; object-fit: contain; background: #252d28; }
+.explorationImage[data-enlarged="true"] { max-height: none; }
+.credit a { text-decoration: underline; }
+.recordsMenu { margin-top: 8px; font-size: 12px; }
+.recordsMenu summary, .activity summary { cursor: pointer; }
+.recordsMenu button { display: block; padding: 7px 0; text-decoration: underline; }
+.speech { position: absolute; top: 8px; left: 3%; width: 94%; min-height: 74px; padding: 8px 12px; background: #fff9e9; color: #263b36; border: 2px solid #38493d; border-radius: 9px; z-index: 5; font-size: 13px; line-height: 1.4; image-rendering: auto; }
+.speech::after { content: ""; position: absolute; left: 25%; bottom: -10px; border: 5px solid transparent; border-top-color: #38493d; }
+.speech p { margin: 3px 0 0; }
+.observer { position: absolute; top: 174px; left: 3%; width: 64px; height: 64px; background: url("/demo/lim-bo-seng/map/civilian.svg") 0 0 / 256px 256px; z-index: 3; }
+.departure[data-paused="true"] * { animation-play-state: paused; }
+.sceneControls { display: flex; gap: 8px; flex-wrap: wrap; }
+:global([data-theme="dark"]) .credit,
+:global([data-theme="dark"]) .activity .dateline { color: #cfbda6; }

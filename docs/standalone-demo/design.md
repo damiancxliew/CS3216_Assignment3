@@ -96,3 +96,13 @@ The first prediction now saves a pending departure instead of immediately advanc
 `?preview=waterfront` has its own lesson and activity saves, including restart. It allows the new first stage to be tried without replacing an in-progress lesson. `StageExperience` is an optional host extension; standard v3 callers omit it. v2/v3 generation is unchanged.
 
 Visual references: [NHB, The Singapore Shophouses](https://www.roots.gov.sg/stories-landing/stories/singapore-shophouses/story), [NHB, The Singapore River Story](https://www.roots.gov.sg/stories-landing/stories/the-singapore-river-story/story), and [URA, Boat Quay Conservation Area](https://www.ura.gov.sg/conservation/find-a-building/conservation-portal/btqy/). These support the building types and waterfront commerce. They do not establish Lim’s precise boarding location, boat, route or a particular 1942 street layout. The demo does not claim to reconstruct those particulars.
+
+### Walking exit, closer camera and inspectable records
+
+Stage one retains its 32×24 geometry. Its opt-in `cover` camera fills desktop viewports at integer zoom and follows the player; ordinary v2/v3 camera defaults stay unchanged. Students may discover the rickshaw photograph, occupation newspaper and currency by clicking the corresponding map objects; the mission's expandable image list provides keyboard access. Local, unaltered image assets keep the demo independent of archive image servers. Dates and source limitations distinguish later evidence from objects present at the departure.
+
+Walking onto x26–28/y18 triggers boarding, without a boarding click, only after two distinct household commitments, the correct date answer, a stage-zero document note, a student exchange with each of Lim and Gan, and the recommendation. A shared requirement function drives both the checklist and the local demo adapter's exit validation. Existing saves retain their recommendation, but still need any missing activities. Activities retain the isolated save scope. The three-tile trigger fires on entry; returning from the animation requires stepping out and back to replay.
+
+An 18-second scene alternates speech bubbles between the student, Gan and Lim, then automatically enters the next stage. Pause/resume, skip, transcript, reduced-motion rendering and failure recovery remain available. Dialogue is labelled dramatisation. The timer and animation pause while the document is hidden. This is a local demo gate, not a server-authoritative assessment system.
+
+`?preview=waterfront-v2` provides a fresh save scope for this walking-exit revision; the previous waterfront preview and main lesson saves are retained.

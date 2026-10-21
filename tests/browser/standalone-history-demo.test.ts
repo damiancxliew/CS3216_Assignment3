@@ -1,5 +1,36 @@
 import { mkdir } from "node:fs/promises";
-import { chromium } from "playwright";
+import { chromium, type Page } from "playwright";
+import { findPath, type Point } from "@adventure/game-core";
+import { demoScenery } from "../../apps/web/src/lib/demo/v3-session";
+import { seatIn } from "../../apps/web/src/lib/play/v3/map";
+
+async function walkWaterfront(page: Page, start: Point, destination: Point) {
+  const scene = demoScenery[0].authored;
+  const route = findPath(scene.map, scene.initialDoors, start, destination)!;
+  expect(route).not.toBeNull();
+  let previous = start;
+  await page.locator("canvas").focus();
+  for (const point of route) {
+    if (point.x === previous.x && point.y === previous.y) continue;
+    const key = point.x > previous.x ? "ArrowRight" : point.x < previous.x ? "ArrowLeft" : point.y > previous.y ? "ArrowDown" : "ArrowUp";
+    await page.keyboard.press(key);
+    // Allow room-entry actions to settle before sending the next physical step.
+    await page.waitForTimeout(100);
+    const putDown = page.getByRole("button", { name: /Put down/ });
+    if (await putDown.isVisible()) { await putDown.click(); await page.locator("canvas").focus(); }
+    previous = point;
+  }
+}
+
+async function completeOpeningActivities(page: Page) {
+  await page.getByRole("button", { name: /Arrange household support/ }).click();
+  await page.getByRole("button", { name: /Household provisions Someone/ }).click();
+  await page.getByRole("button", { name: /Care for the children A named/ }).click();
+  await page.getByRole("button", { name: "Return to the waterfront", exact: true }).click();
+  await page.getByRole("button", { name: /Check the dated record/ }).click();
+  await page.getByRole("button", { name: "The surrender that followed his departure" }).click();
+  await page.getByRole("button", { name: "Return to the waterfront", exact: true }).click();
+}
 import { expect, it } from "vitest";
 
 // Real v3 shell, Phaser map, walking, dialogue, document reader and notes.
@@ -125,6 +156,23 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
             localStorage.getItem("standalone.lim-bo-seng.v3.v1") || "{}",
           ).notes?.length === 1,
       );
+      const ganSeat = seatIn(demoScenery[0].authored.map, "quay", 1)!;
+      await walkWaterfront(page, { x: 6, y: 11 }, ganSeat);
+      await page.keyboard.press("e");
+      await page.getByLabel("Ask Gan Choo Neo a question").fill("What help would the household need?");
+      await page.getByRole("button", { name: "Send", exact: true }).click();
+      await page.getByText(/The family record reminds us/).last().waitFor();
+      await page.getByRole("button", { name: "Close conversation (Esc)" }).click();
+      // Walking to the exit before completing both activities must not board.
+      await walkWaterfront(page, ganSeat, { x: 27, y: 18 });
+      const locked = page.getByRole("dialog", { name: "Before you board" });
+      await locked.waitFor();
+      expect(await locked.getByText("Arrange household support", { exact: true }).isVisible()).toBe(true);
+      expect(await page.getByRole("dialog", { name: "A departure leaves people behind" }).count()).toBe(0);
+      await page.getByRole("button", { name: "Return to the waterfront", exact: true }).click();
+      // The trigger fires when re-entering the steps, never from an unrelated click.
+      await walkWaterfront(page, { x: 26, y: 18 }, { x: 26, y: 17 });
+      await completeOpeningActivities(page);
       await page.getByRole("button", { name: /I'm ready to decide/ }).click();
       await page.screenshot({
         path: "output/history-demo-check/exploration-confirmation.png",
@@ -138,9 +186,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
       await page.getByRole("option").first().click();
       await page.emulateMedia({ reducedMotion: "no-preference" });
       // Decisions unlock a playable exit instead of skipping immediately to stage two.
-      await page
-        .getByRole("button", { name: "Walk to the river steps →" })
-        .click();
+      await walkWaterfront(page, { x: 26, y: 17 }, { x: 26, y: 18 });
       await page
         .getByRole("dialog", { name: "A departure leaves people behind" })
         .waitFor();
@@ -155,9 +201,12 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
       await page.screenshot({
         path: "output/history-demo-check/quay-departure.png",
       });
-      await page
-        .getByRole("button", { name: "Continue the journey · India, 1943 →" })
-        .click();
+      await page.getByRole("button", { name: "Pause scene" }).click();
+      await page.getByRole("status").filter({ hasText: "Before we go" }).waitFor();
+      await page.getByRole("button", { name: "Resume scene" }).click();
+      await page.getByRole("status").filter({ hasText: "Gan Choo Neo" }).waitFor();
+      // Automatic advance; no continue/board button is clicked.
+      await page.getByRole("dialog", { name: "Adventure opening" }).waitFor({ timeout: 25000 });
       // Original v3 cinematic introduces stage two; keyboard skip is supported.
       await page.keyboard.press("Escape");
       await page.getByText("Stage 2 of 5", { exact: false }).waitFor();
@@ -273,6 +322,20 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           .getByRole("button", { name: /✓ Check the dated record/ })
           .count(),
       ).toBe(1);
+      await page.getByText("Explore historical images", { exact: true }).click();
+      for (const label of ["Rickshaw photograph", "Newspaper board · 20 February 1942", "Occupation currency"]) {
+        await page.getByRole("button", { name: label, exact: true }).click();
+        const record = page.getByRole("dialog");
+        await record.waitFor();
+        const picture = record.locator("img");
+        await picture.evaluate((node: HTMLImageElement) => node.decode());
+        expect(await picture.evaluate((node: HTMLImageElement) => node.naturalWidth)).toBeGreaterThan(100);
+        await record.getByRole("button", { name: "Enlarge image", exact: true }).click();
+        expect(await picture.getAttribute("data-enlarged")).toBe("true");
+        await record.getByRole("button", { name: "Fit image", exact: true }).click();
+        await page.screenshot({ path: `output/history-demo-check/explore-${label.split(" ")[0].toLowerCase()}.png` });
+        await page.getByRole("button", { name: "Return to the waterfront", exact: true }).click();
+      }
       for (let stage = 0; stage < 5; stage++) {
         const state = {
           ...newDemoV3State(),
@@ -301,7 +364,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         DEMO_SAVE_KEY,
       );
       await page.goto(
-        "http://127.0.0.1:3012/demo/lim-bo-seng?preview=waterfront",
+        "http://127.0.0.1:3012/demo/lim-bo-seng?preview=waterfront-v2",
         { waitUntil: "networkidle" },
       );
       await page.keyboard.press("Escape");

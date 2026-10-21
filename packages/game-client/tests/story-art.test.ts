@@ -1,5 +1,5 @@
 import { storyFauna } from '../src/fauna.js'
-import { detailZoom, scaledZoom } from '../src/camera.js'
+import { coverZoom, detailZoom, scaledZoom } from '../src/camera.js'
 import { SCENERY_KINDS } from '@adventure/game-core'
 import { environmentSchema, ENVIRONMENT_MATERIALS, ENVIRONMENT_PROPS, MAP_STYLES } from '@adventure/generation/spec'
 import { describe, expect, it } from 'vitest'
@@ -72,4 +72,13 @@ describe('story art direction', () => {
     expect(openFloorForKind('field')).toBe('earth')
     expect(openFloorForKind()).toBe('cobble')
   })
+})
+
+it('fills wide and tall viewports without changing map geometry', () => {
+  for (const [width, height] of [[1910, 1030], [1440, 900], [1024, 768]] as const) {
+    const zoom = coverZoom(width, height, 512, 384)
+    expect(512 * zoom).toBeGreaterThanOrEqual(width)
+    expect(384 * zoom).toBeGreaterThanOrEqual(height)
+    expect(Number.isInteger(zoom)).toBe(true)
+  }
 })

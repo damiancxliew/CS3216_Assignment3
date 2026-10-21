@@ -1,11 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Action, PlayerView } from "@adventure/play-contract";
 import type { Point } from "@adventure/game-core";
 import type { StageExperience } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { BOARDING_POINT } from "@/lib/demo/waterfront-map";
 import { type DemoV3State } from "@/lib/demo/v3-session";
+import { waterfrontTasks, atBoardingSteps } from "@/lib/demo/waterfront-progress";
+import { WaterfrontRecord, type WaterfrontRecordId } from "./waterfront-records";
+import { WaterfrontDeparture } from "./waterfront-departure";
 import { stages } from "@/lib/demo/lim-bo-seng";
 import styles from "./waterfront-experience.module.css";
 
@@ -47,6 +50,11 @@ export function useWaterfrontExperience(
   const [checkedDate, setCheckedDate] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
   const [boarding, setBoarding] = useState(false);
+  const [record, setRecord] = useState<WaterfrontRecordId | null>(null);
+  const inSteps = useRef(false);
+  const progress = useRef({ selected, checkedDate });
+  progress.current = { selected, checkedDate };
+  const getActivities = useCallback(() => progress.current, []);
   const [destination, setDestination] = useState<Point | null>(null);
   useEffect(() => {
     if (!storageKey) return;
@@ -65,6 +73,9 @@ export function useWaterfrontExperience(
       /* Optional exploration state; the main lesson still works. */
     }
     setActivity(null);
+    setRecord(null);
+    setAnswer(null);
+    inSteps.current = false;
     setBoarding(false);
     setDestination(null);
   }, [restartKey, storageKey]);
@@ -81,26 +92,31 @@ export function useWaterfrontExperience(
       /* Keep this activity usable without storage. */
     }
   };
-  return (view: PlayerView, send: Send): StageExperience | undefined => {
+  const stageExperience = (view: PlayerView, send: Send): StageExperience | undefined => {
     if (view.stage?.index !== 0 || view.phase !== "stage") return;
     const state = getState();
-    const ready = Boolean(state.departureReady);
+    const tasks = waterfrontTasks(state, { selected, checkedDate });
+    const missing = tasks.filter(task => !task.done);
+    const ready = missing.length === 0;
     const choice = stages[0].choices.find(
       (c) => c.id === state.decisions.find((d) => d.stage === 0)?.choice,
     );
     const close = () => {
       setActivity(null);
+      setRecord(null);
       requestAnimationFrame(() =>
         document.querySelector<HTMLCanvasElement>("canvas")?.focus(),
       );
     };
     return {
       destination,
-      movementLocked: activity !== null || boarding,
-      hideDecision: ready,
+      movementLocked: activity !== null || record !== null || boarding,
+      hideDecision: Boolean(state.departureReady) || tasks.some(task => task.id !== "decision" && !task.done),
       decisionHint:
         "Your recommendation opens the river steps. You can still explore before boarding.",
       onInspect(id) {
+        const records: Record<string, WaterfrontRecordId> = { rickshaw: "rickshaw", "waterfront-newspaper": "newspaper", "cargo-b": "currency" };
+        if (records[id]) { setRecord(records[id]); return true; }
         if (id === "waterfront-supplies") {
           setActivity("supplies");
           return true;
@@ -117,14 +133,13 @@ export function useWaterfrontExperience(
         return false;
       },
       onArrive(point) {
-        if (
-          ready &&
-          point.x === BOARDING_POINT.x &&
-          point.y === BOARDING_POINT.y
-        ) {
+        const inside = atBoardingSteps(point);
+        if (inside && !inSteps.current && !boarding) {
           setDestination(null);
-          setBoarding(true);
+          if (ready) setBoarding(true);
+          else setActivity("locked");
         }
+        inSteps.current = inside;
       },
       mission: (
         <div className={styles.mission}>
@@ -134,43 +149,25 @@ export function useWaterfrontExperience(
               ? "The river steps are open"
               : "A household. A departure. Your recommendation."}
           </p>
-          {ready ? (
-            <>
-              <p>
-                Your choice is recorded. Walk to the green boarding sign beside
-                the river.
-              </p>
-              <button
-                className={styles.primary}
-                onClick={() => setDestination({ ...BOARDING_POINT })}
-              >
-                Walk to the river steps →
+          <div className={styles.tasks} aria-label="Before boarding checklist">
+            {tasks.map((task, index) => task.id === "supplies" || task.id === "news" ? (
+              <button key={task.id} onClick={() => setActivity(task.id as "supplies" | "news")}>
+                {task.done ? "✓" : index + 1} {task.label}
               </button>
-            </>
-          ) : (
-            <>
-              <div className={styles.tasks}>
-                <button onClick={() => setActivity("supplies")}>
-                  {selected.length === 2 ? "✓" : "1"} Arrange household support
-                </button>
-                <button onClick={() => setActivity("news")}>
-                  {checkedDate ? "✓" : "2"} Check the dated record
-                </button>
-                <span>
-                  {view.notes.some((n) => n.stageIndex === 0) ? "✓" : "3"} Save
-                  evidence and speak with Lim &amp; Gan
-                </span>
-              </div>
-              <p>
-                Click objects to investigate. The river steps open after your
-                decision.
-              </p>
-            </>
-          )}
+            ) : <span key={task.id}>{task.done ? "✓" : index + 1} {task.label}</span>)}
+          </div>
+          <p>{ready ? "Walk onto the river steps to board automatically. Use WASD or the arrow keys; no boarding click needed." : "Complete the checklist before boarding. Click the rickshaw, newspaper board and rice sacks to discover historical images."}</p>
+          <details className={styles.recordsMenu}>
+            <summary>Explore historical images</summary>
+            <button onClick={() => setRecord("rickshaw")}>Rickshaw photograph</button>
+            <button onClick={() => setRecord("newspaper")}>Newspaper board · 20 February 1942</button>
+            <button onClick={() => setRecord("currency")}>Occupation currency</button>
+          </details>
         </div>
       ),
       overlay: (
         <>
+          {record && <WaterfrontRecord key={record} id={record} onClose={close} />}
           {activity && (
             <V3ScrollDialog
               title={
@@ -284,11 +281,9 @@ export function useWaterfrontExperience(
                 </div>
               ) : (
                 <div className={styles.activity}>
-                  <p>
-                    Explore the household and records, save an evidence passage,
-                    then make your recommendation. After your prediction, return
-                    to these steps to leave.
-                  </p>
+                  <p>The boat waits until you have finished these tasks:</p>
+                  <ul>{missing.map(task => <li key={task.id}>{task.label}</li>)}</ul>
+                  <p>When every task is complete, walk back onto the steps to board automatically.</p>
                   <button className={styles.primary} onClick={close}>
                     Keep exploring
                   </button>
@@ -296,52 +291,13 @@ export function useWaterfrontExperience(
               )}
             </V3ScrollDialog>
           )}
-          {boarding && (
-            <V3ScrollDialog
-              title="A departure leaves people behind"
-              eyebrow="Singapore · February 1942"
-              footerText="Illustrative departure · continue when you are ready"
-              closeLabel="Return to the quay"
-              onClose={() => setBoarding(false)}
-            >
-              <div
-                className={styles.departure}
-                aria-label="Illustrated animation: Lim walks down the quay, boards a boat, and the boat leaves. Gan remains ashore."
-              >
-                <div className={styles.skyline} />
-                <div className={styles.bank} />
-                <div className={styles.river} />
-                <span className={styles.gan} />
-                <span className={styles.lim} />
-                {choice?.id === "family" && <span className={styles.parcel} />}
-                <span className={styles.boat} />
-                <span className={styles.sceneLabel}>SINGAPORE RIVER</span>
-              </div>
-              <div className={styles.activity}>
-                <p>
-                  <strong>Your recommendation:</strong> {choice?.title}
-                </p>
-                <p>{choice?.outcome}</p>
-                <p className={styles.credit}>
-                  Illustrative transition, not Lim’s documented boarding place
-                  or transport. The next scene moves forward to India in 1943;
-                  the intervening journey is condensed.
-                </p>
-                <button
-                  className={styles.primary}
-                  onClick={() =>
-                    send({ type: "enterRoom", roomId: "embark" }, (ok) => {
-                      if (ok) setBoarding(false);
-                    })
-                  }
-                >
-                  Continue the journey · India, 1943 →
-                </button>
-              </div>
-            </V3ScrollDialog>
-          )}
+          {boarding && choice && <WaterfrontDeparture choice={choice} send={send} onClose={() => {
+            setBoarding(false);
+            requestAnimationFrame(() => document.querySelector<HTMLCanvasElement>("canvas")?.focus());
+          }} />}
         </>
       ),
     };
   };
+  return { stageExperience, getActivities };
 }

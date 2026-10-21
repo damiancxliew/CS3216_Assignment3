@@ -1,6 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Archival originals remain uncropped in the source archive. */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, Download, RotateCcw } from "lucide-react";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
@@ -28,7 +28,7 @@ export function LimBoSengDemo() {
   } | null>(null);
   const saveKey = useRef(DEMO_SAVE_KEY);
   const latest = useRef<DemoV3State>(newDemoV3State());
-  const stageExperience = useWaterfrontExperience(
+  const { stageExperience, getActivities } = useWaterfrontExperience(
     () => latest.current,
     boot?.key ?? 0,
     boot ? saveKey.current : null,
@@ -37,7 +37,7 @@ export function LimBoSengDemo() {
   const [selectedSource, setSelectedSource] = useState("life");
   const [restart, setRestart] = useState(false);
   const [saveError, setSaveError] = useState(false);
-  function createBoot(initial: DemoV3State, key = 0) {
+  const createBoot = useCallback((initial: DemoV3State, key = 0) => {
     latest.current = initial;
     const client = createDemoV3Client(initial, (next) => {
       latest.current = next;
@@ -46,15 +46,13 @@ export function LimBoSengDemo() {
       } catch {
         setSaveError(true);
       }
-    });
+    }, fetch, getActivities);
     return { initial, client, key };
-  }
+  }, [getActivities]);
   useEffect(() => {
-    if (
-      new URLSearchParams(window.location.search).get("preview") ===
-      "waterfront"
-    )
-      saveKey.current = `${DEMO_SAVE_KEY}.waterfront-preview`;
+    const preview = new URLSearchParams(window.location.search).get("preview");
+    if (preview === "waterfront" || preview === "waterfront-v2")
+      saveKey.current = `${DEMO_SAVE_KEY}.${preview}-preview`;
     let state = newDemoV3State();
     try {
       state = restoreDemoV3State(localStorage.getItem(saveKey.current));
@@ -62,7 +60,7 @@ export function LimBoSengDemo() {
       setSaveError(true);
     }
     setBoot(createBoot(state));
-  }, []);
+  }, [createBoot]);
   function download() {
     const url = URL.createObjectURL(
       new Blob(
