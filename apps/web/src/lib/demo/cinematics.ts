@@ -1,5 +1,5 @@
 import type { V3CinematicBeat } from "@/lib/play/v3/cinematic";
-import { stages } from "./lim-bo-seng";
+import { stages, sourceById } from "./lim-bo-seng";
 
 const portrait = {
   src: "/demo/lim-bo-seng/portrait.jpg",
@@ -59,21 +59,38 @@ export const demoCinematics = {
       kicker: `Stage ${index + 1} of 5 · ${stage.date}`,
       title: stage.title,
       body: stage.intro,
-      image: index === 3 ? currency : index === 0 ? surrender : portrait,
+      ...(index === 0
+        ? { image: surrender }
+        : index === 3
+          ? { image: currency }
+          : {}),
       journey: {
         stops,
         current: index === 0 || index === 3 ? 0 : index === 1 ? 1 : 2,
       },
+      items: [stage.question],
     },
-    {
-      id: `people-${stage.id}`,
-      kicker: "People to meet",
-      title: stage.npcs.map((npc) => npc.name).join(" & "),
-      body: stage.objective,
-      items: [
-        stage.question,
-        "Save a source passage, discuss what it supports, then make a recommendation and predict its cost. The outcome explores a possible cost; it does not claim that the historical figures made your choice.",
-      ],
-    },
+    ...stage.npcs.map((npc): V3CinematicBeat => {
+      const record = npc.id === "lim" ? null : sourceById(`${npc.id}-photo`);
+      return {
+        id: `person-${stage.id}-${npc.id}`,
+        kicker: "People to meet · archival photograph",
+        title: npc.name,
+        body: npc.role,
+        image: record
+          ? {
+              src: record.image!,
+              alt: record.imageAlt!,
+              caption: `${record.date}. ${record.limitation}`,
+              credit: record.credit,
+              href: record.url,
+            }
+          : portrait,
+        items: [
+          npc.prompts[0],
+          "Save one evidence passage, speak with either person, then make one recommendation. Watch its consequence and walk to the exit when you are ready.",
+        ],
+      };
+    }),
   ]),
 };

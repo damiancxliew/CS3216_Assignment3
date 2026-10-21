@@ -2,16 +2,12 @@ import { buildWaterfrontMap } from "./waterfront-map";
 import {
   GENERATOR_VERSION,
   MAP_SCHEMA_VERSION,
-  waterContains,
   type MapRoom,
   type StageMap,
-  type SceneryKind,
 } from "@adventure/game-core";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
-import type { EnvironmentPlan } from "@adventure/game-client/story-art";
 
 type AuthoredScene = NonNullable<V3StageScenery["authored"]>;
-type Rect = [number, number, number, number];
 const objectNotes: Record<string, string> = {
   "rice-counter":
     "Provisions and responsibility\n\nBefore leaving Singapore in February 1942, your obligations to family did not simply disappear. This counter represents the everyday work of keeping a household supplied. Ask Lim and Gan how the sources connect public commitments with family responsibilities.\n\nCompare the family biography and later letter in the Source archive; this is before occupation rationing.",
@@ -37,132 +33,81 @@ const objectNotes: Record<string, string> = {
     "People need more than orders\n\nRest, food and shelter are part of any sustainable plan. Look beyond whether a task can be completed once: what would continuing it demand from the people involved?",
 };
 const asset = (name: string) => `/demo/lim-bo-seng/map/${name}.svg`;
-// Deliberate stage geography, not reconstructions of a documented address or camp.
-const plans: {
-  rooms: Rect[];
-  facades: [string, number, number][];
-  kinds: string[];
-  props: [string, number, number, number][];
-}[] = [
+// Compact illustrative geography; never claims to reconstruct a documented camp or address.
+const plans = [
+  null,
   {
-    rooms: [
-      [2, 7, 12, 9],
-      [24, 21, 12, 8],
-      [24, 7, 12, 9],
-    ],
-    kinds: ["market", "dock", "street"],
-    facades: [
-      ["shop", 2, 2],
-      ["office", 24, 2],
-      ["shop", 2, 21],
-    ],
+    buildings: ["signals", "mess", "reading"],
     props: [
-      ["rice-counter", 3, 9, 0],
-      ["writing-desk", 11, 9, 0],
-      ["water-jars", 3, 13, 0],
-      ["rickshaw", 16, 14, 0],
-      ["cargo", 3, 26, 0],
-      ["water-jars", 11, 26, 0],
-      ["cargo", 24, 23, 1],
-      ["cargo", 33, 23, 1],
-      ["sampan", 29, 30, 1],
-      ["sampan", 35, 31, 1],
-      ["writing-desk", 25, 9, 2],
-      ["map-table", 33, 9, 2],
+      ["signal-kit", 2, 8, 0],
+      ["map-table", 11, 8, 0],
+      ["writing-desk", 18, 8, 2],
+      ["bedrolls", 28, 15, 1],
+      ["water-jars", 18, 15, 1],
     ],
+    exit: "camp",
+    ground: "gravel",
+    path: "earth",
+    description:
+      "India training courtyard: signals hut, mess veranda, shaded reading tables and canvas equipment",
   },
   {
-    rooms: [
-      [3, 7, 12, 9],
-      [24, 19, 12, 9],
-      [24, 6, 12, 9],
-    ],
-    kinds: ["camp", "camp", "camp"],
-    facades: [
-      ["camp", 3, 2],
-      ["camp", 24, 1],
-      ["camp", 24, 15],
-    ],
+    buildings: ["fishing", "stores", "liaison"],
     props: [
-      ["radio", 4, 9, 0],
-      ["map-table", 12, 9, 0],
-      ["cargo", 3, 13, 0],
-      ["bedrolls", 25, 21, 1],
-      ["water-jars", 33, 21, 1],
-      ["writing-desk", 25, 8, 2],
-      ["cargo", 33, 8, 2],
+      ["fishing-net", 2, 8, 0],
+      ["cargo", 11, 8, 0],
+      ["writing-desk", 18, 8, 2],
+      ["water-jars", 28, 15, 1],
+      ["map-table", 18, 15, 1],
     ],
+    exit: "coast",
+    ground: "sand",
+    path: "decking",
+    description:
+      "Perak shore: raised timber shelters, fishing nets, coastal palms, boats and a shared landing",
   },
   {
-    rooms: [
-      [3, 20, 12, 9],
-      [24, 8, 12, 9],
-      [3, 7, 12, 9],
-    ],
-    kinds: ["dock", "camp", "camp"],
-    facades: [
-      ["hut", 24, 3],
-      ["hut", 3, 2],
-    ],
+    buildings: ["provisions", "household", "canteen"],
     props: [
-      ["sampan", 5, 30, 0],
-      ["sampan", 13, 31, 0],
-      ["cargo", 3, 22, 0],
-      ["water-jars", 12, 22, 0],
-      ["map-table", 25, 10, 1],
-      ["bedrolls", 33, 10, 1],
-      ["cargo", 4, 9, 2],
-      ["cargo", 12, 9, 2],
+      ["empty-counter", 2, 8, 0],
+      ["medicine-parcels", 11, 8, 0],
+      ["newsstand", 18, 8, 2],
+      ["water-jars", 28, 15, 1],
+      ["wash-line", 18, 15, 1],
     ],
+    exit: "town",
+    ground: "gravel",
+    path: "limestone",
+    description:
+      "Occupied Singapore: five-foot ways, provision counter, canteen, household washing and vegetable beds",
   },
   {
-    rooms: [
-      [2, 7, 12, 9],
-      [24, 21, 12, 9],
-      [24, 7, 12, 9],
-    ],
-    kinds: ["market", "field", "street"],
-    facades: [
-      ["scarce-shop", 2, 2],
-      ["office", 24, 2],
-      ["scarce-shop", 2, 21],
-    ],
+    buildings: ["relay", "rest", "reports"],
     props: [
-      ["empty-counter", 3, 9, 0],
-      ["water-jars", 11, 9, 0],
-      ["rickshaw", 16, 14, 0],
-      ["vegetables", 24, 23, 1],
-      ["vegetables", 33, 23, 1],
-      ["water-jars", 33, 27, 1],
-      ["writing-desk", 25, 9, 2],
-      ["empty-counter", 33, 9, 2],
+      ["signal-kit", 2, 8, 0],
+      ["map-table", 11, 8, 0],
+      ["newsstand", 18, 8, 2],
+      ["bedrolls", 28, 15, 1],
+      ["writing-desk", 18, 15, 1],
     ],
+    exit: "jungle",
+    ground: "leaves",
+    path: "earth",
+    description:
+      "Perak jungle relay: raised wireless hut, shaded report table, canvas rest shelter and dense tropical edges",
   },
-  {
-    rooms: [
-      [3, 7, 12, 9],
-      [25, 21, 12, 9],
-      [24, 6, 12, 9],
-    ],
-    kinds: ["camp", "camp", "camp"],
-    facades: [
-      ["hut", 3, 2],
-      ["camp", 25, 17],
-      ["hut", 24, 1],
-    ],
-    props: [
-      ["radio", 4, 9, 0],
-      ["map-table", 12, 9, 0],
-      ["bedrolls", 26, 23, 1],
-      ["cargo", 34, 23, 1],
-      ["writing-desk", 25, 8, 2],
-      ["map-table", 33, 8, 2],
-      ["water-jars", 4, 13, 0],
-    ],
-  },
+] as const;
+
+export const STORY_EXIT = { x: 27, y: 18 };
+export const storyExitLabels = [
+  "River steps",
+  "Camp gate",
+  "Inland trail",
+  "Courtyard passage",
+  "Reflection trail",
 ];
 
-/** Public geometry and SVG tiles consumed by the existing Phaser renderer/pathfinder. */
+/** Authored SVG tiles and collision geometry on the unchanged v3 renderer. */
 export function buildStoryMap(
   stage: number,
   stageId: string,
@@ -170,27 +115,35 @@ export function buildStoryMap(
   characterIds: string[],
 ): AuthoredScene {
   if (stage === 0) return buildWaterfrontMap(stageId, roomIds, characterIds);
-  const plan = plans[stage];
-  const town = stage === 0 || stage === 3;
-  const coast = stage === 0 || stage === 2;
-  const rooms: MapRoom[] = plan.rooms.map(([x, y, width, height], i) => ({
-    id: roomIds[i],
-    x,
-    y,
-    width,
-    height,
-    enclosure: "open",
-  }));
+  const plan = plans[stage]!;
+  const town = stage === 3,
+    coast = stage === 2;
+  const rooms: MapRoom[] = [
+    { id: roomIds[0], x: 1, y: 7, width: 13, height: 7, enclosure: "open" },
+    { id: roomIds[1], x: 17, y: 14, width: 14, height: 5, enclosure: "open" },
+    { id: roomIds[2], x: 17, y: 7, width: 14, height: 7, enclosure: "open" },
+  ];
   const map: StageMap = {
     schemaVersion: MAP_SCHEMA_VERSION,
     generatorVersion: GENERATOR_VERSION,
-    id: `lim-story-map-v2-${stageId}`,
+    id: `lim-chapter-v3-${stageId}`,
     stageId,
-    seed: `lim-story-${stage}`,
-    width: 42,
-    height: 36,
-    tiles: Array.from({ length: 36 }, () =>
-      Array.from({ length: 42 }, () => "grass"),
+    seed: `lim-chapter-${stage}`,
+    width: 32,
+    height: 24,
+    tiles: Array.from({ length: 24 }, (_, y) =>
+      Array.from({ length: 32 }, (_, x) =>
+        coast && y >= 19
+          ? "water"
+          : town ||
+              (y >= 7 &&
+                y <= 18 &&
+                ((x >= 5 && x <= 9) ||
+                  (x >= 23 && x <= 28) ||
+                  (y >= 11 && y <= 14)))
+            ? "path"
+            : "grass",
+      ),
     ),
     rooms,
     doors: [],
@@ -198,50 +151,31 @@ export function buildStoryMap(
     scenery: [],
     landmarks: [],
     waterBodies: coast
-      ? [{ x: -8, y: 29, width: 60, height: 20, kind: "basin" }]
-      : stage === 4
-        ? [{ x: 2, y: 28, width: 11, height: 6, kind: "pond" }]
-        : [],
+      ? [{ x: -5, y: 19, width: 45, height: 20, kind: "basin" }]
+      : [],
   };
-  // A broad waterfront at the bottom; all interactions stay on dry land.
-  for (let y = 0; y < map.height; y++)
-    for (let x = 0; x < map.width; x++) {
-      if (map.waterBodies?.some((body) => waterContains(body, { x, y })))
-        map.tiles[y][x] = "water";
-    }
-  function pave(x: number, y: number, w: number, h: number) {
-    for (let yy = y; yy < y + h; yy++)
-      for (let xx = x; xx < x + w; xx++)
-        if (map.tiles[yy]?.[xx] === "grass") map.tiles[yy][xx] = "path";
-  }
-  // Linked five-foot ways / camp tracks form an explorable loop, with a central lane.
-  pave(2, 6, 36, 2);
-  pave(2, 16, 36, 3);
-  pave(18, 6, 3, 24);
-  pave(2, 28, 36, 1);
-  rooms.forEach((r) => {
-    pave(r.x + 5, r.y + r.height, 2, 4);
-  });
   const fixtures: AuthoredScene["fixtures"] = [];
   function fixture(
+    id: string,
     name: string,
     x: number,
     y: number,
-    room: number,
-    image: string,
+    art: string,
+    room = 0,
     solid = true,
+    description?: string,
   ) {
     fixtures.push({
-      description: objectNotes[image],
-      interactive: Boolean(objectNotes[image]),
-      id: `${stageId}-${name}-${x}-${y}`,
+      id,
       name,
+      position: { x, y },
       roomId: roomIds[room],
       kind: "table",
-      position: { x, y },
       width: 2,
       height: 2,
-      imageUrl: asset(image),
+      imageUrl: asset(art),
+      interactive: Boolean(description),
+      description,
     });
     if (solid)
       map.landmarks!.push({
@@ -253,122 +187,228 @@ export function buildStoryMap(
         height: 2,
       });
   }
-  plan.facades.forEach(([name, x, y], i) => {
-    // Six strips by two rows create one continuous, native-pixel building frontage.
-    for (let row = 0; row < 2; row++)
-      for (let col = 0; col < 6; col++)
+  const frontages = town
+    ? [
+        { name: "provisions", x: 0, y: 1 },
+        { name: "household", x: 8, y: 1 },
+        { name: "canteen", x: 16, y: 1 },
+        { name: "household", x: 24, y: 1 },
+      ]
+    : [
+        { name: plan.buildings[0], x: 1, y: 1 },
+        { name: plan.buildings[1], x: 11, y: stage === 2 ? 12 : 15 },
+        { name: plan.buildings[2], x: 21, y: 1 },
+      ];
+  for (const [i, frontage] of frontages.entries())
+    for (let row = 0; row < 3; row++)
+      for (let col = 0; col < 4; col++)
         fixture(
-          "Period frontage",
-          x + col * 2,
-          y + row * 2,
-          i === 0 ? 0 : i === 1 ? 2 : 1,
-          `${name}-${col}-${row}`,
+          `front-${i}-${col}-${row}`,
+          frontage.name,
+          frontage.x + col * 2,
+          frontage.y + row * 2,
+          `chapter-${frontage.name}-${col}-${row}`,
+          i === 0 ? 0 : 2,
         );
-  });
-  if (!town) {
-    const trees =
-      stage === 2
-        ? [
-            [17, 1],
-            [37, 2],
-            [17, 10],
-            [37, 18],
-          ]
-        : [
-            [17, 0],
-            [38, 1],
-            [1, 19],
-            [8, 24],
-            [14, 27],
-            [38, 16],
-            [38, 28],
-          ];
-    for (const [x, y] of trees)
+  if (!town)
+    for (const [i, x, y] of [
+      [0, 12, 1],
+      [1, 15, 6],
+    ])
       for (let row = 0; row < 2; row++)
         for (let col = 0; col < 2; col++)
           fixture(
-            "Tropical canopy",
+            `shade-${i}-${col}-${row}`,
+            "Tropical shade",
             x + col * 2,
             y + row * 2,
-            0,
             `canopy-${col}-${row}`,
+            0,
+            true,
           );
-  }
-  plan.props.forEach(([name, x, y, room]) =>
+  const notes: Record<string, string> = {
+    ...objectNotes,
+    "signal-kit": objectNotes.radio,
+    "fishing-net":
+      "Fishing equipment belongs to a working community. A landing party depends on people's time and local knowledge. What help can be requested without assuming consent? This net is a representative illustration.",
+    "medicine-parcels":
+      "Elizabeth Choy and her husband helped prisoners of war with food, medicine, money, letters and radios. These parcels illustrate civilian assistance; they are not evidence of a particular delivery or packaging method.",
+    "wash-line":
+      "Clothes still need washing while food and time are scarce. Consider who carries the everyday work behind a public story of resistance.",
+    newsstand:
+      "Examine the occupation press: a real front page, with its date and limits.",
+  };
+  for (const [art, x, y, room] of plan.props)
     fixture(
-      name.replaceAll("-", " ").replace(/^./, (c) => c.toUpperCase()),
+      `chapter-${art}`,
+      art.replaceAll("-", " "),
       x,
       y,
+      art,
       room,
-      name,
-    ),
+      true,
+      notes[art],
+    );
+  fixture(
+    "chapter-exit",
+    storyExitLabels[stage],
+    28,
+    17,
+    `exit-${plan.exit}`,
+    1,
+    false,
+    "Complete your three goals, then walk through the marked passage.",
   );
-  const decorations: [SceneryKind, number, number][] = town
-    ? [
-        ["bicycle", 15, 10],
-        ["cart", 16, 21],
-        ["sacks", 22, 11],
-        ["laundry", 37, 12],
-        ["palm", 39, 7],
-        ["palm", 1, 20],
-        ["bollard", 22, 28],
-        ["bollard", 38, 28],
-        ["rope", 37, 25],
-        ["barrel", 22, 25],
-        ["noticeboard", 16, 7],
-      ]
-    : [
-        ["palm", 1, 4],
-        ["palm", 17, 4],
-        ["palm", 22, 4],
-        ["palm", 39, 5],
-        ["fern", 16, 13],
-        ["fern", 22, 13],
-        ["log", 15, 23],
-        ["fern", 17, 26],
-        ["palm", 1, 18],
-        ["palm", 39, 20],
-        ["palm", 2, 32],
-        ["fern", 22, 32],
-        ["boulder", 16, 30],
-        ["palm", 39, 32],
-        ["log", 8, 32],
-        ["fern", 17, 10],
-        ["fern", 38, 14],
-      ];
-  for (const [kind, x, y] of decorations)
-    if (map.tiles[y][x] === "grass") map.scenery!.push({ kind, x, y });
-  const environment: EnvironmentPlan = {
-    description: town
-      ? "1940s shophouse neighbourhood; shutters, five-foot ways and clay tiles"
-      : coast
-        ? "Wooded Perak shore with fishing boats and timber shelters"
-        : "South Asian wartime field camp with canvas and timber shelters",
-    ground: town ? "gravel" : coast ? "sand" : "leaves",
-    accent: town ? "brick" : "earth",
-    path: town ? "limestone" : coast ? "decking" : "earth",
-    roof: town ? "terracotta" : "canvas",
-    pathStyle: town ? "formal" : "worn",
-    waterfront: coast ? "harbor" : "none",
-    layout: coast ? "quayside" : "meandering",
-    population: "quiet",
-    vegetation: town ? 0.03 : 0.5,
-    propDensity: "sparse",
-    // Every major prop is authored above. Avoid random generic street furniture.
-    props: [],
-    wind: "breeze",
-    fauna: town ? ["cat"] : [],
-  };
-  const first = rooms[0];
+  fixture(
+    "chapter-portrait",
+    "Photographs of the people you meet",
+    28,
+    8,
+    "writing-desk",
+    2,
+    true,
+    "Compare the real photographs with the illustrated people on the map.",
+  );
+  if (coast) {
+    for (const [i, x] of [3, 21].entries())
+      for (let row = 0; row < 2; row++)
+        for (let col = 0; col < 3; col++)
+          fixture(
+            `boat-${i}-${col}-${row}`,
+            "Coastal fishing boat",
+            x + col * 2,
+            20 + row * 2,
+            `river-boat-${col}-${row}`,
+            0,
+            false,
+          );
+    fixture(
+      "net-shore",
+      "Fishing nets",
+      3,
+      16,
+      "fishing-net",
+      0,
+      true,
+      notes["fishing-net"],
+    );
+    fixture(
+      "shore-cargo",
+      "Community supplies",
+      7,
+      16,
+      "cargo",
+      0,
+      true,
+      notes.cargo,
+    );
+  } else if (town) {
+    for (const x of [2, 5, 8, 11])
+      for (const y of [16, 20])
+        fixture(
+          `garden-${x}-${y}`,
+          "Household vegetable plot",
+          x,
+          y,
+          "plant-bed",
+          0,
+          true,
+          notes.vegetables,
+        );
+    fixture(
+      "chapter-rickshaw",
+      "Rickshaw photograph",
+      14,
+      19,
+      "rickshaw",
+      1,
+      true,
+      notes.rickshaw,
+    );
+    fixture(
+      "chapter-currency",
+      "Inspect occupation money",
+      28,
+      20,
+      "rice-counter",
+      1,
+      true,
+      "Inspect an actual occupation banknote.",
+    );
+  } else {
+    for (const [i, x] of [1, 7, 13, 19, 25].entries())
+      for (let row = 0; row < 2; row++)
+        for (let col = 0; col < 2; col++)
+          fixture(
+            `canopy-${i}-${col}-${row}`,
+            "Tropical canopy",
+            x + col * 2,
+            20 + row * 2,
+            `canopy-${col}-${row}`,
+            1,
+            true,
+          );
+    fixture(
+      "supplies-corner",
+      "Supplies",
+      3,
+      16,
+      "cargo",
+      0,
+      true,
+      notes.cargo,
+    );
+    fixture("lamp-corner", "Camp lantern", 9, 16, "lamp", 0, false);
+  }
+  // Tropical margins frame a clear, short circulation loop without hiding the cast.
+  if (!town)
+    for (const [x, y] of [
+      [0, 8],
+      [0, 15],
+      [19, 2],
+      [31, 12],
+    ])
+      map.scenery!.push({ kind: "palm", x, y });
   return {
     map,
-    playerSpawn: { x: first.x + 6, y: first.y + 4 },
+    playerSpawn: { x: 7, y: 10 },
     initialDoors: {},
     fixtures,
-    environment,
+    environment: {
+      description: plan.description,
+      ground: plan.ground,
+      accent: town ? "brick" : "earth",
+      path: plan.path,
+      roof: town ? "terracotta" : "canvas",
+      pathStyle: town ? "formal" : "worn",
+      waterfront: coast ? "harbor" : "none",
+      layout: coast ? "quayside" : "meandering",
+      population: "quiet",
+      vegetation: 0,
+      propDensity: "sparse",
+      props: [],
+      wind: "breeze",
+      fauna: [],
+    },
+    cast: characterIds.map((id, i) => ({
+      id,
+      name: (
+        {
+          lim: "Lim Bo Seng",
+          gan: "Gan Choo Neo",
+          tham: "Tham Sien Yen",
+          tan: "Tan Chong Tee",
+          elizabeth: "Elizabeth Choy",
+        } as Record<string, string>
+      )[id],
+      roomId: roomIds[i],
+    })),
     style: town ? "civic" : coast ? "harbor" : "jungle",
-    roomKinds: Object.fromEntries(roomIds.map((id, i) => [id, plan.kinds[i]])),
-    playerSheet: asset(stage === 0 ? "civilian" : "field"),
+    desktopCamera: "cover",
+    roomKinds: Object.fromEntries(
+      roomIds.map((id) => [id, town ? "street" : coast ? "dock" : "camp"]),
+    ),
+    playerSheet: asset("civilian"),
     characterSheets: Object.fromEntries(
       characterIds.map((id) => [id, `/demo/lim-bo-seng/sprites/${id}.png`]),
     ),

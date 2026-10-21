@@ -38,6 +38,17 @@ describe("authored history maps on the v3 engine", () => {
       const { map, initialDoors, playerSpawn, fixtures } = scene.authored;
       const state = { ...newDemoV3State(), stage: index };
       expect(map.rooms).toHaveLength(3);
+      expect(map.width * map.height).toBeLessThan(42 * 36 * 0.52);
+      expect(scene.authored.desktopCamera).toBe("cover");
+      expect(scene.authored.cast?.map((n) => n.id)).toEqual(
+        stages[index].npcs.map((n) => n.id),
+      );
+      expect(
+        findPath(map, initialDoors, playerSpawn, { x: 27, y: 18 }),
+      ).not.toBeNull();
+      expect(
+        (spaceAt(map, { x: 27, y: 18 }) as { locationId?: string })?.locationId,
+      ).toBe(map.rooms[1].id);
       expect(map.landmarks!.length).toBeGreaterThan(20);
       expect(isWalkable(map, initialDoors, playerSpawn)).toBe(true);
       for (const room of map.rooms) {
@@ -151,4 +162,17 @@ it("preserves old progress and exports fictional dialogue without relabelling it
     restored.messages.some((message) => message.text.includes("Old fictional")),
   ).toBe(false);
   expect(restoreDemoV3State(JSON.stringify(restored))).toEqual(restored);
+});
+
+import { demoCinematics } from "../apps/web/src/lib/demo/cinematics";
+it("introduces every stage's cast with real photographs linked to matching sprites", () => {
+  for (const [index, stage] of stages.entries()) {
+    const people = demoCinematics.stages[index].filter((beat) =>
+      beat.id.startsWith("person-"),
+    );
+    expect(people.map((p) => p.title)).toEqual(stage.npcs.map((n) => n.name));
+    expect(new Set(people.map((p) => p.image?.src)).size).toBe(2);
+    for (const beat of people)
+      expect(existsSync(`apps/web/public${beat.image!.src}`)).toBe(true);
+  }
 });
