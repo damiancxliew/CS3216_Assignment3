@@ -15,6 +15,72 @@ export type Source = {
 };
 export const sources: Source[] = [
   {
+    id: "gan-photo",
+    title: "Gan Choo Neo: the photograph behind her portrait",
+    date: "13 January 1946 · after the occupation",
+    kind: "Archival photograph",
+    credit:
+      "Tham Sien Yen Collection, courtesy of National Archives of Singapore · 20080000015-0099. Viewing permitted; commercial use and reproduction require written permission from the copyright owner. Permission has not been obtained for redistribution.",
+    url: "https://www.nas.gov.sg/archivesonline/photographs/record-details/9e4a7381-1162-11e3-83d5-0050568939ad",
+    summary:
+      "The archive identifies Gan Choo Neo as the woman at the far right in black at Lim Bo Seng’s funeral at MacRitchie Reservoir. The chatbot frames her face from this photograph; this source view preserves the full scene.",
+    limitation:
+      "This is a post-war funeral photograph, not a portrait taken during the occupation or evidence of a wartime meeting. Her game sprite is an AI-generated illustration based on this reference; its colours, unseen angles and movements are reconstructed.",
+    image: "/demo/lim-bo-seng/portraits/gan.webp",
+    imageAlt:
+      "Lim Bo Seng’s funeral in 1946; Gan Choo Neo stands at the far right in black",
+    tags: ["gan", "photograph", "family"],
+  },
+  {
+    id: "tham-photo",
+    title: "Tham Sien Yen: a post-war photograph",
+    date: "8 June 1946 · London",
+    kind: "Archival photograph",
+    credit:
+      "Tham Sien Yen Collection, courtesy of National Archives of Singapore · 20080000015-0103. Viewing permitted; commercial use and reproduction require written permission from the copyright owner. Permission has not been obtained for redistribution.",
+    url: "https://www.nas.gov.sg/archivesonline/photographs/record-details/9eb7c379-1162-11e3-83d5-0050568939ad",
+    summary:
+      "The archive identifies Tham Sien Yen as the Force 136 member shaking hands with Admiral Lord Louis Mountbatten. Tham is in the right foreground. This is the visual reference for his chatbot portrait and illustrated sprite.",
+    limitation:
+      "Photographed after the war. It does not establish his precise clothing during training or covert operations. The sprite’s colours and walking frames are illustrative reconstructions.",
+    image: "/demo/lim-bo-seng/portraits/tham.webp",
+    imageAlt:
+      "Tham Sien Yen, right foreground, shaking hands with Mountbatten in London in 1946",
+    tags: ["tham", "photograph", "force136"],
+  },
+  {
+    id: "tan-photo",
+    title: "Tan Chong Tee: a pre-war portrait",
+    date: "2 November 1936",
+    kind: "Historical photograph · Commons reproduction",
+    credit:
+      "Unknown photographer · The Straits Times, 2 November 1936, via Wikimedia Commons. Commons marks the photograph public domain in Singapore (PD-SG-photo).",
+    url: "https://commons.wikimedia.org/wiki/File:Tan_Chong_Tee.jpg",
+    summary:
+      "This pre-war photograph shows Tan Chong Tee in sporting clothes. It supplies the facial and hair reference for his chatbot portrait and game sprite.",
+    limitation:
+      "The photograph predates his wartime service. The sprite’s field clothing and colours are an illustration, not a reproduction of this sporting outfit.",
+    image: "/demo/lim-bo-seng/portraits/tan.webp",
+    imageAlt: "Tan Chong Tee in a sports shirt in 1936",
+    tags: ["tan", "photograph"],
+  },
+  {
+    id: "elizabeth-photo",
+    title: "Elizabeth Choy: a 1941 photograph",
+    date: "16 August 1941",
+    kind: "Historical wedding photograph · Commons reproduction",
+    credit:
+      "Family of Elizabeth Choy, via Wikimedia Commons. Commons marks the photograph public domain in Singapore (PD-SG-photo).",
+    url: "https://commons.wikimedia.org/wiki/File:Elizabeth_Choy,_1941.jpg",
+    summary:
+      "Elizabeth Choy’s wedding photograph supplies the face and hair reference for her chatbot portrait and illustrated character.",
+    limitation:
+      "This is a wedding photograph, not a scene from her wartime canteen work. The sprite wears reconstructed everyday clothes; its colours and movements are illustrative.",
+    image: "/demo/lim-bo-seng/portraits/elizabeth.webp",
+    imageAlt: "Elizabeth Choy in her wedding photograph, 1941",
+    tags: ["elizabeth", "choy", "photograph"],
+  },
+  {
     id: "choy",
     title: "Elizabeth Choy: civilian help and its risks",
     date: "1942–1943 · retrospective biography",

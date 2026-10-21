@@ -368,16 +368,7 @@ export function buildStoryMap(
     roomKinds: Object.fromEntries(roomIds.map((id, i) => [id, plan.kinds[i]])),
     playerSheet: asset(stage === 0 ? "civilian" : "field"),
     characterSheets: Object.fromEntries(
-      characterIds.map((id) => [
-        id,
-        asset(
-          id === "gan" || id === "elizabeth"
-            ? "keeper"
-            : stage === 0
-              ? "civilian"
-              : "field",
-        ),
-      ]),
+      characterIds.map((id) => [id, `/demo/lim-bo-seng/sprites/${id}.png`]),
     ),
   };
 }

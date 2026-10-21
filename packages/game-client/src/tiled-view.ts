@@ -331,7 +331,9 @@ class TiledScene extends Phaser.Scene {
   private queueGeneratedSprite(url: string): void {
     if (this.queuedAssets.has(url)) return
     this.queuedAssets.add(url)
-    this.load.spritesheet(assetTextureKey(url), url, { frameWidth: T, frameHeight: T })
+    // Authored and generated walking sheets share a 4x4 layout, but may have
+    // higher-resolution artwork than the native 16px characters.
+    this.load.image(assetTextureKey(url), url)
   }
 
   private queueAsset(url: string): void {
@@ -343,6 +345,18 @@ class TiledScene extends Phaser.Scene {
   private registerAnimations(key: string, generated = false): void {
     const textureKey = generated ? key : `char-${key}`
     if (!this.textures.exists(textureKey)) return
+    if (generated) {
+      const texture = this.textures.get(textureKey)
+      const source = texture.getSourceImage()
+      const width = source.width / 4
+      const height = source.height / 4
+      for (let row = 0; row < 4; row++) {
+        for (let column = 0; column < 4; column++) {
+          const frame = row * 4 + column
+          if (!texture.has(String(frame))) texture.add(frame, 0, column * width, row * height, width, height)
+        }
+      }
+    }
     DIRECTIONS.forEach((facing, column) => {
       const anim = `${textureKey}-${facing}`
       if (this.anims.exists(anim)) return
@@ -699,7 +713,7 @@ class TiledScene extends Phaser.Scene {
     const container = this.add.container(0, 0)
     const shadow = this.add.ellipse(0, 8, 16, 5, 0x000000, 0.3)
     const textureKey = this.textures.exists(key) ? key : '__DEFAULT'
-    const sprite = this.add.sprite(0, 0, textureKey, 0)
+    const sprite = this.add.sprite(0, 0, textureKey, 0).setDisplaySize(T, T)
     container.add([shadow, sprite])
     return { container, sprite, key, facing: 'down' as Facing, last: { x: position.x, y: position.y }, idle: null as Phaser.Time.TimerEvent | null }
   }

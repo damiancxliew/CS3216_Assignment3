@@ -33,7 +33,24 @@ Verified 20 October 2026. These are historical records, not AI images. Game maps
 
 `/game/ninja/audio/sfx/wind.ogg` is reused from the repository's existing Ninja Adventure collection. Its existing `game/ninja/LICENSE.txt` and README remain authoritative. No historical authenticity is claimed for the ambience.
 
-Other NAS/NHB images were not copied merely because they were publicly viewable. Source cards link to the collection records for inspection.
+The portraits below are connected for the requested local demo. Their source cards retain the full photographs, dates, credits and access conditions. This implementation does not establish redistribution permission for NAS photographs.
+
+## Historical chatbot avatars (`portraits/*.webp`)
+
+Verified 21 October 2026. Originals were converted to WebP without retouching or removing watermarks. Avatar framing is CSS only; the archive displays the complete photographs.
+
+- `lim.webp`: the same 1930s portrait as `portrait.jpg` above.
+- `gan.webp`: Gan Choo Neo at far right in black, Lim Bo Seng’s funeral, 13 January 1946. NAS image 20080000015-0099, reference 30010. Tham Sien Yen Collection, courtesy of National Archives of Singapore. [Record](https://www.nas.gov.sg/archivesonline/photographs/record-details/9e4a7381-1162-11e3-83d5-0050568939ad). [Original](https://www.nas.gov.sg/archivesonline/watermark/picas_data/tn_pcd/20080000015-6258-2121-9782/img0099.jpg).
+- `tham.webp`: Tham Sien Yen shaking hands with Mountbatten in London, 8 June 1946; Tham is in the right foreground. NAS image 20080000015-0103, reference 35001. Tham Sien Yen Collection, courtesy of National Archives of Singapore. [Record](https://www.nas.gov.sg/archivesonline/photographs/record-details/9eb7c379-1162-11e3-83d5-0050568939ad). [Original](https://www.nas.gov.sg/archivesonline/watermark/picas_data/tn_pcd/20080000015-6258-2121-9782/img0103.jpg).
+- Both NAS records permit viewing and require written copyright-owner permission for commercial use and reproduction. **No such permission has been obtained. These assets are not cleared for redistribution or commercial publication.** Both photographs postdate the occupation.
+- `tan.webp`: Tan Chong Tee, 2 November 1936; unknown photographer, The Straits Times. [Record](https://commons.wikimedia.org/wiki/File:Tan_Chong_Tee.jpg). [Original](https://upload.wikimedia.org/wikipedia/commons/3/31/Tan_Chong_Tee.jpg). Commons designates PD-SG-photo. Sporting clothing in the photo is not a military uniform.
+- `elizabeth.webp`: Elizabeth Choy’s wedding photograph, 16 August 1941; credited to her family. [Record](https://commons.wikimedia.org/wiki/File:Elizabeth_Choy,_1941.jpg). [Original](https://upload.wikimedia.org/wikipedia/commons/0/03/Elizabeth_Choy%2C_1941.jpg). Commons designates PD-SG-photo. The wedding dress is not presented as everyday wartime clothing.
+
+## Likeness-based character sprites (`sprites/*.png`)
+
+AI-generated illustrations using the corresponding photographs as visual references, generated with the built-in image tool. These are not historical evidence. Facial likeness is stylised; colours, unseen angles and walking phases are reconstructed. Gan’s dark outfit and Tham’s field cap reference their post-war photos. Elizabeth’s everyday teal blouse/navy skirt and Tan’s olive field clothing are illustrative choices. Lim’s cream shirt, glasses and side-parted hair follow his portrait.
+
+Original outputs and exact prompts are preserved in `docs/standalone-demo/artwork/` and `docs/standalone-demo/character-art-prompts.md`. `scripts/pack-history-character-sheets.mjs` aligns the transparent frames for the existing engine: 256×256 sheet, four 64px direction columns (down/up/left/right), four walking-phase rows, drawn at the existing 16px world footprint. No generation changes apply to ordinary v2/v3 adventures.
 
 ## Illustrated map assets
 

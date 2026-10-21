@@ -17,6 +17,7 @@ import {
   type DemoV3State,
 } from "@/lib/demo/v3-session";
 import chrome from "@/components/play/adventure-chrome.module.css";
+import "./historical-portraits.css";
 
 export function LimBoSengDemo() {
   const [boot, setBoot] = useState<{
@@ -83,7 +84,7 @@ export function LimBoSengDemo() {
     );
   const source = sourceById(selectedSource);
   return (
-    <>
+    <div className="history-demo">
       <V3PlayClient
         key={boot.key}
         attemptId="standalone-lim-bo-seng"
@@ -91,6 +92,7 @@ export function LimBoSengDemo() {
         initialRevision={boot.initial.revision}
         scenery={demoScenery}
         cinematics={demoCinematics}
+        portraitBase="/demo/lim-bo-seng/portraits"
         makeClient={() => boot.client}
         busyLabel="Listening…"
         headerActions={
@@ -185,11 +187,10 @@ export function LimBoSengDemo() {
             )}
             <hr />
             <p>
-              <strong>How to play:</strong> Walk to
-              buildings, speak to people, pick up documents and select passages
-              for your notes. Share a note in conversation, then choose your
-              action and prediction. The story follows Lim from Singapore to
-              training abroad and occupied Malaya.
+              <strong>How to play:</strong> Walk to buildings, speak to people,
+              pick up documents and select passages for your notes. Share a note
+              in conversation, then choose your action and prediction. The story
+              follows Lim from Singapore to training abroad and occupied Malaya.
             </p>
             <p>
               <strong>Lesson timing:</strong> Allow 3 minutes for the brief,
@@ -198,10 +199,10 @@ export function LimBoSengDemo() {
             </p>
             <p>
               <strong>Historical framing:</strong> The named figures are
-              historical. Dialogue, meetings and decisions are
-              reconstructions, not verbatim testimony. The historical outcome is
-              fixed. Compare specific evidence, provenance and limitations; the
-              game does not grade your beliefs or choices.
+              historical. Dialogue, meetings and decisions are reconstructions,
+              not verbatim testimony. The historical outcome is fixed. Compare
+              specific evidence, provenance and limitations; the game does not
+              grade your beliefs or choices.
             </p>
             <p>
               <strong>Live conversation:</strong> Questions and recent dialogue
@@ -257,6 +258,6 @@ export function LimBoSengDemo() {
           </div>
         </V3ScrollDialog>
       )}
-    </>
+    </div>
   );
 }

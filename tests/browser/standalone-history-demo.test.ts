@@ -97,7 +97,9 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           .getByText(/The family record reminds us/)
           .last()
           .innerText(),
-      ).not.toMatch(/live (?:AI reconstruction|construction by AI)|Sources:|Inspect records in Source archive/i);
+      ).not.toMatch(
+        /live (?:AI reconstruction|construction by AI)|Sources:|Inspect records in Source archive/i,
+      );
       await page
         .getByRole("button", { name: "Close conversation (Esc)" })
         .click();
@@ -124,7 +126,9 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           ).notes?.length === 1,
       );
       await page.getByRole("button", { name: /I'm ready to decide/ }).click();
-      await page.screenshot({ path: "output/history-demo-check/exploration-confirmation.png" });
+      await page.screenshot({
+        path: "output/history-demo-check/exploration-confirmation.png",
+      });
       await page.getByRole("button", { name: "Continue to decision" }).click();
       await page.getByRole("listbox", { name: "Choose an action" }).waitFor();
       await page.getByRole("option").first().click();
@@ -184,7 +188,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
     page.on("pageerror", (e) => errors.push(e.message));
     const missing: string[] = [];
     page.on("response", (r) => {
-      if (r.url().includes("/demo/lim-bo-seng/map/") && r.status() >= 400)
+      if (r.url().includes("/demo/lim-bo-seng/") && r.status() >= 400)
         missing.push(r.url());
     });
     try {
@@ -247,6 +251,77 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         });
       }
       expect(missing).toEqual([]);
+      expect(errors).toEqual([]);
+    } finally {
+      await browser.close();
+    }
+  },
+  120000,
+);
+
+it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
+  "shows the correct archival avatar for each historical character",
+  async () => {
+    const { demoScenery, newDemoV3State, DEMO_SAVE_KEY } = await import(
+      "../../apps/web/src/lib/demo/v3-session"
+    );
+    const browser = await chromium.launch({
+      headless: true,
+      channel: process.env.PLAYWRIGHT_CHANNEL || "chrome",
+    });
+    const page = await browser.newPage({
+      viewport: { width: 1440, height: 950 },
+      reducedMotion: "reduce",
+    });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    try {
+      await page.goto("http://127.0.0.1:3012/demo/lim-bo-seng", {
+        waitUntil: "networkidle",
+      });
+      for (const [stage, roomIndex, id, name] of [
+        [0, 0, "lim", "Lim Bo Seng"],
+        [0, 1, "gan", "Gan Choo Neo"],
+        [1, 0, "tham", "Tham Sien Yen"],
+        [1, 1, "tan", "Tan Chong Tee"],
+        [3, 0, "elizabeth", "Elizabeth Choy"],
+      ] as const) {
+        const state = {
+          ...newDemoV3State(),
+          stage,
+          intro: false,
+          room: demoScenery[stage].authored.map.rooms[roomIndex].id,
+          messages: [],
+        };
+        await page.evaluate(
+          ({ key, state }) => localStorage.setItem(key, JSON.stringify(state)),
+          { key: DEMO_SAVE_KEY, state },
+        );
+        await page.reload({ waitUntil: "networkidle" });
+        if (
+          await page.getByRole("dialog", { name: "Adventure opening" }).count()
+        )
+          await page.keyboard.press("Escape");
+        await page
+          .getByRole("button", { name: `Press E to talk to ${name}` })
+          .waitFor();
+        await page.locator("canvas").focus();
+        await page.keyboard.press("e");
+        await page.getByLabel(`Ask ${name} a question`).waitFor();
+        const avatar = page
+          .locator(`img[src="/demo/lim-bo-seng/portraits/${id}.webp"]`)
+          .last();
+        expect(
+          await avatar.evaluate(
+            (img) =>
+              (img as HTMLImageElement).complete &&
+              (img as HTMLImageElement).naturalWidth > 0,
+          ),
+        ).toBe(true);
+        await page.screenshot({
+          path: `output/history-demo-check/avatar-${id}.png`,
+        });
+      }
       expect(errors).toEqual([]);
     } finally {
       await browser.close();

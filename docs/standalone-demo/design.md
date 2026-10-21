@@ -76,3 +76,11 @@ The optional `cinematics` property on V3PlayClient supplies demo-only brief and 
 Save migration preserves stage, notes, decisions and answers. Earlier fictional dialogue is retained under `previousEditionMessages` in the learning-record export, and replaced in the visible scroll by the new figure’s opening. It is never relabelled as historical speech. New saves open with the first introduction; existing progress remains at its current stage.
 
 Verification for this update: demo-scoped TypeScript and ESLint pass; 80 adapter/map/v3 UI/cinematic tests pass; both demo browser flows and the existing v3 cinematic browser regression pass. Desktop and mobile screenshots show loaded archival images in the brief. Pause/replay were also inspected in the in-app browser. A live Elizabeth Choy response returned the supplied source IDs; an initial unsupported delivery detail prompted tighter persona boundaries. These checks do not certify all possible model output.
+
+### Historical cast imagery
+
+The standalone wrapper supplies archival chatbot avatars for Lim Bo Seng, Gan Choo Neo, Tham Sien Yen, Tan Chong Tee and Elizabeth Choy. Four additional source cards preserve the full reference photographs, dates and credits. Gan and Tham use post-war NAS photographs; redistribution permission has not been obtained. Avatar framing is presentation-only CSS scoped to those demo asset URLs.
+
+Each historical NPC has its own photo-referenced, AI-generated walking sheet. Original outputs and prompts live beside this document; `scripts/pack-history-character-sheets.mjs` reproducibly aligns the frames. The existing Phaser renderer accepts higher-resolution 4×4 sheets while retaining the native 16px world footprint, direction order and movement logic. Existing 64×64 sheets remain compatible. Ordinary v2/v3 generation does not consume this cast or its assets.
+
+Verification: all five archival avatars and all five authored maps load in Chrome, with no page errors or missing demo assets. Existing movement, dialogue, documents, decisions, saved progress and mobile layout checks pass. Game-client typechecking, 65 unit tests and production build pass; the focused history/v3 suite passes 81 tests.
