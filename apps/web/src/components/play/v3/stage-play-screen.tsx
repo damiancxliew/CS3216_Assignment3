@@ -48,6 +48,7 @@ function formatTime(milliseconds: number) {
 }
 
 export type StageExperience = {
+  scenery?: V3StageScenery;
   mission?: ReactNode;
   overlay?: ReactNode;
   hideDecision?: boolean;
@@ -203,12 +204,12 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
         >
           {stage && view.rooms.length > 0 ? (
             <V3Map
-              key={`${attemptId}:${stageId}`}
+              key={`${attemptId}:${stageId}:${experience?.scenery?.authored?.map.id ?? "default"}`}
               attemptId={attemptId}
               crowdContext={`${stage.timePlace} ${stage.title} ${stage.centralQuestion}`}
               stageId={stageId}
               stageIndex={stageIndex}
-              scenery={scenery}
+              scenery={experience?.scenery ?? scenery}
               destination={experience?.destination}
               onArrive={experience?.onArrive}
               onInspectLandmark={experience?.onInspect}

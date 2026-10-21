@@ -126,7 +126,7 @@ export function V3Map(props: V3MapProps) {
     const held = new Map<string, Point>();
     let destroyed = false;
     let view: MapView | null = null;
-    let playerPosition = arrivalPoint(map, latest.current.currentRoomId) ?? compiled.playerSpawn;
+    let playerPosition = latest.current.scenery?.authored?.spawnAtEntrance ? compiled.playerSpawn : arrivalPoint(map, latest.current.currentRoomId) ?? compiled.playerSpawn;
     let path: Point[] = [];
     let revision = 0;
     let facing: "down" | "up" | "left" | "right" = "down";
@@ -422,7 +422,8 @@ export function V3Map(props: V3MapProps) {
         }
         render();
         nearbyChangeHandler.current = updateNearbyCharacter;
-        movementLockHandler.current();
+        if (latest.current.movementLocked) movementLockHandler.current();
+        else if (latest.current.destination) goTo(latest.current.destination);
         updateNearbyCharacter();
         latest.current.onReadyChange(true);
         const canvas = parent.querySelector("canvas");
@@ -434,8 +435,9 @@ export function V3Map(props: V3MapProps) {
         document.addEventListener("visibilitychange", clearHeld, { signal: controller.signal });
         reducedMotion.addEventListener("change", (event) => view?.setReducedMotion(event.matches), { signal: controller.signal });
         walkToHandler.current(latest.current.walkTo);
-      } catch {
+      } catch (error) {
         if (destroyed) return;
+        console.error("Stage map could not load", error);
         latest.current.onReadyChange(false);
         setFailed(true);
         parent.replaceChildren();

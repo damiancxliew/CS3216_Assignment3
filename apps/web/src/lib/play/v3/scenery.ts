@@ -14,6 +14,8 @@ export type V3StageScenery = {
     style: StoryStyle;
     fixtures: NonNullable<PlaygroundSnapshot["landmarks"]>;
     roomKinds: Record<string, string>;
+    /** Connected scenes can place arrivals at their doorway instead of the room centre. */
+    spawnAtEntrance?: boolean;
     desktopCamera?: "detail" | "overview" | "cover";
     playerSheet?: string;
     characterSheets?: Record<string, string>;
