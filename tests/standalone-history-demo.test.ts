@@ -142,6 +142,15 @@ describe("standalone v3 demo adapter", () => {
           characterId: "gan",
           text: "What support do you need?",
         });
+        expect(
+          (
+            await client.act(saved.revision, {
+              type: "enterRoom",
+              roomId: "embark",
+            })
+          ).ok,
+        ).toBe(false);
+        await act({ type: "enterRoom", roomId: "street" });
         await act({ type: "enterRoom", roomId: "embark" });
         expect(saved.stage).toBe(1);
       } else {

@@ -4,10 +4,22 @@ import type { Action, PlayerView } from "@adventure/play-contract";
 import type { Point } from "@adventure/game-core";
 import type { StageExperience } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
-import { BOARDING_POINT } from "@/lib/demo/waterfront-map";
+import {
+  BOARDING_POINT,
+  WATERFRONT_DOORS,
+  buildWaterfrontMap,
+} from "@/lib/demo/waterfront-map";
 import { type DemoV3State } from "@/lib/demo/v3-session";
-import { waterfrontTasks, atBoardingSteps } from "@/lib/demo/waterfront-progress";
-import { WaterfrontRecord, type WaterfrontRecordId } from "./waterfront-records";
+import {
+  waterfrontTasks,
+  atBoardingSteps,
+} from "@/lib/demo/waterfront-progress";
+import {
+  WaterfrontRecord,
+  type WaterfrontRecordId,
+} from "./waterfront-records";
+import { buildWaterfrontInterior } from "@/lib/demo/waterfront-interiors";
+import { RickshawRide } from "./rickshaw-ride";
 import { WaterfrontDeparture } from "./waterfront-departure";
 import { stages } from "@/lib/demo/lim-bo-seng";
 import styles from "./waterfront-experience.module.css";
@@ -52,6 +64,11 @@ export function useWaterfrontExperience(
   const [boarding, setBoarding] = useState(false);
   const [record, setRecord] = useState<WaterfrontRecordId | null>(null);
   const inSteps = useRef(false);
+  const changingRoom = useRef(false);
+  const approachingDoor = useRef<string | null>(null);
+  const [returnPoint, setReturnPoint] = useState<Point>({ x: 4, y: 10 });
+  const [riding, setRiding] = useState(false);
+  const [transitionError, setTransitionError] = useState<string | null>(null);
   const [destination, setDestination] = useState<Point | null>(null);
   useEffect(() => {
     if (!storageKey) return;
@@ -74,6 +91,9 @@ export function useWaterfrontExperience(
     setAnswer(null);
     inSteps.current = false;
     setBoarding(false);
+    setRiding(false);
+    changingRoom.current = false;
+    approachingDoor.current = null;
     setDestination(null);
   }, [restartKey, storageKey]);
   const save = (items: string[], date: boolean) => {
@@ -89,11 +109,47 @@ export function useWaterfrontExperience(
       /* Keep this activity usable without storage. */
     }
   };
-  const stageExperience = (view: PlayerView, send: Send): StageExperience | undefined => {
+  const stageExperience = (
+    view: PlayerView,
+    send: Send,
+  ): StageExperience | undefined => {
     if (view.stage?.index !== 0 || view.phase !== "stage") return;
     const state = getState();
+    const outside = state.room === "street";
+    const authored = outside
+      ? {
+          ...buildWaterfrontMap("departure", ["lim", "gan", "elizabeth"]),
+          playerSpawn: returnPoint,
+        }
+      : buildWaterfrontInterior(state.room);
+    const walkToDoor = (id: string) => {
+      const door = WATERFRONT_DOORS.find((d) => d.id === id)!;
+      approachingDoor.current = id;
+      setDestination({ x: door.point.x, y: door.point.y + 1 });
+    };
+    const changeRoom = (roomId: string) => {
+      if (changingRoom.current) return;
+      changingRoom.current = true;
+      approachingDoor.current = null;
+      setDestination(null);
+      setTransitionError(null);
+      if (outside) {
+        const door = WATERFRONT_DOORS.find((d) => d.id === roomId)!;
+        setReturnPoint({ x: door.point.x, y: door.point.y + 1 });
+      }
+      send({ type: "enterRoom", roomId }, (ok) => {
+        changingRoom.current = false;
+        if (!ok)
+          setTransitionError(
+            "The doorway could not open. Step away and try again.",
+          );
+        requestAnimationFrame(() =>
+          document.querySelector<HTMLCanvasElement>("canvas")?.focus(),
+        );
+      });
+    };
     const tasks = waterfrontTasks(state);
-    const missing = tasks.filter(task => !task.done);
+    const missing = tasks.filter((task) => !task.done);
     const ready = missing.length === 0;
     const choice = stages[0].choices.find(
       (c) => c.id === state.decisions.find((d) => d.stage === 0)?.choice,
@@ -106,14 +162,45 @@ export function useWaterfrontExperience(
       );
     };
     return {
+      scenery: {
+        authored,
+        storyContext: outside
+          ? "Singapore River street, February 1942"
+          : "Illustrative Singapore shophouse interior",
+        roomDescriptions: {},
+      },
       destination,
-      movementLocked: activity !== null || record !== null || boarding,
-      hideDecision: Boolean(state.departureReady) || tasks.some(task => task.id !== "decision" && !task.done),
+      movementLocked:
+        activity !== null || record !== null || boarding || riding,
+      hideDecision:
+        Boolean(state.departureReady) ||
+        tasks.some((task) => task.id !== "decision" && !task.done),
       decisionHint:
         "Your recommendation opens the river steps. You can still explore before boarding.",
       onInspect(id) {
-        const records: Record<string, WaterfrontRecordId> = { rickshaw: "rickshaw", "waterfront-newspaper": "newspaper", "cargo-b": "currency" };
-        if (records[id]) { setRecord(records[id]); return true; }
+        const door = WATERFRONT_DOORS.find((d) => `door-${d.id}` === id);
+        if (outside && door) {
+          walkToDoor(door.id);
+          return true;
+        }
+        if (id === "room-exit") {
+          setDestination({ x: 12, y: 14 });
+          return true;
+        }
+        if (id === "rickshaw") {
+          setRiding(true);
+          return true;
+        }
+        const records: Record<string, WaterfrontRecordId> = {
+          "shop-record": state.room === "records" ? "newspaper" : "rickshaw",
+          "shop-currency": "currency",
+          "waterfront-newspaper": "newspaper",
+          "cargo-b": "currency",
+        };
+        if (records[id]) {
+          setRecord(records[id]);
+          return true;
+        }
         if (id === "waterfront-supplies") {
           setActivity("supplies");
           return true;
@@ -130,6 +217,34 @@ export function useWaterfrontExperience(
         return false;
       },
       onArrive(point) {
+        if (outside) {
+          const approaching = WATERFRONT_DOORS.find(
+            (d) => d.id === approachingDoor.current,
+          );
+          if (
+            approaching &&
+            point.x === approaching.point.x &&
+            point.y === approaching.point.y + 1
+          ) {
+            approachingDoor.current = null;
+            setDestination({ ...approaching.point });
+            return;
+          }
+          const door = WATERFRONT_DOORS.find(
+            (d) =>
+              point.x >= d.point.x &&
+              point.x <= d.point.x + 1 &&
+              d.point.y === point.y,
+          );
+          if (door) {
+            changeRoom(door.id);
+            return;
+          }
+        } else {
+          if ((point.x === 12 || point.x === 13) && point.y === 14)
+            changeRoom("street");
+          return;
+        }
         const inside = atBoardingSteps(point);
         if (inside && !inSteps.current && !boarding) {
           setDestination(null);
@@ -140,30 +255,94 @@ export function useWaterfrontExperience(
       },
       mission: (
         <div className={styles.mission}>
-          <p className={styles.dateline}>Singapore River · February 1942</p>
+          <p className={styles.dateline}>
+            {outside
+              ? "Singapore River · February 1942"
+              : state.room === "quay"
+                ? "住家 · Inside the household"
+                : state.room === "records"
+                  ? "Later evidence · 1942–1943"
+                  : "雜貨 · Inside the provision shop"}
+          </p>
+          {transitionError && <p role="alert">{transitionError}</p>}
+          <p>
+            {outside
+              ? "Walk onto a green doorway: meet Lim in the provision shop or Gan at home. The evidence room looks ahead to occupation life."
+              : "Explore the room and speak with the person here. Walk onto the green mat at the bottom to return to the street."}
+          </p>
+          <div className={styles.sceneControls}>
+            {outside ? (
+              WATERFRONT_DOORS.map((door) => (
+                <button key={door.id} onClick={() => walkToDoor(door.id)}>
+                  Walk to {door.label}
+                </button>
+              ))
+            ) : (
+              <button onClick={() => setDestination({ x: 12, y: 14 })}>
+                Walk outside
+              </button>
+            )}
+          </div>
           <p className={styles.title}>
             {ready
               ? "The river steps are open"
               : "A household. A departure. Your recommendation."}
           </p>
           <div className={styles.tasks} aria-label="Before boarding checklist">
-            {tasks.map((task, index) => <span key={task.id}>{task.done ? "✓" : index + 1} {task.label}</span>)}
+            {tasks.map((task, index) => (
+              <span key={task.id}>
+                {task.done ? "✓" : index + 1} {task.label}
+              </span>
+            ))}
           </div>
-          <p>{ready ? "Walk onto the river steps to board automatically. Use WASD or the arrow keys; no boarding click needed." : "Follow these three steps, then walk to the boat. Everything under optional discoveries is yours to explore at your own pace."}</p>
+          <p>
+            {ready
+              ? "Walk onto the river steps to board automatically. Use WASD or the arrow keys; no boarding click needed."
+              : "Follow these three steps, then walk to the boat. Everything under optional discoveries is yours to explore at your own pace."}
+          </p>
           <details className={styles.recordsMenu}>
             <summary>Optional discoveries</summary>
-            <p>These activities enrich the story; they do not block boarding.</p>
-            <button onClick={() => setActivity("supplies")}>{selected.length === 2 ? "✓ " : ""}Arrange household support</button>
-            <button onClick={() => setActivity("news")}>{checkedDate ? "✓ " : ""}Check the dated record</button>
-            <button onClick={() => setRecord("rickshaw")}>Rickshaw photograph</button>
-            <button onClick={() => setRecord("newspaper")}>Newspaper board · 20 February 1942</button>
-            <button onClick={() => setRecord("currency")}>Occupation currency</button>
+            <p>
+              These activities enrich the story; they do not block boarding.
+            </p>
+            {state.room === "quay" && (
+              <button onClick={() => setActivity("supplies")}>
+                {selected.length === 2 ? "✓ " : ""}Arrange household support
+              </button>
+            )}
+            {outside && (
+              <button onClick={() => setRiding(true)}>Ride the rickshaw</button>
+            )}
+            <button onClick={() => setActivity("news")}>
+              {checkedDate ? "✓ " : ""}Check the dated record
+            </button>
+            <button onClick={() => setRecord("rickshaw")}>
+              Rickshaw photograph
+            </button>
+            <button onClick={() => setRecord("newspaper")}>
+              Newspaper board · 20 February 1942
+            </button>
+            <button onClick={() => setRecord("currency")}>
+              Occupation currency
+            </button>
           </details>
         </div>
       ),
       overlay: (
         <>
-          {record && <WaterfrontRecord key={record} id={record} onClose={close} />}
+          {riding && (
+            <RickshawRide
+              onClose={() => {
+                setRiding(false);
+                requestAnimationFrame(() =>
+                  document.querySelector<HTMLCanvasElement>("canvas")?.focus(),
+                );
+              }}
+            />
+          )}
+          {record && (
+            <WaterfrontRecord key={record} id={record} onClose={close} />
+          )}
           {activity && (
             <V3ScrollDialog
               title={
@@ -175,7 +354,7 @@ export function useWaterfrontExperience(
               }
               eyebrow="Singapore waterfront · explore"
               footerText="Explore · compare · make a recommendation"
-              closeLabel="Return to the waterfront"
+              closeLabel="Return to exploring"
               onClose={close}
             >
               {activity === "supplies" ? (
@@ -278,8 +457,15 @@ export function useWaterfrontExperience(
               ) : (
                 <div className={styles.activity}>
                   <p>The boat waits until you have finished these tasks:</p>
-                  <ul>{missing.map(task => <li key={task.id}>{task.label}</li>)}</ul>
-                  <p>When every task is complete, walk back onto the steps to board automatically.</p>
+                  <ul>
+                    {missing.map((task) => (
+                      <li key={task.id}>{task.label}</li>
+                    ))}
+                  </ul>
+                  <p>
+                    When every task is complete, walk back onto the steps to
+                    board automatically.
+                  </p>
                   <button className={styles.primary} onClick={close}>
                     Keep exploring
                   </button>
@@ -287,10 +473,18 @@ export function useWaterfrontExperience(
               )}
             </V3ScrollDialog>
           )}
-          {boarding && choice && <WaterfrontDeparture choice={choice} send={send} onClose={() => {
-            setBoarding(false);
-            requestAnimationFrame(() => document.querySelector<HTMLCanvasElement>("canvas")?.focus());
-          }} />}
+          {boarding && choice && (
+            <WaterfrontDeparture
+              choice={choice}
+              send={send}
+              onClose={() => {
+                setBoarding(false);
+                requestAnimationFrame(() =>
+                  document.querySelector<HTMLCanvasElement>("canvas")?.focus(),
+                );
+              }}
+            />
+          )}
         </>
       ),
     };

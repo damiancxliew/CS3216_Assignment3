@@ -106,12 +106,15 @@ export function WaterfrontRecord({
                 )
             : record.context}
         </p>
-        <p className={styles.credit}>
-          {record.credit}.{" "}
-          <a href={record.url} target="_blank" rel="noreferrer">
-            View original catalogue record ↗
-          </a>
-        </p>
+        <details className={styles.credit}>
+          <summary>Image credits & original record</summary>
+          <p>
+            {record.credit}.{" "}
+            <a href={record.url} target="_blank" rel="noreferrer">
+              View original catalogue record ↗
+            </a>
+          </p>
+        </details>
         {id === "newspaper" && (
           <p className={styles.credit}>
             <a

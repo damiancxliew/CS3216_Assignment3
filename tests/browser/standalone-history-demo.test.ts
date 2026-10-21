@@ -4,6 +4,39 @@ import { findPath, type Point } from "@adventure/game-core";
 import { demoScenery } from "../../apps/web/src/lib/demo/v3-session";
 import { seatIn } from "../../apps/web/src/lib/play/v3/map";
 
+async function approachInterior(page: Page) {
+  await page.locator("canvas").waitFor();
+  await page
+    .getByRole("combobox", { name: "Walk to", exact: true })
+    .waitFor({ state: "hidden" });
+  for (let step = 0; step < 4; step++) {
+    await page.locator("canvas").focus();
+    await page.keyboard.press("ArrowUp");
+    await page.waitForTimeout(100);
+    const putDown = page.getByRole("button", { name: /Put down/ });
+    if (await putDown.isVisible()) await putDown.click();
+  }
+}
+async function visitHome(page: Page) {
+  await page.getByRole("button", { name: "Walk outside", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Walk to 住家 · Home", exact: true })
+    .waitFor();
+  await page
+    .getByRole("combobox", { name: "Walk to", exact: true })
+    .waitFor({ state: "hidden" });
+  await page.waitForTimeout(250);
+  await page
+    .getByRole("button", { name: "Walk to 住家 · Home", exact: true })
+    .click();
+  await page
+    .getByText("住家 · Inside the household", { exact: true })
+    .waitFor();
+  await page
+    .getByRole("combobox", { name: "Walk to", exact: true })
+    .waitFor({ state: "hidden" });
+}
+
 async function walkWaterfront(
   page: Page,
   start: Point,
@@ -74,6 +107,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
       if (await page.getByRole("dialog", { name: "Adventure opening" }).count())
         await page.keyboard.press("Escape");
       await page.locator("canvas").waitFor();
+      await approachInterior(page);
       await page
         .getByRole("button", { name: "Press E to talk to Lim Bo Seng" })
         .waitFor();
@@ -141,8 +175,8 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         .getByRole("button", { name: "Close conversation (Esc)" })
         .click();
       await page.locator("canvas").focus();
-      // The compact waterfront's first paper is one tile south of the spawn.
-      await page.keyboard.press("ArrowDown");
+      // The shop biography is beside the conversation area.
+      await page.keyboard.press("ArrowLeft");
       const reader = page.getByRole("dialog");
       await reader.waitFor();
       await page.locator("[data-document-paragraph]").evaluate((node) => {
@@ -163,7 +197,17 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           ).notes?.length === 1,
       );
       // One conversation and a source note are enough; a recommendation is still required.
-      await walkWaterfront(page, { x: 6, y: 11 }, { x: 27, y: 18 });
+      await page
+        .getByRole("button", { name: "Walk outside", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Walk to 住家 · Home", exact: true })
+        .waitFor();
+      await page
+        .getByRole("combobox", { name: "Walk to", exact: true })
+        .waitFor({ state: "hidden" });
+      await page.waitForTimeout(250);
+      await walkWaterfront(page, { x: 4, y: 10 }, { x: 27, y: 18 });
       const locked = page.getByRole("dialog", { name: "Before you board" });
       await locked.waitFor();
       expect(
@@ -177,7 +221,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           .count(),
       ).toBe(0);
       await page
-        .getByRole("button", { name: "Return to the waterfront", exact: true })
+        .getByRole("button", { name: "Return to exploring", exact: true })
         .click();
       // The trigger fires when re-entering the steps, never from an unrelated click.
       await walkWaterfront(page, { x: 26, y: 18 }, { x: 26, y: 17 });
@@ -286,6 +330,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
       if (await page.getByRole("dialog", { name: "Adventure opening" }).count())
         await page.keyboard.press("Escape");
       await page.locator("canvas").waitFor();
+      await approachInterior(page);
       await page
         .getByRole("button", { name: "Press E to talk to Lim Bo Seng" })
         .waitFor();
@@ -295,6 +340,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           .locator("span")
           .count(),
       ).toBe(3);
+      await visitHome(page);
       await page.getByText("Optional discoveries", { exact: true }).click();
       await page
         .getByRole("button", { name: /Arrange household support/ })
@@ -312,7 +358,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         path: "output/history-demo-check/household-activity.png",
       });
       await page
-        .getByRole("button", { name: "Return to the waterfront", exact: true })
+        .getByRole("button", { name: "Return to exploring", exact: true })
         .click();
       await page
         .getByRole("button", { name: /Check the dated record/ })
@@ -333,7 +379,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         path: "output/history-demo-check/dated-record-activity.png",
       });
       await page
-        .getByRole("button", { name: "Return to the waterfront", exact: true })
+        .getByRole("button", { name: "Return to exploring", exact: true })
         .click();
       await page.reload({ waitUntil: "networkidle" });
       await page.getByText("Optional discoveries", { exact: true }).click();
@@ -395,7 +441,12 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         )
           await page.keyboard.press("Escape");
         await page.locator("canvas").waitFor();
-        await page.getByRole("button", { name: /Press E to talk/ }).waitFor();
+        if (stage > 0)
+          await page.getByRole("button", { name: /Press E to talk/ }).waitFor();
+        else
+          await page
+            .getByRole("combobox", { name: "Walk to", exact: true })
+            .waitFor({ state: "hidden" });
         await page.screenshot({
           path: `output/history-demo-check/authored-stage-${stage + 1}.png`,
         });
@@ -416,6 +467,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         .getByRole("button", { name: "Restart demo", exact: true })
         .click();
       await page.keyboard.press("Escape");
+      await approachInterior(page);
       await page
         .getByRole("button", { name: "Press E to talk to Lim Bo Seng" })
         .waitFor();
@@ -474,7 +526,10 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           ...newDemoV3State(),
           stage,
           intro: false,
-          room: demoScenery[stage].authored.map.rooms[roomIndex].id,
+          room:
+            stage === 0
+              ? ["household", "quay", "records"][roomIndex]
+              : demoScenery[stage].authored.map.rooms[roomIndex].id,
           messages: [],
         };
         await page.evaluate(
@@ -486,6 +541,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           await page.getByRole("dialog", { name: "Adventure opening" }).count()
         )
           await page.keyboard.press("Escape");
+        if (stage === 0) await approachInterior(page);
         await page
           .getByRole("button", { name: `Press E to talk to ${name}` })
           .waitFor();
@@ -535,9 +591,11 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         );
         await page.getByRole("dialog", { name: "Adventure opening" }).waitFor();
         await page.keyboard.press("Escape");
+        await approachInterior(page);
         await page
           .getByRole("button", { name: "Press E to talk to Lim Bo Seng" })
           .waitFor();
+        await visitHome(page);
         await page.getByText("Optional discoveries", { exact: true }).click();
         await page
           .getByRole("button", { name: /Arrange household support/ })
@@ -580,7 +638,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         });
         await page
           .getByRole("button", {
-            name: "Return to the waterfront",
+            name: "Return to exploring",
             exact: true,
           })
           .click();

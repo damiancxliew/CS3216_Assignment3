@@ -20,15 +20,21 @@ const roomSets = [
     },
     {
       id: "quay",
-      name: "Singapore River quay",
+      name: "住家 · Gan’s household",
       description:
-        "Working waterfront with cargo boats and the departure steps.",
+        "An illustrative household interior with Gan, family provisions and water storage.",
     },
     {
       id: "records",
       name: "Later civilian evidence",
       description:
         "Student observer records desk: Elizabeth Choy and Singapore civilian life during the later occupation, 1942–1943. This is not a documented meeting before the surrender.",
+    },
+    {
+      id: "street",
+      name: "Singapore River street",
+      description:
+        "Shophouse entrances, a rickshaw stand and river boarding steps.",
     },
   ],
   [
@@ -272,20 +278,29 @@ function document(id: string, open: boolean): DocumentView {
             : "report",
     title: source.title,
     provenance: {
-      masthead: source.credit,
-      date: source.date,
+      masthead: source.kind,
+      date:
+        source.id === "currency"
+          ? "Japanese occupation · 1942 issue"
+          : source.date,
       sender: null,
       recipient: null,
       place: null,
     },
-    body: `${source.summary}\n\nSOURCE LIMITS\n${source.limitation}\n\nPROVENANCE\n${source.credit}\n${source.url}\n\nThis is a lesson summary or labelled adaptation, not an original verbatim transcript. Historical photographs and the currency scan are available in Source archive.`,
+    body: `${source.summary}\n\nSOURCE LIMITS\n${source.limitation}\n\nThis is a lesson summary or labelled adaptation, not an original verbatim transcript. Historical photographs and the currency scan are available in Source archive.`,
     real: false,
-    sourceLabel: `${source.kind} · ${source.credit}`,
+    sourceLabel: source.kind,
     glossary: [],
     open,
   };
 }
 function sourceRoom(stageIndex: number, id: string) {
+  if (stageIndex === 0)
+    return ["family", "letter"].includes(id)
+      ? "quay"
+      : id === "life"
+        ? "household"
+        : "records";
   return roomSets[stageIndex][stages[stageIndex].sources.indexOf(id) % 3].id;
 }
 const briefing: PlayerView["briefing"] = {
@@ -616,7 +631,8 @@ export function createDemoV3Client(
           if (
             !next.departureReady ||
             next.moment ||
-            next.room !== roomSets[next.stage][1].id
+            next.room !==
+              (next.stage === 0 ? "street" : roomSets[next.stage][1].id)
           )
             throw new Error(
               "Finish your recommendation, then walk to the marked exit.",

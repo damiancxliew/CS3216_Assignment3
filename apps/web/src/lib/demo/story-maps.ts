@@ -57,7 +57,7 @@ export function buildStoryMap(
   roomIds: string[],
   characterIds: string[],
 ): AuthoredScene {
-  if (stage === 0) return buildWaterfrontMap(stageId, roomIds, characterIds);
+  if (stage === 0) return buildWaterfrontMap(stageId, characterIds);
   const rooms: MapRoom[] = [
     { id: roomIds[0], x: 1, y: 7, width: 13, height: 7, enclosure: "open" },
     { id: roomIds[1], x: 17, y: 14, width: 14, height: 5, enclosure: "open" },

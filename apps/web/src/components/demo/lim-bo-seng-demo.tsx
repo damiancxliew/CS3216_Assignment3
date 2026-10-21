@@ -154,7 +154,11 @@ export function LimBoSengDemo() {
         <V3ScrollDialog
           eyebrow="Standalone demo · Chapter 6"
           title={source.title}
-          kicker={source.date}
+          kicker={
+            source.id === "currency"
+              ? "Japanese occupation · 1942 issue"
+              : source.date
+          }
           footerText="Real records · clearly labelled reconstructions"
           closeLabel="Close source archive"
           onClose={() => setArchive(false)}
@@ -183,7 +187,11 @@ export function LimBoSengDemo() {
               <strong>Source limits: </strong>
               {source.limitation}
             </p>
-            <p>{source.credit}</p>
+            <details>
+              <summary>Source credits & catalogue details</summary>
+              <p>{source.credit}</p>
+              <p>{source.date}</p>
+            </details>
             <a
               href={source.url}
               target="_blank"

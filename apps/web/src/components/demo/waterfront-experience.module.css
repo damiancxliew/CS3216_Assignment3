@@ -89,7 +89,9 @@
   padding: 12px;
 }
 .feedback p,
-.feedback strong { color: inherit; }
+.feedback strong {
+  color: inherit;
+}
 :global([data-theme="dark"]) .feedback {
   color: #edf4e8;
   background: #243c32;
@@ -249,17 +251,196 @@
   }
 }
 
-.explorationImage { width: 100%; max-height: 440px; object-fit: contain; background: #252d28; }
-.explorationImage[data-enlarged="true"] { max-height: none; }
-.credit a { text-decoration: underline; }
-.recordsMenu { margin-top: 8px; font-size: 12px; }
-.recordsMenu summary, .activity summary { cursor: pointer; }
-.recordsMenu button { display: block; padding: 7px 0; text-decoration: underline; }
-.speech { position: absolute; top: 8px; left: 3%; width: 94%; min-height: 74px; padding: 8px 12px; background: #fff9e9; color: #263b36; border: 2px solid #38493d; border-radius: 9px; z-index: 5; font-size: 13px; line-height: 1.4; image-rendering: auto; }
-.speech::after { content: ""; position: absolute; left: 25%; bottom: -10px; border: 5px solid transparent; border-top-color: #38493d; }
-.speech p { margin: 3px 0 0; }
-.observer { position: absolute; top: 174px; left: 3%; width: 64px; height: 64px; background: url("/demo/lim-bo-seng/map/civilian.svg") 0 0 / 256px 256px; z-index: 3; }
-.departure[data-paused="true"] * { animation-play-state: paused; }
-.sceneControls { display: flex; gap: 8px; flex-wrap: wrap; }
+.explorationImage {
+  width: 100%;
+  max-height: 440px;
+  object-fit: contain;
+  background: #252d28;
+}
+.explorationImage[data-enlarged="true"] {
+  max-height: none;
+}
+.credit a {
+  text-decoration: underline;
+}
+.recordsMenu {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.recordsMenu summary,
+.activity summary {
+  cursor: pointer;
+}
+.recordsMenu button {
+  display: block;
+  padding: 7px 0;
+  text-decoration: underline;
+}
+.speech {
+  position: absolute;
+  top: 8px;
+  left: 3%;
+  width: 94%;
+  min-height: 74px;
+  padding: 8px 12px;
+  background: #fff9e9;
+  color: #263b36;
+  border: 2px solid #38493d;
+  border-radius: 9px;
+  z-index: 5;
+  font-size: 13px;
+  line-height: 1.4;
+  image-rendering: auto;
+}
+.speech::after {
+  content: "";
+  position: absolute;
+  left: 25%;
+  bottom: -10px;
+  border: 5px solid transparent;
+  border-top-color: #38493d;
+}
+.speech p {
+  margin: 3px 0 0;
+}
+.observer {
+  position: absolute;
+  top: 174px;
+  left: 3%;
+  width: 64px;
+  height: 64px;
+  background: url("/demo/lim-bo-seng/map/civilian.svg") 0 0 / 256px 256px;
+  z-index: 3;
+}
+.departure[data-paused="true"] * {
+  animation-play-state: paused;
+}
+.sceneControls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 :global([data-theme="dark"]) .credit,
-:global([data-theme="dark"]) .activity .dateline { color: #cfbda6; }
+:global([data-theme="dark"]) .activity .dateline {
+  color: #cfbda6;
+}
+
+.rickshawScene {
+  position: relative;
+  height: 360px;
+  overflow: hidden;
+  border: 3px solid #80684b;
+  border-radius: 12px;
+  background: #dbcfaa;
+}
+.rideStreet {
+  position: absolute;
+  inset: 0 0 85px;
+  width: 200%;
+  background: url("/demo/lim-bo-seng/map/river-provision-full.svg") 0 0 / 240px
+    240px repeat-x;
+  image-rendering: pixelated;
+  animation: rideStreet 18s linear infinite;
+}
+.rideRoad {
+  position: absolute;
+  inset: 240px 0 0;
+  background: linear-gradient(
+    #c4ba9d 15%,
+    #6b6c63 16%,
+    #525a53 80%,
+    #b3a484 81%
+  );
+}
+.rideVehicle {
+  position: absolute;
+  left: 48%;
+  top: 165px;
+  width: 180px;
+  height: 120px;
+  background: url("/demo/lim-bo-seng/map/rickshaw-side.svg") center/contain
+    no-repeat;
+  image-rendering: pixelated;
+  animation: rideBob 0.55s ease-in-out infinite alternate;
+}
+.ridePassenger {
+  position: absolute;
+  left: 43px;
+  top: 32px;
+  width: 42px;
+  height: 42px;
+  background: url("/demo/lim-bo-seng/map/civilian.svg") 0 0 / 168px 168px;
+  image-rendering: pixelated;
+}
+.ridePuller {
+  position: absolute;
+  left: 157px;
+  top: 43px;
+  width: 52px;
+  height: 52px;
+  background: url("/demo/lim-bo-seng/map/civilian.svg") 0 -104px / 208px 208px;
+  image-rendering: pixelated;
+  animation: pullerSteps 0.7s steps(4) infinite;
+}
+.rickshawScene .speech {
+  bottom: 12px;
+  top: auto;
+  left: 12px;
+  right: 12px;
+  width: auto;
+  max-width: none;
+  background: #fff8e8;
+  color: #263d35;
+  padding: 12px 16px;
+}
+.rickshawScene[data-paused="true"] * {
+  animation-play-state: paused;
+}
+@keyframes rideStreet {
+  to {
+    transform: translateX(-240px);
+  }
+}
+@keyframes rideBob {
+  to {
+    transform: translateY(2px);
+  }
+}
+@keyframes pullerSteps {
+  to {
+    background-position-x: -208px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rideStreet,
+  .rideVehicle,
+  .ridePuller {
+    animation: none;
+  }
+}
+@media (max-width: 600px) {
+  .rickshawScene {
+    height: 390px;
+  }
+  .rideVehicle {
+    left: 28%;
+  }
+  .rickshawScene .speech {
+    font-size: 14px;
+  }
+}
+.mission .sceneControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 8px 0;
+}
+.mission .sceneControls button {
+  border: 1px solid #8d9f8d;
+  background: #e7eddf;
+  color: #274a3d;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  min-height: 36px;
+}
