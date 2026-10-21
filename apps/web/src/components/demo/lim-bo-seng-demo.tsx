@@ -5,6 +5,7 @@ import { BookOpen, Download, RotateCcw } from "lucide-react";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import type { V3PlayClient as PlayClient } from "@/lib/play/v3/client";
+import { learningReportHtml } from "@/lib/demo/learning-report";
 import { demoCinematics } from "@/lib/demo/cinematics";
 import { sources, sourceById } from "@/lib/demo/lim-bo-seng";
 import {
@@ -81,26 +82,13 @@ export function LimBoSengDemo() {
   }, [createBoot]);
   function download() {
     const url = URL.createObjectURL(
-      new Blob(
-        [
-          JSON.stringify(
-            {
-              title: "The Cost of Resistance",
-              curriculum: "Chapter 6 · Japanese Occupation",
-              ...latest.current,
-              caveat:
-                "Constructed choices and conversations are not historical records. No automated attainment grade is assigned.",
-            },
-            null,
-            2,
-          ),
-        ],
-        { type: "application/json" },
-      ),
+      new Blob([learningReportHtml(latest.current)], {
+        type: "text/html;charset=utf-8",
+      }),
     );
     const a = document.createElement("a");
     a.href = url;
-    a.download = "lim-bo-seng-learning-record.json";
+    a.download = "lim-bo-seng-learning-report.html";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -149,7 +137,7 @@ export function LimBoSengDemo() {
             className={`${chrome.primary} inline-flex items-center gap-2 px-4 py-3 font-bold`}
             onClick={download}
           >
-            <Download size={16} /> Download learning record
+            <Download size={16} /> Download learning report
           </button>
         }
       />
@@ -249,7 +237,7 @@ export function LimBoSengDemo() {
               className="inline-flex items-center gap-2 underline"
               onClick={download}
             >
-              <Download size={15} /> Export current learning record
+              <Download size={15} /> Download current learning report
             </button>
           </div>
         </V3ScrollDialog>
@@ -268,7 +256,7 @@ export function LimBoSengDemo() {
           </p>
           <div className="flex gap-4">
             <button className="underline" onClick={download}>
-              Export record
+              Download report
             </button>
             <button
               className="rounded-lg bg-ink px-4 py-2 font-bold text-white"
