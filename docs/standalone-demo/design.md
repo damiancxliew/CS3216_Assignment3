@@ -19,15 +19,14 @@ All source/data/components/assets are in new demo paths. The adapter stores this
 
 ## Story and map
 
-Five stages follow the historical geography rather than putting Lim in occupied Singapore throughout:
+Two substantial chapters replace the earlier five-stage route:
 
-1. Pre-surrender Singapore: family responsibilities and departure.
-2. Training abroad: confidence, fear and comparing later recollections.
-3. Late-1943 Perak: local knowledge and cooperation.
-4. Singapore civilian evidence encounter: Elizabeth Choy’s assistance to prisoners of war, Gan Choo Neo’s family context, and the limits of applying general scarcity records to individuals.
-5. Perak under pressure: coercion, propaganda and uncertain testimony.
+1. **Singapore: the people left behind.** Keep the waterfront, Lim and Gan, one family/departure recommendation and the boat sequence. Elizabeth Choy and the food/currency records are optional, explicitly later evidence encounters about occupation life in 1942–1943, not events happening before the surrender.
+2. **Malaya: what can you rely on?** Keep the compact Perak coast. The introduction condenses training and the return journey; Lim, Tan and Tham support a single evidence judgement about acting under uncertainty. Walking through the final passage opens the historical epilogue and debrief.
 
-Each stage has three rooms, two source-grounded historical figures, staged sources and three choices. The demo supplies five hand-authored tile layouts to the existing Phaser renderer and game-core pathfinder. Open interaction areas are connected by walkable streets and tracks. Singapore has continuous shuttered shophouse frontages, tiled five-foot ways and a waterfront; later scenes use canvas training shelters, coastal timber huts, a sparse provision shop and jungle meeting areas. Original code-authored SVG pixel tiles include rice counters, water jars, desks, radios, cargo, sampans, hand-pulled transport, vegetable plots and bedrolls. Larger facades are composed of native 2x2 tile stamps. All solid props have collision footprints and are kept clear of NPCs and evidence. The civilian/field walking sheets use the renderer's existing four-direction animation convention. Rebuild art with `node scripts/build-history-demo-art.mjs`. Click key objects to read a contextual inspection in the existing v3 scroll dialog. These drawings are reconstructions, separate from the archive's real historical images; visual fidelity still needs historian review. The rooms are scene reconstructions, not surveyed historical maps.
+There are two decisions total. Each chapter has three interaction areas and three available historical figures; only one conversation and one saved document passage are required before its decision. Other figures, photographs and records are optional. No separate training, landing, scarcity-allocation or jungle mission is scheduled. Both maps use the unchanged v3 renderer/pathfinder and retain native SVG scenery, photo-referenced cast sprites, inspectable records and walking exits.
+
+The original five-stage art assets remain available for future reuse; they are not additional playable stages. Rebuild native art with the existing history-demo, waterfront and history-chapters scripts. Map and movement illustrations do not claim to reconstruct documented addresses, routes or meetings.
 
 Students walk, speak, pick up evidence, select passages into notes, share notes in conversation and make one recommendation per stage. Three core goals unlock each walking exit: a document note, an exchange with either figure, and a recommendation. Consequences use illustrated movement scenes and speech bubbles, followed by optional exploration and a physical exit. No second prediction is requested. Source reading and discussion provide the intended lesson duration; clicking quickly takes less time.
 
@@ -85,7 +84,7 @@ Each historical NPC has its own photo-referenced, AI-generated walking sheet. Or
 
 Verification: all five archival avatars and all five authored maps load in Chrome, with no page errors or missing demo assets. Existing movement, dialogue, documents, decisions, saved progress and mobile layout checks pass. Game-client typechecking, 65 unit tests and production build pass; the focused history/v3 suite passes 81 tests.
 
-### Compact opening: Singapore River waterfront
+### Compact opening: Singapore River waterfront (implementation history)
 
 Stage one uses a 32×24 map (768 tiles), down from 42×36 (1,512 tiles): 49% less area. Five adjoining shophouses, bilingual illustrative shop signs, a shared five-foot way, a godown, mooring posts, cargo boats and river steps replace the scattered blocks. Lim and Gan remain visible across interaction areas; clicking a distant figure routes the player to that area. Desktop framing shows the whole small scene; mobile retains the existing following camera.
 
@@ -110,7 +109,7 @@ An 18-second scene alternates speech bubbles between the student, Gan and Lim, t
 The household trade-off feedback uses explicit contrasting text/surface colours in both themes. The browser regression checks the computed contrast of its heading and body against WCAG AA (4.5:1). The mission lists three goals; optional discoveries are collapsed separately.
 
 
-### Chapters two to five: compact settings and one decision
+### Previous five-stage revision (superseded by the two-chapter route)
 
 All five maps now use 32×24 geometry and the opt-in cover camera. The later settings have custom native SVG building tiles: India signals hut/mess/reading veranda; Perak stilt shelters, fishing nets and coastal boats; Singapore continuous shophouses, a canteen, medicine parcels, laundry and vegetable beds; Perak wireless/report huts, a rest shelter and shaded tracks. Rebuild these additional tiles with `node scripts/build-history-chapters-art.mjs`. These are illustrative building types, not exact surveyed addresses, authenticated equipment models or reconstructions of meetings.
 
@@ -119,3 +118,12 @@ Both named figures stay visible on every map and retain their existing photograp
 The demo adapter commits `act` immediately and clears the decision UI. The old `predict` step is no longer accepted; old saves already predicting migrate their chosen action into a pending departure without asking again. Historical decisions/predictions already exported remain intact. Only the standalone adapter changes: ordinary v3 decision/prediction behavior is untouched. Stages two to five play a short, pausable consequence with the chosen movement pattern, narrator/student bubbles and a readable trade-off. Closing acknowledges it in the scoped optional save; reload does not ask for the decision or replay the scene. Replay remains optional. The last exit opens the historical epilogue, not an altered historical ending.
 
 `?preview=chapter-2`, `chapter-3`, `chapter-4` and `chapter-5` start isolated previews at the corresponding stage. Each has separate lesson/consequence saves; restart returns to that preview's starting chapter. The main lesson and waterfront previews remain intact.
+
+
+### Two-chapter save compatibility and verification
+
+`lessonEdition: "two-chapters"` distinguishes the shortened structure. Existing Singapore progress stays in chapter one. Old training/landing/civilian/finale progress resumes in chapter two, with its introduction shown once. Stage-zero and final-stage decisions retain their meanings; decisions from removed intermediate missions are preserved under `previousFiveStageProgress`, with their original notes and messages, rather than being relabelled as new choices. Visible notes/messages map to the relevant Singapore or resistance chapter. Completed historical epilogues and reflections remain completed. Earlier fictional-cast and prediction-screen migrations remain supported.
+
+Existing waterfront preview scopes are preserved. `chapter-2` opens the second chapter; old `chapter-3` through `chapter-5` URLs remain isolated compatibility aliases for chapter two, never hidden extra stages. Consequence acknowledgements use a new edition-specific optional storage suffix so old stage numbers cannot suppress a new chapter's scene. The live chat endpoint validates the two-chapter cast. Elizabeth's instruction boundary explicitly allows later Singapore evidence while Lim and Gan retain the pre-surrender scene boundary.
+
+Regression coverage verifies the two-decision route through the debrief, legacy stages 0–4, completed finale migration, all five personas, both map geometries, three cast positions per map, evidence reachability, mobile previews and physical walking exits.

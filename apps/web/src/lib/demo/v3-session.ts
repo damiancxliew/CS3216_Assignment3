@@ -16,99 +16,39 @@ const roomSets = [
       id: "household",
       name: "Family provision shop",
       description:
-        "A Singapore shophouse provision shop with wooden shutters, a five-foot way, shelves, rice sacks, enamel signs, a bicycle and a family writing desk.",
+        "Singapore waterfront household supplies and family commitments before the surrender.",
     },
     {
       id: "quay",
       name: "Singapore River quay",
       description:
-        "A timber harbour quay with moored sampans, cargo crates, baskets, rope, a handcart and boat landing.",
+        "Working waterfront with cargo boats and the departure steps.",
     },
     {
       id: "records",
-      name: "Five-foot way · records",
+      name: "Later civilian evidence",
       description:
-        "A modest shophouse office with wooden desks, correspondence, household records, books and an oil lamp.",
-    },
-  ],
-  [
-    {
-      id: "briefing",
-      name: "Training hut",
-      description:
-        "A canvas and timber training camp hut with maps, a radio set, benches, notebooks and supply crates.",
-    },
-    {
-      id: "gathering",
-      name: "Camp gathering",
-      description:
-        "A camp meeting shelter under trees with wooden benches, enamel mugs, canvas packs and lanterns.",
-    },
-    {
-      id: "records",
-      name: "Reading table",
-      description:
-        "A timber hut with a writing desk, training records, correspondence, books and an oil lamp.",
+        "Student observer records desk: Elizabeth Choy and Singapore civilian life during the later occupation, 1942–1943. This is not a documented meeting before the surrender.",
     },
   ],
   [
     {
       id: "shore",
-      name: "Coastal village",
+      name: "Coastal meeting place",
       description:
-        "A wooded Malayan coastal village with fishing boats, timber huts, nets, baskets and a harbour landing.",
+        "Reconstructed Perak coast after the return to Malaya; local knowledge and consent matter.",
     },
     {
       id: "liaison",
-      name: "Liaison shelter",
+      name: "Compare the accounts",
       description:
-        "A thatched meeting shelter beside the coastal path with benches, provisions and maps.",
+        "Tan Chong Tee's retrospective evidence beside the coastal shelter.",
     },
     {
       id: "records",
-      name: "Stores hut",
+      name: "Training and testimony",
       description:
-        "A timber hut with supply crates, maps, documents, sacks and lanterns.",
-    },
-  ],
-  [
-    {
-      id: "shop",
-      name: "Provision shop",
-      description:
-        "An occupied Singapore shophouse with sparse provisions, rice sacks, empty containers, a weighing scale, woven baskets, a handcart and wooden shutters.",
-    },
-    {
-      id: "courier",
-      name: "Civilian courtyard",
-      description:
-        "A shophouse courtyard with a bicycle, supply parcels, a vegetable plot, washing lines and water jars.",
-    },
-    {
-      id: "records",
-      name: "Source reading room",
-      description:
-        "A modest office with a desk, purchasing cards, occupation currency, household registers and an oil lamp. Sources from Singapore are learner evidence rather than documented items in Lim's possession.",
-    },
-  ],
-  [
-    {
-      id: "meeting",
-      name: "Jungle meeting hut",
-      description:
-        "A timber meeting hut in the Malayan jungle, with a map table, radio, paper reports, provisions and an oil lamp.",
-    },
-    {
-      id: "shelter",
-      name: "Volunteer shelter",
-      description:
-        "A canvas camp shelter under trees, with benches, blankets and supply crates.",
-    },
-    {
-      id: "records",
-      name: "Reports table",
-      description:
-        "A timber jungle hut with a desk, handwritten reports, a newspaper and notebooks.",
+        "Tham Sien Yen's retrospective training account, occupation claims and source comparisons.",
     },
   ],
 ];
@@ -119,7 +59,7 @@ export const demoScenery = stages.map((stage, i) => ({
     roomSets[i].map((r) => r.id),
     stage.npcs.map((npc) => npc.id),
   ),
-  storyContext: `${stage.place} ${stage.date}. ${i === 0 || i === 2 ? "harbour waterfront" : i === 1 || i === 4 ? "jungle camp" : "occupied town shophouses"}`,
+  storyContext: `${stage.place} ${stage.date}. harbour waterfront`,
   roomDescriptions: Object.fromEntries(
     roomSets[i].map((r) => [r.id, r.description]),
   ),
@@ -127,6 +67,15 @@ export const demoScenery = stages.map((stage, i) => ({
 export type DemoV3State = {
   version: 1;
   castEdition?: 2;
+  lessonEdition?: "two-chapters";
+  previousFiveStageProgress?: {
+    stage: number;
+    chosen: string | null;
+    moment: DemoV3State["moment"];
+    decisions: DemoV3State["decisions"];
+    notes: DemoV3State["notes"];
+    messages: DemoV3State["messages"];
+  };
   previousEditionMessages?: MessageView[];
   revision: number;
   phase: PlayerView["phase"];
@@ -158,6 +107,7 @@ export function newDemoV3State(stageIndex = 0): DemoV3State {
   const state: DemoV3State = {
     version: 1,
     castEdition: 2,
+    lessonEdition: "two-chapters",
     revision: 0,
     phase: "stage",
     stage,
@@ -179,6 +129,48 @@ export function restoreDemoV3State(raw: string | null): DemoV3State {
   try {
     if (!raw) return newDemoV3State();
     const s = JSON.parse(raw) as DemoV3State;
+    if (s.lessonEdition !== "two-chapters") {
+      if (!Number.isInteger(s.stage) || s.stage < 0 || s.stage > 4)
+        return newDemoV3State();
+      const oldStage = s.stage;
+      s.previousFiveStageProgress = {
+        stage: oldStage,
+        chosen: s.chosen,
+        moment: s.moment,
+        decisions: structuredClone(s.decisions),
+        notes: structuredClone(s.notes),
+        messages: structuredClone(s.messages),
+      };
+      const chapterFor = (index: number) =>
+        index === 0 || index === 3 ? 0 : 1;
+      s.decisions = s.decisions
+        .filter((d) => d.stage === 0 || d.stage === 4)
+        .map((d) => ({ ...d, stage: d.stage === 0 ? 0 : 1 }));
+      s.notes = s.notes.map((n) => ({
+        ...n,
+        stageIndex: chapterFor(n.stageIndex),
+      }));
+      s.messages = s.messages.map((m) => ({
+        ...m,
+        stageIndex: m.stageIndex == null ? null : chapterFor(m.stageIndex),
+      }));
+      s.stage = oldStage === 0 ? 0 : 1;
+      if (oldStage > 0) {
+        s.room =
+          s.room === "records"
+            ? "records"
+            : ["gathering", "liaison", "courier", "shelter"].includes(s.room)
+              ? "liaison"
+              : "shore";
+        if (s.phase === "stage") s.intro = true;
+      }
+      if (oldStage > 0 && oldStage < 4) {
+        s.moment = null;
+        s.chosen = null;
+        s.departureReady = false;
+      }
+      s.lessonEdition = "two-chapters";
+    }
     if (
       s.version !== 1 ||
       !Number.isInteger(s.stage) ||

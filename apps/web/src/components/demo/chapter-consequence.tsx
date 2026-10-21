@@ -5,7 +5,7 @@ import { stages } from "@/lib/demo/lim-bo-seng";
 import styles from "./chapter-consequence.module.css";
 import shared from "./waterfront-experience.module.css";
 
-const backdrops = ["", "signals", "liaison", "provisions", "relay"];
+const backdrops = ["", "liaison"];
 /** An illustrated consequence of the student's recommendation, not invented testimony. */
 export function ChapterConsequence({
   stage,
@@ -61,7 +61,7 @@ export function ChapterConsequence({
           }}
         />
         <div className={styles.ground} />
-        {chapter.npcs.map((npc, i) => (
+        {chapter.npcs.slice(0, 2).map((npc, i) => (
           <span
             key={npc.id}
             className={styles.person}
@@ -75,26 +75,7 @@ export function ChapterConsequence({
             }
           />
         ))}
-        {stage === 3 ? (
-          <>
-            <span className={styles.householdLabel}>HOUSEHOLDS</span>
-            <span className={styles.assistanceLabel}>ASSISTANCE</span>
-            {(choice.id === "household"
-              ? [20, 28, 72]
-              : choice.id === "team"
-                ? [20, 66, 74]
-                : [40, 48, 56]
-            ).map((position, i) => (
-              <span
-                key={i}
-                className={styles.provision}
-                style={{ "--share-end": `${position}%` } as CSSProperties}
-              />
-            ))}
-          </>
-        ) : (
-          <span className={styles.parcel} />
-        )}
+        <span className={styles.parcel} />
         <div className={shared.speech} role="status">
           <strong>{lines[beat].speaker}</strong>
           <p>{lines[beat].text}</p>

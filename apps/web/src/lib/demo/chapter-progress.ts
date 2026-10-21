@@ -14,10 +14,7 @@ export function chapterTasks(state: DemoV3State) {
     },
     {
       id: "conversation",
-      label:
-        state.stage === 0
-          ? "Speak with Lim or Gan"
-          : "Speak with either person",
+      label: "Speak with someone here",
       done: state.messages.some(
         (m) =>
           m.stageIndex === state.stage &&
@@ -27,7 +24,10 @@ export function chapterTasks(state: DemoV3State) {
     },
     {
       id: "decision",
-      label: "Make your recommendation",
+      label:
+        state.stage === 0
+          ? "Make your recommendation"
+          : "Judge what the evidence supports",
       done: Boolean(
         state.departureReady &&
           state.decisions.some((d) => d.stage === state.stage),

@@ -385,18 +385,18 @@ export type Stage = {
 export const stages: Stage[] = [
   {
     id: "departure",
-    title: "A life to leave behind",
+    title: "Singapore: the people left behind",
     date: "February 1942 · before the surrender",
     place: "Singapore · reconstructed departure quarter",
-    duration: "4–5 min",
+    duration: "9–12 min",
     theme: "town",
     intro:
-      "Explore Singapore before its fall as a student observer following Lim Bo Seng’s story. Meet Lim and Gan Choo Neo through source-grounded conversations about public duty and family. The streets are reconstructed; their biographies are your starting evidence.",
+      "Begin at the Singapore waterfront before the surrender in February 1942. Speak with Lim and Gan about departure and the people staying behind. At the records desk, you may also explore a clearly labelled later encounter with Elizabeth Choy and records of civilian life under occupation. Those later records are available to you as a student observer; they are not events happening on this quay.",
     objective:
-      "Speak to Lim and Gan. Read the family biography and the description of Lim’s later letter, then recommend a priority for the departure scenario.",
+      "Use the family evidence to recommend who needs support when Lim leaves. Explore civilian assistance and scarcity as optional later context, without making another allocation decision.",
     question:
       "What will you put in place before leaving Singapore, and whose needs might your decision leave unresolved?",
-    sources: ["family", "letter", "life"],
+    sources: ["family", "letter", "life", "choy", "food", "ration", "currency"],
     npcs: [
       {
         id: "lim",
@@ -430,6 +430,23 @@ export const stages: Stage[] = [
           "How does the family change our view of resistance?",
           "What evidence survives about the separation?",
           "What should we avoid assuming about your experience?",
+        ],
+      },
+      {
+        id: "elizabeth",
+        name: "Elizabeth Choy",
+        role: "Later evidence encounter · Singapore, 1942–1943",
+        color: "#c29472",
+        x: 270,
+        y: 330,
+        opening:
+          "In this later evidence encounter, we look beyond the departure. My husband and I helped prisoners of war with supplies and messages during the occupation. What does civilian help add to your picture of resistance?",
+        concerns:
+          "Use choy for biography. Singapore evidence encounter, not a Perak safe-house keeper or a documented associate of Lim. Describe assistance only at the documented level: food, medicine, money, letters and radios. The source gives no delivery methods, concealment, packaging or radio parts; say those details are unavailable if asked. No invented private recollections, exact ration quantities or graphic descriptions of detention. This is an optional later evidence encounter within a pre-surrender map: explicitly date occupation events to 1942–1943. Do not claim she met Lim or Gan on this quay.",
+        prompts: [
+          "How did civilians help prisoners of war?",
+          "What risks did helping others carry?",
+          "How do food records help us understand the wider setting?",
         ],
       },
     ],
@@ -474,300 +491,30 @@ export const stages: Stage[] = [
     reflection:
       "Name one piece of evidence for the tension between family and public duty. What does it leave unknown?",
     historian:
-      "Lim left before Singapore fell. The neighbourhood and proposed preparations are reconstructions. Named figures are historical; dialogue and animated choices are not recorded conversations or decisions.",
+      "Lim left before Singapore fell. The neighbourhood and proposed preparations are reconstructions. Named figures are historical; dialogue and animated choices are not recorded conversations or decisions. Elizabeth and the food records are later evidence encounters, not people or objects documented at this departure.",
   },
   {
-    id: "training",
-    title: "More than courage",
-    date: "1943 · training abroad; later recollections",
-    place: "India · training setting with retrospective source encounters",
-    duration: "4–5 min",
-    theme: "camp",
-    intro:
-      "The story moves overseas. At the training camp, encounter Tham Sien Yen and Tan Chong Tee through the later accounts adapted on page 63 of your guidebook. Their remembered moods open a question: what can courage look like when people also face uncertainty?",
-    objective:
-      "Compare Tham’s Account B with Tan’s Account C. Find a shared basis for comparison before recommending how a team should prepare.",
-    question:
-      "How will you prepare a team whose confidence and fear may exist at the same time?",
-    sources: ["force", "farewell-b", "farewell-c"],
-    npcs: [
-      {
-        id: "tham",
-        name: "Tham Sien Yen",
-        role: "Force 136 member · Account B",
-        color: "#c29472",
-        x: 270,
-        y: 330,
-        opening:
-          "The school extract of my later recollection emphasises high spirits at a farewell despite the danger. Does confidence mean there was no fear?",
-        concerns:
-          "Only farewell-b supports personal recollections. It is a school adaptation of a 1983 interview, not a verified verbatim transcript. This is an evidence encounter, not proof of a meeting with Tan.",
-        prompts: [
-          "What does Account B emphasise?",
-          "Can courage and fear coexist?",
-          "How does remembering years later affect this evidence?",
-        ],
-      },
-      {
-        id: "tan",
-        name: "Tan Chong Tee",
-        role: "Force 136 member · Account C",
-        color: "#b4b88a",
-        x: 780,
-        y: 330,
-        opening:
-          "The school extract of my later account describes mixed feelings. Compare what our two accounts emphasise before deciding that one must be wrong.",
-        concerns:
-          "Use farewell-c, with farewell-b for comparison. Do not claim both accounts describe the same gathering. Do not invent training anecdotes.",
-        prompts: [
-          "What is similar between the accounts?",
-          "Why might the remembered moods differ?",
-          "What would we need to check in the originals?",
-        ],
-      },
-    ],
-    choices: [
-      {
-        id: "rehearse",
-        title: "Practise listening and coordination",
-        detail: "Recommend a shared discussion before departure.",
-        cost: "Less time remains for individual preparation.",
-        outcome:
-          "The figures gather at the training table. Your recommendation values shared understanding; it does not prove how either man was trained.",
-        effect: [0, 2, 1],
-        animation: "gather",
-        actor: 0,
-      },
-      {
-        id: "listen",
-        title: "Make room for private concerns",
-        detail:
-          "Recommend time to hear doubts without assuming what either man privately felt.",
-        cost: "The group briefing is delayed.",
-        outcome:
-          "The scene separates a small discussion from the wider gathering. Your recommendation gives uncertainty room to be expressed.",
-        effect: [2, 1, 0],
-        animation: "handover",
-        actor: 1,
-      },
-      {
-        id: "schedule",
-        title: "Keep the departure schedule",
-        detail:
-          "Recommend completing preparations on time while recording unanswered concerns.",
-        cost: "Some concerns remain unheard.",
-        outcome:
-          "The scene moves toward the camp exit. The timetable takes priority, but the two accounts still leave questions about readiness.",
-        effect: [-1, 0, 2],
-        animation: "depart",
-        actor: 0,
-      },
-    ],
-    reflection:
-      "The guidebook contrasts two recollections of a farewell. Give a common ground for comparison before explaining a difference.",
-    historian:
-      "The training scene is reconstructed. The two guidebook accounts were recalled or published decades later; the game dialogue is not their testimony.",
-  },
-  {
-    id: "landing",
-    title: "The other shore",
-    date: "Late 1943",
-    place: "Perak, occupied Malaya · reconstructed coastal landing",
-    duration: "4 min",
+    id: "resistance",
+    title: "Malaya: what can you rely on?",
+    date: "Late 1943–early 1944 · before Lim’s capture",
+    place: "Perak, occupied Malaya · reconstructed coastal meeting place",
+    duration: "10–13 min",
     theme: "coast",
     intro:
-      "Follow Lim’s return to occupied Malaya. Speak with Lim and encounter Tan’s evidence about preparation. The coastal setting illustrates the regional journey; it does not locate an authenticated landing or stage a documented conversation.",
+      "After training abroad, Lim returned to occupied Malaya in late 1943. The journey is condensed into this coastal setting. Compare Tan Chong Tee’s and Tham Sien Yen’s later accounts, investigate the limits of occupation claims, and speak with Lim about the people a resistance network depends on. Make one evidence-based judgement; training, landing and the network are parts of this chapter, not separate missions.",
     objective:
-      "Use the Force 136 record and the two figures’ source limits to explain why cooperation needs local knowledge and consent.",
+      "Choose a claim to examine. Compare what a recollection or occupation message can establish, then decide whether to seek another perspective, limit the recommendation, or proceed while recording uncertainty.",
     question:
-      "How will you build cooperation without treating local people as resources you can simply command?",
-    sources: ["force", "life", "farewell-c"],
-    npcs: [
-      {
-        id: "lim",
-        name: "Lim Bo Seng",
-        role: "Malayan resistance organiser",
-        color: "#c29472",
-        x: 270,
-        y: 330,
-        opening:
-          "The record places my return in late 1943. Allied support mattered, but language and local knowledge mattered too. Why could a network not be built through orders alone?",
-        concerns:
-          "Use force and life. Do not invent a landing location, local guide, agreement or witnessed incident. Lim did not command all Force 136.",
-        prompts: [
-          "Why did you return to Malaya?",
-          "How did local knowledge matter?",
-          "Was Force 136 the same organisation as MPAJA?",
-        ],
-      },
-      {
-        id: "tan",
-        name: "Tan Chong Tee",
-        role: "Force 136 member · evidence encounter",
-        color: "#b4b88a",
-        x: 780,
-        y: 330,
-        opening:
-          "Training and a willingness to serve do not remove uncertainty. Use the records to ask what cooperation required; do not mistake a game scene for a documented meeting.",
-        concerns:
-          "Use farewell-c for personal evidence, force for wider context. No invented details of his landing, relationship to a village or private conversation with Lim.",
-        prompts: [
-          "How does the training account help us here?",
-          "What evidence would show local cooperation?",
-          "Which details of this landing remain uncertain?",
-        ],
-      },
+      "What is strong enough evidence to act on—and what uncertainty must you carry with you?",
+    sources: [
+      "force",
+      "farewell-c",
+      "farewell-b",
+      "press",
+      "control",
+      "life",
+      "memory",
     ],
-    choices: [
-      {
-        id: "consent",
-        title: "Ask what help is possible",
-        detail:
-          "Recommend establishing local limits before requesting cooperation.",
-        cost: "Your own plan must adapt to local constraints.",
-        outcome:
-          "The figures meet at the coastal path. The movement illustrates your priority of agreement before further demands.",
-        effect: [1, 2, 1],
-        animation: "gather",
-        actor: 0,
-      },
-      {
-        id: "supplies",
-        title: "Share supplies before asking",
-        detail:
-          "Recommend contributing provisions without making assistance an obligation.",
-        cost: "The team retains fewer supplies for itself.",
-        outcome:
-          "A parcel changes hands in the scenario. This illustrates reciprocity, not a documented exchange involving either figure.",
-        effect: [2, 1, -1],
-        animation: "handover",
-        actor: 0,
-      },
-      {
-        id: "wait",
-        title: "Allow time to understand",
-        detail:
-          "Recommend waiting to learn more before seeking local involvement.",
-        cost: "Connections take longer to develop.",
-        outcome:
-          "The figures move toward the shelter. Fewer immediate demands are made, while connections take longer to develop.",
-        effect: [0, -1, 2],
-        animation: "depart",
-        actor: 1,
-      },
-    ],
-    reflection:
-      "Explain why a Singapore chapter about occupation also needs a map of Malaya and a regional story.",
-    historian:
-      "Sources place Lim's return in late 1943. NHB describes Gustavus V in October; NLB's timeline gives November. The scene avoids an unsupported precise landing date.",
-  },
-  {
-    id: "households",
-    title: "The price of a bowl of rice",
-    date: "1942–1944 · civilian context encounter",
-    place: "Singapore · civilian evidence encounter",
-    duration: "5–6 min",
-    theme: "town",
-    intro:
-      "Step aside from the Perak journey to investigate civilian life in Singapore. Meet Elizabeth Choy through her documented help to prisoners of war, and Gan Choo Neo through the family biography. Food records reveal pressures around them, without proving the experience of either individual household.",
-    objective:
-      "Ask Elizabeth about civilian help and Gan about the limits of family evidence. Compare a ration card, currency and food history before allocating three illustrative provision shares.",
-    question:
-      "How will you divide provisions when a paper entitlement and a bundle of money cannot guarantee a meal?",
-    sources: ["choy", "family", "ration", "food", "currency", "ledger"],
-    npcs: [
-      {
-        id: "elizabeth",
-        name: "Elizabeth Choy",
-        role: "Civilian helper of prisoners of war · Singapore",
-        color: "#c29472",
-        x: 270,
-        y: 330,
-        opening:
-          "My husband and I helped prisoners of war with supplies and messages. The record also describes my detention in 1943. How does civilian help broaden your idea of resistance?",
-        concerns:
-          "Use choy for biography. Singapore evidence encounter, not a Perak safe-house keeper or a documented associate of Lim. Describe assistance only at the documented level: food, medicine, money, letters and radios. The source gives no delivery methods, concealment, packaging or radio parts; say those details are unavailable if asked. No invented private recollections, exact ration quantities or graphic descriptions of detention.",
-        prompts: [
-          "How did civilians help prisoners of war?",
-          "What risks did helping others carry?",
-          "How do food records help us understand the wider setting?",
-        ],
-      },
-      {
-        id: "gan",
-        name: "Gan Choo Neo",
-        role: "Family perspective · Singapore evidence encounter",
-        color: "#b4b88a",
-        x: 780,
-        y: 330,
-        opening:
-          "The biography places a family behind Lim’s public commitments. Compare that with the food records, but do not treat a general ration card as proof of what my household ate.",
-        concerns:
-          "Use family for personal evidence and ration, food, ledger for broader Singapore context. No invented ration allocation, household menu or meeting with Elizabeth.",
-        prompts: [
-          "What can a ration card establish?",
-          "Whose lives are missing from military accounts?",
-          "What would tell us more about one particular household?",
-        ],
-      },
-    ],
-    choices: [
-      {
-        id: "household",
-        title: "Keep two shares with households",
-        detail:
-          "Allocate two scenario shares to household needs and one to assistance work.",
-        cost: "The network must reduce its immediate activity.",
-        outcome:
-          "Two shares stay by the provision shop; one goes toward assistance work. The allocation is your model, not a record of Elizabeth’s or Gan’s decisions.",
-        effect: [2, -1, 0],
-        animation: "handover",
-        actor: 0,
-      },
-      {
-        id: "pool",
-        title: "Pool provisions and negotiate",
-        detail:
-          "Recommend discussing urgent needs before allocating the three shares.",
-        cost: "Discussion takes time and creates no additional food.",
-        outcome:
-          "The figures gather beside the provisions. This represents including civilian perspectives, not a documented meeting between them.",
-        effect: [1, 2, -1],
-        animation: "gather",
-        actor: 0,
-      },
-      {
-        id: "team",
-        title: "Keep two shares for assistance",
-        detail:
-          "Allocate two scenario shares to assistance work and one to household needs.",
-        cost: "The people sheltering it carry more of the shortage.",
-        outcome:
-          "Two shares move toward assistance work. The household side retains less; these are teaching tokens, not historical ration quantities.",
-        effect: [-1, 2, 0],
-        animation: "depart",
-        actor: 1,
-      },
-    ],
-    reflection:
-      "Use two sources to explain a link between occupation policy and daily hardship. State one limit on applying a general Singapore record to a particular person.",
-    historian:
-      "Provision shares are invented teaching tokens, not historical ration quantities. Crop substitution, barter and inflation are contextualised; there is no instant harvest or unlimited-money solution.",
-  },
-  {
-    id: "pressure",
-    title: "A network under pressure",
-    date: "Early 1944 · before Lim’s capture",
-    place: "Perak · reconstructed jungle meeting place",
-    duration: "4–5 min",
-    theme: "jungle",
-    intro:
-      "Return to the Malayan story. Compare occupation propaganda with evidence of control and later memories. Lim and Tan help you test what a claim can support. The report exercise is a learning scenario, not a reenactment of Lim’s arrest.",
-    objective:
-      "Use Lim’s biography, Tan’s adapted account and the occupation sources to distinguish evidence, inference and uncertainty.",
-    question:
-      "What should you do when the need to act is real but the information is incomplete?",
-    sources: ["life", "farewell-c", "press", "control", "memory"],
     npcs: [
       {
         id: "lim",
@@ -801,6 +548,23 @@ export const stages: Stage[] = [
           "How should we compare two memories?",
           "What would corroboration add?",
           "Which uncertainty should we keep in our conclusion?",
+        ],
+      },
+      {
+        id: "tham",
+        name: "Tham Sien Yen",
+        role: "Force 136 member · Account B",
+        color: "#c29472",
+        x: 270,
+        y: 330,
+        opening:
+          "The school extract of my later recollection emphasises high spirits at a farewell despite the danger. Does confidence mean there was no fear?",
+        concerns:
+          "Only farewell-b supports personal recollections. It is a school adaptation of a 1983 interview, not a verified verbatim transcript. This is an evidence encounter, not proof of a meeting with Tan.",
+        prompts: [
+          "What does Account B emphasise?",
+          "Can courage and fear coexist?",
+          "How does remembering years later affect this evidence?",
         ],
       },
     ],
@@ -845,6 +609,6 @@ export const stages: Stage[] = [
     reflection:
       "Explain how an occupation authority's message can be useful for studying its aims while remaining weak evidence for civilian safety.",
     historian:
-      "These are source-reasoning decisions, not a reenactment of Lim's capture. No choice can prevent his documented arrest or turn historical suffering into a player failure.",
+      "These are source-reasoning decisions, not a reenactment of Lim's capture. No choice can prevent his documented arrest or turn historical suffering into a player failure. The coastal setting condenses the regional journey, not a verified landing site. The training accounts are retrospective, and no documented meeting among these figures is asserted.",
   },
 ];

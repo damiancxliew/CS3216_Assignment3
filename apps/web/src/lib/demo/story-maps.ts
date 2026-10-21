@@ -34,78 +34,21 @@ const objectNotes: Record<string, string> = {
 };
 const asset = (name: string) => `/demo/lim-bo-seng/map/${name}.svg`;
 // Compact illustrative geography; never claims to reconstruct a documented camp or address.
-const plans = [
-  null,
-  {
-    buildings: ["signals", "mess", "reading"],
-    props: [
-      ["signal-kit", 2, 8, 0],
-      ["map-table", 11, 8, 0],
-      ["writing-desk", 18, 8, 2],
-      ["bedrolls", 28, 15, 1],
-      ["water-jars", 18, 15, 1],
-    ],
-    exit: "camp",
-    ground: "gravel",
-    path: "earth",
-    description:
-      "India training courtyard: signals hut, mess veranda, shaded reading tables and canvas equipment",
-  },
-  {
-    buildings: ["fishing", "stores", "liaison"],
-    props: [
-      ["fishing-net", 2, 8, 0],
-      ["cargo", 11, 8, 0],
-      ["writing-desk", 18, 8, 2],
-      ["water-jars", 28, 15, 1],
-      ["map-table", 18, 15, 1],
-    ],
-    exit: "coast",
-    ground: "sand",
-    path: "decking",
-    description:
-      "Perak shore: raised timber shelters, fishing nets, coastal palms, boats and a shared landing",
-  },
-  {
-    buildings: ["provisions", "household", "canteen"],
-    props: [
-      ["empty-counter", 2, 8, 0],
-      ["medicine-parcels", 11, 8, 0],
-      ["newsstand", 18, 8, 2],
-      ["water-jars", 28, 15, 1],
-      ["wash-line", 18, 15, 1],
-    ],
-    exit: "town",
-    ground: "gravel",
-    path: "limestone",
-    description:
-      "Occupied Singapore: five-foot ways, provision counter, canteen, household washing and vegetable beds",
-  },
-  {
-    buildings: ["relay", "rest", "reports"],
-    props: [
-      ["signal-kit", 2, 8, 0],
-      ["map-table", 11, 8, 0],
-      ["newsstand", 18, 8, 2],
-      ["bedrolls", 28, 15, 1],
-      ["writing-desk", 18, 15, 1],
-    ],
-    exit: "jungle",
-    ground: "leaves",
-    path: "earth",
-    description:
-      "Perak jungle relay: raised wireless hut, shaded report table, canvas rest shelter and dense tropical edges",
-  },
-] as const;
+const plan = {
+  buildings: ["fishing", "stores", "liaison"],
+  props: [
+    ["fishing-net", 2, 8, 0],
+    ["signal-kit", 11, 8, 0],
+    ["newsstand", 18, 8, 2],
+    ["water-jars", 28, 15, 1],
+    ["map-table", 18, 15, 1],
+  ],
+  description:
+    "Perak coast: timber shelters, fishing nets, training records, communication equipment and occupation evidence",
+} as const;
 
 export const STORY_EXIT = { x: 27, y: 18 };
-export const storyExitLabels = [
-  "River steps",
-  "Camp gate",
-  "Inland trail",
-  "Courtyard passage",
-  "Reflection trail",
-];
+export const storyExitLabels = ["River steps", "Reflection trail"];
 
 /** Authored SVG tiles and collision geometry on the unchanged v3 renderer. */
 export function buildStoryMap(
@@ -115,9 +58,6 @@ export function buildStoryMap(
   characterIds: string[],
 ): AuthoredScene {
   if (stage === 0) return buildWaterfrontMap(stageId, roomIds, characterIds);
-  const plan = plans[stage]!;
-  const town = stage === 3,
-    coast = stage === 2;
   const rooms: MapRoom[] = [
     { id: roomIds[0], x: 1, y: 7, width: 13, height: 7, enclosure: "open" },
     { id: roomIds[1], x: 17, y: 14, width: 14, height: 5, enclosure: "open" },
@@ -133,14 +73,13 @@ export function buildStoryMap(
     height: 24,
     tiles: Array.from({ length: 24 }, (_, y) =>
       Array.from({ length: 32 }, (_, x) =>
-        coast && y >= 19
+        y >= 19
           ? "water"
-          : town ||
-              (y >= 7 &&
-                y <= 18 &&
-                ((x >= 5 && x <= 9) ||
-                  (x >= 23 && x <= 28) ||
-                  (y >= 11 && y <= 14)))
+          : y >= 7 &&
+              y <= 18 &&
+              ((x >= 5 && x <= 9) ||
+                (x >= 23 && x <= 28) ||
+                (y >= 11 && y <= 14))
             ? "path"
             : "grass",
       ),
@@ -150,9 +89,7 @@ export function buildStoryMap(
     doorless: true,
     scenery: [],
     landmarks: [],
-    waterBodies: coast
-      ? [{ x: -5, y: 19, width: 45, height: 20, kind: "basin" }]
-      : [],
+    waterBodies: [{ x: -5, y: 19, width: 45, height: 20, kind: "basin" }],
   };
   const fixtures: AuthoredScene["fixtures"] = [];
   function fixture(
@@ -187,18 +124,11 @@ export function buildStoryMap(
         height: 2,
       });
   }
-  const frontages = town
-    ? [
-        { name: "provisions", x: 0, y: 1 },
-        { name: "household", x: 8, y: 1 },
-        { name: "canteen", x: 16, y: 1 },
-        { name: "household", x: 24, y: 1 },
-      ]
-    : [
-        { name: plan.buildings[0], x: 1, y: 1 },
-        { name: plan.buildings[1], x: 11, y: stage === 2 ? 12 : 15 },
-        { name: plan.buildings[2], x: 21, y: 1 },
-      ];
+  const frontages = [
+    { name: plan.buildings[0], x: 1, y: 1 },
+    { name: plan.buildings[1], x: 11, y: 12 },
+    { name: plan.buildings[2], x: 21, y: 1 },
+  ];
   for (const [i, frontage] of frontages.entries())
     for (let row = 0; row < 3; row++)
       for (let col = 0; col < 4; col++)
@@ -210,22 +140,21 @@ export function buildStoryMap(
           `chapter-${frontage.name}-${col}-${row}`,
           i === 0 ? 0 : 2,
         );
-  if (!town)
-    for (const [i, x, y] of [
-      [0, 12, 1],
-      [1, 15, 6],
-    ])
-      for (let row = 0; row < 2; row++)
-        for (let col = 0; col < 2; col++)
-          fixture(
-            `shade-${i}-${col}-${row}`,
-            "Tropical shade",
-            x + col * 2,
-            y + row * 2,
-            `canopy-${col}-${row}`,
-            0,
-            true,
-          );
+  for (const [i, x, y] of [
+    [0, 12, 1],
+    [1, 15, 6],
+  ])
+    for (let row = 0; row < 2; row++)
+      for (let col = 0; col < 2; col++)
+        fixture(
+          `shade-${i}-${col}-${row}`,
+          "Tropical shade",
+          x + col * 2,
+          y + row * 2,
+          `canopy-${col}-${row}`,
+          0,
+          true,
+        );
   const notes: Record<string, string> = {
     ...objectNotes,
     "signal-kit": objectNotes.radio,
@@ -254,7 +183,7 @@ export function buildStoryMap(
     storyExitLabels[stage],
     28,
     17,
-    `exit-${plan.exit}`,
+    "exit-jungle",
     1,
     false,
     "Complete your three goals, then walk through the marked passage.",
@@ -269,106 +198,47 @@ export function buildStoryMap(
     true,
     "Compare the real photographs with the illustrated people on the map.",
   );
-  if (coast) {
-    for (const [i, x] of [3, 21].entries())
-      for (let row = 0; row < 2; row++)
-        for (let col = 0; col < 3; col++)
-          fixture(
-            `boat-${i}-${col}-${row}`,
-            "Coastal fishing boat",
-            x + col * 2,
-            20 + row * 2,
-            `river-boat-${col}-${row}`,
-            0,
-            false,
-          );
-    fixture(
-      "net-shore",
-      "Fishing nets",
-      3,
-      16,
-      "fishing-net",
-      0,
-      true,
-      notes["fishing-net"],
-    );
-    fixture(
-      "shore-cargo",
-      "Community supplies",
-      7,
-      16,
-      "cargo",
-      0,
-      true,
-      notes.cargo,
-    );
-  } else if (town) {
-    for (const x of [2, 5, 8, 11])
-      for (const y of [16, 20])
+  for (const [i, x] of [3, 21].entries())
+    for (let row = 0; row < 2; row++)
+      for (let col = 0; col < 3; col++)
         fixture(
-          `garden-${x}-${y}`,
-          "Household vegetable plot",
-          x,
-          y,
-          "plant-bed",
+          `boat-${i}-${col}-${row}`,
+          "Coastal fishing boat",
+          x + col * 2,
+          20 + row * 2,
+          `river-boat-${col}-${row}`,
           0,
-          true,
-          notes.vegetables,
+          false,
         );
-    fixture(
-      "chapter-rickshaw",
-      "Rickshaw photograph",
-      14,
-      19,
-      "rickshaw",
-      1,
-      true,
-      notes.rickshaw,
-    );
-    fixture(
-      "chapter-currency",
-      "Inspect occupation money",
-      28,
-      20,
-      "rice-counter",
-      1,
-      true,
-      "Inspect an actual occupation banknote.",
-    );
-  } else {
-    for (const [i, x] of [1, 7, 13, 19, 25].entries())
-      for (let row = 0; row < 2; row++)
-        for (let col = 0; col < 2; col++)
-          fixture(
-            `canopy-${i}-${col}-${row}`,
-            "Tropical canopy",
-            x + col * 2,
-            20 + row * 2,
-            `canopy-${col}-${row}`,
-            1,
-            true,
-          );
-    fixture(
-      "supplies-corner",
-      "Supplies",
-      3,
-      16,
-      "cargo",
-      0,
-      true,
-      notes.cargo,
-    );
-    fixture("lamp-corner", "Camp lantern", 9, 16, "lamp", 0, false);
-  }
+  fixture(
+    "net-shore",
+    "Fishing nets",
+    3,
+    16,
+    "fishing-net",
+    0,
+    true,
+    notes["fishing-net"],
+  );
+  fixture(
+    "shore-cargo",
+    "Community supplies",
+    7,
+    16,
+    "cargo",
+    0,
+    true,
+    notes.cargo,
+  );
+
   // Tropical margins frame a clear, short circulation loop without hiding the cast.
-  if (!town)
-    for (const [x, y] of [
-      [0, 8],
-      [0, 15],
-      [19, 2],
-      [31, 12],
-    ])
-      map.scenery!.push({ kind: "palm", x, y });
+  for (const [x, y] of [
+    [0, 8],
+    [0, 15],
+    [19, 2],
+    [31, 12],
+  ])
+    map.scenery!.push({ kind: "palm", x, y });
   return {
     map,
     playerSpawn: { x: 7, y: 10 },
@@ -376,13 +246,13 @@ export function buildStoryMap(
     fixtures,
     environment: {
       description: plan.description,
-      ground: plan.ground,
-      accent: town ? "brick" : "earth",
-      path: plan.path,
-      roof: town ? "terracotta" : "canvas",
-      pathStyle: town ? "formal" : "worn",
-      waterfront: coast ? "harbor" : "none",
-      layout: coast ? "quayside" : "meandering",
+      ground: "sand",
+      accent: "earth",
+      path: "decking",
+      roof: "canvas",
+      pathStyle: "worn",
+      waterfront: "harbor",
+      layout: "quayside",
       population: "quiet",
       vegetation: 0,
       propDensity: "sparse",
@@ -403,11 +273,9 @@ export function buildStoryMap(
       )[id],
       roomId: roomIds[i],
     })),
-    style: town ? "civic" : coast ? "harbor" : "jungle",
+    style: "harbor",
     desktopCamera: "cover",
-    roomKinds: Object.fromEntries(
-      roomIds.map((id) => [id, town ? "street" : coast ? "dock" : "camp"]),
-    ),
+    roomKinds: Object.fromEntries(roomIds.map((id) => [id, "dock"])),
     playerSheet: asset("civilian"),
     characterSheets: Object.fromEntries(
       characterIds.map((id) => [id, `/demo/lim-bo-seng/sprites/${id}.png`]),

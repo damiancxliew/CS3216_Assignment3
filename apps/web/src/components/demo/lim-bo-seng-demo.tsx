@@ -63,7 +63,7 @@ export function LimBoSengDemo() {
   useEffect(() => {
     const preview = new URLSearchParams(window.location.search).get("preview");
     const chapterPreview = preview?.match(/^chapter-([2-5])$/);
-    previewStart.current = chapterPreview ? Number(chapterPreview[1]) - 1 : 0;
+    previewStart.current = chapterPreview ? 1 : 0;
     if (
       preview === "waterfront" ||
       preview === "waterfront-v2" ||
@@ -224,7 +224,7 @@ export function LimBoSengDemo() {
             </p>
             <p>
               <strong>Lesson timing:</strong> Allow 3 minutes for the brief,
-              20–25 for five stages of exploration and discussion, and 5–7 for
+              20–25 for two chapters of exploration and discussion, and 5–7 for
               the interview and debrief.
             </p>
             <p>

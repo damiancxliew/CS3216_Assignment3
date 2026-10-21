@@ -29,7 +29,11 @@ describe("authored history maps on the v3 engine", () => {
       kind: "outdoor",
       locationId: "quay",
     });
-    expect(scene.cast?.map((person) => person.id)).toEqual(["lim", "gan"]);
+    expect(scene.cast?.map((person) => person.id)).toEqual([
+      "lim",
+      "gan",
+      "elizabeth",
+    ]);
   });
   it.each(stages.map((stage, index) => [stage.title, index] as const))(
     "keeps every interaction reachable in %s",
@@ -171,7 +175,9 @@ it("introduces every stage's cast with real photographs linked to matching sprit
       beat.id.startsWith("person-"),
     );
     expect(people.map((p) => p.title)).toEqual(stage.npcs.map((n) => n.name));
-    expect(new Set(people.map((p) => p.image?.src)).size).toBe(2);
+    expect(new Set(people.map((p) => p.image?.src)).size).toBe(
+      stage.npcs.length,
+    );
     for (const beat of people)
       expect(existsSync(`apps/web/public${beat.image!.src}`)).toBe(true);
   }

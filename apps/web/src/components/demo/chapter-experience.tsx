@@ -30,7 +30,7 @@ export function useChapterExperience(
   const [error, setError] = useState(false);
   const entering = useRef(false);
   const lastStage = useRef(-1);
-  const storageKey = saveScope ? `${saveScope}.consequences` : null;
+  const storageKey = saveScope ? `${saveScope}.two-chapter-consequences` : null;
   useEffect(() => {
     setRecord(null);
     setDestination(null);
@@ -44,7 +44,9 @@ export function useChapterExperience(
         ? JSON.parse(localStorage.getItem(storageKey) || "[]")
         : [];
       if (Array.isArray(value))
-        saved = value.filter((n) => Number.isInteger(n) && n > 0 && n < 5);
+        saved = value.filter(
+          (n) => Number.isInteger(n) && n > 0 && n < stages.length,
+        );
     } catch {
       /* Scene acknowledgement is optional; core progress is saved separately. */
     }
@@ -108,21 +110,9 @@ export function useChapterExperience(
             <button onClick={() => setRecord("portraits")}>
               Photographs of the people you meet
             </button>
-            {(index === 3 || index === 4) && (
-              <button onClick={() => setRecord("newspaper")}>
-                Inspect the occupation newspaper
-              </button>
-            )}
-            {index === 3 && (
-              <>
-                <button onClick={() => setRecord("currency")}>
-                  Inspect occupation money
-                </button>
-                <button onClick={() => setRecord("rickshaw")}>
-                  Rickshaw photograph
-                </button>
-              </>
-            )}
+            <button onClick={() => setRecord("newspaper")}>
+              Inspect the occupation newspaper
+            </button>
             {decision && (
               <button onClick={() => setSeen(seen.filter((s) => s !== index))}>
                 Replay your consequence

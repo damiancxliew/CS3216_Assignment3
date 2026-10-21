@@ -177,17 +177,17 @@ describe("standalone v3 demo adapter", () => {
       });
     await act({ type: "continue" });
     expect(projectDemoV3(saved).phase).toBe("reveal");
-    expect(saved.decisions).toHaveLength(5);
+    expect(saved.decisions).toHaveLength(2);
     expect(restoreDemoV3State(JSON.stringify(saved))).toEqual(saved);
   });
   it("preserves a choice from an old prediction screen without asking it again", () => {
     const old = {
       ...newDemoV3State(),
       stage: 1,
-      room: "briefing",
+      room: "shore",
       intro: false,
       moment: "predicting",
-      chosen: "listen",
+      chosen: "limit",
       revision: 12,
     };
     const restored = restoreDemoV3State(JSON.stringify(old));
@@ -195,8 +195,83 @@ describe("standalone v3 demo adapter", () => {
     expect(restored.moment).toBeNull();
     expect(restored.departureReady).toBe(true);
     expect(restored.decisions).toHaveLength(1);
-    expect(restored.decisions[0].choice).toBe("listen");
+    expect(restored.decisions[0].choice).toBe("limit");
     expect(restoreDemoV3State(JSON.stringify(restored))).toEqual(restored);
+  });
+  it.each([0, 1, 2, 3, 4])(
+    "migrates old stage %i while retaining its original record",
+    (oldStage) => {
+      const raw = {
+        ...newDemoV3State(),
+        lessonEdition: undefined,
+        stage: oldStage,
+        intro: false,
+        room: ["quay", "briefing", "shore", "shop", "meeting"][oldStage],
+        decisions: [
+          {
+            stage: 0,
+            choice: "family",
+            prediction: "Support has a cost",
+            evidence: ["family"],
+          },
+          ...(oldStage > 1
+            ? [
+                {
+                  stage: 1,
+                  choice: "listen",
+                  prediction: "Cooperation grows",
+                  evidence: ["farewell-b"],
+                },
+              ]
+            : []),
+        ],
+        messages: [{ ...newDemoV3State().messages[0], stageIndex: oldStage }],
+      };
+      const restored = restoreDemoV3State(JSON.stringify(raw));
+      expect(restored.lessonEdition).toBe("two-chapters");
+      expect(restored.stage).toBe(oldStage === 0 ? 0 : 1);
+      expect(restored.previousFiveStageProgress?.decisions).toEqual(
+        raw.decisions,
+      );
+      expect(restored.decisions).toHaveLength(1);
+      expect(restored.decisions[0].choice).toBe("family");
+      expect(restoreDemoV3State(JSON.stringify(restored))).toEqual(restored);
+    },
+  );
+  it("retains a completed old finale as the second decision", () => {
+    const raw = {
+      ...newDemoV3State(),
+      lessonEdition: undefined,
+      stage: 4,
+      room: "meeting",
+      phase: "epilogue",
+      decisions: [
+        {
+          stage: 4,
+          choice: "corroborate",
+          prediction: "Support",
+          evidence: ["life"],
+        },
+      ],
+    };
+    const restored = restoreDemoV3State(JSON.stringify(raw));
+    expect(restored.phase).toBe("epilogue");
+    expect(restored.decisions[0]).toMatchObject({
+      stage: 1,
+      choice: "corroborate",
+    });
+  });
+  it("has two distinct chapters and keeps all five figures as optional encounters", () => {
+    expect(stages.map((s) => s.id)).toEqual(["departure", "resistance"]);
+    expect(new Set(stages.flatMap((s) => s.npcs.map((n) => n.id))).size).toBe(
+      5,
+    );
+    expect(chatInstructions(0, "elizabeth")).toContain(
+      "labelled later evidence encounter",
+    );
+    expect(chatInstructions(0, "lim")).toContain(
+      "Singapore has not yet fallen",
+    );
   });
   it("uses the separate grounded chat endpoint without changing v3 generation", async () => {
     let saved = { ...newDemoV3State(), intro: false };
@@ -253,11 +328,11 @@ describe("isolated demo conversation endpoint", () => {
     expect(chatInstructions(0, "lim")).toContain(
       "student observer, not Lim Bo Seng",
     );
-    expect(chatInstructions(3, "elizabeth")).toContain(
+    expect(chatInstructions(0, "elizabeth")).toContain(
       "not a Perak safe-house keeper",
     );
     expect(
-      selectContext(3, "How did you help prisoners?").map(
+      selectContext(0, "How did you help prisoners?").map(
         (source) => source.id,
       ),
     ).toContain("choy");

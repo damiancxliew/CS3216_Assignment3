@@ -17,14 +17,6 @@ const surrender = {
   credit: "Australian War Memorial · 127902 · public domain",
   href: "https://commons.wikimedia.org/wiki/File:British_troops_surrender_in_Singapore.png",
 };
-const currency = {
-  src: "/demo/lim-bo-seng/currency.jpg",
-  alt: "Front and back of an occupation-era ten-cent banknote, 1942",
-  caption:
-    "A real ten-cent occupation note, issued in 1942. Modern scan by Godot13; shown unchanged. Face value alone cannot tell us what it bought.",
-  credit: "National Numismatic Collection · Godot13 · CC BY-SA 4.0",
-  href: "https://commons.wikimedia.org/wiki/File:MAL-M3b-Malaya-Japanese_Occupation-10_Cents_ND_(1942).jpg",
-};
 const stops = ["Singapore · 1942", "India · 1943", "Malaya · late 1943–1944"];
 const briefing: V3CinematicBeat[] = [
   {
@@ -47,7 +39,7 @@ const briefing: V3CinematicBeat[] = [
     journey: { stops, current: 0 },
     items: [
       "25–35 minutes including discussion and debrief.",
-      "Each stage opens with a short visual introduction. Replay it from the map whenever you need context.",
+      "Two substantial chapters: Singapore, then the Malayan resistance. Training is part of the journey, with one final debrief.",
     ],
   },
 ];
@@ -56,19 +48,18 @@ export const demoCinematics = {
   stages: stages.map((stage, index): V3CinematicBeat[] => [
     {
       id: `scene-${stage.id}`,
-      kicker: `Stage ${index + 1} of 5 · ${stage.date}`,
+      kicker: `Chapter ${index + 1} of ${stages.length} · ${stage.date}`,
       title: stage.title,
       body: stage.intro,
-      ...(index === 0
-        ? { image: surrender }
-        : index === 3
-          ? { image: currency }
-          : {}),
+      ...(index === 0 ? { image: surrender } : {}),
       journey: {
         stops,
-        current: index === 0 || index === 3 ? 0 : index === 1 ? 1 : 2,
+        current: index === 0 ? 0 : 2,
       },
-      items: [stage.question],
+      items: [
+        stage.question,
+        "One decision in this chapter. Other encounters and discoveries are optional.",
+      ],
     },
     ...stage.npcs.map((npc): V3CinematicBeat => {
       const record = npc.id === "lim" ? null : sourceById(`${npc.id}-photo`);
@@ -86,10 +77,7 @@ export const demoCinematics = {
               href: record.url,
             }
           : portrait,
-        items: [
-          npc.prompts[0],
-          "Save one evidence passage, speak with either person, then make one recommendation. Watch its consequence and walk to the exit when you are ready.",
-        ],
+        items: [npc.prompts[0]],
       };
     }),
   ]),

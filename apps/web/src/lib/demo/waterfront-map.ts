@@ -107,7 +107,7 @@ export function buildWaterfrontMap(
   fixture(
     "waterfront-newspaper",
     "Newspaper board · inspect",
-    23,
+    27,
     8,
     "newsstand",
     2,
@@ -204,6 +204,11 @@ export function buildWaterfrontMap(
     cast: [
       { id: "lim", name: "Lim Bo Seng", roomId: roomIds[0] },
       { id: "gan", name: "Gan Choo Neo", roomId: roomIds[1] },
+      {
+        id: "elizabeth",
+        name: "Elizabeth Choy",
+        roomId: roomIds[2],
+      },
     ],
     style: "harbor",
     roomKinds: {

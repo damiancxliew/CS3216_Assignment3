@@ -226,12 +226,12 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         .waitFor({ timeout: 25000 });
       // Original v3 cinematic introduces stage two; keyboard skip is supported.
       await page.keyboard.press("Escape");
-      await page.getByText("Stage 2 of 5", { exact: false }).waitFor();
+      await page.getByText("Stage 2 of 2", { exact: false }).waitFor();
       await page.reload({ waitUntil: "networkidle" });
       if (await page.getByRole("dialog", { name: "Adventure opening" }).count())
         await page.keyboard.press("Escape");
       await page.locator("canvas").waitFor();
-      await page.getByText("Stage 2 of 5", { exact: false }).waitFor();
+      await page.getByText("Stage 2 of 2", { exact: false }).waitFor();
       await page.screenshot({
         path: "output/history-demo-check/v3-stage-2.png",
       });
@@ -259,7 +259,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
 );
 
 it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
-  "renders all five authored settings and completes the waterfront activities",
+  "renders both authored chapters and completes the waterfront activities",
   async () => {
     const { demoScenery, newDemoV3State, DEMO_SAVE_KEY } = await import(
       "../../apps/web/src/lib/demo/v3-session"
@@ -377,7 +377,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           })
           .click();
       }
-      for (let stage = 0; stage < 5; stage++) {
+      for (let stage = 0; stage < demoScenery.length; stage++) {
         const state = {
           ...newDemoV3State(),
           stage,
@@ -466,9 +466,9 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
       for (const [stage, roomIndex, id, name] of [
         [0, 0, "lim", "Lim Bo Seng"],
         [0, 1, "gan", "Gan Choo Neo"],
-        [1, 0, "tham", "Tham Sien Yen"],
+        [1, 2, "tham", "Tham Sien Yen"],
         [1, 1, "tan", "Tan Chong Tee"],
-        [3, 0, "elizabeth", "Elizabeth Choy"],
+        [0, 2, "elizabeth", "Elizabeth Choy"],
       ] as const) {
         const state = {
           ...newDemoV3State(),
@@ -598,7 +598,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
 );
 
 it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
-  "plays one choice, its consequence and a walking exit in stages two through five",
+  "plays the final chapter once and walks directly into the historical debrief",
   async () => {
     const { newDemoV3State, createDemoV3Client, DEMO_SAVE_KEY } = await import(
       "../../apps/web/src/lib/demo/v3-session"
@@ -618,7 +618,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
       await page.goto("http://127.0.0.1:3012/demo/lim-bo-seng", {
         waitUntil: "networkidle",
       });
-      for (let stage = 1; stage < 5; stage++) {
+      for (let stage = 1; stage < demoScenery.length; stage++) {
         let state = {
           ...newDemoV3State(),
           stage,
@@ -688,7 +688,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
             exact: true,
           })
           .click();
-        expect(await page.getByRole("dialog").locator("img").count()).toBe(2);
+        expect(await page.getByRole("dialog").locator("img").count()).toBe(3);
         await page
           .getByRole("button", { name: "Return to exploring", exact: true })
           .click();
@@ -739,7 +739,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           { x: 26, y: 18 },
           stage,
         );
-        if (stage < 4) {
+        if (stage < demoScenery.length - 1) {
           await page
             .getByRole("dialog", { name: "Adventure opening" })
             .waitFor();
@@ -753,8 +753,9 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           DEMO_SAVE_KEY,
         );
         expect(saved.decisions).toHaveLength(1);
-        expect(saved.stage).toBe(Math.min(4, stage + 1));
-        if (stage === 4) expect(saved.phase).toBe("epilogue");
+        expect(saved.stage).toBe(Math.min(demoScenery.length - 1, stage + 1));
+        if (stage === demoScenery.length - 1)
+          expect(saved.phase).toBe("epilogue");
       }
       expect(errors).toEqual([]);
     } finally {
@@ -808,13 +809,13 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
             ).stage,
           number,
         );
-        expect(stage).toBe(number - 1);
+        expect(stage).toBe(1);
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth,
           ),
         ).toBe(true);
-        await page.getByRole("button", {name:/Press E to talk/}).waitFor();
+        await page.getByRole("button", { name: /Press E to talk/ }).waitFor();
         await page.screenshot({
           path: `output/history-demo-check/mobile-stage-${number}.png`,
         });
