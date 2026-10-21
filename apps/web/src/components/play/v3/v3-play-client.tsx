@@ -11,13 +11,14 @@ import { EpilogueScreen } from "@/components/play/v3/epilogue-screen";
 import { InterviewScreen } from "@/components/play/v3/interview-screen";
 import { MapBackdrop } from "@/components/play/v3/map-backdrop";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
-import { StagePlayScreen } from "@/components/play/v3/stage-play-screen";
+import { StagePlayScreen, type StageExperience } from "@/components/play/v3/stage-play-screen";
 import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
 import { useV3Play } from "@/components/play/v3/use-v3-play";
 import styles from "@/components/play/adventure-chrome.module.css";
 import { backdropFromView, type V3MapBackdrop } from "@/lib/play/v3/backdrop";
 import {
   BRIEFING_BEGIN_LABEL,
+  type V3CinematicBeat,
   briefingBeats,
   STAGE_INTRO_BEGIN_LABEL,
   stageIntroBeats,
@@ -41,7 +42,10 @@ export function V3PlayClient({
   headerActions,
   revealFooter,
   busyLabel = "Saving…",
+  cinematics,
+  stageExperience,
 }: {
+  stageExperience?: (view: PlayerView, send: (action: import("@adventure/play-contract").Action, onSettled?: (succeeded: boolean) => void) => void) => StageExperience | undefined;
   attemptId: string;
   scenery?: V3StageScenery[];
   initialView: PlayerView;
@@ -53,14 +57,17 @@ export function V3PlayClient({
   headerActions?: ReactNode;
   revealFooter?: ReactNode;
   busyLabel?: string;
+  cinematics?: { briefing: V3CinematicBeat[]; stages: V3CinematicBeat[][] };
 }) {
   const [roleBriefOpen, setRoleBriefOpen] = useState(false);
+  const [introReplayOpen, setIntroReplayOpen] = useState(false);
   const { view, busy, banner, send, clearBanner } = useV3Play(
     attemptId,
     initialView,
     initialRevision,
     makeClient,
   );
+  const experience = stageExperience?.(view, send);
   const { muted, toggleMuted, cues } = useV3SoundCues(view, banner?.message ?? null);
   const endMusic = view.phase === "epilogue" || view.phase === "interview" || view.phase === "reveal";
   const musicStageIndex = view.stage?.index ?? 0;
@@ -130,6 +137,7 @@ export function V3PlayClient({
     <div className={styles.headerActions}>
       {busy ? <span role="status" className="text-sm font-semibold">{busyLabel}</span> : null}
       {headerActions}
+      {cinematics && view.phase === "stage" && !view.stage?.intro ? <button type="button" aria-label="Stage introduction" className={`${styles.tool} min-h-9 px-2.5 text-sm font-semibold`} onClick={() => setIntroReplayOpen(true)}>▶ <span className="hidden sm:inline">Stage introduction</span></button> : null}
       {roleBriefButton}
       {soundButton}
     </div>
@@ -177,11 +185,12 @@ export function V3PlayClient({
           {headerActionGroup}
         </header>
         {bannerAlert}
-        <StagePlayScreen scenery={scenery[view.stage?.index ?? 0]} view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} onOpenRoleBrief={() => setRoleBriefOpen(true)} ambient={{ id: v3Ambient(view.stage), intensity: 1 }} audio={{ muted, cues }} />
+        <StagePlayScreen experience={experience} scenery={scenery[view.stage?.index ?? 0]} view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen || introReplayOpen} onOpenRoleBrief={() => setRoleBriefOpen(true)} ambient={{ id: v3Ambient(view.stage), intensity: 1 }} audio={{ muted, cues }} />
+        {introReplayOpen && cinematics ? <V3Cinematic artUrl={null} beats={cinematics.stages[view.stage.index]} beginLabel="Back to the map" dialogLabel="Stage introduction" onBegin={() => setIntroReplayOpen(false)} onClose={() => setIntroReplayOpen(false)} muted={muted} onToggleMuted={toggleMuted} /> : null}
         {roleBriefOpen ? (
           <V3Cinematic
             artUrl={stageArtUrl(stageArtBase, 0)}
-            beats={briefingBeats(view.briefing)}
+            beats={cinematics?.briefing ?? briefingBeats(view.briefing)}
             beginLabel="Back to the map"
             onBegin={() => setRoleBriefOpen(false)}
             onClose={() => setRoleBriefOpen(false)}
@@ -208,7 +217,7 @@ export function V3PlayClient({
         <V3Cinematic
           key="briefing"
           artUrl={stageArtUrl(stageArtBase, 0)}
-          beats={briefingBeats(view.briefing, view.stage?.index === 0 ? view.stage : undefined)}
+          beats={cinematics?.briefing ?? briefingBeats(view.briefing, view.stage?.index === 0 ? view.stage : undefined)}
           beginLabel={BRIEFING_BEGIN_LABEL}
           onBegin={() => { if (!busy) send({ type: "continue" }); }}
           muted={muted}
@@ -218,14 +227,14 @@ export function V3PlayClient({
         <V3Cinematic
           key={`stage-intro-${view.stage.index}`}
           artUrl={stageArtUrl(stageArtBase, view.stage.index)}
-          beats={stageIntroBeats(view.stage)}
+          beats={cinematics ? [...stageIntroBeats(view.stage).filter((beat) => beat.id === "what-happened"), ...cinematics.stages[view.stage.index]] : stageIntroBeats(view.stage)}
           beginLabel={STAGE_INTRO_BEGIN_LABEL}
           onBegin={() => { if (!busy) send({ type: "continue" }); }}
           muted={muted}
           onToggleMuted={toggleMuted}
         />
       ) : view.phase === "stage" ? (
-        <StagePlayScreen scenery={scenery[view.stage?.index ?? 0]} view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen} onOpenRoleBrief={() => setRoleBriefOpen(true)} ambient={{ id: view.stage ? v3Ambient(view.stage) : "clear", intensity: 1 }} audio={{ muted, cues }} />
+        <StagePlayScreen experience={experience} scenery={scenery[view.stage?.index ?? 0]} view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen || introReplayOpen} onOpenRoleBrief={() => setRoleBriefOpen(true)} ambient={{ id: view.stage ? v3Ambient(view.stage) : "clear", intensity: 1 }} audio={{ muted, cues }} />
       ) : view.phase === "reveal" && view.reveal ? (
         <RevealScreen reveal={view.reveal} footer={revealFooter} />
       ) : (

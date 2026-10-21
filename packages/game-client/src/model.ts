@@ -70,8 +70,10 @@ export interface PlaygroundSnapshot {
   storyContext?: string
   /** Opt-in stage crowds; absent for v2 and the generic playground. Public framing only. */
   crowdContext?: string
+  /** Optional authored, fictional street flavour for curated historical scenes. */
+  streetTalk?: Array<{ name: string; lines: string[] }>
   /** Physical, inspectable fixtures placed within named rooms. Ready art is a 32px tile sheet. */
-  landmarks?: Array<{ id: string; roomId: string; name: string; description?: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string }>
+  landmarks?: Array<{ id: string; roomId: string; name: string; description?: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string; interactive?: boolean }>
   /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */
   ambient?: { id: AmbientOverlayId; intensity: 1 | 2 | 3 }
   effects?: Array<{ key: string; id: SceneEffectId; roomId?: string | null }>

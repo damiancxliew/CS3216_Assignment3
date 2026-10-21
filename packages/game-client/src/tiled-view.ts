@@ -21,7 +21,7 @@ import { matchMapPalette } from './pixel-art.js'
 import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, roomFinish, surfaceNoise } from './materials.js'
 import { isExposed, WeatherSurface } from './weather.js'
 import { RoomShells } from './room-shells.js'
-import { detailZoom, overviewZoom, scaledZoom } from './camera.js'
+import { coverZoom, detailZoom, overviewZoom, scaledZoom } from './camera.js'
 import { STAGE_CROWD_SPRITES } from './stage-crowds.js'
 import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
@@ -82,8 +82,8 @@ export interface TiledViewOptions {
   onLandmark?: (landmarkId: string) => void
   /** Called when the player clicks the edge pointer to a room that is off screen. */
   onRoomPointer?: (roomId: string) => void
-  /** "detail" (play) magnifies around the player; "overview" fits the stage's width in a small preview. */
-  camera?: 'detail' | 'overview'
+  /** "detail" magnifies around the player; "overview" fits small previews; opt-in "cover" fills the viewport. */
+  camera?: 'detail' | 'overview' | 'cover'
   /** Optional scale for detail camera zoom. */
   zoomScale?: number
   /** Treat detail frames under 900×600 as compact (3x, not 4x); see `detailZoom`. */
@@ -97,7 +97,7 @@ class TiledScene extends Phaser.Scene {
   private readonly base: string
   private readonly defaultSprite: string
   private readonly clickToWalk: boolean
-  private readonly cameraMode: 'detail' | 'overview'
+  private readonly cameraMode: 'detail' | 'overview' | 'cover'
   private readonly zoomScale: number
   private readonly laptopFrames: boolean
   private readonly onActor: ((actorId: string) => void) | undefined
@@ -245,7 +245,7 @@ class TiledScene extends Phaser.Scene {
       }
       const landmark = (this.current.landmarks ?? []).find((item) =>
         point.x >= item.position.x && point.x < item.position.x + item.width && point.y >= item.position.y && point.y < item.position.y + item.height)
-      if (landmark && this.onLandmark) {
+      if (landmark && landmark.interactive !== false && this.onLandmark) {
         this.onLandmark(landmark.id)
         this.game.canvas.focus()
         return
@@ -331,7 +331,9 @@ class TiledScene extends Phaser.Scene {
   private queueGeneratedSprite(url: string): void {
     if (this.queuedAssets.has(url)) return
     this.queuedAssets.add(url)
-    this.load.spritesheet(assetTextureKey(url), url, { frameWidth: T, frameHeight: T })
+    // Authored and generated walking sheets share a 4x4 layout, but may have
+    // higher-resolution artwork than the native 16px characters.
+    this.load.image(assetTextureKey(url), url)
   }
 
   private queueAsset(url: string): void {
@@ -343,6 +345,18 @@ class TiledScene extends Phaser.Scene {
   private registerAnimations(key: string, generated = false): void {
     const textureKey = generated ? key : `char-${key}`
     if (!this.textures.exists(textureKey)) return
+    if (generated) {
+      const texture = this.textures.get(textureKey)
+      const source = texture.getSourceImage()
+      const width = source.width / 4
+      const height = source.height / 4
+      for (let row = 0; row < 4; row++) {
+        for (let column = 0; column < 4; column++) {
+          const frame = row * 4 + column
+          if (!texture.has(String(frame))) texture.add(frame, 0, column * width, row * height, width, height)
+        }
+      }
+    }
     DIRECTIONS.forEach((facing, column) => {
       const anim = `${textureKey}-${facing}`
       if (this.anims.exists(anim)) return
@@ -589,7 +603,9 @@ class TiledScene extends Phaser.Scene {
       const requestedKey = actor.sprite ?? this.defaultSprite
       const fallbackKey = this.textures.exists(`char-${requestedKey}`) ? `char-${requestedKey}` : `char-${this.defaultSprite}`
       const generatedKey = actor.spriteSheetUrl ? assetTextureKey(actor.spriteSheetUrl) : null
-      const key = generatedKey && this.textures.exists(generatedKey) ? generatedKey : fallbackKey
+      // A generated sheet is cached as one image before registerAnimations slices its frames;
+      // keep the fallback until frame 0 exists so a marker is never sized from the whole sheet.
+      const key = generatedKey && this.textures.exists(generatedKey) && this.textures.get(generatedKey).has('0') ? generatedKey : fallbackKey
       const positionKey = `${actor.position.x},${actor.position.y}`
       const offset = occupied.get(positionKey) ?? 0
       occupied.set(positionKey, offset + 1)
@@ -699,7 +715,7 @@ class TiledScene extends Phaser.Scene {
     const container = this.add.container(0, 0)
     const shadow = this.add.ellipse(0, 8, 16, 5, 0x000000, 0.3)
     const textureKey = this.textures.exists(key) ? key : '__DEFAULT'
-    const sprite = this.add.sprite(0, 0, textureKey, 0)
+    const sprite = this.add.sprite(0, 0, textureKey, 0).setDisplaySize(T, T)
     container.add([shadow, sprite])
     return { container, sprite, key, facing: 'down' as Facing, last: { x: position.x, y: position.y }, idle: null as Phaser.Time.TimerEvent | null }
   }
@@ -762,7 +778,7 @@ class TiledScene extends Phaser.Scene {
         bounds: person.bounds,
       })) : []),
       // A landmark with no inspect handler is scenery: an "Inspect" label that does nothing would mislead.
-      ...(this.onLandmark ? this.current.landmarks ?? [] : []).filter(landmark => this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
+      ...(this.onLandmark ? this.current.landmarks ?? [] : []).filter(landmark => landmark.interactive !== false && this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
         near: playerRoom !== null && landmark.roomId === playerRoom,
         bounds: { x: landmark.position.x * T, y: landmark.position.y * T, width: 32, height: 32 } })),
     ]
@@ -895,6 +911,7 @@ class TiledScene extends Phaser.Scene {
     const { width, height } = this.scale.gameSize
     const zoom = this.cameraMode === 'overview'
       ? overviewZoom(width, mapW)
+      : this.cameraMode === 'cover' ? coverZoom(width, height, mapW, mapH)
       : scaledZoom(detailZoom(width, height, mapW, mapH, this.laptopFrames), this.zoomScale)
     cam.setZoom(zoom)
     cam.setRoundPixels(true)

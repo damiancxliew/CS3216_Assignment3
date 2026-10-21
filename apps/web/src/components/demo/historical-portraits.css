@@ -1,0 +1,35 @@
+/* Frame archival faces in avatars; the source archive retains the complete photos.
+   These selectors are scoped to the standalone demo, including its dialogue portal
+   via :has on the photo's immediate container. */
+div:has(> img[src="/demo/lim-bo-seng/portraits/gan.webp"][alt=""]),
+span:has(> img[src="/demo/lim-bo-seng/portraits/gan.webp"][alt=""]),
+div:has(> img[src="/demo/lim-bo-seng/portraits/tham.webp"][alt=""]),
+span:has(> img[src="/demo/lim-bo-seng/portraits/tham.webp"][alt=""]) {
+  position: relative;
+}
+
+.history-demo {
+  min-height: 100dvh;
+}
+
+img[src="/demo/lim-bo-seng/portraits/gan.webp"][alt=""] {
+  position: absolute;
+  max-width: none;
+  width: 1089.0625%;
+  height: 800%;
+  left: -996.875%;
+  top: -353.125%;
+}
+
+img[src="/demo/lim-bo-seng/portraits/tham.webp"][alt=""] {
+  position: absolute;
+  max-width: none;
+  width: 443.75%;
+  height: 320%;
+  left: -212.5%;
+  top: -106.25%;
+}
+
+.history-demo canvas {animation:demoRoomEnter .35s ease-out}
+@keyframes demoRoomEnter {from{opacity:.2}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.history-demo canvas{animation:none}}
