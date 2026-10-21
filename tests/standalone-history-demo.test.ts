@@ -47,10 +47,9 @@ describe("standalone v3 demo adapter", () => {
   });
   it("uses v3 document selection, decisions, predictions, interview and reveal across five stages", async () => {
     let saved = newDemoV3State();
-    const activities = { selected: ["food", "care"], checkedDate: false };
     const client = createDemoV3Client(saved, (s) => {
       saved = structuredClone(s);
-    }, async () => new Response(JSON.stringify({ mode: "live", reply: "Consider the household.", sources: ["family"] })), () => activities);
+    }, async () => new Response(JSON.stringify({ mode: "live", reply: "Consider the household.", sources: ["family"] })));
     const act = async (action: Parameters<typeof client.act>[1]) => {
       const result = await client.act(saved.revision, action);
       expect(result.ok).toBe(true);
@@ -98,12 +97,9 @@ describe("standalone v3 demo adapter", () => {
             })
           ).ok,
         ).toBe(false);
-        await act({ type: "message", characterId: "lim", text: "What does leaving mean?" });
         await act({ type: "enterRoom", roomId: "quay" });
         expect((await client.act(saved.revision, { type: "enterRoom", roomId: "embark" })).ok).toBe(false);
         await act({ type: "message", characterId: "gan", text: "What support do you need?" });
-        expect((await client.act(saved.revision, { type: "enterRoom", roomId: "embark" })).ok).toBe(false);
-        activities.checkedDate = true;
         await act({ type: "enterRoom", roomId: "embark" });
         expect(saved.stage).toBe(1);
       }

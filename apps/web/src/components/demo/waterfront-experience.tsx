@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Action, PlayerView } from "@adventure/play-contract";
 import type { Point } from "@adventure/game-core";
 import type { StageExperience } from "@/components/play/v3/stage-play-screen";
@@ -52,9 +52,6 @@ export function useWaterfrontExperience(
   const [boarding, setBoarding] = useState(false);
   const [record, setRecord] = useState<WaterfrontRecordId | null>(null);
   const inSteps = useRef(false);
-  const progress = useRef({ selected, checkedDate });
-  progress.current = { selected, checkedDate };
-  const getActivities = useCallback(() => progress.current, []);
   const [destination, setDestination] = useState<Point | null>(null);
   useEffect(() => {
     if (!storageKey) return;
@@ -95,7 +92,7 @@ export function useWaterfrontExperience(
   const stageExperience = (view: PlayerView, send: Send): StageExperience | undefined => {
     if (view.stage?.index !== 0 || view.phase !== "stage") return;
     const state = getState();
-    const tasks = waterfrontTasks(state, { selected, checkedDate });
+    const tasks = waterfrontTasks(state);
     const missing = tasks.filter(task => !task.done);
     const ready = missing.length === 0;
     const choice = stages[0].choices.find(
@@ -150,15 +147,14 @@ export function useWaterfrontExperience(
               : "A household. A departure. Your recommendation."}
           </p>
           <div className={styles.tasks} aria-label="Before boarding checklist">
-            {tasks.map((task, index) => task.id === "supplies" || task.id === "news" ? (
-              <button key={task.id} onClick={() => setActivity(task.id as "supplies" | "news")}>
-                {task.done ? "✓" : index + 1} {task.label}
-              </button>
-            ) : <span key={task.id}>{task.done ? "✓" : index + 1} {task.label}</span>)}
+            {tasks.map((task, index) => <span key={task.id}>{task.done ? "✓" : index + 1} {task.label}</span>)}
           </div>
-          <p>{ready ? "Walk onto the river steps to board automatically. Use WASD or the arrow keys; no boarding click needed." : "Complete the checklist before boarding. Click the rickshaw, newspaper board and rice sacks to discover historical images."}</p>
+          <p>{ready ? "Walk onto the river steps to board automatically. Use WASD or the arrow keys; no boarding click needed." : "Follow these three steps, then walk to the boat. Everything under optional discoveries is yours to explore at your own pace."}</p>
           <details className={styles.recordsMenu}>
-            <summary>Explore historical images</summary>
+            <summary>Optional discoveries</summary>
+            <p>These activities enrich the story; they do not block boarding.</p>
+            <button onClick={() => setActivity("supplies")}>{selected.length === 2 ? "✓ " : ""}Arrange household support</button>
+            <button onClick={() => setActivity("news")}>{checkedDate ? "✓ " : ""}Check the dated record</button>
             <button onClick={() => setRecord("rickshaw")}>Rickshaw photograph</button>
             <button onClick={() => setRecord("newspaper")}>Newspaper board · 20 February 1942</button>
             <button onClick={() => setRecord("currency")}>Occupation currency</button>
@@ -299,5 +295,5 @@ export function useWaterfrontExperience(
       ),
     };
   };
-  return { stageExperience, getActivities };
+  return stageExperience;
 }

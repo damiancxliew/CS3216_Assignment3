@@ -7,7 +7,7 @@ import {
 import type { V3PlayClient, V3PlayResult } from "@/lib/play/v3/client";
 import { sources, sourceById, stages } from "./lim-bo-seng";
 import { buildStoryMap } from "./story-maps";
-import { waterfrontTasks, type WaterfrontActivities } from "./waterfront-progress";
+import { waterfrontTasks } from "./waterfront-progress";
 
 export const DEMO_SAVE_KEY = "standalone.lim-bo-seng.v3.v1";
 const roomSets = [
@@ -549,7 +549,6 @@ export function createDemoV3Client(
   initial: DemoV3State,
   save: (state: DemoV3State) => void,
   fetchImpl: typeof fetch = fetch,
-  getWaterfrontActivities: () => WaterfrontActivities = () => ({ selected: [], checkedDate: false }),
 ): V3PlayClient {
   let state = structuredClone(initial);
   const result = (): V3PlayResult => ({
@@ -610,7 +609,7 @@ export function createDemoV3Client(
             next.room !== "quay"
           )
             throw new Error("Finish your recommendation before boarding.");
-          const missing = waterfrontTasks(next, getWaterfrontActivities()).filter(task => !task.done);
+          const missing = waterfrontTasks(next).filter(task => !task.done);
           if (missing.length) throw new Error(`Before boarding: ${missing.map(task => task.label).join("; ")}.`);
           next.departureReady = false;
           next.stage = 1;

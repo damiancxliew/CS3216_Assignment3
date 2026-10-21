@@ -28,7 +28,7 @@ export function LimBoSengDemo() {
   } | null>(null);
   const saveKey = useRef(DEMO_SAVE_KEY);
   const latest = useRef<DemoV3State>(newDemoV3State());
-  const { stageExperience, getActivities } = useWaterfrontExperience(
+  const stageExperience = useWaterfrontExperience(
     () => latest.current,
     boot?.key ?? 0,
     boot ? saveKey.current : null,
@@ -46,9 +46,9 @@ export function LimBoSengDemo() {
       } catch {
         setSaveError(true);
       }
-    }, fetch, getActivities);
+    });
     return { initial, client, key };
-  }, [getActivities]);
+  }, []);
   useEffect(() => {
     const preview = new URLSearchParams(window.location.search).get("preview");
     if (preview === "waterfront" || preview === "waterfront-v2")

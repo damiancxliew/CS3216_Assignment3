@@ -88,6 +88,13 @@
   border-left: 4px solid #426556;
   padding: 12px;
 }
+.feedback p,
+.feedback strong { color: inherit; }
+:global([data-theme="dark"]) .feedback {
+  color: #edf4e8;
+  background: #243c32;
+  border-color: #94b99d;
+}
 .record {
   width: 100%;
   max-height: 230px;

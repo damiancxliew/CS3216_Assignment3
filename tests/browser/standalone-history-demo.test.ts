@@ -22,15 +22,6 @@ async function walkWaterfront(page: Page, start: Point, destination: Point) {
   }
 }
 
-async function completeOpeningActivities(page: Page) {
-  await page.getByRole("button", { name: /Arrange household support/ }).click();
-  await page.getByRole("button", { name: /Household provisions Someone/ }).click();
-  await page.getByRole("button", { name: /Care for the children A named/ }).click();
-  await page.getByRole("button", { name: "Return to the waterfront", exact: true }).click();
-  await page.getByRole("button", { name: /Check the dated record/ }).click();
-  await page.getByRole("button", { name: "The surrender that followed his departure" }).click();
-  await page.getByRole("button", { name: "Return to the waterfront", exact: true }).click();
-}
 import { expect, it } from "vitest";
 
 // Real v3 shell, Phaser map, walking, dialogue, document reader and notes.
@@ -156,23 +147,15 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
             localStorage.getItem("standalone.lim-bo-seng.v3.v1") || "{}",
           ).notes?.length === 1,
       );
-      const ganSeat = seatIn(demoScenery[0].authored.map, "quay", 1)!;
-      await walkWaterfront(page, { x: 6, y: 11 }, ganSeat);
-      await page.keyboard.press("e");
-      await page.getByLabel("Ask Gan Choo Neo a question").fill("What help would the household need?");
-      await page.getByRole("button", { name: "Send", exact: true }).click();
-      await page.getByText(/The family record reminds us/).last().waitFor();
-      await page.getByRole("button", { name: "Close conversation (Esc)" }).click();
-      // Walking to the exit before completing both activities must not board.
-      await walkWaterfront(page, ganSeat, { x: 27, y: 18 });
+      // One conversation and a source note are enough; a recommendation is still required.
+      await walkWaterfront(page, { x: 6, y: 11 }, { x: 27, y: 18 });
       const locked = page.getByRole("dialog", { name: "Before you board" });
       await locked.waitFor();
-      expect(await locked.getByText("Arrange household support", { exact: true }).isVisible()).toBe(true);
+      expect(await locked.getByText("Make your recommendation", { exact: true }).isVisible()).toBe(true);
       expect(await page.getByRole("dialog", { name: "A departure leaves people behind" }).count()).toBe(0);
       await page.getByRole("button", { name: "Return to the waterfront", exact: true }).click();
       // The trigger fires when re-entering the steps, never from an unrelated click.
       await walkWaterfront(page, { x: 26, y: 18 }, { x: 26, y: 17 });
-      await completeOpeningActivities(page);
       await page.getByRole("button", { name: /I'm ready to decide/ }).click();
       await page.screenshot({
         path: "output/history-demo-check/exploration-confirmation.png",
@@ -272,6 +255,8 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
       await page
         .getByRole("button", { name: "Press E to talk to Lim Bo Seng" })
         .waitFor();
+      expect(await page.getByLabel("Before boarding checklist").locator("span").count()).toBe(3);
+      await page.getByText("Optional discoveries", { exact: true }).click();
       await page
         .getByRole("button", { name: /Arrange household support/ })
         .click();
@@ -312,6 +297,7 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
         .getByRole("button", { name: "Return to the waterfront", exact: true })
         .click();
       await page.reload({ waitUntil: "networkidle" });
+      await page.getByText("Optional discoveries", { exact: true }).click();
       expect(
         await page
           .getByRole("button", { name: /✓ Arrange household support/ })
@@ -322,7 +308,6 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
           .getByRole("button", { name: /✓ Check the dated record/ })
           .count(),
       ).toBe(1);
-      await page.getByText("Explore historical images", { exact: true }).click();
       for (const label of ["Rickshaw photograph", "Newspaper board · 20 February 1942", "Occupation currency"]) {
         await page.getByRole("button", { name: label, exact: true }).click();
         const record = page.getByRole("dialog");
@@ -472,4 +457,46 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
     }
   },
   120000,
+);
+
+it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
+  "keeps selected-option feedback readable in both themes",
+  async () => {
+    const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || "chrome" });
+    try {
+      for (const colorScheme of ["dark", "light"] as const) {
+        const page = await browser.newPage({ viewport: { width: 1280, height: 1000 }, colorScheme, reducedMotion: "reduce" });
+        await page.goto("http://127.0.0.1:3012/demo/lim-bo-seng?preview=waterfront-v2", { waitUntil: "networkidle" });
+        await page.getByRole("dialog", { name: "Adventure opening" }).waitFor();
+        await page.keyboard.press("Escape");
+        await page.getByRole("button", { name: "Press E to talk to Lim Bo Seng" }).waitFor();
+        await page.getByText("Optional discoveries", { exact: true }).click();
+        await page.getByRole("button", { name: /Arrange household support/ }).click();
+        await page.getByRole("button", { name: /Household provisions Someone/ }).click();
+        await page.getByRole("button", { name: /Keep people informed Communication/ }).click();
+        const heading = page.getByText("What remains unresolved?", { exact: true });
+        await heading.waitFor();
+        const contrast = await heading.evaluate((node) => {
+          const luminance = (color: string) => {
+            const channels = color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map(value => {
+              const c = value / 255;
+              return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+            });
+            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+          };
+          const bg = luminance(getComputedStyle(node.parentElement!).backgroundColor);
+          return [node, node.nextElementSibling!].map(element => {
+            const fg = luminance(getComputedStyle(element).color);
+            return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+          });
+        });
+        for (const ratio of contrast) expect(ratio).toBeGreaterThanOrEqual(4.5);
+        await page.screenshot({ path: `output/history-demo-check/household-feedback-${colorScheme}.png` });
+        await page.getByRole("button", { name: "Return to the waterfront", exact: true }).click();
+        await page.getByText("Optional discoveries", { exact: true }).click();
+        await page.screenshot({ path: `output/history-demo-check/three-goals-${colorScheme}.png` });
+        await page.close();
+      }
+    } finally { await browser.close(); }
+  }, 120000,
 );
