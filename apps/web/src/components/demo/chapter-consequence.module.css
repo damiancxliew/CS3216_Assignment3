@@ -1,0 +1,164 @@
+.scene {
+  position: relative;
+  height: 360px;
+  overflow: hidden;
+  border: 3px solid #405b49;
+  background: #a8b89a;
+  image-rendering: pixelated;
+  margin-bottom: 18px;
+}
+.facade {
+  position: absolute;
+  top: 105px;
+  left: calc(50% - 96px);
+  width: 192px;
+  height: 144px;
+  background-size: contain;
+}
+.ground {
+  position: absolute;
+  inset: 249px 0 0;
+  background: repeating-linear-gradient(
+    0deg,
+    #a89972 0 14px,
+    #ad9e78 14px 16px
+  );
+  border-top: 6px solid #647756;
+}
+.person {
+  position: absolute;
+  left: var(--start);
+  top: 220px;
+  width: 64px;
+  height: 64px;
+  background-size: 256px 256px;
+  background-position: -192px 0;
+  animation:
+    gather 10s ease-in-out forwards,
+    walk 0.7s steps(4) 14;
+  z-index: 2;
+}
+.parcel {
+  position: absolute;
+  left: 45%;
+  top: 264px;
+  width: 32px;
+  height: 32px;
+  background: url("/demo/lim-bo-seng/map/household-parcels.svg") center/contain;
+}
+.scene[data-action="depart"] .person[data-actor="true"] {
+  animation:
+    depart 10s ease-in-out forwards,
+    walk 0.7s steps(4) 14;
+}
+.scene[data-action="handover"] .parcel {
+  animation: parcel 10s ease-in-out forwards;
+}
+.scene[data-paused="true"] * {
+  animation-play-state: paused;
+}
+@keyframes gather {
+  0%,
+  25% {
+    left: var(--start);
+  }
+  75%,
+  100% {
+    left: var(--end);
+  }
+}
+@keyframes depart {
+  0%,
+  25% {
+    left: var(--start);
+  }
+  100% {
+    left: 88%;
+  }
+}
+@keyframes walk {
+  to {
+    background-position-y: -256px;
+  }
+}
+@keyframes parcel {
+  0%,
+  45% {
+    left: 45%;
+  }
+  100% {
+    left: 60%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .person,
+  .scene[data-action="depart"] .person[data-actor="true"],
+  .scene[data-action="handover"] .parcel {
+    animation: none;
+  }
+}
+@media (max-width: 480px) {
+  .scene {
+    height: 400px;
+  }
+  .facade {
+    top: 160px;
+  }
+  .ground {
+    top: 304px;
+  }
+  .person {
+    top: 275px;
+  }
+  .parcel {
+    top: 319px;
+  }
+}
+
+.provision {
+  position: absolute;
+  top: 290px;
+  left: var(--share-end);
+  width: 32px;
+  height: 32px;
+  background: url("/demo/lim-bo-seng/map/household-parcels.svg") center/contain;
+  animation: share 8s ease-out forwards;
+}
+.householdLabel,
+.assistanceLabel {
+  position: absolute;
+  top: 330px;
+  color: #233c30;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.householdLabel {
+  left: 16%;
+}
+.assistanceLabel {
+  right: 14%;
+}
+@keyframes share {
+  0%,
+  25% {
+    left: 45%;
+  }
+  100% {
+    left: var(--share-end);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .provision {
+    animation: none;
+  }
+}
+@media (max-width: 480px) {
+  .provision {
+    top: 345px;
+  }
+  .householdLabel,
+  .assistanceLabel {
+    top: 380px;
+  }
+}

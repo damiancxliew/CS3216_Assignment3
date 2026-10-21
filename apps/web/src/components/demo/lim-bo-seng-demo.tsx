@@ -18,6 +18,7 @@ import {
 } from "@/lib/demo/v3-session";
 import chrome from "@/components/play/adventure-chrome.module.css";
 import "./historical-portraits.css";
+import { useChapterExperience } from "./chapter-experience";
 import { useWaterfrontExperience } from "./waterfront-experience";
 
 export function LimBoSengDemo() {
@@ -27,12 +28,22 @@ export function LimBoSengDemo() {
     key: number;
   } | null>(null);
   const saveKey = useRef(DEMO_SAVE_KEY);
+  const previewStart = useRef(0);
   const latest = useRef<DemoV3State>(newDemoV3State());
-  const stageExperience = useWaterfrontExperience(
+  const waterfrontExperience = useWaterfrontExperience(
     () => latest.current,
     boot?.key ?? 0,
     boot ? saveKey.current : null,
   );
+  const chapterExperience = useChapterExperience(
+    () => latest.current,
+    boot?.key ?? 0,
+    boot ? saveKey.current : null,
+  );
+  const stageExperience: NonNullable<
+    React.ComponentProps<typeof V3PlayClient>["stageExperience"]
+  > = (view, send) =>
+    waterfrontExperience(view, send) ?? chapterExperience(view, send);
   const [archive, setArchive] = useState(false);
   const [selectedSource, setSelectedSource] = useState("life");
   const [restart, setRestart] = useState(false);
@@ -51,11 +62,18 @@ export function LimBoSengDemo() {
   }, []);
   useEffect(() => {
     const preview = new URLSearchParams(window.location.search).get("preview");
-    if (preview === "waterfront" || preview === "waterfront-v2")
+    const chapterPreview = preview?.match(/^chapter-([2-5])$/);
+    previewStart.current = chapterPreview ? Number(chapterPreview[1]) - 1 : 0;
+    if (
+      preview === "waterfront" ||
+      preview === "waterfront-v2" ||
+      chapterPreview
+    )
       saveKey.current = `${DEMO_SAVE_KEY}.${preview}-preview`;
-    let state = newDemoV3State();
+    let state = newDemoV3State(previewStart.current);
     try {
-      state = restoreDemoV3State(localStorage.getItem(saveKey.current));
+      const saved = localStorage.getItem(saveKey.current);
+      if (saved) state = restoreDemoV3State(saved);
     } catch {
       setSaveError(true);
     }
@@ -200,8 +218,9 @@ export function LimBoSengDemo() {
             <p>
               <strong>How to play:</strong> Walk to buildings, speak to people,
               pick up documents and select passages for your notes. Share a note
-              in conversation, then choose your action and prediction. The story
-              follows Lim from Singapore to training abroad and occupied Malaya.
+              in conversation, then make your recommendation and watch its
+              consequence. The story follows Lim from Singapore to training
+              abroad and occupied Malaya.
             </p>
             <p>
               <strong>Lesson timing:</strong> Allow 3 minutes for the brief,
@@ -254,7 +273,7 @@ export function LimBoSengDemo() {
             <button
               className="rounded-lg bg-ink px-4 py-2 font-bold text-white"
               onClick={() => {
-                const fresh = newDemoV3State();
+                const fresh = newDemoV3State(previewStart.current);
                 try {
                   localStorage.setItem(saveKey.current, JSON.stringify(fresh));
                 } catch {

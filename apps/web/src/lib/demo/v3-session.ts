@@ -7,7 +7,7 @@ import {
 import type { V3PlayClient, V3PlayResult } from "@/lib/play/v3/client";
 import { sources, sourceById, stages } from "./lim-bo-seng";
 import { buildStoryMap } from "./story-maps";
-import { waterfrontTasks } from "./waterfront-progress";
+import { chapterTasks } from "./chapter-progress";
 
 export const DEMO_SAVE_KEY = "standalone.lim-bo-seng.v3.v1";
 const roomSets = [
@@ -148,15 +148,21 @@ export type DemoV3State = {
   }[];
   answers: NonNullable<PlayerView["interview"]>["answer"][];
 };
-export function newDemoV3State(): DemoV3State {
+export function newDemoV3State(stageIndex = 0): DemoV3State {
+  const stage =
+    Number.isInteger(stageIndex) &&
+    stageIndex >= 0 &&
+    stageIndex < stages.length
+      ? stageIndex
+      : 0;
   const state: DemoV3State = {
     version: 1,
     castEdition: 2,
     revision: 0,
     phase: "stage",
-    stage: 0,
+    stage,
     intro: true,
-    room: roomSets[0][0].id,
+    room: roomSets[stage][0].id,
     held: [],
     open: null,
     notes: [],
@@ -188,7 +194,7 @@ export function restoreDemoV3State(raw: string | null): DemoV3State {
       (s.departureReady !== undefined &&
         typeof s.departureReady !== "boolean") ||
       (s.departureReady === true &&
-        (s.stage !== 0 || !s.decisions.some((d) => d.stage === 0))) ||
+        !s.decisions.some((d) => d.stage === s.stage)) ||
       !roomSets[s.stage].some((r) => r.id === s.room) ||
       !Array.isArray(s.held) ||
       !s.held.every((id) => sources.some((source) => source.id === id)) ||
@@ -232,11 +238,34 @@ export function restoreDemoV3State(raw: string | null): DemoV3State {
       )
     )
       return newDemoV3State();
+    // Older saves may be on the redundant prediction screen. Keep the choice and move on.
+    if (
+      s.phase === "stage" &&
+      s.moment === "predicting" &&
+      stages[s.stage].choices.some((c) => c.id === s.chosen)
+    )
+      recordDecision(s, s.chosen!);
     return s;
   } catch {
     return newDemoV3State();
   }
 }
+function recordDecision(state: DemoV3State, choiceId: string) {
+  if (!state.decisions.some((d) => d.stage === state.stage))
+    state.decisions.push({
+      stage: state.stage,
+      choice: choiceId,
+      prediction: "",
+      evidence: state.notes
+        .filter((n) => n.stageIndex === state.stage)
+        .map((n) => n.id.replace(/^source-\d+-/, "")),
+    });
+  state.moment = null;
+  state.chosen = null;
+  state.open = null;
+  state.departureReady = true;
+}
+
 function document(id: string, open: boolean): DocumentView {
   const source = sourceById(id);
   return {
@@ -305,8 +334,6 @@ export function projectDemoV3(s: DemoV3State): PlayerView {
   const stage = stages[s.stage];
   const rooms = roomSets[s.stage];
   const choice = stage.choices.find((c) => c.id === s.chosen);
-  const previous = s.decisions.at(-1);
-  const previousStage = previous ? stages[previous.stage] : null;
   const characters = stage.npcs
     .filter((_, i) => rooms[i].id === s.room)
     .map((n) => ({
@@ -329,22 +356,12 @@ export function projectDemoV3(s: DemoV3State): PlayerView {
       title: stage.title,
       timePlace: `${stage.place} · ${stage.date}`,
       centralQuestion: s.departureReady
-        ? "Your recommendation is saved. Walk to the river steps to continue the journey."
+        ? "Your recommendation is saved. Explore further or walk to the marked exit."
         : stage.question,
       intro: s.intro
         ? {
             narration: `${stage.intro}\n\n${stage.objective}\n\n${stage.historian}`,
-            predictionReveal:
-              previous && previousStage
-                ? {
-                    predicted: previous.prediction,
-                    actual: previousStage.choices.find(
-                      (c) => c.id === previous.choice,
-                    )!.outcome,
-                    because:
-                      "This is the consequence of your selected reconstruction, not a claim that Lim made this exact choice.",
-                  }
-                : null,
+            predictionReveal: null,
           }
         : null,
     },
@@ -493,7 +510,9 @@ export function projectDemoV3(s: DemoV3State): PlayerView {
                     stages[d.stage].choices.find((c) => c.id === d.choice)!
                       .title,
                 ),
-                predictions: s.decisions.map((d) => d.prediction),
+                predictions: s.decisions
+                  .map((d) => d.prediction)
+                  .filter(Boolean),
                 interview: s.answers.map((a) => a?.text ?? ""),
               },
             },
@@ -603,18 +622,25 @@ export function createDemoV3Client(
           throw new Error("Open the map before taking this action.");
         else if (action.type === "enterRoom" && action.roomId === "embark") {
           if (
-            next.stage !== 0 ||
             !next.departureReady ||
             next.moment ||
-            next.room !== "quay"
+            next.room !== roomSets[next.stage][1].id
           )
-            throw new Error("Finish your recommendation before boarding.");
-          const missing = waterfrontTasks(next).filter(task => !task.done);
-          if (missing.length) throw new Error(`Before boarding: ${missing.map(task => task.label).join("; ")}.`);
+            throw new Error(
+              "Finish your recommendation, then walk to the marked exit.",
+            );
+          const missing = chapterTasks(next).filter((task) => !task.done);
+          if (missing.length)
+            throw new Error(
+              `Before leaving: ${missing.map((task) => task.label).join("; ")}.`,
+            );
           next.departureReady = false;
-          next.stage = 1;
-          next.intro = true;
-          next.room = roomSets[1][0].id;
+          if (next.stage === stages.length - 1) next.phase = "epilogue";
+          else {
+            next.stage++;
+            next.intro = true;
+            next.room = roomSets[next.stage][0].id;
+          }
         } else if (action.type === "enterRoom") {
           if (
             next.moment ||
@@ -731,7 +757,7 @@ export function createDemoV3Client(
         } else if (action.type === "endStage") {
           if (next.departureReady)
             throw new Error(
-              "Your recommendation is saved. Walk to the river steps to leave.",
+              "Your recommendation is saved. Walk to the marked exit to leave.",
             );
           if (!next.notes.some((n) => n.stageIndex === next.stage))
             throw new Error(
@@ -744,44 +770,7 @@ export function createDemoV3Client(
             !stage.choices.some((c) => c.id === action.actId)
           )
             throw new Error("Choose an available action.");
-          next.chosen = action.actId;
-          next.moment = "predicting";
-        } else if (action.type === "predict") {
-          if (
-            next.moment !== "predicting" ||
-            !next.chosen ||
-            !["support", "cooperation", "readiness"].includes(action.outcomeId)
-          )
-            throw new Error("Choose a prediction for the current decision.");
-          const prediction = projectDemoV3(
-            next,
-          ).definingMoment!.predictionOptions.find(
-            (p) => p.outcomeId === action.outcomeId,
-          )!.text;
-          next.decisions.push({
-            stage: next.stage,
-            choice: next.chosen,
-            prediction,
-            evidence: next.notes
-              .filter((n) => n.stageIndex === next.stage)
-              .map((n) => n.id.replace(/^source-\d+-/, "")),
-          });
-          next.moment = null;
-          next.chosen = null;
-          next.open = null;
-          if (next.stage === 0) {
-            next.departureReady = true;
-            addMessage(
-              next,
-              "narration",
-              "Your recommendation is recorded. Walk to the marked river steps to board. The departure scene is illustrative; it does not establish Lim’s precise route.",
-            );
-          } else if (next.stage === stages.length - 1) next.phase = "epilogue";
-          else {
-            next.stage++;
-            next.intro = true;
-            next.room = roomSets[next.stage][0].id;
-          }
+          recordDecision(next, action.actId);
         } else if (action.type !== "tick")
           throw new Error("This action is not available now.");
         next.revision++;

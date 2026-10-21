@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { sources, stages } from "../apps/web/src/lib/demo/lim-bo-seng";
 import {
   createDemoV3Client,
+  demoScenery,
   newDemoV3State,
   projectDemoV3,
   restoreDemoV3State,
@@ -45,11 +46,22 @@ describe("standalone v3 demo adapter", () => {
     expect(restored.revision).toBe(7);
     expect(restored.notes).toEqual(state.notes);
   });
-  it("uses v3 document selection, decisions, predictions, interview and reveal across five stages", async () => {
+  it("records one decision per stage, gates walking exits and reaches the final reflection", async () => {
     let saved = newDemoV3State();
-    const client = createDemoV3Client(saved, (s) => {
-      saved = structuredClone(s);
-    }, async () => new Response(JSON.stringify({ mode: "live", reply: "Consider the household.", sources: ["family"] })));
+    const client = createDemoV3Client(
+      saved,
+      (s) => {
+        saved = structuredClone(s);
+      },
+      async () =>
+        new Response(
+          JSON.stringify({
+            mode: "live",
+            reply: "Consider the household.",
+            sources: ["family"],
+          }),
+        ),
+    );
     const act = async (action: Parameters<typeof client.act>[1]) => {
       const result = await client.act(saved.revision, action);
       expect(result.ok).toBe(true);
@@ -79,7 +91,26 @@ describe("standalone v3 demo adapter", () => {
       await act({ type: "closeDocument", documentId: source.id });
       await act({ type: "endStage" });
       await act({ type: "act", actId: stages[i].choices[0].id });
-      await act({ type: "predict", outcomeId: "support" });
+      expect(saved.stage).toBe(i);
+      expect(projectDemoV3(saved).definingMoment).toBeNull();
+      expect(saved.decisions.filter((d) => d.stage === i)).toHaveLength(1);
+      expect(
+        (
+          await client.act(saved.revision, {
+            type: "act",
+            actId: stages[i].choices[1].id,
+          })
+        ).ok,
+      ).toBe(false);
+      expect(
+        (
+          await client.act(saved.revision, {
+            type: "predict",
+            outcomeId: "support",
+          })
+        ).ok,
+      ).toBe(false);
+      expect(restoreDemoV3State(JSON.stringify(saved))).toEqual(saved);
       if (i === 0) {
         expect(saved.stage).toBe(0);
         expect(saved.departureReady).toBe(true);
@@ -98,10 +129,40 @@ describe("standalone v3 demo adapter", () => {
           ).ok,
         ).toBe(false);
         await act({ type: "enterRoom", roomId: "quay" });
-        expect((await client.act(saved.revision, { type: "enterRoom", roomId: "embark" })).ok).toBe(false);
-        await act({ type: "message", characterId: "gan", text: "What support do you need?" });
+        expect(
+          (
+            await client.act(saved.revision, {
+              type: "enterRoom",
+              roomId: "embark",
+            })
+          ).ok,
+        ).toBe(false);
+        await act({
+          type: "message",
+          characterId: "gan",
+          text: "What support do you need?",
+        });
         await act({ type: "enterRoom", roomId: "embark" });
         expect(saved.stage).toBe(1);
+      } else {
+        expect(
+          (
+            await client.act(saved.revision, {
+              type: "enterRoom",
+              roomId: "embark",
+            })
+          ).ok,
+        ).toBe(false);
+        await act({
+          type: "message",
+          characterId: stages[i].npcs[0].id,
+          text: "What can this evidence establish?",
+        });
+        await act({
+          type: "enterRoom",
+          roomId: demoScenery[i].authored.map.rooms[1].id,
+        });
+        await act({ type: "enterRoom", roomId: "embark" });
       }
       if (i < stages.length - 1) await act({ type: "continue" });
     }
@@ -118,6 +179,24 @@ describe("standalone v3 demo adapter", () => {
     expect(projectDemoV3(saved).phase).toBe("reveal");
     expect(saved.decisions).toHaveLength(5);
     expect(restoreDemoV3State(JSON.stringify(saved))).toEqual(saved);
+  });
+  it("preserves a choice from an old prediction screen without asking it again", () => {
+    const old = {
+      ...newDemoV3State(),
+      stage: 1,
+      room: "briefing",
+      intro: false,
+      moment: "predicting",
+      chosen: "listen",
+      revision: 12,
+    };
+    const restored = restoreDemoV3State(JSON.stringify(old));
+    expect(restored.stage).toBe(1);
+    expect(restored.moment).toBeNull();
+    expect(restored.departureReady).toBe(true);
+    expect(restored.decisions).toHaveLength(1);
+    expect(restored.decisions[0].choice).toBe("listen");
+    expect(restoreDemoV3State(JSON.stringify(restored))).toEqual(restored);
   });
   it("uses the separate grounded chat endpoint without changing v3 generation", async () => {
     let saved = { ...newDemoV3State(), intro: false };
