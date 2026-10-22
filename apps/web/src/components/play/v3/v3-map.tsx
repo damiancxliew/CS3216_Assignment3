@@ -6,7 +6,7 @@ import type { MapView } from "@adventure/game-client/view";
 import type { PlayerView } from "@adventure/play-contract";
 import { useEffect, useRef, useState } from "react";
 
-import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl } from "@/lib/play/appearance";
+import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl, type Character } from "@/lib/play/appearance";
 import {
   arrivalPoint,
   compileV3StageMap,
@@ -83,6 +83,14 @@ function isTextEntryTarget(target: EventTarget | null): boolean {
 function isMovementTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement
     && Boolean(target.closest("button"));
+}
+
+/** Explicit versioned choices take precedence; standalone scenes keep their authored sheets. */
+function walkingActor(scenery: V3StageScenery | undefined, key: string, fallback: Character, authoredSheet?: string) {
+  const selected = scenery?.walkingSprites?.[key];
+  if (selected && selected.selection !== "default")
+    return { sprite: selected.sprite, spriteSheetUrl: selected.spriteSheetUrl };
+  return { sprite: selected?.sprite ?? fallback, spriteSheetUrl: authoredSheet ?? selected?.spriteSheetUrl ?? walkSheetUrl(fallback) };
 }
 
 export function V3Map(props: V3MapProps) {
@@ -171,15 +179,14 @@ export function V3Map(props: V3MapProps) {
           space: spaceAt(map, playerPosition),
           targetRoomId: null,
           status: path.length ? "moving" : "idle",
-          sprite: PLAYER_CHARACTER,
-          spriteSheetUrl: latest.current.scenery?.authored?.playerSheet,
+          ...walkingActor(latest.current.scenery, "player", PLAYER_CHARACTER, latest.current.scenery?.authored?.playerSheet),
           facing,
         },
         ...(latest.current.scenery?.authored?.cast ?? []).filter(character => character.roomId !== currentRoomRef.current).flatMap(character => {
           const position = seatIn(map, character.roomId, 1);
           return position ? [{ id: character.id, name: character.name, position,
             space: spaceAt(map, position), targetRoomId: null, status: "idle" as const,
-            spriteSheetUrl: latest.current.scenery?.authored?.characterSheets?.[character.id],
+            ...walkingActor(latest.current.scenery, `character:${character.id}`, characterFor({ id: character.id, name: character.name }), latest.current.scenery?.authored?.characterSheets?.[character.id]),
             interactive: !latest.current.movementLocked,
           }] : [];
         }),
@@ -192,7 +199,7 @@ export function V3Map(props: V3MapProps) {
             space: spaceAt(map, position),
             targetRoomId: null,
             status: "idle" as const,
-            spriteSheetUrl: latest.current.scenery?.authored?.characterSheets?.[character.id] ?? walkSheetUrl(sprite),
+            ...walkingActor(latest.current.scenery, `character:${character.id}`, sprite, latest.current.scenery?.authored?.characterSheets?.[character.id]),
             // While locked (a conversation, the defining moment, an end screen's backdrop) nobody offers "Talk".
             ...(latest.current.movementLocked ? { interactive: false } : {}),
           };

@@ -6,7 +6,8 @@ import { Pixelify_Sans } from "next/font/google";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 
 import { StanceTag, type StanceShift } from "@/components/play/v3/story-lines";
-import { portraitUrl } from "@/lib/play/v3/portraits";
+import { MediaCredit } from "./media-credit";
+import { portraitUrl, portraitMetadata } from "@/lib/play/v3/portraits";
 import { nameInitials } from "@/lib/play/v3/initials";
 
 export const pixelFont = Pixelify_Sans({
@@ -160,16 +161,16 @@ function DialoguePortrait({ character, portraitBase }: { character: CharacterVie
   }, [src]);
 
   return (
-    <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden border-4 border-[#1f2433] bg-[#2a2f3d] min-[480px]:h-16 min-[480px]:w-16 sm:h-20 sm:w-20">
+    <div className="w-14 shrink-0 min-[480px]:w-16 sm:w-20"><div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden border-4 border-[#1f2433] bg-[#2a2f3d] min-[480px]:h-16 min-[480px]:w-16 sm:h-20 sm:w-20">
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element -- portraits use generated storage URLs
-        <img ref={image} src={src} alt="" className="h-full w-full object-cover" onError={() => setFailedUrl(src)} />
+        <img ref={image} src={src} alt={portraitMetadata(character.portraitKey, portraitBase)?.alt ?? ""} className="h-full w-full object-cover" onError={() => setFailedUrl(src)} />
       ) : (
         <span className={`${pixelFont.className} text-2xl font-bold text-[#fffaf0] sm:text-4xl`}>
           {initials || "?"}
         </span>
       )}
-    </div>
+    </div><MediaCredit media={portraitMetadata(character.portraitKey, portraitBase)} /></div>
   );
 }
 

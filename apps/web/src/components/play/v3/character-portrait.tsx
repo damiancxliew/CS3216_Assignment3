@@ -3,7 +3,8 @@ import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import { useState } from "react";
 
-import { portraitUrl } from "@/lib/play/v3/portraits";
+import { MediaCredit } from "./media-credit";
+import { portraitUrl, portraitMetadata } from "@/lib/play/v3/portraits";
 import { nameInitials } from "@/lib/play/v3/initials";
 
 export function CharacterPortrait({
@@ -26,24 +27,36 @@ export function CharacterPortrait({
   const initials = nameInitials(name);
 
   return (
-    <button
+    <div>
+      <button
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
       className={`flex min-h-16 items-center gap-3 rounded-xl border p-2 text-left transition ${
         selected ? "border-record bg-record-wash ring-2 ring-record/30" : "border-line bg-surface hover:bg-world-wash"
       }`}
-    >
-      <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border border-line-strong bg-world-wash font-black text-world">
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element -- optional generated stance portrait URL
-          <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailedUrl(src)} />
-        ) : initials}
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate font-bold text-ink">{name}</span>
-        <span className="block text-xs text-muted">{selected ? "Selected for conversation" : "Choose to speak"}</span>
-      </span>
-    </button>
+      >
+        <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border border-line-strong bg-world-wash font-black text-world">
+          {src ? (
+            // eslint-disable-next-line @next/next/no-img-element -- optional generated stance portrait URL
+            <img
+              src={src}
+              alt={portraitMetadata(portraitKey, portraitBase)?.alt ?? ""}
+              className="h-full w-full object-cover"
+              onError={() => setFailedUrl(src)}
+            />
+          ) : (
+            initials
+          )}
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate font-bold text-ink">{name}</span>
+          <span className="block text-xs text-muted">
+            {selected ? "Selected for conversation" : "Choose to speak"}
+          </span>
+        </span>
+      </button>
+      <MediaCredit media={portraitMetadata(portraitKey, portraitBase)} />
+    </div>
   );
 }

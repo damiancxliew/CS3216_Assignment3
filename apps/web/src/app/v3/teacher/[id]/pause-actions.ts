@@ -78,13 +78,15 @@ export async function fixSkeletonWithAiAction(adventureId: string, edited: unkno
 }
 
 export async function retrySourcesAction(adventureId: string, key: string, excluded: string[]) {
+  if (!z.string().min(1).max(128).safeParse(key).success || !z.array(z.string().min(1).max(100)).max(1000).safeParse(excluded).success) return { error: "Invalid retry request." };
   const ctx = await context();
   if (!ctx) return { error: "Not found." };
-  const result = await retrySources(ctx.deps, getJobs(), ctx.store, ctx.userId, adventureId, key, excluded);
+  const result = await retrySources(ctx.deps, ctx.store, ctx.userId, adventureId, key, excluded);
   if ("ok" in result) await continued(adventureId);
   return result;
 }
 export async function saveSourceSelectionAction(adventureId: string, excluded: string[]) {
+  if (!z.array(z.string().min(1).max(100)).max(1000).safeParse(excluded).success) return { error: "Invalid source selection." };
   const ctx = await context();
   if (!ctx || !await requirePause(ctx.deps, ctx.store, ctx.userId, adventureId, "sources", process.env)) return { error: "Not awaiting review." };
   const all = await ctx.deps.sources.loadAll!(adventureId);

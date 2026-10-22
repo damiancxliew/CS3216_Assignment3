@@ -1,4 +1,5 @@
 "use client";
+import { sourceFailureLabel } from "@adventure/generation/sources-labels";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -81,7 +82,12 @@ export function SourcesReview({
     pending,
     input: { pass: "sources", removedSourceIds: removed },
     apply: (proposal) => {
-      if (proposal.pass === "sources") setRemoved(proposal.removedSourceIds);
+      if (proposal.pass === "sources") {
+        setRemoved(proposal.removedSourceIds);
+        void saveSourceSelectionAction(adventureId, proposal.removedSourceIds).then(result => {
+          if ("error" in result) setMessage(result.error!);
+        }).catch(() => setMessage("Could not save source selection. Try again before reloading."));
+      }
     },
   });
   return (
@@ -138,7 +144,7 @@ export function SourcesReview({
             ) : null}
           </div>
         ))}
-        {!pause.outside.length ? <p>No outside sources.</p> : null}
+        {!pause.outside.length ? <p>{pause.noResults ? "Search found no sources." : "No outside sources were imported."}</p> : null}
       </section>
       <details className="space-y-3">
         <summary className="cursor-pointer font-bold">Couldn’t import {pause.rejected.length} sources</summary>
@@ -157,7 +163,7 @@ export function SourcesReview({
               ) : (
                 source.url
               )}
-              <p className="mt-1 text-muted">{source.reason}</p>
+              <p className="mt-1 text-muted">{sourceFailureLabel(source.reason)}</p>
             </li>
           ))}
         </ul>
