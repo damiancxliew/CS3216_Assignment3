@@ -75,6 +75,7 @@ Implement this as a separate workstream from image selection.
 
 - Separate the accepted-source target from the candidate budget: default to five accepted sources from at most fifteen candidates, fetching three concurrently. Continue to later candidates when earlier ones fail.
 - Support PDFs through the existing extractor, retaining page-level citations. Preserve the 2 MB HTML limit and use the existing PDF byte, page and extracted-text limits. Distinguish scanned PDFs without a text layer.
+- Investigate the NLB discrepancy explicitly: the application's pinned fetch received HTTP 202 with an empty body, while a separate `curl` request retrieved extractable HTML from the same URL. Compare both clients from the same deployed worker, recording request headers, redirect chains, response headers/status, body size and timing. Check client-dependent and intermittent upstream behavior before choosing a fix; keep DNS pinning and do not lower the text-length threshold to admit empty content.
 - Preserve DNS pinning, public-address checks and redirect-policy checks.
 - Retry empty/transient responses once within the source pass’s 240-second budget. Retain the per-fetch timeout; do not retry permanent permission failures or introduce challenge-bypass behavior.
 - Record candidate stage, HTTP status, content type, response size, extracted length and rejection reason. Report empty successful responses separately from genuinely short content.
@@ -92,6 +93,7 @@ Deliver in three verifiable slices: ingestion recovery; curated images/uploads w
 Acceptance checks:
 
 - Reproduce the reported empty NLB responses and PDF failures with controlled fixtures. Verify HTML, text PDFs, scanned PDFs, blocked responses and successful later candidates.
+- Include an NLB fixture that first returns an empty HTTP 202 response, then usable HTML, plus a persistent-empty case. Separately compare live pinned-fetch and `curl` results under the same worker conditions and record whether recovery is verified or the site still requires a fallback source. For PDFs, verify successful extraction into numbered pages as well as no-text-layer, malformed, oversized and HTTP 403 outcomes; PDF support must not be reported as a fix for upstream access denial.
 - Prove an accepted outside source is persisted and passed to subsequent generation with its URL, provenance and citation pages.
 - Exercise image search, upload, selection, replacement, removal, AI failure/retry and UN direct embedding. Verify UN image bytes never enter application storage.
 - Test invalid uploads, missing rights metadata, untrusted URLs, cross-adventure candidate access, duplicate requests and concurrent saves.
