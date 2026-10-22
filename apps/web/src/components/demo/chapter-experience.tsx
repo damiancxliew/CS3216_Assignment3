@@ -7,12 +7,13 @@ import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { chapterTasks } from "@/lib/demo/chapter-progress";
 import { STORY_EXIT, storyExitLabels } from "@/lib/demo/story-maps";
 import type { DemoV3State } from "@/lib/demo/v3-session";
-import { stages } from "@/lib/demo/lim-bo-seng";
+import { stages, sourceById } from "@/lib/demo/lim-bo-seng";
 import { demoCinematics } from "@/lib/demo/cinematics";
 import {
   WaterfrontRecord,
   type WaterfrontRecordId,
 } from "./waterfront-records";
+import { SourceQuestion } from "./source-question";
 import { ChapterConsequence } from "./chapter-consequence";
 import styles from "./waterfront-experience.module.css";
 
@@ -103,7 +104,7 @@ export function useChapterExperience(
           <p>
             {ready
               ? `Walk through the signposted ${storyExitLabels[index].toLowerCase()} to continue. No extra decision or click needed.`
-              : "Three goals. Click objects and photographs for optional discoveries."}
+              : "Three goals. Hover or walk close to reveal objects, then click to explore."}
           </p>
           <details className={styles.recordsMenu}>
             <summary>Optional discoveries</summary>
@@ -215,6 +216,8 @@ export function useChapterExperience(
                           </a>
                         </p>
                       </figcaption>
+                      {beat.id.endsWith("-lim") && <p>{sourceById("life").summary}</p>}
+                      <SourceQuestion id={beat.id.endsWith("-lim") ? "life" : `${beat.id.split("-").at(-1)}-photo`} />
                     </figure>
                   ))}
               </div>

@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { chatInstructions, curatedReply, selectContext } from "@/lib/demo/chat";
+import { hasOtherSpeaker, selectedSpeakerText } from "@/lib/demo/speaker";
 import { stages } from "@/lib/demo/lim-bo-seng";
 import { publicJson } from "@/lib/play/http";
 
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
           instructions: chatInstructions(body.stage, body.npc),
           input: JSON.stringify({
             question: body.question,
-            history: body.history,
+            history: body.history.filter((m) => m.role !== "assistant" || !hasOtherSpeaker(m.content, body.npc)),
             decisions: body.decisions,
             sources: context.map(
               ({ id, title, summary, limitation, date }) => ({
@@ -169,7 +170,10 @@ export async function POST(request: NextRequest) {
       !answer.sources.every((id) => context.some((source) => source.id === id))
     )
       return fallback();
-    return json({ ...answer, mode: "live" });
+    if (hasOtherSpeaker(answer.reply, body.npc)) return fallback();
+    const reply = selectedSpeakerText(answer.reply, body.npc);
+    if (!reply.trim()) return fallback();
+    return json({ ...answer, reply, mode: "live" });
   } catch {
     console.warn(
       "[history-demo] Live conversation timed out or failed validation.",

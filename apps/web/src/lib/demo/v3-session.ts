@@ -7,6 +7,8 @@ import {
 import type { V3PlayClient, V3PlayResult } from "@/lib/play/v3/client";
 import { sources, sourceById, stages } from "./lim-bo-seng";
 import { buildStoryMap } from "./story-maps";
+import { sourceQuestions } from "./source-questions";
+import { selectedSpeakerText } from "./speaker";
 import { chapterTasks } from "./chapter-progress";
 
 export const DEMO_SAVE_KEY = "standalone.lim-bo-seng.v3.v1";
@@ -210,12 +212,13 @@ export function restoreDemoV3State(raw: string | null): DemoV3State {
         // Only remove the old generated footer from character replies, never student text.
         text:
           m.kind === "character" && typeof m.text === "string"
-            ? m.text
-                .replace(
+            ? selectedSpeakerText(
+                m.text.replace(
                   /(?:\n\n)?Sources: [^\n]*\. Inspect records in Source archive\.$/,
                   "",
-                )
-                .trimEnd()
+                ).trimEnd(),
+                m.characterId ?? "",
+              ) || "This earlier reply could not be restored. Please ask your question again."
             : m.text,
       }));
     // Preserve progress and export old fictional dialogue without attributing it to real people.
@@ -287,7 +290,7 @@ function document(id: string, open: boolean): DocumentView {
       recipient: null,
       place: null,
     },
-    body: `${source.summary}\n\nSOURCE LIMITS\n${source.limitation}\n\nThis is a lesson summary or labelled adaptation, not an original verbatim transcript. Historical photographs and the currency scan are available in Source archive.`,
+    body: source.summary,
     real: false,
     sourceLabel: source.kind,
     glossary: [],
@@ -677,7 +680,7 @@ export function createDemoV3Client(
           if (!next.notes.some((n) => n.id === id))
             next.notes.push({
               id,
-              text: `${sourceById(action.documentId).title}: ${doc.body.slice(action.start, action.end)}\nSource limit: ${sourceById(action.documentId).limitation}`,
+              text: `${sourceById(action.documentId).title}: ${doc.body.slice(action.start, action.end)}\nSource limit: ${sourceQuestions[action.documentId].footnote}`,
               source: "document",
               stageIndex: next.stage,
               at: Date.now(),
@@ -707,6 +710,7 @@ export function createDemoV3Client(
             .filter(
               (m) =>
                 m.characterId === npc.id &&
+                m.stageIndex === next.stage &&
                 (m.kind === "player" || m.kind === "character"),
             )
             .slice(-8)

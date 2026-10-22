@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { SourceQuestion, SourceFootnote } from "./source-question";
 import styles from "./waterfront-experience.module.css";
 
 export const waterfrontRecords = {
@@ -106,6 +107,8 @@ export function WaterfrontRecord({
                 )
             : record.context}
         </p>
+        <SourceQuestion id={id === "newspaper" ? "street-newspaper" : id} />
+        <SourceFootnote id={id === "newspaper" ? "street-newspaper" : id} />
         <details className={styles.credit}>
           <summary>Image credits & original record</summary>
           <p>

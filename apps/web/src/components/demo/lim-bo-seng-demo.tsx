@@ -19,6 +19,7 @@ import {
 } from "@/lib/demo/v3-session";
 import chrome from "@/components/play/adventure-chrome.module.css";
 import "./historical-portraits.css";
+import { SourceQuestion, SourceFootnote, SourceRewards } from "./source-question";
 import { useChapterExperience } from "./chapter-experience";
 import { useWaterfrontExperience } from "./waterfront-experience";
 
@@ -43,8 +44,18 @@ export function LimBoSengDemo() {
   );
   const stageExperience: NonNullable<
     React.ComponentProps<typeof V3PlayClient>["stageExperience"]
-  > = (view, send) =>
-    waterfrontExperience(view, send) ?? chapterExperience(view, send);
+  > = (view, send) => ({
+    ...(waterfrontExperience(view, send) ?? chapterExperience(view, send)),
+    documentHint: view.definingMoment
+      ? "Revisit your sources and hints while considering your recommendation."
+      : "Read the source, then answer its question to unlock a hint and save an evidence note. You can also highlight a passage.",
+    documentSupplement: (document) => <>
+      <SourceQuestion id={document.id}
+        hasNote={view.notes.some((n) => n.id === `source-${view.stage?.index}-${document.id}`)}
+        onReward={view.definingMoment ? undefined : (settled) => send({ type: "selectPassage", documentId: document.id, start: 0, end: sourceById(document.id).summary.length }, settled)} />
+      <SourceFootnote id={document.id} />
+    </>,
+  });
   const [archive, setArchive] = useState(false);
   const [selectedSource, setSelectedSource] = useState("life");
   const [restart, setRestart] = useState(false);
@@ -100,7 +111,7 @@ export function LimBoSengDemo() {
     );
   const source = sourceById(selectedSource);
   return (
-    <div className="history-demo">
+    <SourceRewards key={boot.key} storageKey={`${saveKey.current}.source-hints`}><div className="history-demo">
       <V3PlayClient
         key={boot.key}
         attemptId="standalone-lim-bo-seng"
@@ -183,13 +194,12 @@ export function LimBoSengDemo() {
               />
             )}
             <p>{source.summary}</p>
-            <p>
-              <strong>Source limits: </strong>
-              {source.limitation}
-            </p>
+            <SourceQuestion id={source.id} />
+            <SourceFootnote id={source.id} />
             <details>
               <summary>Source credits & catalogue details</summary>
               <p>{source.credit}</p>
+              <p>{source.limitation}</p>
               <p>{source.date}</p>
             </details>
             <a
@@ -213,7 +223,7 @@ export function LimBoSengDemo() {
             <hr />
             <p>
               <strong>How to play:</strong> Walk to buildings, speak to people,
-              pick up documents and select passages for your notes. Share a note
+              pick up documents and answer their questions to earn notes. Share a note
               in conversation, then make your recommendation and watch its
               consequence. The story follows Lim from Singapore to training
               abroad and occupied Malaya.
@@ -272,6 +282,7 @@ export function LimBoSengDemo() {
                 const fresh = newDemoV3State(previewStart.current);
                 try {
                   localStorage.setItem(saveKey.current, JSON.stringify(fresh));
+                  localStorage.removeItem(`${saveKey.current}.source-hints`);
                 } catch {
                   setSaveError(true);
                 }
@@ -284,6 +295,6 @@ export function LimBoSengDemo() {
           </div>
         </V3ScrollDialog>
       )}
-    </div>
+    </div></SourceRewards>
   );
 }

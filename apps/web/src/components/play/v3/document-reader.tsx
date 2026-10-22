@@ -2,7 +2,7 @@
 
 import type { DocumentView } from "@adventure/play-contract";
 import { Check, Highlighter, ScrollText } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import styles from "@/components/play/document-reader.module.css";
@@ -114,7 +114,11 @@ export function DocumentReader({
   onSelectPassage,
   noteCount = 0,
   hasDocumentNote = false,
+  supplement,
+  readingHint,
 }: {
+  supplement?: ReactNode;
+  readingHint?: string;
   document: DocumentView | null;
   documents: DocumentView[];
   onSelectDocument: (documentId: string) => void;
@@ -156,7 +160,7 @@ export function DocumentReader({
       closeLabel={document ? `Put down ${document.title}` : "Close documents"}
       buttonLabel={document ? undefined : "Continue exploring"}
       onClose={onClose}
-      banner={document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
+      banner={document && readingHint ? <p className={styles.passageHint}>{readingHint}</p> : document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
       navigation={document && saved && documents.length > 1 ? {
         items: documents.map((item) => ({ id: item.id, name: item.title })),
         selectedId: document.id,
@@ -169,6 +173,7 @@ export function DocumentReader({
           <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text">
             <p data-document-paragraph="" className={styles.text}>{document.body}</p>
           </div>
+          {supplement}
           <DocumentNotes document={document} />
         </>
       ) : (
