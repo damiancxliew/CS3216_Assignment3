@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { Select } from "@/components/select";
 import { z } from "zod";
 import { AdventureSpec, type AdventureSpec as Spec } from "@adventure/spec-v3";
@@ -14,7 +14,9 @@ import {
 } from "@/lib/v3/edit/form";
 import type { V3Edit, EditPath, CapturedSource } from "@/lib/v3/edit/commands";
 import { Citations } from "./review-screen";
-import { reviewAnchor, reviewSectionId, reviewStanceId } from "@/lib/v3/review";
+import { issueTarget, reviewAnchor, reviewSectionId, reviewStanceId } from "@/lib/v3/review";
+import { reviewIssueMessage } from "@/lib/v3/review-presentation";
+import { useFieldIssues } from "./field-issues";
 
 const input =
   "w-full min-w-0 rounded-lg border border-line bg-paper p-2 text-sm text-ink";
@@ -91,6 +93,41 @@ export function Remove({
 
 /** The schema drives field coverage, optional fields and recursive condition variants. */
 export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
+  const issues = useFieldIssues();
+  const issueId = useId();
+  const fieldPath = path.join(".");
+  const matching = issues.filter((issue) => {
+    if (issue.path.replace(/\[(\d+)\]/g, ".$1") === fieldPath) return true;
+    // Part-local generation paths only identify their owning entity reliably.
+    return (
+      issue.path.includes("/") && value && typeof value === "object" &&
+      "id" in value && typeof value.id === "string" &&
+      issueTarget(spec, issue)?.anchor === reviewAnchor(value.id)
+    );
+  });
+  return (
+    <div
+      data-edit-path={fieldPath}
+      tabIndex={-1}
+      role={matching.length ? "group" : undefined}
+      aria-label={matching.length ? name : undefined}
+      aria-describedby={matching.length ? issueId : undefined}
+      aria-invalid={matching.length ? true : undefined}
+      className="min-w-0 space-y-2"
+    >
+      <EditFieldContent {...{ spec, value, schema, path, name, onEdit }} />
+      {matching.length ? (
+        <ul id={issueId} className="space-y-1 text-sm text-danger">
+          {matching.map((issue, index) => (
+            <li key={index}>{reviewIssueMessage(issue)}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function EditFieldContent({ spec, value, schema, path, name, onEdit }: Props) {
   const id = `edit-${path.join("-")}`;
   const key = String(path.at(-1));
   const set = (value: unknown) => onEdit({ type: "set", path, value });
@@ -181,7 +218,7 @@ export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
             })}
           </select>
         </label>
-        <EditField
+        <EditFieldContent
           {...{ spec, value, path, name, onEdit }}
           schema={options[optionIndex]}
         />

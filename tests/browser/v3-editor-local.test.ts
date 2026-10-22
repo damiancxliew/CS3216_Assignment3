@@ -231,9 +231,8 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
             .getByRole("heading", { name: spec.stages[0].title, exact: true })
             .first()
             .waitFor();
-          const checks = page.locator(
-            'section[aria-labelledby="needs-fixing"]',
-          );
+          const checks = page.getByRole("group", { name: "Adventure checks" });
+          await checks.locator("summary").first().click();
           await checks
             .getByRole("heading", { name: "Checks passed", exact: true })
             .waitFor();

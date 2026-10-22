@@ -122,6 +122,10 @@ export function issueTarget(
     return issue.ids?.map((id) => targets.get(id)).find(Boolean);
   }
   const keys = (localPath ?? "").replace(/\[(\d+)\]/g, ".$1").split(".");
+  if (["title", "arc", "readingLevel", "timer", "role", "sourcePolicy", "authoring"].includes(keys[0]))
+    return { tab: "settings", itemId: "settings", anchor: reviewAnchor("settings") };
+  if (["reveal", "teacherQuestions"].includes(keys[0]))
+    return { tab: "reveal", itemId: "reveal", anchor: reviewAnchor("reveal") };
   if (keys[0] === "characters" && keys[2] === "stances") {
     const character = spec.characters[Number(keys[1])];
     const stance = character?.stances[Number(keys[3])];
