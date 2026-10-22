@@ -207,6 +207,7 @@ export function V3Map(props: V3MapProps) {
       environment: v3Environment(latest.current.scenery),
       visualStyle: latest.current.scenery?.authored?.style,
       roomKinds: latest.current.scenery?.authored?.roomKinds,
+      interactionLabels: latest.current.scenery?.authored?.interactionLabels,
       revision,
       roomDescriptions: latest.current.scenery?.roomDescriptions,
       storyContext: latest.current.scenery?.storyContext,

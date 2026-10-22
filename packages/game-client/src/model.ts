@@ -59,6 +59,8 @@ export interface PlaygroundSnapshot {
   revision: number
   /** Display names for rooms, when the caller has them; the demo fixture's names are the fallback. */
   roomNames?: Readonly<Record<string, string>>
+  /** Opt-in discovery UI: objects reveal their names on hover or close approach. */
+  interactionLabels?: "hover"
   /** Public room purposes used to choose materials and period-appropriate fixtures. */
   roomDescriptions?: Readonly<Record<string, string>>
   /** Authored location kinds used to choose curated ground for open locations. */

@@ -275,6 +275,7 @@ export function buildStoryMap(
     })),
     style: "harbor",
     desktopCamera: "cover",
+    interactionLabels: "hover",
     roomKinds: Object.fromEntries(roomIds.map((id) => [id, "dock"])),
     playerSheet: asset("civilian"),
     characterSheets: Object.fromEntries(

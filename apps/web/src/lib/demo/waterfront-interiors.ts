@@ -165,6 +165,7 @@ export function buildWaterfrontInterior(
     playerSpawn: { x: 12, y: 12 },
     spawnAtEntrance: true,
     desktopCamera: "cover",
+    interactionLabels: "hover",
     style: "harbor",
     roomKinds: { [roomId]: "street" },
     cast: [],

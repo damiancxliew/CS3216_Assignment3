@@ -118,6 +118,7 @@ class TiledScene extends Phaser.Scene {
   private captions = new Map<string, Phaser.GameObjects.Text>()
   private captionSizes = new Map<string, { content: string; width: number; height: number }>()
   private captionLines?: Phaser.GameObjects.Graphics
+  private interactionGlow?: Phaser.GameObjects.Graphics
   private readonly roomPointers = new RoomPointers(this)
   private hoveredTarget: string | null = null
   private markers = new Map<
@@ -382,6 +383,8 @@ class TiledScene extends Phaser.Scene {
     this.captionSizes.clear()
     this.captionLines?.destroy()
     this.captionLines = this.add.graphics().setDepth(59)
+    this.interactionGlow?.destroy()
+    this.interactionGlow = this.add.graphics().setDepth(58)
     this.hoveredTarget = null
     this.landmarkTileSignature = ''
     this.previousLandmarkPositions = []
@@ -423,7 +426,7 @@ class TiledScene extends Phaser.Scene {
       }
       // A door on the top wall keeps the room name outside the room, above the wall.
       const doorOnTopWall = source.doors.some((door) => door.roomId === room.id && door.position.y === room.y)
-      this.labels.push(
+      if (this.current.interactionLabels !== "hover") this.labels.push(
         this.add
           .text((room.x + room.width / 2) * T, doorOnTopWall ? room.y * T - 1 : room.y * T + 1, this.roomName(room.id), {
             color: '#fff8e7',
@@ -835,8 +838,17 @@ class TiledScene extends Phaser.Scene {
     const player = this.markers.get('player')?.container
     const distance = (target: typeof targets[number]) => player
       ? Math.hypot(target.bounds.x + target.bounds.width / 2 - player.x, target.bounds.y + target.bounds.height / 2 - player.y) : Infinity
-    const focused = this.hoveredTarget ?? targets.filter((target) => target.near)
+    const discovery = this.current.interactionLabels === 'hover'
+    const focused = this.hoveredTarget ?? targets.filter((target) => discovery ? target.action && distance(target) <= T * 1.75 : target.near)
       .sort((a, b) => distance(a) - distance(b) || a.id.localeCompare(b.id))[0]?.id
+    this.interactionGlow?.clear()
+    const highlight = discovery ? targets.find((target) => target.id === focused && target.action) : undefined
+    if (highlight && this.interactionGlow) {
+      const { x, y, width, height } = highlight.bounds
+      // Layered gold halo works with tile stamps, documents and sprites alike, without changing their art.
+      for (const [padding, alpha] of [[3, 0.12], [2, 0.25], [1, 0.8]] as const)
+        this.interactionGlow.lineStyle(1.5, 0xffdf88, alpha).strokeRoundedRect(x - padding, y - padding, width + padding * 2, height + padding * 2, 3)
+    }
     const candidates = targets.map((target) => {
       let text = this.captions.get(target.id)
       if (!text) {
@@ -870,7 +882,7 @@ class TiledScene extends Phaser.Scene {
     // Room names and speech bubbles are text too: no name tag may sit on top of them. Nor may one hide the
     // player's own sprite, or a student standing just north of someone loses sight of themselves.
     const playerBounds = player ? [{ x: player.x - 7, y: player.y - 8, width: 14, height: 16 }] : []
-    const placed = layoutMapLabels(candidates.filter((candidate) => overlaps(candidate.anchor, viewport, 0)), viewport,
+    const placed = layoutMapLabels(candidates.filter((candidate) => (!discovery || candidate.id.startsWith('actor:') || candidate.id === focused) && overlaps(candidate.anchor, viewport, 0)), viewport,
       [...doorBounds, ...targets.map((target) => target.bounds)], focused, [...roomBounds, ...(this.ambientLife?.bubbleBounds() ?? []), ...playerBounds])
     this.captionLines?.clear().lineStyle(0.5, 0xe1d1af, 0.7)
     for (const target of targets) {
