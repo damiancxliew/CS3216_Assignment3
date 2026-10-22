@@ -277,7 +277,7 @@ export function LimBoSengDemo() {
               Download report
             </button>
             <button
-              className="rounded-lg bg-ink px-4 py-2 font-bold text-white"
+              className="min-h-11 rounded-lg border-2 border-[#183e35] bg-[#285c4d] px-4 py-2 font-bold text-[#fff9e9] hover:bg-[#193f35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b87522]"
               onClick={() => {
                 const fresh = newDemoV3State(previewStart.current);
                 try {
