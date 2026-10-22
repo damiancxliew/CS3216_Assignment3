@@ -72,7 +72,7 @@ export const demoCinematics = {
               src: record.image!,
               alt: record.imageAlt!,
               caption: `${record.imageAlt}.`,
-              credit: record.credit,
+              credit: record.displayCredit ?? record.credit,
               href: record.url,
             }
           : portrait,
