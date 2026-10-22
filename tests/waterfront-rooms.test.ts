@@ -70,5 +70,5 @@ it("places household records with Gan and later occupation evidence with Elizabe
     projectDemoV3({ ...newDemoV3State(), room }).documentsHere.map((d) => d.id);
   expect(docs("quay")).toEqual(["family", "letter"]);
   expect(docs("household")).toEqual(["life"]);
-  expect(docs("records")).toEqual(["choy", "food", "ration", "currency"]);
+  expect(docs("records")).toEqual([]); // Sources now live on shelf folders and the banknote display.
 });

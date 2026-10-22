@@ -99,7 +99,7 @@ export function buildWaterfrontMap(
   );
   fixture(
     "waterfront-newspaper",
-    "Newspaper board · inspect",
+    "Occupation newspaper",
     27,
     8,
     "newsstand",

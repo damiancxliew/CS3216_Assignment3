@@ -48,6 +48,8 @@ function formatTime(milliseconds: number) {
 }
 
 export type StageExperience = {
+  /** Optional host-controlled reader, used by authored walk-up exhibits. */
+  activeDocumentId?: string | null;
   documentSupplement?: (document: DocumentView) => ReactNode;
   documentHint?: string;
   scenery?: V3StageScenery;
@@ -109,7 +111,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     : null;
   const isTalkOpen = openCharacter !== null;
   const movementLocked = externalMovementLock || isTalkOpen || isMoment || Boolean(experience?.movementLocked);
-  const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
+  const activeDocumentId = experience?.activeDocumentId === undefined ? documentId : experience.activeDocumentId;
+  const openedDocument = view.documents.find((document) => document.id === activeDocumentId) ?? null;
   const spawnRoomId = view.rooms[0]?.id ?? "";
   const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
     send({ type: "enterRoom", roomId }, resolve);

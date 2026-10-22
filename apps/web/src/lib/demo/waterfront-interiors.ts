@@ -3,6 +3,7 @@ import {
   MAP_SCHEMA_VERSION,
   type StageMap,
 } from "@adventure/game-core";
+import { ARCHIVE_SHELVES } from "./archive-shelves";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
 
 /** Small connected interiors; geography and furnishings are illustrative. */
@@ -129,34 +130,27 @@ export function buildWaterfrontInterior(
       "Daily work continues alongside public events. Ask Gan whose responsibilities remain when someone leaves.",
     );
   } else {
-    prop(
-      "rice-shop",
-      "Rice and tinned provisions",
-      4,
-      7,
-      "rice-counter",
-      true,
-      "Families prepared for war by storing provisions. NLB oral histories describe stockpiling, rising prices and unequal access to shelter.",
-    );
     prop("counter", "Shop counter", 18, 7, "room-counter", true);
-    prop(
-      "shop-record",
-      records ? "Occupation newspaper" : "Rickshaw photograph",
-      4,
-      10,
-      "newsstand",
-      true,
-      "Inspect a period record.",
-    );
-    prop(
-      "shop-currency",
-      "Currency comparison",
-      18,
-      10,
-      "cargo",
-      true,
-      "Inspect a ten-cent note issued under occupation. This later object was not in circulation at this pre-surrender departure.",
-    );
+    if (records) {
+      prop("shop-currency", "Ten-cent banknote", 4, 7, "banknote-display", true,
+        "A later occupation banknote: examine its issuer and denomination.");
+      prop("archive-box", "Archive storage", 18, 10, "room-cabinet", true);
+    } else {
+      prop("shelter-clipping", "1941 shelter clipping", 4, 7, "newsstand", true,
+        "A pre-war newspaper report: where were civilians told to shelter?");
+      prop("shop-record", "Rickshaw photograph", 18, 10, "writing-desk", true,
+        "Look at the runner and passengers in a period photograph.");
+    }
+  }
+  if (records) {
+    for (const shelf of ARCHIVE_SHELVES) {
+      const fixture = fixtures.find((f) => f.id === `shelf-${shelf.x}`)!;
+      Object.assign(fixture, {
+        id: shelf.id, name: shelf.title, interactive: true, pulse: true,
+        imageUrl: "/demo/lim-bo-seng/map/archive-folder.svg",
+        description: "Walk up to the highlighted folder to read its excerpt.",
+      });
+    }
   }
   return {
     map,

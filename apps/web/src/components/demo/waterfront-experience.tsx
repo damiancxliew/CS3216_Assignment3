@@ -20,6 +20,9 @@ import {
   type WaterfrontRecordId,
 } from "./waterfront-records";
 import { buildWaterfrontInterior } from "@/lib/demo/waterfront-interiors";
+import { DiscoveryRecord } from "./discovery-record";
+import { objectDiscoveries, type DiscoveryId } from "@/lib/demo/discoveries";
+import { ARCHIVE_SHELVES } from "@/lib/demo/archive-shelves";
 import { RickshawRide } from "./rickshaw-ride";
 import { WaterfrontDeparture } from "./waterfront-departure";
 import { stages } from "@/lib/demo/lim-bo-seng";
@@ -64,6 +67,8 @@ export function useWaterfrontExperience(
   const [answer, setAnswer] = useState<string | null>(null);
   const [boarding, setBoarding] = useState(false);
   const [record, setRecord] = useState<WaterfrontRecordId | null>(null);
+  const [discovery, setDiscovery] = useState<DiscoveryId | null>(null);
+  const lastShelf = useRef<string | null>(null);
   const inSteps = useRef(false);
   const changingRoom = useRef(false);
   const approachingDoor = useRef<string | null>(null);
@@ -89,6 +94,8 @@ export function useWaterfrontExperience(
     }
     setActivity(null);
     setRecord(null);
+    setDiscovery(null);
+    lastShelf.current = null;
     setAnswer(null);
     inSteps.current = false;
     setBoarding(false);
@@ -134,10 +141,8 @@ export function useWaterfrontExperience(
       approachingDoor.current = null;
       setDestination(null);
       setTransitionError(null);
-      if (outside) {
-        const door = WATERFRONT_DOORS.find((d) => d.id === roomId)!;
-        setReturnPoint({ x: door.point.x, y: door.point.y + 1 });
-      }
+      const door = WATERFRONT_DOORS.find((d) => d.id === (outside ? roomId : state.room));
+      if (door) setReturnPoint({ x: door.point.x, y: door.point.y + 1 });
       send({ type: "enterRoom", roomId }, (ok) => {
         changingRoom.current = false;
         if (!ok)
@@ -158,6 +163,7 @@ export function useWaterfrontExperience(
     const close = () => {
       setActivity(null);
       setRecord(null);
+      setDiscovery(null);
       requestAnimationFrame(() =>
         document.querySelector<HTMLCanvasElement>("canvas")?.focus(),
       );
@@ -173,13 +179,23 @@ export function useWaterfrontExperience(
       },
       destination,
       movementLocked:
-        activity !== null || record !== null || boarding || riding,
+        activity !== null || record !== null || discovery !== null || boarding || riding || Boolean(state.open),
       hideDecision:
         Boolean(state.departureReady) ||
         tasks.some((task) => task.id !== "decision" && !task.done),
       decisionHint:
         "Your recommendation opens the river steps. You can still explore before boarding.",
       onInspect(id) {
+        const shelf = state.room === "records" && ARCHIVE_SHELVES.find((s) => s.id === id);
+        if (shelf) {
+          lastShelf.current = null;
+          setDestination({ ...shelf.approach });
+          return true;
+        }
+        if (objectDiscoveries[id]) {
+          setDiscovery(objectDiscoveries[id]);
+          return true;
+        }
         const door = WATERFRONT_DOORS.find((d) => `door-${d.id}` === id);
         if (outside && door) {
           walkToDoor(door.id);
@@ -194,10 +210,9 @@ export function useWaterfrontExperience(
           return true;
         }
         const records: Record<string, WaterfrontRecordId> = {
-          "shop-record": state.room === "records" ? "newspaper" : "rickshaw",
+          "shop-record": "rickshaw",
           "shop-currency": "currency",
           "waterfront-newspaper": "newspaper",
-          "cargo-b": "currency",
         };
         if (records[id]) {
           setRecord(records[id]);
@@ -219,6 +234,15 @@ export function useWaterfrontExperience(
         return false;
       },
       onArrive(point) {
+        const shelf = state.room === "records" && ARCHIVE_SHELVES.find((s) =>
+          point.y === s.approach.y && point.x >= s.approach.x && point.x <= s.approach.x + 1);
+        if (shelf && lastShelf.current !== shelf.id && !state.open) {
+          lastShelf.current = shelf.id;
+          setDestination(null);
+          send({ type: "openDocument", documentId: shelf.sourceId });
+          return;
+        }
+        if (!shelf) lastShelf.current = null;
         if (outside) {
           const approaching = WATERFRONT_DOORS.find(
             (d) => d.id === approachingDoor.current,
@@ -270,7 +294,9 @@ export function useWaterfrontExperience(
           <p>
             {outside
               ? "Walk onto a green doorway: meet Lim in the provision shop or Gan at home. The evidence room looks ahead to occupation life."
-              : "Explore the room and speak with the person here. Walk onto the green mat at the bottom to return to the street."}
+              : state.room === "records"
+                ? "Walk up to a yellow-outlined shelf folder to read its excerpt. Speak with Elizabeth, then use the green mat to return outside."
+                : "Explore the room and speak with the person here. Walk onto the green mat at the bottom to return to the street."}
           </p>
           <div className={styles.sceneControls}>
             {outside ? (
@@ -332,6 +358,7 @@ export function useWaterfrontExperience(
       ),
       overlay: (
         <>
+          {discovery && <DiscoveryRecord id={discovery} onClose={close} />}
           {riding && (
             <RickshawRide
               onClose={() => {

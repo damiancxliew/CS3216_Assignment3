@@ -1,3 +1,4 @@
+import { discoveries } from "./discoveries";
 /** Curated checks of evidence, not scores for a student's moral decisions. */
 export type SourceQuestion = {
   question: string;
@@ -8,6 +9,10 @@ export type SourceQuestion = {
   footnote: string;
 };
 export const sourceQuestions: Record<string, SourceQuestion> = {
+  ...Object.fromEntries(Object.entries(discoveries).map(([id, record]) => [`discovery-${id}`, {
+    question: record.question, options: [...record.options] as [string, string, string],
+    answer: record.answer, explanation: record.explanation, hint: record.hint, footnote: record.footnote,
+  }])),
   "gan-photo": {
     question: "Which moment does this photograph preserve?",
     options: ["Lim's departure in 1942", "Lim's funeral in 1946", "A family meal during the occupation"], answer: 1,

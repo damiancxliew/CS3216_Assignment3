@@ -36,15 +36,15 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")("rewards source reasoning
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole("button",{name:"Close source archive"}).click();
     await page.setViewportSize({width:1440,height:950});
-    const chapter2 = newDemoV3State(1); chapter2.intro = false;
+    const chapter2 = newDemoV3State(1); chapter2.intro = false; chapter2.room = "shore";
     await page.evaluate(({key,state}) => localStorage.setItem(key,JSON.stringify(state)),{key:DEMO_SAVE_KEY,state:chapter2});
     await page.reload({waitUntil:"networkidle"});
     await page.locator("canvas").waitFor();
     await page.waitForTimeout(1500);
     await page.mouse.move(10,10);
     await page.screenshot({path:"output/history-demo-check/discovery-map.png"});
-    // Signal kit position verified in the 1440×950 rendered map screenshot.
-    await page.mouse.move(575, 435);
+    // Wireless kit in the coordination shelter, verified against its rendered screenshot.
+    await page.mouse.move(235, 435);
     expect(await page.locator("canvas").evaluate((canvas) => canvas.style.cursor)).toBe("pointer");
     await page.waitForTimeout(250);
     await page.screenshot({path:"output/history-demo-check/discovery-hover.png"});

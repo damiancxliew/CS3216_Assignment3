@@ -46,6 +46,7 @@ export function LimBoSengDemo() {
     React.ComponentProps<typeof V3PlayClient>["stageExperience"]
   > = (view, send) => ({
     ...(waterfrontExperience(view, send) ?? chapterExperience(view, send)),
+    activeDocumentId: view.documents.find((document) => document.open)?.id ?? null,
     documentHint: view.definingMoment
       ? "Revisit your sources and hints while considering your recommendation."
       : "Read the source, then answer its question to unlock a hint and save an evidence note. You can also highlight a passage.",

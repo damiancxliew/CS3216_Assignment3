@@ -515,7 +515,6 @@ export const stages: Stage[] = [
       "farewell-b",
       "press",
       "control",
-      "life",
       "memory",
     ],
     npcs: [

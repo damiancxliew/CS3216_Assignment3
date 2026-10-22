@@ -5,6 +5,9 @@ import styles from "./evidence-dialog.module.css";
 
 type EvidenceDialogProps = {
   title: string;
+  masthead?: string;
+  readingLabel?: string;
+  boardLabel?: string;
   eyebrow: string;
   footerText: string;
   closeLabel: string;
@@ -19,7 +22,7 @@ export function NoticeboardDialog(props: EvidenceDialogProps) {
 }
 
 /** Demo-only presentation. The historical scan and the student's reading activity stay distinct. */
-function EvidenceDialog({ frame, title, eyebrow, footerText, closeLabel, onClose, children }: EvidenceDialogProps & {
+function EvidenceDialog({ frame, title, eyebrow, footerText, closeLabel, onClose, children, masthead = "The Shonan Times", readingLabel, boardLabel = "Singapore · notice board" }: EvidenceDialogProps & {
   frame: "newspaper" | "noticeboard";
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -46,7 +49,7 @@ function EvidenceDialog({ frame, title, eyebrow, footerText, closeLabel, onClose
       <section className={`${styles.frame} ${newspaper ? styles.newspaper : styles.board}`}>
         <header className={styles.toolbar}>
           <span>{newspaper ? <Newspaper size={18} aria-hidden="true" /> : <Pin size={18} aria-hidden="true" />}
-            {newspaper ? "From the newspaper archive" : "Singapore · notice board"}
+            {newspaper ? "From the newspaper archive" : boardLabel}
           </span>
           <button type="button" className={styles.close} onClick={onClose} aria-label={closeLabel} autoFocus>
             <X size={22} aria-hidden="true" />
@@ -54,10 +57,10 @@ function EvidenceDialog({ frame, title, eyebrow, footerText, closeLabel, onClose
         </header>
         <div className={styles.contents} tabIndex={0} aria-label={newspaper ? "Newspaper contents" : "Notice board contents"}>
           <article className={styles.sheet}>
-            {newspaper ? <p className={styles.masthead}>The Shonan Times</p> : <span className={styles.pin} aria-hidden="true" />}
+            {newspaper ? <p className={styles.masthead}>{masthead}</p> : <span className={styles.pin} aria-hidden="true" />}
             <p className={styles.dateline}>{eyebrow}</p>
             <h2 id={titleId} className={styles.title}>{title}</h2>
-            <p className={styles.readingLabel}>{newspaper ? "The original front page · a reading companion" : "Observer’s display · examine the evidence"}</p>
+            <p className={styles.readingLabel}>{readingLabel ?? (newspaper ? "The original front page · a reading companion" : "Observer’s display · examine the evidence")}</p>
             {children}
           </article>
         </div>

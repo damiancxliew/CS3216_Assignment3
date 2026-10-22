@@ -23,7 +23,7 @@ it("removes other scripted voices in old saved replies without changing student 
   expect(restored.messages[1].text).toBe(state.messages[1].text);
 });
 it("keeps the same figure's previous chapter out of current scene history", async () => {
-  const state = newDemoV3State(1); state.intro = false;
+  const state = newDemoV3State(1); state.intro = false; state.room = "shore";
   state.messages.push({...state.messages[0],id:"old",stageIndex:0,text:"An earlier Singapore conversation."});
   const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({mode:"live",reply:"Local knowledge matters.",sources:["force"]})));
   const client = createDemoV3Client(state, () => {}, fetcher);

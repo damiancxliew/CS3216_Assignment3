@@ -842,6 +842,12 @@ class TiledScene extends Phaser.Scene {
     const focused = this.hoveredTarget ?? targets.filter((target) => discovery ? target.action && distance(target) <= T * 1.75 : target.near)
       .sort((a, b) => distance(a) - distance(b) || a.id.localeCompare(b.id))[0]?.id
     this.interactionGlow?.clear()
+    for (const landmark of this.current.landmarks ?? []) {
+      if (!landmark.pulse || !landmark.interactive) continue
+      const alpha = this.reducedMotion ? 0.8 : 0.55 + Math.sin(this.time.now / 400) * 0.3
+      const x = landmark.position.x * T, y = landmark.position.y * T
+      this.interactionGlow?.lineStyle(2, 0xffd54a, alpha).strokeRoundedRect(x - 1, y - 1, 34, 34, 2)
+    }
     const highlight = discovery ? targets.find((target) => target.id === focused && target.action) : undefined
     if (highlight && this.interactionGlow) {
       const { x, y, width, height } = highlight.bounds

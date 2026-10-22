@@ -139,7 +139,7 @@ export function SourceFootnote({ id }: { id: string }) {
   return quiz ? (
     <footer className={styles.footnote}>
       <strong>About this source:</strong> {quiz.footnote}{" "}
-      {id === "rickshaw" || id === "street-newspaper"
+      {id.startsWith("discovery-") || id === "rickshaw" || id === "street-newspaper"
         ? "Original record and credits below."
         : "Full details are in the source archive."}
     </footer>
