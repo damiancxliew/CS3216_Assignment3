@@ -26,6 +26,8 @@ import { fakeGenerationPasses } from "./fake-passes";
 export interface V3SourceStore {
   /** uploads + outside, in insertion order */
   load(adventureId: string): Promise<ExtractedDocument[]>;
+  loadAll?(adventureId: string): Promise<ExtractedDocument[]>;
+  excluded?(adventureId: string): Promise<string[]>;
   saveUploads(adventureId: string, uploads: { doc: ExtractedDocument; storageKey: string }[]): Promise<void>;
   /** upsert keyed (adventureId, doc.id); retry-safe */
   saveOutside(adventureId: string, sources: OutsideSource[], documents: ExtractedDocument[]): Promise<void>;
@@ -44,6 +46,8 @@ export interface V3AdventureRow {
 export type PauseDraft = { pass: string; edits: unknown[] };
 
 export interface V3AdventureWriter {
+  sourceRuns?(id: string): Promise<{ state: string; results: { rejected?: { url: string; reason: string }[] }; cost_usd: number }[]>;
+  continueSources?(id: string, excluded: string[]): Promise<boolean>;
   loadPauseDraft(id: string): Promise<PauseDraft | null>;
   savePauseDraft(id: string, draft: PauseDraft): Promise<void>;
   clearPauseDraft(id: string): Promise<void>;
@@ -80,6 +84,16 @@ export interface GenerationDeps {
 
 function supabaseV3AdventureWriter(getClient: () => SupabaseClient): V3AdventureWriter {
   return {
+    async sourceRuns(id) {
+      const { data, error } = await getClient().from("source_search_runs_v3").select("state,results,cost_usd").eq("adventure_id", id).order("created_at");
+      if (error) throw error;
+      return data ?? [];
+    },
+    async continueSources(id, excluded) {
+      const { data, error } = await getClient().rpc("continue_sources_v3", { p_adventure_id: id, p_excluded: excluded });
+      if (error) throw error;
+      return data === true;
+    },
     async get(id) {
       const { data, error } = await getClient()
         .from("adventures_v3")
@@ -154,6 +168,16 @@ type SourceRow = {
 export function supabaseV3SourceStore(getClient: () => SupabaseClient): V3SourceStore {
   return {
     async load(adventureId) {
+      const all = await this.loadAll!(adventureId);
+      const excluded = await this.excluded!(adventureId);
+      return all.filter(doc => !excluded.includes(doc.id));
+    },
+    async excluded(adventureId) {
+      const { data, error } = await getClient().from("sources_v3").select("source_key").eq("adventure_id", adventureId).eq("excluded", true);
+      if (error) throw error;
+      return (data ?? []).map(row => row.source_key as string);
+    },
+    async loadAll(adventureId) {
       const { data, error } = await getClient()
         .from("sources_v3")
         .select("source_key, origin, kind, title, storage_key, url, content_hash, pages")
@@ -206,7 +230,7 @@ export function supabaseV3SourceStore(getClient: () => SupabaseClient): V3Source
           content_hash: doc.contentHash,
           pages: doc.pages,
         })),
-        { onConflict: "adventure_id,source_key" },
+        { onConflict: "adventure_id,source_key", ignoreDuplicates: true },
       );
       if (error) throw error;
     },

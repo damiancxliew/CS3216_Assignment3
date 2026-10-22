@@ -1,4 +1,5 @@
 "use server";
+import { retrySources } from "@/lib/v3/sources/retry";
 import { supabaseJobStore } from "@adventure/jobs";
 import { validateSkeleton } from "@adventure/spec-v3";
 import { after } from "next/server";
@@ -74,4 +75,20 @@ export async function fixSkeletonWithAiAction(adventureId: string, edited: unkno
   return proposeSkeletonFix({ llm: editFixLlm(adventureId, adventure.schoolId, ctx.userId) }, {
     base: base.spec, edited, issues: raw => skeletonIssues(ctx.deps, adventureId, raw),
   });
+}
+
+export async function retrySourcesAction(adventureId: string, key: string, excluded: string[]) {
+  const ctx = await context();
+  if (!ctx) return { error: "Not found." };
+  const result = await retrySources(ctx.deps, getJobs(), ctx.store, ctx.userId, adventureId, key, excluded);
+  if ("ok" in result) await continued(adventureId);
+  return result;
+}
+export async function saveSourceSelectionAction(adventureId: string, excluded: string[]) {
+  const ctx = await context();
+  if (!ctx || !await requirePause(ctx.deps, ctx.store, ctx.userId, adventureId, "sources", process.env)) return { error: "Not awaiting review." };
+  const all = await ctx.deps.sources.loadAll!(adventureId);
+  if (excluded.some(id => !all.some(doc => doc.id === id && doc.origin === "outside"))) return { error: "Invalid selection." };
+  const { error } = await createAdminClient().rpc("save_source_selection_v3", { p_adventure_id: adventureId, p_excluded: excluded });
+  return error ? { error: "Could not save source selection." } : { ok: true };
 }

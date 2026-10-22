@@ -1,3 +1,4 @@
+import { sourceRetryStep } from "@/lib/v3/sources/retry";
 import { defineStep } from "@adventure/jobs";
 import { EngineSpec } from "@adventure/engine";
 import { OpenAiImageService } from "@adventure/generation/assets";
@@ -71,4 +72,4 @@ const stageArtGeneratorStep = defineStep<
   { maxAttempts: 4 },
 );
 
-export const jobSteps = [stancePortraitStep, stageArtGeneratorStep, ...v3GenerationSteps(defaultGenerationDeps)];
+export const jobSteps = [sourceRetryStep(defaultGenerationDeps), stancePortraitStep, stageArtGeneratorStep, ...v3GenerationSteps(defaultGenerationDeps)];

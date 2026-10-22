@@ -77,6 +77,8 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
       return {
         outsideSourceIds: result.sources.map((s) => s.id),
         rejected: result.rejected,
+        diagnostics: result.diagnostics ?? [],
+        summary: result.summary ?? null,
         costUsd: result.costUsd,
       } as unknown as Json;
     }),
