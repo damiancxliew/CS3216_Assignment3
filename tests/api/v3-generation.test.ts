@@ -270,13 +270,13 @@ describe("v3 generation job", () => {
     expect(passes.check).not.toHaveBeenCalled();
     const entry = adventures.rows.get(adventureId)!;
     expect(entry.row.status).toBe("draft");
-    expect(entry.spec).toEqual(spec);
+    expect(entry.spec).toEqual(neutralOpenings(spec));
     expect(entry.spec?.authoring?.sourcePolicy).toBeUndefined();
     expect(entry.specVersion).toBe(1);
     expect(queuePortraits).toHaveBeenCalledOnce();
     expect(queuePortraits).toHaveBeenCalledWith(adventureId, entry.specVersion);
-    expect(queueStageArt).toHaveBeenCalledOnce();
-    expect(queueStageArt).toHaveBeenCalledWith(adventureId, entry.specVersion);
+    expect(queueStageArt).not.toHaveBeenCalled();
+    expect(entry.spec!.authoring!.stageImages).toEqual(neutralOpenings(spec).authoring.stageImages);
     await expect(adventures.get(adventureId)).resolves.toMatchObject({ status: "draft" });
     void store;
     void sources;
@@ -293,14 +293,14 @@ describe("v3 generation job", () => {
       const progress = await jobs.drain({ jobId: adventureId });
       expect(progress?.status).toBe("succeeded");
       expect((await adventures.get(adventureId))?.status).toBe("draft");
-      expect(adventures.rows.get(adventureId)?.spec).toEqual(spec);
+      expect(adventures.rows.get(adventureId)?.spec).toEqual(neutralOpenings(spec));
       expect(consoleError).toHaveBeenCalledWith("Failed to queue v3 portraits", expect.any(Error));
     } finally {
       consoleError.mockRestore();
     }
   });
 
-  it("keeps a saved adventure in draft when stage-art queueing fails", async () => {
+  it("starts new adventures with neutral openings without paid stage-art jobs", async () => {
     const harness = await makeJob();
     const { jobs, adventures, queueStageArt } = harness;
     const { adventureId } = await start(harness, "quick");
@@ -311,8 +311,9 @@ describe("v3 generation job", () => {
       const progress = await jobs.drain({ jobId: adventureId });
       expect(progress?.status).toBe("succeeded");
       expect((await adventures.get(adventureId))?.status).toBe("draft");
-      expect(adventures.rows.get(adventureId)?.spec).toEqual(spec);
-      expect(consoleError).toHaveBeenCalledWith("Failed to queue v3 stage art", expect.any(Error));
+      expect(adventures.rows.get(adventureId)?.spec).toEqual(neutralOpenings(spec));
+      expect(queueStageArt).not.toHaveBeenCalled();
+      expect(consoleError).not.toHaveBeenCalled();
     } finally {
       consoleError.mockRestore();
     }
@@ -337,8 +338,8 @@ describe("v3 generation job", () => {
     ).resolves.toEqual({ version: 1 });
     expect(queuePortraits).toHaveBeenCalledTimes(2);
     expect(await portraitStore.list(adventureId)).toHaveLength(1);
-    expect(queueStageArt).toHaveBeenCalledTimes(2);
-    expect(await stageArtStore.list(adventureId)).toHaveLength(1);
+    expect(queueStageArt).not.toHaveBeenCalled();
+    expect(await stageArtStore.list(adventureId)).toHaveLength(0);
   });
 
   describe("standard", () => {
@@ -476,7 +477,7 @@ describe("v3 generation job", () => {
 
       const entry = adventures.rows.get(adventureId)!;
       expect(entry.row.status).toBe("draft");
-      expect(entry.spec).toEqual(draft);
+      expect(entry.spec).toEqual(neutralOpenings(draft));
       const report = await getGenerationProgress(deps, jobs, store, (await adventures.get(adventureId))!);
       expect(report.checkErrors).toEqual([leftover]);
       expect(report.costUsd).toBeCloseTo(0.001 + 0.1 + 0.2 + 0.3 + 0.4 + 0.05);
@@ -505,7 +506,7 @@ describe("v3 generation job", () => {
       const { adventureId } = await start(harness, "quick");
 
       expect((await jobs.drain({ jobId: adventureId }))?.status).toBe("succeeded");
-      expect(adventures.rows.get(adventureId)!.spec).toEqual(draft);
+      expect(adventures.rows.get(adventureId)!.spec).toEqual(neutralOpenings(draft));
     });
   });
 
@@ -901,3 +902,7 @@ it.each([
   expect(await h.store.list(id)).toEqual([]);
   expect((await h.briefStore.load(id))!.status).toBe("briefing");
 });
+
+function neutralOpenings(spec: AdventureSpec) {
+  return { ...spec, authoring: { ...spec.authoring, stageImages: Object.fromEntries(spec.stages.map(stage => [stage.id, { type: "fallback" as const }])) } };
+}

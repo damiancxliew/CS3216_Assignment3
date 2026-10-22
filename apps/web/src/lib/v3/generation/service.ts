@@ -295,8 +295,8 @@ export async function getGenerationProgress(
 ): Promise<GenerationProgress> {
   const progress = await jobs.getProgress(adventure.id);
   const outputs = await store.outputs(adventure.id, ["sources", "skeleton", "details", "endings", "reveal", "check", "save"]);
-  const retryCost = (await deps.adventures.sourceRuns?.(adventure.id) ?? []).reduce((sum, run) => sum + Number(run.cost_usd), 0);
-  const costUsd = retryCost + Object.values(outputs).reduce((sum: number, output) => sum + (((output ?? null) as { costUsd?: number | null } | null)?.costUsd ?? 0), 0);
+  const retryCost = (await deps.adventures.sourceRuns?.(adventure.id) ?? []).filter(run => run.idempotency_key !== "initial-sources").reduce((sum, run) => sum + Number(run.cost_usd), 0);
+  const costUsd = retryCost + (await deps.adventures.mediaCost?.(adventure.id) ?? 0) + Object.values(outputs).reduce((sum: number, output) => sum + (((output ?? null) as { costUsd?: number | null } | null)?.costUsd ?? 0), 0);
   const warnings: (CheckIssue & { pass: string })[] = [];
   for (const pass of ["details", "endings", "reveal"] as const) {
     const output = outputs[pass] as { warnings?: CheckIssue[] } | undefined;
@@ -350,7 +350,7 @@ export async function loadPause(deps: GenerationDeps, store: StepStore, adventur
   const outputs = await store.outputs(adventure.id, [pass]);
   const documents = pass === "sources" && deps.sources.loadAll ? await deps.sources.loadAll(adventure.id) : await deps.sources.load(adventure.id);
   if (pass === "sources") {
-    const runs = await deps.adventures.sourceRuns?.(adventure.id) ?? [];
+    const runs = (await deps.adventures.sourceRuns?.(adventure.id) ?? []).filter(run => run.idempotency_key !== "initial-sources");
     const output = outputs.sources as { summary?: { discovered: number }; rejected?: { url: string; reason: string }[] } | undefined;
     return { pass, index: 1,
       uploads: documents.filter(d => d.origin !== "outside").map(d => ({ id: d.id, title: d.title })),

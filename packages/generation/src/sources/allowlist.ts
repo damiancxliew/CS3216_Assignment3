@@ -19,7 +19,6 @@ export const DEFAULT_ALLOWED_DOMAINS = [
   'si.edu',
   'britishmuseum.org',
   'un.org',
-  'unlibrary.org',
 ] as const
 
 export interface SourcePolicy {

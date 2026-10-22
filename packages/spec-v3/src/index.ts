@@ -1,3 +1,5 @@
+import { ImageSelection, WalkingSpriteSelection } from './media.js'
+export * from './media.js'
 /**
  * The v3 `AdventureSpec`: the full generated adventure the engine runs, the API serves and the
  * generator targets. Strict objects everywhere — unknown keys are rejected.
@@ -257,6 +259,9 @@ export const AdventureSpec = z.strictObject({
       slantedDocuments: z.array(z.strictObject({ documentId: Id, note: Text })),
       generationParts: z.record(Text, z.unknown()).optional(),
     }).optional(),
+    stageImages: z.record(Text, ImageSelection).optional(),
+    portraitImages: z.record(Text, ImageSelection).optional(),
+    walkingSprites: z.record(Text, WalkingSpriteSelection).optional(),
     portraitVersions: z.record(Text, z.number().int().positive().nullable()).optional(),
   }).optional(),
   id: Id,

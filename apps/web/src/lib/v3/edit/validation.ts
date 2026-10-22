@@ -1,3 +1,4 @@
+import type { MediaEditContext } from "../media/resolvers";
 import { z } from "zod";
 import { V3Edit } from "./commands";
 import { applyTeacherEdits } from "./apply";
@@ -166,12 +167,12 @@ export function introducedErrors(base: AdventureSpec, edited: AdventureSpec, sou
   return validateEditedSpec(edited, sources, savedErrors).errors.filter(error => !previous.has(issueKey(error)));
 }
 
-export function checkTeacherEdits(base: AdventureSpec, rawEdits: unknown, sources: CapturedSource[], savedErrors: CheckIssue[] = []):
+export function checkTeacherEdits(base: AdventureSpec, rawEdits: unknown, sources: CapturedSource[], savedErrors: CheckIssue[] = [], media: MediaEditContext = {}):
   | { ok: true; spec: AdventureSpec; edits: V3Edit[]; warnings: CheckIssue[] }
   | { ok: false; errors: CheckIssue[] } {
   try {
     const edits = z.array(V3Edit).max(2000).parse(rawEdits);
-    const spec = applyTeacherEdits(base, edits, sources);
+    const spec = applyTeacherEdits(base, edits, sources, media);
     const errors = introducedErrors(base, spec, sources, savedErrors);
     return errors.length ? { ok: false, errors } : { ok: true, spec, edits, warnings: validateEditedSpec(spec, sources, savedErrors).warnings };
   } catch (error) {

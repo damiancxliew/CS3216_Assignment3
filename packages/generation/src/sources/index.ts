@@ -60,6 +60,7 @@ export interface SourcesDeps {
   fetch?: typeof fetch
   lookup?: (hostname: string) => Promise<Array<{ address: string; family: number }>>
   now?: () => number
+  signal?: AbortSignal
 }
 
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024
@@ -89,6 +90,15 @@ function canonicalUrl(value: string): string {
   url.hash = ''
   if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, '')
   return url.toString()
+}
+
+async function withinSignal<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  signal.throwIfAborted()
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal.reason)
+    signal.addEventListener('abort', abort, { once: true })
+    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort))
+  })
 }
 
 async function assertPublicResolution(url: string, lookup: SourceLookup): Promise<void> {
@@ -166,12 +176,15 @@ export async function fetchSourceBytes(
     lookup?: SourceLookup
     signal?: AbortSignal
     maxBytes?: number
+    headers?: Record<string, string>
+    allowedHosts?: readonly string[]
     contentTypes?: readonly string[]
     diagnostic?: Partial<SourceDiagnostic>
   },
 ): Promise<{ url: string; bytes: Uint8Array; contentType: string; status: number }> {
   const { policy } = options
-  if (!isAllowedUrl(startUrl, policy)) throw new SourceFetchError('not_allowlisted')
+  const permitted = (value: string) => isAllowedUrl(value, policy) && (!options.allowedHosts || (new URL(value).protocol === 'https:' && options.allowedHosts.includes(new URL(value).hostname)))
+  if (!permitted(startUrl)) throw new SourceFetchError('not_allowlisted')
   let url = canonicalUrl(startUrl)
   const signal = options.signal
     ? AbortSignal.any([options.signal, AbortSignal.timeout(15_000)])
@@ -180,10 +193,10 @@ export async function fetchSourceBytes(
   diagnostic.redirects = []
   for (let redirects = 0; ; redirects++) {
     signal.throwIfAborted()
-    await assertPublicResolution(url, options.lookup ?? defaultLookup)
+    await withinSignal(assertPublicResolution(url, options.lookup ?? defaultLookup), signal)
     const response = await (options.fetch ?? pinnedFetch)(url, {
       method: 'GET',
-      headers: { accept: 'text/html, application/pdf, text/plain;q=0.9' },
+      headers: { accept: 'text/html, application/pdf, text/plain;q=0.9', ...options.headers },
       redirect: 'manual', signal,
     })
     diagnostic.status = response.status
@@ -194,7 +207,7 @@ export async function fetchSourceBytes(
       if (!location) throw new SourceFetchError('redirect_missing_location')
       try { url = canonicalUrl(new URL(location, url).toString()) }
       catch { throw new SourceFetchError('invalid_redirect') }
-      if (!isAllowedUrl(url, policy)) throw new SourceFetchError('not_allowlisted')
+      if (!permitted(url)) throw new SourceFetchError('not_allowlisted')
       diagnostic.redirects.push(url)
       continue
     }
@@ -242,7 +255,7 @@ async function fetchCandidate(
       const title = html?.title?.trim() || candidate.hit.title.trim() || new URL(page.url).hostname
       const id = sourceId(title, page.url)
       const document = page.contentType === 'application/pdf'
-        ? await extractPdf({ id, title, kind: 'pdf', bytes: page.bytes })
+        ? await withinSignal(extractPdf({ id, title, kind: 'pdf', bytes: page.bytes }), signal)
         : extractPlainText({ id, title, kind: 'text', text: html?.text ?? decoded! })
       signal.throwIfAborted()
       diagnostic.extractedLength = document.charCount
@@ -252,7 +265,7 @@ async function fetchCandidate(
       return { result: { source: { id, title, origin: 'outside', url: page.url }, document }, diagnostic }
     } catch (cause) {
       let reason = failureReason(cause)
-      if (cause instanceof ExtractionError && cause.code === 'empty') reason = 'too_short'
+      if (cause instanceof ExtractionError && cause.code === 'empty') { reason = 'too_short'; diagnostic.extractedLength = 0 }
       const transient = /^(empty_response|timeout|fetch_failed|http_429|http_50[0234])$/.test(reason)
       if (attempt === 0 && transient && !signal.aborted) continue
       diagnostic.reason = reason
@@ -271,14 +284,15 @@ export async function runSources(input: SourcesInput, deps: SourcesDeps): Promis
   const searchDomains = allowedDomains(policy)
   const teacherNotes = input.teacherNotes?.trim()
   const query = teacherNotes ? `${input.episode}\nTeacher notes: ${teacherNotes}` : input.episode
-  const deadline = AbortSignal.timeout(240_000)
+  const deadline = deps.signal ? AbortSignal.any([deps.signal, AbortSignal.timeout(240_000)]) : AbortSignal.timeout(240_000)
+  deadline.throwIfAborted()
   const searchSignal = AbortSignal.any([deadline, AbortSignal.timeout(180_000)])
-  const searchResult = await deps.search.search({
+  const searchResult = await withinSignal(deps.search.search({
     query,
     allowedDomains: searchDomains,
     maxResults: 15,
     signal: searchSignal,
-  })
+  }), searchSignal)
 
   const rejected: SourcesOutput['rejected'] = []
   const diagnostics: SourceDiagnostic[] = []

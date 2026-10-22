@@ -40,3 +40,23 @@ describe('source recovery', () => {
     expect(result.rejected.map(r => r.reason)).toEqual(['no-text-layer', 'unreadable-pdf'])
   })
 })
+
+it('retries 429, transient 503 and timeouts once but never permanent failures', async () => {
+  const counts = new Map<string,number>();
+  const fetch:typeof globalThis.fetch = async input => {
+    const url=String(input), attempt=(counts.get(url) ?? 0)+1;counts.set(url,attempt);
+    const n=Number(url.split('/').at(-1));
+    if(n===0 && attempt===1)throw new DOMException('Timed out','TimeoutError');
+    return plain(text,attempt===1 ? [200,429,503,403,404][n]! : 200);
+  };
+  const result=await runSources({episode:'1819'},{search:new FakeWebSearch(Array.from({length:5},(_,n)=>hit(n))),fetch,lookup});
+  expect(result.sources).toHaveLength(3);
+  expect([...counts.values()]).toEqual([2,2,2,1,1]);
+});
+
+it('enforces the pass abort even if a search implementation does not settle', async () => {
+  const controller=new AbortController();
+  const pending=runSources({episode:'1819'},{search:{search:async()=>new Promise(()=>{})},signal:controller.signal});
+  controller.abort(new DOMException('Source pass budget exhausted','TimeoutError'));
+  await expect(pending).rejects.toThrow(/budget/);
+});

@@ -62,17 +62,18 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
 
   const sourcesStep = defineStep<Json, Json>(
     "v3.gen.sources",
-    guarded(2, async (_ctx, deps, brief) => {
+    guarded(2, async (ctx, deps, brief) => {
       const result = await deps.passes.sources(
         {
           episode: brief.episode,
           ...(brief.teacherNotes !== undefined ? { teacherNotes: brief.teacherNotes } : {}),
           ...(brief.sourcePolicy ? { policy: brief.sourcePolicy } : {}),
         },
-        { search: deps.search(brief) },
+        { search: deps.search(brief), signal: ctx.signal },
       );
       await deps.sources.saveOutside(brief.adventureId, result.sources, result.documents);
       await deps.recordSearchUsage(brief, result.usage, null);
+      await deps.recordSourceOutcome?.(brief, result);
       if (brief.mode === "guided") await deps.adventures.setStatus(brief.adventureId, "needs_review", ["generating"]);
       return {
         outsideSourceIds: result.sources.map((s) => s.id),
@@ -229,17 +230,14 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
       // Fake-pass outside sources use example.invalid URLs, so leave default policy unset.
       const validated = validateSpec(specForValidation);
       if (!validated.ok) throw asError("final spec", validated.issues);
+      // New adventures start neutral; image jobs only create explicit candidates.
+      (validated.spec.authoring ??= {}).stageImages = Object.fromEntries(validated.spec.stages.map(stage => [stage.id, { type: "fallback" as const }]));
       const version = await deps.adventures.saveSpec(brief.adventureId, validated.spec);
       await deps.adventures.setStatus(brief.adventureId, "draft", ["generating"]);
       try {
         await deps.queuePortraits(brief.adventureId, version);
       } catch (error) {
         console.error("Failed to queue v3 portraits", error);
-      }
-      try {
-        await deps.queueStageArt(brief.adventureId, version);
-      } catch (error) {
-        console.error("Failed to queue v3 stage art", error);
       }
       return { version };
     }),

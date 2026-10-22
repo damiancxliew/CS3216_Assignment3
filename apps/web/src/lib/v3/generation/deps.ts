@@ -13,7 +13,8 @@ import { OpenAiLlmClient } from "@adventure/generation/llm";
 import type { OutsideSource } from "@adventure/generation";
 import { createOpenAiWebSearch, runSources } from "@adventure/generation";
 import type { WebSearchClient } from "@adventure/generation";
-import { generateDetails, generateEndings, generateReveal, finalRepair, generateSkeleton } from "@adventure/generation/v3";
+import { generateDetails, generateEndings, generateReveal, finalRepair, generateSkeleton,
+} from "@adventure/generation/v3";
 
 import { recordLlmUsage, withJsonUsage } from "@/lib/usage/ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -28,9 +29,11 @@ export interface V3SourceStore {
   load(adventureId: string): Promise<ExtractedDocument[]>;
   loadAll?(adventureId: string): Promise<ExtractedDocument[]>;
   excluded?(adventureId: string): Promise<string[]>;
-  saveUploads(adventureId: string, uploads: { doc: ExtractedDocument; storageKey: string }[]): Promise<void>;
+  saveUploads(adventureId: string, uploads: { doc: ExtractedDocument; storageKey: string }[],
+  ): Promise<void>;
   /** upsert keyed (adventureId, doc.id); retry-safe */
-  saveOutside(adventureId: string, sources: OutsideSource[], documents: ExtractedDocument[]): Promise<void>;
+  saveOutside(adventureId: string, sources: OutsideSource[], documents: ExtractedDocument[],
+  ): Promise<void>;
   removeOutside(adventureId: string, ids: string[]): Promise<void>;
   /** copies every stored row (uploads and outside docs) to another adventure */
   copyUploads(fromId: string, toId: string): Promise<void>;
@@ -40,20 +43,29 @@ export interface V3AdventureRow {
   id: string;
   schoolId: string;
   ownerId: string;
-  status: "briefing" | "generating" | "needs_review" | "draft" | "published" | "failed" | "archived";
+  status:
+    | "briefing" | "generating" | "needs_review" | "draft" | "published" | "failed" | "archived";
 }
 
 export type PauseDraft = { pass: string; edits: unknown[] };
 
 export interface V3AdventureWriter {
-  sourceRuns?(id: string): Promise<{ state: string; results: { rejected?: { url: string; reason: string }[] }; cost_usd: number }[]>;
+  mediaCost?(id: string): Promise<number>;
+  sourceRuns?(
+    id: string,
+  ): Promise<
+    {
+      idempotency_key?: string;
+      state: string; results: { rejected?: { url: string; reason: string }[] }; cost_usd: number;
+    }[]>;
   continueSources?(id: string, excluded: string[]): Promise<boolean>;
   loadPauseDraft(id: string): Promise<PauseDraft | null>;
   savePauseDraft(id: string, draft: PauseDraft): Promise<void>;
   clearPauseDraft(id: string): Promise<void>;
   get(id: string): Promise<V3AdventureRow | null>;
   /** conditional update; true if a row changed */
-  setStatus(id: string, to: V3AdventureRow["status"], from: V3AdventureRow["status"][]): Promise<boolean>;
+  setStatus(id: string, to: V3AdventureRow["status"], from: V3AdventureRow["status"][],
+  ): Promise<boolean>;
   /** returns spec_version; the same spec twice → the same version (the DB trigger only bumps on change) */
   saveSpec(id: string, spec: AdventureSpec): Promise<number>;
   /** the teacher's saved skeleton draft (raw JSON; it may be semantically broken), or null */
@@ -65,7 +77,12 @@ export interface V3AdventureWriter {
 export interface GenerationDeps {
   llm(brief: GenerationBrief): LlmClient;
   search(brief: GenerationBrief): WebSearchClient;
-  recordSearchUsage(brief: GenerationBrief, usage: LlmUsage, model: string | null): Promise<void>;
+  recordSourceOutcome?(
+    brief: GenerationBrief,
+    result: Awaited<ReturnType<typeof runSources>>,
+  ): Promise<void>;
+  recordSearchUsage(brief: GenerationBrief, usage: LlmUsage, model: string | null,
+  ): Promise<void>;
   queuePortraits(adventureId: string, version: number): Promise<void>;
   queueStageArt(adventureId: string, version: number): Promise<void>;
   sources: V3SourceStore;
@@ -82,15 +99,25 @@ export interface GenerationDeps {
 
 // --- production deps (clients are built lazily so importing steps.ts needs no env) ---------
 
-function supabaseV3AdventureWriter(getClient: () => SupabaseClient): V3AdventureWriter {
+function supabaseV3AdventureWriter(getClient: () => SupabaseClient,
+): V3AdventureWriter {
   return {
+    async mediaCost(id) {
+      const { data, error } = await getClient()
+        .from("adventure_media_v3")
+        .select("cost_usd")
+        .eq("adventure_id", id);
+      if (error) throw error;
+      return (data ?? []).reduce((sum, item) => sum + Number(item.cost_usd), 0);
+    },
     async sourceRuns(id) {
-      const { data, error } = await getClient().from("source_search_runs_v3").select("state,results,cost_usd").eq("adventure_id", id).order("created_at");
+      const { data, error } = await getClient().from("source_search_runs_v3").select("idempotency_key,state,results,cost_usd").eq("adventure_id", id).order("created_at");
       if (error) throw error;
       return data ?? [];
     },
     async continueSources(id, excluded) {
-      const { data, error } = await getClient().rpc("continue_sources_v3", { p_adventure_id: id, p_excluded: excluded });
+      const { data, error } = await getClient().rpc("continue_sources_v3", { p_adventure_id: id, p_excluded: excluded,
+      });
       if (error) throw error;
       return data === true;
     },
@@ -99,10 +126,12 @@ function supabaseV3AdventureWriter(getClient: () => SupabaseClient): V3Adventure
         .from("adventures_v3")
         .select("id, school_id, owner_id, status")
         .eq("id", id)
-        .maybeSingle<{ id: string; school_id: string; owner_id: string; status: V3AdventureRow["status"] }>();
+        .maybeSingle<{ id: string; school_id: string; owner_id: string; status: V3AdventureRow["status"];
+        }>();
       if (error) throw error;
       if (!data) return null;
-      return { id: data.id, schoolId: data.school_id, ownerId: data.owner_id, status: data.status };
+      return { id: data.id, schoolId: data.school_id, ownerId: data.owner_id, status: data.status,
+      };
     },
     async setStatus(id, to, from) {
       const { data, error } = await getClient()
@@ -165,22 +194,24 @@ type SourceRow = {
 };
 
 /** sources_v3 (#207): source_key is the document id cited by the spec; pages are the citation unit. */
-export function supabaseV3SourceStore(getClient: () => SupabaseClient): V3SourceStore {
+export function supabaseV3SourceStore(getClient: () => SupabaseClient,
+): V3SourceStore {
   return {
     async load(adventureId) {
       const all = await this.loadAll!(adventureId);
       const excluded = await this.excluded!(adventureId);
-      return all.filter(doc => !excluded.includes(doc.id));
+      return all.filter((doc) => !excluded.includes(doc.id));
     },
     async excluded(adventureId) {
       const { data, error } = await getClient().from("sources_v3").select("source_key").eq("adventure_id", adventureId).eq("excluded", true);
       if (error) throw error;
-      return (data ?? []).map(row => row.source_key as string);
+      return (data ?? []).map((row) => row.source_key as string);
     },
     async loadAll(adventureId) {
       const { data, error } = await getClient()
         .from("sources_v3")
-        .select("source_key, origin, kind, title, storage_key, url, content_hash, pages")
+        .select("source_key, origin, kind, title, storage_key, url, content_hash, pages",
+        )
         .eq("adventure_id", adventureId)
         .order("created_at")
         .order("source_key")
@@ -189,13 +220,15 @@ export function supabaseV3SourceStore(getClient: () => SupabaseClient): V3Source
       return (data ?? []).map((row) => ({
         id: row.source_key,
         title: row.title,
-        origin: row.origin === "outside" ? "outside" as const : "teacher" as const,
+        origin: row.origin === "outside" ? ("outside" as const)
+            : ("teacher" as const),
         ...(row.url ? { url: row.url } : {}),
         kind: row.kind as ExtractedDocument["kind"],
         contentHash: row.content_hash,
         pages: row.pages ?? [],
         pageCount: (row.pages ?? []).length,
-        charCount: (row.pages ?? []).reduce((sum, page) => sum + page.text.length, 0),
+        charCount: (row.pages ?? []).reduce((sum, page) => sum + page.text.length, 0,
+        ),
         warnings: [],
       }));
     },
@@ -219,8 +252,11 @@ export function supabaseV3SourceStore(getClient: () => SupabaseClient): V3Source
     async saveOutside(adventureId, sources, documents) {
       if (documents.length === 0) return;
       const urlById = new Map(sources.map((source) => [source.id, source.url]));
+      const existingUrls = new Set((await this.loadAll!(adventureId)).filter(doc => doc.origin === "outside").map(doc => doc.url));
+      const additions = documents.filter(doc => !existingUrls.has(urlById.get(doc.id)));
+      if (!additions.length) return;
       const { error } = await getClient().from("sources_v3").upsert(
-        documents.map((doc) => ({
+        additions.map((doc) => ({
           adventure_id: adventureId,
           source_key: doc.id,
           origin: "outside" as const,
@@ -242,7 +278,8 @@ export function supabaseV3SourceStore(getClient: () => SupabaseClient): V3Source
     async copyUploads(fromId, toId) {
       const { data, error } = await getClient()
         .from("sources_v3")
-        .select("source_key, origin, kind, title, storage_key, url, content_hash, pages")
+        .select("source_key, origin, kind, title, storage_key, url, content_hash, pages",
+        )
         .eq("adventure_id", fromId)
         .returns<SourceRow[]>();
       if (error) throw error;
@@ -274,10 +311,37 @@ export function defaultGenerationDeps(): GenerationDeps {
         purpose: "generation",
         organizationId: brief.schoolId,
         userId: brief.ownerId,
-      });
+      },
+      );
     },
     search() {
       return createOpenAiWebSearch();
+    },
+    async recordSourceOutcome(brief, result) {
+      const { error } = await createAdminClient()
+        .from("source_search_runs_v3")
+        .upsert(
+          {
+            adventure_id: brief.adventureId,
+            requester_id: brief.ownerId,
+            idempotency_key: "initial-sources",
+            input_hash: "initial-sources",
+            state: "ready",
+            diagnostics: result.diagnostics ?? [],
+            results: {
+              summary: result.summary,
+              rejected: result.rejected,
+              sourceIds: result.sources.map((source) => source.id),
+            },
+            usage: result.usage,
+            cost_usd: result.costUsd ?? 0,
+          },
+          {
+            onConflict: "adventure_id,requester_id,idempotency_key",
+            ignoreDuplicates: true,
+          },
+        );
+      if (error) throw error;
     },
     async recordSearchUsage(brief, usage, model) {
       await recordLlmUsage(createAdminClient, {
@@ -345,7 +409,8 @@ export function defaultGenerationDeps(): GenerationDeps {
     adventures: supabaseV3AdventureWriter(createAdminClient),
     passes:
       // dev-only: V3_FAKE_PASSES swaps in canned passes so the flow runs without OpenAI
-      fakeGenerationPasses() ?? { sources: runSources, skeleton: generateSkeleton, details: generateDetails, endings: generateEndings, reveal: generateReveal, check: finalRepair },
+      fakeGenerationPasses() ?? { sources: runSources, skeleton: generateSkeleton, details: generateDetails, endings: generateEndings, reveal: generateReveal, check: finalRepair,
+      },
   };
 }
 
@@ -356,47 +421,69 @@ export function memoryV3SourceStore() {
   return {
     rows,
     async load(adventureId: string) {
-      return (rows.get(adventureId) ?? []).map((row) => ({ ...row.doc, origin: row.outside ? "outside" as const : "teacher" as const, ...(row.outside ? { url: row.outside.url } : {}) }));
+      return (rows.get(adventureId) ?? []).map((row) => ({ ...row.doc, origin: row.outside ? ("outside" as const) : ("teacher" as const), ...(row.outside ? { url: row.outside.url } : {}),
+      }));
     },
-    async saveUploads(adventureId: string, uploads: { doc: ExtractedDocument; storageKey: string }[]) {
+    async saveUploads(adventureId: string, uploads: { doc: ExtractedDocument; storageKey: string }[],
+    ) {
       const list = rows.get(adventureId) ?? [];
       for (const upload of uploads) if (!list.some((row) => row.doc.id === upload.doc.id)) list.push({ doc: upload.doc, storageKey: upload.storageKey });
       rows.set(adventureId, list);
     },
-    async saveOutside(adventureId: string, sources: OutsideSource[], documents: ExtractedDocument[]) {
+    async saveOutside(adventureId: string, sources: OutsideSource[], documents: ExtractedDocument[],
+    ) {
       const list = rows.get(adventureId) ?? [];
-      const byId = new Map(sources.map((s, i) => [documents[i]!.id, s]));
+      const byId = new Map(sources.map(source => [source.id, source]));
       for (const doc of documents) {
-        const existing = list.findIndex((row) => row.doc.id === doc.id);
-        const entry = { doc, storageKey: `outside:${doc.id}`, outside: byId.get(doc.id) };
-        if (existing >= 0) list[existing] = entry;
-        else list.push(entry);
+        const outside = byId.get(doc.id);
+        if (list.some(row => row.doc.id === doc.id || (outside && row.outside?.url === outside.url))) continue;
+        list.push({ doc, storageKey: `outside:${doc.id}`, outside });
       }
       rows.set(adventureId, list);
     },
     async removeOutside(adventureId: string, ids: string[]) {
-      rows.set(adventureId, (rows.get(adventureId) ?? []).filter(row => !row.outside || !ids.includes(row.doc.id)));
+      rows.set(
+        adventureId,
+        (rows.get(adventureId) ?? []).filter(
+          (row) => !row.outside || !ids.includes(row.doc.id),
+        ),
+      );
     },
     async copyUploads(fromId: string, toId: string) {
       const list = rows.get(toId) ?? [];
-      for (const row of rows.get(fromId) ?? []) if (!list.some((existing) => existing.doc.id === row.doc.id)) list.push({ ...row });
+      for (const row of rows.get(fromId) ?? [])
+        if (!list.some((existing) => existing.doc.id === row.doc.id))
+          list.push({ ...row });
       rows.set(toId, list);
     },
-  } satisfies V3SourceStore & { rows: Map<string, { doc: ExtractedDocument; storageKey: string; outside?: OutsideSource }[]> };
+  } satisfies V3SourceStore & {
+    rows: Map<
+      string,
+      { doc: ExtractedDocument; storageKey: string; outside?: OutsideSource }[]
+    >;
+  };
 }
 
 export function memoryV3AdventureWriter(initial: V3AdventureRow[] = []) {
-  const rows = new Map<string, { row: V3AdventureRow; spec: AdventureSpec | null; specVersion: number }>();
+  const rows = new Map<
+    string,
+    { row: V3AdventureRow; spec: AdventureSpec | null; specVersion: number }
+  >();
   const skeletonDrafts = new Map<string, unknown>();
   const pauseDrafts = new Map<string, PauseDraft>();
-  for (const row of initial) rows.set(row.id, { row: { ...row }, spec: null, specVersion: 0 });
+  for (const row of initial)
+    rows.set(row.id, { row: { ...row }, spec: null, specVersion: 0 });
   return {
     rows,
     async get(id: string) {
       const entry = rows.get(id);
       return entry ? { ...entry.row } : null;
     },
-    async setStatus(id: string, to: V3AdventureRow["status"], from: V3AdventureRow["status"][]) {
+    async setStatus(
+      id: string,
+      to: V3AdventureRow["status"],
+      from: V3AdventureRow["status"][],
+    ) {
       const entry = rows.get(id);
       if (!entry || !from.includes(entry.row.status)) return false;
       entry.row.status = to;
@@ -411,9 +498,15 @@ export function memoryV3AdventureWriter(initial: V3AdventureRow[] = []) {
       }
       return entry.specVersion;
     },
-    async loadPauseDraft(id: string) { return structuredClone(pauseDrafts.get(id) ?? null); },
-    async savePauseDraft(id: string, draft: PauseDraft) { pauseDrafts.set(id, structuredClone(draft)); },
-    async clearPauseDraft(id: string) { pauseDrafts.delete(id); },
+    async loadPauseDraft(id: string) {
+      return structuredClone(pauseDrafts.get(id) ?? null);
+    },
+    async savePauseDraft(id: string, draft: PauseDraft) {
+      pauseDrafts.set(id, structuredClone(draft));
+    },
+    async clearPauseDraft(id: string) {
+      pauseDrafts.delete(id);
+    },
     skeletonDrafts,
     async loadSkeletonDraft(id: string) {
       return skeletonDrafts.get(id) ?? null;
@@ -424,5 +517,11 @@ export function memoryV3AdventureWriter(initial: V3AdventureRow[] = []) {
     async clearSkeletonDraft(id: string) {
       skeletonDrafts.delete(id);
     },
-  } satisfies V3AdventureWriter & { rows: Map<string, { row: V3AdventureRow; spec: AdventureSpec | null; specVersion: number }>; skeletonDrafts: Map<string, unknown> };
+  } satisfies V3AdventureWriter & {
+    rows: Map<
+      string,
+      { row: V3AdventureRow; spec: AdventureSpec | null; specVersion: number }
+    >;
+    skeletonDrafts: Map<string, unknown>;
+  };
 }
