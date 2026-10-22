@@ -1,9 +1,12 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { ReviewAsset } from "@/lib/v3/review-assets";
+import { GeneratedAssets } from "./generated-assets";
+import { newLocalErrors } from "@/lib/v3/edit/local-checks";
 import { V3AdventureNav } from "@/components/teacher/v3-adventure-nav";
 import {
-  editableIssues,
   checkSpec,
   validateSpec,
   type AdventureSpec as Spec,
@@ -22,9 +25,12 @@ import { saveV3AdventureEdits, fixV3EditsWithAiAction } from "../edit-actions";
 import { useUnsavedEdits } from "./use-unsaved-edits";
 import { ReviewEditorFields } from "./editor-fields";
 import { ReviewScreen } from "./review-screen";
+import { EditorConversation } from "./editor-chat-workspace";
+import { useReviewChatTarget } from "../review-chat-context";
 
 type Props = {
   adventureId: string;
+  assets?: { version: number; items: ReviewAsset[] };
   initial: Spec;
   initialVersion: number;
   publishedVersion: number | null;
@@ -35,6 +41,7 @@ type Props = {
   warnings: (CheckIssue & { pass: string })[];
 };
 export function EditorWorkspace(props: Props) {
+  const router = useRouter();
   const [published, setPublished] = useState(props.published);
   const [publishedVersion, setPublishedVersion] = useState(
     props.publishedVersion,
@@ -56,15 +63,14 @@ export function EditorWorkspace(props: Props) {
         errors: parsed.issues.map((i) => ({ ...i, code: "schema" })),
         warnings: [],
       };
+    // Match server review for untouched legacy specs; stricter editing checks
+    // report only issues introduced by local changes against that saved baseline.
     const current = checkSpec(parsed.spec);
     return {
       ...current,
-      errors: [
-        ...current.errors,
-        ...(!parsed.spec.authoring ? editableIssues(parsed.spec) : []),
-      ],
+      errors: [...current.errors, ...(!parsed.spec.authoring && dirty ? newLocalErrors(saved, draft) : [])],
     };
-  }, [draft]);
+  }, [draft, saved, dirty]);
   // Generation obligations remain visible locally; authoritative Save replaces this list.
   const errors = [
     ...new Map(
@@ -75,6 +81,25 @@ export function EditorWorkspace(props: Props) {
     ).values(),
   ];
   useUnsavedEdits(dirty);
+  useReviewChatTarget({
+    key: `draft:${version}`,
+    revision: JSON.stringify(edits),
+    pending,
+    input: { pass: "draft", version, edits },
+    apply: (proposal) => {
+      if (proposal.pass !== "draft" || pending) return;
+      try {
+        setDraft(applyV3Edits(saved, proposal.edits, props.capturedSources, true));
+        setEdits(proposal.edits);
+        setEditMode(true);
+        setMessage("Suggested changes applied. Save when you’re ready.");
+        setFailure(false);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Could not apply suggestion.");
+        setFailure(true);
+      }
+    },
+  });
   const edit = (command: V3Edit) => {
     if (pending) return;
     try {
@@ -104,6 +129,7 @@ export function EditorWorkspace(props: Props) {
         setEdits([]);
         setEditMode(false);
         setSavedErrors(result.errors);
+        router.refresh();
         setMessage(
           `Saved version ${result.version}.${result.errors.length ? " Fix blocking errors before publishing." : ""}`,
         );
@@ -123,156 +149,171 @@ export function EditorWorkspace(props: Props) {
 
   return (
     <>
-      <header className="space-y-4" aria-busy={pending}>
-        <V3AdventureNav adventureId={props.adventureId} page="adventure" />
-        <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-          <section aria-label="Draft controls" className="space-y-3 py-2">
-            <p className="text-sm font-bold">
-              {editMode ? "Editing draft" : "Adventure draft"}{" "}
-              <span className="font-normal text-muted">· v{version}</span>
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {!editMode ? (
-                <button
-                  type="button"
-                  className={button.quiet}
-                  onClick={() => setEditMode(true)}
-                >
-                  Edit
-                </button>
-              ) : (
-                <>
-                  {dirty || pending ? (
+      <ReviewScreen
+        assets={props.assets && props.assets.version !== version ? (
+          <section className="space-y-3">
+            <h2 className="text-xl font-bold">Generated assets</h2>
+            <p className="text-sm text-muted">Reload assets for saved version {version}.</p>
+            <button type="button" className={button.quiet} onClick={() => router.refresh()}>Refresh assets</button>
+          </section>
+        ) : <GeneratedAssets key={version} assets={props.assets?.items ?? []} version={version} />}
+        sidebar={editMode ? <EditorConversation /> : undefined}
+        floatingChecks
+        issueActions={
+          <AiFixPanel<{ edits: V3Edit[] }>
+            floating={false}
+            inToolbar
+            hasIssues={errors.length + props.warnings.length + checks.warnings.length > 0}
+            revision={`${version}:${JSON.stringify(edits)}`}
+            disabled={pending}
+            request={() =>
+              fixV3EditsWithAiAction(props.adventureId, version, edits)
+            }
+            apply={(proposal) => {
+              try {
+                setDraft(
+                  applyV3Edits(
+                    saved,
+                    proposal.edits,
+                    props.capturedSources,
+                    true,
+                  ),
+                );
+                setEdits(proposal.edits);
+                setEditMode(true);
+                setMessage("");
+                setFailure(false);
+              } catch (error) {
+                setMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not apply suggestion.",
+                );
+              }
+            }}
+          />
+        }
+        onEditIssue={() => setEditMode(true)}
+        renderHeader={() => (
+          <header className="space-y-4" aria-busy={pending}>
+            <V3AdventureNav adventureId={props.adventureId} page="adventure" />
+            <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
+              <section aria-label="Draft controls" className="space-y-3 py-2">
+                <p className="text-sm font-bold">
+                  {editMode ? "Editing draft" : "Adventure draft"}{" "}
+                  <span className="font-normal text-muted">· v{version}</span>
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {!editMode ? (
                     <button
                       type="button"
-                      className={button.primary}
-                      disabled={pending}
-                      onClick={save}
+                      className={button.quiet}
+                      onClick={() => setEditMode(true)}
                     >
-                      {pending ? "Saving…" : "Save"}
+                      Edit
                     </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className={button.subtle}
-                    disabled={pending}
-                    onClick={() => {
-                      if (
-                        !dirty ||
-                        window.confirm("Discard your unsaved edits?")
-                      ) {
-                        setDraft(saved);
-                        setEdits([]);
-                        setEditMode(false);
-                        setMessage("Edits discarded.");
-                        setFailure(false);
-                      }
-                    }}
-                  >
-                    Discard edits
-                  </button>
-                </>
-              )}
-              {dirty || pending ? (
-                <button type="button" disabled className={button.subtle}>
-                  Preview
-                </button>
-              ) : (
-                <Link
-                  href={`/v3/teacher/${props.adventureId}/preview`}
-                  className={button.quiet}
-                >
-                  Preview
-                </Link>
-              )}
+                  ) : (
+                    <>
+                      {dirty || pending ? (
+                        <button
+                          type="button"
+                          className={button.primary}
+                          disabled={pending}
+                          onClick={save}
+                        >
+                          {pending ? "Saving…" : "Save"}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className={button.subtle}
+                        disabled={pending}
+                        onClick={() => {
+                          if (
+                            !dirty ||
+                            window.confirm("Discard your unsaved edits?")
+                          ) {
+                            setDraft(saved);
+                            setEdits([]);
+                            setEditMode(false);
+                            setMessage("Edits discarded.");
+                            setFailure(false);
+                          }
+                        }}
+                      >
+                        Discard edits
+                      </button>
+                    </>
+                  )}
+                  {dirty || pending ? (
+                    <button type="button" disabled className={button.subtle}>
+                      Preview
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/v3/teacher/${props.adventureId}/preview`}
+                      className={button.quiet}
+                    >
+                      Preview
+                    </Link>
+                  )}
+                </div>
+                {dirty ? (
+                  <span className="text-sm">
+                    Unsaved edits. Save before Preview or Publish.
+                  </span>
+                ) : null}
+              </section>
+              <div className="py-2 md:border-l md:border-line md:pl-6">
+                <V3PublishPanel
+                  key={`${version}:${publishedVersion}`}
+                  adventureId={props.adventureId}
+                  version={version}
+                  publishedVersion={publishedVersion}
+                  published={published}
+                  unpublishedChanges={published && version !== publishedVersion}
+                  onPublicationChange={(live, pointer) => {
+                    setPublished(live);
+                    setPublishedVersion(pointer);
+                  }}
+                  disabled={dirty || pending}
+                  blockedReason={
+                    errors.length
+                      ? "Fix blocking errors before publishing."
+                      : undefined
+                  }
+                  compact
+                />
+              </div>
             </div>
-            {dirty ? (
-              <span className="text-sm">
-                Unsaved edits. Save before Preview or Publish.
-              </span>
+            {message ? (
+              <p
+                className="text-sm"
+                role={failure ? "alert" : "status"}
+                aria-live="polite"
+              >
+                {message}
+              </p>
             ) : null}
-          </section>
-          <div className="py-2 md:border-l md:border-line md:pl-6">
-            <V3PublishPanel
-              key={`${version}:${publishedVersion}`}
-              adventureId={props.adventureId}
-              version={version}
-              publishedVersion={publishedVersion}
-              published={published}
-              unpublishedChanges={published && version !== publishedVersion}
-              onPublicationChange={(live, pointer) => {
-                setPublished(live);
-                setPublishedVersion(pointer);
-              }}
-              disabled={dirty || pending}
-              blockedReason={
-                errors.length
-                  ? "Fix blocking errors before publishing."
-                  : undefined
-              }
-              compact
-            />
-          </div>
-        </div>
-        {message ? (
-          <p
-            className="text-sm"
-            role={failure ? "alert" : "status"}
-            aria-live="polite"
-          >
-            {message}
-          </p>
-        ) : null}
-        {failure ? (
-          <button
-            type="button"
-            className={button.subtle}
-            onClick={() => {
-              if (
-                !dirty ||
-                window.confirm(
-                  "Reload the saved version and discard local edits?",
-                )
-              )
-                window.location.reload();
-            }}
-          >
-            Reload saved version
-          </button>
-        ) : null}
-      </header>
-      {editMode ? (
-        <AiFixPanel<{ edits: V3Edit[] }>
-          hasIssues={errors.length + props.warnings.length + checks.warnings.length > 0}
-          revision={`${version}:${JSON.stringify(edits)}`}
-          disabled={pending}
-          request={() =>
-            fixV3EditsWithAiAction(props.adventureId, version, edits)
-          }
-          apply={(proposal) => {
-            try {
-              setDraft(
-                applyV3Edits(
-                  saved,
-                  proposal.edits,
-                  props.capturedSources,
-                  true,
-                ),
-              );
-              setEdits(proposal.edits);
-              setMessage("");
-              setFailure(false);
-            } catch (error) {
-              setMessage(
-                error instanceof Error
-                  ? error.message
-                  : "Could not apply suggestion.",
-              );
-            }
-          }}
-        />
-      ) : null}
-      <ReviewScreen
+            {failure ? (
+              <button
+                type="button"
+                className={button.subtle}
+                onClick={() => {
+                  if (
+                    !dirty ||
+                    window.confirm(
+                      "Reload the saved version and discard local edits?",
+                    )
+                  )
+                    window.location.reload();
+                }}
+              >
+                Reload saved version
+              </button>
+            ) : null}
+          </header>
+        )}
         spec={draft}
         sources={props.sources}
         errors={errors}

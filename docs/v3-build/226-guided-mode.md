@@ -176,6 +176,44 @@ The recorded flow exposed a persisted-base bug: JSONB key ordering could make un
 
 ## Browser verification
 
+The standard adventure editor also includes an **Edit with chat** conversation
+for draft, published and archived adventures. It reuses the Guided suggestion
+preview and conversation history. Requests include current unsaved edits;
+applying a suggestion enters edit mode and keeps the result local until Save.
+Published adventures retain their live version until Publish changes is used.
+Stale saved versions and edits made while a suggestion is pending invalidate it.
+The editor browser harness covers applying, declining, invalidating and saving
+chat suggestions alongside manual changes, plus retaining requests after errors.
+It runs without Supabase or a model using the `RUN_REVIEW_BROWSER_TESTS` command
+below; server action permission and version checks are covered by API tests.
+
+Chat appears only in edit mode, aligned with the index and content in a wider
+workspace. Only chat is constrained to the available viewport height, with
+its transcript and suggestion preview scrolling inside the panel.
+
+Editor checks appear as a clickable count alongside Resolve issues in a floating
+control. The expanded list scrolls within the panel and opens its first issue's
+details by default, retaining global errors, warnings and conflicts.
+Selecting a located issue enters edit mode, opens the relevant tab
+and focuses its field. Field errors appear beside their controls with an
+accessible description; part-local generation issues stay with their owning
+entity when a specific field cannot be identified.
+
+When there are no errors, warnings or conflicts, the floating control says
+“No issues” without an expandable list. Untouched legacy specs use the same
+checks as the server review and publication path; stricter editing checks are
+compared with the saved baseline so existing legacy omissions are not presented
+as newly introduced errors. Saved generation errors remain visible independently
+of edit mode.
+
+The Generated assets tab reviews stage artwork and character portraits for the
+saved spec version, including each major character's stance portraits. It uses
+the same storage URLs and portrait-version inheritance as student play, offers
+full image links, and shows unavailable/loading states with retry for missing
+images. Switching tabs preserves unsaved story edits. After saving a new version,
+the editor refreshes the asset inventory; older results are not relabeled as
+belonging to the new version.
+
 `tests/browser/v3-guided-local.test.ts` uses local Supabase and Next with `V3_FAKE_PASSES=1`, an isolated teacher in Testing School, and disposable adventures. It leaves existing seeded records untouched. Configure the usual local Supabase credentials and:
 
 ```sh

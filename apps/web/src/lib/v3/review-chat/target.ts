@@ -55,8 +55,9 @@ export async function loadReviewChatTarget(
     const store = new SupabaseV3PlayStore(admin);
     const adventure = await store.loadAdventure(adventureId);
     if (
-      row.status !== "draft" ||
+      !["draft", "published", "archived"].includes(row.status) ||
       !adventure ||
+      adventure.status !== row.status ||
       adventure.specVersion !== input.version
     )
       return failure(
@@ -97,7 +98,7 @@ export async function loadReviewChatTarget(
     });
     stillCurrent = async () => {
       const latest = await store.loadAdventure(adventureId);
-      return latest?.status === "draft" && latest.specVersion === input.version;
+      return latest?.status === row.status && latest.specVersion === input.version;
     };
   } else {
     const paused = async () => {

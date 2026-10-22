@@ -23,6 +23,51 @@ const spec = AdventureSpec.parse(
 );
 
 describe("review screen rendering", () => {
+  it("shows plain No issues without an empty dropdown in the editor", () => {
+    const html = renderToStaticMarkup(createElement(ReviewScreen, {
+      spec: { ...spec, conflicts: [] },
+      sources: [], errors: [], warnings: [], floatingChecks: true,
+      renderHeader: () => createElement("header", null, "Editor controls"),
+    }));
+    expect(html).toContain("No issues");
+    expect(html).not.toContain('aria-label="Adventure checks"');
+    expect(html).not.toContain("Needs fixing");
+  });
+  it("puts checks beside the floating resolve control and expands the first issue", () => {
+    const html = renderToStaticMarkup(createElement(ReviewScreen, {
+      spec: { ...spec, conflicts: [] },
+      sources: [],
+      errors: [
+        { code: "first", path: "", message: "First blocking issue" },
+        { code: "second", path: "", message: "Second blocking issue" },
+      ],
+      warnings: [],
+      floatingChecks: true,
+      renderHeader: () => createElement("header", null, "Save controls"),
+      issueActions: createElement("button", null, "Resolve issues"),
+    }));
+    expect(html).toContain("<header>Save controls</header>");
+    expect(html).toContain('aria-label="Adventure issue controls"');
+    expect(html).toContain("Resolve issues");
+    expect(html.match(/<details open=""/g)).toHaveLength(1);
+    expect(html.indexOf('<details open=""')).toBeLessThan(html.indexOf("Second blocking issue"));
+  });
+  it("keeps editor checks collapsed beside its controls and retains global issues", () => {
+    const html = renderToStaticMarkup(
+      createElement(ReviewScreen, {
+        spec: { ...spec, conflicts: [] },
+        sources: [],
+        errors: [{ code: "global", path: "", message: "Review this adventure" }],
+        warnings: [],
+        renderHeader: (checks) => createElement("header", null, "Save controls", checks),
+      }),
+    );
+    expect(html).toContain("1 issue to fix");
+    expect(html).toContain("Review this adventure");
+    expect(html).toMatch(/<header>Save controls<details aria-label="Adventure checks"/);
+    expect(html).not.toContain('<details open=""');
+    expect(html.indexOf("1 issue to fix")).toBeLessThan(html.indexOf('role="tablist"'));
+  });
   it("shows blocking errors, grouped warnings, conflict fixtures and settings/reveal tabs", () => {
     const html = renderToStaticMarkup(
       createElement(ReviewScreen, {

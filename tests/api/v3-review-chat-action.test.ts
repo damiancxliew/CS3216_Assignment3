@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
 import type { V3BriefRow } from "@/lib/v3/brief/store";
 const harness = vi.hoisted(() => ({
@@ -9,6 +10,19 @@ const harness = vi.hoisted(() => ({
   update: vi.fn(),
   completeJson: vi.fn(),
   conflict: false,
+  version: 1,
+}));
+vi.mock("@/lib/play/v3/store", () => ({
+  SupabaseV3PlayStore: class {
+    async loadAdventure() {
+      return {
+        status: harness.row!.status,
+        specVersion: harness.version,
+        spec: JSON.parse(readFileSync("fixtures/golden-1819.json", "utf8")),
+      };
+    }
+    async loadCheckErrors() { return []; }
+  },
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
@@ -73,6 +87,7 @@ beforeEach(() => {
   harness.enabled = true;
   harness.schoolAllowed = true;
   harness.conflict = false;
+  harness.version = 1;
   harness.row = {
     id,
     ownerId: "teacher",
@@ -92,6 +107,45 @@ beforeEach(() => {
   });
 });
 describe("review chat access and persistence", () => {
+  it.each(["draft", "published", "archived"] as const)(
+    "proposes changes to a saved %s adventure without saving or publishing the spec",
+    async (status) => {
+      harness.row!.status = status;
+      harness.completeJson.mockResolvedValue({ json: {
+        notes: "I suggest a new title.",
+        changes: [{ path: ["title"], value_json: '"A revised adventure"' }],
+      } });
+      const result = await suggestReviewChangeAction(id, {
+        pass: "draft", version: 1,
+        edits: [{ type: "set", path: ["title"], value: "My local title" }],
+      }, "Change the title");
+      expect(result).toMatchObject({
+        ok: true,
+        preview: [{ before: "My local title", after: "A revised adventure" }],
+        proposal: { pass: "draft", edits: [
+          { type: "set", path: ["title"], value: "My local title" },
+          { type: "set", path: ["title"], value: "A revised adventure" },
+        ] },
+      });
+      expect(Object.keys(harness.update.mock.calls[0][0])).toEqual(["brief_state"]);
+    },
+  );
+  it("rejects a stale saved version before calling the model", async () => {
+    harness.row!.status = "published";
+    expect(await suggestReviewChangeAction(id, { pass: "draft", version: 0, edits: [] }, "Change the title"))
+      .toMatchObject({ ok: false });
+    expect(harness.completeJson).not.toHaveBeenCalled();
+  });
+  it("drops a saved-adventure suggestion if its version changes during the request", async () => {
+    harness.row!.status = "published";
+    harness.completeJson.mockImplementation(async () => {
+      harness.version++;
+      return { json: { notes: "No changes needed", changes: [] } };
+    });
+    expect(await suggestReviewChangeAction(id, { pass: "draft", version: 1, edits: [] }, "Change the title"))
+      .toMatchObject({ ok: false });
+    expect(harness.update).not.toHaveBeenCalled();
+  });
   it.each(["owner", "school", "flag"])(
     "rejects a failed %s guard before a model call or write",
     async (guard) => {
