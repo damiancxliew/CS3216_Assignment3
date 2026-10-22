@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Action, PlayerView } from "@adventure/play-contract";
 import type { Point } from "@adventure/game-core";
 import type { StageExperience } from "@/components/play/v3/stage-play-screen";
+import { NoticeboardDialog } from "./evidence-dialog";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import {
   BOARDING_POINT,
@@ -161,6 +162,7 @@ export function useWaterfrontExperience(
         document.querySelector<HTMLCanvasElement>("canvas")?.focus(),
       );
     };
+    const ActivityFrame = activity === "news" ? NoticeboardDialog : V3ScrollDialog;
     return {
       scenery: {
         authored,
@@ -344,7 +346,7 @@ export function useWaterfrontExperience(
             <WaterfrontRecord key={record} id={record} onClose={close} />
           )}
           {activity && (
-            <V3ScrollDialog
+            <ActivityFrame
               title={
                 activity === "supplies"
                   ? "Who keeps the household going?"
@@ -449,7 +451,7 @@ export function useWaterfrontExperience(
                         : "Look again at the date and what is visible. The image cannot establish Lim’s departure route or anyone’s private feelings."}
                     </p>
                   )}
-                  <p className={styles.credit}>
+                  <p className={styles.credit} data-record-credit>
                     Australian War Memorial · 127902 · public domain. Preserved
                     archival photograph.
                   </p>
@@ -471,7 +473,7 @@ export function useWaterfrontExperience(
                   </button>
                 </div>
               )}
-            </V3ScrollDialog>
+            </ActivityFrame>
           )}
           {boarding && choice && (
             <WaterfrontDeparture
