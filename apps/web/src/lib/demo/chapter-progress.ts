@@ -7,7 +7,7 @@ export function chapterTasks(state: DemoV3State) {
   return [
     {
       id: "evidence",
-      label: "Save an evidence passage",
+      label: "Earn an evidence note",
       done: state.notes.some(
         (n) => n.stageIndex === state.stage && n.source === "document",
       ),

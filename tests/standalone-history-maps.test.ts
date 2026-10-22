@@ -37,18 +37,18 @@ describe("authored history maps on the v3 engine", () => {
       const scene = demoScenery[index];
       const { map, initialDoors, playerSpawn, fixtures } = scene.authored;
       const state = { ...newDemoV3State(), stage: index };
-      expect(map.rooms).toHaveLength(index === 0 ? 1 : 3);
+      expect(map.rooms).toHaveLength(1);
       expect(map.width * map.height).toBeLessThan(42 * 36 * 0.52);
       expect(scene.authored.desktopCamera).toBe("cover");
       expect(scene.authored.cast?.map((n) => n.id)).toEqual(
-        index === 0 ? [] : stages[index].npcs.map((n) => n.id),
+        [],
       );
       expect(
         findPath(map, initialDoors, playerSpawn, { x: 27, y: 18 }),
       ).not.toBeNull();
       expect(
         (spaceAt(map, { x: 27, y: 18 }) as { locationId?: string })?.locationId,
-      ).toBe(index === 0 ? "street" : map.rooms[1].id);
+      ).toBe(index === 0 ? "street" : "coast");
       expect(map.landmarks!.length).toBeGreaterThan(20);
       expect(isWalkable(map, initialDoors, playerSpawn)).toBe(true);
       for (const room of map.rooms) {

@@ -99,7 +99,7 @@ export function buildWaterfrontMap(
   );
   fixture(
     "waterfront-newspaper",
-    "Newspaper board · inspect",
+    "Occupation newspaper",
     27,
     8,
     "newsstand",
@@ -195,6 +195,7 @@ export function buildWaterfrontMap(
     roomKinds: { street: "street" },
     spawnAtEntrance: true,
     desktopCamera: "cover",
+    interactionLabels: "hover",
     playerSheet: asset("civilian"),
     characterSheets: Object.fromEntries(
       characterIds.map((id) => [id, `/demo/lim-bo-seng/sprites/${id}.png`]),

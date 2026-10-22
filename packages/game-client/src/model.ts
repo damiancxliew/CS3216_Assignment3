@@ -59,6 +59,8 @@ export interface PlaygroundSnapshot {
   revision: number
   /** Display names for rooms, when the caller has them; the demo fixture's names are the fallback. */
   roomNames?: Readonly<Record<string, string>>
+  /** Opt-in discovery UI: objects reveal their names on hover or close approach. */
+  interactionLabels?: "hover"
   /** Public room purposes used to choose materials and period-appropriate fixtures. */
   roomDescriptions?: Readonly<Record<string, string>>
   /** Authored location kinds used to choose curated ground for open locations. */
@@ -73,7 +75,7 @@ export interface PlaygroundSnapshot {
   /** Optional authored, fictional street flavour for curated historical scenes. */
   streetTalk?: Array<{ name: string; lines: string[] }>
   /** Physical, inspectable fixtures placed within named rooms. Ready art is a 32px tile sheet. */
-  landmarks?: Array<{ id: string; roomId: string; name: string; description?: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string; interactive?: boolean }>
+  landmarks?: Array<{ id: string; roomId: string; name: string; description?: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string; interactive?: boolean; pulse?: boolean }>
   /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */
   ambient?: { id: AmbientOverlayId; intensity: 1 | 2 | 3 }
   effects?: Array<{ key: string; id: SceneEffectId; roomId?: string | null }>

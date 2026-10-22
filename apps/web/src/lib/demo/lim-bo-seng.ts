@@ -5,6 +5,7 @@ export type Source = {
   date: string;
   kind: string;
   credit: string;
+  displayCredit?: string;
   url: string;
   summary: string;
   limitation: string;
@@ -21,6 +22,7 @@ export const sources: Source[] = [
     kind: "Archival photograph",
     credit:
       "Tham Sien Yen Collection, courtesy of National Archives of Singapore · 20080000015-0099. Viewing permitted; commercial use and reproduction require written permission from the copyright owner. Permission has not been obtained for redistribution.",
+    displayCredit: "Tham Sien Yen Collection · National Archives of Singapore · 20080000015-0099",
     url: "https://www.nas.gov.sg/archivesonline/photographs/record-details/9e4a7381-1162-11e3-83d5-0050568939ad",
     summary:
       "The archive identifies Gan Choo Neo as the woman at the far right in black at Lim Bo Seng’s funeral at MacRitchie Reservoir. The chatbot frames her face from this photograph; this source view preserves the full scene.",
@@ -38,6 +40,7 @@ export const sources: Source[] = [
     kind: "Archival photograph",
     credit:
       "Tham Sien Yen Collection, courtesy of National Archives of Singapore · 20080000015-0103. Viewing permitted; commercial use and reproduction require written permission from the copyright owner. Permission has not been obtained for redistribution.",
+    displayCredit: "Tham Sien Yen Collection · National Archives of Singapore · 20080000015-0103",
     url: "https://www.nas.gov.sg/archivesonline/photographs/record-details/9eb7c379-1162-11e3-83d5-0050568939ad",
     summary:
       "The archive identifies Tham Sien Yen as the Force 136 member shaking hands with Admiral Lord Louis Mountbatten. Tham is in the right foreground. This is the visual reference for his chatbot portrait and illustrated sprite.",
@@ -512,7 +515,6 @@ export const stages: Stage[] = [
       "farewell-b",
       "press",
       "control",
-      "life",
       "memory",
     ],
     npcs: [

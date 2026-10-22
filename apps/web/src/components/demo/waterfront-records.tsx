@@ -1,6 +1,9 @@
 "use client";
 import { useState } from "react";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { NewspaperDialog } from "./evidence-dialog";
+import frameStyles from "./evidence-dialog.module.css";
+import { SourceQuestion, SourceFootnote } from "./source-question";
 import styles from "./waterfront-experience.module.css";
 
 export const waterfrontRecords = {
@@ -51,8 +54,9 @@ export function WaterfrontRecord({
   const record = waterfrontRecords[id];
   const [failed, setFailed] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
+  const Frame = id === "newspaper" ? NewspaperDialog : V3ScrollDialog;
   return (
-    <V3ScrollDialog
+    <Frame
       title={record.title}
       eyebrow={record.date}
       footerText="Look closely · date the evidence · ask whose view it preserves"
@@ -62,51 +66,60 @@ export function WaterfrontRecord({
       onClose={onClose}
     >
       <div className={styles.activity}>
-        {failed ? (
-          <p role="status">
-            The archive image could not load. You can still read the context
-            below and open the original record.
-          </p>
-        ) : (
-          <>
-            <button
-              className={styles.primary}
-              aria-pressed={enlarged}
-              onClick={() => setEnlarged((value) => !value)}
-            >
-              {enlarged ? "Fit image" : "Enlarge image"}
-            </button>
-            <a
-              href={record.image}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Open full-size historical image"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element -- unaltered archival image, preserved at original proportions */}
-              <img
-                className={styles.explorationImage}
-                data-enlarged={enlarged}
-                src={record.image}
-                alt={record.alt}
-                onError={() => setFailed(true)}
-              />
-            </a>
-          </>
-        )}
-        <p>
-          {occupationContext
-            ? record.context
-                .replace(
-                  "This later record is available to you as a student observer; it was not on this quay before Lim left.",
-                  "Inspect this as a student observer: it is evidence of what the occupation press printed, not proof of what Lim personally read.",
-                )
-                .replace(
-                  "This is a later comparison with the departure scene.",
-                  "Compare this object with the food records to investigate civilian pressures.",
-                )
-            : record.context}
-        </p>
-        <details className={styles.credit}>
+        <div className={id === "newspaper" ? frameStyles.recordLayout : styles.activity} data-enlarged={enlarged}>
+          <div className={frameStyles.recordImage}>
+            {failed ? (
+              <p role="status">
+                The archive image could not load. You can still read the context
+                below and open the original record.
+              </p>
+            ) : (
+              <>
+                <button
+                  className={styles.primary}
+                  aria-pressed={enlarged}
+                  onClick={() => setEnlarged((value) => !value)}
+                >
+                  {enlarged ? "Fit image" : "Enlarge image"}
+                </button>
+                <a
+                  href={record.image}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Open full-size historical image"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- unaltered archival image, preserved at original proportions */}
+                  <img
+                    className={styles.explorationImage}
+                    data-enlarged={enlarged}
+                    src={record.image}
+                    alt={record.alt}
+                    onError={() => setFailed(true)}
+                  />
+                </a>
+              </>
+            )}
+          </div>
+          <div className={id === "newspaper" ? frameStyles.readingNotes : undefined}>
+            {id === "newspaper" && <h3>Reading the record</h3>}
+            <p>
+              {occupationContext
+                ? record.context
+                    .replace(
+                      "This later record is available to you as a student observer; it was not on this quay before Lim left.",
+                      "Inspect this as a student observer: it is evidence of what the occupation press printed, not proof of what Lim personally read.",
+                    )
+                    .replace(
+                      "This is a later comparison with the departure scene.",
+                      "Compare this object with the food records to investigate civilian pressures.",
+                    )
+                : record.context}
+            </p>
+          </div>
+        </div>
+        <SourceQuestion id={id === "newspaper" ? "street-newspaper" : id} />
+        <SourceFootnote id={id === "newspaper" ? "street-newspaper" : id} />
+        <details className={styles.credit} data-record-credit>
           <summary>Image credits & original record</summary>
           <p>
             {record.credit}.{" "}
@@ -116,7 +129,7 @@ export function WaterfrontRecord({
           </p>
         </details>
         {id === "newspaper" && (
-          <p className={styles.credit}>
+          <p className={styles.credit} data-record-credit>
             <a
               href="https://biblioasia.nlb.gov.sg/all-sections/vol-11-issue-4-jan-mar-2016-syonan-shimbun/"
               target="_blank"
@@ -127,6 +140,6 @@ export function WaterfrontRecord({
           </p>
         )}
       </div>
-    </V3ScrollDialog>
+    </Frame>
   );
 }

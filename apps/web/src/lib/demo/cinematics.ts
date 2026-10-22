@@ -4,8 +4,7 @@ import { stages, sourceById } from "./lim-bo-seng";
 const portrait = {
   src: "/demo/lim-bo-seng/portrait.jpg",
   alt: "Archival portrait of Lim Bo Seng, dated to the 1930s",
-  caption:
-    "Lim Bo Seng, 1930s. An archival portrait, not a photograph of any scene in this game.",
+  caption: "Lim Bo Seng, 1930s.",
   credit: "Wikimedia Commons · public-domain record",
   href: "https://commons.wikimedia.org/wiki/File:LimBoSeng-1930s.jpg",
 };
@@ -13,7 +12,7 @@ const surrender = {
   src: "/demo/lim-bo-seng/surrender.png",
   alt: "British troops surrendering in Singapore on 15 February 1942",
   caption:
-    "Singapore, 15 February 1942. British troops surrender in the city. This photograph shows neither Lim’s departure nor resistance training.",
+    "Singapore, 15 February 1942. British troops surrender in the city.",
   credit: "Australian War Memorial · 127902 · public domain",
   href: "https://commons.wikimedia.org/wiki/File:British_troops_surrender_in_Singapore.png",
 };
@@ -72,8 +71,8 @@ export const demoCinematics = {
           ? {
               src: record.image!,
               alt: record.imageAlt!,
-              caption: `${record.date}. ${record.limitation}`,
-              credit: record.credit,
+              caption: `${record.imageAlt}.`,
+              credit: record.displayCredit ?? record.credit,
               href: record.url,
             }
           : portrait,

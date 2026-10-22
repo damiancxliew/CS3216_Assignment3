@@ -16,6 +16,7 @@ export type V3StageScenery = {
     roomKinds: Record<string, string>;
     /** Connected scenes can place arrivals at their doorway instead of the room centre. */
     spawnAtEntrance?: boolean;
+    interactionLabels?: "hover";
     desktopCamera?: "detail" | "overview" | "cover";
     playerSheet?: string;
     characterSheets?: Record<string, string>;

@@ -79,6 +79,7 @@ describe("standalone v3 demo adapter", () => {
       ).ok,
     ).toBe(false);
     for (let i = 0; i < stages.length; i++) {
+      if (i === 1) await act({ type: "enterRoom", roomId: "shore" });
       const view = projectDemoV3(saved);
       const source = view.documentsHere[0];
       await act({ type: "openDocument", documentId: source.id });
@@ -169,7 +170,7 @@ describe("standalone v3 demo adapter", () => {
         });
         await act({
           type: "enterRoom",
-          roomId: demoScenery[i].authored.map.rooms[1].id,
+          roomId: "coast",
         });
         await act({ type: "enterRoom", roomId: "embark" });
       }

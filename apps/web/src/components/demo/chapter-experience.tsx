@@ -5,14 +5,14 @@ import type { Point } from "@adventure/game-core";
 import type { StageExperience } from "@/components/play/v3/stage-play-screen";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { chapterTasks } from "@/lib/demo/chapter-progress";
-import { STORY_EXIT, storyExitLabels } from "@/lib/demo/story-maps";
-import type { DemoV3State } from "@/lib/demo/v3-session";
-import { stages } from "@/lib/demo/lim-bo-seng";
+import { STORY_EXIT, storyExitLabels, RESISTANCE_DOORS } from "@/lib/demo/story-maps";
+import { demoScenery, type DemoV3State } from "@/lib/demo/v3-session";
+import { stages, sourceById } from "@/lib/demo/lim-bo-seng";
 import { demoCinematics } from "@/lib/demo/cinematics";
-import {
-  WaterfrontRecord,
-  type WaterfrontRecordId,
-} from "./waterfront-records";
+import { DiscoveryRecord } from "./discovery-record";
+import { objectDiscoveries, type DiscoveryId } from "@/lib/demo/discoveries";
+import { buildResistanceInterior } from "@/lib/demo/resistance-interiors";
+import { SourceQuestion } from "./source-question";
 import { ChapterConsequence } from "./chapter-consequence";
 import styles from "./waterfront-experience.module.css";
 
@@ -23,12 +23,15 @@ export function useChapterExperience(
   saveScope: string | null,
 ) {
   const [record, setRecord] = useState<
-    WaterfrontRecordId | "portraits" | "locked" | null
+    DiscoveryId | "portraits" | "locked" | null
   >(null);
   const [seen, setSeen] = useState<number[]>([]);
   const [destination, setDestination] = useState<Point | null>(null);
   const [error, setError] = useState(false);
   const entering = useRef(false);
+  const changingRoom = useRef(false);
+  const approaching = useRef<string | null>(null);
+  const [returnPoint, setReturnPoint] = useState<Point>({ x: 7, y: 10 });
   const lastStage = useRef(-1);
   const storageKey = saveScope ? `${saveScope}.two-chapter-consequences` : null;
   useEffect(() => {
@@ -36,6 +39,9 @@ export function useChapterExperience(
     setDestination(null);
     setError(false);
     entering.current = false;
+    changingRoom.current = false;
+    approaching.current = null;
+    setReturnPoint({ x: 7, y: 10 });
     lastStage.current = -1;
     let saved: number[] = [];
     try {
@@ -57,6 +63,28 @@ export function useChapterExperience(
     if (index === undefined || index === 0 || view.phase !== "stage") return;
     const state = getState(),
       chapter = stages[index];
+    const outside = state.room === "coast";
+    const authored = outside
+      ? { ...demoScenery[index].authored, playerSpawn: returnPoint }
+      : buildResistanceInterior(state.room);
+    const walkToDoor = (id: string) => {
+      const door = RESISTANCE_DOORS.find((d) => d.id === id)!;
+      approaching.current = id;
+      setDestination({ x: door.point.x, y: door.point.y + 1 });
+    };
+    const changeRoom = (roomId: string) => {
+      if (changingRoom.current) return;
+      changingRoom.current = true;
+      approaching.current = null;
+      setDestination(null);
+      const door = RESISTANCE_DOORS.find((d) => d.id === (outside ? roomId : state.room));
+      if (door) setReturnPoint({ x: door.point.x, y: door.point.y + 1 });
+      send({ type: "enterRoom", roomId }, (ok) => {
+        changingRoom.current = false;
+        setError(!ok);
+        requestAnimationFrame(() => document.querySelector<HTMLCanvasElement>("canvas")?.focus());
+      });
+    };
     const tasks = chapterTasks(state),
       ready = tasks.every((t) => t.done);
     const decision = state.decisions.find((d) => d.stage === index);
@@ -80,8 +108,9 @@ export function useChapterExperience(
       close();
     };
     return {
+      scenery: { authored, storyContext: outside ? "Perak coastal settlement" : "Illustrative Malayan resistance shelter", roomDescriptions: {} },
       destination,
-      movementLocked: Boolean(record || showScene),
+      movementLocked: Boolean(record || showScene || state.open),
       hideDecision:
         Boolean(state.departureReady) ||
         tasks.some((t) => t.id !== "decision" && !t.done),
@@ -89,7 +118,12 @@ export function useChapterExperience(
         "Make one recommendation, watch its consequence, then explore or walk through the exit.",
       mission: (
         <div className={styles.mission}>
-          <p className={styles.dateline}>{chapter.place}</p>
+          <p className={styles.dateline}>{outside ? chapter.place : view.rooms.find((r) => r.id === state.room)?.name}</p>
+          <p>{outside ? "Enter a timber shelter to meet Lim, Tan or Tham. Each room holds different evidence." : "Speak with the person here and explore the evidence. The green mat leads back to the coast."}</p>
+          <div className={styles.sceneControls}>
+            {outside ? RESISTANCE_DOORS.map((door) => <button key={door.id} onClick={() => walkToDoor(door.id)}>Walk to {door.label}</button>)
+              : <button onClick={() => setDestination({ x: 12, y: 14 })}>Walk outside</button>}
+          </div>
           <p className={styles.title}>
             {ready ? `${storyExitLabels[index]} is open` : chapter.title}
           </p>
@@ -103,15 +137,12 @@ export function useChapterExperience(
           <p>
             {ready
               ? `Walk through the signposted ${storyExitLabels[index].toLowerCase()} to continue. No extra decision or click needed.`
-              : "Three goals. Click objects and photographs for optional discoveries."}
+              : "Three goals. Hover or walk close to reveal objects, then click to explore."}
           </p>
           <details className={styles.recordsMenu}>
             <summary>Optional discoveries</summary>
             <button onClick={() => setRecord("portraits")}>
               Photographs of the people you meet
-            </button>
-            <button onClick={() => setRecord("newspaper")}>
-              Inspect the occupation newspaper
             </button>
             {decision && (
               <button onClick={() => setSeen(seen.filter((s) => s !== index))}>
@@ -129,9 +160,10 @@ export function useChapterExperience(
       ),
       onInspect(id) {
         if (id === "chapter-portrait") setRecord("portraits");
-        else if (id === "chapter-newsstand") setRecord("newspaper");
-        else if (id === "chapter-currency") setRecord("currency");
-        else if (id === "chapter-rickshaw") setRecord("rickshaw");
+        else if (objectDiscoveries[id]) setRecord(objectDiscoveries[id]);
+        else if (id === "resistance-room-exit") setDestination({ x: 12, y: 14 });
+        else if (outside && RESISTANCE_DOORS.some((d) => `resistance-door-${d.id}` === id))
+          walkToDoor(id.replace("resistance-door-", ""));
         else if (id === "chapter-exit") {
           if (ready) setDestination({ ...STORY_EXIT });
           else setRecord("locked");
@@ -139,6 +171,18 @@ export function useChapterExperience(
         return true;
       },
       onArrive(point) {
+        if (!outside) {
+          if ((point.x === 12 || point.x === 13) && point.y === 14) changeRoom("coast");
+          return;
+        }
+        const target = RESISTANCE_DOORS.find((d) => d.id === approaching.current);
+        if (target && point.x === target.point.x && point.y === target.point.y + 1) {
+          approaching.current = null;
+          setDestination({ ...target.point });
+          return;
+        }
+        const door = RESISTANCE_DOORS.find((d) => point.y === d.point.y && point.x >= d.point.x && point.x <= d.point.x + 1);
+        if (door) { changeRoom(door.id); return; }
         if (lastStage.current !== index) {
           lastStage.current = index;
           entering.current = false;
@@ -215,13 +259,15 @@ export function useChapterExperience(
                           </a>
                         </p>
                       </figcaption>
+                      {beat.id.endsWith("-lim") && <p>{sourceById("life").summary}</p>}
+                      <SourceQuestion id={beat.id.endsWith("-lim") ? "life" : `${beat.id.split("-").at(-1)}-photo`} />
                     </figure>
                   ))}
               </div>
             </V3ScrollDialog>
           )}
           {record && record !== "locked" && record !== "portraits" && (
-            <WaterfrontRecord id={record} onClose={close} occupationContext />
+            <DiscoveryRecord id={record} onClose={close} />
           )}
         </>
       ),

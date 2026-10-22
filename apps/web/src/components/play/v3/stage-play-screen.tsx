@@ -5,7 +5,7 @@ import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import { ChevronDown, Timer } from "lucide-react";
-import type { Action, PlayerView } from "@adventure/play-contract";
+import type { Action, PlayerView, DocumentView } from "@adventure/play-contract";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import styles from "@/components/play/adventure-chrome.module.css";
@@ -48,6 +48,10 @@ function formatTime(milliseconds: number) {
 }
 
 export type StageExperience = {
+  /** Optional host-controlled reader, used by authored walk-up exhibits. */
+  activeDocumentId?: string | null;
+  documentSupplement?: (document: DocumentView) => ReactNode;
+  documentHint?: string;
   scenery?: V3StageScenery;
   mission?: ReactNode;
   overlay?: ReactNode;
@@ -107,7 +111,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     : null;
   const isTalkOpen = openCharacter !== null;
   const movementLocked = externalMovementLock || isTalkOpen || isMoment || Boolean(experience?.movementLocked);
-  const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
+  const activeDocumentId = experience?.activeDocumentId === undefined ? documentId : experience.activeDocumentId;
+  const openedDocument = view.documents.find((document) => document.id === activeDocumentId) ?? null;
   const spawnRoomId = view.rooms[0]?.id ?? "";
   const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
     send({ type: "enterRoom", roomId }, resolve);
@@ -425,6 +430,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
 
       {openedDocument ? (
         <DocumentReader
+          supplement={experience?.documentSupplement?.(openedDocument)}
+          readingHint={experience?.documentHint}
           document={openedDocument}
           documents={view.documents}
           onSelectDocument={openDocument}
