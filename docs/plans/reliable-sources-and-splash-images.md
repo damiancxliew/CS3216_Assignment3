@@ -1,117 +1,249 @@
-# Reliable web sources and adventure asset review
+# Reliable sources and complete adventure asset management
 
-## Summary
+This is the implementation contract for PR #322, covering source-ingestion failures in
+[#308](https://github.com/damiancxliew/CS3216_Assignment3/issues/308), the agreed splash-image
+workflow, and walking-sprite review/replacement in
+[#323](https://github.com/damiancxliew/CS3216_Assignment3/issues/323). Extend the gallery merged
+in [#316](https://github.com/damiancxliew/CS3216_Assignment3/pull/316). Keep #323 open until its
+implementation and verification are complete.
 
-Address source-ingestion failures from #308 and extend the adventure-wide asset inventory merged in [PR #316](https://github.com/damiancxliew/CS3216_Assignment3/pull/316) into a place to review, upload, replace and generate adventure images. Cover stage-opening images and character portraits, including stance variants, using curated resources, teacher uploads, direct UN image links and optional AI generation.
+## Outcome and boundaries
 
-Agreed defaults:
+Use one **Assets** tab with three sections:
 
-- New adventures start with neutral splash screens and sourced-image suggestions.
-- Teachers approve image choices before publication.
-- Teachers can upload their own images, including images outside the curated catalog.
-- “Generate with AI” remains available as an explicit action.
-- UN images load directly from their hosted URLs, with permission or an applicable reuse basis recorded.
-- Selecting an image does not automatically add it as historical evidence.
+| Section | Slots | Actions |
+| --- | --- | --- |
+| Stage openings | Every stage, including missing images | Find image, upload, generate with AI, select, remove |
+| Character portraits | Every character/stance portrait, including inherited versions | Find image, upload, generate with AI, select, remove |
+| Walking sprites | Player and every character, even when actors share a sheet | Choose bundled sprite, upload sheet, generate with AI, select, reset to default |
 
-## 1. Adventure asset review and curated resources
+Selections are unsaved edits until **Save**. Save commits story and asset edits together;
+**Publish** remains separate. Candidate creation, loading retries and background jobs never
+replace a selection automatically. Selecting an asset does not make it historical evidence.
 
-### Extend the merged asset inventory
+New stage openings are neutral until a teacher chooses an image. Untouched initial portrait
+generation continues. Walking sprites retain existing bundled defaults unless changed.
+Sprites belong to the player or character, independently of stage, portrait and conversation
+stance. Ambient crowds, animals, terrain tiles and audio customization are outside this work.
+Full upload-informed factual query planning/post-skeleton searches (#282) and later factual
+source uploads (#307) remain follow-ups.
 
-PR #316 is merged into `main`. Reuse its `reviewAssets` inventory and existing Generated assets tab, renaming the tab **Assets** because it will also include uploaded and externally sourced images. Extend the merged implementation without duplicating its gallery or importing unrelated chat/editor work.
+## Shared contracts and persistence
 
-- Show every stage-opening image and character portrait slot for the adventure, including every major-character stance and inherited portrait version. Keep missing slots visible so teachers can fill them.
-- Group by **Stage openings** and **Character portraits**, with filters for stage/character, image origin and availability. Each entry shows the actual image, where it is used, saved asset version, source/credit, selected or candidate status, and loading/pending/failed state.
-- Allow full-image inspection and playback preview. Existing shared map sprites, tiles and audio remain shared runtime resources; this change adds upload/replacement controls for adventure image slots, not a tileset, sprite-sheet or audio editor.
-- Put **Find an image**, **Upload**, **Generate with AI**, **Use image**, **Replace** and **Remove** on the relevant image slot. Portrait controls target a specific character/stance; changes must not silently replace every stance or another character. Removing a portrait restores the existing initials fallback.
-- Keep draft selections separate from the currently saved/published image and from unselected candidates. Preview pending selections before Save. Preserve unsaved story and asset edits across tab switches; Save and Publish remain explicit.
-- Keep **Retry loading** separate from **Generate new image**. Loading failures and gallery visits never trigger paid generation. Pending or completed jobs cannot overwrite a teacher's later choice.
-- Contextual image controls in a stage or character editor open the same Assets workspace at the matching slot, using the same inventory and selection service.
+### Resource registry
 
-### Curated resource registry
+Commit server-side provider IDs, labels, capabilities, approved record/image hosts and reuse
+handling. Factual discovery uses existing OpenAI web search followed by the application's
+DNS-pinned fetcher and HTML/PDF extraction. Preserve factual-domain defaults, NAS/NLB priority
+and teacher policy; add approved UN information hosts. Image discovery uses provider APIs:
 
-Add a server-side resource registry that distinguishes factual-source discovery from image discovery and reuse. Keep OpenAI web search for factual URL discovery, followed by our own pinned fetch and HTML/PDF extraction. Use our own Commons/LOC API adapters for image search and metadata; registry entries define provider capabilities, approved hosts and reuse handling. UN images use teacher-supplied hosted URLs and recorded reuse permission/basis.
+- Commons: documented search and [image metadata API](https://www.mediawiki.org/wiki/API:Imageinfo).
+  Validate responses and sanitize HTML credits/descriptions. Use an identifiable client for
+  provider requests, following [API etiquette](https://www.mediawiki.org/wiki/API:Etiquette).
+- LOC: documented [JSON API](https://www.loc.gov/apis/json-and-yaml/), starting with vetted
+  collections and [Free to Use and Reuse](https://www.loc.gov/free-to-use/) resources. Item-level
+  reuse checks still apply. LOC is supplemental; its failures never block uploads or Commons.
+- UN: teachers supply hosted image URL, original record link, credit and permission/reuse basis.
+  No bulk photo harvesting. The [UN usage terms](https://dam.media.un.org/CMS4/Brand/Root/)
+  require particular care; external hosting does not establish permission.
+- Walking sprites: the existing bundled character catalog supplies defaults. Commons/LOC
+  photographs are never offered as walking sheets. Existing shared pack files are never overwritten.
 
-| Resource | Initial support |
-|---|---|
-| Wikimedia Commons | Search images and retrieve file-level provenance, credits and licensing through its [documented metadata API](https://www.mediawiki.org/wiki/API:Imageinfo). |
-| Library of Congress | Search vetted collections and inspect item-level rights. Treat it as supplemental: its documented API returned 403 during investigation. Use [Free to Use and Reuse collections](https://www.loc.gov/free-to-use/) as the starting collection set. |
-| UN | Discover relevant factual documents; offer UN Photo record links and teacher-supplied direct image URLs with recorded reuse permission or basis. |
-| NAS and NLB | Prioritize relevant historical information and link to archival records. Image availability alone does not make an image eligible for reuse. |
+Registry capabilities never override a teacher's factual-source policy.
 
-Within the Assets workspace, each stage has an **Opening image** panel with **Find an image**, **Upload**, **Generate with AI**, and **No image**. Character/stance portrait slots reuse the same source selection, upload, attribution and candidate-review workflow. Use the existing portrait framing for AI portrait generation; neutral openings remain the default for new stages, while existing automatic portrait-generation behavior is preserved until a teacher explicitly overrides a slot.
+### Candidates
 
-- Suggestions use the episode, stage title and public time/place; portrait searches also use the character name and historical identity. Return up to six candidates per request, with pagination, provider labels, dates, credits and source links.
-- A teacher can adjust the search and preview the image with the opening text before selecting it. No candidate is selected automatically.
-- Treat missing or ambiguous rights metadata as ineligible for catalog selection. Initially accept explicit public-domain/CC0 records and CC BY/CC BY-SA records with the required attribution and licence links.
-- Preserve sourced and uploaded images’ aspect ratios using the existing cinematic image presentation. Keep AI artwork’s existing cinematic background treatment.
-- Require caption and alternative text. Preserve provider credits separately from teacher-editable captions.
-- Allow publication with a neutral opening. Missing images and provider outages must not block publication.
+Add `adventure_media_v3` with candidate ID, adventure, creator, timestamps, stable target kind/key,
+origin (`upload`, `commons`, `loc`, `un`, `ai`), pending/ready/failed state and failure information.
+Store immutable storage reference or external UN URL, dimensions, format, caption, alternative
+text, credit, original source and licence metadata, and sprite layout when applicable. Keep
+UN permission/reuse confirmation, confirming user and timestamp private. Pin AI source spec
+versions and retain cost, including rejected-generation cost.
 
-## 2. Uploads, UN links and AI generation
+Use staff authorization and server-controlled writes. Each request has an idempotency key and
+input hash; reusing a key with different input conflicts. A candidate has no global selected flag.
+Only its selected public presentation snapshot is delivered to student playback.
 
-**Teacher uploads**
+### Versioned selection
 
-- Accept arbitrary teacher-chosen JPEG, PNG and WebP images; catalog membership is not required.
-- Limit uploads to 10 MB and 40 megapixels. Validate the decoded image, remove embedded metadata, apply its orientation and resize within 2560 × 2560 without cropping.
-- Store the normalized image through the existing S3/Supabase asset abstraction, using an immutable asset key.
-- Record teacher-supplied caption, alt text and optional source/credit. Do not infer that an upload is an authentic historical photograph.
+Add optional maps under `authoring`:
 
-**UN links**
+| Map | Key | Selection |
+| --- | --- | --- |
+| `stageImages` | Stable stage ID | Explicit fallback or immutable candidate snapshot; legacy artwork captured by stage ID |
+| `portraitImages` | Existing character/stance portrait key | Explicit fallback or immutable candidate snapshot; overrides inherited portraits |
+| `walkingSprites` | `player` or `character:<characterId>` | Bundled ID or custom-sheet snapshot, with actor-appropriate bundled fallback |
 
-- Accept an HTTPS image URL on a configured UN-owned host, plus its original record URL and required credit.
-- Record the teacher’s permission reference or applicable reuse basis, confirming user and timestamp.
-- Load the image directly in the browser, without server image optimization, proxying, downloading or caching. Do not bulk-harvest UN photo metadata.
-- Keep a source link and neutral fallback when the image cannot load. External hosting does not guarantee continued availability or bypass the [UN Photo usage terms](https://dam.media.un.org/CMS4/Brand/Root/).
+Add dedicated `stageImage`, `portraitImage` and `walkingSprite` editing commands. During optimistic
+version Save, resolve candidate IDs, ownership, readiness and target compatibility on the server.
+Generic edits cannot fabricate URLs, licences or sprite selections. Preserve media metadata during
+story edits and AI repair, outside model-authored generation output.
 
-**AI generation**
+Share resolution between inventory, preview and student playback. Pass presentation descriptors
+into existing components and actor `sprite`/`spriteSheetUrl` fields without changing gameplay,
+movement or collision. Record resolved bundled IDs on explicit bundled selection or reset so
+publications remain stable if a later draft changes character descriptions.
 
-- Generate replacement candidates only when requested, using the existing public-stage framing for opening images or the existing character/stance framing for portraits and the existing image service. Preserve initial portrait generation for untouched slots.
-- Show the result as a candidate; the teacher must choose **Use image**.
-- Label selected AI images **AI-generated illustration**.
-- Keep the current selection while generation is pending or fails. Regeneration produces a separate candidate and cannot overwrite an approved image.
+## Ordered implementation slices
 
-## 3. Contracts, persistence and publication
+### 1. Recover downloads and PDF extraction
 
-Extend existing composition and versioning patterns rather than creating a separate publishing system.
+Return bounded bytes and response metadata before choosing an extractor. Preserve DNS pinning,
+public-address checks and per-redirect policy validation. Support HTML/plain text and PDFs using
+the existing extractor, keeping numbered citation pages. Retain the 2 MB HTML limit and 15 MB PDF
+limit, page limits and extracted-text limits.
 
-- Add optional `authoring.stageImages`, keyed by stable stage ID, and `authoring.portraitImages`, keyed by the existing character/stance portrait key. Reuse a shared selection shape containing an explicit fallback choice or a snapshot of the selected image’s origin, location, caption, alt text, credit, source and reuse information. Explicit portrait selections take precedence over `portraitVersions`; untouched slots retain existing inherited-version resolution.
-- Add an `adventure_media_v3` table for candidate ownership, target image slot, immutable asset references, provider metadata, UN permission records and pending/ready/failed generation state. Apply existing staff-access rules; students receive only selected metadata from their attempt’s version.
-- Add typed staff actions for image search, upload, UN-link registration, AI generation and generation-status polling. Candidate creation uses an idempotency key to prevent duplicate submissions.
-- Add dedicated `stageImage` and `portraitImage` editing commands backed by the same selection service. Resolve media IDs and target slots against server-owned candidate records during the existing optimistic-version save; generic editing commands cannot fabricate asset URLs or provider rights. Extend the merged asset inventory to resolve explicit selections first, preserving correct legacy URLs and inherited versions.
-- Run image-generation requests as separate jobs using the existing runner. Jobs return candidates and never update the selected image themselves.
-- Preview reads the current draft selection. Student playback reads the selection from the attempt’s pinned published version. Replacing or removing an image creates a new draft version.
-- Retain assets referenced by older publications and attempts.
-- Existing specs without `stageImages` retain their legacy artwork. On first edit, preserve those image references by stage ID before applying structural changes. New adventures receive explicit neutral selections and no automatic stage-art job.
+Distinguish empty responses, genuinely short text, malformed PDFs, scanned PDFs without a text
+layer, unsupported content and HTTP failures. Retry empty responses, timeouts, 429 and transient
+5xx responses once within the remaining budget; do not retry permanent 403/404. Enforce a
+240-second source pass, at most 180 seconds for search with 60 seconds reserved for retrieval
+and extraction, and keep the per-fetch timeout. Target five accepted sources from at most fifteen
+candidates, fetching no more than three concurrently and replacing failed candidates with later hits.
 
-## 4. Repair factual-source ingestion
+Investigate NLB from the same deployed worker: compare pinned fetch and curl for identical URLs,
+recording request headers, redirects, response headers/status, bytes and timing. Earlier investigation
+reported empty HTTP 202 from pinned fetch and extractable HTML from a separate curl request; that
+alone does not establish a deployed-worker fix. Apply a header/client adjustment only after proving
+its benefit while retaining DNS pinning. Otherwise mark NLB unavailable and continue alternatives.
+Never lower the text threshold or bypass an upstream challenge.
 
-Implement this as a separate workstream from image selection.
+Acceptance: valid PDF retains numbered pages; transient empty response recovers; later candidates
+succeed after earlier failures. PDF extraction is not a fix for upstream permission denial.
 
-- Separate the accepted-source target from the candidate budget: default to five accepted sources from at most fifteen candidates, fetching three concurrently. Continue to later candidates when earlier ones fail.
-- Support PDFs through the existing extractor, retaining page-level citations. Preserve the 2 MB HTML limit and use the existing PDF byte, page and extracted-text limits. Distinguish scanned PDFs without a text layer.
-- Investigate the NLB discrepancy explicitly: the application's pinned fetch received HTTP 202 with an empty body, while a separate `curl` request retrieved extractable HTML from the same URL. Compare both clients from the same deployed worker, recording request headers, redirect chains, response headers/status, body size and timing. Check client-dependent and intermittent upstream behavior before choosing a fix; keep DNS pinning and do not lower the text-length threshold to admit empty content.
-- Preserve DNS pinning, public-address checks and redirect-policy checks.
-- Retry empty/transient responses once within the source pass’s 240-second budget. Retain the per-fetch timeout; do not retry permanent permission failures or introduce challenge-bypass behavior.
-- Record candidate stage, HTTP status, content type, response size, extracted length and rejection reason. Report empty successful responses separately from genuinely short content.
-- Extend `SourcesOutput` additively with diagnostics and summary counts while preserving its existing accepted-document and rejection fields.
-- Include approved UN information domains in the factual-source registry. NAS/NLB remain prioritized. Provider capabilities never override the teacher’s source policy.
-- Replace “Not used” with collapsed **Couldn’t import N sources** details. Distinguish no search results, policy rejection, access failure, unsupported content and extraction failure.
-- Add **Retry search** at the guided source-review pause. Run it as a separate request job, preserve existing accepted sources and deselections, deduplicate additions, and prevent continuation while that request is importing results.
+### 2. Source outcomes and retry
 
-Full upload-informed query planning and post-skeleton searches (#282), and additional factual-document uploads at later review pauses (#307), remain follow-up work.
+Extend `SourcesOutput` additively with summary counts and candidate diagnostics, preserving existing
+accepted documents and rejection fields. Track candidate stage, HTTP status, content type, byte
+count, extracted length and reason. Replace “Not used” with collapsed **Couldn't import N sources**
+details. Separate no search results, policy rejection, access failure and extraction failure.
 
-## 5. Verification and delivery
+Add source-search run records with requester, idempotency key, input hash, state, diagnostics, usage
+and results. Explicit Retry at the guided source-review pause uses the existing job runner. Retry
+and Continue serialize on the adventure row; Continue fails while an import is active. Append
+sources with deduplication, never removing accepted evidence. Persist teacher deselections through
+retry and reload. Include retry usage in generation totals. Failed terminal jobs must release the
+active-import lock.
 
-Deliver in three verifiable slices: ingestion recovery; extend the merged Assets inventory with stage/portrait uploads and versioned selection; then curated suggestions, UN embedding and explicit AI replacement generation.
+Acceptance: Retry adds evidence to the same adventure, preserves deselections, and passes accepted,
+selected material, URL/provenance and citation pages to skeleton generation.
 
-Acceptance checks:
+### 3. Ordinary-image upload and selection
 
-- Reproduce the reported empty NLB responses and PDF failures with controlled fixtures. Verify HTML, text PDFs, scanned PDFs, blocked responses and successful later candidates.
-- Include an NLB fixture that first returns an empty HTTP 202 response, then usable HTML, plus a persistent-empty case. Separately compare live pinned-fetch and `curl` results under the same worker conditions and record whether recovery is verified or the site still requires a fallback source. For PDFs, verify successful extraction into numbered pages as well as no-text-layer, malformed, oversized and HTTP 403 outcomes; PDF support must not be reported as a fix for upstream access denial.
-- Prove an accepted outside source is persisted and passed to subsequent generation with its URL, provenance and citation pages.
-- Exercise the adventure-wide Assets workspace, image search, upload, selection, replacement, removal, AI failure/retry and UN direct embedding for stage openings and character/stance portraits. Verify UN image bytes never enter application storage.
-- Test invalid uploads, missing rights metadata, untrusted URLs, cross-adventure candidate access, duplicate requests and concurrent saves.
-- Verify reload persistence, published-version isolation, resumed attempts, stable stage/portrait keys and legacy artwork compatibility. Extend PR #316 inventory tests to cover every stance, inherited portrait versions, explicit overrides, missing slots and genuine pending/failed states. Confirm asset-tab switching preserves unsaved story/image changes and a late job cannot replace a selected upload.
-- Check desktop/mobile openings, keyboard controls, captions, credits, alt text and broken-image fallbacks in a real browser.
-- Repeat live Commons, LOC and representative source-fetch checks from the deployed worker environment. Record provider failures explicitly; the current Commons metadata check succeeded, while LOC returned 403.
-- Run relevant source, generation, schema, editing, publication and cinematic tests plus typechecks. Record source acceptance/rejection counts, provider failures and image-job outcomes for rollout diagnosis.
+Deliver candidate persistence, selection metadata, commands and resolvers together. Accept arbitrary
+JPEG, PNG and WebP uploads, up to 10 MB and 40 megapixels. Decode, apply orientation, remove metadata,
+and resize within 2560 × 2560 without cropping. Store normalized WebP under an immutable candidate
+key. Require caption and alternative text, with optional teacher credit/source. Do not imply that an
+upload is an authentic historical photograph.
+
+Upload returns a ready candidate without changing the spec. **Use image** adds a local edit. Save
+commits image and story changes together. Explicit portrait choices override inherited versions;
+removal restores initials. Acceptance: upload → select → Save → reload → preview works, with older
+publications retaining their image.
+
+### 4. Unified Assets workspace
+
+Reuse `reviewAssets` and the merged gallery; rename **Generated assets** to **Assets**. Show every
+slot once, including missing slots, owner/use, origin/credit, saved version, default/override and
+loading/job state. Distinguish saved selections, unsaved selections and unselected candidates.
+Filter by stage/character, origin and availability. Preserve story and asset edits across tabs.
+Contextual stage/character controls open the same asset workspace at the appropriate slot.
+
+Use playback's saved-version resolution, including inherited portraits and existing artwork.
+Separate **Retry loading** from paid generation. Preserve sourced/uploaded aspect ratios in cinematic
+presentation, retain AI cinematic treatment, and show credits, alternative text and neutral failures.
+Neutral openings and provider outages must not block publication.
+
+Acceptance: every slot appears once, saved labels agree with playback and tab switching preserves edits.
+
+### 5. Walking sprites in inventory and map
+
+Use one `resolveWalkingSprites` function in both inventory and gameplay. Include player and every
+character, even when they share a bundled sheet. Explicit selections win; absent maps retain
+`PLAYER_CHARACTER`/`characterFor`. Preserve authored standalone-scene sheets. Pass chosen IDs/custom
+URLs into existing actor fields and use an actor-appropriate bundled fallback on custom-image failure.
+Keep selections character-level across stages and stances. Never overwrite bundled files. Store
+resolved bundled IDs for explicit selection/reset.
+
+Acceptance: gallery and actual map agree; portrait/stance changes cannot change a saved walking sprite.
+
+### 6. Sprite uploads and animated review
+
+Keep this pipeline separate from ordinary image normalization. Accept one static PNG/WebP, up to
+10 MB, square 64 × 64 through 2048 × 2048, dimensions divisible by four. Require an alpha channel,
+visible content and transparent background pixels in every cell. Decode and re-encode lossless PNG
+without changing dimensions, cropping, rotating or moving cells.
+
+Renderer contract:
+
+- Columns: down, up, left, right.
+- Rows: four animation frames; animation index `row * 4 + directionColumn`.
+- Walking review: eight frames per second.
+- Idle review: row zero for the selected direction.
+
+Show four labelled previews, Play/Pause and full sheet. Respect reduced motion. Structural checks
+cannot prove drawing orientation: require teacher review of the labelled frames before selection.
+Provide bundled choice, upload and actor-specific reset. Acceptance: upload animates correctly in
+gallery and actual map after Save/reload; malformed sheets receive actionable feedback.
+
+### 7. Curated images and external UN links
+
+Return up to six candidates per page with provider/item IDs, thumbnails, dates, dimensions, credits,
+record links and reuse metadata. Seed search with public stage framing or character identity and let
+teachers edit it. Offer explicit public-domain/CC0 and supported CC BY/CC BY-SA records, preserving
+attribution and licence links; reject ambiguous rights. Re-fetch metadata by provider/item ID before
+import. Download eligible images through the guarded fetcher and create ready candidates. A failure
+in one provider must not block uploads or other providers.
+
+For UN, require HTTPS on configured UN-owned image/record hosts, original record, credit, and private
+permission/reuse confirmation. Create an external candidate without downloading its image bytes.
+Render directly with image optimization/proxying disabled, original source link and fallback.
+
+Acceptance: Commons import retains attribution; UN image bytes never enter application storage.
+
+### 8. Complete AI candidate jobs
+
+Use the existing job runner and image service for stage openings, portraits and walking sprites.
+Pin source spec version, deduplicate retries and write immutable candidate objects. Require explicit
+selection; a job never changes a selected asset. Label AI images **AI-generated illustration**.
+Stop automatic stage-art jobs for new adventures, preserving untouched initial portrait generation
+and compatibility with legacy queued artwork jobs.
+
+For walking sheets invoke `kind: "sprite"`, using the existing pose reference and strict generated
+pose/layout checks plus sprite normalization. Build the prompt from public identity/role and the
+teacher's appearance description. Validate normalized output with the upload validator. Retain
+rejected cost and actionable failure information; failed sheets are never selectable.
+
+Acceptance: every authoring action creates a reviewable candidate and late results cannot overwrite
+later uploads/selections.
+
+## Compatibility, acceptance and delivery
+
+Before structural edits, capture legacy positional stage artwork under stable stage IDs. Optional
+maps must preserve inherited portrait resolution and bundled defaults. Stage/character removal
+prunes selections only in the new draft; assets referenced by older versions/attempts remain retained.
+Preview uses draft selections; student attempts use their pinned publication. Republishing must not
+change earlier release links or resumed attempts.
+
+Required checks:
+
+| Area | Acceptance checks |
+| --- | --- |
+| Sources | Empty 202 then success; persistent empty; 403; rejected redirect; HTML; valid, scanned, malformed and oversized PDFs; successful later candidates |
+| Persistence | Staff access; cross-adventure IDs; target mismatch; idempotency; Retry/Continue contention; stale saves; private permission metadata |
+| Images | Every stance; inherited versions; missing slots; invalid uploads; credit; selection/removal; late generation |
+| Sprites | Player and all characters; duplicate defaults; direction/frame order and idle; bad dimensions; blank/opaque cells; portrait rejection; portrait/stance independence |
+| Actual map | Chosen bundled/custom sheets in four directions; idle; broken-sheet fallback; replacement/reload; movement/collision unchanged |
+| Publication | Draft changes; republish; previous release links; resumed attempts retain assets |
+| Browser | Desktop/mobile; keyboard; reduced motion; unsaved edits across tabs; loading/failure and preview states |
+
+Run affected generation, schema, API, publication and inventory tests; extend sprite-normalization
+and editor browser tests. Run game-client checks/browser suite if rendering changes are necessary.
+Repeat Commons/LOC and NLB checks from the deployed worker, recording failures explicitly. Report
+fixture success separately from live providers and local-environment checks.
+
+Delivery order: additive migrations → compatible readers → source retry → candidate/versioned image
+uploads → unified workspace → walking sprites/bundled choices/uploads → curated/UN images → all AI
+jobs → publication/compatibility/browser verification. Do not close #323 until verification is complete.
+
+Implementation evidence and remaining deployment checks are recorded in
+[the verification report](../verification/reliable-sources-and-assets.md).
