@@ -198,7 +198,7 @@ describe('runSources', () => {
     expect(search.requests[0]).toMatchObject({
       query: 'Singapore in 1819',
       allowedDomains: [...DEFAULT_ALLOWED_DOMAINS],
-      maxResults: 5,
+      maxResults: 15,
     })
     expect(calls).toEqual(['https://www.nas.gov.sg/archive/record'])
     expect(result.sources).toHaveLength(1)
@@ -310,7 +310,7 @@ describe('runSources', () => {
     expect(calls).toEqual(['https://nas.gov.sg/records/1', 'https://nas.gov.sg/records/1'])
     expect(first).toEqual(second)
     expect(first.sources).toHaveLength(1)
-    expect(search.requests[0]?.maxResults).toBe(8)
+    expect(search.requests[0]?.maxResults).toBe(15)
   })
 
   it('rejects allowAny hosts with a private DNS answer before fetching', async () => {

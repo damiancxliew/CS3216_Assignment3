@@ -1,4 +1,5 @@
 "use client";
+import type { ResolvedImage } from "@/lib/v3/media/resolvers";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
@@ -37,6 +38,7 @@ export function V3PlayClient({
   initialRevision,
   portraitBase = null,
   stageArtBase = null,
+  stageImages,
   backdrop = null,
   makeClient,
   headerActions,
@@ -52,6 +54,7 @@ export function V3PlayClient({
   initialRevision: number;
   portraitBase?: PortraitBase;
   stageArtBase?: string | null;
+  stageImages?: ResolvedImage[];
   backdrop?: V3MapBackdrop | null;
   makeClient?: () => PlayClient;
   headerActions?: ReactNode;
@@ -189,7 +192,8 @@ export function V3PlayClient({
         {introReplayOpen && cinematics ? <V3Cinematic artUrl={null} beats={cinematics.stages[view.stage.index]} beginLabel="Back to the map" dialogLabel="Stage introduction" onBegin={() => setIntroReplayOpen(false)} onClose={() => setIntroReplayOpen(false)} muted={muted} onToggleMuted={toggleMuted} /> : null}
         {roleBriefOpen ? (
           <V3Cinematic
-            artUrl={stageArtUrl(stageArtBase, 0)}
+            artUrl={stageImages ? stageImages[0]?.url ?? null : stageArtUrl(stageArtBase, 0)}
+            artMetadata={stageImages?.[0]?.metadata}
             beats={cinematics?.briefing ?? briefingBeats(view.briefing)}
             beginLabel="Back to the map"
             onBegin={() => setRoleBriefOpen(false)}
@@ -216,7 +220,8 @@ export function V3PlayClient({
       {view.phase === "briefing" ? (
         <V3Cinematic
           key="briefing"
-          artUrl={stageArtUrl(stageArtBase, 0)}
+          artUrl={stageImages ? stageImages[0]?.url ?? null : stageArtUrl(stageArtBase, 0)}
+            artMetadata={stageImages?.[0]?.metadata}
           beats={cinematics?.briefing ?? briefingBeats(view.briefing, view.stage?.index === 0 ? view.stage : undefined)}
           beginLabel={BRIEFING_BEGIN_LABEL}
           onBegin={() => { if (!busy) send({ type: "continue" }); }}
@@ -226,7 +231,8 @@ export function V3PlayClient({
       ) : view.phase === "stage" && view.stage?.intro ? (
         <V3Cinematic
           key={`stage-intro-${view.stage.index}`}
-          artUrl={stageArtUrl(stageArtBase, view.stage.index)}
+          artUrl={stageImages ? stageImages[view.stage.index]?.url ?? null : stageArtUrl(stageArtBase, view.stage.index)}
+          artMetadata={stageImages?.[view.stage.index]?.metadata}
           beats={cinematics ? [...stageIntroBeats(view.stage).filter((beat) => beat.id === "what-happened"), ...cinematics.stages[view.stage.index]] : stageIntroBeats(view.stage)}
           beginLabel={STAGE_INTRO_BEGIN_LABEL}
           onBegin={() => { if (!busy) send({ type: "continue" }); }}

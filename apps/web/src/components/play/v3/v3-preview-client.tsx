@@ -1,4 +1,5 @@
 "use client";
+import type { ResolvedImage } from "@/lib/v3/media/resolvers";
 
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
@@ -11,7 +12,9 @@ import styles from "@/components/play/adventure-chrome.module.css";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { createV3PreviewClient } from "@/lib/play/v3/preview-client";
 
-export function V3PreviewHeaderActions({ adventureId }: { adventureId: string }) {
+export function V3PreviewHeaderActions({ adventureId,
+}: { adventureId: string;
+}) {
   const actionClass = `${styles.tool} inline-flex min-h-9 items-center justify-center gap-2 px-2.5 py-1 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffe0a2]`;
 
   return (
@@ -44,6 +47,7 @@ export function V3PreviewClient({
   initialView,
   portraitBase,
   stageArtBase,
+  stageImages,
 }: {
   adventureId: string;
   initialToken: string;
@@ -51,6 +55,7 @@ export function V3PreviewClient({
   initialView: PlayerView;
   portraitBase?: PortraitBase;
   stageArtBase?: string | null;
+  stageImages?: ResolvedImage[];
 }) {
   const makeClient = useCallback(
     () => createV3PreviewClient(adventureId, initialToken, initialView),
@@ -62,6 +67,7 @@ export function V3PreviewClient({
       scenery={scenery}
       portraitBase={portraitBase}
       stageArtBase={stageArtBase}
+      stageImages={stageImages}
       attemptId={`preview-${adventureId}`}
       initialRevision={0}
       initialView={initialView}

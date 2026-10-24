@@ -2,6 +2,12 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { reviewAssets } from "@/lib/v3/review-assets";
+import {
+  preserveLegacyStageImages,
+  type ReadyCandidate,
+} from "@/lib/v3/media/resolvers";
+import type { MediaCandidate } from "@/lib/v3/media/repository";
 import type { ReviewAsset } from "@/lib/v3/review-assets";
 import { GeneratedAssets } from "./generated-assets";
 import { newLocalErrors } from "@/lib/v3/edit/local-checks";
@@ -46,9 +52,19 @@ export function EditorWorkspace(props: Props) {
   const [publishedVersion, setPublishedVersion] = useState(
     props.publishedVersion,
   );
+  const legacyStages = Object.fromEntries(
+    (props.assets?.items ?? [])
+      .filter((asset) => asset.kind === "stage")
+      .map((asset) => [asset.id, asset.url]),
+  );
+  const preserveStages = (spec: Spec) =>
+    preserveLegacyStageImages(spec, props.adventureId, version, legacyStages);
   const [saved, setSaved] = useState(props.initial);
   const [draft, setDraft] = useState(props.initial);
   const [version, setVersion] = useState(props.initialVersion);
+  const [mediaCandidates, setMediaCandidates] = useState<
+    Record<string, ReadyCandidate>
+  >({});
   const [edits, setEdits] = useState<V3Edit[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [pending, setPending] = useState(false);
@@ -68,7 +84,8 @@ export function EditorWorkspace(props: Props) {
     const current = checkSpec(parsed.spec);
     return {
       ...current,
-      errors: [...current.errors, ...(!parsed.spec.authoring && dirty ? newLocalErrors(saved, draft) : [])],
+      errors: [...current.errors, ...(!parsed.spec.authoring && dirty ? newLocalErrors(saved, draft) : []),
+      ],
     };
   }, [draft, saved, dirty]);
   // Generation obligations remain visible locally; authoritative Save replaces this list.
@@ -89,21 +106,54 @@ export function EditorWorkspace(props: Props) {
     apply: (proposal) => {
       if (proposal.pass !== "draft" || pending) return;
       try {
-        setDraft(applyV3Edits(saved, proposal.edits, props.capturedSources, true));
+        setDraft(
+          applyV3Edits(
+            preserveStages(saved),
+            proposal.edits,
+            props.capturedSources,
+            true,
+            { candidates: mediaCandidates },
+          ),
+        );
         setEdits(proposal.edits);
         setEditMode(true);
         setMessage("Suggested changes applied. Save when you’re ready.");
         setFailure(false);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Could not apply suggestion.");
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not apply suggestion.",
+        );
         setFailure(true);
       }
     },
   });
-  const edit = (command: V3Edit) => {
+  const edit = (command: V3Edit, candidate?: MediaCandidate) => {
     if (pending) return;
     try {
-      setDraft(applyV3Edits(draft, [command], props.capturedSources, true));
+      const candidates = candidate?.snapshot
+        ? {
+            ...mediaCandidates,
+            [candidate.id]: {
+              id: candidate.id,
+              adventureId: props.adventureId,
+              target: candidate.target,
+              snapshot: candidate.snapshot,
+            },
+          }
+        : mediaCandidates;
+      setDraft(
+        applyV3Edits(
+          preserveStages(draft),
+          [command],
+          props.capturedSources,
+          true,
+          { candidates },
+        ),
+      );
+      setMediaCandidates(candidates);
+      setEditMode(true);
       setEdits([...edits, command]);
       setMessage("");
     } catch (error) {
@@ -150,20 +200,34 @@ export function EditorWorkspace(props: Props) {
   return (
     <>
       <ReviewScreen
-        assets={props.assets && props.assets.version !== version ? (
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold">Generated assets</h2>
-            <p className="text-sm text-muted">Reload assets for saved version {version}.</p>
-            <button type="button" className={button.quiet} onClick={() => router.refresh()}>Refresh assets</button>
-          </section>
-        ) : <GeneratedAssets key={version} assets={props.assets?.items ?? []} version={version} />}
+        assets={
+          <GeneratedAssets
+            assets={reviewAssets(
+              draft,
+              props.adventureId,
+              version,
+              props.assets?.items,
+            )}
+            savedAssets={reviewAssets(
+              saved,
+              props.adventureId,
+              version,
+              props.assets?.items,
+            )}
+            version={version}
+            adventureId={props.adventureId}
+            onEdit={edit}
+          />
+        }
         sidebar={editMode ? <EditorConversation /> : undefined}
         floatingChecks
         issueActions={
           <AiFixPanel<{ edits: V3Edit[] }>
             floating={false}
             inToolbar
-            hasIssues={errors.length + props.warnings.length + checks.warnings.length > 0}
+            hasIssues={
+              errors.length + props.warnings.length + checks.warnings.length > 0
+            }
             revision={`${version}:${JSON.stringify(edits)}`}
             disabled={pending}
             request={() =>
@@ -173,10 +237,11 @@ export function EditorWorkspace(props: Props) {
               try {
                 setDraft(
                   applyV3Edits(
-                    saved,
+                    preserveStages(saved),
                     proposal.edits,
                     props.capturedSources,
                     true,
+                    { candidates: mediaCandidates },
                   ),
                 );
                 setEdits(proposal.edits);

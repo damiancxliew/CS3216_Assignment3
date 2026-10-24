@@ -1,4 +1,5 @@
 "use client";
+import { compactButton as button } from "@/components/ui";
 
 import React, {
   useLayoutEffect,
@@ -239,9 +240,13 @@ export function ReviewScreen({
 }) {
   const visibleTabs: { id: ScreenTab; label: string }[] = [
     ...tabs.filter((t) => !allowedTabs || allowedTabs.includes(t.id)),
-    ...(assets ? [{ id: "assets" as const, label: "Generated assets" }] : []),
+    ...(assets ? [{ id: "assets" as const, label: "Assets" }] : []),
   ];
   const [tab, setTab] = useState<ScreenTab>(allowedTabs?.[0] ?? "stages");
+  const openAsset = (id: string) => {
+    setTab("assets");
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "center" }));
+  };
   const [selection, setSelection] = useState<Record<ScreenTab, string>>(() => ({
     stages: spec.stages[0]?.id ?? "",
     characters: spec.characters[0]?.id ?? "",
@@ -558,6 +563,17 @@ export function ReviewScreen({
             </button>
           ))}
         </div>
+        {assets && (tab === "stages" || tab === "characters") ? <div className="flex flex-wrap gap-2">
+          <button type="button" className={button.subtle} onClick={() => openAsset(`asset-${tab === "stages" ? "stage" : "sprite"}-${tab === "stages" ? selected : `character:${selected}`}`)}>
+            Manage {tab === "stages" ? "opening image" : "walking sprite"}
+          </button>
+          {tab === "characters" ? <select aria-label="Manage portrait" className="rounded border border-line bg-surface px-3 py-2 text-sm" defaultValue="" onChange={event => { if (event.target.value) openAsset(`asset-portrait-${event.target.value}`); }}>
+            <option value="">Manage portrait…</option>
+            {spec.characters.filter(character => character.id === selected).flatMap(character => character.tier === "major"
+              ? character.stances.map(stance => <option key={stance.id} value={`${character.id}:${stance.id}`}>{stance.label}</option>)
+              : [<option key={character.id} value={character.id}>{character.name}</option>])}
+          </select> : null}
+        </div> : null}
         <div
           role="tabpanel"
           id="review-content"

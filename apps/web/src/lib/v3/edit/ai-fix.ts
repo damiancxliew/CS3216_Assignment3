@@ -1,3 +1,4 @@
+import type { MediaEditContext } from "../media/resolvers";
 import { z } from "zod";
 import { validateSkeleton, type AdventureSpec, type CheckIssue, type SkeletonShape } from "@adventure/spec-v3";
 import { DETAILS_MODEL } from "@adventure/generation/v3";
@@ -84,23 +85,23 @@ async function fix(deps: AiFixDeps, subject: string, user: string, initial: Chec
   return failure(remaining);
 }
 
-export async function proposeEditFix(deps: AiFixDeps, input: { base: AdventureSpec; edits: V3Edit[]; sources: CapturedSource[]; savedErrors?: CheckIssue[] }): Promise<AiFixResult> {
+export async function proposeEditFix(deps: AiFixDeps, input: { base: AdventureSpec; edits: V3Edit[]; sources: CapturedSource[]; savedErrors?: CheckIssue[]; media?: MediaEditContext }): Promise<AiFixResult> {
   const parsed = z.array(V3Edit).max(2000).safeParse(input.edits);
   if (!parsed.success) return failure(invalid(parsed.error));
   input = { ...input, edits: parsed.data };
-  const check = checkTeacherEdits(input.base, input.edits, input.sources, input.savedErrors);
+  const check = checkTeacherEdits(input.base, input.edits, input.sources, input.savedErrors, input.media);
   if (check.ok) return failure([], true);
   let after: unknown = null;
-  try { after = applyTeacherEdits(input.base, input.edits, input.sources); } catch { /* malformed commands remain visible in the prompt */ }
+  try { after = applyTeacherEdits(input.base, input.edits, input.sources, input.media); } catch { /* malformed commands remain visible in the prompt */ }
   const preserveEvidence = (proposal: V3Edit[]) => {
     const edits = [...proposal];
     input.edits.forEach((edit, index) => {
-      if (edit.type === "replaceExcerpt" || edit.type === "sourcePolicy") edits.splice(Math.min(index, edits.length), 0, edit);
+      if (edit.type === "replaceExcerpt" || edit.type === "sourcePolicy" || edit.type === "stageImage" || edit.type === "portraitImage" || edit.type === "walkingSprite") edits.splice(Math.min(index, edits.length), 0, edit);
     });
     return edits;
   };
-  const result = await fix(deps, "adventure", userMessage(input.base, after, input.edits, check.errors), check.errors, async edits => {
-    const checked = checkTeacherEdits(input.base, preserveEvidence(edits), input.sources, input.savedErrors);
+  const result = await fix(deps, "adventure", userMessage(input.base, after, input.edits.filter(edit => !["stageImage", "portraitImage", "walkingSprite"].includes(edit.type)), check.errors), check.errors, async edits => {
+    const checked = checkTeacherEdits(input.base, preserveEvidence(edits), input.sources, input.savedErrors, input.media);
     return checked.ok ? [] : checked.errors;
   });
   // The strict model schema cannot author excerpt selections or source policies.

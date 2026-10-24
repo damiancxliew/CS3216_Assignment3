@@ -1,3 +1,11 @@
+import {
+  preserveLegacyStageImages,
+  type MediaEditContext,
+} from "../media/resolvers";
+import {
+  resolveMediaCandidates,
+  type MediaRepository,
+} from "../media/repository";
 import { z } from "zod";
 import {
   validateSpec,
@@ -27,6 +35,7 @@ export type SaveV3Result =
   | { ok: false; code: "check-errors"; message: string; errors: CheckIssue[] };
 export interface V3EditDeps {
   store: V3PlayStore;
+  media?: MediaRepository;
   sources(id: string): Promise<CapturedSource[]>;
   queueStageArt(adventureId: string, version: number): Promise<void>;
   validationContext?: (
@@ -72,7 +81,34 @@ export async function saveAdventureEdits(
   const sources = await deps.sources(id);
   let spec: AdventureSpec;
   try {
-    spec = applyTeacherEdits(parsed.spec, commands.data, sources);
+    const candidateIds = commands.data.flatMap((command) =>
+      command.type === "stageImage" || command.type === "portraitImage"
+        ? command.candidateId
+          ? [command.candidateId]
+          : []
+        : command.type === "walkingSprite" &&
+            command.selection.kind === "candidate"
+          ? [command.selection.id]
+          : [],
+    );
+    if (candidateIds.length && !deps.media)
+      throw Error("Media candidates are unavailable.");
+    const media: MediaEditContext = {
+      candidates: deps.media
+        ? await resolveMediaCandidates(deps.media, id, candidateIds)
+        : {},
+    };
+    const edited = applyTeacherEdits(parsed.spec, commands.data, sources,
+      media,
+    );
+    spec = same(edited, parsed.spec)
+      ? edited
+      : applyTeacherEdits(
+          preserveLegacyStageImages(parsed.spec, id, expectedVersion),
+          commands.data,
+          sources,
+          media,
+        );
     if (!same(spec, parsed.spec)) {
       if (!spec.authoring?.validationContext && deps.validationContext) {
         const context = await deps.validationContext(id);
@@ -110,7 +146,8 @@ export async function saveAdventureEdits(
   }
   const generationErrors = await deps.store.loadCheckErrors(id);
   const added = introducedErrors(parsed.spec, spec, sources, generationErrors);
-  if (added.length) return { ok: false, code: "check-errors", message: "These edits add errors, so they weren't saved. Fix them or use Resolve issues.", errors: added };
+  if (added.length) return { ok: false, code: "check-errors", message: "These edits add errors, so they weren't saved. Fix them or use Resolve issues.", errors: added,
+    };
   const checks = validateEditedSpec(spec, sources, generationErrors);
   // An empty/no-op Save must not create metadata or a snapshot.
   if (!same(spec, parsed.spec))
@@ -124,12 +161,5 @@ export async function saveAdventureEdits(
         "This adventure changed while saving. Your local edits are still here. Reload to use the saved version.",
     };
   const version = saved.version!;
-  if (version !== expectedVersion) {
-    try {
-      await deps.queueStageArt(id, version);
-    } catch (error) {
-      console.error("Failed to queue v3 stage art", error);
-    }
-  }
   return { ok: true, spec, version, ...checks };
 }
