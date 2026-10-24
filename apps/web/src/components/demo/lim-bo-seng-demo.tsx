@@ -1,11 +1,12 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Archival originals remain uncropped in the source archive. */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen, Download, RotateCcw } from "lucide-react";
+import { BookOpen, Download, PenLine, RotateCcw } from "lucide-react";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import type { V3PlayClient as PlayClient } from "@/lib/play/v3/client";
 import { learningReportHtml } from "@/lib/demo/learning-report";
+import { restoreSourceTask, sourceTaskKey } from "@/lib/demo/inference-task";
 import { demoCinematics } from "@/lib/demo/cinematics";
 import { sources, sourceById } from "@/lib/demo/lim-bo-seng";
 import {
@@ -22,6 +23,7 @@ import "./historical-portraits.css";
 import { SourceQuestion, SourceFootnote, SourceRewards } from "./source-question";
 import { useChapterExperience } from "./chapter-experience";
 import { useWaterfrontExperience } from "./waterfront-experience";
+import { SourceInferenceTask } from "./source-inference-task";
 
 export function LimBoSengDemo() {
   const [boot, setBoot] = useState<{
@@ -58,6 +60,7 @@ export function LimBoSengDemo() {
     </>,
   });
   const [archive, setArchive] = useState(false);
+  const [sourceTask, setSourceTask] = useState(false);
   const [selectedSource, setSelectedSource] = useState("life");
   const [restart, setRestart] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -93,8 +96,14 @@ export function LimBoSengDemo() {
     setBoot(createBoot(state));
   }, [createBoot]);
   function download() {
+    let task = restoreSourceTask(null);
+    try {
+      task = restoreSourceTask(localStorage.getItem(sourceTaskKey(saveKey.current)));
+    } catch {
+      // The report still downloads without the source task if storage is blocked.
+    }
     const url = URL.createObjectURL(
-      new Blob([learningReportHtml(latest.current)], {
+      new Blob([learningReportHtml(latest.current, new Date(), task)], {
         type: "text/html;charset=utf-8",
       }),
     );
@@ -136,6 +145,14 @@ export function LimBoSengDemo() {
             </button>
             <button
               type="button"
+              className={`${chrome.tool} inline-flex min-h-9 items-center gap-2 px-2.5 text-sm font-semibold`}
+              onClick={() => setSourceTask(true)}
+            >
+              <PenLine size={16} />
+              <span className="hidden sm:inline">Source task</span>
+            </button>
+            <button
+              type="button"
               className={`${chrome.tool} inline-flex min-h-9 items-center px-2.5`}
               aria-label="Restart standalone demo"
               onClick={() => setRestart(true)}
@@ -145,12 +162,20 @@ export function LimBoSengDemo() {
           </>
         }
         revealFooter={
-          <button
-            className={`${chrome.primary} inline-flex items-center gap-2 px-4 py-3 font-bold`}
-            onClick={download}
-          >
-            <Download size={16} /> Download learning report
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              className={`${chrome.primary} inline-flex items-center gap-2 px-4 py-3 font-bold`}
+              onClick={() => setSourceTask(true)}
+            >
+              <PenLine size={16} /> Source task: write your inference
+            </button>
+            <button
+              className={`${chrome.tool} inline-flex items-center gap-2 px-4 py-3 font-bold`}
+              onClick={download}
+            >
+              <Download size={16} /> Download learning report
+            </button>
+          </div>
         }
       />
       {saveError && (
@@ -231,8 +256,9 @@ export function LimBoSengDemo() {
             </p>
             <p>
               <strong>Lesson timing:</strong> Allow 3 minutes for the brief,
-              20–25 for two chapters of exploration and discussion, and 5–7 for
-              the interview and debrief.
+              20–25 for two chapters of exploration and discussion, 5–7 for
+              the interview and debrief, and about 10 for the Source task
+              (answer, feedback, one revision).
             </p>
             <p>
               <strong>Historical framing:</strong> The named figures are
@@ -261,6 +287,17 @@ export function LimBoSengDemo() {
           </div>
         </V3ScrollDialog>
       )}
+      {sourceTask && (
+        <V3ScrollDialog
+          eyebrow="Standalone demo · Source skills"
+          title="Source D: what can you infer?"
+          footerText="AI-suggested marks · your teacher confirms"
+          closeLabel="Close source task"
+          onClose={() => setSourceTask(false)}
+        >
+          <SourceInferenceTask storageKey={sourceTaskKey(saveKey.current)} />
+        </V3ScrollDialog>
+      )}
       {restart && (
         <V3ScrollDialog
           eyebrow="Standalone demo"
@@ -284,6 +321,7 @@ export function LimBoSengDemo() {
                 try {
                   localStorage.setItem(saveKey.current, JSON.stringify(fresh));
                   localStorage.removeItem(`${saveKey.current}.source-hints`);
+                  localStorage.removeItem(sourceTaskKey(saveKey.current));
                 } catch {
                   setSaveError(true);
                 }
