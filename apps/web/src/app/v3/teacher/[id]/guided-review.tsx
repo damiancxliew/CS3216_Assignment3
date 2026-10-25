@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { sourceFailureLabel } from "@adventure/generation/sources-labels";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   type AdventureSpec as Spec,
@@ -16,6 +17,8 @@ import { newLocalErrors } from "@/lib/v3/edit/local-checks";
 import { safeSourceUrl } from "@/lib/v3/review";
 import { reviewIssueMessage } from "@/lib/v3/review-presentation";
 import {
+  retrySourcesAction,
+  saveSourceSelectionAction,
   continueFromSourcesAction,
   continuePauseAction,
   savePauseEditsAction,
@@ -61,11 +64,17 @@ export function SourcesReview({
   adventureId: string;
   pause: Extract<PauseView, { pass: "sources" }>;
 }) {
-  const [removed, setRemoved] = useState<string[]>([]);
+  const [removed, setRemoved] = useState<string[]>(pause.excluded ?? []);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const router = useRouter();
-  useUnsavedEdits(removed.length > 0 && !pending);
+  useEffect(() => {
+    if (!pause.importing) return;
+    const timer = setInterval(() => router.refresh(), 3000);
+    return () => clearInterval(timer);
+  }, [pause.importing, router]);
+  const busy = pending || !!pause.importing;
+  useUnsavedEdits(pending);
   const empty = pause.uploads.length + pause.outside.length === removed.length;
   useReviewChatTarget({
     key: "sources",
@@ -73,7 +82,12 @@ export function SourcesReview({
     pending,
     input: { pass: "sources", removedSourceIds: removed },
     apply: (proposal) => {
-      if (proposal.pass === "sources") setRemoved(proposal.removedSourceIds);
+      if (proposal.pass === "sources") {
+        setRemoved(proposal.removedSourceIds);
+        void saveSourceSelectionAction(adventureId, proposal.removedSourceIds).then(result => {
+          if ("error" in result) setMessage(result.error!);
+        }).catch(() => setMessage("Could not save source selection. Try again before reloading."));
+      }
     },
   });
   return (
@@ -104,14 +118,17 @@ export function SourcesReview({
                 type="checkbox"
                 className="m-0 mt-1 h-4 w-4 accent-record"
                 checked={!removed.includes(source.id)}
-                disabled={pending}
-                onChange={(event) =>
-                  setRemoved(
-                    event.target.checked
-                      ? removed.filter((id) => id !== source.id)
-                      : [...removed, source.id],
-                  )
-                }
+                disabled={busy}
+                onChange={async (event) => {
+                  const next = event.target.checked ? removed.filter(id => id !== source.id) : [...removed, source.id];
+                  setRemoved(next);
+                  setPending(true);
+                  try {
+                    const result = await saveSourceSelectionAction(adventureId, next);
+                    if ("error" in result) setMessage(result.error!);
+                  } catch { setMessage("Could not save source selection. Retry before reloading."); }
+                  finally { setPending(false); }
+                }}
               />
               <span className="break-words">{source.title}</span>
             </label>
@@ -127,10 +144,10 @@ export function SourcesReview({
             ) : null}
           </div>
         ))}
-        {!pause.outside.length ? <p>No outside sources.</p> : null}
+        {!pause.outside.length ? <p>{pause.noResults ? "Search found no sources." : "No outside sources were imported."}</p> : null}
       </section>
-      <section className="space-y-3">
-        <h2 className="text-lg font-extrabold">Not used</h2>
+      <details className="space-y-3">
+        <summary className="cursor-pointer font-bold">Couldn’t import {pause.rejected.length} sources</summary>
         <ul className="space-y-2 text-sm">
           {pause.rejected.map((source, index) => (
             <li key={index} className="break-words">
@@ -146,21 +163,30 @@ export function SourcesReview({
               ) : (
                 source.url
               )}
-              <p className="mt-1 text-muted">{source.reason}</p>
+              <p className="mt-1 text-muted">{sourceFailureLabel(source.reason)}</p>
             </li>
           ))}
         </ul>
         {!pause.rejected.length ? (
-          <p className="text-sm text-muted">No sources were rejected.</p>
+          <p className="text-sm text-muted">{pause.noResults ? "Search found no sources." : "No import failures."}</p>
         ) : null}
-      </section>
+      </details>
+      <button type="button" className={button.subtle} disabled={busy} onClick={async () => {
+        setPending(true); setMessage("");
+        try {
+          const result = await retrySourcesAction(adventureId, crypto.randomUUID(), removed);
+          if ("error" in result) setMessage(result.error!);
+          else router.refresh();
+        } catch { setMessage("Could not start source search. Try again."); }
+        finally { setPending(false); }
+      }}>{pause.importing ? "Importing sources…" : "Retry search"}</button>
       {empty ? <p role="alert">Keep at least one source.</p> : null}
       {message ? <p role="alert">{message}</p> : null}
       <ReviewToolbar>
         <button
           className={reviewPrimary}
           aria-label="Continue generation"
-          disabled={pending || empty}
+          disabled={busy || empty}
           onClick={async () => {
             setPending(true);
             setMessage("");

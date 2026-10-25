@@ -295,7 +295,8 @@ export async function getGenerationProgress(
 ): Promise<GenerationProgress> {
   const progress = await jobs.getProgress(adventure.id);
   const outputs = await store.outputs(adventure.id, ["sources", "skeleton", "details", "endings", "reveal", "check", "save"]);
-  const costUsd = Object.values(outputs).reduce((sum: number, output) => sum + (((output ?? null) as { costUsd?: number | null } | null)?.costUsd ?? 0), 0);
+  const retryCost = (await deps.adventures.sourceRuns?.(adventure.id) ?? []).filter(run => run.idempotency_key !== "initial-sources").reduce((sum, run) => sum + Number(run.cost_usd), 0);
+  const costUsd = retryCost + (await deps.adventures.mediaCost?.(adventure.id) ?? 0) + Object.values(outputs).reduce((sum: number, output) => sum + (((output ?? null) as { costUsd?: number | null } | null)?.costUsd ?? 0), 0);
   const warnings: (CheckIssue & { pass: string })[] = [];
   for (const pass of ["details", "endings", "reveal"] as const) {
     const output = outputs[pass] as { warnings?: CheckIssue[] } | undefined;
@@ -335,7 +336,7 @@ export function pausedPass(steps: JobStep[]): GuidedPass | null {
 }
 
 export type PauseView =
-  | { pass: "sources"; index: 1; uploads: { id: string; title: string }[]; outside: { id: string; title: string; url: string }[]; rejected: { url: string; reason: string }[] }
+  | { pass: "sources"; index: 1; uploads: { id: string; title: string }[]; outside: { id: string; title: string; url: string }[]; rejected: { url: string; reason: string }[]; excluded?: string[]; importing?: boolean; noResults?: boolean }
   | { pass: "skeleton"; index: 2 }
   | { pass: EditablePass; index: 3 | 4 | 5; base: AdventureSpec; edits: V3Edit[]; errors: CheckIssue[]; warnings: CheckIssue[] };
 
@@ -347,13 +348,17 @@ export async function loadPause(deps: GenerationDeps, store: StepStore, adventur
   if (!pass) return null;
   if (pass === "skeleton") return { pass, index: 2 };
   const outputs = await store.outputs(adventure.id, [pass]);
-  const documents = await deps.sources.load(adventure.id);
+  const documents = pass === "sources" && deps.sources.loadAll ? await deps.sources.loadAll(adventure.id) : await deps.sources.load(adventure.id);
   if (pass === "sources") {
-    const output = outputs.sources as { rejected?: { url: string; reason: string }[] } | undefined;
+    const runs = (await deps.adventures.sourceRuns?.(adventure.id) ?? []).filter(run => run.idempotency_key !== "initial-sources");
+    const output = outputs.sources as { summary?: { discovered: number }; rejected?: { url: string; reason: string }[] } | undefined;
     return { pass, index: 1,
       uploads: documents.filter(d => d.origin !== "outside").map(d => ({ id: d.id, title: d.title })),
       outside: documents.filter(d => d.origin === "outside").map(d => ({ id: d.id, title: d.title, url: d.url ?? "" })),
-      rejected: output?.rejected ?? [] };
+      rejected: [...(output?.rejected ?? []), ...runs.flatMap(run => run.results.rejected ?? [])],
+      excluded: await deps.sources.excluded?.(adventure.id) ?? [],
+      importing: runs.some(run => ["pending", "running"].includes(run.state)),
+      noResults: output?.summary?.discovered === 0 && !runs.length };
   }
   const output = outputs[pass] as unknown as { draft?: AdventureSpec; spec?: AdventureSpec } | undefined;
   const base = pass === "details" ? output?.draft : output?.spec;
@@ -374,14 +379,17 @@ export async function requirePause(deps: GenerationDeps, store: StepStore, userI
 
 export async function continueFromSources(deps: GenerationDeps, jobs: Jobs, store: StepStore, userId: string, adventureId: string, removedSourceIds: string[], env: NodeJS.ProcessEnv): Promise<{ ok: true } | { error: string }> {
   if (!await requirePause(deps, store, userId, adventureId, "sources", env)) return { error: "not awaiting sources review" };
-  const documents = await deps.sources.load(adventureId);
+  const documents = await (deps.sources.loadAll?.(adventureId) ?? deps.sources.load(adventureId));
   if (!Array.isArray(removedSourceIds) || removedSourceIds.some(id => !documents.some(doc => doc.id === id && doc.origin === "outside"))) return { error: "Only outside sources from this adventure can be removed." };
   if (!documents.some(doc => !removedSourceIds.includes(doc.id))) return { error: "Keep at least one source." };
   const brief = await storedBrief(store, adventureId);
   if (!brief) return { error: "generation brief not found" };
-  if (!await deps.adventures.setStatus(adventureId, "generating", ["needs_review"])) return { error: "already continued" };
+  const locked = deps.adventures.continueSources
+    ? await deps.adventures.continueSources(adventureId, removedSourceIds)
+    : await deps.adventures.setStatus(adventureId, "generating", ["needs_review"]);
+  if (!locked) return { error: "An import is active or this adventure has already continued." };
   try {
-    await deps.sources.removeOutside(adventureId, removedSourceIds);
+    if (!deps.adventures.continueSources) await deps.sources.removeOutside(adventureId, removedSourceIds);
     await jobs.enqueue(adventureId, [{ name: "skeleton", step: "v3.gen.skeleton", input: STEP_INPUT(brief) }], { skeleton: ["sources"] });
   } catch (error) {
     await deps.adventures.setStatus(adventureId, "needs_review", ["generating"]);

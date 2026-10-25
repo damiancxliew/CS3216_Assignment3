@@ -1,3 +1,4 @@
+import { publicMediaSnapshot, resolveWalkingSprites, type ResolvedWalkingSprite } from "@/lib/v3/media/resolvers";
 import { MATERIAL_NAMES, storyArt, type EnvironmentPlan, type StoryStyle } from "@adventure/game-client/story-art";
 import type { CompiledStage } from "@adventure/game-core";
 import type { EngineSpec } from "@adventure/engine";
@@ -6,6 +7,7 @@ import type { PlaygroundSnapshot } from "@adventure/game-client";
 
 /** A deliberately small public projection. Never serialize the spec into the browser. */
 export type V3StageScenery = {
+  walkingSprites?: Record<string, ResolvedWalkingSprite>;
   roomDescriptions: Record<string, string>;
   storyContext: string;
   /** Curated standalone scenes can supply public geometry to the same map engine. */
@@ -26,8 +28,9 @@ export type V3StageScenery = {
   };
 };
 
-export function v3AdventureScenery(spec: Pick<EngineSpec, "stages">): V3StageScenery[] {
+export function v3AdventureScenery(spec: Pick<EngineSpec, "stages"> & Partial<Pick<EngineSpec, "characters" | "authoring">>): V3StageScenery[] {
   return spec.stages.map((stage) => ({
+    ...(spec.characters ? { walkingSprites: Object.fromEntries(Object.entries(resolveWalkingSprites({ characters: spec.characters, authoring: spec.authoring })).map(([key, sprite]) => [key, sprite.metadata ? { ...sprite, metadata: publicMediaSnapshot(sprite.metadata) } : sprite])) } : {}),
     roomDescriptions: Object.fromEntries(stage.rooms.map(({ id, description }) => [id, description])),
     storyContext: `${stage.timePlace} ${stage.title}`,
   }));

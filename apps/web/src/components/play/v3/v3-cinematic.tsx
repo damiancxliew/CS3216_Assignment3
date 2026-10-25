@@ -1,4 +1,6 @@
 "use client";
+import type { MediaSnapshot } from "@adventure/spec-v3";
+import { MediaCredit } from "./media-credit";
 
 import { ArrowRight, ChevronRight, FastForward, Maximize, Minimize, Pause, Play, Volume2, VolumeX, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -15,6 +17,7 @@ function beatDuration(text: string): number {
 
 export function V3Cinematic({
   artUrl,
+  artMetadata,
   beats,
   beginLabel,
   onBegin,
@@ -25,6 +28,7 @@ export function V3Cinematic({
   dialogLabel,
 }: {
   artUrl: string | null;
+  artMetadata?: MediaSnapshot;
   beats: V3CinematicBeat[];
   beginLabel: string;
   onBegin: () => void;
@@ -128,8 +132,8 @@ export function V3Cinematic({
             unoptimized
             fill
             src={artUrl}
-            alt=""
-            className="h-full w-full object-cover"
+            alt={artMetadata?.alt ?? ""}
+            className={`h-full w-full ${artMetadata && artMetadata.origin !== "ai" ? "object-contain" : "object-cover"}`}
             onError={() => setImageFailed(true)}
           />
         ) : null}
@@ -138,6 +142,7 @@ export function V3Cinematic({
       <div className={`${styles.bar} ${styles.barTop}`} aria-hidden />
       <div className={`${styles.bar} ${styles.barBottom}`} aria-hidden />
 
+      {artMetadata ? <div className="absolute bottom-2 right-3 z-20 max-w-[70%] rounded bg-black/75 px-2 py-1 text-xs text-white"><MediaCredit media={artMetadata} caption /></div> : null}
       <header className={styles.top}>
         <p className={styles.chapter}>Historical adventure</p>
         <div className={styles.controls}>
