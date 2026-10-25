@@ -72,12 +72,14 @@ function sourceTaskHtml(task: SourceTaskRecord | undefined) {
         })
         .join("") +
       `<p class="teacher"><strong>Teacher-confirmed mark:</strong> ______ / ${SOURCE_TASK.marks} &nbsp; Level ______ &nbsp; Initials ______</p>`
-    : empty("The source task has not been submitted yet.") + (task?.draft.trim() ? `<h3>Unsubmitted draft</h3>${paragraph(task.draft)}` : "");
+    : task?.unmarked
+      ? `<article class="reflection"><h3>Answer saved without AI feedback (marking was unavailable)</h3>${paragraph(task.unmarked.answer)}</article><p class="teacher"><strong>Teacher mark:</strong> ______ / ${SOURCE_TASK.marks} &nbsp; Level ______ &nbsp; Initials ______</p>`
+      : empty("The written inference has not been submitted yet.") + (task?.draft.trim() ? `<h3>Unsubmitted draft</h3>${paragraph(task.draft)}` : "");
   const progress =
     attempts.length > 1
       ? `<p class="question">Progress: ${attempts.map((a, i) => `attempt ${i + 1} L${a.grade.level} · ${a.grade.mark}/${SOURCE_TASK.marks}`).join(" → ")}</p>`
       : "";
-  return `<section class="reflections"><p class="eyebrow">Source skills · inference and explanation</p><h2>Source task</h2>
+  return `<section class="reflections"><p class="eyebrow">Source skills · inference and explanation</p><h2>Chapter 2 · What the occupation newspaper reveals</h2>
   <p class="question">${escape(SOURCE_TASK.question)} [${SOURCE_TASK.marks}]</p>
   <aside><strong>${escape(SOURCE_TASK.label)}:</strong> ${escape(SOURCE_TASK.provenance)}${SOURCE_TASK.text.map(paragraph).join("")}<p class="caption">${escape(SOURCE_TASK.sourceNote)}</p></aside>
   ${progress}${body}

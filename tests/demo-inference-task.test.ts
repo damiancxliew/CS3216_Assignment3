@@ -8,6 +8,7 @@ import {
   graderInstructions,
   markAnswer,
   isLifted,
+  isSubmitted,
   ownWords,
   quoteInSource,
   restoreSourceTask,
@@ -106,7 +107,7 @@ describe("Source task in the learning report", () => {
       draft: "",
       attempts: [{ answer, submittedAt: "t", grade: markAnswer(answer, judge({ inferencePrecise: false, explanation: "none" })) }],
     });
-    expect(html).toContain("Source task");
+    expect(html).toContain("What the occupation newspaper reveals");
     expect(html).toContain("Teacher-confirmed mark");
     expect(html).toContain("L2 · 3/6");
     expect(html).not.toContain("<script>alert(1)</script>");
@@ -185,5 +186,49 @@ describe("isolation from v2/v3 generation", () => {
     };
     walk(root);
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("the written inference as part of Chapter 2", () => {
+  const chapterTwo = () => ({ ...newDemoV3State(1), intro: false, room: "records" });
+
+  it("makes the newspaper inference the chapter's first goal", async () => {
+    const { chapterTasks, INFERENCE_NOTE_ID } = await import("../apps/web/src/lib/demo/chapter-progress");
+    const state = chapterTwo();
+    expect(chapterTasks(state)[0]).toMatchObject({ id: "inference", done: false });
+    state.notes.push({ id: "source-1-force", text: "x", source: "document", stageIndex: 1, at: 0 });
+    expect(chapterTasks(state)[0]!.done).toBe(false);
+    state.notes.push({ id: INFERENCE_NOTE_ID, text: "x", source: "document", stageIndex: 1, at: 0 });
+    expect(chapterTasks(state)[0]!.done).toBe(true);
+    expect(chapterTasks({ ...newDemoV3State(), intro: false })[0]!.id).toBe("evidence");
+  });
+
+  it("keeps progress for saves that recorded a Chapter 2 decision before the goal existed", async () => {
+    const { chapterTasks } = await import("../apps/web/src/lib/demo/chapter-progress");
+    const state = chapterTwo();
+    state.notes.push({ id: "source-1-force", text: "x", source: "document", stageIndex: 1, at: 0 });
+    state.decisions.push({ stage: 1, choice: "corroborate", prediction: "", evidence: [] });
+    expect(chapterTasks(state)[0]!.done).toBe(true);
+  });
+
+  it("refuses the newspaper note until an answer is submitted, so highlighting cannot skip the writing", async () => {
+    const { createDemoV3Client } = await import("../apps/web/src/lib/demo/v3-session");
+    let submitted = false;
+    let state = chapterTwo();
+    const client = createDemoV3Client(state, (next) => (state = next), undefined, { inferenceSubmitted: () => submitted });
+    expect((await client.act(state.revision, { type: "openDocument", documentId: "press" })).ok).toBe(true);
+    const note = { type: "selectPassage", documentId: "press", start: 0, end: 20 } as const;
+    expect((await client.act(state.revision, note)).ok).toBe(false);
+    submitted = true;
+    expect((await client.act(state.revision, note)).ok).toBe(true);
+    expect(state.notes.some((n) => n.id === "source-1-press")).toBe(true);
+  });
+
+  it("counts an answer saved for the teacher as submitted when marking is unavailable", () => {
+    const record = restoreSourceTask(JSON.stringify({ draft: "", attempts: [], unmarked: { answer: "I can infer…", submittedAt: "t" } }));
+    expect(isSubmitted(record)).toBe(true);
+    expect(isSubmitted(restoreSourceTask(null))).toBe(false);
+    const html = learningReportHtml(newDemoV3State(), new Date(), record);
+    expect(html).toContain("Answer saved without AI feedback");
   });
 });

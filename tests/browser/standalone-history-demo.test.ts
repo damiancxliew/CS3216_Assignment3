@@ -697,8 +697,10 @@ it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")(
               }),
             ),
         );
-        const source = stages[stage].sources[0];
+        // Chapter 2's first goal is the written inference on the occupation newspaper (Tham's room).
+        const source = stage === 1 ? "press" : stages[stage].sources[0];
         for (const action of [
+          ...(stage === 1 ? [{ type: "enterRoom", roomId: "records" } as const] : []),
           { type: "openDocument", documentId: source },
           { type: "selectPassage", documentId: source, start: 0, end: 60 },
           { type: "closeDocument", documentId: source },

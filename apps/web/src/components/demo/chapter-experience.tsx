@@ -120,6 +120,12 @@ export function useChapterExperience(
         <div className={styles.mission}>
           <p className={styles.dateline}>{outside ? chapter.place : view.rooms.find((r) => r.id === state.room)?.name}</p>
           <p>{outside ? "Enter a timber shelter to meet Lim, Tan or Tham. Each room holds different evidence." : "Speak with the person here and explore the evidence. The green mat leads back to the coast."}</p>
+          {!tasks[0]!.done && (
+            <p>
+              <strong>Start here:</strong> the occupation newspaper is in Tham’s testimony room. Open it to write
+              what it reveals.
+            </p>
+          )}
           <div className={styles.sceneControls}>
             {outside ? RESISTANCE_DOORS.map((door) => <button key={door.id} onClick={() => walkToDoor(door.id)}>Walk to {door.label}</button>)
               : <button onClick={() => setDestination({ x: 12, y: 14 })}>Walk outside</button>}

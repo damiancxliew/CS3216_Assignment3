@@ -1,12 +1,13 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Archival originals remain uncropped in the source archive. */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen, Download, PenLine, RotateCcw } from "lucide-react";
+import { BookOpen, Download, RotateCcw } from "lucide-react";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import type { V3PlayClient as PlayClient } from "@/lib/play/v3/client";
 import { learningReportHtml } from "@/lib/demo/learning-report";
-import { restoreSourceTask, sourceTaskKey } from "@/lib/demo/inference-task";
+import { isSubmitted, restoreSourceTask, SOURCE_TASK, sourceTaskKey } from "@/lib/demo/inference-task";
+import { INFERENCE_NOTE_ID, INFERENCE_SOURCE_ID, INFERENCE_STAGE } from "@/lib/demo/chapter-progress";
 import { demoCinematics } from "@/lib/demo/cinematics";
 import { sources, sourceById } from "@/lib/demo/lim-bo-seng";
 import {
@@ -49,10 +50,22 @@ export function LimBoSengDemo() {
   > = (view, send) => ({
     ...(waterfrontExperience(view, send) ?? chapterExperience(view, send)),
     activeDocumentId: view.documents.find((document) => document.open)?.id ?? null,
-    documentHint: view.definingMoment
-      ? "Revisit your sources and hints while considering your recommendation."
-      : "Read the source, then answer its question to unlock a hint and save an evidence note. You can also highlight a passage.",
-    documentSupplement: (document) => <>
+    documentHint: view.documents.find((document) => document.open)?.id === INFERENCE_SOURCE_ID
+      ? "Read Source D, then write what it reveals. Submitting your answer saves your evidence note."
+      : view.definingMoment
+        ? "Revisit your sources and hints while considering your recommendation."
+        : "Read the source, then answer its question to unlock a hint and save an evidence note. You can also highlight a passage.",
+    documentSupplement: (document) => document.id === INFERENCE_SOURCE_ID ? (
+      <SourceInferenceTask
+        storageKey={sourceTaskKey(saveKey.current)}
+        briefing={<InferenceBriefing />}
+        showSource={false}
+        hasNote={view.notes.some((n) => n.id === INFERENCE_NOTE_ID)}
+        onSubmitted={view.stage?.index === INFERENCE_STAGE
+          ? (settled) => send({ type: "selectPassage", documentId: document.id, start: 0, end: document.body.length }, settled)
+          : undefined}
+      />
+    ) : <>
       <SourceQuestion id={document.id}
         hasNote={view.notes.some((n) => n.id === `source-${view.stage?.index}-${document.id}`)}
         onReward={view.definingMoment ? undefined : (settled) => send({ type: "selectPassage", documentId: document.id, start: 0, end: sourceById(document.id).summary.length }, settled)} />
@@ -60,20 +73,32 @@ export function LimBoSengDemo() {
     </>,
   });
   const [archive, setArchive] = useState(false);
-  const [sourceTask, setSourceTask] = useState(false);
   const [selectedSource, setSelectedSource] = useState("life");
   const [restart, setRestart] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const createBoot = useCallback((initial: DemoV3State, key = 0) => {
     latest.current = initial;
-    const client = createDemoV3Client(initial, (next) => {
-      latest.current = next;
-      try {
-        localStorage.setItem(saveKey.current, JSON.stringify(next));
-      } catch {
-        setSaveError(true);
-      }
-    });
+    const client = createDemoV3Client(
+      initial,
+      (next) => {
+        latest.current = next;
+        try {
+          localStorage.setItem(saveKey.current, JSON.stringify(next));
+        } catch {
+          setSaveError(true);
+        }
+      },
+      undefined,
+      {
+        inferenceSubmitted: () => {
+          try {
+            return isSubmitted(restoreSourceTask(localStorage.getItem(sourceTaskKey(saveKey.current))));
+          } catch {
+            return false;
+          }
+        },
+      },
+    );
     return { initial, client, key };
   }, []);
   useEffect(() => {
@@ -145,14 +170,6 @@ export function LimBoSengDemo() {
             </button>
             <button
               type="button"
-              className={`${chrome.tool} inline-flex min-h-9 items-center gap-2 px-2.5 text-sm font-semibold`}
-              onClick={() => setSourceTask(true)}
-            >
-              <PenLine size={16} />
-              <span className="hidden sm:inline">Source task</span>
-            </button>
-            <button
-              type="button"
               className={`${chrome.tool} inline-flex min-h-9 items-center px-2.5`}
               aria-label="Restart standalone demo"
               onClick={() => setRestart(true)}
@@ -162,20 +179,12 @@ export function LimBoSengDemo() {
           </>
         }
         revealFooter={
-          <div className="flex flex-wrap gap-3">
-            <button
-              className={`${chrome.primary} inline-flex items-center gap-2 px-4 py-3 font-bold`}
-              onClick={() => setSourceTask(true)}
-            >
-              <PenLine size={16} /> Source task: write your inference
-            </button>
-            <button
-              className={`${chrome.tool} inline-flex items-center gap-2 px-4 py-3 font-bold`}
-              onClick={download}
-            >
-              <Download size={16} /> Download learning report
-            </button>
-          </div>
+          <button
+            className={`${chrome.primary} inline-flex items-center gap-2 px-4 py-3 font-bold`}
+            onClick={download}
+          >
+            <Download size={16} /> Download learning report
+          </button>
         }
       />
       {saveError && (
@@ -219,7 +228,9 @@ export function LimBoSengDemo() {
                 className="mx-auto max-h-80 max-w-full object-contain"
               />
             )}
-            <p>{source.summary}</p>
+            {source.id === INFERENCE_SOURCE_ID
+              ? SOURCE_TASK.text.map((p) => <p key={p.slice(0, 24)}>{p}</p>)
+              : <p>{source.summary}</p>}
             <SourceQuestion id={source.id} />
             <SourceFootnote id={source.id} />
             <details>
@@ -256,9 +267,10 @@ export function LimBoSengDemo() {
             </p>
             <p>
               <strong>Lesson timing:</strong> Allow 3 minutes for the brief,
-              20–25 for two chapters of exploration and discussion, 5–7 for
-              the interview and debrief, and about 10 for the Source task
-              (answer, feedback, one revision).
+              25–35 for two chapters of exploration and discussion (Chapter 2
+              includes about 10 for the written inference on the occupation
+              newspaper: answer, feedback, one revision), and 5–7 for the
+              interview and debrief.
             </p>
             <p>
               <strong>Historical framing:</strong> The named figures are
@@ -285,17 +297,6 @@ export function LimBoSengDemo() {
               <Download size={15} /> Download current learning report
             </button>
           </div>
-        </V3ScrollDialog>
-      )}
-      {sourceTask && (
-        <V3ScrollDialog
-          eyebrow="Standalone demo · Source skills"
-          title="Source D: what can you infer?"
-          footerText="AI-suggested marks · your teacher confirms"
-          closeLabel="Close source task"
-          onClose={() => setSourceTask(false)}
-        >
-          <SourceInferenceTask storageKey={sourceTaskKey(saveKey.current)} />
         </V3ScrollDialog>
       )}
       {restart && (
@@ -335,5 +336,20 @@ export function LimBoSengDemo() {
         </V3ScrollDialog>
       )}
     </div></SourceRewards>
+  );
+}
+
+/** In-world reason for the written task. Narration, not a quotation from a historical figure. */
+function InferenceBriefing() {
+  return (
+    <aside style={{ margin: "0 0 1rem", padding: ".85rem 1rem", borderLeft: "4px solid #b08a43", background: "rgba(176,138,67,.12)", borderRadius: ".25rem" }}>
+      <p style={{ margin: 0, fontWeight: 700 }}>Before the network decides what to rely on</p>
+      <p style={{ margin: ".35rem 0 0" }}>
+        This occupation newspaper has reached the coast. Rumours travel faster than facts, so the group wants a
+        careful reading: not what the paper promises, but what it reveals about how the Japanese saw the people
+        of Syonan. Write your inference and back it with the paper&rsquo;s own words; it becomes your evidence for
+        this chapter&rsquo;s judgement.
+      </p>
+    </aside>
   );
 }
