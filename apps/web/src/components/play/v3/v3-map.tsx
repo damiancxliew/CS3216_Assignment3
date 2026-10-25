@@ -138,20 +138,20 @@ export function V3Map(props: V3MapProps) {
     let path: Point[] = [];
     let revision = 0;
     let facing: "down" | "up" | "left" | "right" = "down";
-    let transitioning = false;
+    let transitioning: string | null = null;
     let autoOpenedAt: string | null = null;
     let repeat: number | undefined;
     let lastWalkTo: string | null = null;
     let lastNearbyCharacterId: string | null | undefined;
 
-    const characterSeats = () => latest.current.characters.flatMap((character, index) => {
+    const characterSeats = () => transitioning ? [] : latest.current.characters.flatMap((character, index) => {
       const position = seatIn(map, currentRoomRef.current, index + 1);
       const space = position && spaceAt(map, position);
       if (!position || (space?.kind !== "room" && !(space?.kind === "outdoor" && space.locationId))) return [];
       return [{ id: character.id, position, character }];
     });
 
-    const documentProps = () => v3DocumentProps(
+    const documentProps = () => transitioning ? [] : v3DocumentProps(
       map,
       currentRoomRef.current,
       latest.current.documents,
@@ -256,8 +256,14 @@ export function V3Map(props: V3MapProps) {
     };
 
     const stepTo = async (next: Point) => {
-      if (destroyed || transitioning) return;
+      if (destroyed) return;
       if (latest.current.movementLocked) return;
+      // Keep walking inside the destination while its room action is in flight.
+      // Crossing another boundary waits for confirmation so room actions stay ordered.
+      if (transitioning) {
+        const space = spaceAt(map, next);
+        if (space?.kind !== "room" || space.roomId !== transitioning) return;
+      }
       const from = playerPosition;
       if (!canStep(map, compiled.initialDoors, from, next)) {
         path = [];
@@ -275,10 +281,12 @@ export function V3Map(props: V3MapProps) {
       updateNearbyCharacter();
       render();
 
-      const roomId = roomIdToEnter(map, next, currentRoomRef.current);
+      const roomId = transitioning ? null : roomIdToEnter(map, next, currentRoomRef.current);
       if (roomId) {
         autoOpenedAt = null;
-        transitioning = true;
+        transitioning = roomId;
+        updateNearbyCharacter();
+        render();
         let accepted = false;
         try {
           accepted = await latest.current.onEnterRoom(roomId);
@@ -292,11 +300,11 @@ export function V3Map(props: V3MapProps) {
           path = [];
           playerPosition = arrivalPoint(map, currentRoomRef.current) ?? compiled.playerSpawn;
         }
-        transitioning = false;
+        transitioning = null;
         revision += 1;
         updateNearbyCharacter();
         render();
-      } else if (!latest.current.movementLocked && !latest.current.destination) {
+      } else if (!transitioning && !latest.current.movementLocked && !latest.current.destination) {
         const documentId = unreadDocumentAt(documentProps(), next);
         if (documentId === null) {
           autoOpenedAt = null;
@@ -313,7 +321,7 @@ export function V3Map(props: V3MapProps) {
     };
 
     const walk = window.setInterval(() => {
-      if (document.visibilityState !== "visible" || transitioning || latest.current.movementLocked || path.length === 0) return;
+      if (document.visibilityState !== "visible" || latest.current.movementLocked || path.length === 0) return;
       void stepTo(path[0]!);
     }, STEP_MS);
 
@@ -339,6 +347,7 @@ export function V3Map(props: V3MapProps) {
       if (latest.current.movementLocked) return;
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       if (key === "e") {
+        if (transitioning) return;
         if (event.repeat || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         const characterId = nearbyCharacterId(playerPosition, facing, characterSeats());
         if (characterId) {
@@ -396,6 +405,7 @@ export function V3Map(props: V3MapProps) {
           defaultSprite: "Villager",
           clickToWalk: true,
           onActor: (actorId) => {
+            if (transitioning) return;
             if (latest.current.characters.some((character) => character.id === actorId)) {
               latest.current.onSelectCharacter(actorId);
             } else {
@@ -404,6 +414,7 @@ export function V3Map(props: V3MapProps) {
             }
           },
           onProp: (documentId) => {
+            if (transitioning) return;
             if (latest.current.documents.some((document) => document.id === documentId)) {
               latest.current.onOpenDocument(documentId);
             }

@@ -62,6 +62,7 @@ export function useV3Play(
       const id = String(pendingCount.current);
       setView((current) => withPendingPlayerLine(current, action, id, Date.now()));
     }
+    // Timer updates share the action queue but must not interrupt chat input.
     if (!isBackground(action)) {
       busyRef.current = true;
       setBusy(true);

@@ -5,13 +5,13 @@ import { createServer, transformWithEsbuild } from "vite";
 import tailwind from "@tailwindcss/postcss";
 import { expect, it } from "vitest";
 import { createState, EngineSpec, project, step } from "@adventure/engine";
-import { findPath, type Point } from "@adventure/game-core";
+import { canStep, findPath, spaceAt, type Point } from "@adventure/game-core";
 import { createRng, FakeLlmClient } from "@adventure/orchestration";
 import { v3AdventureScenery } from "@/lib/play/v3/scenery";
 
 // Actual v3 UI, CSS, renderer and engine. Only HTTP transport and Next's font/link
 // adapters are replaced. No authentication, database or model service is exercised.
-it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1")("renders public scenery and lets the player walk, greet and resize", async () => {
+it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1").each(["scenery", "room entry"])("renders public scenery and lets the player walk, greet and resize (%s)", async (scenario) => {
   const output = resolve(process.env.V3_MAP_OUTPUT ?? "output/v3-map-check");
   await mkdir(output, { recursive: true });
   const golden = EngineSpec.parse(JSON.parse(await readFile("fixtures/golden-1819.json", "utf8")));
@@ -98,6 +98,8 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1")("renders public scenery a
   const metrics: unknown[] = [];
   const expectedImageErrors: string[] = [];
   let testingBrokenSheet = false;
+  let roomEntryGate: Promise<void> | null = null;
+  let rejectNextEntry = false;
   try {
     await vite.listen();
     browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || undefined });
@@ -118,6 +120,14 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1")("renders public scenery a
       if (route.request().method() === "POST") {
         const { action } = route.request().postDataJSON();
         actions.push(action.type);
+        if (action.type === "enterRoom") {
+          await roomEntryGate;
+          if (rejectNextEntry) {
+            rejectNextEntry = false;
+            await route.fulfill({ status: 500, json: { error: { code: "error", message: "Room entry test rejection." } } });
+            return;
+          }
+        }
         session.state = (await step({ spec: session.spec, state: session.state, action }, deps)).state;
         session.revision++;
       }
@@ -198,6 +208,51 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1")("renders public scenery a
       const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
       return scene.current.map.doors.find((door: any) => door.roomId !== "landing");
     });
+    if (scenario === "room entry") {
+      await walkTo(page, nextDoor.outside);
+      let releaseEntry!: () => void;
+      roomEntryGate = new Promise<void>((resolve) => { releaseEntry = resolve; });
+      rejectNextEntry = true;
+      const entriesBefore = actions.filter((action) => action === "enterRoom").length;
+      await walkTo(page, nextDoor.inside, false);
+      await expect.poll(() => actions.filter((action) => action === "enterRoom").length).toBe(entriesBefore + 1);
+      const insideStep = await page.evaluate(({ inside, roomId }) => {
+        const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
+        return { map: scene.current.map, doors: scene.current.doors, inside, roomId };
+      }, nextDoor);
+      const next = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]
+        .map((delta) => ({ x: insideStep.inside.x + delta.x, y: insideStep.inside.y + delta.y }))
+        .find((point) => {
+          const space = spaceAt(insideStep.map, point);
+          return space?.kind === "room" && space.roomId === nextDoor.roomId && canStep(insideStep.map, insideStep.doors, insideStep.inside, point);
+        });
+      expect(next).toBeDefined();
+      const started = Date.now();
+      try {
+        await page.keyboard.press(next!.x > nextDoor.inside.x ? "ArrowRight" : next!.x < nextDoor.inside.x ? "ArrowLeft" : next!.y > nextDoor.inside.y ? "ArrowDown" : "ArrowUp");
+        await expect.poll(() => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.actors.find((a: any) => a.id === "player").position), { timeout: 750 }).toEqual(next);
+        expect(actions.filter((action) => action === "enterRoom").length).toBe(entriesBefore + 1);
+        metrics.push({ check: "movement while room entry is pending", responseHeld: true, movementMs: Date.now() - started });
+      } finally {
+        releaseEntry();
+        roomEntryGate = null;
+      }
+      await expect.poll(() => page.getByRole("alert").textContent()).toContain("Room entry test rejection.");
+      const rolledBack = await page.evaluate(() => {
+        const snapshot = (window as any).mapReviewGame.scene.getScene("tiled-map").current;
+        return snapshot.actors.find((actor: any) => actor.id === "player").space;
+      });
+      expect(rolledBack).toEqual({ kind: "room", roomId: data.golden!.state.playerRoomId });
+      expect(data.golden!.state.playerRoomId).not.toBe(nextDoor.roomId);
+      await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+      await walkTo(page, nextDoor.inside);
+      await expect.poll(() => data.golden!.state.playerRoomId).toBe(nextDoor.roomId);
+      expect(actions).toContain("enterRoom");
+      // The deliberately rejected entry produces one browser network error.
+      expect(errors).toEqual(["Failed to load resource: the server responded with a status of 500 (Internal Server Error)"]);
+      await writeFile(resolve(output, "room-entry-results.json"), JSON.stringify({ metrics, actions, errors }, null, 2));
+      return;
+    }
     await walkTo(page, nextDoor.inside);
     await expect.poll(() => data.golden!.state.playerRoomId).toBe(nextDoor.roomId);
     expect(actions).toContain("enterRoom");
@@ -300,7 +355,13 @@ async function inspect(page: Page) {
   });
 }
 
-async function walkTo(page: Page, target: Point, { stopBefore = false } = {}) {
+async function walkTo(
+  page: Page,
+  target: Point,
+  options: boolean | { stopBefore?: boolean; waitForSave?: boolean } = {},
+) {
+  const { stopBefore = false, waitForSave = true } =
+    typeof options === "boolean" ? { stopBefore: false, waitForSave: options } : options;
   const snapshot = await page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current);
   const player = snapshot.actors.find((a: any) => a.id === "player").position;
   const path = findPath(snapshot.map, snapshot.doors, player, target);
@@ -313,7 +374,7 @@ async function walkTo(page: Page, target: Point, { stopBefore = false } = {}) {
   for (const point of steps) {
     await page.keyboard.press(point.x > from.x ? "ArrowRight" : point.x < from.x ? "ArrowLeft" : point.y > from.y ? "ArrowDown" : "ArrowUp");
     await expect.poll(() => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.actors.find((a: any) => a.id === "player").position)).toEqual(point);
-    await page.getByText("Saving…", { exact: true }).waitFor({ state: "hidden" });
+    if (waitForSave) await page.getByText("Saving…", { exact: true }).waitFor({ state: "hidden" });
     await page.waitForTimeout(170);
     from = point;
   }
