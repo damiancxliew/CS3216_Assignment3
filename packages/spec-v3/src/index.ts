@@ -256,7 +256,7 @@ export const AdventureSpec = z.strictObject({
     teacherContributions: z.array(z.strictObject({ entity: Text, field: Text })).optional(),
     retainedErrors: z.array(z.strictObject({ code: Text, path: Text, message: Text, ids: z.array(Text).optional() })).optional(),
     validationContext: z.strictObject({
-      slantedDocuments: z.array(z.strictObject({ documentId: Id, note: Text })),
+      slantedDocuments: z.array(z.strictObject({ stageId: Id.optional(), documentId: Id, note: Text })),
       generationParts: z.record(Text, z.unknown()).optional(),
     }).optional(),
     stageImages: z.record(Text, ImageSelection).optional(),

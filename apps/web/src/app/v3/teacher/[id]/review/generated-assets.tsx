@@ -213,6 +213,7 @@ function SlotActions({
     [basis, setBasis] = useState(""),
     [confirmed, setConfirmed] = useState(false);
   const sprite = asset.kind === "sprite";
+  const fileInput = useRef<HTMLInputElement>(null);
   const base = () => ({
     target: asset.target!,
     version,
@@ -240,7 +241,7 @@ function SlotActions({
       const result = await work();
       if (result.item) {
         onCandidate(result.item);
-        setMessage("Candidate created. Review and select it, then Save.");
+        setMessage("Candidate ready. Review it, then use it to save your selection.");
       } else setMessage(result.error ?? "Could not create candidate.");
     } catch {
       setMessage("Could not create candidate. Try again.");
@@ -402,10 +403,19 @@ function SlotActions({
                       ? "Static PNG or WebP, 64–2048 pixels square. Four columns: down, up, left, right. Four animation rows. Transparent background in every cell."
                       : "JPEG, PNG or WebP, up to 10 MB and 40 megapixels."}
                   </p>
-                  <label className="block text-sm">
-                    {sprite ? "Choose walking sheet" : "Choose image"}
+                  <div>
+                    <button
+                      type="button"
+                      className={button.primary}
+                      disabled={pending || !caption.trim() || !alt.trim()}
+                      onClick={() => fileInput.current?.click()}
+                    >
+                      {sprite ? "Choose walking sheet" : "Choose image"}
+                    </button>
                     <input
-                      className="block max-w-full"
+                      ref={fileInput}
+                      hidden
+                      aria-label={sprite ? "Choose walking sheet" : "Choose image"}
                       type="file"
                       accept={
                         sprite
@@ -423,7 +433,7 @@ function SlotActions({
                         void run(() => uploadMediaAction(adventureId, data));
                       }}
                     />
-                  </label>
+                  </div>
                 </>
               ) : null}
               {mode === "ai" ? (
@@ -709,8 +719,8 @@ export function GeneratedAssets({
       <header className="space-y-2">
         <h2 className="text-xl font-bold">Assets</h2>
         <p className="text-sm text-muted">
-          Saved version {version}. Select candidates, then Save with your story
-          edits. Publish separately. Image selection does not add historical
+          Saved version {version}. Asset changes save immediately. Publish
+          separately. Image selection does not add historical
           evidence.
         </p>
       </header>

@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { reviewAssets } from "@/lib/v3/review-assets";
@@ -68,6 +68,7 @@ export function EditorWorkspace(props: Props) {
   const [edits, setEdits] = useState<V3Edit[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [pending, setPending] = useState(false);
+  const assetSaveInFlight = useRef(false);
   const [message, setMessage] = useState("");
   const [failure, setFailure] = useState(false);
   const [savedErrors, setSavedErrors] = useState(props.errors);
@@ -197,27 +198,70 @@ export function EditorWorkspace(props: Props) {
     }
   };
 
+  const saveAsset = async (command: V3Edit) => {
+    if (pending || assetSaveInFlight.current) return;
+    assetSaveInFlight.current = true;
+    setPending(true);
+    setFailure(false);
+    setMessage("Saving asset…");
+    try {
+      // Persist only the asset. Replay pending story edits on the new saved version.
+      const result = await saveV3AdventureEdits(
+        props.adventureId,
+        version,
+        [command],
+      );
+      if (!result.ok) {
+        setMessage(result.message);
+        setFailure(true);
+        return;
+      }
+      setDraft(
+        applyV3Edits(result.spec, edits, props.capturedSources, true, {
+          candidates: mediaCandidates,
+        }),
+      );
+      setSaved(result.spec);
+      setVersion(result.version);
+      setSavedErrors(result.errors);
+      setMessage("Asset saved. Publish when you’re ready to share it with students.");
+      router.refresh();
+    } catch {
+      setMessage("Could not confirm the asset save. Your local story edits are still here. Try again, or reload to check the saved selection.");
+      setFailure(true);
+    } finally {
+      assetSaveInFlight.current = false;
+      setPending(false);
+    }
+  };
+
   return (
     <>
       <ReviewScreen
         assets={
-          <GeneratedAssets
-            assets={reviewAssets(
-              draft,
-              props.adventureId,
-              version,
-              props.assets?.items,
-            )}
-            savedAssets={reviewAssets(
-              saved,
-              props.adventureId,
-              version,
-              props.assets?.items,
-            )}
-            version={version}
-            adventureId={props.adventureId}
-            onEdit={edit}
-          />
+          <fieldset
+            disabled={pending}
+            className="m-0 min-w-0 border-0 p-0"
+            aria-busy={pending}
+          >
+            <GeneratedAssets
+              assets={reviewAssets(
+                draft,
+                props.adventureId,
+                version,
+                props.assets?.items,
+              )}
+              savedAssets={reviewAssets(
+                saved,
+                props.adventureId,
+                version,
+                props.assets?.items,
+              )}
+              version={version}
+              adventureId={props.adventureId}
+              onEdit={saveAsset}
+            />
+          </fieldset>
         }
         sidebar={editMode ? <EditorConversation /> : undefined}
         floatingChecks

@@ -41,6 +41,34 @@ function setup() {
 }
 
 describe("direct editing", () => {
+  it("opens and edits saved generation context containing stage IDs", async () => {
+    const { spec, store, save } = setup();
+    spec.authoring = {
+      validationContext: {
+        slantedDocuments: [{
+          stageId: spec.stages[0].id,
+          documentId: spec.documents[0].id,
+          note: "Compare the account with other evidence.",
+        }],
+      },
+    };
+    store.addAdventure({ id: "a", ownerId: "teacher", schoolId: "s", status: "published", specVersion: 1, spec });
+    expect(AdventureSpec.safeParse(spec).success).toBe(true);
+    const result = await save([{ type: "set", path: ["title"], value: "Recovered adventure" }]);
+    expect(result).toMatchObject({ ok: true, version: 2 });
+    expect(AdventureSpec.safeParse((await store.loadAdventure("a"))!.spec).success).toBe(true);
+    if (result.ok) expect(result.spec.authoring?.validationContext?.slantedDocuments[0].stageId).toBe(spec.stages[0].id);
+  });
+  it("persists generated validation context in a readable saved spec", async () => {
+    const { spec, deps } = setup();
+    const context = { slantedDocuments: [{ stageId: spec.stages[0].id, documentId: spec.documents[0].id, note: "Compare evidence." }] };
+    const result = await saveAdventureEdits({ ...deps, validationContext: async () => context }, "teacher", "a", 1, [{ type: "set", path: ["title"], value: "Updated title" }]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(AdventureSpec.safeParse(result.spec).success).toBe(true);
+      expect(result.spec.authoring?.validationContext).toEqual(context);
+    }
+  });
   it("refuses new semantic errors without writing or moving the live version", async () => {
     const { spec, store, save } = setup();
     const result = await save([
