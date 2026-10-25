@@ -1,3 +1,4 @@
+import { resolveAdventureImages } from "@/lib/v3/media/resolvers";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
@@ -7,8 +8,6 @@ import { v3AdventureScenery } from "@/lib/play/v3/scenery";
 import { startPreview } from "@/lib/play/v3/preview";
 import { v3PreviewDeps, v3PublishDeps } from "@/lib/play/v3/http";
 import { EngineSpec } from "@adventure/engine";
-import { versionedPortraitBase } from "@/lib/play/v3/portraits";
-import { v3StageArtBase } from "@/lib/play/v3/stage-art";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
 import type { PlayerView } from "@adventure/play-contract";
@@ -60,17 +59,10 @@ export default async function V3TeacherPreviewPage({
   const parsed = EngineSpec.safeParse(adventure?.spec);
   return (
     <V3PreviewClient
-      portraitBase={
-        adventure && parsed.success
-          ? versionedPortraitBase(
-              id,
-              adventure.specVersion,
-              parsed.data.authoring?.portraitVersions,
-            )
-          : null
-      }
+      {...(adventure && parsed.success
+        ? resolveAdventureImages(parsed.data, id, adventure.specVersion)
+        : {})}
       scenery={parsed.success ? v3AdventureScenery(parsed.data) : []}
-      stageArtBase={adventure ? v3StageArtBase(id, adventure.specVersion) : null}
       adventureId={id}
       initialToken={body.token}
       initialView={body.view}

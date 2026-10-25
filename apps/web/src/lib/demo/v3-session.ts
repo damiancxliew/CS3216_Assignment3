@@ -1,0 +1,809 @@
+import {
+  Action,
+  PlayerView,
+  type DocumentView,
+  type MessageView,
+} from "@adventure/play-contract";
+import type { V3PlayClient, V3PlayResult } from "@/lib/play/v3/client";
+import { sources, sourceById, stages } from "./lim-bo-seng";
+import { ARCHIVE_SHELVES } from "./archive-shelves";
+import { buildStoryMap } from "./story-maps";
+import { sourceQuestions } from "./source-questions";
+import { selectedSpeakerText } from "./speaker";
+import { chapterTasks } from "./chapter-progress";
+
+export const DEMO_SAVE_KEY = "standalone.lim-bo-seng.v3.v1";
+const roomSets = [
+  [
+    {
+      id: "household",
+      name: "Family provision shop",
+      description:
+        "Singapore waterfront household supplies and family commitments before the surrender.",
+    },
+    {
+      id: "quay",
+      name: "住家 · Gan’s household",
+      description:
+        "An illustrative household interior with Gan, family provisions and water storage.",
+    },
+    {
+      id: "records",
+      name: "Later civilian evidence",
+      description:
+        "Student observer records desk: Elizabeth Choy and Singapore civilian life during the later occupation, 1942–1943. This is not a documented meeting before the surrender.",
+    },
+    {
+      id: "street",
+      name: "Singapore River street",
+      description:
+        "Shophouse entrances, a rickshaw stand and river boarding steps.",
+    },
+  ],
+  [
+    {
+      id: "shore",
+      name: "Coastal meeting place",
+      description:
+        "Reconstructed Perak coast after the return to Malaya; local knowledge and consent matter.",
+    },
+    {
+      id: "liaison",
+      name: "Compare the accounts",
+      description:
+        "Tan Chong Tee's retrospective evidence beside the coastal shelter.",
+    },
+    {
+      id: "records",
+      name: "Training and testimony",
+      description:
+        "Tham Sien Yen's retrospective training account, occupation claims and source comparisons.",
+    },
+    {
+      id: "coast",
+      name: "Perak coastal settlement",
+      description: "Three timber shelters: coordination, maps and testimony. Walk through a doorway to enter.",
+    },
+  ],
+];
+export const demoScenery = stages.map((stage, i) => ({
+  authored: buildStoryMap(
+    i,
+    stage.id,
+    roomSets[i].map((r) => r.id),
+    stage.npcs.map((npc) => npc.id),
+  ),
+  storyContext: `${stage.place} ${stage.date}. harbour waterfront`,
+  roomDescriptions: Object.fromEntries(
+    roomSets[i].map((r) => [r.id, r.description]),
+  ),
+}));
+export type DemoV3State = {
+  version: 1;
+  castEdition?: 2;
+  lessonEdition?: "two-chapters";
+  previousFiveStageProgress?: {
+    stage: number;
+    chosen: string | null;
+    moment: DemoV3State["moment"];
+    decisions: DemoV3State["decisions"];
+    notes: DemoV3State["notes"];
+    messages: DemoV3State["messages"];
+  };
+  previousEditionMessages?: MessageView[];
+  revision: number;
+  phase: PlayerView["phase"];
+  stage: number;
+  intro: boolean;
+  departureReady?: boolean;
+  room: string;
+  held: string[];
+  open: string | null;
+  notes: PlayerView["notes"];
+  messages: MessageView[];
+  moment: "choosing" | "predicting" | null;
+  chosen: string | null;
+  decisions: {
+    stage: number;
+    choice: string;
+    prediction: string;
+    evidence: string[];
+  }[];
+  answers: NonNullable<PlayerView["interview"]>["answer"][];
+};
+export function newDemoV3State(stageIndex = 0): DemoV3State {
+  const stage =
+    Number.isInteger(stageIndex) &&
+    stageIndex >= 0 &&
+    stageIndex < stages.length
+      ? stageIndex
+      : 0;
+  const state: DemoV3State = {
+    version: 1,
+    castEdition: 2,
+    lessonEdition: "two-chapters",
+    revision: 0,
+    phase: "stage",
+    stage,
+    intro: true,
+    room: stage === 1 ? "coast" : roomSets[stage][0].id,
+    held: [],
+    open: null,
+    notes: [],
+    messages: [],
+    moment: null,
+    chosen: null,
+    decisions: [],
+    answers: [],
+  };
+  roomOpening(state);
+  return state;
+}
+export function restoreDemoV3State(raw: string | null): DemoV3State {
+  try {
+    if (!raw) return newDemoV3State();
+    const s = JSON.parse(raw) as DemoV3State;
+    if (s.lessonEdition !== "two-chapters") {
+      if (!Number.isInteger(s.stage) || s.stage < 0 || s.stage > 4)
+        return newDemoV3State();
+      const oldStage = s.stage;
+      s.previousFiveStageProgress = {
+        stage: oldStage,
+        chosen: s.chosen,
+        moment: s.moment,
+        decisions: structuredClone(s.decisions),
+        notes: structuredClone(s.notes),
+        messages: structuredClone(s.messages),
+      };
+      const chapterFor = (index: number) =>
+        index === 0 || index === 3 ? 0 : 1;
+      s.decisions = s.decisions
+        .filter((d) => d.stage === 0 || d.stage === 4)
+        .map((d) => ({ ...d, stage: d.stage === 0 ? 0 : 1 }));
+      s.notes = s.notes.map((n) => ({
+        ...n,
+        stageIndex: chapterFor(n.stageIndex),
+      }));
+      s.messages = s.messages.map((m) => ({
+        ...m,
+        stageIndex: m.stageIndex == null ? null : chapterFor(m.stageIndex),
+      }));
+      s.stage = oldStage === 0 ? 0 : 1;
+      if (oldStage > 0) {
+        s.room =
+          s.room === "records"
+            ? "records"
+            : ["gathering", "liaison", "courier", "shelter"].includes(s.room)
+              ? "liaison"
+              : "shore";
+        if (s.phase === "stage") s.intro = true;
+      }
+      if (oldStage > 0 && oldStage < 4) {
+        s.moment = null;
+        s.chosen = null;
+        s.departureReady = false;
+      }
+      s.lessonEdition = "two-chapters";
+    }
+    if (
+      s.version !== 1 ||
+      !Number.isInteger(s.stage) ||
+      s.stage < 0 ||
+      s.stage >= stages.length ||
+      !Number.isInteger(s.revision) ||
+      s.revision < 0 ||
+      !Array.isArray(s.decisions) ||
+      s.decisions.length > stages.length ||
+      !Array.isArray(s.answers) ||
+      s.answers.length > 2 ||
+      typeof s.intro !== "boolean" ||
+      (s.departureReady !== undefined &&
+        typeof s.departureReady !== "boolean") ||
+      (s.departureReady === true &&
+        !s.decisions.some((d) => d.stage === s.stage)) ||
+      !roomSets[s.stage].some((r) => r.id === s.room) ||
+      !Array.isArray(s.held) ||
+      !s.held.every((id) => sources.some((source) => source.id === id)) ||
+      ![null, "choosing", "predicting"].includes(s.moment) ||
+      !["briefing", "stage", "epilogue", "interview", "reveal"].includes(
+        s.phase,
+      )
+    )
+      return newDemoV3State();
+    // Preserve pre-merge demo saves when adopting the journal's new stage field.
+    if (Array.isArray(s.messages))
+      s.messages = s.messages.map((m) => ({
+        ...m,
+        stageIndex: m.stageIndex ?? null,
+        // Only remove the old generated footer from character replies, never student text.
+        text:
+          m.kind === "character" && typeof m.text === "string"
+            ? selectedSpeakerText(
+                m.text.replace(
+                  /(?:\n\n)?Sources: [^\n]*\. Inspect records in Source archive\.$/,
+                  "",
+                ).trimEnd(),
+                m.characterId ?? "",
+              ) || "This earlier reply could not be restored. Please ask your question again."
+            : m.text,
+      }));
+    // Preserve progress and export old fictional dialogue without attributing it to real people.
+    if (s.castEdition !== 2) {
+      s.previousEditionMessages = s.messages;
+      s.messages = [];
+      s.castEdition = 2;
+      roomOpening(s);
+    }
+    // The public contract validates restored message/note/interview structures.
+    PlayerView.parse(projectDemoV3(s));
+    if (
+      !s.decisions.every(
+        (d) =>
+          stages[d.stage]?.choices.some((c) => c.id === d.choice) &&
+          Array.isArray(d.evidence) &&
+          d.evidence.every((id) => sources.some((source) => source.id === id)),
+      )
+    )
+      return newDemoV3State();
+    // Older saves may be on the redundant prediction screen. Keep the choice and move on.
+    if (
+      s.phase === "stage" &&
+      s.moment === "predicting" &&
+      stages[s.stage].choices.some((c) => c.id === s.chosen)
+    )
+      recordDecision(s, s.chosen!);
+    return s;
+  } catch {
+    return newDemoV3State();
+  }
+}
+function recordDecision(state: DemoV3State, choiceId: string) {
+  if (!state.decisions.some((d) => d.stage === state.stage))
+    state.decisions.push({
+      stage: state.stage,
+      choice: choiceId,
+      prediction: "",
+      evidence: state.notes
+        .filter((n) => n.stageIndex === state.stage)
+        .map((n) => n.id.replace(/^source-\d+-/, "")),
+    });
+  state.moment = null;
+  state.chosen = null;
+  state.open = null;
+  state.departureReady = true;
+}
+
+function document(id: string, open: boolean): DocumentView {
+  const source = sourceById(id);
+  return {
+    id,
+    kind:
+      source.id === "press"
+        ? "newspaper"
+        : source.id === "letter"
+          ? "letter"
+          : source.id.startsWith("farewell")
+            ? "memoir"
+            : "report",
+    title: source.title,
+    provenance: {
+      masthead: source.kind,
+      date:
+        source.id === "currency"
+          ? "Japanese occupation · 1942 issue"
+          : source.date,
+      sender: null,
+      recipient: null,
+      place: null,
+    },
+    body: source.summary,
+    real: false,
+    sourceLabel: source.kind,
+    glossary: [],
+    open,
+  };
+}
+function sourceRoom(stageIndex: number, id: string) {
+  if (stageIndex === 0)
+    return ["family", "letter"].includes(id)
+      ? "quay"
+      : id === "life"
+        ? "household"
+        : "records";
+  return ({ force: "shore", "farewell-c": "liaison", "farewell-b": "records", press: "records", control: "liaison", memory: "records" } as Record<string, string>)[id];
+}
+const briefing: PlayerView["briefing"] = {
+  name: "The Cost of Resistance",
+  position: "student observer following Lim Bo Seng’s story",
+  relationships: [
+    "Meet Lim Bo Seng and Gan Choo Neo through biographical evidence.",
+    "The resistance depends on local people who bear risks of their own.",
+    "Compare the accounts of Tham Sien Yen and Tan Chong Tee; investigate Elizabeth Choy’s civilian help.",
+  ],
+  reputation:
+    "Your task is to build a supported interpretation, not to impersonate a historical figure.",
+  stakes:
+    "Explore what resistance required from individuals and the communities around them, using the evidence of occupation, hardship and survival.",
+  privateBrief: {
+    goals: [
+      "Build cooperation while recognising its cost",
+      "Use evidence to distinguish confident claims from justified conclusions",
+    ],
+    fears: [
+      "Leaving family responsibilities unresolved",
+      "Asking others to bear risks they cannot freely choose",
+    ],
+    constraints: [
+      "Named people are historical. Conversations, choices, movements and maps are learning reconstructions.",
+      "Your decisions do not change Lim's documented arrest or death.",
+      "A general source does not prove a particular household’s experience.",
+    ],
+    knows: [
+      "Lim left Singapore before its fall and later joined resistance work in Malaya.",
+      "This standalone Chapter 6 lesson takes about 25–35 minutes with discussion.",
+      "Archival opening photograph: Singapore surrender, 15 February 1942, AWM 127902; not Lim's departure.",
+    ],
+  },
+  situation: stages[0].intro,
+};
+export function projectDemoV3(s: DemoV3State): PlayerView {
+  const stage = stages[s.stage];
+  const rooms = roomSets[s.stage];
+  const choice = stage.choices.find((c) => c.id === s.chosen);
+  const characters = stage.npcs
+    .filter((_, i) => rooms[i].id === s.room)
+    .map((n) => ({
+      id: n.id,
+      name: n.name,
+      title: n.role,
+      stanceId: null,
+      portraitKey: n.id,
+    }));
+  const historical =
+    "Lim Bo Seng was captured on 27 March 1944 and died at Batu Gajah on 29 June 1944. His remains were reburied at MacRitchie on 13 January 1946. These events are not a consequence of the player's choices. The conversations and offered preparations are dramatic reconstructions, not records of his private thoughts.";
+  const answer = s.answers[0] ?? null,
+    response = s.answers[1] ?? null;
+  return {
+    phase: s.phase,
+    briefing,
+    stage: {
+      index: s.stage,
+      count: stages.length,
+      title: stage.title,
+      timePlace: `${stage.place} · ${stage.date}`,
+      centralQuestion: s.departureReady
+        ? "Your recommendation is saved. Explore further or walk to the marked exit."
+        : stage.question,
+      intro: s.intro
+        ? {
+            narration: `${stage.intro}\n\n${stage.objective}\n\n${stage.historian}`,
+            predictionReveal: null,
+          }
+        : null,
+    },
+    rooms: rooms.map(({ id, name }) => ({ id, name })),
+    currentRoomId: s.room,
+    characters,
+    speakers: [
+      ...new Map(
+        stages
+          .flatMap((stage) => stage.npcs)
+          .filter((npc) =>
+            s.messages.some((message) => message.characterId === npc.id),
+          )
+          .map((npc) => [
+            npc.id,
+            { id: npc.id, name: npc.name, title: npc.role },
+          ]),
+      ).values(),
+    ],
+    messages: s.messages,
+    notes: s.notes,
+    documents: s.held.map((id) => document(id, s.open === id)),
+    documentsHere: stage.sources
+      .filter((id) => !(s.stage === 0 && (id === "currency" || ARCHIVE_SHELVES.some((shelf) => shelf.sourceId === id))))
+      .filter((id) => sourceRoom(s.stage, id) === s.room)
+      .map((id) => ({
+        id,
+        kind: document(id, false).kind,
+        title: sourceById(id).title,
+        read: s.held.includes(id),
+      })),
+    definingMoment: s.moment
+      ? {
+          momentId: stage.id,
+          scene: stage.question,
+          deciderId: stage.npcs[0].id,
+          deciderName: "the people affected by your choice",
+          status: s.moment,
+          acts: stage.choices.map((c) => ({
+            id: c.id,
+            text: `${c.title}. ${c.detail} Trade-off: ${c.cost}`,
+          })),
+          nudge:
+            s.notes.filter((n) => n.stageIndex === s.stage).length <
+            stage.sources.length
+              ? "You can inspect the other sources before deciding. The archive and notes remain available."
+              : null,
+          chosenActId: s.chosen,
+          reaction: choice ? `${choice.outcome}\n\n${stage.reflection}` : null,
+          predictionOptions:
+            s.moment === "predicting"
+              ? [
+                  {
+                    outcomeId: "support",
+                    text: "The choice improves support but leaves a cost for others.",
+                  },
+                  {
+                    outcomeId: "cooperation",
+                    text: "Cooperation grows, but uncertainty remains.",
+                  },
+                  {
+                    outcomeId: "readiness",
+                    text: "The group can proceed, while some needs remain unresolved.",
+                  },
+                ]
+              : [],
+        }
+      : null,
+    timer: null,
+    pendingCheck: false,
+    epilogue:
+      s.phase === "epilogue"
+        ? {
+            title: "The person behind the reconstruction",
+            label: "Historical record",
+            text: historical,
+          }
+        : null,
+    interview:
+      s.phase === "interview"
+        ? {
+            interviewer: "Your history teacher",
+            question:
+              "Beyond personal courage, what made resistance possible? Use your notes to explain a cost for civilians and one limitation of your evidence.",
+            verdicts: [
+              {
+                id: "community",
+                text: "Resistance depended on local cooperation and material support.",
+              },
+              {
+                id: "courage",
+                text: "Personal courage was sufficient on its own.",
+              },
+              {
+                id: "uniform",
+                text: "Everyone experienced occupation in the same way.",
+              },
+            ],
+            answer,
+            pushBack: answer
+              ? "Which source supports your explanation? Distinguish a reconstruction that felt convincing from evidence that establishes a historical claim. Does Singapore evidence prove what happened in Perak?"
+              : null,
+            response,
+            closing: response
+              ? "Your explanation is saved. Compare it with a new source in class; no automated attainment grade has been assigned."
+              : null,
+            closed: response !== null,
+          }
+        : null,
+    reveal:
+      s.phase === "reveal"
+        ? {
+            whatHappened: historical,
+            pathVsHistory: s.decisions.map((d) => ({
+              stageIndex: d.stage,
+              yours: stages[d.stage].choices.find((c) => c.id === d.choice)!
+                .outcome,
+              history: stages[d.stage].historian,
+              matched: false,
+              closedEndings: [],
+            })),
+            corrections: [
+              "Fictional NPC speech is not oral testimony.",
+              "Original records, school adaptations and modern summaries have different evidential limits.",
+            ],
+            missedCore: [],
+            more: {
+              interpretations: [
+                "Evaluate a claim, its evidence and its limits rather than treating engagement as proof of learning.",
+              ],
+              sources: {
+                teacher: [
+                  "Supplied Sec 2 guidebook: Chapter 6 and resistance exercise, pp. 61–63.",
+                ],
+                other: sources.map(
+                  (source) => `${source.title}: ${source.url}`,
+                ),
+                invented: [
+                  "Supporting NPCs, dialogue, local room layouts, the offered decisions and their immediate consequences.",
+                ],
+              },
+              couldHaveGone: [],
+              secretPathExisted: false,
+              playback: {
+                acts: s.decisions.map(
+                  (d) =>
+                    stages[d.stage].choices.find((c) => c.id === d.choice)!
+                      .title,
+                ),
+                predictions: s.decisions
+                  .map((d) => d.prediction)
+                  .filter(Boolean),
+                interview: s.answers.map((a) => a?.text ?? ""),
+              },
+            },
+            teacherQuestions: stages.map((stage) => stage.reflection),
+          }
+        : null,
+    ended: s.phase === "reveal",
+  };
+}
+function addMessage(
+  s: DemoV3State,
+  kind: MessageView["kind"],
+  text: string,
+  characterId: string | null = null,
+  noteId: string | null = null,
+) {
+  s.messages.push({
+    id: `message-${s.revision}-${s.messages.length}`,
+    kind,
+    characterId,
+    roomId: s.room,
+    text,
+    insertedNoteId: noteId,
+    stageIndex: s.stage,
+    at: Date.now(),
+  });
+}
+function roomOpening(s: DemoV3State) {
+  stages[s.stage].npcs.forEach((npc, i) => {
+    if (
+      roomSets[s.stage][i].id === s.room &&
+      !s.messages.some(
+        (m) =>
+          m.characterId === npc.id &&
+          m.roomId === s.room &&
+          m.kind === "character" &&
+          m.id.startsWith(`opening-${s.stage}`),
+      )
+    )
+      s.messages.push({
+        id: `opening-${s.stage}-${npc.id}`,
+        kind: "character",
+        characterId: npc.id,
+        roomId: s.room,
+        text: npc.opening,
+        insertedNoteId: null,
+        stageIndex: s.stage,
+        at: Date.now(),
+      });
+  });
+}
+export function createDemoV3Client(
+  initial: DemoV3State,
+  save: (state: DemoV3State) => void,
+  fetchImpl: typeof fetch = fetch,
+): V3PlayClient {
+  let state = structuredClone(initial);
+  const result = (): V3PlayResult => ({
+    ok: true,
+    revision: state.revision,
+    view: projectDemoV3(state),
+  });
+  return {
+    refresh: async () => result(),
+    async act(revision, untrusted) {
+      if (revision !== state.revision)
+        return {
+          ok: false,
+          kind: "stale",
+          revision: state.revision,
+          view: projectDemoV3(state),
+        };
+      try {
+        const action = Action.parse(untrusted);
+        const next = structuredClone(state);
+        const stage = stages[next.stage];
+        if (action.type === "continue") {
+          if (next.phase === "briefing") next.phase = "stage";
+          else if (next.phase === "stage" && next.intro) {
+            next.intro = false;
+            roomOpening(next);
+          } else if (next.phase === "epilogue") next.phase = "interview";
+          else if (next.phase === "interview" && next.answers.length === 2)
+            next.phase = "reveal";
+          else
+            throw new Error(
+              "Complete the current conversation before continuing.",
+            );
+        } else if (
+          action.type === "interviewAnswer" &&
+          next.phase === "interview"
+        ) {
+          if (
+            !action.evidenceNoteIds.every((id) =>
+              next.notes.some((n) => n.id === id),
+            )
+          )
+            throw new Error("Choose evidence from your notes.");
+          if (next.answers.length >= 2)
+            throw new Error("Your reflection is already recorded.");
+          next.answers.push({
+            verdictId: action.verdictId,
+            evidenceNoteIds: action.evidenceNoteIds,
+            text: action.text ?? null,
+          });
+        } else if (next.phase !== "stage" || next.intro)
+          throw new Error("Open the map before taking this action.");
+        else if (action.type === "enterRoom" && action.roomId === "embark") {
+          if (
+            !next.departureReady ||
+            next.moment ||
+            next.room !==
+              (next.stage === 0 ? "street" : "coast")
+          )
+            throw new Error(
+              "Finish your recommendation, then walk to the marked exit.",
+            );
+          const missing = chapterTasks(next).filter((task) => !task.done);
+          if (missing.length)
+            throw new Error(
+              `Before leaving: ${missing.map((task) => task.label).join("; ")}.`,
+            );
+          next.departureReady = false;
+          if (next.stage === stages.length - 1) next.phase = "epilogue";
+          else {
+            next.stage++;
+            next.intro = true;
+            next.room = next.stage === 1 ? "coast" : roomSets[next.stage][0].id;
+          }
+        } else if (action.type === "enterRoom") {
+          if (
+            next.moment ||
+            !roomSets[next.stage].some((r) => r.id === action.roomId)
+          )
+            throw new Error("That room is not available now.");
+          next.room = action.roomId;
+          roomOpening(next);
+        } else if (action.type === "openDocument") {
+          if (
+            !next.held.includes(action.documentId) &&
+            (!stage.sources.includes(action.documentId) ||
+              sourceRoom(next.stage, action.documentId) !== next.room)
+          )
+            throw new Error("Walk to the source before picking it up.");
+          next.held = [...new Set([...next.held, action.documentId])];
+          next.open = action.documentId;
+        } else if (action.type === "closeDocument") next.open = null;
+        else if (action.type === "selectPassage") {
+          if (next.moment || !next.held.includes(action.documentId))
+            throw new Error("Read the document before taking a note.");
+          const doc = document(action.documentId, true);
+          if (action.end > doc.body.length)
+            throw new Error("Select a passage inside the document.");
+          const id = `source-${next.stage}-${action.documentId}`;
+          if (!next.notes.some((n) => n.id === id))
+            next.notes.push({
+              id,
+              text: `${sourceById(action.documentId).title}: ${doc.body.slice(action.start, action.end)}\nSource limit: ${sourceQuestions[action.documentId].footnote}`,
+              source: "document",
+              stageIndex: next.stage,
+              at: Date.now(),
+            });
+        } else if (action.type === "message" || action.type === "insertNote") {
+          if (next.moment)
+            throw new Error(
+              "Finish the decision before starting another conversation.",
+            );
+          const npc = stage.npcs.find(
+            (n, i) =>
+              n.id === action.characterId &&
+              roomSets[next.stage][i].id === next.room,
+          );
+          if (!npc) throw new Error("Walk to this person before speaking.");
+          const note =
+            action.type === "insertNote"
+              ? next.notes.find((n) => n.id === action.noteId)
+              : null;
+          if (action.type === "insertNote" && !note)
+            throw new Error("That note is not in your journal.");
+          const text =
+            action.type === "message"
+              ? action.text
+              : `${action.text ?? "What does this evidence suggest for our decision?"}\nEvidence: ${note!.text}`;
+          const history = next.messages
+            .filter(
+              (m) =>
+                m.characterId === npc.id &&
+                m.stageIndex === next.stage &&
+                (m.kind === "player" || m.kind === "character"),
+            )
+            .slice(-8)
+            .map((m) => ({
+              role: m.kind === "player" ? "user" : "assistant",
+              content: m.text.slice(0, 1800),
+            }));
+          const response = await fetchImpl("/api/demo/lim-bo-seng/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              stage: next.stage,
+              npc: npc.id,
+              question: text.slice(0, 1000),
+              history,
+              decisions: next.decisions.map((d) => ({
+                stage: stages[d.stage].id,
+                choice: d.choice,
+                reason:
+                  "Selected in the v3 decision interface; see conversation and evidence notes.",
+              })),
+            }),
+          });
+          if (!response.ok)
+            throw new Error(
+              "Conversation unavailable. Try again; your sources and map remain available.",
+            );
+          const answer = await response.json();
+          if (
+            typeof answer.reply !== "string" ||
+            !Array.isArray(answer.sources) ||
+            !answer.sources.every((id: string) =>
+              sources.some((source) => source.id === id),
+            )
+          )
+            throw new Error(
+              "The reply could not be validated. Please try again.",
+            );
+          addMessage(
+            next,
+            "player",
+            action.type === "message"
+              ? action.text
+              : (action.text ?? "I want to discuss this evidence."),
+            npc.id,
+            note?.id ?? null,
+          );
+          addMessage(
+            next,
+            "character",
+            answer.mode === "live"
+              ? answer.reply
+              : `${answer.reply}\n\nResearch note · live conversation unavailable.`,
+            npc.id,
+          );
+        } else if (action.type === "endStage") {
+          if (next.departureReady)
+            throw new Error(
+              "Your recommendation is saved. Walk to the marked exit to leave.",
+            );
+          if (!next.notes.some((n) => n.stageIndex === next.stage))
+            throw new Error(
+              "Read a source and select a passage to save an evidence note before deciding.",
+            );
+          next.moment = "choosing";
+        } else if (action.type === "act") {
+          if (
+            next.moment !== "choosing" ||
+            !stage.choices.some((c) => c.id === action.actId)
+          )
+            throw new Error("Choose an available action.");
+          recordDecision(next, action.actId);
+        } else if (action.type !== "tick")
+          throw new Error("This action is not available now.");
+        next.revision++;
+        state = next;
+        save(state);
+        return result();
+      } catch (e) {
+        return {
+          ok: false,
+          kind: "error",
+          message:
+            e instanceof Error ? e.message : "Please try that action again.",
+        };
+      }
+    },
+  };
+}

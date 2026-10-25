@@ -1,3 +1,5 @@
+import { mediaGenerationStep } from "@/lib/v3/media/generate";
+import { sourceRetryStep } from "@/lib/v3/sources/retry";
 import { defineStep } from "@adventure/jobs";
 import { EngineSpec } from "@adventure/engine";
 import { OpenAiImageService } from "@adventure/generation/assets";
@@ -27,7 +29,8 @@ const stancePortraitStep = defineStep<
       .eq("version", input.version)
       .maybeSingle<{ spec: unknown }>();
     if (error) throw error;
-    if (!data) throw new Error(`Missing v3 adventure version ${input.adventureId}:${input.version}`);
+    if (!data) throw new Error(`Missing v3 adventure version ${input.adventureId}:${input.version}`,
+      );
 
     const spec = EngineSpec.parse(data.spec);
     return generateStancePortraits(spec, input.adventureId, input.version, {
@@ -57,7 +60,10 @@ const stageArtGeneratorStep = defineStep<
       .eq("version", input.version)
       .maybeSingle<{ spec: unknown }>();
     if (error) throw error;
-    if (!data) throw new Error(`Missing v3 adventure version ${input.adventureId}:${input.version}`);
+    if (!data)
+      throw new Error(
+        `Missing v3 adventure version ${input.adventureId}:${input.version}`,
+      );
 
     const spec = EngineSpec.parse(data.spec);
     return generateV3StageArt(spec, input.adventureId, input.version, {
@@ -71,4 +77,10 @@ const stageArtGeneratorStep = defineStep<
   { maxAttempts: 4 },
 );
 
-export const jobSteps = [stancePortraitStep, stageArtGeneratorStep, ...v3GenerationSteps(defaultGenerationDeps)];
+export const jobSteps = [
+  mediaGenerationStep,
+  sourceRetryStep(defaultGenerationDeps),
+  stancePortraitStep,
+  stageArtGeneratorStep,
+  ...v3GenerationSteps(defaultGenerationDeps),
+];

@@ -1,0 +1,7 @@
+Generated with the built-in image-generation tool.
+
+Edit the referenced Pocket Adventures logo into a much warmer, simpler and more child-friendly identity.
+Preserve the exact brand text "Pocket Adventures" and the broad idea of a pocket containing a map, with icon left and two-line wordmark right. Redesign the shapes freely to achieve the requested simplification.
+Use a soft coral/terracotta pocket, a warm butter-yellow map, and a rich warm cocoa-brown wordmark. Rounded generous corners everywhere, including the map corners and pocket bottom. Friendly chunky rounded sans-serif lettering with soft terminals, excellent readability, calm playful energy appropriate for schoolchildren. Thoughtful professional educational brand, not babyish.
+Dramatically reduce details: remove every stitch, button, branching node, arrowhead, outline border and fold line. The icon consists of just a simple round-bottom pocket shape and one softly folded map silhouette emerging from it, with at most one short rounded curved path on the map. Two or three broad flat colour shapes, strong small-size recognition, airy spacing. No extra decorations, faces, mascots, stars, tagline, or scene.
+Flat clean vector-like artwork: absolutely no gradients, textures, bevels, shadows or 3D. Single finished logo with generous transparent margins. True transparent background, preserve alpha.

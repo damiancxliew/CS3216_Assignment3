@@ -10,6 +10,11 @@ import { withPendingPlayerLine, withoutPendingLines } from "@/lib/play/v3/pendin
 // Back off while the post-turn check is still running; it usually lands in 2–4 s, rarely after ~30 s.
 const PENDING_REFRESH_DELAYS = [2_000, 3_000, 5_000, 8_000, 12_000, 20_000];
 
+/** Background actions (the timer tick) must not lock the controls, flash "Saving…" or touch the banner. */
+function isBackground(action: Action): boolean {
+  return action.type === "tick";
+}
+
 type QueuedAction = {
   action: Action;
   onSettled?: (succeeded: boolean) => void;
@@ -58,22 +63,30 @@ export function useV3Play(
       setView((current) => withPendingPlayerLine(current, action, id, Date.now()));
     }
     // Timer updates share the action queue but must not interrupt chat input.
-    if (action.type !== "tick") setBusy(true);
+    if (!isBackground(action)) {
+      busyRef.current = true;
+      setBusy(true);
+    }
     if (processing.current) return;
     processing.current = true;
-    busyRef.current = true;
     void (async () => {
       while (queue.current.length > 0) {
         const next = queue.current.shift()!;
         const result = await client.current!.act(revisionRef.current, next.action);
+        const background = isBackground(next.action);
         if (result.ok) {
           adopt(result.view, result.revision);
-          setBanner(null);
+          if (!background) setBanner(null);
           next.onSettled?.(true);
           if (result.view.pendingCheck) void refreshPending();
           continue;
         }
         next.onSettled?.(false);
+        if (background) {
+          // A missed tick is harmless; the next one catches up. Don't drop what the student queued behind it.
+          if (result.kind === "stale") adopt(result.view, result.revision);
+          continue;
+        }
         if (result.kind === "stale") {
           adopt(result.view, result.revision);
           setBanner({ kind: result.kind, message: "The game moved on — refreshed." });
@@ -97,6 +110,7 @@ export function useV3Play(
       if (
         document.visibilityState === "visible" &&
         !busyRef.current &&
+        !processing.current &&
         queue.current.length === 0
       ) {
         send({ type: "tick" });

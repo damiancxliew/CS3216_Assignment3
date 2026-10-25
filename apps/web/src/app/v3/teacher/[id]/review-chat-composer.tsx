@@ -108,11 +108,11 @@ export function ReviewChatComposer({
       ? suggestion
       : null;
   return (
-    <div className="space-y-3">
+    <div className="flex min-h-0 flex-col gap-3">
       {valid ? (
         <section
           aria-label="Suggested changes"
-          className="creation-card max-h-44 md:max-h-80 space-y-3 overflow-y-auto rounded-control border border-line-strong bg-paper p-3 text-sm"
+          className="creation-card min-h-0 max-h-44 md:max-h-80 space-y-3 overflow-y-auto rounded-control border border-line-strong bg-paper p-3 text-sm"
         >
           <h3 className="font-bold">Suggested changes</h3>
           {valid.preview.map((change, index) => (
@@ -174,7 +174,7 @@ export function ReviewChatComposer({
           event.preventDefault();
           void send();
         }}
-        className="flex items-center gap-2"
+        className="flex shrink-0 items-center gap-2"
       >
         <textarea
           aria-label="Message"

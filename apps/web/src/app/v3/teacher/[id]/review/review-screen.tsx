@@ -1,4 +1,5 @@
 "use client";
+import { compactButton as button } from "@/components/ui";
 
 import React, {
   useLayoutEffect,
@@ -13,6 +14,7 @@ import type {
   SpecCitation,
   SpecSource,
 } from "@adventure/spec-v3";
+import { FieldIssueProvider } from "./field-issues";
 import { ReviewIssue } from "@/components/teacher/review-issue";
 import {
   reviewNames,
@@ -34,6 +36,8 @@ import {
   type ReviewTab,
   type ReviewTarget,
 } from "@/lib/v3/review";
+
+type ScreenTab = ReviewTab | "assets";
 
 const tabs: { id: ReviewTab; label: string }[] = [
   { id: "stages", label: "Stages" },
@@ -211,8 +215,20 @@ export function ReviewScreen({
   allowedTabs,
   indexEntries,
   checksPassedLabel = "Checks passed",
+  renderHeader,
+  onEditIssue,
+  sidebar,
+  floatingChecks = false,
+  issueActions,
+  assets,
 }: {
   checksPassedLabel?: string;
+  renderHeader?: (checks: ReactNode) => ReactNode;
+  onEditIssue?: () => void;
+  sidebar?: ReactNode;
+  floatingChecks?: boolean;
+  issueActions?: ReactNode;
+  assets?: ReactNode;
   allowedTabs?: ReviewTab[];
   indexEntries?: (tab: ReviewTab, itemId: string) => ReviewIndexEntry[];
   editMode?: boolean;
@@ -222,31 +238,40 @@ export function ReviewScreen({
   errors: CheckIssue[];
   warnings: (CheckIssue & { pass: string })[];
 }) {
-  const visibleTabs = tabs.filter(
-    (t) => !allowedTabs || allowedTabs.includes(t.id),
-  );
-  const [tab, setTab] = useState<ReviewTab>(allowedTabs?.[0] ?? "stages");
-  const [selection, setSelection] = useState<Record<ReviewTab, string>>(() => ({
+  const visibleTabs: { id: ScreenTab; label: string }[] = [
+    ...tabs.filter((t) => !allowedTabs || allowedTabs.includes(t.id)),
+    ...(assets ? [{ id: "assets" as const, label: "Assets" }] : []),
+  ];
+  const [tab, setTab] = useState<ScreenTab>(allowedTabs?.[0] ?? "stages");
+  const openAsset = (id: string) => {
+    setTab("assets");
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "center" }));
+  };
+  const [selection, setSelection] = useState<Record<ScreenTab, string>>(() => ({
     stages: spec.stages[0]?.id ?? "",
     characters: spec.characters[0]?.id ?? "",
     documents: spec.documents[0]?.id ?? "",
     endings: spec.endings[0]?.id ?? "",
     settings: "settings",
     reveal: "reveal",
+    assets: "assets",
   }));
   const tabItems =
-    tab === "settings" || tab === "reveal" ? [{ id: tab }] : spec[tab];
+    tab === "assets" || tab === "settings" || tab === "reveal" ? [{ id: tab }] : spec[tab];
   const selected = tabItems.some((item) => item.id === selection[tab])
     ? selection[tab]
     : (tabItems[0]?.id ?? "");
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [activeAnchor, setActiveAnchor] = useState(reviewAnchor(selected));
-  const [destination, setDestination] = useState<ReviewTarget | null>(null);
+  const [destination, setDestination] = useState<(ReviewTarget & { fieldPath?: string }) | null>(null);
   const detail = useRef<HTMLDivElement>(null);
+  const checksDisclosure = useRef<HTMLDetailsElement>(null);
   const targets = useMemo(() => reviewTargets(spec), [spec]);
   const names = useMemo(() => reviewNames(spec), [spec]);
-  const name = (id: string) => names.get(id) ?? "Unavailable item";
-  const choose = (target: ReviewTarget) => {
+  const name = (id: string) =>
+    id === "settings" ? "Settings" : id === "reveal" ? "Reveal and questions" :
+      names.get(id) ?? "Unavailable item";
+  const choose = (target: ReviewTarget & { fieldPath?: string }) => {
     if (allowedTabs && !allowedTabs.includes(target.tab)) return;
     setCollapsed((current) => {
       const next = new Set(current);
@@ -266,7 +291,17 @@ export function ReviewScreen({
   useLayoutEffect(() => {
     if (!destination || !detail.current) return;
     const container = detail.current;
-    const element = document.getElementById(destination.anchor);
+    const field = destination.fieldPath
+      ? [...container.querySelectorAll<HTMLElement>("[data-edit-path]")]
+          .filter((node) =>
+            destination.fieldPath === node.dataset.editPath ||
+            destination.fieldPath?.startsWith(node.dataset.editPath + "."),
+          )
+          .sort((a, b) =>
+            (b.dataset.editPath?.length ?? 0) - (a.dataset.editPath?.length ?? 0),
+          )[0]
+      : undefined;
+    const element = field ?? document.getElementById(destination.anchor);
     const behavior = window.matchMedia("(prefers-reduced-motion: reduce)")
       .matches
       ? "instant"
@@ -278,13 +313,18 @@ export function ReviewScreen({
         container.scrollTop -
         12;
       container.scrollTo({ top, behavior });
-      element.focus({ preventScroll: true });
+      const control = destination.fieldPath && editMode
+        ? element.querySelector<HTMLElement>(
+            "textarea, input, button[role=combobox], select",
+          )
+        : null;
+      (control ?? element).focus({ preventScroll: true });
     } else {
       container.focus({ preventScroll: true });
     }
     container.scrollIntoView({ block: "nearest", behavior });
-  }, [destination]);
-  const activateTab = (next: ReviewTab) => {
+  }, [destination, editMode]);
+  const activateTab = (next: ScreenTab) => {
     if (next === tab) return;
     setDestination(null);
     setTab(next);
@@ -309,7 +349,7 @@ export function ReviewScreen({
       </span>
     );
   };
-  const issueList = (issues: CheckIssue[]) => (
+  const issueList = (issues: CheckIssue[], expandFirst = false) => (
     <ul className="space-y-2">
       {issues.map((issue, i) => {
         const target = issueTarget(spec, issue, targets);
@@ -317,9 +357,15 @@ export function ReviewScreen({
           <li key={i} className="text-sm">
             <ReviewIssue
               issue={issue}
+              expanded={expandFirst && i === 0}
               onSelect={
                 target && (!allowedTabs || allowedTabs.includes(target.tab))
-                  ? () => choose(target)
+                  ? () => {
+                      if (floatingChecks && checksDisclosure.current)
+                        checksDisclosure.current.open = false;
+                      onEditIssue?.();
+                      choose({ ...target, fieldPath: issue.path.replace(/\[(\d+)\]/g, ".$1") });
+                    }
                   : undefined
               }
               location={target ? name(target.itemId) : undefined}
@@ -353,7 +399,7 @@ export function ReviewScreen({
     );
   };
   const items =
-    tab === "settings" || tab === "reveal"
+    tab === "assets" || tab === "settings" || tab === "reveal"
       ? [
           {
             id: tab,
@@ -376,65 +422,103 @@ export function ReviewScreen({
   const ending =
     tab === "endings" ? spec.endings.find((e) => e.id === selected) : undefined;
 
+  const checkDetails = (
+    <>
+      <h2
+        id="needs-fixing"
+        className={`text-xl font-bold ${errors.length ? "text-ink" : "text-world"}`}
+      >
+        {errors.length
+          ? `Needs fixing (${errors.length})`
+          : checksPassedLabel}
+      </h2>
+      {errors.length ? issueList(errors, floatingChecks) : null}
+      {warnings.length || spec.conflicts.length ? (
+        <details open={errors.length ? true : undefined} className="text-sm">
+          <summary className="w-fit cursor-pointer font-semibold">
+            View details
+          </summary>
+          <div className="mt-4 space-y-4">
+            {[...warningGroups].map(([pass, list]) => (
+              <div key={pass}>
+                <h3 className="mb-2 font-bold">
+                  {REVIEW_PASS_LABELS[pass] ?? "Other checks"} warnings
+                </h3>
+                {issueList(list)}
+              </div>
+            ))}
+            {spec.conflicts.length ? (
+              <>
+                <h3 className="font-bold">
+                  Conflicts ({spec.conflicts.length})
+                </h3>
+                <ul className="space-y-4">
+                  {spec.conflicts.map((conflict) => (
+                    <li key={conflict.id} className="space-y-2 text-sm">
+                      <Field title="Teacher brief">
+                        {conflict.teacherSays}
+                      </Field>
+                      <Field title="Source says">{conflict.sourceSays}</Field>
+                      <div className="flex flex-wrap gap-3">
+                        {conflict.itemIds.map((id) => (
+                          <span key={id}>{link(id)}</span>
+                        ))}
+                      </div>
+                      <Citations
+                        citations={[{ sourceId: conflict.sourceId }]}
+                        sources={sources}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
+    </>
+  );
+  const checks = floatingChecks && !errors.length && !warnings.length && !spec.conflicts.length ? (
+    <p className="px-3 py-2 text-sm font-semibold text-muted">No issues</p>
+  ) : renderHeader || floatingChecks ? (
+    <details
+      ref={checksDisclosure}
+      aria-label="Adventure checks"
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !floatingChecks) return;
+        event.currentTarget.open = false;
+        event.currentTarget.querySelector("summary")?.focus();
+      }}
+      className={floatingChecks ? "relative text-sm" : "rounded-control border border-line bg-surface p-3 text-sm"}
+    >
+      <summary className={floatingChecks ? "cursor-pointer whitespace-nowrap rounded-control px-3 py-2 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink" : "cursor-pointer font-semibold"}>
+        {errors.length
+          ? `${errors.length} ${errors.length === 1 ? "issue" : "issues"} to fix`
+          : checksPassedLabel}
+        {warnings.length ? ` · ${warnings.length} ${warnings.length === 1 ? "warning" : "warnings"}` : ""}
+        {spec.conflicts.length ? ` · ${spec.conflicts.length} conflicts` : ""}
+      </summary>
+      <div className={floatingChecks ? "absolute bottom-full right-0 mb-4 max-h-[min(60dvh,32rem)] w-[min(32rem,calc(100vw-2rem))] space-y-3 overflow-y-auto overscroll-contain rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg" : "mt-3 max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-2"}>
+        {checkDetails}
+      </div>
+    </details>
+  ) : (
+    <section
+      className={`space-y-3 rounded-surface border p-5 ${errors.length ? "border-line bg-surface" : "border-world/30 bg-world-wash"}`}
+      aria-labelledby="needs-fixing"
+    >
+      {checkDetails}
+    </section>
+  );
   return (
     <div data-review-screen className="space-y-6 text-ink">
-      <section
-        className={`space-y-3 rounded-surface border p-5 ${errors.length ? "border-line bg-surface" : "border-world/30 bg-world-wash"}`}
-        aria-labelledby="needs-fixing"
-      >
-        <h2
-          id="needs-fixing"
-          className={`text-xl font-bold ${errors.length ? "text-ink" : "text-world"}`}
-        >
-          {errors.length
-            ? `Needs fixing (${errors.length})`
-            : checksPassedLabel}
-        </h2>
-        {errors.length ? issueList(errors) : null}
-        {warnings.length || spec.conflicts.length ? (
-          <details open={errors.length ? true : undefined} className="text-sm">
-            <summary className="w-fit cursor-pointer font-semibold">
-              View details
-            </summary>
-            <div className="mt-4 space-y-4">
-              {[...warningGroups].map(([pass, list]) => (
-                <div key={pass}>
-                  <h3 className="mb-2 font-bold">
-                    {REVIEW_PASS_LABELS[pass] ?? "Other checks"} warnings
-                  </h3>
-                  {issueList(list)}
-                </div>
-              ))}
-              {spec.conflicts.length ? (
-                <>
-                  <h3 className="font-bold">
-                    Conflicts ({spec.conflicts.length})
-                  </h3>
-                  <ul className="space-y-4">
-                    {spec.conflicts.map((conflict) => (
-                      <li key={conflict.id} className="space-y-2 text-sm">
-                        <Field title="Teacher brief">
-                          {conflict.teacherSays}
-                        </Field>
-                        <Field title="Source says">{conflict.sourceSays}</Field>
-                        <div className="flex flex-wrap gap-3">
-                          {conflict.itemIds.map((id) => (
-                            <span key={id}>{link(id)}</span>
-                          ))}
-                        </div>
-                        <Citations
-                          citations={[{ sourceId: conflict.sourceId }]}
-                          sources={sources}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
-            </div>
-          </details>
-        ) : null}
-      </section>
+      {renderHeader ? renderHeader(floatingChecks ? null : checks) : floatingChecks ? null : checks}
+      {floatingChecks ? (
+        <aside aria-label="Adventure issue controls" className="fixed bottom-5 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-surface border border-line bg-paper p-2 shadow-lg sm:right-6">
+          {checks}
+          {issueActions}
+        </aside>
+      ) : null}
       <div
         data-review-workspace
         className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4"
@@ -479,12 +563,25 @@ export function ReviewScreen({
             </button>
           ))}
         </div>
+        {assets && (tab === "stages" || tab === "characters") ? <div className="flex flex-wrap gap-2">
+          <button type="button" className={button.subtle} onClick={() => openAsset(`asset-${tab === "stages" ? "stage" : "sprite"}-${tab === "stages" ? selected : `character:${selected}`}`)}>
+            Manage {tab === "stages" ? "opening image" : "walking sprite"}
+          </button>
+          {tab === "characters" ? <select aria-label="Manage portrait" className="rounded border border-line bg-surface px-3 py-2 text-sm" defaultValue="" onChange={event => { if (event.target.value) openAsset(`asset-portrait-${event.target.value}`); }}>
+            <option value="">Manage portrait…</option>
+            {spec.characters.filter(character => character.id === selected).flatMap(character => character.tier === "major"
+              ? character.stances.map(stance => <option key={stance.id} value={`${character.id}:${stance.id}`}>{stance.label}</option>)
+              : [<option key={character.id} value={character.id}>{character.name}</option>])}
+          </select> : null}
+        </div> : null}
         <div
           role="tabpanel"
           id="review-content"
           aria-labelledby={`tab-${tab}`}
-          className="grid min-w-0 gap-5 md:min-h-0 md:flex-1 md:grid-cols-[16rem_minmax(0,1fr)]"
+          className={tab === "assets" ? "min-w-0" : `grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${sidebar ? "xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(20rem,0.9fr)_15rem_minmax(0,2fr)]" : "md:min-h-0 md:flex-1"}`}
         >
+          {tab === "assets" ? assets : <>
+          {sidebar ? <div className="min-h-0 min-w-0 md:col-span-2 xl:col-span-1">{sidebar}</div> : null}
           <nav
             aria-label={`${tabs.find((t) => t.id === tab)?.label} items`}
             className="h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] md:h-full"
@@ -569,7 +666,9 @@ export function ReviewScreen({
           >
             <React.Fragment key={`${tab}:${selected}`}>
               {editMode && renderEditor ? (
-                renderEditor(tab, selected)
+                <FieldIssueProvider value={errors}>
+                  {renderEditor(tab, selected)}
+                </FieldIssueProvider>
               ) : (
                 <>
                   {tab === "settings" ? (
@@ -1105,6 +1204,7 @@ export function ReviewScreen({
               )}
             </React.Fragment>
           </div>
+          </>}
         </div>
       </div>
     </div>

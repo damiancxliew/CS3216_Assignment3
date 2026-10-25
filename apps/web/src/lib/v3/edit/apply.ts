@@ -1,3 +1,4 @@
+import type { MediaEditContext } from "../media/resolvers";
 import { AdventureSpec } from "@adventure/spec-v3";
 import type { ExtractedDocument } from "@adventure/generation";
 import { applyV3Edits, type V3Edit, type CapturedSource } from "./commands";
@@ -106,12 +107,12 @@ export function deriveAttribution(
   (edited.authoring ??= {}).teacherContributions = contributions;
 }
 
-export function applyTeacherEdits(base: AdventureSpec, edits: V3Edit[], sources: CapturedSource[]): AdventureSpec {
+export function applyTeacherEdits(base: AdventureSpec, edits: V3Edit[], sources: CapturedSource[], media: MediaEditContext = {}): AdventureSpec {
   if (edits.length === 0) return base;
   // JSONB can reorder citation keys. Compare two schema-normalized trees so
   // harmless key order changes are not mistaken for teacher evidence edits.
   const normalized = AdventureSpec.parse(base);
-  const spec = applyV3Edits(normalized, edits, sources);
+  const spec = applyV3Edits(normalized, edits, sources, false, media);
   if (!same(spec, normalized)) {
     deriveAttribution(normalized, spec);
     // Only the last evidence operation for a surviving real document supplies

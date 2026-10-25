@@ -1,3 +1,12 @@
+import {
+  bundledId,
+  validTarget,
+  isSprite,
+  resolveWalkingSprites,
+  pruneMediaSelections,
+  type MediaEditContext,
+  type MediaTarget,
+} from "../media/resolvers";
 import { z } from "zod";
 import { AdventureSpec, type AdventureSpec as Spec } from "@adventure/spec-v3";
 
@@ -6,6 +15,29 @@ const path = z
   .min(1)
   .max(30);
 export const V3Edit = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("stageImage"),
+    targetKey: z.string().min(1),
+    candidateId: z.string().uuid().nullable(),
+  }),
+  z.strictObject({
+    type: z.literal("portraitImage"),
+    targetKey: z.string().min(1),
+    candidateId: z.string().uuid().nullable(),
+  }),
+  z.strictObject({
+    type: z.literal("walkingSprite"),
+    targetKey: z.string().min(1),
+    selection: z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("bundled"), id: z.string().min(1) }),
+      z.strictObject({
+        kind: z.literal("candidate"),
+        id: z.string().uuid(),
+        reviewed: z.literal(true),
+      }),
+      z.strictObject({ kind: z.literal("default") }),
+    ]),
+  }),
   z.strictObject({ type: z.literal("set"), path, value: z.unknown() }),
   z.strictObject({
     type: z.literal("insert"),
@@ -68,6 +100,7 @@ export function applyV3Edits(
   edits: readonly V3Edit[],
   sources: CapturedSource[],
   local = false,
+  media: MediaEditContext = {},
 ): Spec {
   const draft = structuredClone(base);
   const evidenceOperations = new Map<
@@ -75,6 +108,78 @@ export function applyV3Edits(
     { real: boolean; body: string; sourceLabel: string; citations: unknown }
   >();
   for (const edit of edits) {
+    if (
+      edit.type === "stageImage" ||
+      edit.type === "portraitImage" ||
+      edit.type === "walkingSprite"
+    ) {
+      const target: MediaTarget = {
+        kind:
+          edit.type === "stageImage"
+            ? "stage"
+            : edit.type === "portraitImage"
+              ? "portrait"
+              : edit.targetKey === "player"
+                ? "playerSprite"
+                : "characterSprite",
+        key: edit.targetKey,
+      };
+      if (!validTarget(draft, target))
+        throw Error("Asset target no longer exists.");
+      const id =
+        edit.type === "walkingSprite"
+          ? edit.selection.kind === "candidate"
+            ? edit.selection.id
+            : null
+          : edit.candidateId;
+      const candidate = id ? media.candidates?.[id] : undefined;
+      if (id && !candidate) throw Error("Ready candidate unavailable.");
+      if (
+        candidate &&
+        (candidate.target.kind !== target.kind ||
+          candidate.target.key !== target.key)
+      )
+        throw Error("Candidate target mismatch.");
+      if (
+        candidate &&
+        isSprite(target) &&
+        candidate.snapshot.spriteLayout !== "4x4-down-up-left-right"
+      )
+        throw Error("Candidate is not a walking sheet.");
+      if (edit.type === "walkingSprite") {
+        const defaults = resolveWalkingSprites({
+          ...draft,
+          authoring: undefined,
+        });
+        const fallback = defaults[edit.targetKey]!.sprite;
+        const selection = edit.selection;
+        ((draft.authoring ??= {}).walkingSprites ??= {})[edit.targetKey] =
+          candidate
+            ? {
+                type: "custom",
+                candidate: structuredClone(candidate.snapshot),
+                fallback,
+              }
+            : {
+                type: "bundled",
+                bundledId:
+                  selection.kind === "bundled"
+                    ? bundledId(selection.id)
+                    : fallback,
+                fallback,
+              };
+      } else {
+        const field =
+          edit.type === "stageImage" ? "stageImages" : "portraitImages";
+        ((draft.authoring ??= {})[field] ??= {})[edit.targetKey] = candidate
+          ? {
+              type: "candidate",
+              candidate: structuredClone(candidate.snapshot),
+            }
+          : { type: "fallback" };
+      }
+      continue;
+    }
     if (edit.type === "sourcePolicy") {
       (draft.authoring ??= {}).sourcePolicy = edit.value;
       continue;
@@ -145,6 +250,12 @@ export function applyV3Edits(
       }
     }
   }
+  for (const stage of draft.stages)
+    if (!base.stages.some((old) => old.id === stage.id))
+      ((draft.authoring ??= {}).stageImages ??= {})[stage.id] ??= {
+        type: "fallback",
+      };
+  pruneMediaSelections(draft);
   const parsed = local ? draft : AdventureSpec.parse(draft);
   // Parent replacement and insertion must not bypass document evidence rules.
   for (const doc of parsed.documents) {

@@ -18,6 +18,15 @@ const spec = AdventureSpec.parse(
 );
 
 describe("review navigation and evidence", () => {
+  it.each([
+    ["title", "settings"],
+    ["timer.minutes", "settings"],
+    ["reveal.whatHappened", "reveal"],
+    ["teacherQuestions[0]", "reveal"],
+  ])("links %s issues to the %s tab", (path, tab) => {
+    expect(issueTarget(spec, { code: "fixture", path, message: "Check field" }))
+      .toMatchObject({ tab, itemId: tab });
+  });
   it("selects nested items from assembled paths, retaining global issues without links", () => {
     const stage = spec.stages[0];
     expect(

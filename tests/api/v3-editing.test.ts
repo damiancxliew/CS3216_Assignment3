@@ -46,8 +46,11 @@ describe("direct editing", () => {
     const result = await save([
       { type: "set", path: ["stages", 0, "startRoomId"], value: "missing" },
     ]);
-    expect(result).toMatchObject({ ok: false, code: "check-errors", errors: expect.arrayContaining([expect.objectContaining({ code: "ref" })]) });
-    expect(await store.loadAdventure("a")).toMatchObject({ publishedVersion: 1, specVersion: 1, status: "published", spec });
+    expect(result).toMatchObject({ ok: false, code: "check-errors", errors: expect.arrayContaining([expect.objectContaining({ code: "ref" }),
+      ]),
+    });
+    expect(await store.loadAdventure("a")).toMatchObject({ publishedVersion: 1, specVersion: 1, status: "published", spec,
+    });
     expect(await store.loadVersionSpec("a", 1)).toEqual(spec);
   });
   it("makes no snapshot for a no-op and rejects stale/access/structurally invalid changes", async () => {
@@ -57,8 +60,7 @@ describe("direct editing", () => {
     expect(
       await save([{ type: "set", path: ["title"], value: "New title" }]),
     ).toMatchObject({ ok: true, version: 2 });
-    expect(queueStageArt).toHaveBeenCalledOnce();
-    expect(queueStageArt).toHaveBeenCalledWith("a", 2);
+    expect(queueStageArt).not.toHaveBeenCalled();
     expect(await save([])).toMatchObject({ ok: false, code: "conflict" });
     expect(
       await save(
@@ -70,14 +72,16 @@ describe("direct editing", () => {
       await saveAdventureEdits(deps, "outsider", "a", 2, []),
     ).toMatchObject({ ok: false, code: "access" });
   });
-  it("keeps a saved edit successful when stage-art queueing fails", async () => {
+  it("saves story edits without starting paid stage-art generation", async () => {
     const { save, queueStageArt } = setup();
     queueStageArt.mockRejectedValueOnce(new Error("queue is unavailable"));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      await expect(save([{ type: "set", path: ["title"], value: "New title" }]))
+      await expect(save([{ type: "set", path: ["title"], value: "New title" }]),
+      )
         .resolves.toMatchObject({ ok: true, version: 2 });
-      expect(consoleError).toHaveBeenCalledWith("Failed to queue v3 stage art", expect.any(Error));
+      expect(queueStageArt).not.toHaveBeenCalled();
+      expect(consoleError).not.toHaveBeenCalled();
     } finally {
       consoleError.mockRestore();
     }
@@ -317,20 +321,26 @@ it("reuses portraits only for unchanged prompt inputs without generating assets"
 it('keeps a later invented conversion after an excerpt replacement', async () => {
   const { save, spec } = setup();
   const result = await save([
-    { type: 'replaceExcerpt', documentId: spec.documents[0].id, sourceId: 'captured', start: 0, end: 20 },
+    { type: 'replaceExcerpt', documentId: spec.documents[0].id, sourceId: 'captured', start: 0, end: 20,
+    },
     { type: 'convertDocument', documentId: spec.documents[0].id },
-    { type: 'set', path: ['documents', 0, 'body'], value: 'Teacher invented prose' },
-    { type: 'insert', path: ['documents', 0, 'keyPassages'], index: 0, value: { ...spec.documents[0].keyPassages[0], start: 0, end: 7 } },
+    { type: 'set', path: ['documents', 0, 'body'], value: 'Teacher invented prose',
+    },
+    { type: 'insert', path: ['documents', 0, 'keyPassages'], index: 0, value: { ...spec.documents[0].keyPassages[0], start: 0, end: 7 },
+    },
   ]);
   if (!result.ok) throw Error(JSON.stringify(result));
   expect(result.ok).toBe(true);
-  if (result.ok) expect(result.spec.documents[0]).toMatchObject({ real: false, sourceLabel: 'invented', citations: [], body: 'Teacher invented prose' });
+  if (result.ok) expect(result.spec.documents[0]).toMatchObject({ real: false, sourceLabel: 'invented', citations: [], body: 'Teacher invented prose',
+    });
 });
 
 
 it("adds no snapshot when an edit adds an empty required prose field", async () => {
   const { save, store } = setup();
   const write = vi.spyOn(store, "saveDraft");
-  expect(await save([{ type: "set", path: ["definingMoments", 0, "nudge"], value: "" }])).toMatchObject({ ok: false, code: "check-errors" });
+  expect(await save([{ type: "set", path: ["definingMoments", 0, "nudge"], value: "" },
+    ]),
+  ).toMatchObject({ ok: false, code: "check-errors" });
   expect(write).not.toHaveBeenCalled();
 });

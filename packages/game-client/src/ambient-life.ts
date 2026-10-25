@@ -60,7 +60,8 @@ export class AmbientLife {
       const shadow = scene.add.ellipse(at.x * 16 + 8, at.y * 16 + 13, 10, 4, 0x243d35, .22).setDepth(8)
       const sprite = scene.add.sprite(at.x * 16 + 8, at.y * 16 + 6, `char-${sheet}`, 0).setDepth(12).setName(`ambient-${crowd?.kind ?? population}-${i}`)
       const id = `street-${i}`
-      const person: Talker = { id, talk: crowd ? { name: crowd.name, lines: crowd.lines } : streetTalk(`${snapshot.map.id}:${id}`, art.id, snapshot.storyContext ?? ''), line: -1, cooldown: 2000 + i * 900, crowd: crowd !== null }
+      const authoredTalk = snapshot.streetTalk?.length ? snapshot.streetTalk[i % snapshot.streetTalk.length] : undefined
+      const person: Talker = { id, talk: authoredTalk ?? (crowd ? { name: crowd.name, lines: crowd.lines } : streetTalk(`${snapshot.map.id}:${id}`, art.id, snapshot.storyContext ?? '')), line: -1, cooldown: 2000 + i * 900, crowd: crowd !== null }
       this.residents.push({ sprite, shadow, sheet: `char-${sheet}`, stepMs: 430, at, path: [], progress: 0, pause: i * 450, stop, person, bubble: null, bubbleFor: 0, ...(drill?.[i] ? { drill: drill[i]! } : {}) })
     }
     for (const [index, species] of storyFauna(snapshot.environment, art, snapshot.storyContext ?? '').entries()) {

@@ -17,7 +17,8 @@
     "./play": "./src/play/index.ts",
     "./publish": "./src/publish/index.ts",
     "./runtime": "./src/runtime/index.ts",
-    "./v3": "./src/v3/index.ts"
+    "./v3": "./src/v3/index.ts",
+    "./sources-labels": "./src/sources/labels.ts"
   },
   "scripts": {
     "test": "vitest run",

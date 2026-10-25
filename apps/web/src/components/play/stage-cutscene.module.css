@@ -118,3 +118,34 @@
   .bar { animation: none; transform: none; }
   .beat, .scrim::after { transition: none; }
 }
+
+/* Authored evidence sequences opt in; generated v3 cinematics keep their layout. */
+.beatCopy { display: contents; }
+.scene[data-evidence="true"] .captions { top: calc(var(--bar) + 80px); bottom: calc(var(--bar) + 100px); width: auto; right: var(--gutter); overflow-y: auto; pointer-events: auto; mask-image: none; justify-content: flex-start; }
+.scene[data-evidence="true"] .beat { position: static; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: clamp(24px, 4vw, 64px); padding: 12px 0 28px; border-bottom: 1px solid #d6b77840; }
+.scene[data-evidence="true"] .beat[data-active="false"] { display: none; }
+.scene[data-evidence="true"] .beatCopy { display: flex; flex-direction: column; gap: 16px; }
+.scene[data-evidence="true"] .beatCopy:only-child { grid-column: 1 / -1; max-width: 64ch; }
+.scene[data-evidence="true"] .title { font-size: clamp(1.8rem, 3vw, 3.2rem); }
+.scene[data-evidence="true"] .text { font-size: clamp(1rem, 1.3vw, 1.2rem); }
+.scene[data-evidence="true"] .actions { width: auto; right: var(--gutter); }
+.evidenceImage { margin: 0; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.evidenceImage img { width: 100%; height: clamp(180px, 38vh, 420px); object-fit: contain; background: #050606; border: 1px solid #d6b77840; animation: evidenceReveal 1.4s ease both; }
+.evidenceImage figcaption { color: #cbbfa3; font-size: 12px; line-height: 1.6; }
+.evidenceImage a { text-decoration: underline; text-underline-offset: 3px; }
+.journey { list-style: none; padding: 0; display: flex; gap: 0; margin: 8px 0; }
+.journey li { flex: 1; padding: 16px 10px 0 0; border-top: 2px solid #685e49; color: #b8ae98; font-size: 13px; }
+.journey li[data-current="true"] { border-color: #efd296; color: #fff0cc; animation: journeyGlow 2s ease-in-out infinite alternate; }
+.scene[data-paused="true"] .journey li, .scene[data-paused="true"] .evidenceImage img { animation-play-state: paused; }
+@keyframes evidenceReveal { from { transform: translateY(14px); } to { transform: none; } }
+@keyframes journeyGlow { from { border-color: #a8874c; } to { border-color: #fff0cc; } }
+@media (max-width: 760px) {
+  .scene[data-evidence="true"] .captions { top: 84px; bottom: 140px; }
+  .scene[data-evidence="true"][data-phase="told"] .captions { bottom: 90px; }
+  .scene[data-evidence="true"] .beat { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .evidenceImage img { height: 220px; }
+  .journey li { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .evidenceImage img, .journey li[data-current="true"] { animation: none; }
+}

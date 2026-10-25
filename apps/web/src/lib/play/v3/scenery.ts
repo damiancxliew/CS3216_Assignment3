@@ -1,16 +1,36 @@
-import { MATERIAL_NAMES, storyArt, type EnvironmentPlan } from "@adventure/game-client/story-art";
+import { publicMediaSnapshot, resolveWalkingSprites, type ResolvedWalkingSprite } from "@/lib/v3/media/resolvers";
+import { MATERIAL_NAMES, storyArt, type EnvironmentPlan, type StoryStyle } from "@adventure/game-client/story-art";
+import type { CompiledStage } from "@adventure/game-core";
 import type { EngineSpec } from "@adventure/engine";
 import { landmarkKindFor, roomInterior, type StageMap } from "@adventure/game-core";
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 
 /** A deliberately small public projection. Never serialize the spec into the browser. */
 export type V3StageScenery = {
+  walkingSprites?: Record<string, ResolvedWalkingSprite>;
   roomDescriptions: Record<string, string>;
   storyContext: string;
+  /** Curated standalone scenes can supply public geometry to the same map engine. */
+  authored?: Pick<CompiledStage, "map" | "playerSpawn" | "initialDoors"> & {
+    environment: EnvironmentPlan;
+    style: StoryStyle;
+    fixtures: NonNullable<PlaygroundSnapshot["landmarks"]>;
+    roomKinds: Record<string, string>;
+    /** Connected scenes can place arrivals at their doorway instead of the room centre. */
+    spawnAtEntrance?: boolean;
+    interactionLabels?: "hover";
+    desktopCamera?: "detail" | "overview" | "cover";
+    playerSheet?: string;
+    characterSheets?: Record<string, string>;
+    /** Authored figures remain visible outside the current interaction area. */
+    cast?: { id: string; name: string; roomId: string }[];
+    streetTalk?: PlaygroundSnapshot["streetTalk"];
+  };
 };
 
-export function v3AdventureScenery(spec: Pick<EngineSpec, "stages">): V3StageScenery[] {
+export function v3AdventureScenery(spec: Pick<EngineSpec, "stages"> & Partial<Pick<EngineSpec, "characters" | "authoring">>): V3StageScenery[] {
   return spec.stages.map((stage) => ({
+    ...(spec.characters ? { walkingSprites: Object.fromEntries(Object.entries(resolveWalkingSprites({ characters: spec.characters, authoring: spec.authoring })).map(([key, sprite]) => [key, sprite.metadata ? { ...sprite, metadata: publicMediaSnapshot(sprite.metadata) } : sprite])) } : {}),
     roomDescriptions: Object.fromEntries(stage.rooms.map(({ id, description }) => [id, description])),
     storyContext: `${stage.timePlace} ${stage.title}`,
   }));
@@ -33,6 +53,7 @@ export function v3Atmosphere(context: string): NonNullable<PlaygroundSnapshot["a
 
 /** Decorative fixtures reuse bundled tiles, without changing collision or evidence. */
 export function v3RoomFixtures(map: StageMap, scenery?: V3StageScenery): NonNullable<PlaygroundSnapshot["landmarks"]> {
+  if (scenery?.authored) return scenery.authored.fixtures;
   return map.rooms.flatMap((room) => {
     const description = scenery?.roomDescriptions[room.id] ?? "";
     if (!description.trim()) return [];
@@ -55,6 +76,7 @@ export function v3RoomFixtures(map: StageMap, scenery?: V3StageScenery): NonNull
  * with stops, instead of leaving them crowded onto the handful of room doors.
  */
 export function v3Environment(scenery?: V3StageScenery): EnvironmentPlan | undefined {
+  if (scenery?.authored) return scenery.authored.environment;
   if (!scenery) return undefined;
   const rooms = Object.values(scenery.roomDescriptions).join(" ");
   const art = storyArt("auto", "classic", scenery.storyContext, rooms);

@@ -6,6 +6,8 @@ export interface V3CinematicBeat {
   title?: string;
   body?: string;
   items?: string[];
+  image?: { src: string; alt: string; caption: string; credit: string; href: string };
+  journey?: { stops: string[]; current: number };
 }
 
 export const BRIEFING_BEGIN_LABEL = "Enter the first stage";
@@ -27,6 +29,14 @@ function nonEmpty(beat: V3CinematicBeat): V3CinematicBeat | null {
     ...(body ? { body } : {}),
     ...(items?.length ? { items } : {}),
   };
+}
+
+/** Generated fragments ("he did not yet trust the British") read as a sentence once capitalised and closed. */
+function asSentence(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  const capitalised = trimmed[0]!.toUpperCase() + trimmed.slice(1);
+  return /[.!?…"'”’)]$/.test(capitalised) ? capitalised : `${capitalised}.`;
 }
 
 export function briefingBeats(briefing: RoleBriefingView, firstStage?: StageView): V3CinematicBeat[] {
@@ -66,7 +76,11 @@ export function stageIntroBeats(stage: StageView): V3CinematicBeat[] {
           id: "what-happened",
           kicker: "What happened",
           body: prediction.actual,
-          ...(prediction.because.trim() ? { items: [prediction.because] } : {}),
+          // Set the student's own call beside what happened, so the stage opens on the consequence of their guess.
+          items: [
+            prediction.predicted.trim() ? `You predicted: ${asSentence(prediction.predicted)}` : "",
+            prediction.because.trim() ? `Why: ${asSentence(prediction.because)}` : "",
+          ],
         })
       : null,
     stage.intro

@@ -1,0 +1,446 @@
+.mission {
+  border-bottom: 1px solid #b6aa8d;
+  padding-bottom: 0.65rem;
+  color: #263b36;
+}
+.dateline {
+  color: #765331;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.title {
+  margin: 0.4rem 0;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.mission p:not(.title):not(.dateline) {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tasks {
+  display: grid;
+  gap: 4px;
+  margin: 0.6rem 0;
+  font-size: 12px;
+}
+.tasks button,
+.tasks span {
+  padding: 6px 8px;
+  text-align: left;
+  border: 1px solid #c9baa0;
+  background: #f2ead8;
+  border-radius: 3px;
+}
+.tasks button:hover {
+  background: #e2dcc6;
+}
+.primary {
+  display: inline-block;
+  background: #285c4d;
+  color: #fff9e9;
+  border: 2px solid #183e35;
+  border-radius: 4px;
+  padding: 10px 14px;
+  min-height: 44px;
+  font-weight: 800;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.primary:hover {
+  background: #193f35;
+}
+.activity {
+  display: grid;
+  gap: 14px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.cards button {
+  text-align: left;
+  padding: 14px;
+  color: #293a34;
+  background: #f5eedf;
+  border: 2px solid #bbac8d;
+  border-radius: 5px;
+}
+.cards button[aria-pressed="true"] {
+  border-color: #285c4d;
+  background: #dce6d5;
+}
+.cards button:disabled {
+  opacity: 0.5;
+}
+.cards span {
+  display: block;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.feedback {
+  color: #263b36;
+  background: #e4e9d8;
+  border-left: 4px solid #426556;
+  padding: 12px;
+}
+.feedback p,
+.feedback strong {
+  color: inherit;
+}
+:global([data-theme="dark"]) .feedback {
+  color: #edf4e8;
+  background: #243c32;
+  border-color: #94b99d;
+}
+.record {
+  width: 100%;
+  max-height: 230px;
+  object-fit: contain;
+  background: #252d28;
+}
+.credit {
+  color: #665e4c;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.departure {
+  height: 330px;
+  position: relative;
+  overflow: hidden;
+  background: #c5c7aa;
+  border: 3px solid #38493d;
+  margin-bottom: 16px;
+  image-rendering: pixelated;
+}
+.skyline {
+  position: absolute;
+  inset: 90px 0 auto;
+  height: 96px;
+  background: url("/demo/lim-bo-seng/map/river-provision-full.svg") repeat-x;
+  background-size: 96px 96px;
+}
+.bank {
+  position: absolute;
+  top: 186px;
+  width: 100%;
+  height: 55px;
+  background: repeating-linear-gradient(
+    0deg,
+    #b7aa87 0 10px,
+    #8e886f 10px 12px
+  );
+  border-bottom: 7px solid #665d48;
+}
+.river {
+  position: absolute;
+  inset: 241px 0 0;
+  background: repeating-linear-gradient(
+    0deg,
+    #567f77 0 10px,
+    #668d80 10px 12px,
+    #567f77 12px 23px
+  );
+}
+.lim,
+.gan {
+  position: absolute;
+  top: 174px;
+  width: 64px;
+  height: 64px;
+  background-size: 256px 256px;
+  z-index: 3;
+}
+.lim {
+  left: 25%;
+  background-image: url("/demo/lim-bo-seng/sprites/lim.png");
+  background-position: -192px 0;
+  animation:
+    boarding 18s linear forwards,
+    walk 0.6s steps(4) infinite;
+}
+.gan {
+  left: 13%;
+  background-image: url("/demo/lim-bo-seng/sprites/gan.png");
+  background-position: -192px 0;
+}
+.boat {
+  position: absolute;
+  left: 64%;
+  top: 241px;
+  width: 144px;
+  height: 96px;
+  background: url("/demo/lim-bo-seng/map/river-boat-full.svg") center/contain
+    no-repeat;
+  animation: sailing 18s ease-in forwards;
+  z-index: 2;
+}
+.parcel {
+  position: absolute;
+  left: 22%;
+  top: 212px;
+  width: 32px;
+  height: 32px;
+  background: url("/demo/lim-bo-seng/map/household-parcels.svg") center/contain;
+  z-index: 4;
+}
+.sceneLabel {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #fff0c6;
+  font-weight: 900;
+}
+@keyframes walk {
+  from {
+    background-position-y: 0;
+  }
+  to {
+    background-position-y: -256px;
+  }
+}
+@keyframes boarding {
+  0%,
+  65% {
+    left: 25%;
+    top: 174px;
+    opacity: 1;
+  }
+  85% {
+    left: 66%;
+    top: 186px;
+    opacity: 1;
+  }
+  90%,
+  100% {
+    left: 69%;
+    top: 222px;
+    opacity: 0;
+  }
+}
+@keyframes sailing {
+  0%,
+  90% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(250px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lim,
+  .boat {
+    animation: none;
+  }
+  .lim {
+    left: 55%;
+  }
+}
+@media (max-width: 480px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+  .departure {
+    height: 330px;
+  }
+}
+
+.explorationImage {
+  width: 100%;
+  max-height: 440px;
+  object-fit: contain;
+  background: #252d28;
+}
+.explorationImage[data-enlarged="true"] {
+  max-height: none;
+}
+.credit a {
+  text-decoration: underline;
+}
+.recordsMenu {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.recordsMenu summary,
+.activity summary {
+  cursor: pointer;
+}
+.recordsMenu button {
+  display: block;
+  padding: 7px 0;
+  text-decoration: underline;
+}
+.speech {
+  position: absolute;
+  top: 8px;
+  left: 3%;
+  width: 94%;
+  min-height: 74px;
+  padding: 8px 12px;
+  background: #fff9e9;
+  color: #263b36;
+  border: 2px solid #38493d;
+  border-radius: 9px;
+  z-index: 5;
+  font-size: 13px;
+  line-height: 1.4;
+  image-rendering: auto;
+}
+.speech::after {
+  content: "";
+  position: absolute;
+  left: 25%;
+  bottom: -10px;
+  border: 5px solid transparent;
+  border-top-color: #38493d;
+}
+.speech p {
+  margin: 3px 0 0;
+}
+.observer {
+  position: absolute;
+  top: 174px;
+  left: 3%;
+  width: 64px;
+  height: 64px;
+  background: url("/demo/lim-bo-seng/map/civilian.svg") 0 0 / 256px 256px;
+  z-index: 3;
+}
+.departure[data-paused="true"] * {
+  animation-play-state: paused;
+}
+.sceneControls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+:global([data-theme="dark"]) .credit,
+:global([data-theme="dark"]) .activity .dateline {
+  color: #cfbda6;
+}
+
+.rickshawScene {
+  position: relative;
+  height: 360px;
+  overflow: hidden;
+  border: 3px solid #80684b;
+  border-radius: 12px;
+  background: #dbcfaa;
+}
+.rideStreet {
+  position: absolute;
+  inset: 0 0 85px;
+  width: 200%;
+  background: url("/demo/lim-bo-seng/map/river-provision-full.svg") 0 0 / 240px
+    240px repeat-x;
+  image-rendering: pixelated;
+  animation: rideStreet 18s linear infinite;
+}
+.rideRoad {
+  position: absolute;
+  inset: 240px 0 0;
+  background: linear-gradient(
+    #c4ba9d 15%,
+    #6b6c63 16%,
+    #525a53 80%,
+    #b3a484 81%
+  );
+}
+.rideVehicle {
+  position: absolute;
+  left: 48%;
+  top: 165px;
+  width: 180px;
+  height: 120px;
+  background: url("/demo/lim-bo-seng/map/rickshaw-side.svg") center/contain
+    no-repeat;
+  image-rendering: pixelated;
+  animation: rideBob 0.55s ease-in-out infinite alternate;
+}
+.ridePassenger {
+  position: absolute;
+  left: 43px;
+  top: 32px;
+  width: 42px;
+  height: 42px;
+  background: url("/demo/lim-bo-seng/map/civilian.svg") 0 0 / 168px 168px;
+  image-rendering: pixelated;
+}
+.ridePuller {
+  position: absolute;
+  left: 157px;
+  top: 43px;
+  width: 52px;
+  height: 52px;
+  background: url("/demo/lim-bo-seng/map/civilian.svg") 0 -104px / 208px 208px;
+  image-rendering: pixelated;
+  animation: pullerSteps 0.7s steps(4) infinite;
+}
+.rickshawScene .speech {
+  bottom: 12px;
+  top: auto;
+  left: 12px;
+  right: 12px;
+  width: auto;
+  max-width: none;
+  background: #fff8e8;
+  color: #263d35;
+  padding: 12px 16px;
+}
+.rickshawScene[data-paused="true"] * {
+  animation-play-state: paused;
+}
+@keyframes rideStreet {
+  to {
+    transform: translateX(-240px);
+  }
+}
+@keyframes rideBob {
+  to {
+    transform: translateY(2px);
+  }
+}
+@keyframes pullerSteps {
+  to {
+    background-position-x: -208px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rideStreet,
+  .rideVehicle,
+  .ridePuller {
+    animation: none;
+  }
+}
+@media (max-width: 600px) {
+  .rickshawScene {
+    height: 390px;
+  }
+  .rideVehicle {
+    left: 28%;
+  }
+  .rickshawScene .speech {
+    font-size: 14px;
+  }
+}
+.mission .sceneControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 8px 0;
+}
+.mission .sceneControls button {
+  border: 1px solid #8d9f8d;
+  background: #e7eddf;
+  color: #274a3d;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  min-height: 36px;
+}

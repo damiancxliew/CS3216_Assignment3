@@ -1,9 +1,11 @@
 "use client";
+import type { ReactNode } from "react";
+import type { Point } from "@adventure/game-core";
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
 import { ChevronDown, Timer } from "lucide-react";
-import type { Action, PlayerView } from "@adventure/play-contract";
+import type { Action, PlayerView, DocumentView } from "@adventure/play-contract";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import styles from "@/components/play/adventure-chrome.module.css";
@@ -45,7 +47,24 @@ function formatTime(milliseconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] }, onOpenRoleBrief }: {
+export type StageExperience = {
+  /** Optional host-controlled reader, used by authored walk-up exhibits. */
+  activeDocumentId?: string | null;
+  documentSupplement?: (document: DocumentView) => ReactNode;
+  documentHint?: string;
+  scenery?: V3StageScenery;
+  mission?: ReactNode;
+  overlay?: ReactNode;
+  hideDecision?: boolean;
+  decisionHint?: string;
+  movementLocked?: boolean;
+  destination?: Point | null;
+  onArrive?: (point: Point) => void;
+  onInspect?: (id: string, walkTo: (point: Point) => void) => boolean;
+};
+
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] }, onOpenRoleBrief, experience }: {
+  experience?: StageExperience;
   view: PlayerView;
   busy: boolean;
   send: (action: Action, onSettled?: (succeeded: boolean) => void) => void;
@@ -64,6 +83,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const [walkTo, setWalkTo] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [missionCollapsed, setMissionCollapsed] = useState(false);
+  const [touch, setTouch] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [islandRequest, setIslandRequest] = useState<{
     tab: "notes" | "documents" | "log";
@@ -90,8 +110,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     ? view.characters.find((character) => character.id === talkingTo) ?? null
     : null;
   const isTalkOpen = openCharacter !== null;
-  const movementLocked = externalMovementLock || isTalkOpen || isMoment;
-  const openedDocument = view.documents.find((document) => document.id === documentId) ?? null;
+  const movementLocked = externalMovementLock || isTalkOpen || isMoment || Boolean(experience?.movementLocked);
+  const activeDocumentId = experience?.activeDocumentId === undefined ? documentId : experience.activeDocumentId;
+  const openedDocument = view.documents.find((document) => document.id === activeDocumentId) ?? null;
   const spawnRoomId = view.rooms[0]?.id ?? "";
   const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
     send({ type: "enterRoom", roomId }, resolve);
@@ -155,6 +176,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
 
   useEffect(() => {
     setNow(Date.now());
+    // Phones have no E key, and the mission panel would cover a third of the map: start it folded.
+    setTouch(window.matchMedia?.("(hover: none) and (pointer: coarse)").matches ?? false);
+    if (window.innerWidth < 640) setMissionCollapsed(true);
   }, []);
 
   useEffect(() => {
@@ -176,6 +200,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
 
   return (
     <>
+      {experience?.overlay}
       <div className={`${styles.game} flex min-h-0 min-w-0 flex-1 flex-col`}>
         <section
           ref={mapSection}
@@ -184,12 +209,15 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
         >
           {stage && view.rooms.length > 0 ? (
             <V3Map
-              key={`${attemptId}:${stageId}`}
+              key={`${attemptId}:${stageId}:${experience?.scenery?.authored?.map.id ?? "default"}`}
               attemptId={attemptId}
               crowdContext={`${stage.timePlace} ${stage.title} ${stage.centralQuestion}`}
               stageId={stageId}
               stageIndex={stageIndex}
-              scenery={scenery}
+              scenery={experience?.scenery ?? scenery}
+              destination={experience?.destination}
+              onArrive={experience?.onArrive}
+              onInspectLandmark={experience?.onInspect}
               rooms={view.rooms}
               spawnRoomId={spawnRoomId}
               currentRoomId={view.currentRoomId}
@@ -226,9 +254,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             <button
               type="button"
               onClick={() => openTalk(nearbyCharacter.id)}
-              className="absolute bottom-16 left-1/2 z-10 -translate-x-1/2 sm:bottom-3 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
+              className="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 sm:bottom-3 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
             >
-              Press E to talk to {nearbyCharacter.name}
+              {touch ? "Tap to talk to" : "Press E to talk to"} {nearbyCharacter.name}
             </button>
           ) : null}
 
@@ -251,8 +279,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               messages={dialogueMessages}
               busy={busy}
               stanceShift={stanceShifts.get(openCharacter.id) ?? null}
-              onSend={(text) => {
-                if (characterId) send({ type: "message", characterId, text });
+              onSend={(text, onSettled) => {
+                if (characterId) send({ type: "message", characterId, text }, onSettled);
+                else onSettled(false);
               }}
               onOpenNotes={() => setNotesOpen(true)}
               onClose={closeTalk}
@@ -288,7 +317,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
 
           {!missionCollapsed ? (
             <div className="mt-2 space-y-2">
-              {stage?.centralQuestion ? (
+              {experience?.mission}
+              {stage?.centralQuestion && !experience?.mission ? (
                 <p className="text-sm font-semibold leading-snug">{stage.centralQuestion}</p>
               ) : null}
               {!isMoment ? (
@@ -296,15 +326,15 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                   <p className="text-xs text-[#5c6472]">
                     You are in {view.rooms.find((room) => room.id === view.currentRoomId)?.name ?? "an unknown room"}
                   </p>
-                  {confirmEndStage ? (
+                  {experience?.hideDecision ? null : confirmEndStage ? (
                     <div role="alert" className="space-y-2">
-                      <p className="text-xs font-bold">You won&apos;t be able to explore after this.</p>
+                      <p className="text-xs font-bold">{experience?.decisionHint ?? "You won’t be able to explore after this."}</p>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => setConfirmEndStage(false)}
-                          className={`${styles.chip} min-h-8 border px-2 text-xs font-bold`}
+                          className="min-h-9 rounded-md border border-[#101522] bg-[#1f2433] px-3 text-xs font-bold text-[#fffaf0] shadow-[0_2px_0_#101522] hover:bg-[#343c50] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf] disabled:opacity-50"
                         >
                           Keep exploring
                         </button>
@@ -400,6 +430,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
 
       {openedDocument ? (
         <DocumentReader
+          supplement={experience?.documentSupplement?.(openedDocument)}
+          readingHint={experience?.documentHint}
           document={openedDocument}
           documents={view.documents}
           onSelectDocument={openDocument}

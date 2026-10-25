@@ -6,8 +6,9 @@ import type { MapView } from "@adventure/game-client/view";
 import type { PlayerView } from "@adventure/play-contract";
 import { useEffect, useRef, useState } from "react";
 
-import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl } from "@/lib/play/appearance";
+import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl, type Character } from "@/lib/play/appearance";
 import {
+  arrivalPoint,
   compileV3StageMap,
   nearbyCharacterId,
   roomIdToEnter,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/play/v3/map";
 
 import { v3Atmosphere, v3Environment, v3RoomFixtures, type V3StageScenery } from "@/lib/play/v3/scenery";
+import { V3ScrollDialog } from "./scroll-dialog";
 
 const STEP_MS = 160;
 
@@ -35,6 +37,9 @@ type V3Room = PlayerView["rooms"][number];
 type V3Character = PlayerView["characters"][number];
 
 interface V3MapProps {
+  destination?: Point | null;
+  onArrive?: (point: Point) => void;
+  onInspectLandmark?: (id: string, walkTo: (point: Point) => void) => boolean;
   crowdContext?: string;
   attemptId: string;
   stageId: string;
@@ -80,15 +85,25 @@ function isMovementTarget(target: EventTarget | null): boolean {
     && Boolean(target.closest("button"));
 }
 
+/** Explicit versioned choices take precedence; standalone scenes keep their authored sheets. */
+function walkingActor(scenery: V3StageScenery | undefined, key: string, fallback: Character, authoredSheet?: string) {
+  const selected = scenery?.walkingSprites?.[key];
+  if (selected && selected.selection !== "default")
+    return { sprite: selected.sprite, spriteSheetUrl: selected.spriteSheetUrl };
+  return { sprite: selected?.sprite ?? fallback, spriteSheetUrl: authoredSheet ?? selected?.spriteSheetUrl ?? walkSheetUrl(fallback) };
+}
+
 export function V3Map(props: V3MapProps) {
+  const [inspection, setInspection] = useState<{ name: string; description: string } | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const currentRoomRef = useRef(props.currentRoomId);
   const renderRef = useRef<(() => void) | null>(null);
+  const destinationHandler = useRef<(point: Point) => void>(() => {});
   const walkToHandler = useRef<(roomId: string | null) => void>(() => {});
   const nearbyChangeHandler = useRef<() => void>(() => {});
   const movementLockHandler = useRef<() => void>(() => {});
   const latest = useRef(props);
-  latest.current = props;
+  latest.current = { ...props, movementLocked: props.movementLocked || inspection !== null };
   const [failed, setFailed] = useState(false);
   const [compiled] = useState(() => compileV3StageMap(
     props.attemptId,
@@ -101,11 +116,15 @@ export function V3Map(props: V3MapProps) {
   const map = compiled.map;
 
   useEffect(() => {
+    if (props.destination) destinationHandler.current(props.destination);
+  }, [props.destination]);
+
+  useEffect(() => {
     currentRoomRef.current = props.currentRoomId;
-    if (props.movementLocked) movementLockHandler.current();
+    if (latest.current.movementLocked) movementLockHandler.current();
     renderRef.current?.();
     nearbyChangeHandler.current();
-  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio]);
+  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio, inspection]);
 
   useEffect(() => {
     const parent = host.current;
@@ -115,7 +134,7 @@ export function V3Map(props: V3MapProps) {
     const held = new Map<string, Point>();
     let destroyed = false;
     let view: MapView | null = null;
-    let playerPosition = seatIn(map, latest.current.currentRoomId, 0) ?? compiled.playerSpawn;
+    let playerPosition = latest.current.scenery?.authored?.spawnAtEntrance ? compiled.playerSpawn : arrivalPoint(map, latest.current.currentRoomId) ?? compiled.playerSpawn;
     let path: Point[] = [];
     let revision = 0;
     let facing: "down" | "up" | "left" | "right" = "down";
@@ -127,7 +146,8 @@ export function V3Map(props: V3MapProps) {
 
     const characterSeats = () => transitioning ? [] : latest.current.characters.flatMap((character, index) => {
       const position = seatIn(map, currentRoomRef.current, index + 1);
-      if (!position || spaceAt(map, position)?.kind !== "room") return [];
+      const space = position && spaceAt(map, position);
+      if (!position || (space?.kind !== "room" && !(space?.kind === "outdoor" && space.locationId))) return [];
       return [{ id: character.id, position, character }];
     });
 
@@ -147,7 +167,8 @@ export function V3Map(props: V3MapProps) {
 
     const snapshot = (): PlaygroundSnapshot => ({
       seed: `${latest.current.attemptId}:${latest.current.stageId}`,
-      crowdContext: latest.current.crowdContext,
+      crowdContext: latest.current.scenery?.authored ? undefined : latest.current.crowdContext,
+      streetTalk: latest.current.scenery?.authored?.streetTalk,
       map,
       doors: compiled.initialDoors,
       actors: [
@@ -158,9 +179,17 @@ export function V3Map(props: V3MapProps) {
           space: spaceAt(map, playerPosition),
           targetRoomId: null,
           status: path.length ? "moving" : "idle",
-          sprite: PLAYER_CHARACTER,
+          ...walkingActor(latest.current.scenery, "player", PLAYER_CHARACTER, latest.current.scenery?.authored?.playerSheet),
           facing,
         },
+        ...(latest.current.scenery?.authored?.cast ?? []).filter(character => character.roomId !== currentRoomRef.current).flatMap(character => {
+          const position = seatIn(map, character.roomId, 1);
+          return position ? [{ id: character.id, name: character.name, position,
+            space: spaceAt(map, position), targetRoomId: null, status: "idle" as const,
+            ...walkingActor(latest.current.scenery, `character:${character.id}`, characterFor({ id: character.id, name: character.name }), latest.current.scenery?.authored?.characterSheets?.[character.id]),
+            interactive: !latest.current.movementLocked,
+          }] : [];
+        }),
         ...characterSeats().map(({ character, position }) => {
           const sprite = characterFor({ id: character.id, name: character.name, role: character.title });
           return {
@@ -170,7 +199,9 @@ export function V3Map(props: V3MapProps) {
             space: spaceAt(map, position),
             targetRoomId: null,
             status: "idle" as const,
-            spriteSheetUrl: walkSheetUrl(sprite),
+            ...walkingActor(latest.current.scenery, `character:${character.id}`, sprite, latest.current.scenery?.authored?.characterSheets?.[character.id]),
+            // While locked (a conversation, the defining moment, an end screen's backdrop) nobody offers "Talk".
+            ...(latest.current.movementLocked ? { interactive: false } : {}),
           };
         }),
       ],
@@ -181,6 +212,9 @@ export function V3Map(props: V3MapProps) {
       npcRoutes: false,
       roomWandering: false,
       environment: v3Environment(latest.current.scenery),
+      visualStyle: latest.current.scenery?.authored?.style,
+      roomKinds: latest.current.scenery?.authored?.roomKinds,
+      interactionLabels: latest.current.scenery?.authored?.interactionLabels,
       revision,
       roomDescriptions: latest.current.scenery?.roomDescriptions,
       storyContext: latest.current.scenery?.storyContext,
@@ -204,8 +238,13 @@ export function V3Map(props: V3MapProps) {
         : [];
       revision += 1;
       render();
-      if (!found || path.length === 0) latest.current.onWalkDone();
+      if (!found || path.length === 0) {
+        latest.current.onWalkDone();
+        if (found) latest.current.onArrive?.(playerPosition);
+      }
     };
+
+    destinationHandler.current = goTo;
 
     const goToRoom = (roomId: string) => {
       const room = map.rooms.find((candidate) => candidate.id === roomId);
@@ -259,13 +298,13 @@ export function V3Map(props: V3MapProps) {
           currentRoomRef.current = roomId;
         } else {
           path = [];
-          playerPosition = seatIn(map, currentRoomRef.current, 0) ?? compiled.playerSpawn;
+          playerPosition = arrivalPoint(map, currentRoomRef.current) ?? compiled.playerSpawn;
         }
         transitioning = null;
         revision += 1;
         updateNearbyCharacter();
         render();
-      } else if (!transitioning && !latest.current.movementLocked) {
+      } else if (!transitioning && !latest.current.movementLocked && !latest.current.destination) {
         const documentId = unreadDocumentAt(documentProps(), next);
         if (documentId === null) {
           autoOpenedAt = null;
@@ -277,6 +316,7 @@ export function V3Map(props: V3MapProps) {
           }
         }
       }
+      latest.current.onArrive?.(playerPosition);
       finishWalk();
     };
 
@@ -368,6 +408,9 @@ export function V3Map(props: V3MapProps) {
             if (transitioning) return;
             if (latest.current.characters.some((character) => character.id === actorId)) {
               latest.current.onSelectCharacter(actorId);
+            } else {
+              const person = latest.current.scenery?.authored?.cast?.find(character => character.id === actorId);
+              if (person) goToRoom(person.roomId);
             }
           },
           onProp: (documentId) => {
@@ -376,8 +419,21 @@ export function V3Map(props: V3MapProps) {
               latest.current.onOpenDocument(documentId);
             }
           },
-          camera: "detail",
-          zoomScale: window.matchMedia("(min-width: 1024px)").matches ? 0.75 : 1,
+          ...(latest.current.scenery?.authored ? {
+            onLandmark: (id: string) => {
+              if (latest.current.movementLocked) return;
+              if (latest.current.onInspectLandmark?.(id, goTo)) return;
+              const fixture = latest.current.scenery?.authored?.fixtures.find(item => item.id === id);
+              if (fixture?.description) setInspection({ name: fixture.name, description: fixture.description });
+            },
+          } : {}),
+          onRoomPointer: (roomId) => {
+            if (latest.current.movementLocked) return;
+            latest.current.onWalkDone();
+            goToRoom(roomId);
+          },
+          camera: window.matchMedia("(min-width: 1024px)").matches ? latest.current.scenery?.authored?.desktopCamera ?? "detail" : "detail",
+          zoomScale: window.matchMedia("(min-width: 1024px)").matches ? (latest.current.scenery?.authored ? 0.5 : 0.75) : 1,
         });
         if (destroyed) {
           view.destroy();
@@ -385,7 +441,8 @@ export function V3Map(props: V3MapProps) {
         }
         render();
         nearbyChangeHandler.current = updateNearbyCharacter;
-        movementLockHandler.current();
+        if (latest.current.movementLocked) movementLockHandler.current();
+        else if (latest.current.destination) goTo(latest.current.destination);
         updateNearbyCharacter();
         latest.current.onReadyChange(true);
         const canvas = parent.querySelector("canvas");
@@ -397,8 +454,9 @@ export function V3Map(props: V3MapProps) {
         document.addEventListener("visibilitychange", clearHeld, { signal: controller.signal });
         reducedMotion.addEventListener("change", (event) => view?.setReducedMotion(event.matches), { signal: controller.signal });
         walkToHandler.current(latest.current.walkTo);
-      } catch {
+      } catch (error) {
         if (destroyed) return;
+        console.error("Stage map could not load", error);
         latest.current.onReadyChange(false);
         setFailed(true);
         parent.replaceChildren();
@@ -426,11 +484,28 @@ export function V3Map(props: V3MapProps) {
 
   if (failed) return null;
   return (
-    <div
-      ref={host}
-      role="img"
-      aria-label="Walkable stage map"
-      className="absolute inset-0 overflow-hidden"
-    />
+    <>
+      <div
+        ref={host}
+        role="img"
+        aria-label="Walkable stage map"
+        className="absolute inset-0 overflow-hidden"
+      />
+      {inspection && (
+        <V3ScrollDialog
+          title={inspection.name}
+          eyebrow="Explore the setting"
+          footerText="Look around, then compare the sources."
+          closeLabel="Return to the map"
+          onClose={() => setInspection(null)}
+        >
+          <p className="whitespace-pre-line">{inspection.description}</p>
+          <p className="mt-4 text-sm opacity-70">
+            Illustrated reconstruction. This prop is not an archival object or evidence that Lim used this exact item.
+            Consult the Source archive for historical records.
+          </p>
+        </V3ScrollDialog>
+      )}
+    </>
   );
 }

@@ -21,7 +21,12 @@ it.runIf(process.env.RUN_CINEMATIC_BROWSER_TESTS === "1")(
         fs: { allow: [resolve(".")] },
       },
       esbuild: { jsx: "automatic" },
-      optimizeDeps: { include: ["react", "react-dom/client"] },
+      // Next injects this at build time; the isolated Vite harness uses default image config.
+      define: { "process.env.__NEXT_IMAGE_OPTS": "undefined" },
+      optimizeDeps: {
+        include: ["react", "react-dom/client", "next/image"],
+        esbuildOptions: { define: { "process.env.__NEXT_IMAGE_OPTS": "undefined" } },
+      },
       css: { postcss: { plugins: [tailwind()] } },
       resolve: { alias: { "@": resolve(root, "src") } },
       plugins: [

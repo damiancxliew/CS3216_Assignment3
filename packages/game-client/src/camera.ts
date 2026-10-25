@@ -17,3 +17,8 @@ export function scaledZoom(zoom: number, scale: number): number {
 export function overviewZoom(width: number, mapWidth: number): number {
   return Math.max(0.5, Math.min(2, width / mapWidth))
 }
+
+/** Fill the viewport with the authored world; follow travel when its edges extend offscreen. */
+export function coverZoom(width: number, height: number, mapWidth: number, mapHeight: number): number {
+  return Math.max(1, Math.ceil(Math.max(width / mapWidth, height / mapHeight)))
+}

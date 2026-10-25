@@ -14,6 +14,7 @@ export interface WebSearchClient {
     query: string
     allowedDomains: string[] | null
     maxResults: number
+    signal?: AbortSignal
   }): Promise<{ hits: SearchHit[]; usage: LlmUsage; model: string }>
 }
 
@@ -111,7 +112,7 @@ export function createOpenAiWebSearch(opts: {
 } = {}): WebSearchClient {
   const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY
   if (!opts.client && !apiKey) throw new Error('OPENAI_API_KEY is not set')
-  const client = opts.client ?? new OpenAI({ apiKey, timeout: 240_000, maxRetries: 0 })
+  const client = opts.client ?? new OpenAI({ apiKey, timeout: 180_000, maxRetries: 0 })
   const model = opts.model ?? DEFAULT_MODELS.cheap
 
   return {
@@ -140,7 +141,7 @@ export function createOpenAiWebSearch(opts: {
         },
         max_output_tokens: 1_500,
         store: false,
-      }, { timeout: 240_000, maxRetries: 0 })
+      }, { timeout: 180_000, maxRetries: 0, signal: req.signal })
 
       const usage = response.usage
       return {

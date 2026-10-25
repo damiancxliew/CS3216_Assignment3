@@ -34,6 +34,10 @@ export function compileV3StageMap(
   spawnRoomId: string,
   scenery?: V3StageScenery,
 ): Pick<CompiledStage, "map" | "playerSpawn" | "initialDoors"> {
+  if (scenery?.authored) {
+    const { map, playerSpawn, initialDoors } = scenery.authored;
+    return { map, playerSpawn, initialDoors };
+  }
   const layout = v3StageLayout(stageId, rooms, spawnRoomId, scenery);
   const compiled = compileStage({
     ...layout,
@@ -49,7 +53,8 @@ export function compileV3StageMap(
 
 export function roomIdToEnter(map: StageMap, point: Point, currentRoomId: string | null): string | null {
   const space = spaceAt(map, point);
-  return space?.kind === "room" && space.roomId !== currentRoomId ? space.roomId : null;
+  const roomId = space?.kind === "room" ? space.roomId : space?.kind === "outdoor" ? space.locationId : null;
+  return roomId && roomId !== currentRoomId ? roomId : null;
 }
 
 export function nearbyCharacterId(
@@ -101,6 +106,12 @@ export function seatIn(map: StageMap, roomId: string | null, index: number): Poi
     || left.x - right.x,
   );
   return interior[index % interior.length] ?? null;
+}
+
+/** Where the player stands on arriving in a room: just inside its door, clear of the people seated in the middle. */
+export function arrivalPoint(map: StageMap, roomId: string | null): Point | null {
+  const door = map.doors.find((candidate) => candidate.roomId === roomId);
+  return door?.inside ?? seatIn(map, roomId, 0);
 }
 
 export function v3DocumentProps(
