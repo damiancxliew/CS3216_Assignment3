@@ -49,7 +49,7 @@ export async function saveV3AdventureEdits(
         ]);
         type Output = {
           parts?: Record<string, unknown>;
-          slantedDocuments?: { documentId: string; note: string }[];
+          slantedDocuments?: { stageId?: string; documentId: string; note: string }[];
         };
         const details = outputs.details as Output | undefined;
         const endings = outputs.endings as Output | undefined;

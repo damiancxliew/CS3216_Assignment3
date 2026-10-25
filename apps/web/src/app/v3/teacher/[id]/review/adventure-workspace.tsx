@@ -1,8 +1,9 @@
 import React from "react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { validateSpec } from "@adventure/spec-v3";
 import { validateEditedSpec } from "@/lib/v3/edit/validation";
-import { Page } from "@/components/ui";
+import { Page, compactButton as button } from "@/components/ui";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -80,7 +81,10 @@ export default async function AdventureWorkspace({
         </EditorChatWorkspace>
       ) : (
         <section className="rounded-surface border border-line bg-surface p-5">
-          <h2 className="text-xl font-bold">Needs fixing</h2>
+          <Link href="/teacher" className={button.quiet}>
+            Back to adventures
+          </Link>
+          <h2 className="mt-4 text-xl font-bold">Needs fixing</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5">
             {errors.map((error, i) => (
               <li key={i}>
