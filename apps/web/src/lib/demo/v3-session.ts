@@ -10,7 +10,8 @@ import { ARCHIVE_SHELVES } from "./archive-shelves";
 import { buildStoryMap } from "./story-maps";
 import { sourceQuestions } from "./source-questions";
 import { selectedSpeakerText } from "./speaker";
-import { chapterTasks } from "./chapter-progress";
+import { chapterTasks, INFERENCE_NOTE_ID, INFERENCE_SOURCE_ID } from "./chapter-progress";
+import { SOURCE_TASK, SOURCE_TEXT } from "./inference-task";
 
 export const DEMO_SAVE_KEY = "standalone.lim-bo-seng.v3.v1";
 const roomSets = [
@@ -275,6 +276,20 @@ function recordDecision(state: DemoV3State, choiceId: string) {
 
 function document(id: string, open: boolean): DocumentView {
   const source = sourceById(id);
+  // The inference task needs the newspaper's own words. The curated summary
+  // states the inference, so it is not shown as this document's body.
+  if (id === INFERENCE_SOURCE_ID)
+    return {
+      id,
+      kind: "newspaper",
+      title: source.title,
+      provenance: { masthead: "Syonan Shimbun", date: "28 February 1942", sender: null, recipient: null, place: "Syonan (Singapore)" },
+      body: SOURCE_TEXT,
+      real: false,
+      sourceLabel: SOURCE_TASK.provenance,
+      glossary: [],
+      open,
+    };
   return {
     id,
     kind:
@@ -581,10 +596,16 @@ function roomOpening(s: DemoV3State) {
       });
   });
 }
+export type DemoClientOptions = {
+  /** Chapter 2's newspaper note is earned by submitting the written inference, not by highlighting. */
+  inferenceSubmitted?: () => boolean;
+};
+
 export function createDemoV3Client(
   initial: DemoV3State,
   save: (state: DemoV3State) => void,
   fetchImpl: typeof fetch = fetch,
+  options: DemoClientOptions = {},
 ): V3PlayClient {
   let state = structuredClone(initial);
   const result = (): V3PlayResult => ({
@@ -684,6 +705,8 @@ export function createDemoV3Client(
           if (action.end > doc.body.length)
             throw new Error("Select a passage inside the document.");
           const id = `source-${next.stage}-${action.documentId}`;
+          if (id === INFERENCE_NOTE_ID && options.inferenceSubmitted && !options.inferenceSubmitted())
+            throw new Error("Write and submit your inference about this newspaper first.");
           if (!next.notes.some((n) => n.id === id))
             next.notes.push({
               id,

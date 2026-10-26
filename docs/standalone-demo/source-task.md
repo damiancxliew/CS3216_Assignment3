@@ -7,18 +7,31 @@ inference and explanation (beyond the existing MCQs).
 Standalone demo only. Nothing here is imported by v2/v3 generation, the publishing flow, the database or
 the normal play routes; `tests/demo-inference-task.test.ts` fails if a non-demo module references it.
 
-## What the student does
+## Where it sits in the game
 
-- Opens **Source task** from the demo header (or from the end-of-lesson screen).
-- Reads **Source D** (Syonan Shimbun, 28 February 1942) and answers:
-  *Study Source D. What can you infer about the Japanese attitude towards the people of Syonan from Source
-  D? Explain your answer.* [6]
-- Highlights words in the source to insert them as quotations, then explains them.
-- Receives an **AI-suggested mark**, the level, which quotations were found in the source, one strength and
-  one next step. They get **one revision**; the second mark shows whether the skill moved
-  (e.g. L2 · 3/6 → L3 · 5/6). After the revision a full-mark answer is shown.
-- The learning report records both attempts, the quote checks, the reasons for each mark and a
-  **teacher-confirmed mark** line.
+It is part of **Chapter 2 — Malaya: what can you rely on?**, whose decision is about what evidence is
+strong enough to act on.
+
+1. The chapter's first goal is **"Explain what the occupation newspaper reveals"**, and the mission says
+   where to start: the newspaper is in Tham's testimony room.
+2. Opening the newspaper shows its **own words** (Source D, Syonan Shimbun, 28 February 1942) under a
+   neutral title. The curated summary is not shown there, because it states the inference.
+3. Below the text, a short in-world briefing explains why the network needs a careful reading, followed by
+   the question:
+   *Study Source D. What can you infer about the Japanese attitude towards the people of Syonan from Source
+   D? Explain your answer.* [6]
+4. Highlighting words in the newspaper offers **Quote “…”**, which inserts them into the answer.
+5. Submitting gives an **AI-suggested mark**, the level, a found/not-found check for each quotation, one
+   strength and one next step. Submitting also saves the chapter's evidence note, which ticks the goal and
+   reveals the decision. One **revision** is allowed; the second mark shows whether the skill moved
+   (e.g. L2 · 3/6 → L3 · 5/6). A full-mark answer is shown after the revision.
+6. The learning report records both attempts, the quotation checks, the reasons for each mark and a
+   **teacher-confirmed mark** line.
+
+Highlighting cannot skip the writing: the demo's session refuses the newspaper note until an answer is
+submitted. If AI marking is unavailable, the student can **save the answer for the teacher** without
+feedback, so nobody gets stuck; the report then shows it as unmarked. Saves made before this change keep
+their progress if they had already recorded a Chapter 2 decision.
 
 ## How marking works
 

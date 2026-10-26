@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   EXEMPLARS,
   LEVELS,
@@ -7,6 +7,7 @@ import {
   SOURCE_TASK,
   SOURCE_TASK_MAX_CHARS,
   emptySourceTask,
+  isSubmitted,
   restoreSourceTask,
   type Attempt,
   type Grade,
@@ -16,10 +17,10 @@ import styles from "./source-inference-task.module.css";
 
 const FLAT_SOURCE = SOURCE_TASK.text.join(" ").replace(/\s+/g, " ");
 
-/** A drag can stop mid-word; widen the selection to whole words of the source. */
-function wholeWords(text: string): string {
+/** A drag can stop mid-word; widen the selection to whole words of the source. Null if it is not from Source D. */
+function wholeWords(text: string): string | null {
   const at = FLAT_SOURCE.indexOf(text);
-  if (at < 0) return text;
+  if (at < 0) return null;
   let start = at;
   let end = at + text.length;
   while (start > 0 && /\S/.test(FLAT_SOURCE[start - 1]!)) start -= 1;
@@ -28,15 +29,33 @@ function wholeWords(text: string): string {
 }
 
 /** Standalone demo only. Saved under the demo's own browser key; never sent to the v2/v3 stores. */
-export function SourceInferenceTask({ storageKey }: { storageKey: string }) {
+export function SourceInferenceTask({
+  storageKey,
+  briefing,
+  hasNote = false,
+  onSubmitted,
+  showSource = true,
+}: {
+  storageKey: string;
+  /** In-game framing shown above the question. */
+  briefing?: ReactNode;
+  /** Whether the chapter's evidence note already exists. */
+  hasNote?: boolean;
+  /** Called once an answer is submitted, to save the chapter's evidence note. */
+  onSubmitted?: (settled: (ok: boolean) => void) => void;
+  /** Off inside the game's document reader, which already shows Source D's text. */
+  showSource?: boolean;
+}) {
   const [record, setRecord] = useState<SourceTaskRecord>(emptySourceTask);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [selection, setSelection] = useState("");
   const [saveError, setSaveError] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
+  const [noteFailed, setNoteFailed] = useState(false);
+  const notifying = useRef(false);
   const box = useRef<HTMLTextAreaElement>(null);
-  const sourceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -46,6 +65,20 @@ export function SourceInferenceTask({ storageKey }: { storageKey: string }) {
     }
     setLoaded(true);
   }, [storageKey]);
+
+  // Completes the chapter goal; retried on reopen if an earlier save was interrupted.
+  function notify() {
+    if (!onSubmitted || hasNote || notifying.current) return;
+    notifying.current = true;
+    onSubmitted((ok) => {
+      notifying.current = false;
+      setNoteFailed(!ok);
+    });
+  }
+  useEffect(() => {
+    if (loaded && isSubmitted(record)) notify();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when the saved record first loads
+  }, [loaded]);
 
   function save(next: SourceTaskRecord) {
     setRecord(next);
@@ -61,12 +94,24 @@ export function SourceInferenceTask({ storageKey }: { storageKey: string }) {
   const latest = attempts.at(-1);
   const revising = attempts.length === 1;
 
-  function captureSelection() {
-    const picked = window.getSelection();
-    const text = picked?.toString().replace(/\s+/g, " ").trim() ?? "";
-    const inside = picked?.anchorNode && sourceRef.current?.contains(picked.anchorNode);
-    setSelection(inside && text.split(" ").length >= 2 ? wholeWords(text) : "");
-  }
+  // Words highlighted anywhere on the page count, as long as they come from Source D
+  // (in the game this is the document reader's text, outside this component).
+  // Capture phase: the reader would otherwise turn the highlight into a note and
+  // clear it. For Source D a highlight means "quote this"; the note is earned by
+  // submitting the answer, so the reader's handler is skipped for these words.
+  useEffect(() => {
+    const capture = (event: Event) => {
+      const text = window.getSelection()?.toString().replace(/\s+/g, " ").trim() ?? "";
+      if (!text) return;
+      const words = text.split(" ").length >= 2 ? wholeWords(text) : null;
+      setSelection(words ?? "");
+      if (words && event.type !== "keyup") event.stopPropagation();
+    };
+    for (const type of ["mouseup", "keyup", "touchend"]) window.addEventListener(type, capture, true);
+    return () => {
+      for (const type of ["mouseup", "keyup", "touchend"]) window.removeEventListener(type, capture, true);
+    };
+  }, []);
 
   function insertQuote() {
     if (!selection) return;
@@ -101,40 +146,57 @@ export function SourceInferenceTask({ storageKey }: { storageKey: string }) {
       const body = (await response.json()) as { mode?: string; grade?: Grade; message?: string; error?: string };
       if (body.mode === "live" && body.grade) {
         const attempt: Attempt = { answer, submittedAt: new Date().toISOString(), grade: body.grade };
-        save({ draft: attempts.length + 1 < MAX_ATTEMPTS ? answer : "", attempts: [...attempts, attempt] });
+        save({ ...record, draft: attempts.length + 1 < MAX_ATTEMPTS ? answer : "", attempts: [...attempts, attempt] });
+        setUnavailable(false);
+        notify();
       } else {
+        setUnavailable(body.mode === "unavailable");
         setNotice(body.message ?? body.error ?? "Marking is unavailable right now. Your answer is saved.");
       }
     } catch {
+      setUnavailable(true);
       setNotice("Could not reach the marker. Your answer is saved; try again.");
     } finally {
       setBusy(false);
     }
   }
 
+  function saveForTeacher() {
+    const answer = record.draft.trim();
+    if (!answer) return;
+    save({ ...record, unmarked: { answer, submittedAt: new Date().toISOString() } });
+    setNotice(null);
+    notify();
+  }
+
   if (!loaded) return <p>Loading the source task…</p>;
   return (
     <div className={styles.task}>
+      {briefing}
       <p className={styles.eyebrow}>Source skills · inference and explanation · {SOURCE_TASK.marks} marks</p>
       <h3 className={styles.question}>{SOURCE_TASK.question}</h3>
 
-      <figure className={styles.source} aria-label={SOURCE_TASK.label}>
-        <figcaption>
-          <strong>{SOURCE_TASK.label}:</strong> {SOURCE_TASK.provenance}
-        </figcaption>
-        <div ref={sourceRef} onMouseUp={captureSelection} onKeyUp={captureSelection} onTouchEnd={captureSelection}>
+      {showSource ? (
+        <figure className={styles.source} aria-label={SOURCE_TASK.label}>
+          <figcaption>
+            <strong>{SOURCE_TASK.label}:</strong> {SOURCE_TASK.provenance}
+          </figcaption>
           {SOURCE_TASK.text.map((paragraph) => (
             <p key={paragraph.slice(0, 24)}>{paragraph}</p>
           ))}
-        </div>
-        <p className={styles.small}>{SOURCE_TASK.sourceNote}</p>
-      </figure>
+          <p className={styles.small}>{SOURCE_TASK.sourceNote}</p>
+        </figure>
+      ) : (
+        <p className={styles.small}>
+          <strong>{SOURCE_TASK.label}</strong> is the newspaper text above. {SOURCE_TASK.sourceNote}
+        </p>
+      )}
 
       {latest && <Feedback attempt={latest} final={finished} index={attempts.length} />}
       {!finished && (
         <>
           <p className={styles.tip}>
-            Highlight words in Source D to quote them as evidence, then explain how they support your inference.
+            Highlight words in {showSource ? "Source D" : "the newspaper above"} to quote them as evidence, then explain how they support your inference.
           </p>
           <div className={styles.quoteBar} aria-live="polite">
             {selection ? (
@@ -168,8 +230,19 @@ export function SourceInferenceTask({ storageKey }: { storageKey: string }) {
             </button>
           </div>
           {notice && (
-            <p role="status" className={styles.notice}>
-              {notice}
+            <div role="status" className={styles.notice}>
+              <p>{notice}</p>
+              {unavailable && !record.unmarked && attempts.length === 0 && record.draft.trim() && (
+                <button type="button" className={styles.secondary} onClick={saveForTeacher}>
+                  Save my answer for my teacher (no AI feedback)
+                </button>
+              )}
+            </div>
+          )}
+          {record.unmarked && attempts.length === 0 && (
+            <p className={styles.notice}>
+              Your answer is saved for your teacher to mark. You can still submit it for AI feedback when marking
+              is available.
             </p>
           )}
         </>
@@ -218,6 +291,12 @@ export function SourceInferenceTask({ storageKey }: { storageKey: string }) {
         Your answer is sent to the configured AI provider for marking and saved in this browser. The mark is
         AI-suggested; your teacher can confirm or change it in your learning report.
       </p>
+      {noteFailed && (
+        <p role="alert" className={styles.notice}>
+          Your answer is saved, but the evidence note could not be added. Close and reopen the newspaper to try
+          again.
+        </p>
+      )}
       {saveError && (
         <p role="status" className={styles.notice}>
           Browser saving is unavailable. Download your learning report before leaving.

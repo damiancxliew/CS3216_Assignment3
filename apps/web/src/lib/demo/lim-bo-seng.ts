@@ -167,7 +167,7 @@ export const sources: Source[] = [
   },
   {
     id: "press",
-    title: "A promise and a threat in occupation print",
+    title: "Syonan Shimbun, 28 February 1942 (Source D)",
     date: "28 February 1942 · guidebook Source D, p. 63",
     kind: "Adapted occupation newspaper text · supplied curriculum",
     credit:
@@ -506,7 +506,7 @@ export const stages: Stage[] = [
     intro:
       "After training abroad, Lim returned to occupied Malaya in late 1943. The journey is condensed into this coastal setting. Compare Tan Chong Tee’s and Tham Sien Yen’s later accounts, investigate the limits of occupation claims, and speak with Lim about the people a resistance network depends on. Make one evidence-based judgement; training, landing and the network are parts of this chapter, not separate missions.",
     objective:
-      "Choose a claim to examine. Compare what a recollection or occupation message can establish, then decide whether to seek another perspective, limit the recommendation, or proceed while recording uncertainty.",
+      "Start with the occupation newspaper in Tham’s testimony room: write what it reveals about the Japanese attitude to the people of Syonan, using its own words as evidence. Then compare what a recollection can establish, and decide whether to seek another perspective, limit the recommendation, or proceed while recording uncertainty.",
     question:
       "What is strong enough evidence to act on—and what uncertainty must you carry with you?",
     sources: [
