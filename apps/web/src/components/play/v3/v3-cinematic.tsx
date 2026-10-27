@@ -43,7 +43,6 @@ export function V3Cinematic({
   const [paused, setPaused] = useState(initiallySettled);
   const [imageFailed, setImageFailed] = useState(!artUrl);
   const scene = useRef<HTMLDivElement>(null);
-  const contain = Boolean(artMetadata && artMetadata.origin !== "ai");
   const beginButton = useRef<HTMLButtonElement>(null);
   const told = step >= beats.length;
   const hasEvidence = beats.some((beat) => beat.image || beat.journey);
@@ -129,35 +128,22 @@ export function V3Cinematic({
         } : undefined}
       >
         {artUrl && !imageFailed ? (
-          <>
-            {/* Real (non-AI) images are never cropped. A softened copy fills the space
-                around them so the frame has no flat colour bands. */}
-            {contain ? (
-              <Image
-                unoptimized
-                fill
-                src={artUrl}
-                alt=""
-                aria-hidden
-                className="h-full w-full scale-110 object-cover opacity-70 blur-2xl"
-              />
-            ) : null}
-            <Image
-              unoptimized
-              fill
-              src={artUrl}
-              alt={artMetadata?.alt ?? ""}
-              className={`h-full w-full ${contain ? "object-contain" : "object-cover"}`}
-              onError={() => setImageFailed(true)}
-            />
-          </>
+          <Image
+            unoptimized
+            fill
+            src={artUrl}
+            alt={artMetadata?.alt ?? ""}
+            className={`h-full w-full ${artMetadata && artMetadata.origin !== "ai" ? "object-contain" : "object-cover"}`}
+            onError={() => setImageFailed(true)}
+          />
         ) : null}
       </div>
-      {/* No letterbox bars: a solid strip never matches the artwork (#362). */}
       <div className={styles.scrim} aria-hidden />
+      {/* The header is a full-width strip from the top edge (#362), so it replaces the top bar. */}
+      <div className={`${styles.bar} ${styles.barBottom}`} aria-hidden />
 
       {artMetadata ? <div className="absolute bottom-2 right-3 z-20 max-w-[70%] rounded bg-black/75 px-2 py-1 text-xs text-white"><MediaCredit media={artMetadata} caption /></div> : null}
-      <header className={styles.top}>
+      <header className={`${styles.top} ${styles.topFlush}`}>
         <p className={styles.chapter}>Historical adventure</p>
         <div className={styles.controls}>
           {fullscreen.supported ? (
