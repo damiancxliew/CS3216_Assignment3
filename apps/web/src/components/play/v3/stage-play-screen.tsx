@@ -201,6 +201,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   }, [view.timer]);
 
   const remaining = preparation?.timerExpired ? 0 : view.timer && now !== null ? new Date(view.timer.endsAt).getTime() - now : null;
+  const timerExpired = preparation ? preparation.timerExpired : remaining !== null && remaining <= 0;
 
   const closeGuidance = useCallback(() => {
     if (guidance?.type === "timer" || guidance?.type === "ready") {
@@ -215,8 +216,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   }, [guidance, guidanceKey, preparation?.ready]);
 
   useEffect(() => {
-    if (!preparation || isMoment || isTalkOpen || openedDocument || notesOpen || guidance || externalMovementLock || experience?.movementLocked || experience?.hideDecision || busy) return;
-    const candidates = [preparation.timerExpired ? "timer" : null, preparation.ready ? "ready" : null] as const;
+    if (isMoment || isTalkOpen || openedDocument || notesOpen || guidance || externalMovementLock || experience?.movementLocked || experience?.hideDecision || busy) return;
+    const candidates = [timerExpired ? "timer" : null, preparation?.ready ? "ready" : null] as const;
     const type = candidates.find((candidate) => candidate && !seenGuidance.current.has(`${guidanceKey}:${candidate}`) && !guidanceWasSeen(`${guidanceKey}:${candidate}`));
     if (!type) return;
     // A map landmark can own a dialog too. Wait for it without stealing focus.
@@ -228,7 +229,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     if (showWhenClear()) return;
     const pending = window.setInterval(() => { if (showWhenClear()) window.clearInterval(pending); }, 250);
     return () => window.clearInterval(pending);
-  }, [busy, experience?.hideDecision, experience?.movementLocked, externalMovementLock, guidance, guidanceKey, isMoment, isTalkOpen, notesOpen, openedDocument, preparation]);
+  }, [busy, experience?.hideDecision, experience?.movementLocked, externalMovementLock, guidance, guidanceKey, isMoment, isTalkOpen, notesOpen, openedDocument, preparation, timerExpired]);
   const openDocument = useCallback((id: string) => {
     setDocumentId(id);
     send({ type: "openDocument", documentId: id });

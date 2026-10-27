@@ -33,7 +33,7 @@ export function fireStoryEvent(ctx: StepContext, event: SpecStoryEvent): void {
       }
       break
     case 'beginMoment':
-      if (state.moment === null && decisionPreparation(ctx).ready && !(currentStage(ctx).preparation !== undefined && 'timerOut' in event.when)) openMoment(ctx, 'student')
+      if (state.moment === null && decisionPreparation(ctx).ready && !('timerOut' in event.when)) openMoment(ctx, 'student')
       break
   }
 

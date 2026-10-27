@@ -22,13 +22,14 @@ export function StagePreparationGuidance({ guidance, view, busy, decisionHint, o
   const titles = {
     character: `Prepare to talk to ${character?.name ?? "this character"}`,
     confirm: "Finish exploring and decide?",
-    timer: preparation?.ready ? "Time to review the decision" : "Time for the final conversations",
+    timer: !preparation ? "Time’s up" : preparation.ready ? "Time to review the decision" : "Time for the final conversations",
     ready: "You can make the stage decision",
     help: "How to prepare for this stage",
     decision: "There is more to investigate",
   };
   const canReview = (guidance.type === "ready" || guidance.type === "timer" || guidance.type === "help") && preparation?.ready;
-  const primary = guidance.type === "confirm"
+  const decideNow = guidance.type === "confirm" || (guidance.type === "timer" && !preparation);
+  const primary = decideNow
     ? { label: "Continue to decision", disabled: busy, onClick: onDecide }
     : canReview ? { label: "Review decision", onClick: onReview } : undefined;
   return (
@@ -42,7 +43,7 @@ export function StagePreparationGuidance({ guidance, view, busy, decisionHint, o
       </> : <>
         {guidance.type === "help" ? <p><strong>{view.stage?.centralQuestion}</strong></p> : null}
         {guidance.type === "help" ? <p>Read the evidence and answer each reading check with a short supporting passage. Complete the preparation shown beside a character before talking to them.</p>
-          : guidance.type === "timer" ? <p>{preparation?.ready ? "The investigation time has ended. You can now review the decision." : "The investigation time has ended. You still need to hear from every essential person before deciding."}</p>
+          : guidance.type === "timer" ? <p>{!preparation ? "The investigation time has ended. Look over your notes and documents if you need to, then continue to the decision." : preparation.ready ? "The investigation time has ended. You can now review the decision." : "The investigation time has ended. You still need to hear from every essential person before deciding."}</p>
           : guidance.type === "ready" ? <p>You have heard from every essential person and can now review the decision. You can also keep exploring.</p>
           : <p>Complete the required evidence and hear from every essential person before deciding.</p>}
         {preparation ? <p>Evidence preparation: {preparation.completed} of {preparation.required}. Essential conversations: {completed} of {essential.length}.</p> : null}
