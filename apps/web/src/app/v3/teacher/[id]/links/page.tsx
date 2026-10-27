@@ -44,7 +44,7 @@ export default async function StudentLinkHistoryPage({
         <>
           <div className="space-y-4 md:hidden">
             {history.rows.map((row) => {
-              const path = `/v3/join/${encodeURIComponent(id)}?release=${encodeURIComponent(row.linkKey)}`;
+              const path = `/v3/join/${encodeURIComponent(row.id)}`;
               const url = host ? `${protocol}://${host}${path}` : path;
               return (
                 <article
@@ -123,7 +123,7 @@ export default async function StudentLinkHistoryPage({
               </thead>
               <tbody>
                 {history.rows.map((row) => {
-                  const releasePath = `/v3/join/${encodeURIComponent(id)}?release=${encodeURIComponent(row.linkKey)}`;
+                  const releasePath = `/v3/join/${encodeURIComponent(row.id)}`;
                   const releaseUrl = host
                     ? `${protocol}://${host}${releasePath}`
                     : releasePath;

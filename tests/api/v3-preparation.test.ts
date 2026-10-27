@@ -1,3 +1,4 @@
+import { publishedVersionId } from "../fixtures/v3-publication";
 import { describe, expect, it } from "vitest";
 import { FakeLlmClient, type LlmRequest } from "@adventure/orchestration";
 import type { Action, PlayerView } from "@adventure/play-contract";
@@ -19,7 +20,7 @@ async function session() {
   }] });
   let time = 1000;
   const deps: V3PlayServiceDeps = { store, llm: () => llm, now: () => time, env: { V3_ENABLED: "1", V3_SCHOOL_IDS: "school", V3_RATE_LIMIT_PER_10S: "100" } };
-  const created = await createAttempt(deps, "student", "prepared");
+  const created = await createAttempt(deps, "student", await publishedVersionId(deps.store, "prepared"));
   const id = created.body.attemptId as string;
   let revision = created.body.revision as number;
   async function send(action: Action, expected = 200) {
@@ -46,7 +47,7 @@ describe("prepared v3 attempts through the action service", () => {
   it("persists a failed first response and correction through resume without leaking private marking", async () => {
     const game = await session();
     await game.send(answer({ start: 0, end: game.spec.documents[0]!.body.length }));
-    const resumed = await createAttempt(game.deps, "student", "prepared");
+    const resumed = await createAttempt(game.deps, "student", await publishedVersionId(game.deps.store, "prepared"));
     const view = resumed.body.view as PlayerView;
     expect(view.documents[0]?.readingCheck?.status).toBe("needsReview");
     expect(JSON.stringify(resumed.body)).not.toMatch(/correctOptionId|recoveryDiscoveryIds|"support":|check-2/);

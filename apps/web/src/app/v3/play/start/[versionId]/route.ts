@@ -8,18 +8,17 @@ import { v3Enabled } from "@/lib/v3/flag";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request, { params }: { params: Promise<{ adventureId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ versionId: string }> }) {
   if (!v3Enabled()) {
     return NextResponse.json({ error: { code: "not_found", message: "Not found." } }, { status: 404 });
   }
   const origin = requestOrigin(request);
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { adventureId } = await params;
-  const release = new URL(request.url).searchParams.get("release") ?? undefined;
-  if (!user) return NextResponse.redirect(new URL(`/v3/join/${encodeURIComponent(adventureId)}${release ? `?release=${encodeURIComponent(release)}` : ""}`, origin));
+  const { versionId } = await params;
+  if (!user) return NextResponse.redirect(new URL(`/v3/join/${encodeURIComponent(versionId)}`, origin));
 
-  const result = await createAttempt(v3PlayDeps(), user.id, adventureId, release);
+  const result = await createAttempt(v3PlayDeps(), user.id, versionId);
   if (result.status === 201 || result.status === 200) {
     const body = result.body as { attemptId: string };
     return NextResponse.redirect(new URL(`/v3/play/${body.attemptId}`, origin));

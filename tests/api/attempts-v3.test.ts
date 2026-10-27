@@ -1,3 +1,4 @@
+import { publishedVersionId } from "../fixtures/v3-publication";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -14,6 +15,8 @@ import {
   runPostTurnChecks,
   type V3PlayServiceDeps,
 } from "@/lib/play/v3/service";
+import { resolveWalkingSprites } from "@/lib/v3/media/resolvers";
+import { applyV3Edits } from "@/lib/v3/edit/commands";
 import { MemoryV3PlayStore } from "@/lib/play/v3/store";
 
 const USER_ID = "student-1";
@@ -81,7 +84,7 @@ function setup(options: {
 }
 
 async function create(deps: V3PlayServiceDeps) {
-  const result = await createAttempt(deps, USER_ID, ADVENTURE_ID);
+  const result = await createAttempt(deps, USER_ID, await publishedVersionId(deps.store, ADVENTURE_ID));
   expect(result.status).toBe(201);
   return result.body as { attemptId: string; revision: number; view: { phase: string }; resumed: boolean };
 }
@@ -106,27 +109,41 @@ async function createPendingMessage(deps: V3PlayServiceDeps, attemptId: string, 
 describe("v3 attempts API service", () => {
   it("conceals disabled schools and inactive members", async () => {
     const disabled = setup({ env: { V3_ENABLED: "0" } });
-    expect((await createAttempt(disabled.deps, USER_ID, ADVENTURE_ID)).status).toBe(404);
+    expect((await createAttempt(disabled.deps, USER_ID, await publishedVersionId(disabled.deps.store, ADVENTURE_ID))).status).toBe(404);
 
     const disallowed = setup({ env: { V3_SCHOOL_IDS: "school-2" } });
-    expect((await createAttempt(disallowed.deps, USER_ID, ADVENTURE_ID)).status).toBe(404);
+    expect((await createAttempt(disallowed.deps, USER_ID, await publishedVersionId(disallowed.deps.store, ADVENTURE_ID))).status).toBe(404);
 
     const inactive = setup({ activeMember: false });
-    expect((await createAttempt(inactive.deps, USER_ID, ADVENTURE_ID)).status).toBe(404);
+    expect((await createAttempt(inactive.deps, USER_ID, await publishedVersionId(inactive.deps.store, ADVENTURE_ID))).status).toBe(404);
     expect((await createAttempt(inactive.deps, USER_ID, "missing")).status).toBe(404);
   });
 
+  it("retains the original sprite when resuming after a newer sprite was saved and published", async () => {
+    const { store, deps } = setup();
+    const first = await create(deps);
+    const updated = applyV3Edits(goldenSpec, [{ type: "walkingSprite", targetKey: "player", selection: { kind: "bundled", id: "Noble" } }], []);
+    expect(await store.saveDraft(ADVENTURE_ID, 1, updated)).toMatchObject({ saved: true, version: 2 });
+    expect(resolveWalkingSprites(EngineSpec.parse((await store.loadAdventure(ADVENTURE_ID))!.spec)).player.sprite).toBe("Noble");
+    expect(await store.publishVersion(ADVENTURE_ID, 2, 1, true)).toBe(true);
+    const resumed = await createAttempt(deps, USER_ID, await publishedVersionId(deps.store, ADVENTURE_ID));
+    expect(resumed.body).toMatchObject({ attemptId: first.attemptId, resumed: true });
+    const attempt = (await store.loadAttempt(first.attemptId))!;
+    expect(attempt.specVersion).toBe(1);
+    const gameSpec = EngineSpec.parse(await store.loadVersionSpec(ADVENTURE_ID, attempt.specVersion));
+    expect(resolveWalkingSprites(gameSpec).player.sprite).toBe("Boy");
+  });
   it("requires a published adventure and resumes the latest attempt", async () => {
     const draft = setup({ status: "draft" });
-    expect(await createAttempt(draft.deps, USER_ID, ADVENTURE_ID)).toMatchObject({
-      status: 409,
-      body: { error: { code: "not_open" } },
+    expect(await createAttempt(draft.deps, USER_ID, await publishedVersionId(draft.deps.store, ADVENTURE_ID))).toMatchObject({
+      status: 404,
+      body: { error: { code: "not_found" } },
     });
 
     const fixture = setup();
     const first = await create(fixture.deps);
     expect(first).toMatchObject({ revision: 0, resumed: false, view: { phase: "briefing" } });
-    const resumed = await createAttempt(fixture.deps, USER_ID, ADVENTURE_ID);
+    const resumed = await createAttempt(fixture.deps, USER_ID, await publishedVersionId(fixture.deps.store, ADVENTURE_ID));
     expect(resumed).toMatchObject({
       status: 200,
       body: { attemptId: first.attemptId, revision: 0, resumed: true, view: { phase: "briefing" } },
