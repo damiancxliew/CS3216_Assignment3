@@ -37,7 +37,7 @@ export function useUpgradeWorkflow({ adventureId, revision, dirty, disabled, act
       } else if (result) setMessage(result.message);
       else setRun(null);
     }).catch(() => {
-      if (!cancelled && request === sequence.current) setMessage('Could not load upgrade progress. Refresh to try again.');
+      if (!cancelled && request === sequence.current) setMessage('Could not load the upgrade. Refresh to retry.');
     }).finally(() => { if (!cancelled && request === sequence.current) setLoading(false); });
     return () => { cancelled = true; };
   }, [actions, adventureId, revision, enabled]);
@@ -47,14 +47,14 @@ export function useUpgradeWorkflow({ adventureId, revision, dirty, disabled, act
     const timer = window.setInterval(() => {
       void actions.get(adventureId, run.id).then((result) => {
         if (!cancelled && result?.ok) setRun(result.run);
-      }).catch(() => { if (!cancelled) setMessage('Progress could not refresh. Your upgrade is still saved.'); });
+      }).catch(() => { if (!cancelled) setMessage('Progress could not refresh. The proposal is saved.'); });
     }, 2000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [run, actions, adventureId, pending]);
   const stale = Boolean(run && run.sourceRevision !== revision && run.status !== 'applied');
   const busy = pending || disabled || loading || run?.status === 'running';
   const perform = async (operation: () => Promise<UpgradeResult>) => {
-    if (pending || disabled || dirty) return 'Save your edits before working on the upgrade.';
+    if (pending || disabled || dirty) return 'Save your edits first.';
     ++sequence.current;
     setPending(true);
     setMessage('');
@@ -65,11 +65,11 @@ export function useUpgradeWorkflow({ adventureId, revision, dirty, disabled, act
       if (result.run.status === 'applied' && result.run.appliedRevision !== null) {
         const decoded = decodeStoredSpec(result.run.candidate);
         if (decoded.ok) onApplied(decoded.spec, result.run.appliedRevision);
-        setMessage('Upgrade saved as a new draft revision. Preview it before publishing.');
+        setMessage('Draft saved. Preview it before publishing.');
       }
-      return result.run.status === 'ready' ? 'Upgrade ready for review. Apply it when you are satisfied.' : 'Upgrade progress saved.';
+      return result.run.status === 'ready' ? 'Ready to review.' : 'Progress saved.';
     } catch {
-      const error = 'Could not confirm the upgrade action. Refresh to check saved progress before trying again.';
+      const error = 'Could not confirm the change. Refresh to check before retrying.';
       setMessage(error);
       return error;
     } finally { setPending(false); setLoading(false); }
@@ -77,9 +77,9 @@ export function useUpgradeWorkflow({ adventureId, revision, dirty, disabled, act
   const routeRef = useRef<(instruction: string) => Promise<string>>(async () => '');
   routeRef.current = async (instruction) => {
     setOpen(true);
-    if (dirty) return 'Save your edits before preparing an upgrade.';
-    if (!run || ['applied', 'discarded'].includes(run.status)) return 'Review the upgrade plan, then choose Prepare upgrade. Your draft will stay unchanged until you apply it.';
-    if (stale || run.status === 'stale') return 'The draft changed. Rebuild this upgrade from the saved draft.';
+    if (dirty) return 'Save your edits first.';
+    if (!run || ['applied', 'discarded'].includes(run.status)) return 'Choose Prepare upgrade to get a proposal. Review it before applying.';
+    if (stale || run.status === 'stale') return 'Draft changed. Rebuild the proposal.';
     return perform(() => actions.refine(adventureId, { runId: run.id, proposalRevision: run.proposalRevision, instruction }));
   };
   const chatActive = open && Boolean(run && !['applied', 'discarded', 'stale'].includes(run.status));

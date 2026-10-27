@@ -37,12 +37,12 @@ function PreparationGroups({ groups, discovery }: {
   groups: PreparationGroup[];
   discovery(id: string): string;
 }) {
-  if (!groups.length) return <p>No document preparation required.</p>;
+  if (!groups.length) return <p>No preparation needed.</p>;
   return (
     <ul className="list-disc space-y-1 pl-5">
       {groups.map((group, index) => (
         <li key={index}>
-          Read {group.minMet} of: {group.discoveryIds.map(discovery).join("; ")}
+          Learn {group.minMet} of: {group.discoveryIds.map(discovery).join("; ")}
         </li>
       ))}
     </ul>
@@ -57,7 +57,7 @@ export function UpgradeReview({ run }: { run: UpgradeRun }) {
   const character = (id: string) => spec.characters.find((item) => item.id === id)?.name ?? id;
   return (
     <div className="space-y-4 text-sm" aria-label="Proposed upgrade changes">
-      <h3 className="font-bold">Reading questions and supporting passages</h3>
+      <h3 className="font-bold">Reading checks</h3>
       {spec.documents.map((document) => (
         <details key={document.id} className="rounded-control border border-line p-3">
           <summary className="cursor-pointer font-semibold">{document.title}</summary>
@@ -68,10 +68,10 @@ export function UpgradeReview({ run }: { run: UpgradeRun }) {
               ))}
               <QuestionReview document={document} question={document.readingCheck.recovery} label="Guided correction" />
             </div>
-          ) : <p className="mt-2">No reading check proposed.</p>}
+          ) : <p className="mt-2">Reading check missing.</p>}
         </details>
       ))}
-      <h3 className="font-bold">Preparation and essential conversations</h3>
+      <h3 className="font-bold">Stage requirements</h3>
       {spec.stages.map((stage) => (
         <details key={stage.id} className="rounded-control border border-line p-3">
           <summary className="cursor-pointer font-semibold">{stage.title}</summary>
@@ -98,7 +98,7 @@ export function UpgradeReview({ run }: { run: UpgradeRun }) {
                 </ul>
               </section>
             </div>
-          ) : <p className="mt-2">No preparation proposed.</p>}
+          ) : <p className="mt-2">Requirements missing.</p>}
         </details>
       ))}
     </div>

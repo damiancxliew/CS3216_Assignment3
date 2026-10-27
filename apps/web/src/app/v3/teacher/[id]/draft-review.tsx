@@ -87,7 +87,7 @@ export function DraftReview({
       <h3 className="text-lg font-extrabold tracking-tight">{draft.title}</h3>
       <UpgradePanel adventureId={adventureId} spec={base} revision={version} dirty={edits.length > 0} disabled={localPending} onPendingChange={setUpgradePending} onApplied={(spec, nextVersion) => {
         setBase(spec); setDraft(spec); setVersion(nextVersion); setEdits([]); setServerErrors([]); setExistingErrors([]);
-        setMessage('Upgrade saved. Preview the new draft before publishing.'); router.refresh();
+        setMessage('Draft saved. Preview it before publishing.'); router.refresh();
       }} />
       <ReviewToolbar>
         <button

@@ -312,7 +312,7 @@ export function EditorWorkspace(props: Props) {
             <V3AdventureNav adventureId={props.adventureId} page="adventure" />
             <UpgradePanel adventureId={props.adventureId} spec={saved} revision={version} dirty={dirty} disabled={localPending} onPendingChange={setUpgradePending} onReviewOpen={setUpgradeOpen} onApplied={(spec, nextVersion) => {
               setSaved(spec); setDraft(spec); setVersion(nextVersion); setEdits([]); setSavedErrors([]); setEditMode(false);
-              setMessage('Upgrade saved. Preview the new draft before publishing.'); router.refresh();
+              setMessage('Draft saved. Preview it before publishing.'); router.refresh();
             }} />
             <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
               <section aria-label="Draft controls" className="space-y-3 py-2">
