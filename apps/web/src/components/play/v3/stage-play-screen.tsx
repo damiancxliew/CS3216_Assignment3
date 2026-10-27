@@ -4,7 +4,7 @@ import type { Point } from "@adventure/game-core";
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
-import { ChevronDown, Timer } from "lucide-react";
+import { ChevronDown, CircleHelp, Timer } from "lucide-react";
 import type { Action, PlayerView, DocumentView } from "@adventure/play-contract";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -15,9 +15,12 @@ import { NotePickup, useNotePickups } from "@/components/play/v3/note-pickup";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { StoryToast, talkLines, useStanceShifts, useStoryToasts } from "@/components/play/v3/story-lines";
 import { StageIsland } from "@/components/play/v3/stage-island";
-import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3CardDialog } from "./card-dialog";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import { V3Map } from "@/components/play/v3/v3-map";
+import { guidanceWasSeen, rememberGuidance } from "./preparation-dialog";
+import { PreparationProgress } from "./preparation-progress";
+import { StagePreparationGuidance, type StageGuidance } from "./stage-preparation-guidance";
 
 export function v3InsertNoteAction(characterId: string, noteId: string, text?: string): Action {
   return { type: "insertNote", characterId, noteId, ...(text ? { text } : {}) };
@@ -80,6 +83,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const [talkingTo, setTalkingTo] = useState<string | null>(null);
   const [nearbyId, setNearbyId] = useState<string | null>(null);
   const [confirmEndStage, setConfirmEndStage] = useState(false);
+  const [guidance, setGuidance] = useState<StageGuidance | null>(null);
+  const seenGuidance = useRef(new Set<string>());
   const [walkTo, setWalkTo] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [missionCollapsed, setMissionCollapsed] = useState(false);
@@ -110,9 +115,13 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     ? view.characters.find((character) => character.id === talkingTo) ?? null
     : null;
   const isTalkOpen = openCharacter !== null;
-  const movementLocked = externalMovementLock || isTalkOpen || isMoment || Boolean(experience?.movementLocked);
   const activeDocumentId = experience?.activeDocumentId === undefined ? documentId : experience.activeDocumentId;
   const openedDocument = view.documents.find((document) => document.id === activeDocumentId) ?? null;
+  const movementLocked = externalMovementLock || isTalkOpen || isMoment || Boolean(experience?.movementLocked) || Boolean(openedDocument) || notesOpen || guidance !== null;
+  const preparation = stage?.preparation;
+  const essential = preparation?.essentialConversations ?? [];
+  const completedConversations = essential.filter((conversation) => conversation.complete).length;
+  const guidanceKey = `v3.guidance:${attemptId}:${stageIndex}`;
   const spawnRoomId = view.rooms[0]?.id ?? "";
   const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
     send({ type: "enterRoom", roomId }, resolve);
@@ -149,7 +158,12 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     : null;
 
   const openTalk = useCallback((id: string) => {
-    if (view.definingMoment !== null || !view.characters.some((character) => character.id === id)) return;
+    const character = view.characters.find((character) => character.id === id);
+    if (view.definingMoment !== null || !character) return;
+    if (character.preparation && !character.preparation.ready) {
+      setGuidance({ type: "character", characterId: id });
+      return;
+    }
     talkingRoomId.current = view.currentRoomId;
     seenAtTalkOpen.current = new Set(view.messages.map((message) => message.id));
     setCharacterId(id);
@@ -187,7 +201,35 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     return () => window.clearInterval(interval);
   }, [view.timer]);
 
-  const remaining = view.timer && now !== null ? new Date(view.timer.endsAt).getTime() - now : null;
+  const remaining = preparation?.timerExpired ? 0 : view.timer && now !== null ? new Date(view.timer.endsAt).getTime() - now : null;
+
+  const closeGuidance = useCallback(() => {
+    if (guidance?.type === "timer" || guidance?.type === "ready") {
+      const types = guidance.type === "timer" && preparation?.ready ? ["timer", "ready"] : [guidance.type];
+      for (const type of types) {
+        const key = `${guidanceKey}:${type}`;
+        seenGuidance.current.add(key);
+        rememberGuidance(key);
+      }
+    }
+    setGuidance(null);
+  }, [guidance, guidanceKey, preparation?.ready]);
+
+  useEffect(() => {
+    if (!preparation || isMoment || isTalkOpen || openedDocument || notesOpen || guidance || externalMovementLock || experience?.movementLocked || experience?.hideDecision || busy) return;
+    const candidates = [preparation.timerExpired ? "timer" : null, preparation.ready ? "ready" : null] as const;
+    const type = candidates.find((candidate) => candidate && !seenGuidance.current.has(`${guidanceKey}:${candidate}`) && !guidanceWasSeen(`${guidanceKey}:${candidate}`));
+    if (!type) return;
+    // A map landmark can own a dialog too. Wait for it without stealing focus.
+    const showWhenClear = () => {
+      if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) return false;
+      setGuidance({ type });
+      return true;
+    };
+    if (showWhenClear()) return;
+    const pending = window.setInterval(() => { if (showWhenClear()) window.clearInterval(pending); }, 250);
+    return () => window.clearInterval(pending);
+  }, [busy, experience?.hideDecision, experience?.movementLocked, externalMovementLock, guidance, guidanceKey, isMoment, isTalkOpen, notesOpen, openedDocument, preparation]);
   const openDocument = useCallback((id: string) => {
     setDocumentId(id);
     send({ type: "openDocument", documentId: id });
@@ -246,17 +288,18 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               pulseKey={pickup.current?.id ?? null}
               openRequest={islandRequest}
               onOpenRequestHandled={acknowledgeIslandRequest}
-              shortcutsLocked={externalMovementLock}
+              shortcutsLocked={externalMovementLock || guidance !== null || Boolean(experience?.movementLocked)}
             />
           ) : null}
 
-          {!isMoment && !isTalkOpen && mapReady && nearbyCharacter && !notesOpen && !openedDocument ? (
+          {!isMoment && !isTalkOpen && mapReady && nearbyCharacter && !notesOpen && !openedDocument && !guidance ? (
             <button
               type="button"
               onClick={() => openTalk(nearbyCharacter.id)}
               className="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 sm:bottom-3 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
             >
               {touch ? "Tap to talk to" : "Press E to talk to"} {nearbyCharacter.name}
+              {nearbyCharacter.preparation && !nearbyCharacter.preparation.ready ? <PreparationProgress label="Preparation" completed={nearbyCharacter.preparation.completed} required={nearbyCharacter.preparation.required} /> : null}
             </button>
           ) : null}
 
@@ -294,6 +337,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
         >
           <header className="flex items-center gap-2">
             <h2 className="mr-auto text-xs font-black uppercase tracking-[0.14em]">Mission</h2>
+            {preparation && !isMoment ? <button type="button" disabled={isTalkOpen || externalMovementLock} aria-label="Help with this stage" aria-haspopup="dialog" onClick={() => setGuidance({ type: "help" })} className="grid min-h-11 min-w-11 place-items-center rounded-md hover:bg-[#1f2433]/10 disabled:opacity-50"><CircleHelp size={19} aria-hidden /></button> : null}
             {view.timer ? (
               <span aria-label="Time remaining" className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#1f2433]/35 bg-white/70 px-2 py-1 font-mono text-xs font-bold">
                 <Timer size={14} aria-hidden />
@@ -326,7 +370,10 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                   <p className="text-xs text-[#5c6472]">
                     You are in {view.rooms.find((room) => room.id === view.currentRoomId)?.name ?? "an unknown room"}
                   </p>
-                  {experience?.hideDecision ? null : confirmEndStage ? (
+                  {preparation ? <div className="space-y-1 text-xs" role="status" aria-live="polite"><PreparationProgress label="Evidence preparation" completed={preparation.completed} required={preparation.required} /><PreparationProgress label="Essential conversations" completed={completedConversations} required={essential.length} /></div> : null}
+                  {experience?.hideDecision ? null : preparation ? (
+                    <button type="button" disabled={busy || isTalkOpen} onClick={() => setGuidance({ type: preparation.ready ? "confirm" : "decision" })} aria-haspopup="dialog" className={`${styles.primary} min-h-11 px-3 text-xs font-black disabled:opacity-50`}>Review stage decision</button>
+                  ) : confirmEndStage ? (
                     <div role="alert" className="space-y-2">
                       <p className="text-xs font-bold">{experience?.decisionHint ?? "You won’t be able to explore after this."}</p>
                       <div className="flex flex-wrap gap-2">
@@ -385,11 +432,21 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
         </section>
       </div>
 
+      {guidance ? <StagePreparationGuidance
+        guidance={guidance}
+        view={view}
+        busy={busy}
+        decisionHint={experience?.decisionHint}
+        onClose={closeGuidance}
+        onReview={() => { closeGuidance(); setGuidance({ type: "confirm" }); }}
+        onDecide={() => { closeGuidance(); send({ type: "endStage" }); }}
+      /> : null}
+
       {notesOpen ? (
-        <V3ScrollDialog
-          eyebrow="Your notes"
+        <V3CardDialog
+          kind="notes"
           title="Your notes"
-          kicker="From your travels"
+          eyebrow="From your travels"
           footerText="A record of your discoveries"
           closeLabel="Close notes"
           onClose={() => setNotesOpen(false)}
@@ -403,7 +460,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               submitV3NoteInsert(characterId, noteId, undefined, send, () => setNotesOpen(false));
             }}
           />
-        </V3ScrollDialog>
+        </V3CardDialog>
       ) : null}
 
       {storyToasts.current ? (
@@ -438,6 +495,8 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
           onClose={closeDocument}
           noteCount={view.notes.length}
           hasDocumentNote={view.notes.some((note) => note.source === "document")}
+          busy={busy}
+          {...(!isMoment ? { onSubmitReadingCheck: (submission: import("./reading-check").ReadingCheckSubmission, onSettled: (succeeded: boolean) => void) => send({ type: "submitReadingCheck", documentId: openedDocument.id, ...submission }, onSettled) } : {})}
           {...(openedDocument && !isMoment
             ? {
                 onSelectPassage: (start: number, end: number, onSettled: (succeeded: boolean) => void) =>

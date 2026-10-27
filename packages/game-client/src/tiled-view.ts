@@ -21,7 +21,7 @@ import { matchMapPalette } from './pixel-art.js'
 import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, roomFinish, surfaceNoise } from './materials.js'
 import { isExposed, WeatherSurface } from './weather.js'
 import { RoomShells } from './room-shells.js'
-import { coverZoom, detailZoom, overviewZoom, scaledZoom } from './camera.js'
+import { coverZoom, detailZoom, fillZoom, overviewZoom, scaledZoom } from './camera.js'
 import { STAGE_CROWD_SPRITES } from './stage-crowds.js'
 import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
@@ -88,6 +88,8 @@ export interface TiledViewOptions {
   zoomScale?: number
   /** Treat detail frames under 900×600 as compact (3x, not 4x); see `detailZoom`. */
   laptopFrames?: boolean
+  /** Detail camera never zooms out so far that the map leaves an empty band in the viewport. */
+  fillViewport?: boolean
 }
 
 class TiledScene extends Phaser.Scene {
@@ -100,6 +102,7 @@ class TiledScene extends Phaser.Scene {
   private readonly cameraMode: 'detail' | 'overview' | 'cover'
   private readonly zoomScale: number
   private readonly laptopFrames: boolean
+  private readonly fillViewport: boolean
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
   private readonly onLandmark: ((landmarkId: string) => void) | undefined
@@ -164,6 +167,7 @@ class TiledScene extends Phaser.Scene {
     this.cameraMode = options.camera ?? 'detail'
     this.zoomScale = options.zoomScale ?? 1
     this.laptopFrames = options.laptopFrames ?? false
+    this.fillViewport = options.fillViewport ?? false
     this.onActor = options.onActor
     this.onProp = options.onProp
     this.onLandmark = options.onLandmark
@@ -927,10 +931,11 @@ class TiledScene extends Phaser.Scene {
     const mapW = this.current.map.width * T
     const mapH = this.current.map.height * T
     const { width, height } = this.scale.gameSize
+    const detail = scaledZoom(detailZoom(width, height, mapW, mapH, this.laptopFrames), this.zoomScale)
     const zoom = this.cameraMode === 'overview'
       ? overviewZoom(width, mapW)
       : this.cameraMode === 'cover' ? coverZoom(width, height, mapW, mapH)
-      : scaledZoom(detailZoom(width, height, mapW, mapH, this.laptopFrames), this.zoomScale)
+      : this.fillViewport ? fillZoom(detail, width, height, mapW, mapH) : detail
     cam.setZoom(zoom)
     cam.setRoundPixels(true)
     if (mapW * zoom <= width && mapH * zoom <= height) {

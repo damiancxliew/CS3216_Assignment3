@@ -3,7 +3,8 @@
  * Reused codes: `ref`, `duplicate-id`, `stance-count`, `initial-stance`, `hidden-stance`,
  * `source-label`. Warnings (`document-mix`) are returned separately.
  */
-import type { CheckIssue, SkeletonShape } from '@adventure/spec-v3'
+import type { CheckIssue, Condition, SkeletonShape } from '@adventure/spec-v3'
+import { sourceSentenceSpans } from '@adventure/spec-v3'
 
 import { citationQuotes, quoteInSource, quoteIssues } from '../grounding'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, StageDetailsLlmOutput } from './schema'
@@ -11,6 +12,7 @@ import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, StageDetailsLlmO
 type Ctx = {
   skeleton: SkeletonShape
   sources: Map<string, string>
+  requireReadingChecks?: boolean
 }
 
 const issue = (code: string, path: string, message: string): CheckIssue => ({ code, path, message })
@@ -76,6 +78,39 @@ const citationsOrUndefined = (items: { sourceId: string; quote: string | null }[
 
 const stageOrder = (skeleton: SkeletonShape) => new Map(skeleton.stages.map((s, i) => [s.id, i]))
 
+export function readingCheckIssues(doc: StageDetailsLlmOutput['documents'][number], at: string): CheckIssue[] {
+  const check = doc.readingCheck
+  if (!check) return []
+  const issues: CheckIssue[] = []
+  const seen = new Set<string>()
+  const prompts = new Set<string>()
+  for (const [i, question] of [...check.variants, check.recovery].entries()) {
+    const path = i < check.variants.length ? `${at}.readingCheck.variants.${i}` : `${at}.readingCheck.recovery`
+    if (seen.has(question.id)) issues.push(issue('reading-question', `${path}.id`, 'Question IDs must be distinct within a document.'))
+    seen.add(question.id)
+    const prompt = question.prompt.trim().toLowerCase()
+    if (prompts.has(prompt)) issues.push(issue('reading-question', `${path}.prompt`, 'Write a different question for every attempt and guided correction.'))
+    prompts.add(prompt)
+    const optionIds = question.options.map((option) => option.id)
+    if (new Set(optionIds).size !== 3 || !optionIds.includes(question.correctOptionId) || new Set(question.options.map((option) => option.text.trim().toLowerCase())).size !== 3)
+      issues.push(issue('reading-option', path, 'Use three distinct options and a correctOptionId from those options.'))
+    for (const [j, support] of question.support.entries()) {
+      const start = doc.body.indexOf(support), end = start + support.length
+      const sentences = sourceSentenceSpans(doc.body)
+      const included = sentences.filter((sentence) => sentence.start >= start && sentence.end <= end)
+      if (!support.trim() || !doc.body.includes(support) || doc.body.indexOf(support) !== doc.body.lastIndexOf(support))
+        issues.push(issue('reading-support', `${path}.support.${j}`, 'Copy an unambiguous supporting sentence exactly from this document.'))
+      else if (!included.length || included.length > 2 || included[0]!.start !== start || included.at(-1)!.end !== end)
+        issues.push(issue('reading-support', `${path}.support.${j}`, 'Each supporting alternative must contain one or two complete sentences.'))
+      if (included.length >= sentences.length - 1 || support.trim() === doc.body.trim())
+        issues.push(issue('reading-discriminating', `${path}.support.${j}`, 'Support plus one neighbouring sentence must not cover the whole document.'))
+    }
+    if (!question.prompt.trim() || !question.explanation.trim() || question.options.some((option) => !option.text.trim()))
+      issues.push(issue('reading-question', path, 'A question needs a prompt, explanation and three plausible interpretations.'))
+  }
+  return issues
+}
+
 // --- stage ---------------------------------------------------------------------
 
 export function stageIssues(stageId: string, output: StageDetailsLlmOutput, ctx: Ctx): { errors: CheckIssue[]; warnings: CheckIssue[] } {
@@ -114,6 +149,8 @@ export function stageIssues(stageId: string, output: StageDetailsLlmOutput, ctx:
   output.documents.forEach((d, i) => {
     if (!stubDocIds.has(d.id)) idItems.push({ id: d.id, path: `documents.${i}.id` })
     d.keyPassages.forEach((p, j) => idItems.push({ id: p.id, path: `documents.${i}.keyPassages.${j}.id` }))
+    d.readingCheck?.variants.forEach((q, j) => idItems.push({ id: q.id, path: `documents.${i}.readingCheck.variants.${j}.id` }))
+    if (d.readingCheck) idItems.push({ id: d.readingCheck.recovery.id, path: `documents.${i}.readingCheck.recovery.id` })
   })
   output.discoveries.forEach((d, i) => idItems.push({ id: d.id, path: `discoveries.${i}.id` }))
   output.storyEvents.forEach((e, i) => idItems.push({ id: e.id, path: `storyEvents.${i}.id` }))
@@ -123,6 +160,18 @@ export function stageIssues(stageId: string, output: StageDetailsLlmOutput, ctx:
 
   // key passages
   output.documents.forEach((doc, i) => {
+    if (ctx.requireReadingChecks && !doc.readingCheck)
+      issues.push(issue('reading-check-missing', `documents.${i}.readingCheck`, 'Every newly generated document needs a reading check and recovery task.'))
+    issues.push(...readingCheckIssues(doc, `documents.${i}`))
+    if (doc.readingCheck) {
+      const held = [...docHeldCores.filter((d) => 'documentId' in d.holder && d.holder.documentId === doc.id).map((d) => d.id), ...output.discoveries.filter((d) => d.documentId === doc.id).map((d) => d.id)]
+      if (!held.includes(doc.readingCheck.discoveryId))
+        issues.push(issue('reading-discovery', `documents.${i}.readingCheck.discoveryId`, 'The checked discovery must be held by this document.'))
+      const other = new Set([...stageCores.filter((d) => 'documentId' in d.holder && d.holder.documentId !== doc.id).map((d) => d.id), ...output.discoveries.filter((d) => d.documentId !== doc.id).map((d) => d.id)])
+      doc.readingCheck.recoveryDiscoveryIds.forEach((id, j) => {
+        if (!other.has(id)) issues.push(issue('reading-recovery', `documents.${i}.readingCheck.recoveryDiscoveryIds.${j}`, 'Recovery alternatives must be discoveries from a different accessible document in this stage.'))
+      })
+    }
     if (doc.keyPassages.length < 1 || doc.keyPassages.length > 2)
       issues.push(issue('passage-count', `documents.${i}.keyPassages`, `document '${doc.id}' has ${doc.keyPassages.length} key passages (1–2 required)`))
     doc.keyPassages.forEach((passage, j) => {
@@ -431,18 +480,73 @@ export interface LinkContext {
     stances: { id: string; label: string; demeanour: string; hidden: boolean }[]
     slants: { id: string; claim: string; contradictedBy: string[]; unlocksDiscoveryId?: string | null }[]
   }[]
-  discoveries: { id: string; stageId: string; holder: string; text: string; core: boolean }[]
+  discoveries: { id: string; stageId: string; holder: string; text: string; core: boolean; condition?: Condition }[]
+  documents?: { id: string; stageId: string; roomId: string; readingDiscoveryId?: string; recoveryDiscoveryIds: string[] }[]
   /** Existing persona triggers, including their authored prerequisites and effects. */
   triggers: ({ characterId: string } & Pick<PersonaLlmOutput['triggers'][number], 'on' | 'requires' | 'effect'>)[]
   stageOrder: Map<string, number>
 }
 
-export function linkIssues(output: LinkLlmOutput, ctx: LinkContext): CheckIssue[] {
+export function linkIssues(output: LinkLlmOutput, ctx: LinkContext, requirePreparation = false): CheckIssue[] {
   const issues: CheckIssue[] = []
   const characters = new Map(ctx.characters.map((c) => [c.id, c]))
   const discoveries = new Map(ctx.discoveries.map((d) => [d.id, d]))
   const slantOwner = new Map<string, string>()
   for (const c of ctx.characters) for (const slant of c.slants) slantOwner.set(slant.id, c.id)
+
+  if (requirePreparation && !output.stagePreparation)
+    issues.push(issue('preparation-missing', 'stagePreparation', 'Newly generated adventures require stage preparation.'))
+  if (output.stagePreparation) {
+    for (const stageId of ctx.stageOrder.keys()) {
+      if (output.stagePreparation.filter((p) => p.stageId === stageId).length !== 1)
+        issues.push(issue('preparation-missing', 'stagePreparation', `Author exactly one preparation plan for stage '${stageId}'.`))
+    }
+    output.stagePreparation.forEach((prep, i) => {
+      const at = `stagePreparation.${i}`
+      if (!ctx.stageOrder.has(prep.stageId)) issues.push(issue('ref', `${at}.stageId`, `Unknown stage '${prep.stageId}'.`))
+      const present = ctx.characters.filter((c) => c.stageIds.includes(prep.stageId))
+      for (const character of present)
+        if (prep.characters.filter((c) => c.characterId === character.id).length !== 1)
+          issues.push(issue('preparation-character', `${at}.characters`, `Author relevant preparation for '${character.id}' in stage '${prep.stageId}'.`))
+      const checkGroups = (groups: { discoveryIds: string[]; minMet: number }[], path: string, characterId?: string) => {
+        const used = new Set<string>()
+        if (groups.length === 0) issues.push(issue('preparation-empty', path, 'Author at least one relevant evidence requirement.'))
+        groups.forEach((group, j) => {
+          if (group.minMet < 1 || group.minMet > group.discoveryIds.length)
+            issues.push(issue('preparation-count', `${path}.${j}`, 'The required count must be positive and cannot exceed the alternatives.'))
+          group.discoveryIds.forEach((id, k) => {
+            const discovery = discoveries.get(id)
+            const local = `${path}.${j}.discoveryIds.${k}`
+            if (!discovery || discovery.stageId !== prep.stageId) issues.push(issue('ref', local, `Discovery '${id}' must belong to this stage.`))
+            if (characterId && discovery?.holder === `character:${characterId}`) issues.push(issue('preparation-self', local, 'A character cannot require their own locked information.'))
+            if (used.has(id)) issues.push(issue('preparation-duplicate', local, 'Each discovery may count only once for this target.'))
+            used.add(id)
+          })
+        })
+      }
+      prep.characters.forEach((target, j) => {
+        if (!present.some((c) => c.id === target.characterId)) issues.push(issue('ref', `${at}.characters.${j}.characterId`, 'The character must be present in this stage.'))
+        checkGroups(target.groups, `${at}.characters.${j}.groups`, target.characterId)
+      })
+      checkGroups(prep.decision, `${at}.decision`)
+      if (!prep.decision.some((group) => group.discoveryIds.length > group.minMet))
+        issues.push(issue('preparation-buffer', `${at}.decision`, 'Include at least one spare relevant evidence route for the stage decision.'))
+      const essentialIds = new Set<string>()
+      if (!prep.essentialCharacters.length) issues.push(issue('preparation-essential', `${at}.essentialCharacters`, 'Designate the characters whose perspectives are essential to the decision.'))
+      prep.essentialCharacters.forEach((essential, j) => {
+        const path = `${at}.essentialCharacters.${j}`
+        if (essentialIds.has(essential.characterId)) issues.push(issue('preparation-duplicate', path, 'An essential character may be listed only once.'))
+        essentialIds.add(essential.characterId)
+        if (!present.some((c) => c.id === essential.characterId) || !essential.discoveryIds.length)
+          issues.push(issue('preparation-essential', path, 'An essential character needs relevant qualifying information in this stage.'))
+        essential.discoveryIds.forEach((id, k) => {
+          const discovery = discoveries.get(id)
+          if (discovery?.stageId !== prep.stageId || discovery.holder !== `character:${essential.characterId}`)
+            issues.push(issue('preparation-essential', `${path}.discoveryIds.${k}`, 'Qualifying information must be held by this character in this stage.'))
+        })
+      })
+    })
+  }
 
   const seen = new Set<string>()
   const pairsSeen = new Set<string>()

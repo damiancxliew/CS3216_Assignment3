@@ -1,5 +1,6 @@
 import { AdventureAccess } from "@/components/teacher/adventure-access";
 import Link from "next/link";
+import { PublicationAttribution } from "@/components/teacher/v3-publication-attribution";
 import { V3AdventureNav } from "@/components/teacher/v3-adventure-nav";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
@@ -45,7 +46,7 @@ export default async function StudentLinkHistoryPage({
         <>
           <div className="space-y-4 md:hidden">
             {history.rows.map((row) => {
-              const path = `/v3/join/${encodeURIComponent(id)}?release=${encodeURIComponent(row.linkKey)}`;
+              const path = `/v3/join/${encodeURIComponent(row.id)}`;
               const url = host ? `${protocol}://${host}${path}` : path;
               return (
                 <article
@@ -57,6 +58,7 @@ export default async function StudentLinkHistoryPage({
                       Version {row.version} {row.live ? <LiveBadge /> : null}
                     </h2>
                     <p className="mt-1 text-sm text-muted">{row.title}</p>
+                    <PublicationAttribution publication={row} />
                   </div>
                   <dl className="grid grid-cols-3 gap-3 text-sm">
                     <div>
@@ -123,7 +125,7 @@ export default async function StudentLinkHistoryPage({
               </thead>
               <tbody>
                 {history.rows.map((row) => {
-                  const releasePath = `/v3/join/${encodeURIComponent(id)}?release=${encodeURIComponent(row.linkKey)}`;
+                  const releasePath = `/v3/join/${encodeURIComponent(row.id)}`;
                   const releaseUrl = host
                     ? `${protocol}://${host}${releasePath}`
                     : releasePath;
@@ -143,16 +145,14 @@ export default async function StudentLinkHistoryPage({
                         </div>
                       </td>
                       <td className="border-b border-line p-3">
-                        {row.firstPublishedAt ? (
-                          <time dateTime={row.firstPublishedAt}>
-                            {new Date(row.firstPublishedAt).toLocaleString(
-                              "en-SG",
-                              { timeZone: "Asia/Singapore" },
-                            )}
-                          </time>
-                        ) : (
-                          "—"
-                        )}
+                        <PublicationAttribution publication={row} />
+                        {row.firstPublishedAt && row.firstPublishedAt !== row.lastPublishedAt ? (
+                          <p className="mt-1 text-xs text-muted">First published {" "}
+                            <time dateTime={row.firstPublishedAt}>
+                              {new Date(row.firstPublishedAt).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}
+                            </time>
+                          </p>
+                        ) : null}
                       </td>
                       <td className="border-b border-line p-3">
                         {row.started}

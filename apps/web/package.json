@@ -31,7 +31,8 @@
     "react-dom": "19.1.0",
     "unpdf": "^1.8.1",
     "zod": "^4.6.5",
-    "sharp": "0.35.4"
+    "sharp": "0.35.4",
+    "fflate": "^0.8.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

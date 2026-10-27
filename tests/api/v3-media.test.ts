@@ -95,7 +95,7 @@ function setup() {
       objects.set(key, bytes);
       return `https://assets.example/${key}`;
     }),
-    download: vi.fn(async () => null),
+    download: vi.fn(async (): Promise<Uint8Array | null> => null),
   };
   const deps: MediaDeps = {
     play,
@@ -287,6 +287,53 @@ describe("media authoring", () => {
       resolveAdventureImages(spec, "adv", 1).stageImages[0].metadata!
         .candidateId,
     ).toBe(upload.id);
+  });
+  it("saves all stance selections in one revision and leaves existing releases pinned", async () => {
+    const { deps, input, spec, png, play } = setup();
+    const character = spec.characters.find(c => c.tier === "major")!;
+    if (character.tier !== "major") throw Error("Major required");
+    const key = `${character.id}:${character.stances[0].id}`;
+    const item = await uploadMedia(deps, "teacher", "adv", { ...input, target: { kind: "portrait", key } }, await png());
+    const result = await saveAdventureEdits({ store: play, media: deps.media, env: deps.env, sources: async () => [], queueStageArt: async () => {} },
+      "teacher", "adv", 1, [{ type: "portraitImage", targetKey: key, candidateId: item.id, allStances: true }]);
+    expect(result).toMatchObject({ ok: true, version: 2 });
+    const current = AdventureSpec.parse((await play.loadAdventure("adv"))!.spec);
+    for (const stance of character.stances)
+      expect(current.authoring?.portraitImages?.[`${character.id}:${stance.id}`]).toEqual({ type: "candidate", candidate: item.snapshot });
+    expect((await play.loadAdventure("adv"))!.publishedVersion).toBe(1);
+    expect(await play.loadVersionSpec("adv", 1)).toEqual(spec);
+  });
+  it("generates a stance with the original stored portrait bytes and rejects other characters", async () => {
+    const { deps, input, spec, png, storage } = setup();
+    const character = spec.characters.find(c => c.tier === "major")!;
+    if (character.tier !== "major") throw Error("Major required");
+    const source = await uploadMedia(deps, "teacher", "adv", {
+      ...input, target: { kind: "portrait", key: `${character.id}:${character.stances[0].id}` },
+    }, await png());
+    const request = {
+      ...input, key: "stance-variant", origin: "ai" as const,
+      target: { kind: "portrait" as const, key: `${character.id}:${character.stances[1].id}` },
+      appearance: "Keep the original appearance", referenceCandidateId: source.id,
+    };
+    const bytes = new Uint8Array(await png());
+    storage.download.mockResolvedValue(bytes);
+    const generate = vi.fn(async () => ({ bytes, mimeType: "image/png" as const, model: "test", costUsd: 0.03 }));
+    const item = await createMedia(deps, "teacher", "adv", request);
+    await generateMediaCandidate({ ...deps, images: { model: "test", generate } }, item, spec, request);
+    expect((await deps.media.get("adv", item.id))?.state).toBe("ready");
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({
+      referenceImage: { bytes, mimeType: "image/webp" },
+      prompt: expect.stringContaining("Preserve the same face"),
+    }));
+    const other = spec.characters.find(c => c.id !== character.id)!;
+    await expect(createMedia(deps, "teacher", "adv", {
+      ...request, key: "wrong-character", target: { kind: "portrait", key: other.tier === "major" ? `${other.id}:${other.stances[0].id}` : other.id },
+    })).rejects.toThrow(/reference/i);
+    storage.download.mockResolvedValue(null);
+    const missing = await createMedia(deps, "teacher", "adv", { ...request, key: "missing-source" });
+    await generateMediaCandidate({ ...deps, images: { model: "test", generate } }, missing, spec, request);
+    expect((await deps.media.get("adv", missing.id))?.state).toBe("failed");
+    expect(generate).toHaveBeenCalledTimes(1);
   });
   it("retains rejected sprite-generation cost and never exposes the sheet as ready", async () => {
     const { deps, input, spec } = setup();

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { checkSpec, validateSpec } from '@adventure/spec-v3'
+import { CURRENT_SCHEMA_VERSION, checkSpec, validateSpec } from '@adventure/spec-v3'
 
 import type { ExtractedDocument } from '../src/ingest/types'
 import type { FakeReply, LlmJsonRequest, LlmJsonResponse, LlmUsage } from '../src/llm/client'
 import { tryParseJson } from '../src/llm/client'
 import type { LlmClient } from '../src/llm/client'
 import { assembleDetails, blame, finalRepair, generateDetails, specErrors, toSkeleton } from '../src/v3/index'
+import { toDocument } from '../src/v3/details/schema'
+import { sourcesBlock } from '../src/v3/skeleton/prompt'
 import { mergeDetails } from '../src/v3/details/merge'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, SkeletonLlmOutput, StageDetailsLlmOutput } from '../src/v3/index'
 
@@ -18,7 +20,7 @@ const doc: ExtractedDocument = {
   contentHash: 'x',
   pageCount: 1,
   charCount: 10,
-  pages: [{ page: 1, text: 'The treaty was signed on 6 February 1819. Farquhar called it “a free port”.' }],
+  pages: [{ page: 1, text: 'The treaty was signed on 6 February 1819. Farquhar called it “a free port”. The register names the vessels at anchor. Merchants wait for the morning tide.' }],
   warnings: [],
 }
 const SOURCE_TEXT = doc.pages[0]!.text
@@ -115,6 +117,11 @@ const input = { skeleton, documents: [doc] }
 
 // --- canned call outputs -------------------------------------------------------------------
 
+function readingBank(prefix: string, discoveryId: string, support: string) {
+  const question = (suffix: string) => ({ id: `${prefix}-${suffix}`, prompt: `Which interpretation of the passage is supported (${suffix})?`, options: [{ id: 'a', text: 'The stated action should proceed.' }, { id: 'b', text: 'The action has been cancelled.' }, { id: 'c', text: 'The author gives no position.' }], correctOptionId: 'a', support: [support], explanation: 'The source states the action directly.' })
+  return { discoveryId, variants: [question('q1'), question('q2'), question('q3'), question('q4')], recovery: question('correction'), recoveryDiscoveryIds: [] }
+}
+
 const stageOutput: StageDetailsLlmOutput = {
   openingNarration: 'Dawn over the roads.',
   documents: [
@@ -124,13 +131,14 @@ const stageOutput: StageDetailsLlmOutput = {
       title: 'Port Register',
       real: true,
       provenance: { masthead: 'Port Office', date: null, sender: null, recipient: null, place: null },
-      body: 'The treaty was signed on 6 February 1819.',
+      body: SOURCE_TEXT,
       sourceLabel: 'from the teacher',
       glossary: [],
       keyPassages: [{ id: 's1-doc1-kp1', text: 'signed on 6 February 1819' }],
       citations: [{ sourceId: 'singapore-1819', quote: null }],
       slanted: true,
       slantNote: 'Omits the merchants’ side.',
+      readingCheck: readingBank('s1-register', 'd-dues', 'The treaty was signed on 6 February 1819.'),
     },
     {
       id: 's1-letter',
@@ -138,13 +146,14 @@ const stageOutput: StageDetailsLlmOutput = {
       title: 'Raffles to Farquhar',
       real: false,
       provenance: { masthead: null, date: null, sender: 'Raffles', recipient: 'Farquhar', place: null },
-      body: 'Hold fast; the flag must stay.',
+      body: 'Hold fast; the flag must stay. Ships gather near the river mouth. The watch changes at dawn.',
       sourceLabel: 'invented',
       glossary: [],
       keyPassages: [{ id: 's1-letter-kp1', text: 'Hold fast' }],
       citations: null,
       slanted: false,
       slantNote: null,
+      readingCheck: readingBank('s1-letter', 's1-d-note', 'Hold fast; the flag must stay.'),
     },
   ],
   coreLinks: [{ discoveryId: 'd-dues', keyPassageId: 's1-doc1-kp1' }],
@@ -276,6 +285,7 @@ const linkOutput: LinkLlmOutput = {
     { id: 'link-t1', characterId: 'raffles', discoveryId: 's1-d-note', effect: { kind: 'stanceDelta', stance: null, delta: -1 }, notice: 'He bristles.' },
   ],
   duplicates: [],
+  stagePreparation: [{ stageId: 's1', characters: ['farquhar', 'raffles', 'nakhoda'].map((characterId) => ({ characterId, groups: [{ discoveryIds: ['d-dues', 's1-d-note'], minMet: 1 }] })), decision: [{ discoveryIds: ['d-dues', 's1-d-note'], minMet: 1 }], essentialCharacters: [{ characterId: 'farquhar', discoveryIds: ['d-treaty'] }] }],
 }
 
 // --- routing fake LLM ----------------------------------------------------------------------
@@ -327,6 +337,41 @@ const happyRoutes = () => ({
 // --- tests -----------------------------------------------------------------------------------
 
 describe('generateDetails', () => {
+  it('repairs a newly generated scroll without a reading check rather than silently using legacy highlighting', async () => {
+    const missing = structuredClone(stageOutput)
+    delete missing.documents[0]!.readingCheck
+    const llm = new RoutingLlm({ ...happyRoutes(), 'stage s1': [{ json: missing }, { json: stageOutput }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.ok).toBe(true)
+    expect(llm.requests.filter((r) => r.key === 'stage s1')[1]!.request.user).toContain('readingCheck')
+    expect(result.draft!.documents.every((d) => d.readingCheck?.variants.length === 4)).toBe(true)
+    expect(result.draft!.schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
+  })
+
+  it('repairs missing stage preparation and retains every essential conversation requirement', async () => {
+    const missing = structuredClone(linkOutput)
+    delete missing.stagePreparation
+    const complete = structuredClone(linkOutput)
+    complete.stagePreparation![0]!.essentialCharacters.push({ characterId: 'raffles', discoveryIds: ['raffles-d1'] })
+    const llm = new RoutingLlm({ ...happyRoutes(), link: [{ json: missing }, { json: complete }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.ok).toBe(true)
+    expect(result.draft!.stages[0]!.preparation!.essentialCharacters).toEqual(complete.stagePreparation![0]!.essentialCharacters)
+    expect(llm.requests.filter((r) => r.key === 'link')[1]!.request.user).toContain('stagePreparation')
+  })
+
+  it('requires a genuine spare evidence route and rejects prerequisites held by the locked character', async () => {
+    const broken = structuredClone(linkOutput)
+    broken.stagePreparation![0]!.decision = [{ discoveryIds: ['d-dues'], minMet: 1 }]
+    broken.stagePreparation![0]!.characters[0]!.groups = [{ discoveryIds: ['d-treaty'], minMet: 1 }]
+    const llm = new RoutingLlm({ ...happyRoutes(), link: [{ json: broken }, { json: linkOutput }] })
+    const result = await generateDetails(input, { llm })
+    expect(result.ok).toBe(true)
+    const repair = llm.requests.filter((r) => r.key === 'link')[1]!.request.user
+    expect(repair).toContain('preparation-self')
+    expect(repair).toContain('preparation-buffer')
+  })
+
   it('repairs an unguarded linker transition to a hidden stance', async () => {
     const hidden = structuredClone(farquharOutput)
     hidden.stances[2]!.hidden = true
@@ -348,6 +393,8 @@ describe('generateDetails', () => {
     await generateDetails(input, { llm })
     const context = JSON.parse(llm.requests.find((r) => r.key === 'link')!.request.user)
     const farquhar = context.characters.find((c: { id: string }) => c.id === 'farquhar')
+    expect(context.discoveries.find((d: { id: string }) => d.id === 'farquhar-d1').condition).toEqual({ all: [{ discovered: 'd-dues' }, { discovered: 'd-treaty' }] })
+    expect(context.documents).toContainEqual(expect.objectContaining({ id: 'doc-1', stageId: 's1', roomId: 'office', readingDiscoveryId: 'd-dues' }))
     expect(farquhar).toMatchObject({
       initialStanceId: 's1',
       persona: { voice: hidden.persona.voice, ...skeleton.characters[0]!.persona },
@@ -448,7 +495,7 @@ describe('generateDetails', () => {
   })
 
   it('flags a dangling link contradictedBy and gives up after MAX_REPAIRS when always broken', async () => {
-    const dangling: LinkLlmOutput = { slantLinks: [{ slantId: 'farquhar-slant', contradictedBy: ['nope'] }], noteTriggers: [], duplicates: [] }
+    const dangling: LinkLlmOutput = { ...linkOutput, slantLinks: [{ slantId: 'farquhar-slant', contradictedBy: ['nope'] }], noteTriggers: [], duplicates: [] }
     const llm = new RoutingLlm({ ...happyRoutes(), link: [{ json: dangling }, { json: linkOutput }] })
     const ok = await generateDetails(input, { llm })
     expect(ok.ok).toBe(true)
@@ -528,7 +575,7 @@ describe('generateDetails', () => {
     const llm = new RoutingLlm({
       ...happyRoutes(),
       'persona farquhar': [{ json: farq }],
-      link: [{ json: { slantLinks: [], noteTriggers: [], duplicates: [] } }],
+      link: [{ json: { ...linkOutput, slantLinks: [], noteTriggers: [], duplicates: [] } }],
     })
     const result = await generateDetails(input, { llm })
     expect(result.ok).toBe(true)
@@ -613,6 +660,7 @@ describe('generateDetails', () => {
     farq.triggers[0].on = { kind: 'discovered', id: 'farquhar-d2' } // trigger on referencing the drop
     farq.slants[0].contradictedBy = ['d-dues', 'farquhar-d2'] // slant contradictedBy referencing the drop
     const link: LinkLlmOutput = {
+      ...linkOutput,
       slantLinks: [],
       noteTriggers: [],
       duplicates: [{ keep: 's1-d-note', drop: ['farquhar-d2'] }],
@@ -643,7 +691,7 @@ describe('generateDetails', () => {
     const farq = JSON.parse(JSON.stringify(farquharOutput))
     farq.slants[0].contradictedBy = ['farquhar-d1'] // held by farquhar himself
     farq.triggers.push({ id: 'farquhar-t2', on: { kind: 'slantConfronted', id: 'farquhar-slant' }, requires: null, effect: { kind: 'stanceDelta', stance: null, delta: -1 }, handsOver: [], notice: 'n' })
-    const link: LinkLlmOutput = { slantLinks: [], noteTriggers: [], duplicates: [] }
+    const link: LinkLlmOutput = { ...linkOutput, slantLinks: [], noteTriggers: [], duplicates: [] }
     const llm = new RoutingLlm({ ...happyRoutes(), 'persona farquhar': [{ json: farq }], link: [{ json: link }] })
     const result = await generateDetails(input, { llm })
     expect(result.ok).toBe(true)
@@ -699,7 +747,7 @@ describe('generateDetails', () => {
     withAngles.hintAngles.push({ id: 's1-h3', discoveryId: 'farquhar-d1', kind: 'passOn', text: 'Perhaps someone should hear this worry.' })
     withAngles.hintAngles.push({ id: 's1-h3b', discoveryId: 'farquhar-d1', kind: 'passOn', text: 'Perhaps someone should hear this worry.' }) // identical → deduped
     withAngles.hintAngles.push({ id: 's1-h4', discoveryId: 'gone-id', kind: 'show', text: 'Nowhere to point.' }) // no such discovery → dropped
-    const link: LinkLlmOutput = { slantLinks: [], noteTriggers: [], duplicates: [{ keep: 'd-dues', drop: ['farquhar-d1'] }] }
+    const link: LinkLlmOutput = { ...linkOutput, slantLinks: [], noteTriggers: [], duplicates: [{ keep: 'd-dues', drop: ['farquhar-d1'] }] }
     const merged = mergeDetails(skeleton, {
       stages: new Map([['s1', withAngles]]),
       personas: new Map([
@@ -756,6 +804,13 @@ describe('final check-and-repair (#209)', () => {
     const refs = specErrors(spec).filter((i) => i.code === 'ref' && i.ids?.[0] === 'doc-1')
     expect(refs.length).toBeGreaterThan(0)
     for (const issue of refs) expect(blame(issue, { skeleton, spec, parts: result.parts })).toEqual(['stage:s1'])
+  })
+
+  it('routes preparation repairs to the linker and reading-question repairs to the source stage', async () => {
+    const result = await generated()
+    const ctx = { spec: result.draft!, skeleton, parts: result.parts }
+    expect(blame({ code: 'preparation', path: 'stages.0.preparation.characters.farquhar.0', message: 'Incorrect requirement.' }, ctx)).toEqual(['link'])
+    expect(blame({ code: 'reading-check', path: 'documents.0.readingCheck.variants.0.support', message: 'Invalid support.' }, ctx)).toEqual(['stage:s1'])
   })
 
   it('blames an invented id on the part that refers to it', async () => {
@@ -825,5 +880,35 @@ describe('final check-and-repair (#209)', () => {
     const repair = await finalRepair({ skeleton, documents: [doc], parts: result.parts }, { llm })
     expect(repair).toMatchObject({ errors: [], unresolved: [], partErrors: [], repaired: [] })
     expect(llm.requests).toEqual([])
+  })
+})
+
+
+describe('stored reading text ingestion', () => {
+  it('provides clean text to authoring while retaining the captured source', () => {
+    const source = structuredClone(doc)
+    source.pages[0]!.text = 'The treaty was signed\r\non 6 February 1819.\r\n\r\nThe register names the vessels.'
+    const original = structuredClone(source)
+    expect(sourcesBlock([source])).toContain('The treaty was signed on 6 February 1819.\n\nThe register names the vessels.')
+    expect(source).toEqual(original)
+  })
+  it('stores generated documents with aligned passages and all question supports', () => {
+    const generated = structuredClone(stageOutput.documents[0]!)
+    generated.body = SOURCE_TEXT.replace('signed on', 'signed\r\non')
+    generated.keyPassages[0]!.text = 'signed\r\non 6 February 1819'
+    if (!generated.readingCheck) throw Error('Fixture requires a reading bank')
+    for (const q of [...generated.readingCheck.variants, generated.readingCheck.recovery]) q.support = ['The treaty was signed\r\non 6 February 1819.']
+    const original = structuredClone(generated)
+    const stored = toDocument(generated)
+    expect(stored.body).toBe(SOURCE_TEXT)
+    const passage = stored.keyPassages[0]!
+    expect(stored.body.slice(passage.start, passage.end)).toBe('signed on 6 February 1819')
+    if (!stored.readingCheck) throw Error('Stored document lost its reading bank')
+    for (const q of [...stored.readingCheck.variants, stored.readingCheck.recovery]) {
+      const support = q.support[0]!
+      expect(stored.body.slice(support.start, support.end)).toBe('The treaty was signed on 6 February 1819.')
+    }
+    expect(generated).toEqual(original)
+    expect(stored.citations).toEqual(generated.citations?.map(c => ({ ...c, quote: c.quote ?? undefined })))
   })
 })

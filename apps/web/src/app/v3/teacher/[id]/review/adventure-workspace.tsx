@@ -9,7 +9,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { supabaseV3SourceStore } from "@/lib/v3/generation/deps";
-import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
+import { v3Enabled } from "@/lib/v3/flag";
+import { canAccessV3Authoring } from "@/lib/v3/access";
 import { reviewErrors, reviewSources } from "@/lib/v3/review";
 import { SupabaseV3PlayStore } from "@/lib/play/v3/store";
 import { getV3GenerationProgress } from "../../actions";
@@ -27,13 +28,12 @@ export default async function AdventureWorkspace({
   if (!v3Enabled()) notFound();
   const { id } = await params;
   const viewer = await getViewer(await createClient());
-  if (!viewer.user || !isStaff(viewer)) notFound();
+  if (!viewer.user || (!isStaff(viewer) && !viewer.isSysadmin)) notFound();
   const admin = createAdminClient();
   const row = await supabaseV3BriefStore(admin).load(id);
   if (
     !row ||
-    row.ownerId !== viewer.user.id ||
-    !v3SchoolAllowed(row.schoolId) ||
+    !canAccessV3Authoring(viewer, row) ||
     !["draft", "published", "archived"].includes(row.status)
   )
     notFound();
@@ -52,12 +52,13 @@ export default async function AdventureWorkspace({
     title: d.title,
     text: d.pages.map((p) => p.text).join("\n"),
   }));
+  const savedErrors = await new SupabaseV3PlayStore(admin).loadCheckErrors(id, adventure.specVersion);
   const checks =
     parsed.ok && parsed.spec.authoring
-      ? validateEditedSpec(parsed.spec, sources, progress.checkErrors)
+      ? validateEditedSpec(parsed.spec, sources, savedErrors)
       : null;
   const errors =
-    checks?.errors ?? reviewErrors(adventure.spec, progress.checkErrors);
+    checks?.errors ?? reviewErrors(adventure.spec, savedErrors);
   return (
     <Page
       title={parsed.ok ? parsed.spec.title : "Adventure"}

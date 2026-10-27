@@ -1,7 +1,8 @@
-import { EngineError, EngineSpec, engine, pendingCheckIds, runPostTurnCheck, type EngineState } from "@adventure/engine";
+import { EngineError, engine, pendingCheckIds, runPostTurnCheck, type EngineState } from "@adventure/engine";
 import { Action, type GameEvent } from "@adventure/play-contract";
 import { createRng, type LlmClient } from "@adventure/orchestration";
 import { z } from "zod";
+import { decodeStoredSpec } from "@adventure/spec-v3";
 
 import { v3SchoolAllowed } from "@/lib/v3/flag";
 
@@ -35,6 +36,7 @@ export const ENGINE_ERROR_STATUS: Record<EngineError["code"], number> = {
   not_held: 409,
   act_unavailable: 409,
   pending: 409,
+  preparation_required: 409,
 };
 
 const costlyActions = new Set(["message", "insertNote", "interviewAnswer"]);
@@ -90,8 +92,12 @@ async function permittedAdventure(
 
 async function pinnedSpec(deps: V3PlayServiceDeps, attempt: V3Attempt) {
   const raw = await deps.store.loadVersionSpec(attempt.adventureId, attempt.specVersion);
-  if (raw === null) throw new Error(`Missing pinned v3 spec ${attempt.adventureId}:${attempt.specVersion}`);
-  return EngineSpec.parse(raw);
+  const decoded = decodeStoredSpec(raw);
+  return decoded.ok ? decoded.spec : null;
+}
+
+function incompatibleSpec(): ServiceResponse {
+  return error(409, "schema_upgrade_required", "This adventure cannot run in its saved format. Your progress is saved. Ask your teacher to upgrade the adventure; a new attempt may be needed.");
 }
 
 function staleState(revision: number, view: ReturnType<typeof engine.project>): ServiceResponse {
@@ -103,49 +109,36 @@ function staleState(revision: number, view: ReturnType<typeof engine.project>): 
 
 async function currentView(deps: V3PlayServiceDeps, attempt: V3Attempt) {
   const spec = await pinnedSpec(deps, attempt);
-  return engine.project(spec, attempt.state as EngineState);
+  return spec ? engine.project(spec, attempt.state as EngineState) : null;
 }
 
+/** Student entry accepts one immutable published-version ID. */
 export async function createAttempt(
   deps: V3PlayServiceDeps,
   userId: string,
-  adventureId: string,
-  release?: string,
+  versionId: string,
 ): Promise<ServiceResponse> {
-  let adventure = await permittedAdventure(deps, userId, adventureId);
+  const publication = await deps.store.loadPublication(versionId);
+  if (!publication) return error(404, "not_found", "Not found.");
+  const adventure = await permittedAdventure(deps, userId, publication.adventureId);
   if (!adventure) return error(404, "not_found", "Not found.");
-  if (adventure.status !== "published" || adventure.spec === null) {
+  if (adventure.status !== "published")
     return error(409, "not_open", "This adventure is not open for play.");
-  }
-
-  const publication = release ? (await deps.store.listPublications(adventureId)).find(p => p.linkKey === release) : undefined;
-  if (release && !publication) return error(404, "not_found", "Not found.");
-  const existing = await deps.store.findLatestAttempt(adventure.id, userId, publication?.version);
+  const existing = await deps.store.findLatestAttempt(adventure.id, userId, publication.version);
   if (existing) {
     const view = await currentView(deps, existing);
-    return {
-      status: 200,
-      body: { attemptId: existing.id, revision: existing.revision, view, resumed: true },
-    };
+    if (!view) return incompatibleSpec();
+    return { status: 200, body: { attemptId: existing.id, revision: existing.revision, view, resumed: true } };
   }
-
-  for (let retry = 0; retry < 3; retry++) {
-    if (adventure.status !== "published" || adventure.publishedVersion == null) return error(409, "not_open", "This adventure is not open for play.");
-    const version = publication?.version ?? adventure.publishedVersion;
-    const rawSpec = await deps.store.loadVersionSpec(adventure.id, version);
-    if (rawSpec === null) throw new Error(`Missing published v3 spec ${adventure.id}:${version}`);
-    const spec = EngineSpec.parse(rawSpec);
-    const state = engine.createState(spec, crypto.randomUUID());
-    const attempt = await deps.store.createAttempt({ adventureId: adventure.id, specVersion: version, studentId: userId, state, ...(release ? { release } : {}) });
-    if (attempt) return {
-      status: 201,
-      body: { attemptId: attempt.id, revision: attempt.revision, view: engine.project(spec, state), resumed: false },
-    };
-    const latest = await permittedAdventure(deps, userId, adventureId);
-    if (!latest) return error(404, "not_found", "Not found.");
-    adventure = latest;
-  }
-  return error(409, "conflict", "Publication changed. Try starting again.");
+  const rawSpec = await deps.store.loadVersionSpec(adventure.id, publication.version);
+  const decoded = decodeStoredSpec(rawSpec);
+  if (!decoded.ok) return incompatibleSpec();
+  const spec = decoded.spec;
+  const state = engine.createState(spec, crypto.randomUUID());
+  const attempt = await deps.store.createAttempt({ adventureId: adventure.id, specVersion: publication.version,
+    versionId: publication.id, studentId: userId, state });
+  if (!attempt) return error(409, "conflict", "This version is no longer open for play.");
+  return { status: 201, body: { attemptId: attempt.id, revision: attempt.revision, view: engine.project(spec, state), resumed: false } };
 }
 
 export async function getAttempt(
@@ -164,6 +157,7 @@ export async function getAttempt(
   }
 
   const view = await currentView(deps, attempt);
+  if (!view) return incompatibleSpec();
   return {
     status: 200,
     body: { attemptId: attempt.id, revision: attempt.revision, view },
@@ -194,6 +188,7 @@ export async function postAction(
   }
 
   const spec = await pinnedSpec(deps, attempt);
+  if (!spec) return incompatibleSpec();
   const state = attempt.state as EngineState;
   if (attempt.revision !== parsed.data.revision) return staleState(attempt.revision, engine.project(spec, state));
 
@@ -230,7 +225,8 @@ export async function postAction(
   if (!saved.saved) {
     const latest = await deps.store.loadAttempt(attempt.id);
     if (!latest || latest.studentId !== userId) return error(404, "not_found", "Not found.");
-    return staleState(latest.revision, await currentView(deps, latest));
+    const view = await currentView(deps, latest);
+    return view ? staleState(latest.revision, view) : incompatibleSpec();
   }
 
   return {
@@ -255,6 +251,7 @@ export async function runPostTurnChecks(
         const attempt = await deps.store.loadAttempt(attemptId);
         if (!attempt) break;
         const spec = await pinnedSpec(deps, attempt);
+        if (!spec) break;
         const state = attempt.state as EngineState;
         const pending = state.pendingChecks.find((check) => check.messageId === messageId);
         if (pending === undefined) break;

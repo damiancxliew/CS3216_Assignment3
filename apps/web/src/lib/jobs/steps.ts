@@ -11,6 +11,8 @@ import { generateStancePortraits } from "@/lib/v3/portraits/generate";
 import { generateV3StageArt } from "@/lib/v3/stage-art/generate";
 import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
 import { v3GenerationSteps } from "@/lib/v3/generation/steps";
+import { upgradeSteps } from "@/lib/v3/upgrades/steps";
+import { defaultUpgradeDeps } from "@/lib/v3/upgrades/deps";
 
 export { portraitsStep } from "@/lib/v3/portraits/step";
 export { stageArtStep } from "@/lib/v3/stage-art/step";
@@ -78,6 +80,7 @@ const stageArtGeneratorStep = defineStep<
 );
 
 export const jobSteps = [
+  ...upgradeSteps(defaultUpgradeDeps),
   mediaGenerationStep,
   sourceRetryStep(defaultGenerationDeps),
   stancePortraitStep,

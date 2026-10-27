@@ -1,5 +1,9 @@
 import { ImageSelection, WalkingSpriteSelection } from './media.js'
+import { ReadingCheck, StagePreparation } from './preparation.js'
 export * from './media.js'
+export * from './preparation.js'
+export * from './reading-support.js'
+export * from './reading-text.js'
 /**
  * The v3 `AdventureSpec`: the full generated adventure the engine runs, the API serves and the
  * generator targets. Strict objects everywhere — unknown keys are rejected.
@@ -76,6 +80,7 @@ export const Stage = z.strictObject({
   documentPlacement: z.record(Id, Id),
   situations: z.array(Situation).default([]),
   definingMomentId: Id,
+  preparation: StagePreparation.optional(),
 })
 
 export const Stance = z.strictObject({ id: Id, label: Text, demeanour: Text, hidden: z.boolean().optional() })
@@ -145,6 +150,7 @@ export const Document = z.strictObject({
   glossary: z.array(z.strictObject({ term: Text, meaning: Text })).default([]),
   keyPassages: z.array(z.strictObject({ id: Id, start: z.number().int().nonnegative(), end: z.number().int().positive() })),
   citations: z.array(Citation).optional(),
+  readingCheck: ReadingCheck.optional(),
 })
 
 export const Trigger = z.strictObject({
@@ -250,8 +256,9 @@ const HintAngle = z.strictObject({
   text: Text,
 })
 
-export const AdventureSpec = z.strictObject({
+const AdventureSpecObject = z.strictObject({
   authoring: z.strictObject({
+    importId: z.string().uuid().optional(),
     sourcePolicy: z.strictObject({ allowAny: z.boolean().optional(), extraDomains: z.array(Text).optional() }).optional(),
     teacherContributions: z.array(z.strictObject({ entity: Text, field: Text })).optional(),
     retainedErrors: z.array(z.strictObject({ code: Text, path: Text, message: Text, ids: z.array(Text).optional() })).optional(),
@@ -297,7 +304,46 @@ export const AdventureSpec = z.strictObject({
   openQuestions: z.array(OpenQuestion).default([]),
   hintAngles: z.array(HintAngle).default([]),
 })
+/** Released contracts exclude import attribution added by a parallel pre-versioning feature. */
+const ReleasedAdventureSpecObject = AdventureSpecObject.extend({
+  authoring: AdventureSpecObject.shape.authoring.unwrap().omit({ importId: true }).optional(),
+})
+/** The first persisted contract permits unversioned content and partial preparation. */
+export const LegacyAdventureSpec = ReleasedAdventureSpecObject.extend({ schemaVersion: z.literal(1).optional() })
+/** Frozen preparation contract, before import attribution became part of the format. */
+export const V2AdventureSpec = ReleasedAdventureSpecObject.extend({
+  schemaVersion: z.literal(2),
+  stages: z.array(Stage.extend({ preparation: StagePreparation })).min(1),
+  documents: z.array(Document.extend({ readingCheck: ReadingCheck })),
+})
+/** Frozen import-attribution format. */
+export const V210AdventureSpec = AdventureSpecObject.extend({
+  schemaVersion: z.literal('2.1.0'),
+  stages: z.array(Stage.extend({ preparation: StagePreparation })).min(1),
+  documents: z.array(Document.extend({ readingCheck: ReadingCheck })),
+})
+
+/** Reading text is cleaned before storage, with evidence offsets remapped. */
+export const LatestAdventureSpec = V210AdventureSpec.extend({ schemaVersion: z.literal('2.1.1') })
+
+/** One runtime shape; old content is adapted without changing its format or gameplay.
+ * Compatibility reading also preserves import attribution from the parallel pre-versioning
+ * import feature, even on old content. Frozen contracts remain unchanged; no metadata is lost.
+ */
+export const AdventureSpec = AdventureSpecObject.extend({ schemaVersion: z.union([z.literal(1), z.literal(2), z.literal('1.0.0'), z.literal('2.0.0'), z.literal('2.1.0'), z.literal('2.1.1')]).optional() })
+  .superRefine((spec, ctx) => {
+    if (!spec.schemaVersion || spec.schemaVersion === 1 || spec.schemaVersion === '1.0.0') return
+    spec.stages.forEach((stage, i) => {
+      if (!stage.preparation) ctx.addIssue({ code: 'custom', path: ['stages', i, 'preparation'], message: `Schema version ${spec.schemaVersion} requires stage preparation. Upgrade this adventure before saving it in this format.` })
+    })
+    spec.documents.forEach((document, i) => {
+      if (!document.readingCheck) ctx.addIssue({ code: 'custom', path: ['documents', i, 'readingCheck'], message: `Schema version ${spec.schemaVersion} requires a reading check on every document.` })
+    })
+  })
 export type AdventureSpec = z.infer<typeof AdventureSpec>
+export type V2AdventureSpec = z.infer<typeof V2AdventureSpec>
+export type LatestAdventureSpec = z.infer<typeof LatestAdventureSpec>
+export type LegacyAdventureSpec = z.infer<typeof LegacyAdventureSpec>
 export type SpecStage = z.infer<typeof Stage>
 export type SpecCharacter = z.infer<typeof Character>
 export type SpecDiscovery = z.infer<typeof Discovery>
@@ -337,3 +383,5 @@ export type { SkeletonShape, ValidateSkeletonResult } from './skeleton.js'
 
 export { editableIssues } from './check/editable.js'
 export { unconditionalOutcomeIds } from './moments.js'
+
+export * from './versions.js'

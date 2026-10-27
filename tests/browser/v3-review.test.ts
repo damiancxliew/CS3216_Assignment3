@@ -19,6 +19,11 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
     const spec = AdventureSpec.parse(
       JSON.parse(await readFile("fixtures/golden-1819.json", "utf8")),
     );
+    const source = spec.documents[0];
+    const supportText = "These articles are agreed by the Datoo Tumungong for himself and on behalf of the Sultan of Johor, and all matters in them shall be settled when the Sultan arrives at Singapoora.";
+    const question = (id: string) => ({ id, prompt: `What must wait for the Sultan (${id})?`, options: [{ id: "a", text: "The agreement's remaining matters." }, { id: "b", text: "The first ship's departure." }, { id: "c", text: "The annual payment's cancellation." }], correctOptionId: "a", support: [{ start: source.body.indexOf(supportText), end: source.body.indexOf(supportText) + supportText.length }], explanation: "The final article leaves matters to be settled when the Sultan arrives." });
+    source.readingCheck = { discoveryId: "d1-agreement", variants: ["v1", "v2", "v3", "v4"].map(question), recovery: question("recovery"), recoveryDiscoveryIds: ["d1-calcutta"] };
+    spec.stages[0].preparation = { characters: { raffles: [{ discoveryIds: ["d1-agreement"], minMet: 1 }] }, decision: [{ discoveryIds: ["d1-agreement", "d1-calcutta"], minMet: 1 }], essentialCharacters: [{ characterId: "raffles", discoveryIds: [spec.discoveries.find((d) => d.stageId === spec.stages[0].id && "characterId" in d.holder && d.holder.characterId === "raffles")!.id] }] };
     spec.characters[0].persona.voice += " " + "long".repeat(5000);
     const ui = await readFile("apps/web/src/components/ui.tsx", "utf8");
     const buttons = ui.slice(
@@ -150,6 +155,19 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           [];
         for (const [tab, label] of Object.entries(tabLabels)) {
           await page.getByRole("tab", { name: label, exact: true }).click();
+          if (tab === "stages") {
+            await panel.getByRole("heading", { name: "Preparation and essential conversations", exact: true }).waitFor();
+            expect(await panel.getByText("Every essential conversation is required, even when time expires.", { exact: true }).count()).toBe(1);
+          }
+          if (tab === "documents") {
+            await panel.getByRole("heading", { name: "Reading check", exact: true }).waitFor();
+            const question = panel.locator("details").filter({ hasText: "Question 1:" });
+            expect(await question.getAttribute("open")).toBeNull();
+            await question.locator("summary").click();
+            expect(await question.getByText("The agreement's remaining matters. (correct)", { exact: true }).count()).toBe(1);
+            expect(await question.locator("blockquote").textContent()).toBe(supportText);
+            await question.locator("summary").click();
+          }
           const navigation = page.getByRole("navigation", {
             name: `${label} items`,
           });

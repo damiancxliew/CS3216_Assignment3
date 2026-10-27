@@ -87,5 +87,11 @@ export function stageIntroBeats(stage: StageView): V3CinematicBeat[] {
       ? nonEmpty({ id: "narration", kicker: "Meanwhile", body: stage.intro.narration })
       : null,
     nonEmpty({ id: "question", kicker: "The question", body: stage.centralQuestion }),
+    stage.preparation ? nonEmpty({
+      id: "preparation",
+      kicker: "Before you decide",
+      body: "Read the evidence and answer its questions with a supporting passage. Prepare for each conversation, then hear from every essential person before deciding.",
+      items: stage.preparation.essentialConversations.map((conversation) => `Speak with ${conversation.name}.`),
+    }) : null,
   ].filter((beat): beat is V3CinematicBeat => beat !== null);
 }

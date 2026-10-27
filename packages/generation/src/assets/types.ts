@@ -37,6 +37,7 @@ export interface ImageRequest {
   prompt: string
   size: '1024x1024' | '1024x1536' | '1536x1024'
   quality: 'low' | 'medium' | 'high'
+  referenceImage?: { bytes: Uint8Array; mimeType: 'image/png' | 'image/webp' | 'image/jpeg' }
 }
 
 export interface ImageResult {
@@ -75,4 +76,6 @@ export type CachedAsset = { url: string; model: string; scene?: CutsceneScene | 
 export interface AssetStore {
   put(key: string, bytes: Uint8Array, mimeType: string): Promise<string>
   download(url: string): Promise<Uint8Array | null>
+  /** Remove an object created by a failed import, when the backend supports it. */
+  remove?(key: string): Promise<void>
 }

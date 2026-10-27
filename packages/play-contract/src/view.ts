@@ -41,6 +41,24 @@ export const StageIntroView = z.object({
     .nullable(),
 })
 
+export const PreparationView = z.object({
+  completed: z.number().int().nonnegative(),
+  required: z.number().int().nonnegative(),
+  ready: z.boolean(),
+  hint: z.string().nullable(),
+})
+export const StagePreparationView = PreparationView.extend({
+  essentialConversations: z.array(z.object({ characterId: Id, name: z.string(), complete: z.boolean() })),
+  timerExpired: z.boolean(),
+})
+export const ReadingCheckView = z.object({
+  status: z.enum(['unanswered', 'needsReview', 'passed']),
+  question: z.object({ id: Id, prompt: z.string(), options: z.array(z.object({ id: Id, text: z.string() })) }).nullable(),
+  recovery: z.object({ id: Id, prompt: z.string(), options: z.array(z.object({ id: Id, text: z.string() })) }).nullable(),
+  feedback: z.string().nullable(),
+  explanation: z.string().nullable(),
+})
+
 export const StageView = z.object({
   index: StageIndex,
   count: z.number().int().positive(),
@@ -50,6 +68,7 @@ export const StageView = z.object({
   centralQuestion: z.string(),
   /** Non-null until the student continues past the stage opening. */
   intro: StageIntroView.nullable(),
+  preparation: StagePreparationView.optional(),
 })
 export type StageView = z.infer<typeof StageView>
 
@@ -68,6 +87,7 @@ export const CharacterView = z.object({
   stance: StanceView.nullable().optional(),
   /** `${characterId}` for characters without stances, `${characterId}:${stanceId}` otherwise. */
   portraitKey: z.string(),
+  preparation: PreparationView.optional(),
 })
 export type CharacterView = z.infer<typeof CharacterView>
 
@@ -121,6 +141,7 @@ export const DocumentView = z.object({
   sourceLabel: z.string().nullable(),
   glossary: z.array(z.object({ term: z.string(), meaning: z.string() })),
   open: z.boolean(),
+  readingCheck: ReadingCheckView.optional(),
 })
 export type DocumentView = z.infer<typeof DocumentView>
 

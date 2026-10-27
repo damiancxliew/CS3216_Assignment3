@@ -3,7 +3,9 @@ import { z } from "zod";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
+import { v3Enabled } from "@/lib/v3/flag";
+import { getViewer, isStaff } from "@/lib/auth/viewer";
+import { canAccessV3Authoring } from "@/lib/v3/access";
 import { briefStateV3Schema, initialBriefStateV3 } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { withJsonUsage } from "@/lib/usage/ledger";
@@ -27,14 +29,14 @@ export async function suggestReviewChangeAction(
 ): Promise<ReviewChatResult> {
   if (!v3Enabled() || !z.string().uuid().safeParse(adventureId).success)
     return failure("Not found.");
-  const {
-    data: { user },
-  } = await (await createClient()).auth.getUser();
+  const viewer = await getViewer(await createClient());
+  const { user } = viewer;
   if (!user) return failure("Sign in again. Your message is still here.");
+  if (!isStaff(viewer) && !viewer.isSysadmin) return failure("Not found.");
   const admin = createAdminClient();
   const briefs = supabaseV3BriefStore(admin);
   const row = await briefs.load(adventureId);
-  if (!row || row.ownerId !== user.id || !v3SchoolAllowed(row.schoolId))
+  if (!row || !canAccessV3Authoring(viewer, row))
     return failure("Not found.");
   const parsed = reviewChatInput.safeParse(rawInput);
   const text = z.string().trim().min(1).max(4000).safeParse(rawText);
@@ -84,7 +86,7 @@ export async function suggestReviewChangeAction(
   const latest = await briefs.load(adventureId);
   if (
     !latest ||
-    latest.ownerId !== user.id ||
+    !canAccessV3Authoring(viewer, latest) ||
     latest.status !== row.status ||
     JSON.stringify(latest.state) !== JSON.stringify(row.state)
   )

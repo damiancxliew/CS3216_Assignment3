@@ -16,6 +16,8 @@ export interface CharacterState {
   challenged: number
   /** Replies so far, for pacing how often they ask for what they want. */
   replies: number
+  /** Prior trust ceiling recoverable through a substantive supported correction in checked stages. */
+  trustRecoveryStanceId?: string | null
 }
 
 export interface NoteState {
@@ -33,9 +35,20 @@ export interface PendingCheck {
   characterId: string
   stageIndex: number
   revealable: { id: string; text: string }[]
+  /** Designated conversation facts, including already known information. Server-only. */
+  essential?: { id: string; text: string }[]
+  supportedNoteDiscoveryId?: string
   studentNotes: string[]
   turn: StudentTurn
   reply: string
+}
+
+export interface ReadingCheckState {
+  status: 'unanswered' | 'needsReview' | 'passed'
+  variantIndex: number
+  /** Discovery snapshot prevents an old fact from repeatedly buying retries. */
+  discoveredAtFailure: string[]
+  attempts: { at: number; questionId: string; choiceId: string; start: number; end: number; correct: boolean; recovery: boolean }[]
 }
 
 export interface MomentState {
@@ -94,6 +107,11 @@ export interface EngineState {
   /** Documents lying in rooms of the current stage, not yet picked up: documentId → roomId. */
   documentRooms: Record<string, string>
   openDocumentId: string | null
+  /** Optional so saved legacy attempts remain loadable. */
+  readingChecks?: Record<string, ReadingCheckState>
+  /** stageId → characterId → designated facts confirmed in substantive exchanges. */
+  essentialConversations?: Record<string, Record<string, string[]>>
+  finalCallStages?: string[]
   passedOn: { discoveryId: string; characterId: string }[]
   confrontedSlants: string[]
   firedTriggers: string[]

@@ -26,18 +26,27 @@ type RegisteredTarget = Pick<
 > & {
   current(): ReviewChatTarget;
 };
+export type UpgradeChatTarget = {
+  key: string;
+  pending: boolean;
+  active: boolean;
+  route(message: string): Promise<string>;
+};
 const Context = createContext<{
   target: RegisteredTarget | null;
   register(target: RegisteredTarget | null): void;
+  upgrade: UpgradeChatTarget | null;
+  registerUpgrade(target: UpgradeChatTarget | null): void;
 } | null>(null);
 export function ReviewChatProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<RegisteredTarget | null>(null);
+  const [upgrade, setUpgrade] = useState<UpgradeChatTarget | null>(null);
   const register = useCallback(
     (next: RegisteredTarget | null) => setTarget(next),
     [],
   );
   return (
-    <Context.Provider value={{ target, register }}>{children}</Context.Provider>
+    <Context.Provider value={{ target, register, upgrade, registerUpgrade: setUpgrade }}>{children}</Context.Provider>
   );
 }
 export function useReviewChat() {

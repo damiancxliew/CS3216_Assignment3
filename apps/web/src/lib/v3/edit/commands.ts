@@ -1,5 +1,6 @@
 import {
   bundledId,
+  characterPortraitKeys,
   validTarget,
   isSprite,
   resolveWalkingSprites,
@@ -22,6 +23,7 @@ export const V3Edit = z.discriminatedUnion("type", [
   }),
   z.strictObject({
     type: z.literal("portraitImage"),
+    allStances: z.boolean().optional(),
     targetKey: z.string().min(1),
     candidateId: z.string().uuid().nullable(),
   }),
@@ -171,12 +173,13 @@ export function applyV3Edits(
       } else {
         const field =
           edit.type === "stageImage" ? "stageImages" : "portraitImages";
-        ((draft.authoring ??= {})[field] ??= {})[edit.targetKey] = candidate
-          ? {
-              type: "candidate",
-              candidate: structuredClone(candidate.snapshot),
-            }
-          : { type: "fallback" };
+        const keys = edit.type === "portraitImage" && edit.allStances
+          ? characterPortraitKeys(draft, edit.targetKey)
+          : [edit.targetKey];
+        for (const key of keys)
+          ((draft.authoring ??= {})[field] ??= {})[key] = candidate
+            ? { type: "candidate", candidate: structuredClone(candidate.snapshot) }
+            : { type: "fallback" };
       }
       continue;
     }
@@ -211,7 +214,7 @@ export function applyV3Edits(
       continue;
     }
     if (
-      ["id", "sources", "authoring"].includes(String(edit.path[0])) ||
+      ["id", "sources", "authoring", "schemaVersion"].includes(String(edit.path[0])) ||
       edit.path.some((k) => forbidden.has(String(k)))
     )
       throw Error("Protected field");
@@ -242,7 +245,7 @@ export function applyV3Edits(
           parent.splice(key, 1);
         else delete parent[key];
       } else {
-        if (!same(ids(parent[key]), ids(edit.value)))
+        if (parent[key] !== undefined && !same(ids(parent[key]), ids(edit.value)))
           throw Error(
             "Use add/remove commands to change entities; existing IDs are stable",
           );
@@ -260,6 +263,11 @@ export function applyV3Edits(
   // Parent replacement and insertion must not bypass document evidence rules.
   for (const doc of parsed.documents) {
     const old = base.documents.find((d) => d.id === doc.id);
+    if (
+      !local && old?.readingCheck && doc.body !== old.body &&
+      same(doc.readingCheck, old.readingCheck)
+    )
+      throw Error("The document changed. Review its reading questions and update their supporting passages before saving.");
     const operation = evidenceOperations.get(doc.id);
     if (operation) {
       if (

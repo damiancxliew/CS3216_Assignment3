@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   enabled: true,
   allowed: true,
   staff: true,
+  sysadmin: false,
+  membership: null as { role: string; organizationId: string } | null,
   user: { id: "owner" } as { id: string } | null,
   row: { ownerId: "owner", schoolId: "school", status: "draft" } as {
     ownerId: string;
@@ -25,7 +27,7 @@ vi.mock("@/lib/v3/flag", () => ({
   v3SchoolAllowed: () => mocks.allowed,
 }));
 vi.mock("@/lib/auth/viewer", () => ({
-  getViewer: async () => ({ user: mocks.user }),
+  getViewer: async () => ({ user: mocks.user, membership: mocks.membership, isSysadmin: mocks.sysadmin }),
   isStaff: () => mocks.staff,
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
@@ -39,6 +41,7 @@ vi.mock("@/lib/v3/generation/deps", () => ({
 vi.mock("@/lib/play/v3/store", () => ({
   SupabaseV3PlayStore: class {
     loadAdventure = mocks.loadSpec;
+    async loadCheckErrors() { return []; }
   },
 }));
 vi.mock("@/app/v3/teacher/actions", () => ({
@@ -63,6 +66,8 @@ beforeEach(() => {
     enabled: true,
     allowed: true,
     staff: true,
+    sysadmin: false,
+    membership: null,
     user: { id: "owner" },
     row: { ownerId: "owner", schoolId: "school", status: "draft" },
   });
@@ -74,6 +79,23 @@ beforeEach(() => {
 });
 
 describe("review page access", () => {
+  it("allows a system admin without a school membership to open any school's editor", async () => {
+    mocks.row!.ownerId = "other-teacher";
+    mocks.sysadmin = true; mocks.staff = false; mocks.allowed = false;
+    expect(await visit()).toBeTruthy();
+  });
+  it("allows an admin to edit another teacher's adventure in the same school", async () => {
+    mocks.row!.ownerId = "other-teacher";
+    mocks.membership = { role: "admin", organizationId: "school" };
+    expect(await visit()).toBeTruthy();
+    expect(mocks.loadSpec).toHaveBeenCalledWith("adventure");
+  });
+  it("rejects an admin from a different school", async () => {
+    mocks.row!.ownerId = "other-teacher";
+    mocks.membership = { role: "admin", organizationId: "different-school" };
+    await expect(visit()).rejects.toThrow("NOT_FOUND");
+    expect(mocks.loadSpec).not.toHaveBeenCalled();
+  });
   it.each([
     "feature",
     "school",

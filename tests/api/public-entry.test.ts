@@ -14,13 +14,16 @@ vi.mock("@/lib/play/v3/service", () => ({ createAttempt: mocks.createAttempt }))
 vi.mock("@/lib/v3/flag", () => ({ v3Enabled: () => true }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
-import { GET } from "@/app/v3/play/start/[adventureId]/route";
+import { GET } from "@/app/v3/play/start/[versionId]/route";
 import { joinAdventure } from "@/app/join/[token]/actions";
 
-const adventureId = "00000000-0000-4000-8000-000000000001";
+// v3 student links are version-specific (/v3/play/start/<versionId>); v2 share tokens are unchanged.
+const versionId = "00000000-0000-4000-8000-000000000001";
+/** v2 share links still use a token. */
+const shareToken = "00000000-0000-4000-8000-000000000002";
 const user = { id: "guest-1", is_anonymous: true };
-const start = () => GET(new Request(`http://localhost/v3/play/start/${adventureId}?release=release-1`), {
-  params: Promise.resolve({ adventureId }),
+const start = () => GET(new Request(`http://localhost/v3/play/start/${versionId}`), {
+  params: Promise.resolve({ versionId }),
 });
 
 beforeEach(() => {
@@ -37,18 +40,18 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("public entry", () => {
-  it("creates a guest session only for an open v3 link and preserves its release", async () => {
+  it("creates a guest session only for an open v3 version link", async () => {
     const response = await start();
     expect(response.headers.get("location")).toBe("http://localhost/v3/play/attempt-1");
     expect(mocks.auth.signInAnonymously).toHaveBeenCalledOnce();
-    expect(mocks.createAttempt).toHaveBeenCalledWith({}, user.id, adventureId, "release-1");
+    expect(mocks.createAttempt).toHaveBeenCalledWith({}, user.id, versionId);
   });
 
   it("does not create guest identities for school-only or invalid links", async () => {
     for (const kind of ["closed", "sign_in"]) {
       mocks.loadJoinView.mockResolvedValue({ kind });
       const response = await start();
-      expect(response.headers.get("location")).toContain(`/v3/join/${adventureId}`);
+      expect(response.headers.get("location")).toContain(`/v3/join/${versionId}`);
     }
     expect(mocks.auth.signInAnonymously).not.toHaveBeenCalled();
     expect(mocks.createAttempt).not.toHaveBeenCalled();
@@ -58,7 +61,7 @@ describe("public entry", () => {
     mocks.auth.getUser.mockResolvedValue({ data: { user: { id: "outsider" } } });
     await start();
     expect(mocks.auth.signInAnonymously).not.toHaveBeenCalled();
-    expect(mocks.createAttempt).toHaveBeenCalledWith({}, "outsider", adventureId, "release-1");
+    expect(mocks.createAttempt).toHaveBeenCalledWith({}, "outsider", versionId);
   });
 
   it("does not start an attempt after guest authentication fails", async () => {
@@ -83,14 +86,14 @@ describe("public entry", () => {
   });
 
   it("starts and resumes legacy public play through the existing admission RPC", async () => {
-    await expect(joinAdventure(adventureId)).rejects.toThrow("redirect:/play/attempt-1");
+    await expect(joinAdventure(shareToken)).rejects.toThrow("redirect:/play/attempt-1");
     expect(mocks.auth.signInAnonymously).toHaveBeenCalledOnce();
-    expect(mocks.rpc).toHaveBeenCalledWith("join_adventure", { p_token: adventureId });
+    expect(mocks.rpc).toHaveBeenCalledWith("join_adventure", { p_token: shareToken });
   });
 
   it("does not create a legacy guest for a closed or school-only link", async () => {
     mocks.rpc.mockResolvedValue({ data: false, error: null });
-    await expect(joinAdventure(adventureId)).rejects.toThrow(`redirect:/join/${adventureId}`);
+    await expect(joinAdventure(shareToken)).rejects.toThrow(`redirect:/join/${shareToken}`);
     expect(mocks.auth.signInAnonymously).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalledWith("join_adventure", expect.anything());
   });

@@ -719,6 +719,28 @@ export function ReviewScreen({
                           ),
                         ])}
                       </Card>
+                      {stage.preparation ? (
+                        <Card id={reviewSectionId(stage.id, "preparation")} title="Preparation and essential conversations">
+                          {Object.entries(stage.preparation.characters).map(([id, groups]) => (
+                            <Field key={id} title={`Before speaking with ${name(id)}`}>
+                              {groups.length ? groups.map((group, index) => (
+                                <p key={index}>Complete {group.minMet} of: {group.discoveryIds.map(name).join("; ")}</p>
+                              )) : "No preparation required."}
+                            </Field>
+                          ))}
+                          <Field title="Before the stage decision">
+                            {stage.preparation.decision.map((group, index) => (
+                              <p key={index}>Complete {group.minMet} of: {group.discoveryIds.map(name).join("; ")}</p>
+                            ))}
+                          </Field>
+                          <Field title="Essential conversations">
+                            {stage.preparation.essentialCharacters.map((person) => (
+                              <p key={person.characterId}>{name(person.characterId)}: discuss {person.discoveryIds.map(name).join("; ")}</p>
+                            ))}
+                          </Field>
+                          <p className="text-sm text-muted">Every essential conversation is required, even when time expires.</p>
+                        </Card>
+                      ) : null}
                       <Card
                         id={reviewSectionId(stage.id, "rooms")}
                         title="Rooms and placements"
@@ -1109,6 +1131,27 @@ export function ReviewScreen({
                           )}
                         </div>
                       </Card>
+                      {doc.readingCheck ? (
+                        <Card id={reviewSectionId(doc.id, "readingCheck")} title="Reading check">
+                          <Field title="Discovery earned">{link(doc.readingCheck.discoveryId)}</Field>
+                          <p className="text-sm">One wrong answer requires a correction or related evidence before the next question.</p>
+                          {[...doc.readingCheck.variants.map((question, i) => ({ question, label: `Question ${i + 1}` })), { question: doc.readingCheck.recovery, label: "Guided correction" }].map(({ question, label }) => (
+                            <details key={question.id} className="rounded-lg border border-line p-3">
+                              <summary className="cursor-pointer text-sm font-bold">{label}: {question.prompt}</summary>
+                              <div className="mt-3 space-y-3 text-sm">
+                                <ul className="list-disc pl-5">
+                                  {question.options.map((option) => <li key={option.id}>{option.text}{option.id === question.correctOptionId ? " (correct)" : ""}</li>)}
+                                </ul>
+                                <Field title="Accepted supporting passages">
+                                  {question.support.map((span, i) => <blockquote key={i} className="border-l-2 border-line pl-3">{doc.body.slice(span.start, span.end)}</blockquote>)}
+                                </Field>
+                                <Field title="Explanation">{question.explanation}</Field>
+                              </div>
+                            </details>
+                          ))}
+                          {doc.readingCheck.recoveryDiscoveryIds.length ? <Field title="Alternative evidence for recovery">{doc.readingCheck.recoveryDiscoveryIds.map(name).join("; ")}</Field> : null}
+                        </Card>
+                      ) : null}
                       <Card
                         id={reviewSectionId(doc.id, "passages")}
                         title="Key passages"

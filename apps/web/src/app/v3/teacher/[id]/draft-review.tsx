@@ -18,6 +18,7 @@ import { useReviewChatTarget } from "./review-chat-context";
 import { reviewPrimary } from "./creation-styles";
 import { PauseContentCards } from "./review/pause-content-cards";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
+import { UpgradePanel } from "./upgrade-panel";
 
 export function DraftReview({
   adventureId,
@@ -36,7 +37,9 @@ export function DraftReview({
   const [draft, setDraft] = useState(initial);
   const [version, setVersion] = useState(initialVersion);
   const [edits, setEdits] = useState<V3Edit[]>([]);
-  const [pending, setPending] = useState(false);
+  const [localPending, setPending] = useState(false);
+  const [upgradePending, setUpgradePending] = useState(false);
+  const pending = localPending || upgradePending;
   const [existingErrors, setExistingErrors] = useState(initialErrors);
   const [message, setMessage] = useState("");
   const [serverErrors, setServerErrors] = useState<CheckIssue[]>([]);
@@ -82,6 +85,10 @@ export function DraftReview({
       aria-busy={pending}
     >
       <h3 className="text-lg font-extrabold tracking-tight">{draft.title}</h3>
+      <UpgradePanel adventureId={adventureId} spec={base} revision={version} dirty={edits.length > 0} disabled={localPending} onPendingChange={setUpgradePending} onApplied={(spec, nextVersion) => {
+        setBase(spec); setDraft(spec); setVersion(nextVersion); setEdits([]); setServerErrors([]); setExistingErrors([]);
+        setMessage('Draft saved. Preview it before publishing.'); router.refresh();
+      }} />
       <ReviewToolbar>
         <button
           type="button"

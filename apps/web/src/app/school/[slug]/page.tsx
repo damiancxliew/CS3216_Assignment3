@@ -64,6 +64,7 @@ type UsageRow = {
   kind: "v2" | "v3";
   adventure_id: string;
   share_token: string;
+  version_id: string | null;
   shareable: boolean;
   title: string;
   owner_id: string;
@@ -389,9 +390,9 @@ function AdventureUsageActions({ slug, adventure }: { slug: string; adventure: U
   return (
     <div className="flex flex-wrap items-center gap-2 lg:justify-end">
       <SchoolLinkCopy
-        path={adventure.kind === "v3" ? `/v3/join/${adventure.adventure_id}` : `/join/${adventure.share_token}`}
+        path={adventure.kind === "v3" ? `/v3/join/${adventure.version_id}` : `/join/${adventure.share_token}`}
         label={`Copy share link for ${adventure.title}`}
-        disabledReason={adventure.shareable ? undefined : adventure.status === "archived"
+        disabledReason={adventure.shareable && (adventure.kind !== "v3" || adventure.version_id) ? undefined : adventure.status === "archived"
           ? "Archived adventures can't be shared" : adventure.status !== "published"
             ? "Publish this adventure to share it" : "Artwork is still being prepared"}
       />

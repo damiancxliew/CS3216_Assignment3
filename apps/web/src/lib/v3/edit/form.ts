@@ -76,6 +76,7 @@ export type ReferenceContext = {
   characterId?: string;
   momentId?: string;
   documentId?: string;
+  questionId?: string;
 };
 export function referenceContext(
   spec: AdventureSpec,
@@ -90,6 +91,14 @@ export function referenceContext(
     context.stageId = moment?.stageId;
   }
   if (path[0] === "stages") context.stageId = spec.stages[Number(path[1])]?.id;
+  if (path[0] === "documents") {
+    const document = spec.documents[Number(path[1])];
+    context.documentId = document?.id;
+    const question = path.includes("variants")
+      ? document?.readingCheck?.variants[Number(path[path.indexOf("variants") + 1])]
+      : path.includes("recovery") ? document?.readingCheck?.recovery : undefined;
+    context.questionId = question?.id;
+  }
   if (path[0] === "triggers")
     context.characterId = spec.triggers[Number(path[1])]?.characterId;
   if (path[0] === "storyEvents")
@@ -178,6 +187,7 @@ export function references(
       "contradictedBy",
       "unlocksDiscoveryId",
       "counterPoints",
+      "recoveryDiscoveryIds",
     ].includes(key)
   )
     return list(spec.discoveries, (d) => d.topic || d.note);
@@ -197,6 +207,12 @@ export function references(
       spec.characters.flatMap((c) => c.slants),
       (s) => s.claim,
     );
+  if (key === "correctOptionId")
+    return spec.documents
+      .filter((document) => !context.documentId || document.id === context.documentId)
+      .flatMap((document) => document.readingCheck ? [...document.readingCheck.variants, document.readingCheck.recovery] : [])
+      .filter((question) => question.id === context.questionId)
+      .flatMap((question) => question.options.map((option) => ({ value: option.id, label: option.text })));
 }
 export function dependentPaths(
   spec: unknown,

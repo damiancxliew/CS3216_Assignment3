@@ -48,11 +48,11 @@ beforeEach(() => {
   });
 });
 function libraryRow(id: string, kind: "v2" | "v3", status: string | null = null) {
-  return { adventure_id: id, kind, title: `Story ${id}`, published_version: 3, organization_id: "school", teacher_name: "Teacher",
+  return { adventure_id: id, kind, title: `Story ${id}`, published_version: 3, version_id: kind === "v3" ? `version-${id}` : null, organization_id: "school", teacher_name: "Teacher",
     setting: "Singapore", allow_retries: kind === "v2", latest_attempt_id: status ? `attempt-${id}` : null, latest_attempt_status: status };
 }
 function usageRow(id: string, kind: "v2" | "v3", status = "published") {
-  return { adventure_id: id, kind, title: `Story ${id}`, status, share_token: "old-token", shareable: true,
+  return { adventure_id: id, kind, title: `Story ${id}`, status, share_token: "old-token", shareable: true, version_id: kind === "v3" ? `version-${id}` : null,
     attempts: 1, students: 1, completed: 1, play_seconds: kind === "v3" ? null : 30, play_tokens: 10,
     image_cost_usd: kind === "v3" ? null : 0.01, school_students: 1, version_students: 1 };
 }
@@ -62,7 +62,7 @@ describe("version-aware shared pages", () => {
       libraryRow("finished", "v3", "completed"), libraryRow("legacy-results", "v2", "completed")];
     const html = renderToStaticMarkup(await LibraryPage({ searchParams: Promise.resolve({}) }));
     expect(mocks.rpc).toHaveBeenCalledWith("list_library_all_versions", { p_include_v3: true });
-    expect(html).toContain('href="/v3/play/start/start"');
+    expect(html).toContain('href="/v3/play/start/version-start"');
     expect(html).toContain('href="/v3/play/attempt-resume"');
     expect(html).toContain('href="/v3/play/attempt-finished"');
     expect(html).toContain('href="/play/attempt-legacy-results/debrief"');
@@ -88,7 +88,7 @@ describe("version-aware shared pages", () => {
     expect(html).toContain('href="/teacher/old?tab=attempts"');
     expect(html).toContain('href="/v3/teacher/new"');
     expect(html).toContain('href="/join/old-token"');
-    expect(html).toContain('href="/v3/join/new"');
+    expect(html).toContain('href="/v3/join/version-new"');
     expect(html).toContain('href="/v3/teacher/new/summary"');
     expect(html).toContain("Play time and image costs are not recorded for V3 adventures.");
     expect(html).toContain("V3 adventures");

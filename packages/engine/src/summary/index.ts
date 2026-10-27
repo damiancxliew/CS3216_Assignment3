@@ -119,10 +119,28 @@ export function summarise(spec: EngineSpec, attempts: readonly AttemptEvents[]):
     ;[answers[i], answers[j]] = [answers[j] as (typeof answers)[number], answers[i] as (typeof answers)[number]]
   }
 
+  const checkedDocuments = spec.documents.filter((document) => document.readingCheck !== undefined)
+  const readingChecks = checkedDocuments.map((document) => {
+    let attempted = 0, firstAttemptCorrect = 0, completed = 0, recovered = 0
+    for (const { events } of attempts) {
+      const submissions = ofType(events, 'readingCheck').filter((event) => event.documentId === document.id && !event.recovery)
+      const first = submissions[0]
+      if (first === undefined) continue
+      attempted += 1
+      if (first.correct) firstAttemptCorrect += 1
+      if (submissions.some((event) => event.correct)) {
+        completed += 1
+        if (!first.correct) recovered += 1
+      }
+    }
+    return { documentId: document.id, title: document.title, attempted, firstAttemptCorrect, completed, recovered }
+  })
+
   return {
     adventureId: spec.id,
     attempts: attempts.length,
     completed,
+    ...(checkedDocuments.length === 0 ? {} : { readingChecks }),
     stuck: [...stuck.values()]
       .sort((a, b) => b.count - a.count || a.stageIndex - b.stageIndex)
       .map((entry) => ({ ...entry, label: discoveryLabel(entry.targetDiscoveryId) })),

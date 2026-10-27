@@ -241,7 +241,7 @@ export async function getV3GenerationProgress(adventureId: string) {
   if (!data) return notFound;
 
   const adventure = { id: data.id, schoolId: data.school_id, ownerId: data.owner_id, status: data.status };
-  if (!v3SchoolAllowed(adventure.schoolId)) return notFound;
+  if (!auth.viewer.isSysadmin && !v3SchoolAllowed(adventure.schoolId)) return notFound;
 
   // self-healing: a ready step with no in-flight tick gets a spare kick from the poll
   if (adventure.status === "generating") {

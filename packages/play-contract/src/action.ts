@@ -43,6 +43,16 @@ export const SelectPassageAction = z
   })
   .refine((action) => action.end > action.start, { message: 'end must be after start', path: ['end'] })
 
+export const SubmitReadingCheckAction = z.strictObject({
+  type: z.literal('submitReadingCheck'),
+  documentId: Id,
+  questionId: Id,
+  choiceId: Id,
+  start: offset,
+  end: offset,
+  recovery: z.boolean().optional(),
+}).refine(action => action.end > action.start, { message: 'Select supporting evidence.', path: ['end'] })
+
 /** The student arrived in a room. Walking itself stays on the client. */
 export const EnterRoomAction = z.strictObject({ type: z.literal('enterRoom'), roomId: Id })
 
@@ -78,6 +88,7 @@ export const Action = z.discriminatedUnion('type', [
   MessageAction,
   InsertNoteAction,
   SelectPassageAction,
+  SubmitReadingCheckAction,
   EnterRoomAction,
   OpenDocumentAction,
   CloseDocumentAction,
@@ -95,6 +106,7 @@ export const ACTION_TYPES = [
   'message',
   'insertNote',
   'selectPassage',
+  'submitReadingCheck',
   'enterRoom',
   'openDocument',
   'closeDocument',

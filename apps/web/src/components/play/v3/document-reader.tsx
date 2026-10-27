@@ -2,9 +2,11 @@
 
 import type { DocumentView } from "@adventure/play-contract";
 import { Check, Highlighter, ScrollText } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { ReadingCheck, type ReadingCheckSubmission, type SupportingSelection } from "./reading-check";
+import { documentDisplayTitle } from "@/lib/play/v3/document-labels";
 import styles from "@/components/play/document-reader.module.css";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
 
@@ -76,11 +78,13 @@ export function documentProvenanceLine(document: Pick<DocumentView, "kind" | "pr
 function DocumentDetails({ document }: { document: DocumentView }) {
   const { sender, recipient } = document.provenance;
   const fromTo = [sender ? `From ${sender}` : null, recipient ? `To ${recipient}` : null].filter(Boolean).join(" · ");
-  return fromTo ? <p className={styles.provenance}>{fromTo}</p> : null;
+  return <div className={styles.documentInfo}>
+    <span className={styles.sourceBadge} title={document.real ? "From historical source material" : "Written for this adventure"}>{document.real ? "Historical source" : "Reconstruction"}</span>
+    {fromTo ? <p>{fromTo}</p> : null}
+  </div>;
 }
 
 function DocumentNotes({ document }: { document: DocumentView }) {
-  if (document.glossary.length === 0 && !document.real) return null;
   return (
     <div className={styles.source}>
       {document.glossary.length > 0 ? (
@@ -96,12 +100,10 @@ function DocumentNotes({ document }: { document: DocumentView }) {
           </dl>
         </>
       ) : null}
-      {document.real ? (
-        <details className={styles.realSource}>
-          <summary>A real historical document</summary>
-          <p>{document.sourceLabel ?? "Quoted from the historical record."}</p>
+      <details className={styles.realSource}>
+          <summary>Source details</summary>
+          <p>{document.sourceLabel && document.sourceLabel !== "invented" ? document.sourceLabel : document.real ? "From the historical record." : "Written for this adventure."}</p>
         </details>
-      ) : null}
     </div>
   );
 }
@@ -116,9 +118,13 @@ export function DocumentReader({
   hasDocumentNote = false,
   supplement,
   readingHint,
+  onSubmitReadingCheck,
+  busy = false,
 }: {
   supplement?: ReactNode;
   readingHint?: string;
+  onSubmitReadingCheck?: (submission: ReadingCheckSubmission, onSettled: (succeeded: boolean) => void) => void;
+  busy?: boolean;
   document: DocumentView | null;
   documents: DocumentView[];
   onSelectDocument: (documentId: string) => void;
@@ -131,38 +137,81 @@ export function DocumentReader({
 }) {
   const content = useRef<HTMLDivElement>(null);
   const [check, setCheck] = useState<PassageCheck | null>(null);
+  const [support, setSupport] = useState<{ documentId: string; taskId: string; selection: SupportingSelection | null } | null>(null);
   const status = passageStatus(check, document?.id ?? null, noteCount);
   const index = document ? documents.findIndex((item) => item.id === document.id) : -1;
   const saved = index >= 0;
+  const readingCheck = document?.readingCheck;
+  const task = readingCheck?.status === "needsReview" ? readingCheck.recovery : readingCheck?.question;
+  const taskId = `${readingCheck?.status ?? ""}:${task?.id ?? ""}`;
+  const checkedSelection = support?.documentId === document?.id && support?.taskId === taskId ? support.selection : null;
+  const needsCheck = Boolean(readingCheck && readingCheck.status !== "passed");
+  const previousTask = useRef<{ documentId: string; key: string; needsReview: boolean } | null>(null);
+  const [correctionNotice, setCorrectionNotice] = useState<{ documentId: string; taskId: string } | null>(null);
+  const correctionAccepted = correctionNotice?.documentId === document?.id && correctionNotice?.taskId === taskId;
+
+  useEffect(() => {
+    const previous = previousTask.current;
+    const key = taskId;
+    previousTask.current = document ? { documentId: document.id, key, needsReview: readingCheck?.status === "needsReview" } : null;
+    if (!document || previous?.documentId !== document.id || previous.key === key) return;
+    if (previous.needsReview && readingCheck?.status === "unanswered") setCorrectionNotice({ documentId: document.id, taskId });
+    const taskElement = content.current?.parentElement?.querySelector<HTMLElement>("[data-reading-check]");
+    taskElement?.scrollIntoView({ block: "start" });
+    taskElement?.focus({ preventScroll: true });
+  }, [document, readingCheck?.status, taskId]);
+
+  // Touch selection handles and keyboard selection do not always produce a mouseup.
+  useEffect(() => {
+    if (!needsCheck || !document) return;
+    function rememberSelection() {
+      const selection = window.getSelection();
+      if (!content.current || !selection || selection.isCollapsed || !selection.rangeCount) return;
+      const offsets = selectionOffsets(content.current, selection.getRangeAt(0));
+      if (offsets) setSupport({ documentId: document!.id, taskId, selection: offsets });
+    }
+    window.document.addEventListener("selectionchange", rememberSelection);
+    return () => window.document.removeEventListener("selectionchange", rememberSelection);
+  }, [document, needsCheck, taskId]);
 
   function selectPassage() {
     const container = content.current;
-    if (!document || !onSelectPassage || !container) return;
+    if (!document || (!onSelectPassage && !needsCheck) || !container) return;
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
     const offsets = selectionOffsets(container, selection.getRangeAt(0));
     if (!offsets) return;
+    if (needsCheck) {
+      setSupport({ documentId: document.id, taskId, selection: offsets });
+      return;
+    }
+    savePassage(offsets.start, offsets.end);
+    selection.removeAllRanges();
+  }
+
+  function savePassage(start: number, end: number, onSettled?: (succeeded: boolean) => void) {
+    if (!document || !onSelectPassage) return;
     const sent: PassageCheck = { documentId: document.id, notesBefore: noteCount, settled: false, succeeded: false };
     setCheck(sent);
-    onSelectPassage(offsets.start, offsets.end, (succeeded) => {
+    onSelectPassage(start, end, (succeeded) => {
       setCheck((current) => (current === sent ? { ...sent, settled: true, succeeded } : current));
+      onSettled?.(succeeded);
     });
-    selection.removeAllRanges();
   }
 
   return (
     <V3ScrollDialog
       eyebrow={document ? (saved ? `Collected scroll ${index + 1} of ${documents.length}` : "Evidence scroll") : "Collected scrolls"}
-      title={document?.title ?? "Documents"}
+      title={document ? documentDisplayTitle(document.title) : "Documents"}
       kicker={document ? documentProvenanceLine(document) || "From your travels" : "From your travels"}
       footerText={document ? (saved ? "Collected" : "Not collected yet") : "A record of your discoveries"}
       footerSaved={saved}
-      closeLabel={document ? `Put down ${document.title}` : "Close documents"}
+      closeLabel={document ? `Put down ${documentDisplayTitle(document.title)}` : "Close documents"}
       buttonLabel={document ? undefined : "Continue exploring"}
       onClose={onClose}
-      banner={document && readingHint ? <p className={styles.passageHint}>{readingHint}</p> : document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
+      banner={document && readingCheck ? readingCheck.status === "passed" && status ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={false} status={status} /> : <p className={`${styles.passageHint} ${readingCheck.status === "passed" ? styles.passageAdded : styles.passageTip}`} role="status">{readingCheck.status === "passed" ? "Reading complete. You can save other useful passages as notes." : readingCheck.status === "needsReview" ? "Reading check: correction required." : correctionAccepted ? "Correction accepted. Answer the new question to finish this reading check." : "Read the source, then answer with a short supporting passage."}</p> : document && readingHint ? <p className={styles.passageHint}>{readingHint}</p> : document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
       navigation={document && saved && documents.length > 1 ? {
-        items: documents.map((item) => ({ id: item.id, name: item.title })),
+        items: documents.map((item) => ({ id: item.id, name: documentDisplayTitle(item.title) })),
         selectedId: document.id,
         onSelect: onSelectDocument,
       } : undefined}
@@ -173,6 +222,10 @@ export function DocumentReader({
           <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text">
             <p data-document-paragraph="" className={styles.text}>{document.body}</p>
           </div>
+          {readingCheck ? <ReadingCheck key={`${document.id}:${taskId}`} document={document} selection={checkedSelection} onSelect={(selection) => {
+            if (!selection) window.getSelection()?.removeAllRanges();
+            setSupport({ documentId: document.id, taskId, selection });
+          }} onSubmit={onSubmitReadingCheck} busy={busy} /> : null}
           {supplement}
           <DocumentNotes document={document} />
         </>

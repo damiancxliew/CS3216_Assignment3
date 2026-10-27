@@ -14,6 +14,7 @@ import type { MergeResult } from './merge'
 import { partId } from '../parts'
 import type { Parts } from '../parts'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, StageDetailsLlmOutput } from './schema'
+import { toCondition } from './schema'
 
 export interface GenerateDetailsInput {
   skeleton: SkeletonShape
@@ -140,8 +141,9 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
     ...(linkEffort !== undefined ? { reasoningEffort: linkEffort } : {}),
     ...(opts.maxOutputTokens !== undefined ? { maxOutputTokens: opts.maxOutputTokens } : {}),
   }
-  const genLink = async () => {
-    const r = await linkDetails(buildLinkContext(skeleton, bag), shared, linkOpts)
+  const genLink = async (repairIssues?: CheckIssue[]) => {
+    const from = repairIssues && bag.link?.output ? { output: bag.link.output, issues: repairIssues } : undefined
+    const r = await linkDetails(buildLinkContext(skeleton, bag), shared, linkOpts, from)
     countCalls(r)
     return r
   }
@@ -161,7 +163,10 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
     if (owner !== null) routed.set(owner, [...(routed.get(owner) ?? []), issue])
   }
   if (routed.size === 0) return finish(merged, merged.errors)
-  const repairs = await Promise.all([...routed.entries()].map(async ([original, its]) => [original, await original.rerun(its)] as const))
+  // Detail repairs change the linker's input; repair the link once afterwards using the fresh context.
+  const linkRepairIssues = bag.link ? routed.get(bag.link) : undefined
+  const repairDetailsFirst = [...routed.keys()].some((original) => original !== bag.link)
+  const repairs = await Promise.all([...routed.entries()].filter(([original]) => !repairDetailsFirst || original !== bag.link).map(async ([original, its]) => [original, await original.rerun(its)] as const))
   let detailRepaired = false
   for (const [original, repair] of repairs) {
     countCalls(repair)
@@ -174,7 +179,7 @@ export async function generateDetails(input: GenerateDetailsInput, opts: Generat
   }
   // the link reads every detail part, so it is redone when one of them changed
   if (detailRepaired) {
-    const relinked = await genLink()
+    const relinked = await genLink(linkRepairIssues)
     if (relinked.output !== undefined) bag.link = relinked
     else lost.push(...relinked.issues)
   }
@@ -287,10 +292,27 @@ function buildLinkContext(skeleton: SkeletonShape, bag: CallBag): LinkContext {
     for (const d of result.output?.discoveries ?? []) discoveries.push({ id: d.id, stageId: d.stageId, holder: `character:${characterId}`, text: d.text, core: false })
   for (const minor of bag.minors?.output?.characters ?? [])
     for (const d of minor.discoveries) discoveries.push({ id: d.id, stageId: d.stageId, holder: `character:${minor.characterId}`, text: d.text, core: false })
+  for (const discovery of discoveries) {
+    if (!discovery.holder.startsWith('character:')) continue
+    const characterId = discovery.holder.slice('character:'.length)
+    const persona = bag.persona.get(characterId)?.output
+    const majorRequires = persona?.coreConditions.find((d) => d.discoveryId === discovery.id)?.requires ?? persona?.discoveries.find((d) => d.id === discovery.id)?.requires
+    const minorRequires = bag.minors?.output?.characters.find((c) => c.characterId === characterId)?.discoveries.find((d) => d.id === discovery.id)?.requires
+    const requires = majorRequires ?? (minorRequires ? { ...minorRequires, stanceAtLeast: null } : undefined)
+    const condition = requires ? toCondition(requires, characterId) : undefined
+    if (condition) discovery.condition = condition
+  }
+  const documents: NonNullable<LinkContext['documents']> = []
+  for (const [stageId, result] of bag.stage)
+    for (const document of result.output?.documents ?? []) documents.push({
+      id: document.id, stageId, roomId: result.output?.documentPlacement.find((p) => p.documentId === document.id)?.roomId ?? 'held',
+      ...(document.readingCheck ? { readingDiscoveryId: document.readingCheck.discoveryId } : {}),
+      recoveryDiscoveryIds: document.readingCheck?.recoveryDiscoveryIds ?? [],
+    })
   const triggers: LinkContext['triggers'] = []
   for (const [characterId, result] of bag.persona)
     for (const t of result.output?.triggers ?? []) triggers.push({ characterId, on: t.on, requires: t.requires, effect: t.effect })
-  return { characters, discoveries, triggers, stageOrder }
+  return { characters, discoveries, documents, triggers, stageOrder }
 }
 
 // --- post-merge issue routing --------------------------------------------------------------------
@@ -300,6 +322,7 @@ function routeIssue(issue: CheckIssue, draft: AdventureSpec, bag: CallBag, skele
   const i = Number(index)
   switch (head) {
     case 'stages':
+      if (issue.path.split('.')[2] === 'preparation') return bag.link
       return bag.stage.get(draft.stages[i]?.id ?? '') ?? null
     case 'documents':
       return docOwner(draft.documents[i]?.id ?? '', bag)

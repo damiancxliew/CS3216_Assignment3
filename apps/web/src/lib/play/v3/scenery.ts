@@ -1,3 +1,4 @@
+import { spritePresentationUrl } from "./sprite-url";
 import { publicMediaSnapshot, resolveWalkingSprites, type ResolvedWalkingSprite } from "@/lib/v3/media/resolvers";
 import { MATERIAL_NAMES, storyArt, type EnvironmentPlan, type StoryStyle } from "@adventure/game-client/story-art";
 import type { CompiledStage } from "@adventure/game-core";
@@ -30,7 +31,7 @@ export type V3StageScenery = {
 
 export function v3AdventureScenery(spec: Pick<EngineSpec, "stages"> & Partial<Pick<EngineSpec, "characters" | "authoring">>): V3StageScenery[] {
   return spec.stages.map((stage) => ({
-    ...(spec.characters ? { walkingSprites: Object.fromEntries(Object.entries(resolveWalkingSprites({ characters: spec.characters, authoring: spec.authoring })).map(([key, sprite]) => [key, sprite.metadata ? { ...sprite, metadata: publicMediaSnapshot(sprite.metadata) } : sprite])) } : {}),
+    ...(spec.characters ? { walkingSprites: Object.fromEntries(Object.entries(resolveWalkingSprites({ characters: spec.characters, authoring: spec.authoring })).map(([key, sprite]) => [key, sprite.metadata ? { ...sprite, spriteSheetUrl: spritePresentationUrl(sprite.spriteSheetUrl), metadata: publicMediaSnapshot(sprite.metadata) } : sprite])) } : {}),
     roomDescriptions: Object.fromEntries(stage.rooms.map(({ id, description }) => [id, description])),
     storyContext: `${stage.timePlace} ${stage.title}`,
   }));

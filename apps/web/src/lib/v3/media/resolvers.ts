@@ -28,6 +28,16 @@ export function portraitKeys(spec: AdventureSpec) {
     c.tier === "major" ? c.stances.map((s) => `${c.id}:${s.id}`) : [c.id],
   );
 }
+/** Exact membership avoids confusing character IDs with shared prefixes. */
+export function characterPortraitKeys(spec: Pick<AdventureSpec, "characters">, key: string): string[] {
+  for (const character of spec.characters) {
+    const keys = character.tier === "major"
+      ? character.stances.map(stance => `${character.id}:${stance.id}`)
+      : [character.id];
+    if (keys.includes(key)) return keys;
+  }
+  return [];
+}
 export function validTarget(spec: AdventureSpec, target: MediaTarget): boolean {
   if (target.kind === "stage")
     return spec.stages.some((s) => s.id === target.key);

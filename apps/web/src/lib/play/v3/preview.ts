@@ -1,7 +1,8 @@
-import { EngineError, EngineSpec, engine, pendingCheckIds, runPostTurnCheck, type EngineState } from "@adventure/engine";
+import { EngineError, engine, pendingCheckIds, runPostTurnCheck, type EngineState } from "@adventure/engine";
 import { Action } from "@adventure/play-contract";
 import { createRng, type LlmClient } from "@adventure/orchestration";
 import { z } from "zod";
+import { decodeStoredSpec } from "@adventure/spec-v3";
 
 import { canStaffAdventure } from "./access";
 import { signPreviewState, verifyPreviewState } from "./preview-token";
@@ -36,11 +37,13 @@ async function permittedPreview(
   if (adventure.spec === null) {
     return error(409, "not_ready", "This adventure has no story to preview yet.");
   }
-  const parsed = EngineSpec.safeParse(adventure.spec);
-  if (!parsed.success) {
-    return error(409, "not_ready", "This adventure's story has errors to fix before it can be previewed.");
+  const parsed = decodeStoredSpec(adventure.spec);
+  if (!parsed.ok) {
+    return error(409, "not_ready", parsed.issues.some(issue => issue.path === "schemaVersion")
+      ? "This saved format cannot be previewed. Upgrade the adventure or use a supported format first."
+      : "This adventure's story has errors to fix before it can be previewed.");
   }
-  return { adventure, spec: parsed.data } as const;
+  return { adventure, spec: parsed.spec } as const;
 }
 
 function stepError(cause: unknown, context: string): ServiceResponse {

@@ -1,0 +1,44 @@
+import { expect, it } from 'vitest';
+import { FakeLlmClient } from '@adventure/generation/llm';
+import { checkSpec, CURRENT_SCHEMA_VERSION } from '@adventure/spec-v3';
+import { SupabaseV3PlayStore } from '@/lib/play/v3/store';
+import { SupabaseUpgradeRepository } from '@/lib/v3/upgrades/repository';
+import { startUpgrade, applyUpgrade } from '@/lib/v3/upgrades/service';
+import { prepareUpgrade } from '@/lib/v3/upgrades/migrate';
+import { preparationAdventure } from '../fixtures/v3-preparation';
+import { createOrganization, createUserClient, addMember, serviceClient, uniqueEmail } from './helpers';
+
+it('runs the real upgrade service and persisted proof through database Apply without changing source revisions', async () => {
+  const admin = serviceClient();
+  const school = await createOrganization('Upgrade service integration');
+  const owner = await createUserClient(uniqueEmail('upgrade-service'));
+  await addMember(school, owner.userId, 'teacher');
+  const { spec } = preparationAdventure();
+  spec.characters.forEach(character => character.trustNotice = 'Claims need support.');
+  spec.openQuestions = [{ id: 'oq', stageId: spec.stages[0]!.id, text: 'Which concern matters?', discoveryIds: ['disc-1'] }];
+  spec.hintAngles = [{ id: 'hint', discoveryId: 'disc-1', kind: 'ask', text: 'Ask about trade.' }];
+  spec.endings.forEach(ending => {
+    ending.epilogue = 'Your simulation: ' + ending.epilogue;
+    ending.interview.verdicts.forEach(verdict => verdict.counterPoints = ['disc-1']);
+  });
+  expect(checkSpec(spec).errors).toEqual([]);
+  const inserted = await admin.from('adventures_v3').insert({ school_id: school, owner_id: owner.userId, status: 'draft', spec }).select('id').single();
+  if (inserted.error) throw inserted.error;
+  const id = inserted.data.id as string;
+  const store = new SupabaseV3PlayStore(admin);
+  const repository = new SupabaseUpgradeRepository(admin);
+  const llm = new FakeLlmClient([]);
+  const deps = { store, repository, enqueue: async () => {}, llm: () => llm, env: { V3_ENABLED: '1', V3_SCHOOL_IDS: school } };
+  const started = await startUpgrade(deps, owner.userId, id, { expectedRevision: 1 });
+  if (!started.ok) throw Error(started.message);
+  const prepared = await prepareUpgrade(deps, started.run);
+  expect(prepared?.status).toBe('ready');
+  expect(llm.requests).toHaveLength(0);
+  const persisted = await repository.get(started.run.id);
+  expect(persisted?.migrationState).toMatchObject({ completed: [{ stepId: 'evidence-preparation' },{stepId:'import-metadata'}, {stepId:'reading-text'}] });
+  const applied = await applyUpgrade(deps, owner.userId, id, { runId: started.run.id, proposalRevision: 1 });
+  expect(applied).toMatchObject({ ok: true, run: { status: 'applied', appliedRevision: 2 } });
+  expect(await store.loadVersionSpec(id, 1)).toEqual(spec);
+  expect(await store.loadVersionSpec(id, 2)).toMatchObject({ schemaVersion: CURRENT_SCHEMA_VERSION, documents: spec.documents, stages: spec.stages });
+  expect(await applyUpgrade(deps, owner.userId, id, { runId: started.run.id, proposalRevision: 1 })).toEqual(applied);
+});

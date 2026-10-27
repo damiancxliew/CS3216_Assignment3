@@ -124,7 +124,7 @@ export function V3Cinematic({
           if (!told) next();
         }}
         style={imageFailed ? {
-          background: "radial-gradient(ellipse at 55% 42%, #303631 0%, #141916 48%, #070908 100%)",
+          background: "radial-gradient(ellipse at 55% 42%, var(--surface) 0%, var(--surface-sunken) 48%, var(--paper) 100%)",
         } : undefined}
       >
         {artUrl && !imageFailed ? (

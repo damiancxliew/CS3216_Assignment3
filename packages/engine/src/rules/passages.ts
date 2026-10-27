@@ -4,6 +4,7 @@
  * discovery grants remain idempotent when the student highlights the same evidence again.
  */
 import { evaluate } from '../conditions'
+import { supportsReadingSelection } from '@adventure/spec-v3'
 import type { StepContext } from '../context'
 import type { SpecDocument } from '../spec'
 import { grantDiscovery } from './knowledge'
@@ -13,8 +14,12 @@ export function matchesKeyPassage(passage: { start: number; end: number }, start
 }
 
 export function selectPassage(ctx: StepContext, document: SpecDocument, start: number, end: number): void {
+  if (document.readingCheck !== undefined && ctx.state.readingChecks?.[document.id]?.status !== 'passed') return
   for (const passage of document.keyPassages) {
-    if (!matchesKeyPassage(passage, start, end)) continue
+    const supported = document.readingCheck === undefined
+      ? matchesKeyPassage(passage, start, end)
+      : supportsReadingSelection(document.body, [passage], start, end)
+    if (!supported) continue
     const discovery = ctx.spec.discoveries.find(
       (candidate) => 'documentId' in candidate.holder && candidate.holder.documentId === document.id && candidate.holder.keyPassageId === passage.id,
     )

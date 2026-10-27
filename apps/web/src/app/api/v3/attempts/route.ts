@@ -8,7 +8,7 @@ import { v3Enabled } from "@/lib/v3/flag";
 
 export const dynamic = "force-dynamic";
 
-const CreateAttemptRequest = z.strictObject({ adventureId: z.string().uuid() });
+const CreateAttemptRequest = z.strictObject({ versionId: z.string().uuid() });
 
 export async function POST(request: Request) {
   if (!v3Enabled()) {
@@ -25,6 +25,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await createAttempt(v3PlayDeps(), userId, parsed.data.adventureId);
+  const result = await createAttempt(v3PlayDeps(), userId, parsed.data.versionId);
   return NextResponse.json(result.body, { status: result.status });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { compactButton as button } from "@/components/ui";
 import { MediaCredit } from "@/components/play/v3/media-credit";
 import { CHARACTERS } from "@/lib/play/appearance";
@@ -15,6 +15,8 @@ import {
   createMediaAction,
   searchImagesAction,
 } from "../media-actions";
+import { AssetUpload } from "./asset-upload";
+import { PortraitStanceActions } from "./portrait-stance-actions";
 import { SpriteReview } from "./sprite-review";
 
 type EditAsset = (command: V3Edit, candidate?: MediaCandidate) => void;
@@ -94,10 +96,12 @@ function CandidateCard({
   item,
   onEdit,
   selected = false,
+  stanceActions,
 }: {
   item: MediaCandidate;
   onEdit: EditAsset;
   selected?: boolean;
+  stanceActions?: React.ReactNode;
 }) {
   const [reviewed, setReviewed] = useState(false);
   const sprite =
@@ -170,6 +174,7 @@ function CandidateCard({
           >
             {selected ? "Selected" : sprite ? "Use sheet" : "Use image"}
           </button>
+          {stanceActions}
         </>
       ) : item.state === "pending" ? (
         <p role="status" className="text-sm">
@@ -177,6 +182,48 @@ function CandidateCard({
         </p>
       ) : null}
     </article>
+  );
+}
+function CandidateDialog({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className={button.subtle}
+        aria-haspopup="dialog"
+        onClick={() => {
+          setOpen(true);
+          dialog.current?.showModal();
+        }}
+      >
+        View candidates ({count})
+      </button>
+      <dialog
+        ref={dialog}
+        aria-labelledby={titleId}
+        onClose={() => setOpen(false)}
+        className="fixed inset-0 m-auto max-h-[90dvh] w-[min(52rem,calc(100vw-2rem))] overflow-y-auto rounded-surface border-2 border-ink bg-surface p-5 text-ink shadow-xl backdrop:bg-ink/40 sm:p-6"
+      >
+        <header className="mb-4 flex items-start justify-between gap-3">
+          <h2 id={titleId} className="text-lg font-bold">{title} candidates</h2>
+          <button type="button" className={button.subtle} onClick={() => dialog.current?.close()}>
+            Close candidates
+          </button>
+        </header>
+        {open ? <div className="grid min-w-0 gap-4 sm:grid-cols-2">{children}</div> : null}
+      </dialog>
+    </>
   );
 }
 function SlotActions({
@@ -213,7 +260,6 @@ function SlotActions({
     [basis, setBasis] = useState(""),
     [confirmed, setConfirmed] = useState(false);
   const sprite = asset.kind === "sprite";
-  const fileInput = useRef<HTMLInputElement>(null);
   const base = () => ({
     target: asset.target!,
     version,
@@ -403,37 +449,16 @@ function SlotActions({
                       ? "Static PNG or WebP, 64–2048 pixels square. Four columns: down, up, left, right. Four animation rows. Transparent background in every cell."
                       : "JPEG, PNG or WebP, up to 10 MB and 40 megapixels."}
                   </p>
-                  <div>
-                    <button
-                      type="button"
-                      className={button.primary}
-                      disabled={pending || !caption.trim() || !alt.trim()}
-                      onClick={() => fileInput.current?.click()}
-                    >
-                      {sprite ? "Choose walking sheet" : "Choose image"}
-                    </button>
-                    <input
-                      ref={fileInput}
-                      hidden
-                      aria-label={sprite ? "Choose walking sheet" : "Choose image"}
-                      type="file"
-                      accept={
-                        sprite
-                          ? "image/png,image/webp"
-                          : "image/jpeg,image/png,image/webp"
-                      }
-                      disabled={pending || !caption.trim() || !alt.trim()}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = "";
-                        if (!file) return;
-                        const data = new FormData();
-                        data.set("file", file);
-                        data.set("input", JSON.stringify(base()));
-                        void run(() => uploadMediaAction(adventureId, data));
-                      }}
-                    />
-                  </div>
+                  <AssetUpload
+                    sprite={sprite}
+                    disabled={pending || !caption.trim() || !alt.trim()}
+                    onUpload={file => {
+                      const data = new FormData();
+                      data.set("file", file);
+                      data.set("input", JSON.stringify(base()));
+                      return run(() => uploadMediaAction(adventureId, data));
+                    }}
+                  />
                 </>
               ) : null}
               {mode === "ai" ? (
@@ -691,6 +716,7 @@ export function GeneratedAssets({
       if (timer) clearInterval(timer);
     };
   }, [adventureId, loading]);
+  const onCandidate = (item: MediaCandidate) => setItems(current => [item, ...current.filter(c => c.id !== item.id)]);
   const visible = assets.filter(
     (asset) =>
       (owner === "all" || asset.ownerKey === owner) &&
@@ -719,7 +745,7 @@ export function GeneratedAssets({
       <header className="space-y-2">
         <h2 className="text-xl font-bold">Assets</h2>
         <p className="text-sm text-muted">
-          Saved version {version}. Asset changes save immediately. Publish
+          Saved version {version}. Select images, then press Save to save your changes together. Publish
           separately. Image selection does not add historical
           evidence.
         </p>
@@ -869,24 +895,29 @@ export function GeneratedAssets({
                         adventureId={adventureId}
                         version={version}
                         onEdit={onEdit}
-                        onCandidate={(item) =>
-                          setItems((current) => [
-                            item,
-                            ...current.filter((c) => c.id !== item.id),
-                          ])
-                        }
+                        onCandidate={onCandidate}
                       />
                     ) : null}
-                    {onEdit
-                      ? candidates.map((item) => (
+                    {onEdit && candidates.length > 0 ? (
+                      <CandidateDialog title={asset.title} count={candidates.length}>
+                        {candidates.map((item) => (
                           <CandidateCard
                             key={item.id}
                             item={item}
                             onEdit={onEdit}
                             selected={asset.metadata?.candidateId === item.id}
+                            stanceActions={asset.kind === "portrait" && adventureId ? <PortraitStanceActions
+                              item={item}
+                              targets={assets.filter(a => a.kind === "portrait" && a.ownerKey === asset.ownerKey).map(a => ({ key: a.id, label: `${a.title}: ${a.description}` }))}
+                              adventureId={adventureId}
+                              version={version}
+                              onEdit={onEdit}
+                              onCandidate={onCandidate}
+                            /> : undefined}
                           />
-                        ))
-                      : null}
+                        ))}
+                      </CandidateDialog>
+                    ) : null}
                   </article>
                 );
               })}

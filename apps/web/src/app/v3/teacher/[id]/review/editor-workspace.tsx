@@ -1,5 +1,6 @@
 "use client";
-import React, { useMemo, useRef, useState } from "react";
+import { AdventureTransfer } from "@/components/teacher/v3-version-controls";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { reviewAssets } from "@/lib/v3/review-assets";
@@ -28,11 +29,13 @@ import {
 } from "@/lib/v3/edit/commands";
 import { AiFixPanel } from "./ai-fix-panel";
 import { saveV3AdventureEdits, fixV3EditsWithAiAction } from "../edit-actions";
+import { useBrowserDraft } from "./use-browser-draft";
 import { useUnsavedEdits } from "./use-unsaved-edits";
 import { ReviewEditorFields } from "./editor-fields";
 import { ReviewScreen } from "./review-screen";
 import { EditorConversation } from "./editor-chat-workspace";
 import { useReviewChatTarget } from "../review-chat-context";
+import { UpgradePanel } from "../upgrade-panel";
 
 type Props = {
   adventureId: string;
@@ -52,6 +55,11 @@ export function EditorWorkspace(props: Props) {
   const [publishedVersion, setPublishedVersion] = useState(
     props.publishedVersion,
   );
+  // Publication can change from the versions dialog while local edits stay open.
+  useEffect(() => {
+    setPublished(props.published);
+    setPublishedVersion(props.publishedVersion);
+  }, [props.published, props.publishedVersion]);
   const legacyStages = Object.fromEntries(
     (props.assets?.items ?? [])
       .filter((asset) => asset.kind === "stage")
@@ -67,8 +75,11 @@ export function EditorWorkspace(props: Props) {
   >({});
   const [edits, setEdits] = useState<V3Edit[]>([]);
   const [editMode, setEditMode] = useState(false);
-  const [pending, setPending] = useState(false);
-  const assetSaveInFlight = useRef(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [localPending, setPending] = useState(false);
+  const [upgradePending, setUpgradePending] = useState(false);
+  const pending = localPending || upgradePending;
+  const [recoveryConflict, setRecoveryConflict] = useState(false);
   const [message, setMessage] = useState("");
   const [failure, setFailure] = useState(false);
   const [savedErrors, setSavedErrors] = useState(props.errors);
@@ -98,6 +109,25 @@ export function EditorWorkspace(props: Props) {
       ]),
     ).values(),
   ];
+  const browserDraft = useBrowserDraft({
+    adventureId: props.adventureId,
+    value: { version, base: preserveStages(saved), edits, candidates: mediaCandidates },
+    dirty,
+    sources: props.capturedSources,
+    onRecover: recovered => {
+      setSaved(recovered.base);
+      setDraft(recovered.draft);
+      setVersion(recovered.version);
+      setEdits(recovered.edits);
+      setMediaCandidates(recovered.candidates);
+      setEditMode(true);
+      if (recovered.version !== props.initialVersion) {
+        setRecoveryConflict(true);
+        setFailure(true);
+        setMessage("The saved adventure changed while you were away. Download your recovered draft before discarding it to load the latest saved version.");
+      }
+    },
+  });
   useUnsavedEdits(dirty);
   useReviewChatTarget({
     key: `draft:${version}`,
@@ -198,43 +228,6 @@ export function EditorWorkspace(props: Props) {
     }
   };
 
-  const saveAsset = async (command: V3Edit) => {
-    if (pending || assetSaveInFlight.current) return;
-    assetSaveInFlight.current = true;
-    setPending(true);
-    setFailure(false);
-    setMessage("Saving asset…");
-    try {
-      // Persist only the asset. Replay pending story edits on the new saved version.
-      const result = await saveV3AdventureEdits(
-        props.adventureId,
-        version,
-        [command],
-      );
-      if (!result.ok) {
-        setMessage(result.message);
-        setFailure(true);
-        return;
-      }
-      setDraft(
-        applyV3Edits(result.spec, edits, props.capturedSources, true, {
-          candidates: mediaCandidates,
-        }),
-      );
-      setSaved(result.spec);
-      setVersion(result.version);
-      setSavedErrors(result.errors);
-      setMessage("Asset saved. Publish when you’re ready to share it with students.");
-      router.refresh();
-    } catch {
-      setMessage("Could not confirm the asset save. Your local story edits are still here. Try again, or reload to check the saved selection.");
-      setFailure(true);
-    } finally {
-      assetSaveInFlight.current = false;
-      setPending(false);
-    }
-  };
-
   return (
     <>
       <ReviewScreen
@@ -259,11 +252,11 @@ export function EditorWorkspace(props: Props) {
               )}
               version={version}
               adventureId={props.adventureId}
-              onEdit={saveAsset}
+              onEdit={edit}
             />
           </fieldset>
         }
-        sidebar={editMode ? <EditorConversation /> : undefined}
+        sidebar={editMode || upgradeOpen ? <EditorConversation /> : undefined}
         floatingChecks
         issueActions={
           <AiFixPanel<{ edits: V3Edit[] }>
@@ -306,6 +299,10 @@ export function EditorWorkspace(props: Props) {
         renderHeader={() => (
           <header className="space-y-4" aria-busy={pending}>
             <V3AdventureNav adventureId={props.adventureId} page="adventure" />
+            <UpgradePanel adventureId={props.adventureId} spec={saved} revision={version} dirty={dirty} disabled={localPending} onPendingChange={setUpgradePending} onReviewOpen={setUpgradeOpen} onApplied={(spec, nextVersion) => {
+              setSaved(spec); setDraft(spec); setVersion(nextVersion); setEdits([]); setSavedErrors([]); setEditMode(false);
+              setMessage('Draft saved. Preview it before publishing.'); router.refresh();
+            }} />
             <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
               <section aria-label="Draft controls" className="space-y-3 py-2">
                 <p className="text-sm font-bold">
@@ -342,7 +339,14 @@ export function EditorWorkspace(props: Props) {
                             !dirty ||
                             window.confirm("Discard your unsaved edits?")
                           ) {
-                            setDraft(saved);
+                            browserDraft.clear();
+                            if (recoveryConflict) {
+                              setSaved(props.initial);
+                              setDraft(props.initial);
+                              setVersion(props.initialVersion);
+                              setSavedErrors(props.errors);
+                              setRecoveryConflict(false);
+                            } else setDraft(saved);
                             setEdits([]);
                             setEditMode(false);
                             setMessage("Edits discarded.");
@@ -366,10 +370,11 @@ export function EditorWorkspace(props: Props) {
                       Preview
                     </Link>
                   )}
+                  <AdventureTransfer adventureId={props.adventureId} version={version} publishedVersion={publishedVersion} disabled={dirty || pending} />
                 </div>
                 {dirty ? (
                   <span className="text-sm">
-                    Unsaved edits. Save before Preview or Publish.
+                    Unsaved edits. Save before previewing, transferring or publishing.
                   </span>
                 ) : null}
               </section>
@@ -395,6 +400,16 @@ export function EditorWorkspace(props: Props) {
                 />
               </div>
             </div>
+            {browserDraft.notice ? <p role="status" className="text-sm">{browserDraft.notice}</p> : null}
+            {browserDraft.error ? <p role="alert" className="text-sm">{browserDraft.error}</p> : dirty ? <p className="text-sm text-muted">Draft kept in this browser. Press Save to create a saved version.</p> : null}
+            {recoveryConflict ? <button type="button" className={button.subtle} onClick={() => {
+              const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2)], { type: "application/json" }));
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = `recovered-adventure-${props.adventureId}.json`;
+              link.click();
+              URL.revokeObjectURL(url);
+            }}>Download recovered draft</button> : null}
             {message ? (
               <p
                 className="text-sm"
@@ -414,8 +429,10 @@ export function EditorWorkspace(props: Props) {
                     window.confirm(
                       "Reload the saved version and discard local edits?",
                     )
-                  )
+                  ) {
+                    browserDraft.clear();
                     window.location.reload();
+                  }
                 }}
               >
                 Reload saved version
