@@ -1,3 +1,4 @@
+import { createRng } from '@adventure/orchestration'
 import { supportsReadingSelection } from '@adventure/spec-v3'
 import type { Action, DocumentView } from '@adventure/play-contract'
 
@@ -34,7 +35,17 @@ export function readingCheckView(document: SpecDocument, state: EngineState): Do
   const check = document.readingCheck
   if (check === undefined) return undefined
   const progress = state.readingChecks?.[document.id] ?? initialReadingState()
-  const publicQuestion = (question: typeof check.recovery) => ({ id: question.id, prompt: question.prompt, options: question.options.map(({ id, text }) => ({ id, text })) })
+  const publicQuestion = (question: typeof check.recovery) => {
+    // Rebuild the same shuffle from the private attempt seed on every projection.
+    // No new persisted state is needed, and grading continues to use option IDs.
+    const rng = createRng(JSON.stringify(['reading-options', state.seed, document.id, question.id]))
+    const options = question.options.map(({ id, text }) => ({ id, text }))
+    for (let index = options.length - 1; index > 0; index--) {
+      const other = rng.int(0, index)
+      ;[options[index], options[other]] = [options[other]!, options[index]!]
+    }
+    return { id: question.id, prompt: question.prompt, options }
+  }
   return {
     status: progress.status,
     question: progress.status === 'unanswered' ? publicQuestion(check.variants[progress.variantIndex]!) : null,

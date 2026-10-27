@@ -18,7 +18,7 @@ Published revisions, release links, and attempts stay pinned. An upgrade writes 
 
 Save current edits, then choose **Upgrade adventure**, or request an upgrade in the existing teacher chat. Both entry points use the same registry and service. The review explains the changes before generation starts.
 
-The proposal persists while questions and stage requirements are prepared. Teachers can inspect source support, prerequisites, essential conversations, and blocking findings. Chat can refine the proposed additions. Applying always requires an explicit **Apply upgrade**, including structural-only upgrades.
+The proposal persists while questions and stage requirements are prepared. Teachers can inspect source support, prerequisites, essential conversations, and blocking findings. Chat can refine the proposed additions. Applying always requires an explicit **Apply upgrade**, including structural-only upgrades. If preparation is blocked, **Fix failed checks** retries the missing sections and keeps successful checks. Findings are grouped by document or stage. Specific revisions can be requested in chat. Source edits still require discarding the proposal, saving the draft, and preparing a new upgrade.
 
 The `1.0.0 → 2.0.0` upgrade preserves documents, historical quotations, citations, story content, IDs, and selected media. It authors missing questions and preparation using the existing evidence. If sources or discoveries are insufficient, it reports the gap and blocks applying. Edit and save the underlying adventure before rebuilding. A newer saved revision invalidates an older proposal.
 
@@ -48,6 +48,12 @@ Upgrade runs are separate from adventure generation status. They are bound to an
 Retain old snapshots and readers for migration, not a promise of perpetual runtime compatibility. Removing historical runtime branches is permitted under the best-effort policy; losing the ability to read and upgrade historical data requires a separate migration decision.
 
 ## Verification
+
+The migration recovery fix was tested with the supplied “The Cost of Resistance” ZIP: seven source documents and 28 media assets decoded successfully. A real model authored all seven reading banks and both stage requirements. The first live run exposed an unreachable held-document prerequisite; after adding handover triggers, delivery events, and stage context to authoring, retry retained all successful banks and completed the proposal. The generated proposal passed the real database proof replay and Apply transaction as `2.1.0`, with no checker errors. The original revision and publication pin remained unchanged. All 35 questions accepted their authored support and rejected whole-document highlighting. Desktop/mobile recovery tests use deterministic transport; the live model and database runs were verified separately.
+
+Reading choices, including guided corrections, are shuffled from the existing private attempt seed and question ID. An individual question keeps its order across refreshes; different attempts receive different orders. Grading uses the unchanged option IDs, and neither the answer nor the seed is exposed in the player view.
+
+PDF line wraps are treated as whitespace inside a sentence while source offsets and paragraph boundaries remain intact. This corrects the implementation of the existing complete-sentence requirement; it does not introduce a new persisted contract.
 
 The SemVer update passed 112 spec tests, 737 web API/unit tests, 255 generation tests (one existing skip), and the 43-test schema evolution gate. Web typechecking, lint, and the production build pass, with existing lint warnings. Database tests verify conversion of stored integer version columns, numeric SemVer ordering, and applying both historical integer proposals and new SemVer proposals.
 

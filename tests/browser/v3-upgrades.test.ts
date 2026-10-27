@@ -46,7 +46,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === '1')('reviews, refines, resume
         function App(){const [spec,setSpec]=useState(original);const [revision,setRevision]=useState(3);const [dirty,setDirty]=useState(false);
           useReviewChatTarget({key:'draft',revision:String(revision),pending:false,input:{pass:'draft',version:revision,edits:[]},apply:()=>{}});
           return <main className="mx-auto max-w-4xl space-y-4 p-4"><h1>Adventure editor</h1><p data-revision>Draft revision {revision}</p>
-            <button onClick={()=>setDirty(!dirty)}>Toggle unsaved changes</button><button onClick={()=>setRevision(revision+1)}>Save external revision</button><button onClick={()=>save({...stored,status:'failed',candidate:null,error:'Provider temporarily unavailable.'})}>Simulate saved failure</button>
+            <button onClick={()=>setDirty(!dirty)}>Toggle unsaved changes</button><button onClick={()=>setRevision(revision+1)}>Save external revision</button><button onClick={()=>save({...stored,status:'failed',candidate:null,error:'Provider temporarily unavailable.'})}>Simulate saved failure</button><button onClick={()=>save({...stored,status:'blocked',findings:[{code:'upgrade-content',path:'documents.0.readingCheck.variants.0.support',message:'Support must quote a complete source sentence.'},{code:'upgrade-content',path:'documents.0.readingCheck.variants.1.support',message:'Support must quote a complete source sentence.'}]})}>Simulate blocked check</button>
             <UpgradePanel adventureId="adventure" spec={spec} revision={revision} dirty={dirty} actions={actions} onApplied={(spec,revision)=>{setSpec(spec);setRevision(revision);}} />
             <ReviewChatComposer adventureId="adventure" onConversation={()=>{}} />
           </main>;
@@ -82,6 +82,17 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === '1')('reviews, refines, resume
       await page.getByRole('button',{name:'Discard proposal'}).click()
       await page.getByRole('button',{name:'Prepare upgrade'}).click()
       await page.getByRole('heading',{name:'Reading checks'}).waitFor()
+      expect(await page.locator('[data-revision]').textContent()).toContain('3')
+      await page.getByRole('button',{name:'Simulate blocked check'}).click()
+      await page.reload()
+      await page.getByRole('heading',{name:'Some checks need fixing'}).waitFor()
+      expect(await page.getByRole('button',{name:'Apply upgrade'}).isDisabled()).toBe(true)
+      expect(await page.getByText(/Support must quote a complete source sentence/).count()).toBe(1)
+      await mkdir('output/v3-schema-upgrade-check',{recursive:true})
+      await page.screenshot({path:`output/v3-schema-upgrade-check/${width}-blocked.png`,fullPage:true})
+      await page.getByRole('button',{name:'Fix failed checks'}).click()
+      await page.getByRole('button',{name:'Apply upgrade'}).waitFor()
+      expect(await page.getByRole('button',{name:'Apply upgrade'}).isEnabled()).toBe(true)
       expect(await page.locator('[data-revision]').textContent()).toContain('3')
       await page.getByRole('button',{name:'Simulate saved failure'}).click()
       await page.reload()

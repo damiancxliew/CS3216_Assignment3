@@ -467,3 +467,46 @@ describe('preparation and essential conversations', () => {
     expect(game.state.characters.a?.stanceId).toBe(expected)
   })
 })
+
+describe('attempt-specific reading option order', () => {
+  it('varies options between attempts while keeping each view stable and private', async () => {
+    const spec = checkedSpec();
+    const original = structuredClone(spec.documents[0]!.readingCheck);
+    const game = new Harness(spec);
+    await game.start();
+    await openLetter(game);
+    const orders = new Set<string>();
+    for (let attempt = 0; attempt < 24; attempt++) {
+      game.state.seed = `student-attempt-${attempt}`;
+      const first = project(spec, game.state);
+      const restored = project(spec, JSON.parse(JSON.stringify(game.state)));
+      const question = first.documents.find(d => d.id === 'letter')!.readingCheck!.question!;
+      expect(restored.documents.find(d => d.id === 'letter')!.readingCheck!.question).toEqual(question);
+      expect(question.options.map(option => option.id).sort()).toEqual(['b', 'c', 'supported']);
+      expect(question).not.toHaveProperty('correctOptionId');
+      expect(question).not.toHaveProperty('support');
+      orders.add(question.options.map(option => option.id).join(','));
+    }
+    expect(orders.size).toBe(6);
+    expect(spec.documents[0]!.readingCheck).toEqual(original);
+    const view = await game.act(answer());
+    expect(view.documents.find(d => d.id === 'letter')!.readingCheck!.status).toBe('passed');
+  });
+  it('also shuffles the guided correction consistently without changing grading', async () => {
+    const game = new Harness(checkedSpec());
+    await game.start();
+    await openLetter(game);
+    await game.act(answer('q1', 'b'));
+    const orders = new Set<string>();
+    for (let attempt = 0; attempt < 24; attempt++) {
+      game.state.seed = `student-attempt-${attempt}`;
+      const first = project(game.spec, game.state).documents.find(d => d.id === 'letter')!.readingCheck!;
+      const again = project(game.spec, game.state).documents.find(d => d.id === 'letter')!.readingCheck!;
+      expect(first.recovery).toEqual(again.recovery);
+      orders.add(first.recovery!.options.map(option => option.id).join(','));
+    }
+    expect(orders.size).toBe(6);
+    await game.act(answer('correction', 'supported', LETTER_KEY, true));
+    expect(game.view?.documents.find(d => d.id === 'letter')!.readingCheck!.question!.id).toBe('q2');
+  });
+});
