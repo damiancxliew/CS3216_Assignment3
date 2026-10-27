@@ -33,8 +33,11 @@ describe("same-origin sprite delivery", () => {
   });
   it("rejects arbitrary URLs and paths without touching storage", async () => {
     vi.stubEnv("ASSET_BUCKET", "test"); vi.stubEnv("ASSET_PUBLIC_BASE_URL", base);
-    for (const value of ["https://127.0.0.1/secret", `../${path}`, path.replace(".png", ".svg"), "v3/portraits/secret.png"])
-      expect((await request(value)).status).toBe(404);
+    for (const value of ["https://127.0.0.1/secret", `../${path}`, path.replace(".png", ".svg"), "v3/portraits/secret.png"]) {
+      const response = await request(value);
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ error: { code: "not_found", message: "Sprite not found." } });
+    }
     expect(download).not.toHaveBeenCalled();
   });
   it("does not cache storage failures as images", async () => {
@@ -43,6 +46,17 @@ describe("same-origin sprite delivery", () => {
     const response = await request(path);
     expect(response.status).toBe(502);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.text()).not.toContain("private storage");
+    expect(await response.json()).toEqual({ error: { code: "asset_unavailable", message: "Sprite unavailable." } });
+  });
+  it("returns uncached JSON errors for missing and oversized stored images", async () => {
+    vi.stubEnv("ASSET_BUCKET", "test"); vi.stubEnv("ASSET_PUBLIC_BASE_URL", base);
+    download.mockResolvedValueOnce(null).mockResolvedValueOnce(new Uint8Array(10 * 1024 * 1024 + 1));
+    for (const status of [404, 502]) {
+      const response = await request(path);
+      expect(response.status).toBe(status);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("content-type")).toContain("application/json");
+      expect(await response.json()).toHaveProperty("error.code", status === 404 ? "not_found" : "asset_unavailable");
+    }
   });
 });
