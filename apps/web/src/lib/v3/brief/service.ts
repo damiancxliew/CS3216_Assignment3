@@ -17,8 +17,8 @@ export async function requireStaff(): Promise<{ viewer: Viewer; userId: string; 
   if (!v3Enabled()) return notFound;
   const supabase = await createClient();
   const viewer = await getViewer(supabase);
-  if (!viewer.user || !isStaff(viewer) || !viewer.membership) return notFound;
-  return { viewer, userId: viewer.user.id, schoolId: viewer.membership.organizationId };
+  if (!viewer.user || (!isStaff(viewer) && !viewer.isSysadmin) || (!viewer.membership && !viewer.isSysadmin)) return notFound;
+  return { viewer, userId: viewer.user.id, schoolId: viewer.membership?.organizationId ?? "" };
 }
 
 /** Loads a briefing row and checks the caller owns it and the school is allowed. */

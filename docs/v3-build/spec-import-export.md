@@ -5,10 +5,9 @@ On **Your adventures**, expand **Import adventure**, choose a ZIP or JSON file, 
 teacher in their current school, then opens the editor. Existing adventures and
 published versions are untouched. This requires v3 access for the school.
 
-In the adventure editor, **Export ZIP** downloads the saved draft with selected
-artwork and custom sprites, while **Export JSON** downloads the spec with media
-URL references. Save any local edits first. The guided creation page offers
-**Export saved ZIP** and **Export saved JSON** once its draft is ready.
+Open **Import / export** in the editor or a completed guided draft. **Download
+ZIP** includes selected artwork and custom sprites; **Download JSON** keeps media
+URL references. Save local edits before opening the dialog.
 
 ZIP archives contain `adventure.json` (the JSON bundle below), `assets.json`
 (the original URL → archive path manifest), and media bytes in `assets/`.
@@ -58,7 +57,7 @@ referenced media must remain hosted and accessible.
 
 ## Updating an existing adventure and managing versions
 
-In the editor, **Import ZIP update** uploads a ZIP as the next saved version of
+In **Import / export**, **Import as new version** uploads a ZIP as the next saved version of
 the same adventure. It replaces the editable draft and source text, retaining
 earlier spec and source snapshots. An import never changes the live version.
 If another author saves or publishes while the file is uploading, the import
@@ -70,6 +69,10 @@ publication), and **View attempts**, with an attempt count. Publishing an older
 snapshot changes the live pointer without replacing the latest draft or moving
 student attempts. The chosen snapshot is validated using its captured source
 text and checks before publication. Invalid versions remain saved for review.
+
+School admins can open and edit adventures owned by other teachers in their
+school, including import/export, version publication, and editor chat. System
+admins can manage adventures across schools without a school membership.
 
 Deploy `20261027010000_v3_version_import.sql` before this code. The additive
 migration introduces source/check snapshots and transactional import and

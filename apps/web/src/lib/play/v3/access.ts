@@ -1,4 +1,4 @@
-import { v3SchoolAllowed } from "@/lib/v3/flag";
+import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
 
 import type { V3Adventure, V3PlayStore } from "./store";
 
@@ -8,8 +8,7 @@ export async function canStaffAdventure(
   userId: string,
   env?: NodeJS.ProcessEnv,
 ): Promise<boolean> {
-  return (
-    v3SchoolAllowed(adventure.schoolId, env) &&
-    (adventure.ownerId === userId || (await store.isSchoolAdmin(adventure.schoolId, userId)))
-  );
+  if (v3SchoolAllowed(adventure.schoolId, env))
+    return adventure.ownerId === userId || await store.isSchoolAdmin(adventure.schoolId, userId);
+  return v3Enabled(env) && !!(await store.isPlatformAdmin?.(userId));
 }

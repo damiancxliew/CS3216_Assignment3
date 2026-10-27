@@ -1,7 +1,7 @@
 import { validateSpec } from "@adventure/spec-v3";
 import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/v3/brief/service";
-import { v3SchoolAllowed } from "@/lib/v3/flag";
+import { canAccessV3Authoring } from "@/lib/v3/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { supabaseV3SourceStore } from "@/lib/v3/generation/deps";
 import { specExport } from "@/lib/v3/spec-transfer";
@@ -18,7 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const admin = createAdminClient();
   const { data, error } = await admin.from("adventures_v3").select("owner_id,school_id,spec,spec_version,status").eq("id", id).maybeSingle();
   if (error) return NextResponse.json({ error: "Could not export adventure" }, { status: 500 });
-  if (!data || data.owner_id !== auth.userId || !v3SchoolAllowed(data.school_id) || !["draft", "published", "archived"].includes(data.status)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!data || !canAccessV3Authoring(auth.viewer, { ownerId: data.owner_id, schoolId: data.school_id }) || !["draft", "published", "archived"].includes(data.status)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const parsed = validateSpec(data.spec);
   if (!parsed.ok) return NextResponse.json({ error: "This adventure does not have a valid saved spec." }, { status: 409 });
   try {
