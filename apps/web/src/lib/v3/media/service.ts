@@ -11,7 +11,7 @@ import {
   providerMetadata,
   RESOURCE_PROVIDERS,
 } from "./providers";
-import { isSprite, validTarget } from "./resolvers";
+import { characterPortraitKeys, isSprite, validTarget } from "./resolvers";
 import type { MediaCandidate, MediaRepository } from "./repository";
 export const MediaTargetInput = z.strictObject({
   kind: z.enum(["stage", "portrait", "playerSprite", "characterSprite"]),
@@ -46,6 +46,7 @@ export const CreateMediaInput = z.discriminatedUnion("origin", [
   MediaInput.extend({
     origin: z.literal("ai"),
     appearance: z.string().trim().min(1).max(2000),
+    referenceCandidateId: z.string().uuid().optional(),
   }),
 ]);
 export type CreateMediaInput = z.infer<typeof CreateMediaInput>;
@@ -159,6 +160,22 @@ export async function uploadMedia(
   }
   return (await deps.media.get(adventureId, item.id))!;
 }
+/** Only stored, ready portraits belonging to the same character can be AI references. */
+export async function portraitReference(
+  media: MediaRepository,
+  adventureId: string,
+  spec: AdventureSpec,
+  input: Extract<CreateMediaInput, { origin: "ai" }>,
+) {
+  if (!input.referenceCandidateId) return null;
+  const source = await media.get(adventureId, input.referenceCandidateId);
+  if (input.target.kind !== "portrait" || !source || source.adventureId !== adventureId || source.state !== "ready" ||
+      source.target.kind !== "portrait" || !source.snapshot?.storageKey || source.snapshot.candidateId !== source.id ||
+      source.snapshot.format === "external" ||
+      !characterPortraitKeys(spec, input.target.key).includes(source.target.key))
+    throw Error("Choose a ready, uploaded or generated portrait of this character as the reference.");
+  return source.snapshot;
+}
 export async function createMedia(
   deps: MediaDeps,
   userId: string,
@@ -173,6 +190,7 @@ export async function createMedia(
     input.version,
   );
   if (!validTarget(spec, input.target)) throw Error("Asset slot unavailable.");
+  if (input.origin === "ai") await portraitReference(deps.media, adventureId, spec, input);
   if (isSprite(input.target) && input.origin !== "ai")
     throw Error(
       "Use bundled sprites, upload a walking sheet, or generate with AI.",

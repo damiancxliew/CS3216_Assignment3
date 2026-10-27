@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Action, PlayerView } from "@adventure/play-contract";
 import type { Point } from "@adventure/game-core";
 import type { StageExperience } from "@/components/play/v3/stage-play-screen";
-import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3CardDialog } from "@/components/play/v3/card-dialog";
 import { chapterTasks } from "@/lib/demo/chapter-progress";
 import { STORY_EXIT, storyExitLabels, RESISTANCE_DOORS } from "@/lib/demo/story-maps";
 import { demoScenery, type DemoV3State } from "@/lib/demo/v3-session";
@@ -215,7 +215,7 @@ export function useChapterExperience(
             />
           )}
           {record === "locked" && (
-            <V3ScrollDialog
+            <V3CardDialog
               title="Before you leave"
               footerText="Explore · speak · recommend"
               eyebrow={storyExitLabels[index]}
@@ -230,10 +230,10 @@ export function useChapterExperience(
                     <p key={t.id}>{t.label}</p>
                   ))}
               </div>
-            </V3ScrollDialog>
+            </V3CardDialog>
           )}
           {record === "portraits" && (
-            <V3ScrollDialog
+            <V3CardDialog
               title="The people behind the portraits"
               footerText="Real photographs · illustrated likeness sprites"
               eyebrow={chapter.title}
@@ -270,7 +270,7 @@ export function useChapterExperience(
                     </figure>
                   ))}
               </div>
-            </V3ScrollDialog>
+            </V3CardDialog>
           )}
           {record && record !== "locked" && record !== "portraits" && (
             <DiscoveryRecord id={record} onClose={close} />

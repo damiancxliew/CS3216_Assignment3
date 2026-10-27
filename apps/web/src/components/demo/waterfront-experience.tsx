@@ -4,7 +4,7 @@ import type { Action, PlayerView } from "@adventure/play-contract";
 import type { Point } from "@adventure/game-core";
 import type { StageExperience } from "@/components/play/v3/stage-play-screen";
 import { NoticeboardDialog } from "./evidence-dialog";
-import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3CardDialog } from "@/components/play/v3/card-dialog";
 import {
   BOARDING_POINT,
   WATERFRONT_DOORS,
@@ -168,7 +168,7 @@ export function useWaterfrontExperience(
         document.querySelector<HTMLCanvasElement>("canvas")?.focus(),
       );
     };
-    const ActivityFrame = activity === "news" ? NoticeboardDialog : V3ScrollDialog;
+    const ActivityFrame = activity === "news" ? NoticeboardDialog : V3CardDialog;
     return {
       scenery: {
         authored,

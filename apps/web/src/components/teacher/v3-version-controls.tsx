@@ -8,6 +8,7 @@ import { compactButton as button } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
 import { updateAdventureFromZip } from "@/app/v3/teacher/import-actions";
 import { getV3SavedVersions } from "@/app/v3/teacher/[id]/version-actions";
+import { PublicationAttribution } from "./v3-publication-attribution";
 import { publishSavedV3Version } from "@/app/v3/teacher/[id]/publish-actions";
 
 export function AdventureTransfer({ adventureId, version, publishedVersion, disabled = false }: {
@@ -80,8 +81,8 @@ export function AdventureVersions({ adventureId }: { adventureId: string }) {
       } catch { setFailure(true); setMessage("Could not publish this version. Try again."); }
     });
   };
-  const copy = async (version: number, linkKey: string) => {
-    const url = new URL(`/v3/join/${encodeURIComponent(adventureId)}?release=${encodeURIComponent(linkKey)}`, window.location.origin).href;
+  const copy = async (version: number, versionId: string) => {
+    const url = new URL(`/v3/join/${encodeURIComponent(versionId)}`, window.location.origin).href;
     try { await navigator.clipboard.writeText(url); setCopied(version); }
     catch { setMessage(`Copy this link: ${url}`); setFailure(false); }
   };
@@ -109,8 +110,9 @@ export function AdventureVersions({ adventureId }: { adventureId: string }) {
                     </button>
                     {live !== row.version ? <button type="button" disabled={pending} onClick={() => publish(row.version)} className={button.primary}>{pending && selected === row.version ? "Publishing…" : `Publish v${row.version}`}</button> : null}
                   </div>
+                  {row.publication ? <PublicationAttribution publication={row.publication} /> : null}
                   <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-3 text-sm">
-                    <button type="button" disabled={!row.linkKey} title={!row.linkKey ? "Publish this version to create its student link." : undefined} onClick={() => row.linkKey && copy(row.version, row.linkKey)} className="inline-flex items-center gap-1.5 font-semibold text-muted hover:text-ink disabled:opacity-50"><Copy className="size-4" aria-hidden />{copied === row.version ? "Copied" : "Copy link"}</button>
+                    <button type="button" disabled={!row.versionId} title={!row.versionId ? "Publish this version to create its student link." : undefined} onClick={() => row.versionId && copy(row.version, row.versionId)} className="inline-flex items-center gap-1.5 font-semibold text-muted hover:text-ink disabled:opacity-50"><Copy className="size-4" aria-hidden />{copied === row.version ? "Copied" : "Copy link"}</button>
                     <Link href={`/v3/teacher/${adventureId}/summary?version=${row.version}`} className="inline-flex items-center gap-1.5 font-semibold text-muted underline underline-offset-4 hover:text-ink"><ExternalLink className="size-4" aria-hidden />View attempts ({row.attempts})</Link>
                   </div>
                 </li>

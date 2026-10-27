@@ -41,6 +41,7 @@ it.runIf(process.env.RUN_CINEMATIC_BROWSER_TESTS === "1")(
               return (
                 await transformWithEsbuild(
                   `
+          import '/src/app/globals.css';
           import React, {useState} from 'react';
           import {createRoot} from 'react-dom/client';
           import {V3Cinematic} from '/src/components/play/v3/v3-cinematic.tsx';

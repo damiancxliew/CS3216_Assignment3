@@ -15,10 +15,11 @@ import { NotePickup, useNotePickups } from "@/components/play/v3/note-pickup";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { StoryToast, talkLines, useStanceShifts, useStoryToasts } from "@/components/play/v3/story-lines";
 import { StageIsland } from "@/components/play/v3/stage-island";
-import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3CardDialog } from "./card-dialog";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import { V3Map } from "@/components/play/v3/v3-map";
 import { guidanceWasSeen, rememberGuidance } from "./preparation-dialog";
+import { PreparationProgress } from "./preparation-progress";
 import { StagePreparationGuidance, type StageGuidance } from "./stage-preparation-guidance";
 
 export function v3InsertNoteAction(characterId: string, noteId: string, text?: string): Action {
@@ -299,7 +300,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               className="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 sm:bottom-3 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
             >
               {touch ? "Tap to talk to" : "Press E to talk to"} {nearbyCharacter.name}
-              {nearbyCharacter.preparation && !nearbyCharacter.preparation.ready ? <span className="mt-0.5 block text-xs font-semibold">Preparation: {nearbyCharacter.preparation.completed} of {nearbyCharacter.preparation.required}</span> : null}
+              {nearbyCharacter.preparation && !nearbyCharacter.preparation.ready ? <PreparationProgress label="Preparation" completed={nearbyCharacter.preparation.completed} required={nearbyCharacter.preparation.required} /> : null}
             </button>
           ) : null}
 
@@ -370,7 +371,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                   <p className="text-xs text-[#5c6472]">
                     You are in {view.rooms.find((room) => room.id === view.currentRoomId)?.name ?? "an unknown room"}
                   </p>
-                  {preparation ? <div className="space-y-1 text-xs" role="status" aria-live="polite"><p>Evidence preparation: {preparation.completed} of {preparation.required}</p><p>Essential conversations: {completedConversations} of {essential.length}</p></div> : null}
+                  {preparation ? <div className="space-y-1 text-xs" role="status" aria-live="polite"><PreparationProgress label="Evidence preparation" completed={preparation.completed} required={preparation.required} /><PreparationProgress label="Essential conversations" completed={completedConversations} required={essential.length} /></div> : null}
                   {experience?.hideDecision ? null : preparation ? (
                     <button type="button" disabled={busy || isTalkOpen} onClick={() => setGuidance({ type: preparation.ready ? "confirm" : "decision" })} aria-haspopup="dialog" className={`${styles.primary} min-h-11 px-3 text-xs font-black disabled:opacity-50`}>Review stage decision</button>
                   ) : confirmEndStage ? (
@@ -443,10 +444,10 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
       /> : null}
 
       {notesOpen ? (
-        <V3ScrollDialog
-          eyebrow="Your notes"
+        <V3CardDialog
+          kind="notes"
           title="Your notes"
-          kicker="From your travels"
+          eyebrow="From your travels"
           footerText="A record of your discoveries"
           closeLabel="Close notes"
           onClose={() => setNotesOpen(false)}
@@ -460,7 +461,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               submitV3NoteInsert(characterId, noteId, undefined, send, () => setNotesOpen(false));
             }}
           />
-        </V3ScrollDialog>
+        </V3CardDialog>
       ) : null}
 
       {storyToasts.current ? (

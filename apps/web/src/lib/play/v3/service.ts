@@ -82,7 +82,8 @@ async function permittedAdventure(
   if (
     !adventure ||
     !v3SchoolAllowed(adventure.schoolId, deps.env) ||
-    !(await deps.store.isActiveMember(adventure.schoolId, userId))
+    (!(adventure.isPublic && adventure.status === "published") &&
+      !(await deps.store.isActiveMember(adventure.schoolId, userId)))
   ) {
     return null;
   }
@@ -111,48 +112,33 @@ async function currentView(deps: V3PlayServiceDeps, attempt: V3Attempt) {
   return spec ? engine.project(spec, attempt.state as EngineState) : null;
 }
 
+/** Student entry accepts one immutable published-version ID. */
 export async function createAttempt(
   deps: V3PlayServiceDeps,
   userId: string,
-  adventureId: string,
-  release?: string,
+  versionId: string,
 ): Promise<ServiceResponse> {
-  let adventure = await permittedAdventure(deps, userId, adventureId);
+  const publication = await deps.store.loadPublication(versionId);
+  if (!publication) return error(404, "not_found", "Not found.");
+  const adventure = await permittedAdventure(deps, userId, publication.adventureId);
   if (!adventure) return error(404, "not_found", "Not found.");
-  if (adventure.status !== "published" || adventure.spec === null) {
+  if (adventure.status !== "published")
     return error(409, "not_open", "This adventure is not open for play.");
-  }
-
-  const publication = release ? (await deps.store.listPublications(adventureId)).find(p => p.linkKey === release) : undefined;
-  if (release && !publication) return error(404, "not_found", "Not found.");
-  const existing = await deps.store.findLatestAttempt(adventure.id, userId, publication?.version);
+  const existing = await deps.store.findLatestAttempt(adventure.id, userId, publication.version);
   if (existing) {
     const view = await currentView(deps, existing);
     if (!view) return incompatibleSpec();
-    return {
-      status: 200,
-      body: { attemptId: existing.id, revision: existing.revision, view, resumed: true },
-    };
+    return { status: 200, body: { attemptId: existing.id, revision: existing.revision, view, resumed: true } };
   }
-
-  for (let retry = 0; retry < 3; retry++) {
-    if (adventure.status !== "published" || adventure.publishedVersion == null) return error(409, "not_open", "This adventure is not open for play.");
-    const version = publication?.version ?? adventure.publishedVersion;
-    const rawSpec = await deps.store.loadVersionSpec(adventure.id, version);
-    const decoded = decodeStoredSpec(rawSpec);
-    if (!decoded.ok) return incompatibleSpec();
-    const spec = decoded.spec;
-    const state = engine.createState(spec, crypto.randomUUID());
-    const attempt = await deps.store.createAttempt({ adventureId: adventure.id, specVersion: version, studentId: userId, state, ...(release ? { release } : {}) });
-    if (attempt) return {
-      status: 201,
-      body: { attemptId: attempt.id, revision: attempt.revision, view: engine.project(spec, state), resumed: false },
-    };
-    const latest = await permittedAdventure(deps, userId, adventureId);
-    if (!latest) return error(404, "not_found", "Not found.");
-    adventure = latest;
-  }
-  return error(409, "conflict", "Publication changed. Try starting again.");
+  const rawSpec = await deps.store.loadVersionSpec(adventure.id, publication.version);
+  const decoded = decodeStoredSpec(rawSpec);
+  if (!decoded.ok) return incompatibleSpec();
+  const spec = decoded.spec;
+  const state = engine.createState(spec, crypto.randomUUID());
+  const attempt = await deps.store.createAttempt({ adventureId: adventure.id, specVersion: publication.version,
+    versionId: publication.id, studentId: userId, state });
+  if (!attempt) return error(409, "conflict", "This version is no longer open for play.");
+  return { status: 201, body: { attemptId: attempt.id, revision: attempt.revision, view: engine.project(spec, state), resumed: false } };
 }
 
 export async function getAttempt(
@@ -165,7 +151,7 @@ export async function getAttempt(
     !attempt ||
     attempt.studentId !== userId ||
     !v3SchoolAllowed(attempt.schoolId, deps.env) ||
-    !(await deps.store.isActiveMember(attempt.schoolId, userId))
+    !(await permittedAdventure(deps, userId, attempt.adventureId))
   ) {
     return error(404, "not_found", "Not found.");
   }
@@ -192,7 +178,7 @@ export async function postAction(
     !attempt ||
     attempt.studentId !== userId ||
     !v3SchoolAllowed(attempt.schoolId, deps.env) ||
-    !(await deps.store.isActiveMember(attempt.schoolId, userId))
+    !(await permittedAdventure(deps, userId, attempt.adventureId))
   ) {
     return error(404, "not_found", "Not found.");
   }

@@ -26,7 +26,6 @@ async function run(
     return { ok: false, message: body.error.message };
   }
   revalidatePath(`/v3/teacher/${adventureId}`, "layout");
-  revalidatePath(`/v3/join/${adventureId}`);
   return { ok: true, status: (result.body as { status: string }).status };
 }
 
@@ -45,7 +44,6 @@ export async function publishSavedV3Version(adventureId: string, selected: numbe
   const result = await publishSelectedVersion(v3PublishDeps(), user.id, adventureId, selected, expected);
   if (result.status !== 200) return { ok: false, message: (result.body as { error: { message: string } }).error.message };
   revalidatePath(`/v3/teacher/${adventureId}`, "layout");
-  revalidatePath(`/v3/join/${adventureId}`);
   revalidatePath("/teacher");
   return { ok: true, status: "published" };
 }
@@ -58,7 +56,7 @@ export async function currentV3StudentLink(adventureId: string): Promise<{ ok: t
   const deps = v3PublishDeps();
   const { loadPublicationHistory } = await import('@/lib/play/v3/publication-history');
   const history = await loadPublicationHistory(deps, user.id, adventureId);
-  const current = history?.rows.find(row => row.live && row.linkKey);
+  const current = history?.rows.find(row => row.live && row.id);
   if (!current) return { ok: false, message: 'Publish the current draft before copying its student link.' };
-  return { ok: true, path: `/v3/join/${encodeURIComponent(adventureId)}?release=${encodeURIComponent(current.linkKey)}` };
+  return { ok: true, path: `/v3/join/${encodeURIComponent(current.id)}` };
 }

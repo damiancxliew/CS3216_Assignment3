@@ -52,7 +52,7 @@ export async function publishAdventure(
   if (!adventure) return error(404, "not_found", "Not found.");
   const reason = await publishBlockReason(deps, adventure);
   if (reason) return error(409, "not_ready", reason);
-  if (!(await deps.store.publishVersion(adventure.id, expected?.version ?? adventure.specVersion, expected ? expected.publishedVersion : adventure.publishedVersion ?? null, true))) return error(409, "conflict", "This adventure changed. Reload before publishing.");
+  if (!(await deps.store.publishVersion(adventure.id, expected?.version ?? adventure.specVersion, expected ? expected.publishedVersion : adventure.publishedVersion ?? null, true, undefined, userId))) return error(409, "conflict", "This adventure changed. Reload before publishing.");
   return { status: 200, body: { status: "published" } };
 }
 
@@ -99,10 +99,11 @@ export type V3JoinView =
 export async function loadJoinView(
   deps: V3PublishDeps,
   userId: string | null,
-  adventureId: string,
-  release?: string,
+  versionId: string,
 ): Promise<V3JoinView> {
-  const adventure = await deps.store.loadAdventure(adventureId);
+  const publication = await deps.store.loadPublication(versionId);
+  if (!publication) return { kind: "closed" };
+  const adventure = await deps.store.loadAdventure(publication.adventureId);
   if (
     !adventure ||
     adventure.status !== "published" ||
@@ -111,12 +112,10 @@ export async function loadJoinView(
   ) {
     return { kind: "closed" };
   }
-  const publication = release ? (await deps.store.listPublications(adventureId)).find(p => p.linkKey === release) : undefined;
-  if (release && !publication) return { kind: "closed" };
-  const version = publication?.version ?? adventure.publishedVersion;
-  const published = version == null ? null : await deps.store.loadVersionSpec(adventure.id, version);
+  const published = await deps.store.loadVersionSpec(adventure.id, publication.version);
   if (!published) return { kind: "closed" };
   const title = specTitle(published);
+  if (adventure.isPublic) return { kind: "ready", title };
   if (!userId) return { kind: "sign_in", title };
   if (!(await deps.store.isActiveMember(adventure.schoolId, userId))) return { kind: "not_member", title };
   return { kind: "ready", title };

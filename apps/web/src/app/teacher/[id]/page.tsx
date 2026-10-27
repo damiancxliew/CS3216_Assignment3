@@ -5,6 +5,7 @@ import { ArrowLeft, Check } from "lucide-react";
 
 import { DossierSections } from "./dossier";
 import { BriefEditor } from "./brief-editor";
+import { AdventureAccess } from "@/components/teacher/adventure-access";
 import { SharePanel } from "./share-panel";
 import type { GenerationJob } from "./story-generation";
 import {
@@ -50,6 +51,7 @@ const EDITOR_TABS: { id: EditorTab; label: string }[] = [
 ];
 
 type Adventure = {
+  is_public: boolean;
   id: string;
   student_role: string | null;
   learning_objectives: string[] | null;
@@ -108,7 +110,7 @@ export default async function AdventurePage({
   // authoring view matches the owner rather than relying on visibility alone.
   const { data: ownedAdventure } = await supabase
     .from("adventure")
-    .select("id, title, setting, status, published_version, assets_ready, default_timer_seconds, allow_retries, share_token, student_role, learning_objectives, reading_level, stage_outline")
+    .select("id, title, setting, status, published_version, assets_ready, default_timer_seconds, allow_retries, is_public, share_token, student_role, learning_objectives, reading_level, stage_outline")
     .eq("id", id)
     .eq("owner_id", user.id)
     .maybeSingle<Adventure>();
@@ -120,7 +122,7 @@ export default async function AdventurePage({
     adminClient = createAdminClient();
     const { data: candidate } = await adminClient
       .from("adventure")
-      .select("id, title, setting, status, published_version, assets_ready, default_timer_seconds, allow_retries, share_token, student_role, learning_objectives, reading_level, stage_outline, organization_id")
+      .select("id, title, setting, status, published_version, assets_ready, default_timer_seconds, allow_retries, is_public, share_token, student_role, learning_objectives, reading_level, stage_outline, organization_id")
       .eq("id", id)
       .maybeSingle<Adventure & { organization_id: string | null }>();
     if (!candidate) notFound();
@@ -409,6 +411,7 @@ export default async function AdventurePage({
       </>}
 
       <Section title="Share with students">
+        <AdventureAccess adventureId={adventure.id} kind="v2" isPublic={adventure.is_public} />
         <SharePanel
           adventureId={adventure.id}
           token={adventure.share_token}

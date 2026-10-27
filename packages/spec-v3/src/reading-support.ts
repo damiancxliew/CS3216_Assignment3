@@ -4,15 +4,26 @@ export type SourceSpan = { start: number; end: number }
 export function sourceSentenceSpans(body: string): SourceSpan[] {
   const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' })
   const result: SourceSpan[] = []
-  for (const paragraph of body.matchAll(/[^\r\n]+/g)) {
+  // PDF extraction wraps sentences at column boundaries. Replace only soft
+  // breaks with equal-length spaces so offsets still address the original text.
+  const segmented = body.replace(/([^\r\n]*)(\r?\n)/g, (match, line: string, newline: string, offset: number) => {
+    const nextStart = offset + match.length
+    const nextBreak = body.indexOf('\n', nextStart)
+    const next = body.slice(nextStart, nextBreak < 0 ? body.length : nextBreak)
+    const hardBreak = !line.trim() || !next.trim()
+      || /[.!?][”’"')\]]*\s*$/.test(line)
+      || /^\s*(?:[ivxlcdm]+[.)]|\d+[.)]|[-•])\s/i.test(next)
+    return line + (hardBreak ? newline : ' '.repeat(newline.length))
+  })
+  for (const paragraph of segmented.matchAll(/[^\r\n]+/g)) {
     const pieces: SourceSpan[] = []
     for (const part of segmenter.segment(paragraph[0])) {
       const text = part.segment, leading = text.length - text.trimStart().length
       const start = paragraph.index! + part.index + leading, end = paragraph.index! + part.index + text.trimEnd().length
       if (end <= start) continue
       const previous = pieces.at(-1)
-      // ICU separates common titles from names; keep them with the following sentence.
-      if (previous && /\b(?:Mr|Mrs|Ms|Dr|Prof|Capt|Lt|St|Gen|Col)\.$/.test(body.slice(previous.start, previous.end))) previous.end = end
+      // ICU separates titles and list markers; keep them with the following sentence.
+      if (previous && (/\b(?:Mr|Mrs|Ms|Dr|Prof|Capt|Lt|St|Gen|Col)\.$/.test(body.slice(previous.start, previous.end)) || /^[ivxlcdm]+\.$/i.test(body.slice(previous.start, previous.end)))) previous.end = end
       else pieces.push({ start, end })
     }
     result.push(...pieces)

@@ -1,3 +1,4 @@
+import { cleanReadingDocument } from '@adventure/spec-v3';
 import { describe, it, expect } from 'vitest';
 import { FakeLlmClient } from '@adventure/generation/llm';
 import { MemoryV3PlayStore } from '@/lib/play/v3/store';
@@ -111,6 +112,8 @@ describe('content migration', () => {
         expect(candidate.stages).toEqual(original.stages);
         expect(llm.requests[0]!.system).not.toContain(body);
         expect(llm.requests).toHaveLength(2);
+        expect(JSON.parse(llm.requests[1]!.user).task.triggers).toEqual(original.triggers);
+        expect(JSON.parse(llm.requests[1]!.user).task.storyEvents).toEqual(original.storyEvents);
     });
     it('blocks missing evidence without modifying source or fabricating discoveries', async () => {
         const { deps, run, store } = await fixture(true);
@@ -326,5 +329,65 @@ describe('deterministic upgrade behavior', () => {
             throw Error('No model credentials are configured');
         };
         expect((await prepareUpgrade(deps, run))?.status).toBe('ready');
+    });
+});
+
+describe('line-wrapped source migration', () => {
+    it('authors a check for a PDF-wrapped source and preserves its source passage and offsets', async () => {
+        const { deps, run, original, store } = await fixture(true);
+        const raw = await store.loadVersionSpec('a', 1) as typeof original;
+        const doc = raw.documents[0]!;
+        doc.body = 'PRESS RELEASE\n13 DECEMBER 2007\n\ni. a four-page letter from war-hero Lim Bo Seng to his wife after he had\nescaped from Singapore in 1942. A poignant letter to read, Lim\nmakes plain his commitment to ‘our war effort’, and ends by\nexpressing his hopes for his children’s education.\nii. a card entitled ‘Students Savings Scheme’ which recalls an era when\nschools cooperated with POSB (now POSBank) to promote the good\nhabit of saving.';
+        doc.keyPassages = [{ id: doc.keyPassages[0]!.id, start: 35, end: 278 }];
+        store.addVersionSpec('a', 1, raw);
+        const check = original.documents[0]!.readingCheck!;
+        const support = 'A poignant letter to read, Lim makes plain his commitment to ‘our war effort’, and ends by expressing his hopes for his children’s education.';
+        const wire = (q: typeof check.recovery) => {
+            const { support: _, ...rest } = q;
+            return { ...rest, supportQuotes: [support] };
+        };
+        const prep = original.stages[0]!.preparation!;
+        const llm = new FakeLlmClient([{ json: { ...check, variants: check.variants.map(wire), recovery: wire(check.recovery) } }, { json: { ...prep, characters: Object.entries(prep.characters).map(([characterId, groups]) => ({ characterId, groups })) } }]);
+        deps.llm = () => llm;
+        const result = await prepareUpgrade(deps, run);
+        expect(result?.findings).toEqual([]);
+        expect(result?.status).toBe('ready');
+        const candidate = result!.candidate as typeof raw;
+        expect(candidate.documents[0]!.body).toBe(cleanReadingDocument(doc).body);
+        expect(candidate.documents[0]!.keyPassages).toEqual(doc.keyPassages);
+        expect(candidate.documents[0]!.readingCheck!.variants[0]!.support).toEqual([{ start: 137, end: 278 }]);
+        expect(JSON.parse(llm.requests[0]!.user).task.supportPassages).toContain(doc.body.slice(137, 278));
+        expect(llm.requests).toHaveLength(2);
+    });
+});
+
+describe('repairing failed checks', () => {
+    it('keeps successful stage preparation when retrying a failed document check', async () => {
+        const { deps, run, original } = await fixture(true);
+        const check = original.documents[0]!.readingCheck!;
+        const doc = original.documents[0]!;
+        const wire = (q: typeof check.recovery, valid = true) => {
+            const { support, ...rest } = q;
+            return { ...rest, supportQuotes: valid ? support.map(s => doc.body.slice(s.start, s.end)) : ['Invented source sentence.'] };
+        };
+        const bank = (valid: boolean) => ({ ...check, variants: check.variants.map(q => wire(q, valid)), recovery: wire(check.recovery, valid) });
+        const prep = original.stages[0]!.preparation!;
+        const llm = new FakeLlmClient([
+            ...Array.from({ length: 4 }, () => ({ json: bank(false) })),
+            { json: { ...prep, characters: Object.entries(prep.characters).map(([characterId, groups]) => ({ characterId, groups })) } },
+            { json: bank(true) },
+        ]);
+        deps.llm = () => llm;
+        const blocked = await prepareUpgrade(deps, run);
+        expect(blocked?.status).toBe('blocked');
+        expect((blocked!.candidate as typeof original).stages[0]!.preparation).toEqual(prep);
+        const { refineUpgrade } = await import('@/lib/v3/upgrades/service');
+        const retry = await refineUpgrade(deps, 'u', 'a', { runId: run.id, proposalRevision: 1, instruction: '' });
+        if (!retry.ok) throw Error(retry.message);
+        const ready = await prepareUpgrade(deps, retry.run);
+        expect(ready?.status).toBe('ready');
+        expect(ready?.findings).toEqual([]);
+        expect((ready!.candidate as typeof original).stages[0]!.preparation).toEqual(prep);
+        expect(llm.requests).toHaveLength(6);
     });
 });

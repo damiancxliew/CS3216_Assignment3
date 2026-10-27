@@ -166,7 +166,7 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
         .eq("version", 2)
         .single();
       await page.goto(
-        `http://localhost:3000/v3/join/${row.id}?release=${release!.link_key}`,
+        `http://localhost:3000/v3/join/${release!.link_key}`,
       );
       await page.getByRole("link", { name: "Enter the adventure" }).click();
       await page.waitForURL(/\/v3\/play\/(?!start)/);
@@ -201,7 +201,7 @@ it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
         .first();
       await openLink.focus();
       expect(await page.getByRole("tooltip").innerText()).toContain(
-        "?release=",
+        `/v3/join/${release!.link_key}`,
       );
       await page.keyboard.press("Escape");
       expect(await page.getByRole("tooltip").count()).toBe(0);

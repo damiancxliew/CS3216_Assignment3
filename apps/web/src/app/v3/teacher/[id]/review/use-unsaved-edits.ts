@@ -15,7 +15,7 @@ export function useUnsavedEdits(dirty: boolean) {
       if (
         link &&
         !link.getAttribute("href")?.startsWith("#") &&
-        !window.confirm("You have unsaved edits. Leave and discard them?")
+        !window.confirm("You have unsaved edits. Leave this page?")
       ) {
         event.preventDefault();
         event.stopPropagation();

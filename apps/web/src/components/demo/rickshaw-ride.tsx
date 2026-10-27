@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3CardDialog } from "@/components/play/v3/card-dialog";
 import styles from "./waterfront-experience.module.css";
 
 const lines = [
@@ -47,7 +47,7 @@ export function RickshawRide({ onClose }: { onClose: () => void }) {
   }, [beat, paused, hidden]);
   const line = lines[beat];
   return (
-    <V3ScrollDialog
+    <V3CardDialog
       title="A ride along River Street"
       eyebrow="Singapore · February 1942 · before the surrender"
       footerText="Reconstructed driver and dialogue · optional street encounter"
@@ -121,6 +121,6 @@ export function RickshawRide({ onClose }: { onClose: () => void }) {
           </a>
         </details>
       </div>
-    </V3ScrollDialog>
+    </V3CardDialog>
   );
 }

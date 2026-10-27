@@ -31,7 +31,7 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1").each(["scenery", "room en
   } };
   const broken = structuredClone(custom);
   if (broken.authoring!.walkingSprites!.player.type === "custom") broken.authoring!.walkingSprites!.player.candidate.url = "https://map-assets.example/missing.png";
-  const specs = { golden, rainy, custom, broken };
+  const specs = { golden, rainy, custom, broken, spriteUpdate: golden };
   const deps = { now: Date.now(), rng: createRng("map-browser"), llm: new FakeLlmClient({ replies: [() => { throw new Error("Map checks must not call an LLM"); }] }) };
   const sessions = await Promise.all(Object.entries(specs).map(async ([id, spec]) => {
     let state = createState(spec, id);
@@ -69,17 +69,37 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1").each(["scenery", "room en
           import Phaser from 'phaser';
           import {createRoot} from 'react-dom/client';
           import {V3PlayClient} from '/src/components/play/v3/v3-play-client.tsx';
+          import {V3Map} from '/src/components/play/v3/v3-map.tsx';
           import {V3PreviewHeaderActions} from '/src/components/play/v3/v3-preview-client.tsx';
           import '/src/app/globals.css';
           const boot = Phaser.Game.prototype.boot;
           Phaser.Game.prototype.boot = function() { window.mapReviewGame = this; boot.call(this); };
-          createRoot(document.getElementById('root')).render(<V3PlayClient
+          const initialView = ${JSON.stringify(project(session.spec, session.state))};
+          const noop = () => {};
+          const stableProps = {
+            attemptId: 'sprite-update', stageId: 'stage-0', stageIndex: 0,
+            rooms: initialView.rooms, spawnRoomId: initialView.rooms[0].id,
+            currentRoomId: initialView.currentRoomId, characters: initialView.characters,
+            documents: initialView.documentsHere, walkTo: null, movementLocked: true,
+            ambient: { id: 'clear', intensity: 1 }, audio: { muted: true, cues: [] },
+            onWalkDone: noop, onEnterRoom: async () => true, onSelectCharacter: noop,
+            onTalk: noop, onNearbyCharacterChange: noop, onOpenDocument: noop, onReadyChange: noop,
+          };
+          function Harness() {
+            const [scenery, setScenery] = React.useState(${JSON.stringify(v3AdventureScenery(session.spec))});
+            if (${JSON.stringify(name)} === 'spriteUpdate') return <>
+              <button onClick={() => setScenery(${JSON.stringify(v3AdventureScenery(custom))})}>Update walking sprites</button>
+              <div style={{height:'90vh',position:'relative'}}><V3Map {...stableProps} scenery={scenery[0]} /></div>
+            </>;
+            return <V3PlayClient
             attemptId=${JSON.stringify(name)}
             initialView={${JSON.stringify(project(session.spec, session.state))}}
             initialRevision={0}
-            scenery={${JSON.stringify(v3AdventureScenery(session.spec))}}
+            scenery={scenery}
             headerActions={<V3PreviewHeaderActions adventureId="local-visual-fixture" />}
-          />);
+          />;
+          }
+          createRoot(document.getElementById('root')).render(<Harness />);
         `, "map-fixture.tsx", { loader: "tsx", jsx: "automatic" })).code;
       },
       configureServer(server) {
@@ -140,6 +160,18 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1").each(["scenery", "room en
       await page.getByRole("button", { name: "Hide mission" }).click();
       await expect.poll(() => inspect(page)).toMatchObject({ ready: true });
     };
+    await page.goto(`${vite.resolvedUrls!.local[0]}spriteUpdate`);
+    await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
+    await expect.poll(() => inspect(page)).toMatchObject({ ready: true });
+    // Change only the scenery prop while keeping the current map and player view mounted.
+    await page.evaluate(() => { (window as any).originalMapGame = (window as any).mapReviewGame; });
+    await page.getByRole("button", { name: "Update walking sprites" }).click();
+    await expect.poll(() => page.evaluate(() => {
+      const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
+      const player = scene.current.actors.find((a: any) => a.id === "player");
+      const marker = scene.markers.get("player");
+      return { url: player.spriteSheetUrl, texture: marker.sprite.texture.key, sameGame: (window as any).originalMapGame === (window as any).mapReviewGame };
+    })).toMatchObject({ url: "https://map-assets.example/custom.png", texture: expect.stringMatching(/^asset-/), sameGame: true });
     await open("golden");
     const first = await inspect(page);
     expect(first.descriptions).toEqual(v3AdventureScenery(golden)[0]!.roomDescriptions);

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Action } from "@adventure/play-contract";
-import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3CardDialog } from "@/components/play/v3/card-dialog";
 import styles from "./waterfront-experience.module.css";
 
 type Props = {
@@ -69,7 +69,7 @@ export function WaterfrontDeparture({ choice, send, onClose }: Props) {
   }, [seconds, error, advance]);
 
   return (
-    <V3ScrollDialog
+    <V3CardDialog
       title="A departure leaves people behind"
       eyebrow="Singapore · February 1942"
       footerText="Dramatised exchange · invented dialogue, not a historical quotation"
@@ -136,6 +136,6 @@ export function WaterfrontDeparture({ choice, send, onClose }: Props) {
           ))}
         </details>
       </div>
-    </V3ScrollDialog>
+    </V3CardDialog>
   );
 }

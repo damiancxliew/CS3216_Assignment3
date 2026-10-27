@@ -27,7 +27,8 @@ export async function getV3SavedVersions(id: string) {
     ok: true as const, latest: adventure.specVersion, publishedVersion: adventure.publishedVersion ?? null,
     published: adventure.status === "published",
     versions: versions.map((row) => ({ ...row,
-      linkKey: publications.find((p) => p.version === row.version)?.linkKey ?? null,
+      publication: publications.find((p) => p.version === row.version) ?? null,
+      versionId: publications.find((p) => p.version === row.version)?.id ?? null,
       attempts: attempts.filter((a) => a.specVersion === row.version).length,
     })),
   };

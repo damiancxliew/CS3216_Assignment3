@@ -1,4 +1,5 @@
 "use client";
+import { documentDisplayTitle } from "@/lib/play/v3/document-labels";
 
 import type { DocumentView, MessageView, NoteView, PlayerView } from "@adventure/play-contract";
 import {
@@ -167,7 +168,7 @@ function DocumentsList({ documents, onOpenDocument }: { documents: PlayerView["d
           >
             <ScrollText size={17} className="mt-0.5 shrink-0" aria-hidden />
             <span className="min-w-0 flex-1">
-              <span className="block font-bold">{document.title}</span>
+              <span className="block font-bold">{documentDisplayTitle(document.title)}</span>
               <span className="mt-0.5 block text-xs text-[#5c6472]">
                 {[document.kind, document.provenance.date, document.provenance.sender].filter(Boolean).join(" · ")}
               </span>

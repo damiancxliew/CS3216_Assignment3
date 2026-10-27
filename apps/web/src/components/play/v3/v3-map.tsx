@@ -4,7 +4,7 @@ import { canStep, findPath, spaceAt, type Point } from "@adventure/game-core";
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { MapView } from "@adventure/game-client/view";
 import type { PlayerView } from "@adventure/play-contract";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { ASSET_BASE, characterFor, PLAYER_CHARACTER, walkSheetUrl, type Character } from "@/lib/play/appearance";
 import {
@@ -18,7 +18,8 @@ import {
 } from "@/lib/play/v3/map";
 
 import { v3Atmosphere, v3Environment, v3RoomFixtures, type V3StageScenery } from "@/lib/play/v3/scenery";
-import { V3ScrollDialog } from "./scroll-dialog";
+import { AdventureDialog } from "../adventure-dialog";
+import styles from "../adventure-chrome.module.css";
 
 const STEP_MS = 160;
 
@@ -94,6 +95,7 @@ function walkingActor(scenery: V3StageScenery | undefined, key: string, fallback
 }
 
 export function V3Map(props: V3MapProps) {
+  const inspectionTitleId = useId();
   const [inspection, setInspection] = useState<{ name: string; description: string } | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const currentRoomRef = useRef(props.currentRoomId);
@@ -124,7 +126,7 @@ export function V3Map(props: V3MapProps) {
     if (latest.current.movementLocked) movementLockHandler.current();
     renderRef.current?.();
     nearbyChangeHandler.current();
-  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio, inspection]);
+  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio, props.scenery, inspection]);
 
   useEffect(() => {
     const parent = host.current;
@@ -434,6 +436,8 @@ export function V3Map(props: V3MapProps) {
           },
           camera: window.matchMedia("(min-width: 1024px)").matches ? latest.current.scenery?.authored?.desktopCamera ?? "detail" : "detail",
           zoomScale: window.matchMedia("(min-width: 1024px)").matches ? (latest.current.scenery?.authored ? 0.5 : 0.75) : 1,
+          // The desktop zoom-out must not leave an empty strip beside a narrower map.
+          fillViewport: true,
         });
         if (destroyed) {
           view.destroy();
@@ -492,19 +496,19 @@ export function V3Map(props: V3MapProps) {
         className="absolute inset-0 overflow-hidden"
       />
       {inspection && (
-        <V3ScrollDialog
-          title={inspection.name}
-          eyebrow="Explore the setting"
-          footerText="Look around, then compare the sources."
+        <AdventureDialog
+          kind="landmark"
+          titleId={inspectionTitleId}
           closeLabel="Return to the map"
           onClose={() => setInspection(null)}
         >
+          <h2 id={inspectionTitleId} className={styles.modalTitle}>{inspection.name}</h2>
           <p className="whitespace-pre-line">{inspection.description}</p>
           <p className="mt-4 text-sm opacity-70">
             Illustrated reconstruction. This prop is not an archival object or evidence that Lim used this exact item.
             Consult the Source archive for historical records.
           </p>
-        </V3ScrollDialog>
+        </AdventureDialog>
       )}
     </>
   );

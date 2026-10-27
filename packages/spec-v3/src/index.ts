@@ -3,6 +3,7 @@ import { ReadingCheck, StagePreparation } from './preparation.js'
 export * from './media.js'
 export * from './preparation.js'
 export * from './reading-support.js'
+export * from './reading-text.js'
 /**
  * The v3 `AdventureSpec`: the full generated adventure the engine runs, the API serves and the
  * generator targets. Strict objects everywhere — unknown keys are rejected.
@@ -315,18 +316,21 @@ export const V2AdventureSpec = ReleasedAdventureSpecObject.extend({
   stages: z.array(Stage.extend({ preparation: StagePreparation })).min(1),
   documents: z.array(Document.extend({ readingCheck: ReadingCheck })),
 })
-/** Current format records import attribution and retains the required preparation mechanics. */
-export const LatestAdventureSpec = AdventureSpecObject.extend({
+/** Frozen import-attribution format. */
+export const V210AdventureSpec = AdventureSpecObject.extend({
   schemaVersion: z.literal('2.1.0'),
   stages: z.array(Stage.extend({ preparation: StagePreparation })).min(1),
   documents: z.array(Document.extend({ readingCheck: ReadingCheck })),
 })
 
+/** Reading text is cleaned before storage, with evidence offsets remapped. */
+export const LatestAdventureSpec = V210AdventureSpec.extend({ schemaVersion: z.literal('2.1.1') })
+
 /** One runtime shape; old content is adapted without changing its format or gameplay.
  * Compatibility reading also preserves import attribution from the parallel pre-versioning
  * import feature, even on old content. Frozen contracts remain unchanged; no metadata is lost.
  */
-export const AdventureSpec = AdventureSpecObject.extend({ schemaVersion: z.union([z.literal(1), z.literal(2), z.literal('1.0.0'), z.literal('2.0.0'), z.literal('2.1.0')]).optional() })
+export const AdventureSpec = AdventureSpecObject.extend({ schemaVersion: z.union([z.literal(1), z.literal(2), z.literal('1.0.0'), z.literal('2.0.0'), z.literal('2.1.0'), z.literal('2.1.1')]).optional() })
   .superRefine((spec, ctx) => {
     if (!spec.schemaVersion || spec.schemaVersion === 1 || spec.schemaVersion === '1.0.0') return
     spec.stages.forEach((stage, i) => {

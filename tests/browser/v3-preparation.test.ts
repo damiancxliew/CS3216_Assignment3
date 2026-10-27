@@ -76,7 +76,7 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
   const vite = await createServer({
     configFile: false, root, publicDir: resolve(root, "public"), cacheDir: resolve(`node_modules/.vite/v3-preparation-${name}`),
     server: { host: "127.0.0.1", port: 0, watch: null, fs: { allow: [resolve(".")] } },
-    esbuild: { jsx: "automatic" }, optimizeDeps: { include: ["react", "react-dom/client", "phaser", "lucide-react"] },
+    esbuild: { jsx: "automatic" }, optimizeDeps: { include: ["react", "react-dom/client", "phaser", "lucide-react", "@radix-ui/react-select", "next/navigation", "@supabase/ssr", "@supabase/supabase-js"] },
     css: { postcss: { plugins: [tailwind()] } }, resolve: { alias: { "@": resolve(root, "src") } },
     plugins: [{
       name: "preparation-browser-fixture", enforce: "pre",
@@ -135,7 +135,9 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     if (name === "mobile") await page.getByRole("button", { name: "Show mission" }).click();
     await page.getByRole("button", { name: "Review stage decision" }).click();
     const locked = page.getByRole("dialog", { name: "There is more to investigate" });
-    await locked.getByText("Essential conversations: 0 of 2.", { exact: false }).waitFor();
+    await locked.getByText("Essential conversations: 0 of 2", { exact: false }).waitFor();
+    expect(await locked.getByRole("progressbar", { name: "Essential conversations", exact: true }).getAttribute("aria-valuemax")).toBe("2");
+    expect(await locked.getByRole("progressbar", { name: "Evidence preparation", exact: true }).getAttribute("aria-valuenow")).toBe("0");
     await locked.getByText(/Read.*harbour letter/).waitFor();
     await page.screenshot({ path: resolve(output, `${name}-locked-decision.png`) });
     await page.keyboard.press("Escape");
@@ -144,7 +146,13 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await walkToCharacter(page, "a");
     await page.getByRole("button", { name: /talk to Ada/ }).click();
     const preparation = page.getByRole("dialog", { name: "Prepare to talk to Ada" });
-    await preparation.getByText("Preparation: 0 of 3 tasks complete.").waitFor();
+    expect(await preparation.getByLabel("Scroll contents").count()).toBe(0);
+    expect(await preparation.getByRole("button", { name: "Roll up scroll" }).count()).toBe(0);
+    await preparation.getByRole("button", { name: "Close guidance", exact: true }).waitFor();
+    await preparation.getByRole("progressbar", { name: "Preparation", exact: true }).waitFor();
+    expect(await preparation.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("0");
+    expect(await preparation.getByRole("progressbar").getAttribute("aria-valuemax")).toBe("3");
+    await page.screenshot({ path: resolve(output, `${name}-character-preparation.png`) });
     expect(actions).not.toContain("message");
     await page.keyboard.press("Tab");
     expect(await preparation.evaluate(element => element.contains(document.activeElement))).toBe(true);
@@ -154,8 +162,19 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     let reader = page.getByRole("dialog", { name: "The harbour letter" });
     await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
     await highlight(page, 0, fixture.spec.documents[0]!.body.length);
+    const selectionColors = await page.locator("[data-document-paragraph]").evaluate(element => {
+      const style = getComputedStyle(element, "::selection");
+      return { background: style.backgroundColor, color: style.color };
+    });
+    expect(selectionColors).toEqual({ background: "rgb(242, 210, 126)", color: "rgb(57, 37, 21)" });
+    await page.evaluate(() => document.documentElement.dataset.theme = "dark");
+    expect(await page.locator("[data-document-paragraph]").evaluate(element => ({ background: getComputedStyle(element, "::selection").backgroundColor, color: getComputedStyle(element, "::selection").color }))).toEqual(selectionColors);
+    await page.evaluate(() => delete document.documentElement.dataset.theme);
+    expect(await reader.getByText("Choose supporting sentences without dragging").count()).toBe(0);
     await reader.getByRole("button", { name: "Submit answer and evidence" }).click();
     await reader.getByRole("heading", { name: "Review the evidence before trying again" }).waitFor();
+    expect(await reader.locator("input[type=radio]:checked").count()).toBe(0);
+    expect(await reader.getByRole("button", { name: "Submit correction" }).isDisabled()).toBe(true);
     expect(game.state.discovered).not.toContain("d-letter");
     expect(await reader.getByRole("button", { name: "Submit answer and evidence" }).count()).toBe(0);
     await page.screenshot({ path: resolve(output, `${name}-needs-review.png`) });
@@ -166,23 +185,52 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     reader = page.getByRole("dialog", { name: "The harbour letter" });
     await reader.getByRole("heading", { name: "Review the evidence before trying again" }).waitFor();
     await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
+    await highlight(page, 0, fixture.spec.documents[0]!.body.length);
+    await reader.getByRole("button", { name: "Submit correction" }).click();
+    await reader.getByRole("alert").filter({ hasText: "That correction is not supported." }).waitFor();
+    expect(await reader.getByRole("button", { name: "Submit correction" }).isDisabled()).toBe(true);
+    expect(game.state.readingChecks!.letter!.attempts.at(-1)).toMatchObject({ correct: false, recovery: true });
+    await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
     await chooseSentence(page, "Only three sacks remained for the households.");
     await reader.getByRole("button", { name: "Submit correction" }).click();
+    await reader.getByText("Correction accepted. Answer the new question to finish this reading check.", { exact: true }).waitFor();
     await reader.getByText("What does the stock count tell the council?", { exact: true }).waitFor();
     expect(game.state.discovered).not.toContain("d-letter");
+    // Several failures in a row must correct the current question, never the
+    // document's old shared correction or a previous variant.
+    for (const [index, prompt] of ["What does the stock count tell the council?", "Which conclusion stays within the letter's evidence?"] .entries()) {
+      await reader.getByRole("radio", { name: "Every household was guaranteed a sack." }).check();
+      await highlight(page, fixture.support.start, fixture.support.end);
+      await reader.getByRole("button", { name: "Submit answer and evidence" }).click();
+      await reader.getByRole("heading", { name: "Review the evidence before trying again" }).waitFor();
+      expect(await reader.getByText(prompt, { exact: true }).count()).toBe(1);
+      expect(await reader.getByText("What can the letter support?", { exact: true }).count()).toBe(0);
+      expect(await reader.locator("input[type=radio]:checked").count()).toBe(0);
+      if (index === 1) {
+        await page.keyboard.press("Escape");
+        await page.reload();
+        await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
+        await openScroll(page, "The harbour letter");
+        reader = page.getByRole("dialog", { name: "The harbour letter" });
+        await reader.getByText(prompt, { exact: true }).waitFor();
+      }
+      await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
+      await highlight(page, fixture.support.start, fixture.support.end);
+      await reader.getByRole("button", { name: "Submit correction" }).click();
+      await reader.getByText("Correction accepted. Answer the new question to finish this reading check.", { exact: true }).waitFor();
+    }
+    await reader.getByText("Which account fits the supply report?", { exact: true }).waitFor();
     await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
     await highlight(page, fixture.support.start + 2, fixture.support.end - 2);
     await reader.getByRole("button", { name: "Submit answer and evidence" }).click();
     await reader.getByLabel("Reading check complete", { exact: true }).waitFor();
     expect(game.state.discovered.filter(id => id === "d-letter")).toHaveLength(1);
-    expect(game.state.readingChecks!.letter!.attempts.map(attempt => attempt.correct)).toEqual([false, true, true]);
-    // A second required note on this source remains usable without dragging after
-    // the main reading check passes. It does not require a second quiz.
+    expect(game.state.readingChecks!.letter!.attempts.map(attempt => attempt.correct)).toEqual([false, false, true, false, true, false, true, true]);
+    // Direct highlighting still saves additional notes after the reading check.
     await chooseSentence(page, "The letter gives no count of households.");
-    await reader.getByRole("button", { name: "Save passage as a note" }).click();
     await reader.getByText("Added to your notes.", { exact: true }).waitFor();
     expect(game.state.discovered).toContain("d-letter-context");
-    await reader.getByRole("button", { name: "Save passage as a note" }).click();
+    await chooseSentence(page, "The letter gives no count of households.");
     await reader.getByText(/No new note added/).waitFor();
     expect(game.state.discovered.filter(id => id === "d-letter-context")).toHaveLength(1);
     // The server clock expires while a scroll owns focus. An ordinary source
@@ -247,7 +295,7 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     expect(await page.getByRole("dialog").count()).toBe(0);
     if (name === "mobile") await page.getByRole("button", { name: "Show mission" }).click();
     await page.getByRole("button", { name: "Help with this stage" }).click();
-    await page.getByRole("dialog", { name: "How to prepare for this stage" }).getByText("Essential conversations: 2 of 2.", { exact: false }).waitFor();
+    await page.getByRole("dialog", { name: "How to prepare for this stage" }).getByText("Essential conversations: 2 of 2", { exact: false }).waitFor();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Review stage decision" }).click();
     const confirm = page.getByRole("dialog", { name: "Finish exploring and decide?" });
@@ -283,9 +331,10 @@ async function closeJournal(page: Page) {
   if (await header.getAttribute("aria-expanded") === "true") await header.click();
 }
 async function chooseSentence(page: Page, sentence: string) {
-  const reader = page.getByRole("dialog");
-  await reader.getByText("Choose supporting sentences without dragging", { exact: true }).click();
-  await reader.getByRole("checkbox", { name: sentence, exact: true }).check();
+  const text = await page.locator("[data-document-paragraph]").textContent();
+  const start = text!.indexOf(sentence);
+  expect(start).toBeGreaterThanOrEqual(0);
+  await highlight(page, start, start + sentence.length);
 }
 async function highlight(page: Page, start: number, end: number) {
   await page.locator("[data-document-paragraph]").evaluate((element, offsets) => {

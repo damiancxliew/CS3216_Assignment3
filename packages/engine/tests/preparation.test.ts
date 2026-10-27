@@ -59,12 +59,27 @@ describe('reading checks', () => {
     await game.act({ type: 'closeDocument', documentId: 'letter' })
     await game.act({ type: 'openDocument', documentId: 'letter' })
     expect(game.view?.documents.find((d) => d.id === 'letter')?.readingCheck?.status).toBe('needsReview')
-    await game.act(answer('correction', 'supported', LETTER_KEY, true))
+    await game.act(answer('q1', 'supported', LETTER_KEY, true))
     expect(game.state.discovered).not.toContain('d-letter')
     expect(game.view?.documents.find((d) => d.id === 'letter')?.readingCheck?.question?.id).toBe('q2')
     await expect(game.act(answer('q1'))).rejects.toMatchObject({ code: 'invalid_action' })
     await game.act(answer('q2'))
     expect(game.state.readingChecks?.letter?.attempts.map((attempt) => attempt.correct)).toEqual([false, true, true])
+  })
+
+  it('explains a rejected correction and retains that feedback after reopening', async () => {
+    const game = new Harness(checkedSpec())
+    await game.start()
+    await openLetter(game)
+    await game.act(answer('q1', 'supported', { start: 0, end: game.spec.documents[0]!.body.length }))
+    const rejected = await game.act(answer('q1', 'supported', { start: 0, end: game.spec.documents[0]!.body.length }, true))
+    expect(rejected.documents.find(d => d.id === 'letter')?.readingCheck).toMatchObject({ status: 'needsReview', feedback: 'That correction is not supported. Re-read the source, then choose an answer and highlight one or two sentences that support it.' })
+    await game.act({ type: 'closeDocument', documentId: 'letter' })
+    const reopened = await game.act({ type: 'openDocument', documentId: 'letter' })
+    expect(reopened.documents.find(d => d.id === 'letter')?.readingCheck?.feedback).toBe(rejected.documents.find(d => d.id === 'letter')?.readingCheck?.feedback)
+    await game.act(answer('q1', 'supported', LETTER_KEY, true))
+    expect(game.view?.documents.find(d => d.id === 'letter')?.readingCheck).toMatchObject({ status: 'unanswered', question: { id: 'q2' }, feedback: null })
+    expect(game.state.discovered).not.toContain('d-letter')
   })
 
   it('permits a fresh variant only after a new relevant discovery, not an old or unrelated one', async () => {
@@ -102,10 +117,10 @@ describe('reading checks', () => {
     await game.act(answer('q1', 'supported', { start: LETTER_KEY.start, end: LETTER_KEY.start + 4 }))
     expect(game.state.discovered).not.toContain('d-letter')
     expect(game.view?.documents.find((document) => document.id === 'letter')?.readingCheck?.status).toBe('needsReview')
-    await game.act(answer('correction', 'b', LETTER_KEY, true))
+    await game.act(answer('q1', 'b', LETTER_KEY, true))
     expect(game.view?.documents.find((document) => document.id === 'letter')?.readingCheck?.question).toBeNull()
-    await game.act(answer('correction', 'supported', LETTER_KEY, true))
-    await expect(game.act(answer('correction', 'supported', LETTER_KEY, true))).rejects.toMatchObject({ code: 'invalid_action' })
+    await game.act(answer('q1', 'supported', LETTER_KEY, true))
+    await expect(game.act(answer('q1', 'supported', LETTER_KEY, true))).rejects.toMatchObject({ code: 'invalid_action' })
   })
 
   it('cycles distinct variants after genuine correction while preserving the first failure through JSON storage', async () => {
@@ -115,7 +130,7 @@ describe('reading checks', () => {
     for (const id of ['q1', 'q2', 'q3', 'q4']) {
       await game.act(answer(id, 'b'))
       game.state = JSON.parse(JSON.stringify(game.state))
-      await game.act(answer('correction', 'supported', LETTER_KEY, true))
+      await game.act(answer(id, 'supported', LETTER_KEY, true))
     }
     expect(game.view?.documents.find((document) => document.id === 'letter')?.readingCheck?.question?.id).toBe('q1')
     expect(game.state.readingChecks?.letter?.attempts[0]).toMatchObject({ questionId: 'q1', correct: false, recovery: false })
@@ -467,3 +482,46 @@ describe('preparation and essential conversations', () => {
     expect(game.state.characters.a?.stanceId).toBe(expected)
   })
 })
+
+describe('attempt-specific reading option order', () => {
+  it('varies options between attempts while keeping each view stable and private', async () => {
+    const spec = checkedSpec();
+    const original = structuredClone(spec.documents[0]!.readingCheck);
+    const game = new Harness(spec);
+    await game.start();
+    await openLetter(game);
+    const orders = new Set<string>();
+    for (let attempt = 0; attempt < 24; attempt++) {
+      game.state.seed = `student-attempt-${attempt}`;
+      const first = project(spec, game.state);
+      const restored = project(spec, JSON.parse(JSON.stringify(game.state)));
+      const question = first.documents.find(d => d.id === 'letter')!.readingCheck!.question!;
+      expect(restored.documents.find(d => d.id === 'letter')!.readingCheck!.question).toEqual(question);
+      expect(question.options.map(option => option.id).sort()).toEqual(['b', 'c', 'supported']);
+      expect(question).not.toHaveProperty('correctOptionId');
+      expect(question).not.toHaveProperty('support');
+      orders.add(question.options.map(option => option.id).join(','));
+    }
+    expect(orders.size).toBe(6);
+    expect(spec.documents[0]!.readingCheck).toEqual(original);
+    const view = await game.act(answer());
+    expect(view.documents.find(d => d.id === 'letter')!.readingCheck!.status).toBe('passed');
+  });
+  it('also shuffles the guided correction consistently without changing grading', async () => {
+    const game = new Harness(checkedSpec());
+    await game.start();
+    await openLetter(game);
+    await game.act(answer('q1', 'b'));
+    const orders = new Set<string>();
+    for (let attempt = 0; attempt < 24; attempt++) {
+      game.state.seed = `student-attempt-${attempt}`;
+      const first = project(game.spec, game.state).documents.find(d => d.id === 'letter')!.readingCheck!;
+      const again = project(game.spec, game.state).documents.find(d => d.id === 'letter')!.readingCheck!;
+      expect(first.recovery).toEqual(again.recovery);
+      orders.add(first.recovery!.options.map(option => option.id).join(','));
+    }
+    expect(orders.size).toBe(6);
+    await game.act(answer('q1', 'supported', LETTER_KEY, true));
+    expect(game.view?.documents.find(d => d.id === 'letter')!.readingCheck!.question!.id).toBe('q2');
+  });
+});

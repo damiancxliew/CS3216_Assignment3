@@ -1,15 +1,16 @@
 import { z } from 'zod'
-import { LegacyAdventureSpec, V2AdventureSpec, LatestAdventureSpec, validateSpec } from './index.js'
+import { LegacyAdventureSpec, V2AdventureSpec, V210AdventureSpec, LatestAdventureSpec, validateSpec } from './index.js'
 import type { AdventureSpec, SpecIssue } from './index.js'
 
 /** This is the persisted contract version, independent of the database's content revision. */
-export const CURRENT_SCHEMA_VERSION = '2.1.0' as const
-export type SchemaVersion = '1.0.0' | '2.0.0' | '2.1.0'
+export const CURRENT_SCHEMA_VERSION = '2.1.1' as const
+export type SchemaVersion = '1.0.0' | '2.0.0' | '2.1.0' | '2.1.1'
 export type SchemaSupport = 'current' | 'best_effort'
 export const SCHEMA_REGISTRY = Object.freeze([
   Object.freeze({ version: '1.0.0' as const, snapshotVersion: '1', title: 'Original adventure format', support: 'best_effort' as const }),
   Object.freeze({ version: '2.0.0' as const, snapshotVersion: '2', title: 'Evidence preparation', support: 'best_effort' as const }),
-  Object.freeze({ version: CURRENT_SCHEMA_VERSION, snapshotVersion: '2.1.0', title: 'Import attribution', support: 'current' as const }),
+  Object.freeze({ version: '2.1.0' as const, snapshotVersion: '2.1.0', title: 'Import attribution', support: 'best_effort' as const }),
+  Object.freeze({ version: CURRENT_SCHEMA_VERSION, snapshotVersion: '2.1.1', title: 'Clean reading text', support: 'current' as const }),
 ])
 
 export type UpgradeDescriptor = Readonly<{
@@ -38,6 +39,13 @@ export const UPGRADE_REGISTRY: readonly UpgradeDescriptor[] = Object.freeze([
     kind: 'structural' as const,
     requirements: Object.freeze(['teacherReview']),
   }),
+  Object.freeze({
+    id: 'reading-text', from: '2.1.0', to: '2.1.1',
+    title: 'Clean reading text',
+    summary: 'Join broken lines in source excerpts and keep evidence highlights aligned.',
+    kind: 'structural' as const,
+    requirements: Object.freeze(['teacherReview']),
+  }),
 ])
 
 /** Persisted schema releases use stable SemVer identifiers; prerelease/build markers are not released formats. */
@@ -62,6 +70,7 @@ export function compareSchemaVersions(a: string, b: string): number {
 export function normalizeSchemaVersion(value: unknown): SchemaVersion | undefined {
   if (value === 1 || value === '1.0.0') return '1.0.0'
   if (value === 2 || value === '2.0.0') return '2.0.0'
+  if (value === '2.1.0') return '2.1.0'
   return value === CURRENT_SCHEMA_VERSION ? CURRENT_SCHEMA_VERSION : undefined
 }
 
@@ -110,7 +119,7 @@ export function getUpgradePath(from: string | number, to: string | number = CURR
 /** Stable structural contracts for CI snapshots; semantic policy is separately tested. */
 export function getSchemaSnapshot(version: string | number): Record<string, unknown> {
   const normalized = normalizeSchemaVersion(version)
-  const schema = normalized === '1.0.0' ? LegacyAdventureSpec : normalized === '2.0.0' ? V2AdventureSpec : normalized === CURRENT_SCHEMA_VERSION ? LatestAdventureSpec : undefined
+  const schema = normalized === '1.0.0' ? LegacyAdventureSpec : normalized === '2.0.0' ? V2AdventureSpec : normalized === '2.1.0' ? V210AdventureSpec : normalized === CURRENT_SCHEMA_VERSION ? LatestAdventureSpec : undefined
   if (!schema) throw new Error(`Unsupported schema version ${version}.`)
   return z.toJSONSchema(schema, { target: 'draft-2020-12', io: 'input' }) as Record<string, unknown>
 }

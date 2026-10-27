@@ -23,6 +23,6 @@ export async function publishSelectedVersion(
   const errors = await deps.store.loadCheckErrors(id, selected);
   const checks = parsed.spec.authoring ? validateEditedSpec(parsed.spec, sources, errors) : { ...checkSpec(parsed.spec), errors: [...checkSpec(parsed.spec).errors, ...errors] };
   if (checks.errors.length) return fail(409, "This version has errors to fix before publishing. Open the latest draft to make changes.");
-  if (!(await deps.store.publishVersion(id, expected.version, expected.publishedVersion, true, selected))) return fail(409, "Publication changed. Reload before publishing.");
+  if (!(await deps.store.publishVersion(id, expected.version, expected.publishedVersion, true, selected, userId))) return fail(409, "Publication changed. Reload before publishing.");
   return { status: 200, body: { status: "published", version: selected } };
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { SignInButton } from "@/components/sign-in-button";
 import { ErrorText, SiteHeader, button } from "@/components/ui";
@@ -18,19 +18,29 @@ export const metadata: Metadata = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function V3JoinPage({ params, searchParams }: { params: Promise<{ adventureId: string }>; searchParams: Promise<{ release?: string }> }) {
+export default async function V3JoinPage({ params, searchParams }: {
+  params: Promise<{ versionId: string }>;
+  searchParams?: Promise<{ release?: string }>;
+}) {
   if (!v3Enabled()) notFound();
-  const { adventureId } = await params;
-  const { release } = await searchParams;
-  if (!UUID.test(adventureId)) {
+  const { versionId } = await params;
+  if (!UUID.test(versionId)) {
     return <Shell intro="This link isn’t open" title="Ask your teacher for the current one" />;
+  }
+
+  // Previously issued version-specific links redirect to the canonical version ID.
+  // Bare adventure links have no fallback and remain closed.
+  const legacyRelease = (await searchParams)?.release;
+  if (legacyRelease && UUID.test(legacyRelease)) {
+    const publication = await v3PublishDeps().store.loadPublication(legacyRelease);
+    if (publication?.adventureId === versionId) redirect(`/v3/join/${publication.id}`);
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const view = await loadJoinView(v3PublishDeps(), user?.id ?? null, adventureId, release);
-  const suffix = release ? `?release=${encodeURIComponent(release)}` : "";
-  const path = `/v3/join/${adventureId}${suffix}`;
+  // Anonymous guest sessions are not school members; only a real account counts as signed in.
+  const view = await loadJoinView(v3PublishDeps(), user && !user.is_anonymous ? user.id : null, versionId);
+  const path = `/v3/join/${versionId}`;
 
   if (view.kind === "closed") {
     return <Shell intro="This link isn’t open" title="Ask your teacher for the current one" />;
@@ -54,7 +64,7 @@ export default async function V3JoinPage({ params, searchParams }: { params: Pro
   return (
     <Shell intro="You’ve been invited to play" title={title}>
       <div className="pt-2">
-        <Link href={`/v3/play/start/${adventureId}${suffix}`} prefetch={false} className={button.primary}>
+        <Link href={`/v3/play/start/${versionId}`} prefetch={false} className={button.primary}>
           Enter the adventure
         </Link>
       </div>

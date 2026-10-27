@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, type CSSProperties } from "react";
-import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3CardDialog } from "@/components/play/v3/card-dialog";
 import { stages } from "@/lib/demo/lim-bo-seng";
 import styles from "./chapter-consequence.module.css";
 import shared from "./waterfront-experience.module.css";
@@ -41,7 +41,7 @@ export function ChapterConsequence({
     return () => window.clearTimeout(timer);
   }, [beat, paused, hidden]);
   return (
-    <V3ScrollDialog
+    <V3CardDialog
       title="Your choice in motion"
       eyebrow={`Stage ${stage + 1} · ${chapter.title}`}
       footerText="Illustrated learning scenario · movements and dialogue are reconstructed"
@@ -114,6 +114,6 @@ export function ChapterConsequence({
           ))}
         </details>
       </div>
-    </V3ScrollDialog>
+    </V3CardDialog>
   );
 }

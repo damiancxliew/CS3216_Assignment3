@@ -1,6 +1,7 @@
 "use client";
 
 import type { PlayerView } from "@adventure/play-contract";
+import { PreparationProgress } from "./preparation-progress";
 import { PreparationDialog } from "./preparation-dialog";
 
 export type StageGuidance = { type: "character"; characterId: string } | { type: "decision" | "confirm" | "ready" | "timer" | "help" };
@@ -35,18 +36,25 @@ export function StagePreparationGuidance({ guidance, view, busy, decisionHint, o
   return (
     <PreparationDialog title={titles[guidance.type]} onClose={onClose} primary={primary}>
       {guidance.type === "character" ? <>
-        <p>Preparation: {characterPreparation?.completed ?? 0} of {characterPreparation?.required ?? 0} tasks complete.</p>
+        <PreparationProgress label="Preparation" completed={characterPreparation?.completed ?? 0} required={characterPreparation?.required ?? 0} />
         <p>{characterPreparation?.hint ?? "Read the relevant evidence and complete its reading checks before starting this conversation."}</p>
       </> : guidance.type === "confirm" ? <>
         <p>{view.stage?.centralQuestion}</p>
         <p>{decisionHint ?? "Continuing ends exploration for this stage. You can review your collected documents during the decision."}</p>
+        {preparation ? <>
+          <PreparationProgress label="Evidence preparation" completed={preparation.completed} required={preparation.required} />
+          <PreparationProgress label="Essential conversations" completed={completed} required={essential.length} />
+        </> : null}
       </> : <>
         {guidance.type === "help" ? <p><strong>{view.stage?.centralQuestion}</strong></p> : null}
         {guidance.type === "help" ? <p>Read the evidence and answer each reading check with a short supporting passage. Complete the preparation shown beside a character before talking to them.</p>
           : guidance.type === "timer" ? <p>{!preparation ? "The investigation time has ended. Look over your notes and documents if you need to, then continue to the decision." : "The investigation time has ended. You can decide now with the evidence you have, or keep exploring first."}</p>
           : guidance.type === "ready" ? <p>You have heard from every essential person and can now review the decision. You can also keep exploring.</p>
           : <p>Complete the required evidence and hear from every essential person before deciding.</p>}
-        {preparation ? <p>Evidence preparation: {preparation.completed} of {preparation.required}. Essential conversations: {completed} of {essential.length}.</p> : null}
+        {preparation ? <>
+          <PreparationProgress label="Evidence preparation" completed={preparation.completed} required={preparation.required} />
+          <PreparationProgress label="Essential conversations" completed={completed} required={essential.length} />
+        </> : null}
         {guidance.type === "help" && preparation?.timerExpired ? <p>Time has run out. You can decide now, even if some evidence or conversations are unfinished.</p> : null}
         {essential.length ? <ul>{essential.map((conversation) => <li key={conversation.characterId}>{conversation.name}: {conversation.complete ? "conversation complete" : "conversation still needed"}</li>)}</ul> : null}
         {preparation?.hint ? <p>{preparation.hint}</p> : null}
