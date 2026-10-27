@@ -11,6 +11,21 @@ describe('bounded reading evidence', () => {
       'The harbour was busy.', 'Several merchants opposed the new duties.', 'Their cargo remained at anchor.', 'The weather was calm.',
     ])
   })
+  it('keeps PDF line wraps inside sentences without moving source offsets', () => {
+    const text = 'PRESS RELEASE\n13 DECEMBER 2007\n\ni. A letter describes his hopes for\nhis children. It records his commitment to\nthe war effort.\nii. A savings card recalls school\ncooperation. A separate object remains.'
+    expect(sourceSentenceSpans(text).map(span => text.slice(span.start, span.end))).toEqual([
+      'PRESS RELEASE\n13 DECEMBER 2007', 'i. A letter describes his hopes for\nhis children.', 'It records his commitment to\nthe war effort.', 'ii. A savings card recalls school\ncooperation.', 'A separate object remains.',
+    ])
+    const start = text.indexOf('It records'), end = text.indexOf('\nii.')
+    expect(supportsReadingSelection(text, [{ start, end }], start, end)).toBe(true)
+    expect(supportsReadingSelection(text, [{ start, end }], 0, text.length)).toBe(false)
+  })
+  it('retains CRLF offsets and does not join across blank paragraphs', () => {
+    const text = 'An account describes the\r\nwork. A later account disagrees.\r\n\r\nSeparate evidence remains.'
+    expect(sourceSentenceSpans(text).map(span => text.slice(span.start, span.end))).toEqual([
+      'An account describes the\r\nwork.', 'A later account disagrees.', 'Separate evidence remains.',
+    ])
+  })
   it('accepts support and imprecise dragging with one adjacent sentence', () => {
     expect(supportsReadingSelection(body, support, start, end)).toBe(true)
     expect(supportsReadingSelection(body, support, start + 3, end - 2)).toBe(true)

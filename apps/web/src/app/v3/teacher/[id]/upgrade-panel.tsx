@@ -30,6 +30,11 @@ export function UpgradePanel({ adventureId, spec, revision, dirty = false, disab
     const [kind, index] = path.split('.');
     return kind === 'documents' ? spec.documents[Number(index)]?.title : kind === 'stages' ? spec.stages[Number(index)]?.title : undefined;
   };
+  const findings = [...new Map((run?.findings ?? []).map(finding => {
+    const title = location(finding.path);
+    const message = [...new Set(finding.message.split(/(?<=\.)\s+/))].join(' ');
+    return [`${title ?? finding.path}:${message}`, { ...finding, message, title }];
+  })).values()];
   return <section aria-label="Adventure format upgrade" className="rounded-control border border-line-strong bg-surface p-4 text-sm [overflow-wrap:anywhere]" aria-busy={busy}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p>Format {version}. Older formats have limited support.</p>
@@ -45,12 +50,18 @@ export function UpgradePanel({ adventureId, spec, revision, dirty = false, disab
       {active && run ? <>
         <p role="status">{stale ? 'Draft changed. Rebuild the proposal.' : statusText[run.status]}{run.status === 'running' ? ` (${run.progress.completed}/${run.progress.total})` : ''}</p>
         {run.error ? <p role="alert">{run.error}</p> : null}
-        {run.findings.length ? <section aria-label="Upgrade needs attention"><h3 className="font-bold">Fix before applying</h3><ul className="mt-2 list-disc space-y-1 pl-5">{run.findings.map((finding, index) => <li key={index}>{location(finding.path) ? `${location(finding.path)}: ` : ''}{finding.message}</li>)}</ul><p className="mt-2">Ask chat to revise this proposal. For source changes, discard it, save your edits, then rebuild.</p></section> : null}
+        {findings.length ? <section aria-label="Upgrade needs attention" className="rounded-control border border-line-strong p-3">
+          <h3 className="font-bold">Some checks need fixing</h3>
+          <p className="mt-1">The upgrade hasn’t been applied. Fix failed checks to try again; completed checks are kept.</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">{findings.map((finding, index) => <li key={index}>{finding.title ? `${finding.title}: ` : ''}{finding.message}</li>)}</ul>
+          {run.status === 'blocked' && !stale ? <button type="button" className={`${button.primary} mt-3`} disabled={busy || dirty} onClick={() => void workflow.retry()}>Fix failed checks</button> : null}
+          <p className="mt-2">For specific changes, use chat below. If the source itself needs editing, discard this proposal, edit and save the draft, then prepare a new upgrade.</p>
+        </section> : null}
         {!stale ? <UpgradeReview run={run} /> : null}
         {run.status !== 'running' && !stale && !run.findings.length ? <p>Ask chat to revise questions or requirements.</p> : null}
         <div className="flex flex-wrap gap-2">
           <button type="button" className={button.primary} disabled={!ready || busy || dirty} onClick={() => void workflow.apply()}>{pending ? 'Working…' : 'Apply upgrade'}</button>
-          {['failed', 'blocked'].includes(run.status) && !stale ? <button type="button" className={button.quiet} disabled={busy || dirty} onClick={() => void workflow.retry()}>Retry upgrade</button> : null}
+          {run.status === 'failed' && !stale ? <button type="button" className={button.quiet} disabled={busy || dirty} onClick={() => void workflow.retry()}>Retry upgrade</button> : null}
           {(stale || run.status === 'stale') ? <button type="button" className={button.quiet} disabled={busy || dirty} onClick={() => void workflow.start()}>Rebuild upgrade</button> : null}
           {!stale && run.status !== 'stale' ? <button type="button" className={button.subtle} disabled={pending || workflow.loading || disabled || dirty} onClick={() => { if (window.confirm('Discard this proposal? Your draft will stay as it is.')) void workflow.discard(); }}>Discard proposal</button> : null}
         </div>
