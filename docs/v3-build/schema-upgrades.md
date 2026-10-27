@@ -40,3 +40,11 @@ Use deterministic handlers for structural migrations and content handlers for ad
 Upgrade runs are separate from adventure generation status. They are bound to an immutable source revision and proposal revision. Applying uses a database transaction and checks both revisions, writes one draft snapshot, and records the applied revision. Repeating Apply returns the recorded result. Model output is never applied directly by the client.
 
 Retain old snapshots and readers for migration, not a promise of perpetual runtime compatibility. Removing historical runtime branches is permitted under the best-effort policy; losing the ability to read and upgrade historical data requires a separate migration decision.
+
+## Verification for the first upgrade
+
+The implementation passed 109 spec tests, 109 engine tests, 225 orchestration tests, 11 play-contract tests, 255 generation tests (one existing skip), 676 web API/unit tests, 33 v3 database tests, and 63 demo/compatibility tests. The schema gate separately executes the registry, migration-service, content-authoring, and synthetic future-step suites. Package/web typechecks and the production build pass; remaining build warnings are in unrelated modules.
+
+The real database tests cover access controls, concurrent starts, atomic/idempotent application, immutable source revisions, persisted migration proof replay, publication history, and existing v3 tables. The upgrade browser journey covers desktop and 320px mobile layouts, explicit review, chat refinement, refresh, failure/retry, stale proposals, cancellation, unsaved changes, and Apply. Existing editor browser regression also passes. Browser tests inject deterministic server transport; they do not establish an authenticated browser-to-database journey.
+
+Live authoring quality was not verified because the configured local model relay was unavailable. Deterministic model tests verify exact quote offsets, bounded repairs, blocked content gaps, source/media preservation, and resuming completed work. Teachers must review question quality and source interpretation before applying and publishing.
