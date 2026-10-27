@@ -579,7 +579,12 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         transfer.items.add(new File([new Uint8Array(bytes)], "portrait.png", { type: "image/png" }));
         element.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
       }, imageBytes);
-      const portraitCandidate = portraitSlot.getByRole("article", { name: "Asset candidate" });
+      await portraitSlot.getByText("Candidate ready.", { exact: false }).waitFor();
+      expect(await portraitSlot.getByRole("article", { name: "Asset candidate" }).count()).toBe(0);
+      await portraitSlot.getByRole("button", { name: /View candidates/ }).click();
+      const portraitDialog = portraitSlot.getByRole("dialog");
+      expect(await portraitDialog.isVisible()).toBe(true);
+      const portraitCandidate = portraitDialog.getByRole("article", { name: "Asset candidate" });
       const beforeAssetsVersion = await page.evaluate(() => localStorage.getItem("version"));
       await portraitCandidate.getByRole("button", { name: "Use for all stances", exact: true }).click();
       await portraitSlot.getByText("Unsaved selection", { exact: false }).waitFor();
@@ -602,6 +607,10 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await portraitCandidate.scrollIntoViewIfNeeded();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: "/tmp/v3-portrait-stances-mobile.png" });
+      await page.keyboard.press("Escape");
+      expect(await portraitDialog.isVisible()).toBe(false);
+      expect(await portraitSlot.getByRole("button", { name: /View candidates/ }).evaluate(el => el === document.activeElement)).toBe(true);
+      expect(await portraitSlot.getByRole("article", { name: "Asset candidate" }).count()).toBe(0);
       // Review and select a walking-sheet upload without losing the unsaved story title.
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
       const stageSlot = page.locator('[id^="asset-stage-"]').first();
@@ -636,11 +645,16 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       const sheetChooser = page.waitForEvent("filechooser");
       await playerSlot.getByRole("button", { name: "Choose walking sheet", exact: true }).click();
       await (await sheetChooser).setFiles("apps/web/public/game/ninja/characters/Noble/walk.png");
+      await playerSlot.getByText("Candidate ready.", { exact: false }).waitFor();
+      expect(await playerSlot.getByRole("article", { name: "Asset candidate" }).count()).toBe(0);
+      await playerSlot.getByRole("button", { name: /View candidates/ }).click();
       const candidate = playerSlot.getByRole("article", { name: "Asset candidate" });
       await candidate.getByRole("button", { name: "Use sheet", exact: true }).waitFor();
       expect(await candidate.getByRole("button", { name: "Use sheet", exact: true }).isDisabled()).toBe(true);
       await candidate.getByLabel("I reviewed all four labelled directions and animation frames.").check();
       await candidate.getByRole("button", { name: "Use sheet", exact: true }).click();
+      await playerSlot.getByRole("button", { name: "Close candidates", exact: true }).click();
+      expect(await playerSlot.getByRole("dialog").isVisible()).toBe(false);
       await playerSlot.getByText(/Unsaved selection/).waitFor();
       expect(await page.evaluate(() => localStorage.getItem("version"))).toBe(beforeAssetsVersion);
       page.once("dialog", dialog => dialog.accept());
@@ -649,7 +663,10 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await page.getByRole("status").filter({ hasText: "Recovered your unsaved draft" }).waitFor();
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
       await playerSlot.getByText(/Unsaved selection/).waitFor();
+      expect(await playerSlot.getByRole("article", { name: "Asset candidate" }).count()).toBe(0);
+      await playerSlot.getByRole("button", { name: /View candidates/ }).click();
       expect(await playerSlot.getByRole("button", { name: "Selected", exact: true }).count()).toBe(1);
+      await playerSlot.getByRole("button", { name: "Close candidates", exact: true }).click();
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
       expect(await page.locator("#edit-title").inputValue()).toBe("Newer manual title");
       await page.evaluate(() => { window.saveMode = "conflict"; });

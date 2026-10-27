@@ -76,7 +76,7 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
   const vite = await createServer({
     configFile: false, root, publicDir: resolve(root, "public"), cacheDir: resolve(`node_modules/.vite/v3-preparation-${name}`),
     server: { host: "127.0.0.1", port: 0, watch: null, fs: { allow: [resolve(".")] } },
-    esbuild: { jsx: "automatic" }, optimizeDeps: { include: ["react", "react-dom/client", "phaser", "lucide-react"] },
+    esbuild: { jsx: "automatic" }, optimizeDeps: { include: ["react", "react-dom/client", "phaser", "lucide-react", "@radix-ui/react-select", "next/navigation", "@supabase/ssr", "@supabase/supabase-js"] },
     css: { postcss: { plugins: [tailwind()] } }, resolve: { alias: { "@": resolve(root, "src") } },
     plugins: [{
       name: "preparation-browser-fixture", enforce: "pre",
@@ -146,6 +146,9 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await walkToCharacter(page, "a");
     await page.getByRole("button", { name: /talk to Ada/ }).click();
     const preparation = page.getByRole("dialog", { name: "Prepare to talk to Ada" });
+    expect(await preparation.getByLabel("Scroll contents").count()).toBe(0);
+    expect(await preparation.getByRole("button", { name: "Roll up scroll" }).count()).toBe(0);
+    await preparation.getByRole("button", { name: "Close guidance", exact: true }).waitFor();
     await preparation.getByRole("progressbar", { name: "Preparation", exact: true }).waitFor();
     expect(await preparation.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("0");
     expect(await preparation.getByRole("progressbar").getAttribute("aria-valuemax")).toBe("3");

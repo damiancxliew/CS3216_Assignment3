@@ -2,6 +2,4 @@
 .content > * + * { margin-top: 1rem; }
 .content ul { padding-left: 1.25rem; list-style: disc; }
 .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .75rem; }
-.actions .primary { background: #684624; color: #fff8dc; }
 .actions button:disabled { opacity: .5; cursor: default; }
-:global([data-theme="dark"]) .actions .primary { background: #cfbda6; color: #302923; }

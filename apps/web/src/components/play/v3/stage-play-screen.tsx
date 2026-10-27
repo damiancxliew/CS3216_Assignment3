@@ -15,7 +15,7 @@ import { NotePickup, useNotePickups } from "@/components/play/v3/note-pickup";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { StoryToast, talkLines, useStanceShifts, useStoryToasts } from "@/components/play/v3/story-lines";
 import { StageIsland } from "@/components/play/v3/stage-island";
-import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3CardDialog } from "./card-dialog";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import { V3Map } from "@/components/play/v3/v3-map";
 import { guidanceWasSeen, rememberGuidance } from "./preparation-dialog";
@@ -443,10 +443,10 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
       /> : null}
 
       {notesOpen ? (
-        <V3ScrollDialog
-          eyebrow="Your notes"
+        <V3CardDialog
+          kind="notes"
           title="Your notes"
-          kicker="From your travels"
+          eyebrow="From your travels"
           footerText="A record of your discoveries"
           closeLabel="Close notes"
           onClose={() => setNotesOpen(false)}
@@ -460,7 +460,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               submitV3NoteInsert(characterId, noteId, undefined, send, () => setNotesOpen(false));
             }}
           />
-        </V3ScrollDialog>
+        </V3CardDialog>
       ) : null}
 
       {storyToasts.current ? (

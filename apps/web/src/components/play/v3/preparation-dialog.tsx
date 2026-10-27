@@ -1,8 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { V3ScrollDialog } from "./scroll-dialog";
-import scrollStyles from "@/components/play/document-reader.module.css";
+import { useId, type ReactNode } from "react";
+import { AdventureDialog } from "../adventure-dialog";
+import chromeStyles from "../adventure-chrome.module.css";
+import { button } from "@/components/ui";
 import styles from "./preparation-dialog.module.css";
 
 export function PreparationDialog({ title, children, onClose, primary }: {
@@ -11,14 +12,15 @@ export function PreparationDialog({ title, children, onClose, primary }: {
   onClose: () => void;
   primary?: { label: string; onClick: () => void; disabled?: boolean };
 }) {
-  return <V3ScrollDialog eyebrow="Investigation" title={title} footerText="Stage preparation" closeLabel="Close guidance" onClose={onClose} footerActions={
-    <div className={styles.actions}>
-      <button type="button" className={scrollStyles.button} onClick={onClose}>{primary ? "Keep exploring" : "Back to exploring"}</button>
-      {primary ? <button type="button" className={`${scrollStyles.button} ${styles.primary}`} disabled={primary.disabled} onClick={primary.onClick}>{primary.label}</button> : null}
-    </div>
-  }>
+  const titleId = useId();
+  return <AdventureDialog kind="preparation" titleId={titleId} closeLabel="Close guidance" onClose={onClose}>
+    <h2 id={titleId} className={chromeStyles.modalTitle}>{title}</h2>
     <div className={styles.content}>{children}</div>
-  </V3ScrollDialog>;
+    <footer className={`${chromeStyles.modalFooter} ${styles.actions}`}>
+      <button type="button" className={button.subtle} onClick={onClose}>{primary ? "Keep exploring" : "Back to exploring"}</button>
+      {primary ? <button type="button" className={button.primary} disabled={primary.disabled} onClick={primary.onClick}>{primary.label}</button> : null}
+    </footer>
+  </AdventureDialog>;
 }
 
 /** Guidance acknowledgements are cosmetic. Unavailable storage must never stop play. */

@@ -146,9 +146,9 @@
 .character { background: var(--world); }
 .character .modalFrame { background: linear-gradient(120deg, #174b3d, #2d6552); }
 .character .modalPaper { border-radius: 3px; border-top: 4px double var(--line-strong); }
-.accounts { background: var(--world); }
-.accounts .modalFrame { background: linear-gradient(120deg, #174b3d, #2d6552); }
-.accounts .modalPaper { border-radius: 3px; border-top: 4px double var(--line-strong); }
+.accounts, .preparation, .notes, .activity { background: var(--world); }
+.accounts .modalFrame, .preparation .modalFrame, .notes .modalFrame, .activity .modalFrame { background: linear-gradient(120deg, #174b3d, #2d6552); }
+.accounts .modalPaper, .preparation .modalPaper, .notes .modalPaper, .activity .modalPaper { border-radius: 3px; border-top: 4px double var(--line-strong); }
 .board { width: min(48rem, calc(100vw - 1.25rem)); background: var(--world); }
 .board .modalFrame { background: linear-gradient(120deg, #174b3d, #2d6552); }
 .board .modalPaper { border-radius: 3px; border-top: 4px double var(--line-strong); }

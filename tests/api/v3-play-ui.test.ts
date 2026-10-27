@@ -13,7 +13,7 @@ import { StanceTag, StoryToast, stanceShifts, storyKicker, talkLines } from "@/c
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
 import { StageIsland, documentActivityText, filterLogByCharacter, filterStoryLines, groupMessagesByStage, groupNotesByStage, journalShortcut, logLineCount } from "@/components/play/v3/stage-island";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
-import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
+import { V3CardDialog } from "@/components/play/v3/card-dialog";
 import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
 import { v3AudioSnapshot } from "@/components/play/v3/v3-map";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
@@ -585,16 +585,16 @@ describe("v3 stage play screen", () => {
     });
   });
 
-  it("renders the Notes scroll with its saved note and insert action", () => {
+  it("renders the Notes card with its saved note and insert action", () => {
     const notes = [{ id: "note-1", text: "A useful discovery.", source: "document" as const, stageIndex: 0, at: "2026-01-01T00:00:00.000Z" }];
     vi.stubGlobal("React", React);
     try {
       const markup = renderToStaticMarkup(createElement(
-        V3ScrollDialog,
+        V3CardDialog,
         {
-          eyebrow: "Your notes",
+          kind: "notes",
+          eyebrow: "From your travels",
           title: "Your notes",
-          kicker: "From your travels",
           footerText: "A record of your discoveries",
           closeLabel: "Close notes",
           onClose: () => {},
@@ -614,13 +614,13 @@ describe("v3 stage play screen", () => {
       }));
 
       expect(markup).toContain("Your notes");
-      expect(markup).toContain("From your travels");
       expect(markup).toContain("From the historical record");
       expect(markup).toContain("A useful discovery.");
       expect(markup).not.toContain("Optional comment");
       expect(markup).not.toContain("<textarea");
       expect(markup).toContain("Insert into chat");
-      expect(markup).toContain("Roll up scroll");
+      expect(markup).not.toContain("Roll up scroll");
+      expect(markup).toContain("Close notes");
       expect(emptyMarkup).toContain("No notes yet.");
       expect(emptyMarkup).toContain("Talk to people and read documents.");
     } finally {
