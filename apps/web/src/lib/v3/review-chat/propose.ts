@@ -24,6 +24,7 @@ const protectedFields = new Set([
   "prototype",
   "constructor",
   "id",
+  "schemaVersion",
   "citations",
   "sourceLabel",
   "real",

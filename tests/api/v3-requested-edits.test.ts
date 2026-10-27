@@ -21,6 +21,10 @@ const input = {
 };
 
 describe("teacher-requested suggestions", () => {
+  it("cannot change format versions through ordinary chat edits", async () => {
+    const llm = new FakeLlmClient([answer(["schemaVersion"], 2), answer(["schemaVersion"], 2)]);
+    expect(await proposeRequestedChanges({ llm }, { ...input, current: { schemaVersion: 1 }, roots: ["schemaVersion"] })).toMatchObject({ ok: false });
+  });
   it("returns validated changes without modifying the current content", async () => {
     const llm = new FakeLlmClient([
       answer(["stages", "0", "narration"], "A short scene."),

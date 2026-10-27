@@ -62,6 +62,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id === "next/navigation") return "\0navigation";
             if (id.endsWith("/teacher/actions") || (id === "../actions" && importer?.endsWith("/brief-chat.tsx"))) return "\0brief-actions";
             if (id.endsWith("/chat-actions")) return "\0chat";
+            if (id.endsWith("/upgrade-actions")) return "\0upgrades";
             if (id.endsWith("/src/components/ui")) return "\0buttons";
             if (id.endsWith("/media-actions")) return "\0media";
             if (id.endsWith("/edit-actions")) return "\0save";
@@ -74,6 +75,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
               export function Pending({children}) { return children; }
               export function StableLabel({label}) { return label; }
               export function ErrorText({children}) { return React.createElement('p',{role:'alert'},children); }`;
+            if (id === "\0upgrades") return `export const getUpgradeAction=async()=>null; export const startUpgradeAction=async()=>({ok:false,message:"Unavailable"}); export const refineUpgradeAction=startUpgradeAction; export const applyUpgradeAction=startUpgradeAction; export const discardUpgradeAction=startUpgradeAction;`;
             if (id === "\0navigation")
               return `export function useRouter(){return {refresh(){},push(){}}}`;
             if (id === "\0brief-actions")

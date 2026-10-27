@@ -7,6 +7,7 @@ import { suggestReviewChangeAction } from "./chat-actions";
 import { useReviewChat } from "./review-chat-context";
 import { reviewPrimary } from "./creation-styles";
 import { ChatSendButton } from "./chat-send-button";
+import { requestsSchemaUpgrade } from "@/lib/v3/review-chat/upgrade-intent";
 
 type Suggestion = Extract<ReviewChatResult, { ok: true }> & {
   key: string;
@@ -21,6 +22,7 @@ export function ReviewChatComposer({
 }) {
   const context = useReviewChat();
   const target = context?.target;
+  const upgrade = context?.upgrade;
   const current = useRef(target);
   current.current = target;
   const [text, setText] = useState("");
@@ -48,7 +50,8 @@ export function ReviewChatComposer({
   }, [storageKey, text, restored]);
   useEffect(() => setSuggestion(null), [target?.key, target?.revision]);
   useEffect(() => setMessage(""), [target?.key]);
-  const canSend = Boolean(target && !target.pending && text.trim() && !pending);
+  const upgradeRequest = Boolean(upgrade && (upgrade.active || requestsSchemaUpgrade(text)));
+  const canSend = Boolean((upgradeRequest ? !upgrade?.pending : target && !target.pending) && text.trim() && !pending);
   const sendHint = !target
     ? "You can send this when the next review is ready."
     : pending
@@ -59,6 +62,21 @@ export function ReviewChatComposer({
           ? "Write a message to send."
           : "Send message";
   const send = async () => {
+    if (!canSend) return;
+    if (upgradeRequest && upgrade) {
+      setPending(true);
+      setSuggestion(null);
+      setMessage("");
+      try {
+        setMessage(await upgrade.route(text));
+        setText("");
+      } catch {
+        setMessage("Could not prepare the upgrade. Your message is still here. Try again.");
+      } finally {
+        setPending(false);
+      }
+      return;
+    }
     const snapshot = current.current?.current();
     if (!snapshot || !canSend) return;
     setPending(true);
