@@ -38,7 +38,8 @@ export default async function V3JoinPage({ params, searchParams }: {
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const view = await loadJoinView(v3PublishDeps(), user?.id ?? null, versionId);
+  // Anonymous guest sessions are not school members; only a real account counts as signed in.
+  const view = await loadJoinView(v3PublishDeps(), user && !user.is_anonymous ? user.id : null, versionId);
   const path = `/v3/join/${versionId}`;
 
   if (view.kind === "closed") {

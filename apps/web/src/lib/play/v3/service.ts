@@ -82,7 +82,8 @@ async function permittedAdventure(
   if (
     !adventure ||
     !v3SchoolAllowed(adventure.schoolId, deps.env) ||
-    !(await deps.store.isActiveMember(adventure.schoolId, userId))
+    (!(adventure.isPublic && adventure.status === "published") &&
+      !(await deps.store.isActiveMember(adventure.schoolId, userId)))
   ) {
     return null;
   }
@@ -150,7 +151,7 @@ export async function getAttempt(
     !attempt ||
     attempt.studentId !== userId ||
     !v3SchoolAllowed(attempt.schoolId, deps.env) ||
-    !(await deps.store.isActiveMember(attempt.schoolId, userId))
+    !(await permittedAdventure(deps, userId, attempt.adventureId))
   ) {
     return error(404, "not_found", "Not found.");
   }
@@ -177,7 +178,7 @@ export async function postAction(
     !attempt ||
     attempt.studentId !== userId ||
     !v3SchoolAllowed(attempt.schoolId, deps.env) ||
-    !(await deps.store.isActiveMember(attempt.schoolId, userId))
+    !(await permittedAdventure(deps, userId, attempt.adventureId))
   ) {
     return error(404, "not_found", "Not found.");
   }

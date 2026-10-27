@@ -6,6 +6,7 @@ import type { TransferSource } from "@/lib/v3/spec-transfer";
 import { GameEvent } from "@adventure/play-contract";
 
 export interface V3Adventure {
+  isPublic?: boolean;
   id: string;
   schoolId: string;
   ownerId: string;
@@ -78,6 +79,7 @@ export interface V3PlayStore {
 }
 
 type AdventureRow = {
+  is_public: boolean;
   id: string;
   school_id: string;
   owner_id: string;
@@ -144,12 +146,13 @@ export class SupabaseV3PlayStore implements V3PlayStore {
   async loadAdventure(id: string): Promise<V3Adventure | null> {
     const { data, error } = await this.admin
       .from("adventures_v3")
-      .select("id, school_id, owner_id, status, published_version, spec_version, spec")
+      .select("id, school_id, owner_id, status, published_version, spec_version, spec, is_public")
       .eq("id", id)
       .maybeSingle<AdventureRow>();
     if (error) throw error;
     if (!data) return null;
     return {
+      isPublic: data.is_public,
       id: data.id,
       schoolId: data.school_id,
       ownerId: data.owner_id,

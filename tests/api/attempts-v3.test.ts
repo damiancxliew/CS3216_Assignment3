@@ -50,6 +50,7 @@ function fakeLlm(flagged = false): FakeLlmClient {
 }
 
 function setup(options: {
+  isPublic?: boolean;
   status?: string;
   activeMember?: boolean;
   env?: NodeJS.ProcessEnv;
@@ -61,6 +62,7 @@ function setup(options: {
     id: ADVENTURE_ID,
     schoolId: SCHOOL_ID,
     ownerId: USER_ID,
+    isPublic: options.isPublic,
     status: options.status ?? "published",
     specVersion: 1,
     spec: goldenSpec,
@@ -117,6 +119,29 @@ describe("v3 attempts API service", () => {
     const inactive = setup({ activeMember: false });
     expect((await createAttempt(inactive.deps, USER_ID, await publishedVersionId(inactive.deps.store, ADVENTURE_ID))).status).toBe(404);
     expect((await createAttempt(inactive.deps, USER_ID, "missing")).status).toBe(404);
+  });
+
+  it("lets public outsiders start, resume and act, while keeping attempts private", async () => {
+    const { deps, store } = setup({ isPublic: true, activeMember: false });
+    const first = await create(deps);
+    expect((await createAttempt(deps, USER_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).status).toBe(200);
+    expect((await getAttempt(deps, USER_ID, first.attemptId)).status).toBe(200);
+    expect((await postAction(deps, USER_ID, first.attemptId, { revision: 0, action: { type: "continue" } })).status).toBe(200);
+    expect((await getAttempt(deps, OTHER_USER_ID, first.attemptId)).status).toBe(404);
+    expect((await postAction(deps, OTHER_USER_ID, first.attemptId, { revision: 1, action: { type: "tick" } })).status).toBe(404);
+    const adventure = (await store.loadAdventure(ADVENTURE_ID))!;
+    store.addAdventure({ ...adventure, isPublic: false });
+    expect((await getAttempt(deps, USER_ID, first.attemptId)).status).toBe(404);
+    expect((await postAction(deps, USER_ID, first.attemptId, { revision: 1, action: { type: "tick" } })).status).toBe(404);
+  });
+
+  it("does not expose public drafts, archived adventures or disabled schools", async () => {
+    for (const status of ["draft", "archived"]) {
+      const { deps } = setup({ isPublic: true, activeMember: false, status });
+      expect((await createAttempt(deps, USER_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).status).not.toBe(201);
+    }
+    const { deps } = setup({ isPublic: true, env: { V3_ENABLED: "0" } });
+    expect((await createAttempt(deps, USER_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).status).toBe(404);
   });
 
   it("retains the original sprite when resuming after a newer sprite was saved and published", async () => {
