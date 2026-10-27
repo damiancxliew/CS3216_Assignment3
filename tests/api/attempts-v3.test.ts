@@ -11,6 +11,7 @@ import {
   getAttempt,
   flagsFromEvents,
   postAction,
+  restartAttempt,
   runPostTurnChecks,
   type V3PlayServiceDeps,
 } from "@/lib/play/v3/service";
@@ -131,6 +132,22 @@ describe("v3 attempts API service", () => {
       status: 200,
       body: { attemptId: first.attemptId, revision: 0, resumed: true, view: { phase: "briefing" } },
     });
+  });
+
+  it("starts over with a fresh attempt that later starts resume", async () => {
+    const fixture = setup();
+    const first = await create(fixture.deps);
+    await postAction(fixture.deps, USER_ID, first.attemptId, { revision: 0, action: { type: "continue" } });
+
+    expect((await restartAttempt(fixture.deps, OTHER_USER_ID, first.attemptId)).status).toBe(404);
+    expect((await restartAttempt(fixture.deps, USER_ID, "missing")).status).toBe(404);
+
+    const restarted = await restartAttempt(fixture.deps, USER_ID, first.attemptId);
+    expect(restarted).toMatchObject({ status: 201, body: { revision: 0, resumed: false, view: { phase: "briefing" } } });
+    const fresh = (restarted.body as { attemptId: string }).attemptId;
+    expect(fresh).not.toBe(first.attemptId);
+    expect((await fixture.deps.store.loadAttempt(first.attemptId))?.revision).toBe(1);
+    expect(await createAttempt(fixture.deps, USER_ID, ADVENTURE_ID)).toMatchObject({ status: 200, body: { attemptId: fresh, resumed: true } });
   });
 
   it("serves only an owner's projected view and uses the pinned spec", async () => {
