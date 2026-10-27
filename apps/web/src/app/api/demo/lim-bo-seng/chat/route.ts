@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
   const budget = requests.get(ip) ?? { start: now, count: 0 };
   if (now - daily.start > 86400000) daily = { start: now, count: 0 };
-  if (budget.count >= 12 || daily.count >= 500 || requests.size > 5000)
+  if (budget.count >= 120 || daily.count >= 3000 || requests.size > 5000)
     return json({
       ...curatedReply(body.stage, body.npc, body.question),
       notice:
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: process.env.DEMO_HISTORY_MODEL ?? "gpt-5",
+          model: process.env.DEMO_HISTORY_MODEL ?? "gpt-6-luna",
           store: false,
           instructions: chatInstructions(body.stage, body.npc),
           input: JSON.stringify({
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
             ),
           }),
           max_output_tokens: 1600,
-          reasoning: { effort: "minimal" },
+          reasoning: { effort: "none" },
           text: {
             format: {
               type: "json_schema",
