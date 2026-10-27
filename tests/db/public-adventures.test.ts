@@ -58,12 +58,15 @@ describe("public adventure authorization", () => {
     const llm = new FakeLlmClient({ replies: [() => { throw new Error("No model calls expected"); }] });
     const deps = { store: new SupabaseV3PlayStore(admin), now: () => 1000,
       env: { V3_ENABLED: "1", V3_SCHOOL_IDS: school }, llm: () => llm };
-    expect((await createAttempt(deps, guestId, a.id)).status).toBe(404);
+    // v3 attempts start from a published version's link ID (#360), not the adventure ID.
+    const versionId = (await deps.store.listPublications(a.id)).find((row) => row.version === 1)!.id;
+    expect((await createAttempt(deps, guestId, versionId)).status).toBe(404);
     expect((await owner.client.rpc("set_adventure_public", { p_id: a.id, p_kind: "v3", p_public: true })).error).toBeNull();
-    const first = await createAttempt(deps, guestId, a.id);
+    expect((await createAttempt(deps, guestId, a.id)).status).toBe(404);
+    const first = await createAttempt(deps, guestId, versionId);
     expect(first.status).toBe(201);
     const attemptId = first.body.attemptId as string;
-    expect((await createAttempt(deps, guestId, a.id)).body.attemptId).toBe(attemptId);
+    expect((await createAttempt(deps, guestId, versionId)).body.attemptId).toBe(attemptId);
     expect((await postAction(deps, guestId, attemptId, { revision: 0, action: { type: "continue" } })).status).toBe(200);
     expect(llm.requests).toHaveLength(0);
     expect((await getAttempt(deps, outsider.userId, attemptId)).status).toBe(404);
