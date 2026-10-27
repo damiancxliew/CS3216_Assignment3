@@ -132,6 +132,19 @@ describe("versioned asset selection", () => {
       )?.url,
     ).toBeNull();
   });
+  it("applies one portrait to all stances atomically without changing other characters", () => {
+    const spec = fixture();
+    const character = spec.characters.find(c => c.tier === "major")!;
+    if (character.tier !== "major") throw Error("Major required");
+    const key = `${character.id}:${character.stances[0].id}`;
+    const next = applyV3Edits(spec, [{ type: "portraitImage", targetKey: key, candidateId: id, allStances: true }], [], false, {
+      candidates: { [id]: { id, adventureId: "adv", target: { kind: "portrait", key }, snapshot } },
+    });
+    expect(Object.keys(next.authoring!.portraitImages!)).toEqual(character.stances.map(s => `${character.id}:${s.id}`));
+    for (const stance of character.stances)
+      expect(resolvePortraitImage(next, "adv", 2, `${character.id}:${stance.id}`).url).toBe(snapshot.url);
+    expect(spec.authoring?.portraitImages).toBeUndefined();
+  });
   it("generic authoring edits cannot fabricate snapshots", () => {
     expect(() =>
       applyV3Edits(

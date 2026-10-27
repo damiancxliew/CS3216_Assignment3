@@ -124,7 +124,7 @@ export function V3Map(props: V3MapProps) {
     if (latest.current.movementLocked) movementLockHandler.current();
     renderRef.current?.();
     nearbyChangeHandler.current();
-  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio, inspection]);
+  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio, props.scenery, inspection]);
 
   useEffect(() => {
     const parent = host.current;

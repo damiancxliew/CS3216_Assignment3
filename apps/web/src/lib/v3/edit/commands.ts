@@ -1,5 +1,6 @@
 import {
   bundledId,
+  characterPortraitKeys,
   validTarget,
   isSprite,
   resolveWalkingSprites,
@@ -22,6 +23,7 @@ export const V3Edit = z.discriminatedUnion("type", [
   }),
   z.strictObject({
     type: z.literal("portraitImage"),
+    allStances: z.boolean().optional(),
     targetKey: z.string().min(1),
     candidateId: z.string().uuid().nullable(),
   }),
@@ -171,12 +173,13 @@ export function applyV3Edits(
       } else {
         const field =
           edit.type === "stageImage" ? "stageImages" : "portraitImages";
-        ((draft.authoring ??= {})[field] ??= {})[edit.targetKey] = candidate
-          ? {
-              type: "candidate",
-              candidate: structuredClone(candidate.snapshot),
-            }
-          : { type: "fallback" };
+        const keys = edit.type === "portraitImage" && edit.allStances
+          ? characterPortraitKeys(draft, edit.targetKey)
+          : [edit.targetKey];
+        for (const key of keys)
+          ((draft.authoring ??= {})[field] ??= {})[key] = candidate
+            ? { type: "candidate", candidate: structuredClone(candidate.snapshot) }
+            : { type: "fallback" };
       }
       continue;
     }

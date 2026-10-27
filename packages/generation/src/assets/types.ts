@@ -37,6 +37,7 @@ export interface ImageRequest {
   prompt: string
   size: '1024x1024' | '1024x1536' | '1536x1024'
   quality: 'low' | 'medium' | 'high'
+  referenceImage?: { bytes: Uint8Array; mimeType: 'image/png' | 'image/webp' | 'image/jpeg' }
 }
 
 export interface ImageResult {
