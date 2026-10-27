@@ -1,3 +1,4 @@
+import { AdventureAccess } from "@/components/teacher/adventure-access";
 import Link from "next/link";
 import { V3AdventureNav } from "@/components/teacher/v3-adventure-nav";
 import { headers } from "next/headers";
@@ -34,6 +35,7 @@ export default async function StudentLinkHistoryPage({
   return (
     <Page title="Version history" width="wide">
       <V3AdventureNav adventureId={id} page="history" />
+      <AdventureAccess adventureId={id} kind="v3" isPublic={history.adventure.isPublic ?? false} />
       {history.adventure.status !== "published" ? (
         <p className="text-sm text-muted">
           Unpublished · Links are closed to new starts.

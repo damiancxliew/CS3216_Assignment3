@@ -1,8 +1,11 @@
+import { z } from "zod";
+import { createGuestSession } from "@/lib/auth/guest";
 import { NextResponse } from "next/server";
 
 import { requestOrigin } from "@/lib/auth/request-origin";
+import { loadJoinView } from "@/lib/play/v3/publish";
 import { createAttempt } from "@/lib/play/v3/service";
-import { v3PlayDeps } from "@/lib/play/v3/http";
+import { v3PlayDeps, v3PublishDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
 
@@ -14,9 +17,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ adve
   }
   const origin = requestOrigin(request);
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  let { data: { user } } = await supabase.auth.getUser();
   const { adventureId } = await params;
+  if (!z.string().uuid().safeParse(adventureId).success) return new Response("Not found.", { status: 404 });
   const release = new URL(request.url).searchParams.get("release") ?? undefined;
+  if (!user && (await loadJoinView(v3PublishDeps(), null, adventureId, release)).kind === "ready") {
+    const guest = await createGuestSession(supabase);
+    if (!guest) return new Response("Could not start guest play. Please try again.", { status: 503 });
+    user = guest;
+  }
   if (!user) return NextResponse.redirect(new URL(`/v3/join/${encodeURIComponent(adventureId)}${release ? `?release=${encodeURIComponent(release)}` : ""}`, origin));
 
   const result = await createAttempt(v3PlayDeps(), user.id, adventureId, release);

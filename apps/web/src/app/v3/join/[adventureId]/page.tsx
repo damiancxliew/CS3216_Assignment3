@@ -28,7 +28,7 @@ export default async function V3JoinPage({ params, searchParams }: { params: Pro
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const view = await loadJoinView(v3PublishDeps(), user?.id ?? null, adventureId, release);
+  const view = await loadJoinView(v3PublishDeps(), user && !user.is_anonymous ? user.id : null, adventureId, release);
   const suffix = release ? `?release=${encodeURIComponent(release)}` : "";
   const path = `/v3/join/${adventureId}${suffix}`;
 

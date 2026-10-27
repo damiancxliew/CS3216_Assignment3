@@ -117,6 +117,7 @@ export async function loadJoinView(
   const published = version == null ? null : await deps.store.loadVersionSpec(adventure.id, version);
   if (!published) return { kind: "closed" };
   const title = specTitle(published);
+  if (adventure.isPublic) return { kind: "ready", title };
   if (!userId) return { kind: "sign_in", title };
   if (!(await deps.store.isActiveMember(adventure.schoolId, userId))) return { kind: "not_member", title };
   return { kind: "ready", title };
