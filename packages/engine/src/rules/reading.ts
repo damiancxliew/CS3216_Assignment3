@@ -35,6 +35,7 @@ export function readingCheckView(document: SpecDocument, state: EngineState): Do
   const check = document.readingCheck
   if (check === undefined) return undefined
   const progress = state.readingChecks?.[document.id] ?? initialReadingState()
+  const lastAttempt = progress.attempts.at(-1)
   const publicQuestion = (question: typeof check.recovery) => {
     // Rebuild the same shuffle from the private attempt seed on every projection.
     // No new persisted state is needed, and grading continues to use option IDs.
@@ -49,8 +50,13 @@ export function readingCheckView(document: SpecDocument, state: EngineState): Do
   return {
     status: progress.status,
     question: progress.status === 'unanswered' ? publicQuestion(check.variants[progress.variantIndex]!) : null,
-    recovery: progress.status === 'needsReview' ? publicQuestion(check.recovery) : null,
-    feedback: progress.status === 'needsReview' ? 'Review the source. Complete the correction or investigate related evidence before trying again.' : null,
+    // The active variant stays fixed until its correction is accepted.
+    recovery: progress.status === 'needsReview' ? publicQuestion(check.variants[progress.variantIndex]!) : null,
+    feedback: progress.status === 'needsReview'
+      ? lastAttempt?.recovery && !lastAttempt.correct
+        ? 'That correction is not supported. Re-read the source, then choose an answer and highlight one or two sentences that support it.'
+        : 'Review the source. Complete the correction or investigate related evidence before trying again.'
+      : null,
     explanation: progress.status === 'passed' ? check.variants[progress.variantIndex]!.explanation : null,
   }
 }
@@ -69,8 +75,8 @@ export function submitReadingCheck(ctx: StepContext, action: Extract<Action, { t
   const recovery = action.recovery === true
   if (!recovery && progress.status === 'needsReview') fail('preparation_required', 'review this source before trying another question')
   if (recovery && progress.status !== 'needsReview') fail('invalid_action', 'no correction is needed')
-  const question = recovery ? check.recovery : check.variants[progress.variantIndex]!
-  if (action.questionId !== question.id || !question.options.some((option) => option.id === action.choiceId)) fail('invalid_action', 'this question is no longer active')
+  const question = check.variants[progress.variantIndex]!
+  if (action.questionId !== question.id || !question.options.some((option) => option.id === action.choiceId)) fail('invalid_action', 'Question changed. Close and reopen this source to refresh it.')
   const correct = action.choiceId === question.correctOptionId && supportsReadingSelection(document.body, question.support, action.start, action.end)
   progress.attempts.push({ at: ctx.now, questionId: question.id, choiceId: action.choiceId, start: action.start, end: action.end, correct, recovery })
   ctx.emit({ type: 'readingCheck', documentId: document.id, questionId: question.id, correct, recovery })
