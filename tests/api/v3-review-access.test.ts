@@ -39,6 +39,7 @@ vi.mock("@/lib/v3/generation/deps", () => ({
 vi.mock("@/lib/play/v3/store", () => ({
   SupabaseV3PlayStore: class {
     loadAdventure = mocks.loadSpec;
+    async loadCheckErrors() { return []; }
   },
 }));
 vi.mock("@/app/v3/teacher/actions", () => ({

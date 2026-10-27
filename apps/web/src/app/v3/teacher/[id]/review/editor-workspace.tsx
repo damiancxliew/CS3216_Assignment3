@@ -1,5 +1,6 @@
 "use client";
-import React, { useMemo, useRef, useState } from "react";
+import { ZipUpdate } from "@/components/teacher/v3-version-controls";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { reviewAssets } from "@/lib/v3/review-assets";
@@ -52,6 +53,11 @@ export function EditorWorkspace(props: Props) {
   const [publishedVersion, setPublishedVersion] = useState(
     props.publishedVersion,
   );
+  // Publication can change from the versions dialog while local edits stay open.
+  useEffect(() => {
+    setPublished(props.published);
+    setPublishedVersion(props.publishedVersion);
+  }, [props.published, props.publishedVersion]);
   const legacyStages = Object.fromEntries(
     (props.assets?.items ?? [])
       .filter((asset) => asset.kind === "stage")
@@ -366,10 +372,21 @@ export function EditorWorkspace(props: Props) {
                       Preview
                     </Link>
                   )}
+                  {dirty || pending ? (
+                    <button type="button" disabled className={button.subtle}>Export ZIP</button>
+                  ) : (
+                    <a href={`/api/v3/adventures/${props.adventureId}/export?format=zip`} download className={button.quiet}>Export ZIP</a>
+                  )}
+                  <ZipUpdate adventureId={props.adventureId} version={version} publishedVersion={publishedVersion} disabled={dirty || pending} />
+                  {dirty || pending ? (
+                    <button type="button" disabled className={button.subtle}>Export JSON</button>
+                  ) : (
+                    <a href={`/api/v3/adventures/${props.adventureId}/export`} download className={button.quiet}>Export JSON</a>
+                  )}
                 </div>
                 {dirty ? (
                   <span className="text-sm">
-                    Unsaved edits. Save before Preview or Publish.
+                    Unsaved edits. Save before Preview, Export or Publish.
                   </span>
                 ) : null}
               </section>

@@ -52,12 +52,13 @@ export default async function AdventureWorkspace({
     title: d.title,
     text: d.pages.map((p) => p.text).join("\n"),
   }));
+  const savedErrors = await new SupabaseV3PlayStore(admin).loadCheckErrors(id, adventure.specVersion);
   const checks =
     parsed.ok && parsed.spec.authoring
-      ? validateEditedSpec(parsed.spec, sources, progress.checkErrors)
+      ? validateEditedSpec(parsed.spec, sources, savedErrors)
       : null;
   const errors =
-    checks?.errors ?? reviewErrors(adventure.spec, progress.checkErrors);
+    checks?.errors ?? reviewErrors(adventure.spec, savedErrors);
   return (
     <Page
       title={parsed.ok ? parsed.spec.title : "Adventure"}

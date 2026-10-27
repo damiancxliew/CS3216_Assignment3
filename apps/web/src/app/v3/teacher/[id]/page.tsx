@@ -164,6 +164,8 @@ export default async function V3AdventurePage({
                 <h2 className="text-xl font-extrabold tracking-tight text-ink">
                   {title}
                 </h2>
+                {row.status === "draft" ? <a className={button.quiet} href={`/api/v3/adventures/${id}/export`} download>Export saved JSON</a> : null}
+                {row.status === "draft" ? <a className={button.quiet} href={`/api/v3/adventures/${id}/export?format=zip`} download>Export saved ZIP</a> : null}
                 {pass && validProgress?.mode === "guided" ? (
                   <span className="text-xs text-muted">
                     Step {pause?.index ?? 2} of 5

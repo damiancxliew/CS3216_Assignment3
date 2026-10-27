@@ -61,6 +61,8 @@ export async function loadClassSummary(
     !counts.has(adventure.publishedVersion)
   )
     counts.set(adventure.publishedVersion, 0);
+  if (requestedVersion !== undefined && Number.isSafeInteger(requestedVersion) && requestedVersion > 0 && !counts.has(requestedVersion)
+    && await deps.store.loadVersionSpec(adventureId, requestedVersion)) counts.set(requestedVersion, 0);
   if (!counts.size) {
     const parsed = EngineSpec.safeParse(adventure.spec);
     return {

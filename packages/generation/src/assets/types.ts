@@ -75,4 +75,6 @@ export type CachedAsset = { url: string; model: string; scene?: CutsceneScene | 
 export interface AssetStore {
   put(key: string, bytes: Uint8Array, mimeType: string): Promise<string>
   download(url: string): Promise<Uint8Array | null>
+  /** Remove an object created by a failed import, when the backend supports it. */
+  remove?(key: string): Promise<void>
 }

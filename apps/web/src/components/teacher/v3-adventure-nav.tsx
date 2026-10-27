@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdventureVersions } from "./v3-version-controls";
 
 /** Consistent navigation for the adventure workspace and its teacher pages. */
 export function V3AdventureNav({
@@ -13,12 +14,10 @@ export function V3AdventureNav({
     page === "adventure"
       ? [
           { href: `${href}/summary`, label: "Class summary" },
-          { href: `${href}/links`, label: "Version history" },
         ]
       : page === "summary"
         ? [
             { href: `${href}/preview`, label: "Preview" },
-            { href: `${href}/links`, label: "Version history" },
           ]
         : [{ href: `${href}/summary`, label: "Class summary" }];
   return (
@@ -33,6 +32,7 @@ export function V3AdventureNav({
         ← Back to {page === "adventure" ? "adventures" : "adventure"}
       </Link>
       <div className="flex flex-wrap items-center gap-4">
+        <AdventureVersions adventureId={adventureId} />
         {secondary.map((item) => (
           <Link
             key={item.href}
