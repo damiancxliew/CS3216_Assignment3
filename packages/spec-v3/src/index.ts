@@ -255,7 +255,7 @@ const HintAngle = z.strictObject({
   text: Text,
 })
 
-export const AdventureSpec = z.strictObject({
+const AdventureSpecObject = z.strictObject({
   authoring: z.strictObject({
     sourcePolicy: z.strictObject({ allowAny: z.boolean().optional(), extraDomains: z.array(Text).optional() }).optional(),
     teacherContributions: z.array(z.strictObject({ entity: Text, field: Text })).optional(),
@@ -302,7 +302,29 @@ export const AdventureSpec = z.strictObject({
   openQuestions: z.array(OpenQuestion).default([]),
   hintAngles: z.array(HintAngle).default([]),
 })
+/** The first persisted contract permits unversioned content and partial preparation. */
+export const LegacyAdventureSpec = AdventureSpecObject.extend({ schemaVersion: z.literal(1).optional() })
+/** Required mechanics for newly generated and explicitly upgraded adventures. */
+export const LatestAdventureSpec = AdventureSpecObject.extend({
+  schemaVersion: z.literal(2),
+  stages: z.array(Stage.extend({ preparation: StagePreparation })).min(1),
+  documents: z.array(Document.extend({ readingCheck: ReadingCheck })),
+})
+
+/** One runtime shape; old content is adapted without silently changing its format or gameplay. */
+export const AdventureSpec = AdventureSpecObject.extend({ schemaVersion: z.union([z.literal(1), z.literal(2)]).optional() })
+  .superRefine((spec, ctx) => {
+    if (spec.schemaVersion !== 2) return
+    spec.stages.forEach((stage, i) => {
+      if (!stage.preparation) ctx.addIssue({ code: 'custom', path: ['stages', i, 'preparation'], message: 'Schema version 2 requires stage preparation. Upgrade this adventure before saving it as version 2.' })
+    })
+    spec.documents.forEach((document, i) => {
+      if (!document.readingCheck) ctx.addIssue({ code: 'custom', path: ['documents', i, 'readingCheck'], message: 'Schema version 2 requires a reading check on every document.' })
+    })
+  })
 export type AdventureSpec = z.infer<typeof AdventureSpec>
+export type LatestAdventureSpec = z.infer<typeof LatestAdventureSpec>
+export type LegacyAdventureSpec = z.infer<typeof LegacyAdventureSpec>
 export type SpecStage = z.infer<typeof Stage>
 export type SpecCharacter = z.infer<typeof Character>
 export type SpecDiscovery = z.infer<typeof Discovery>
@@ -342,3 +364,5 @@ export type { SkeletonShape, ValidateSkeletonResult } from './skeleton.js'
 
 export { editableIssues } from './check/editable.js'
 export { unconditionalOutcomeIds } from './moments.js'
+
+export * from './versions.js'

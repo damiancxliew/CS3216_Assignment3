@@ -343,6 +343,7 @@ describe('generateDetails', () => {
     expect(result.ok).toBe(true)
     expect(llm.requests.filter((r) => r.key === 'stage s1')[1]!.request.user).toContain('readingCheck')
     expect(result.draft!.documents.every((d) => d.readingCheck?.variants.length === 4)).toBe(true)
+    expect(result.draft!.schemaVersion).toBe(2)
   })
 
   it('repairs missing stage preparation and retains every essential conversation requirement', async () => {

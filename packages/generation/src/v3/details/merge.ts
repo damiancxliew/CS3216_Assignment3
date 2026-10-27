@@ -3,6 +3,7 @@
  * endings/reveal passes are filled by `withPendingEndingsFields` placeholders.
  */
 import type { AdventureSpec, CheckIssue, Condition, SkeletonShape, SpecCharacter, SpecDiscovery, SpecDocument, SpecEnding, SpecMoment, SpecStage, SpecStoryEvent, SpecTrigger } from '@adventure/spec-v3'
+import { CURRENT_SCHEMA_VERSION } from '@adventure/spec-v3'
 
 import { citations, pairs, toCondition, toEffect, toDocument, toWhen } from './schema'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, StageDetailsLlmOutput } from './schema'
@@ -362,6 +363,7 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts, opts:
   })
 
   const draft: AdventureSpec = {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     id: skeleton.id,
     title: skeleton.title,
     readingLevel: skeleton.readingLevel,
