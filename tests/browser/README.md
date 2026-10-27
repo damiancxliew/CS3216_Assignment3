@@ -35,6 +35,19 @@ RUN_READER_BROWSER_TESTS=1 npx vitest run tests/browser/document-reader.test.ts
 Set `PLAYWRIGHT_CHANNEL=msedge` to use an installed Edge browser instead. Screenshots
 are saved under `output/reader-check/`.
 
+## V3 evidence preparation
+
+```sh
+RUN_PREPARATION_BROWSER_TESTS=1 npx vitest run tests/browser/v3-preparation.test.ts
+```
+
+This isolated Vite fixture runs the real engine, projection, map, and player UI with
+deterministic model replies and test transport. Desktop and mobile journeys cover
+broad-highlight rejection, recovery, reload, accessible extra notes, essential
+conversations, timer exceptions, queued guidance, and decision confirmation.
+Screenshots and engine-result reports are saved in `output/v3-preparation-check/`.
+Supabase, authentication, and a live model provider are not exercised.
+
 Run from the repository root against a running local Supabase instance with this
 branch's migrations applied. The test creates fresh users and an adventure; it
 does not reset the database. Install Playwright Chromium if it is not available.
