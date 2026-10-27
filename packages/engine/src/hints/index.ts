@@ -2,6 +2,7 @@
 import { currentStage, type StepContext } from '../context'
 import { fireStoryEvent } from '../events'
 import { missingCore } from '../rules/knowledge'
+import { preparationHint, preparationHintTarget } from '../rules/preparation'
 
 export function evaluateHints(ctx: StepContext): void {
   const { state, spec, now } = ctx
@@ -23,11 +24,13 @@ export function evaluateHints(ctx: StepContext): void {
     hints.pauseFrom = null
   }
 
+  const preparationTarget = preparationHintTarget(ctx, undefined, now)
   const missing = missingCore(ctx)
+  if (preparationTarget !== undefined && !missing.some((discovery) => discovery.id === preparationTarget.id)) missing.unshift(preparationTarget)
   if (missing.length === 0) return
 
   const stageId = currentStage(ctx).id
-  const target =
+  const target = preparationTarget ??
     missing.find(
       (discovery) =>
         spec.openQuestions.some((question) => question.stageId === stageId && question.discoveryIds.includes(discovery.id)) ||
@@ -48,6 +51,12 @@ export function evaluateHints(ctx: StepContext): void {
       const question = spec.openQuestions.find((candidate) => candidate.stageId === stageId && candidate.discoveryIds.includes(target.id))
       if (question !== undefined) {
         ctx.say('thought', question.text)
+        shownLevel = 1
+        break
+      }
+      const guidance = preparationHint(ctx, undefined, now)
+      if (preparationTarget !== undefined && guidance !== null) {
+        ctx.say('thought', guidance)
         shownLevel = 1
         break
       }

@@ -3,6 +3,7 @@ import { evaluate } from '../conditions'
 import { currentStage, type StepContext } from '../context'
 import { openMoment } from '../rules/moment'
 import { stageDurationMs } from '../rules/stages'
+import { decisionPreparation } from '../rules/preparation'
 import type { SpecStoryEvent } from '../spec'
 
 export function fireStoryEvent(ctx: StepContext, event: SpecStoryEvent): void {
@@ -32,7 +33,7 @@ export function fireStoryEvent(ctx: StepContext, event: SpecStoryEvent): void {
       }
       break
     case 'beginMoment':
-      if (state.moment === null) openMoment(ctx, 'student')
+      if (state.moment === null && decisionPreparation(ctx).ready && !(currentStage(ctx).preparation !== undefined && 'timerOut' in event.when)) openMoment(ctx, 'student')
       break
   }
 

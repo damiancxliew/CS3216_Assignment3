@@ -20,13 +20,15 @@ import { lookup, type StepContext } from './context'
 import type { EngineSpec } from './spec'
 import type { EngineState, PostTurnAction } from './state'
 import { grantDiscovery } from './rules/knowledge'
-import { onChallenged } from './rules/triggers'
+import { onChallenged, recoverTrust } from './rules/triggers'
+import { confirmEssentialConversation } from './rules/preparation'
 
 export const PostTurnActionSchema = z.strictObject({
   type: z.literal('postTurn'),
   messageId: z.string().min(1),
   result: z.object({
     conveyed: z.array(z.string()),
+    substantive: z.boolean().optional(),
     assertedUndiscovered: z.boolean(),
     assertion: z.string().nullable(),
     moderation: z.object({
@@ -49,7 +51,7 @@ export async function runPostTurnCheck(spec: EngineSpec, state: EngineState, mes
   const outcome = await checkExchange(deps.llm, {
     characterName: character?.name ?? pending.characterId,
     roleName: spec.role.name,
-    revealable: pending.revealable,
+    revealable: [...pending.revealable, ...(pending.essential ?? []).filter((fact) => !pending.revealable.some((offered) => offered.id === fact.id))],
     studentNotes: pending.studentNotes,
     turn: pending.turn,
     reply: pending.reply,
@@ -64,6 +66,7 @@ export function applyPostTurn(ctx: StepContext, action: PostTurnAction): void {
   const [pending] = state.pendingChecks.splice(index, 1)
   if (pending === undefined) return
   ctx.touch()
+  if (pending.stageIndex !== state.stageIndex) return
   const offered = new Set(pending.revealable.map((fact) => fact.id))
   const stageId = spec.stages[state.stageIndex]?.id
   for (const id of action.result.conveyed) {
@@ -71,6 +74,16 @@ export function applyPostTurn(ctx: StepContext, action: PostTurnAction): void {
     const discovery = lookup.discovery(spec, id)
     if (discovery.stageId !== stageId || !evaluate(discovery.condition, { spec, state, now: ctx.now })) continue
     grantDiscovery(ctx, discovery, 'conversation')
+  }
+  if (action.result.substantive === true) {
+    if (!action.result.assertedUndiscovered && pending.supportedNoteDiscoveryId !== undefined) recoverTrust(ctx, pending.characterId, pending.supportedNoteDiscoveryId)
+    const essential = new Set((pending.essential ?? []).map((fact) => fact.id))
+    const discussed = action.result.conveyed.filter((id) => {
+      if (!essential.has(id)) return false
+      const discovery = lookup.discovery(spec, id)
+      return discovery.stageId === stageId && (state.discovered.includes(id) || evaluate(discovery.condition, { spec, state, now: ctx.now }))
+    })
+    confirmEssentialConversation(ctx, pending.characterId, discussed)
   }
   if (action.result.assertedUndiscovered && pending.turn.kind === 'message') onChallenged(ctx, pending.characterId)
   const { moderation } = action.result

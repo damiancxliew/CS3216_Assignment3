@@ -23,6 +23,7 @@ import { project } from './project'
 import { noteText } from './rules/knowledge'
 import { chooseAct, openMoment, predict, refreshActs } from './rules/moment'
 import { selectPassage } from './rules/passages'
+import { refreshReadingChecks, submitReadingCheck } from './rules/reading'
 import { applyTimer, enterStage, startStagePlay } from './rules/stages'
 import { onNotePassed, settleTriggers } from './rules/triggers'
 import type { EngineSpec } from './spec'
@@ -157,6 +158,10 @@ async function handle(ctx: StepContext, action: EngineAction): Promise<void> {
       selectPassage(ctx, document, action.start, action.end)
       return
     }
+    case 'submitReadingCheck': {
+      requirePlaying(ctx, 'reading')
+      return submitReadingCheck(ctx, action)
+    }
     case 'message': {
       const character = requireConversation(ctx, action.characterId)
       const message = ctx.say('player', action.text, { characterId: character.id })
@@ -170,6 +175,7 @@ async function handle(ctx: StepContext, action: EngineAction): Promise<void> {
       return reply(ctx, character, message.id, { kind: 'note', note: noteText(spec, note.discoveryId), text: action.text ?? null }, {
         stanceJustChanged: effects.stanceChanged,
         handingOver: effects.handedOver,
+        supportedNoteDiscoveryId: note.discoveryId,
       })
     }
     case 'endStage': {
@@ -197,6 +203,7 @@ function settle(ctx: StepContext): void {
   for (let round = 0; round < MAX_RULE_ROUNDS; round += 1) {
     const before = ctx.touched
     settleTriggers(ctx)
+    refreshReadingChecks(ctx)
     refreshActs(ctx)
     evaluateStoryEvents(ctx)
     applyTimer(ctx)
@@ -211,6 +218,7 @@ export async function step(input: StepInput<EngineSpec, EngineState, EngineActio
   if (!parsed.success) throw new EngineError('invalid_action', parsed.error.issues.map((issue) => issue.message).join('; '))
   const action = parsed.data as EngineAction
   const ctx = createContext(input.spec, structuredClone(input.state), action, deps)
+  refreshReadingChecks(ctx)
   const finalCall = applyTimer(ctx)
   try {
     await handle(ctx, action)

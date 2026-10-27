@@ -69,4 +69,20 @@ describe('summarise', () => {
     expect(first.answers.map((answer) => answer.text).sort()).toEqual(['Not fair at all.', 'They were not asked.'])
     expect(summarise(mini, attempts).answers).toEqual(first.answers)
   })
+
+  it('keeps first reading attempts separate from later recovery and counts each attempt once', () => {
+    const spec = structuredClone(mini)
+    const question = { id: 'q1', prompt: 'What does this support?', options: [{ id: 'a', text: 'A' }, { id: 'b', text: 'B' }, { id: 'c', text: 'C' }], correctOptionId: 'a', support: [{ start: 0, end: 1 }], explanation: 'A source-grounded claim.' }
+    spec.documents[0]!.readingCheck = { discoveryId: 'd-letter', variants: [question, { ...question, id: 'q2' }, { ...question, id: 'q3' }, { ...question, id: 'q4' }], recovery: { ...question, id: 'correction' }, recoveryDiscoveryIds: [] }
+    const event = (correct: boolean, recovery = false): GameEvent => ({ type: 'readingCheck', at: 0, stageIndex: 0, documentId: 'letter', questionId: recovery ? 'correction' : 'q1', correct, recovery })
+    const summary = ClassSummary.parse(summarise(spec, [
+      { attemptId: 'first', events: [event(true), event(true)] },
+      { attemptId: 'corrected', events: [event(false), event(true, true), event(true), event(true)] },
+      { attemptId: 'reviewing', events: [event(false), event(true, true)] },
+      { attemptId: 'alternate', events: [event(false), event(false), event(true)] },
+      { attemptId: 'unopened', events: [] },
+    ]))
+    expect(summary.readingChecks).toEqual([{ documentId: 'letter', title: 'A letter', attempted: 4, firstAttemptCorrect: 1, completed: 3, recovered: 2 }])
+    expect(summarise(mini, [])).not.toHaveProperty('readingChecks')
+  })
 })

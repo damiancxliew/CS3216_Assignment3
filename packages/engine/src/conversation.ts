@@ -8,6 +8,7 @@ import { replyAsCharacter, type PersonaInput, type StudentTurn } from '@adventur
 import { currentStage, fail, lookup, type StepContext } from './context'
 import { heldBackTopics, noteText, revealableFor, studentNoteTexts } from './rules/knowledge'
 import { stanceIndex } from './conditions'
+import { requireCharacterPreparation } from './rules/preparation'
 import type { SpecCharacter } from './spec'
 
 export const MAX_PENDING_CHECKS = 3
@@ -25,6 +26,7 @@ export function requireConversation(ctx: StepContext, characterId: string): Spec
   const character = lookup.character(ctx.spec, characterId)
   const present = state.characters[characterId]?.roomId
   if (present === null || present === undefined || present !== state.playerRoomId) fail('not_present', `${character.name} is not here`)
+  requireCharacterPreparation(ctx, characterId)
   if (state.pendingChecks.length >= MAX_PENDING_CHECKS) fail('pending', 'still listening; try again in a moment')
   return character
 }
@@ -92,10 +94,15 @@ export async function reply(
   character: SpecCharacter,
   playerMessageId: string,
   turn: StudentTurn,
-  extra: { stanceJustChanged: boolean; handingOver: string[] } = { stanceJustChanged: false, handingOver: [] },
+  extra: { stanceJustChanged: boolean; handingOver: string[]; supportedNoteDiscoveryId?: string } = { stanceJustChanged: false, handingOver: [] },
 ): Promise<void> {
   const revealable = revealableFor(ctx.spec, ctx.state, character.id, ctx.now)
-  const input = personaInput(ctx, character, turn, revealable, extra)
+  const required = currentStage(ctx).preparation?.essentialCharacters.find((required) => required.characterId === character.id)?.discoveryIds ?? []
+  const essential = ctx.spec.discoveries.filter((discovery) => discovery.stageId === currentStage(ctx).id && required.includes(discovery.id) && (
+    ctx.state.discovered.includes(discovery.id) || revealable.some((offered) => offered.id === discovery.id)
+  ))
+  const conversational = [...revealable, ...essential.filter((discovery) => !revealable.some((offered) => offered.id === discovery.id))]
+  const input = personaInput(ctx, character, turn, conversational, extra)
   const result = await replyAsCharacter(ctx.llm, input)
   ctx.say('character', result.reply, { characterId: character.id })
   const characterState = ctx.state.characters[character.id]
@@ -105,6 +112,8 @@ export async function reply(
     characterId: character.id,
     stageIndex: ctx.state.stageIndex,
     revealable: revealable.map((discovery) => ({ id: discovery.id, text: discovery.text })),
+    ...(essential.length === 0 ? {} : { essential: essential.map((discovery) => ({ id: discovery.id, text: discovery.text })) }),
+    ...(extra.supportedNoteDiscoveryId === undefined ? {} : { supportedNoteDiscoveryId: extra.supportedNoteDiscoveryId }),
     studentNotes: [...input.studentNotes],
     turn,
     reply: result.reply,

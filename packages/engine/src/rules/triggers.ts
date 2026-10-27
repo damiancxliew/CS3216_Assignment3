@@ -4,7 +4,7 @@
  * minor character's note with no stance change [P13.6].
  */
 import { evaluate, stanceIndex } from '../conditions'
-import { lookup, type StepContext } from '../context'
+import { currentStage, lookup, type StepContext } from '../context'
 import type { SpecTrigger } from '../spec'
 import { grantDiscovery, markProgress } from './knowledge'
 
@@ -48,6 +48,16 @@ export function fireTrigger(ctx: StepContext, trigger: SpecTrigger, effects: Tri
   state.firedTriggers.push(trigger.id)
   ctx.touch()
   const to = targetStance(ctx, trigger)
+  const character = state.characters[trigger.characterId]
+  if (to !== null && character?.trustRecoveryStanceId != null) {
+    const ceiling = stanceIndex(ctx.spec, trigger.characterId, character.trustRecoveryStanceId)
+    if ('toStance' in trigger.effect) character.trustRecoveryStanceId = null
+    else if (trigger.effect.stanceDelta < 0 && character.stanceId !== to) {
+      const adjusted = lookup.character(ctx.spec, trigger.characterId).stances[Math.max(0, ceiling + trigger.effect.stanceDelta)]
+      character.trustRecoveryStanceId = adjusted?.id ?? null
+    }
+    if (stanceIndex(ctx.spec, trigger.characterId, to) >= stanceIndex(ctx.spec, trigger.characterId, character.trustRecoveryStanceId)) character.trustRecoveryStanceId = null
+  }
   if (to !== null && setStance(ctx, trigger.characterId, to, 'trigger', trigger.id, trigger.notice)) effects.stanceChanged = true
   for (const documentId of trigger.handsOver ?? []) {
     if (state.heldDocuments.includes(documentId)) continue
@@ -104,5 +114,29 @@ export function onChallenged(ctx: StepContext, characterId: string): void {
   const index = stanceIndex(ctx.spec, characterId, state.stanceId)
   const lower = character.stances[index - 1]
   if (lower === undefined) return
+  if (currentStage(ctx).preparation !== undefined) {
+    const ceiling = stanceIndex(ctx.spec, characterId, state.trustRecoveryStanceId ?? null)
+    if (ceiling < index) state.trustRecoveryStanceId = state.stanceId
+  }
   setStance(ctx, characterId, lower.id, 'trust', null, character.trustNotice ?? `${character.name} seems to trust you a little less.`)
+}
+
+/** A checked correction can restore lost trust, but never repeat a trigger or create a new high stance. */
+export function recoverTrust(ctx: StepContext, characterId: string, discoveryId: string): void {
+  const preparation = currentStage(ctx).preparation
+  const state = ctx.state.characters[characterId]
+  if (preparation === undefined || state?.trustRecoveryStanceId == null || !ctx.state.discovered.includes(discoveryId)) return
+  const character = lookup.character(ctx.spec, characterId)
+  const relevant = character.slants.some((slant) => slant.contradictedBy.includes(discoveryId))
+    || ctx.spec.triggers.some((trigger) => trigger.characterId === characterId && 'notePassed' in trigger.on && trigger.on.notePassed === discoveryId)
+    || (preparation.characters[characterId] ?? []).some((group) => group.discoveryIds.includes(discoveryId))
+    || preparation.essentialCharacters.some((required) => required.characterId === characterId && required.discoveryIds.includes(discoveryId))
+  if (!relevant) return
+  const ceiling = state.trustRecoveryStanceId
+  if (stanceIndex(ctx.spec, characterId, state.stanceId) < stanceIndex(ctx.spec, characterId, ceiling)) {
+    setStance(ctx, characterId, ceiling, 'trust', null, `${character.name} accepts your correction.`)
+  }
+  state.trustRecoveryStanceId = null
+  state.challenged = 0
+  ctx.touch()
 }
