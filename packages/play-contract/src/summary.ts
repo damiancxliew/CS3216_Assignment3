@@ -13,6 +13,8 @@ export const ClassSummary = z.object({
   adventureId: Id,
   attempts: count,
   completed: count,
+  /** Reading progress, per scroll and attempt; corrections preserve the first response. */
+  readingChecks: z.array(z.object({ documentId: Id, title: z.string(), attempted: count, firstAttemptCorrect: count, completed: count, recovered: count })).optional(),
   /** Where students got stuck (T2.1): hints shown, by what they pointed towards. */
   stuck: z.array(
     z.object({ stageIndex: StageIndex, targetDiscoveryId: Id.nullable(), label: z.string(), count }),

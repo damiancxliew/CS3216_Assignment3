@@ -7,6 +7,7 @@ const examples: Action[] = [
   { type: 'insertNote', characterId: 'raffles', noteId: 'n1' },
   { type: 'insertNote', characterId: 'raffles', noteId: 'n1', text: 'You should hear this.' },
   { type: 'selectPassage', documentId: 'd1', start: 10, end: 80 },
+  { type: 'submitReadingCheck', documentId: 'd1', questionId: 'q1', choiceId: 'a', start: 10, end: 80 },
   { type: 'enterRoom', roomId: 'balai' },
   { type: 'openDocument', documentId: 'd1' },
   { type: 'closeDocument', documentId: 'd1' },
@@ -45,6 +46,15 @@ describe('Action', () => {
     expect(Action.safeParse({ type: 'selectPassage', documentId: 'd', start: 0, end: 1e9 }).success).toBe(false)
   })
 
+  it('bounds reading checks and rejects client supplied marking results', () => {
+    const action = { type: 'submitReadingCheck', documentId: 'd', questionId: 'q', choiceId: 'a', start: 1, end: 10 }
+    expect(Action.safeParse({ ...action, correct: true }).success).toBe(false)
+    expect(Action.safeParse({ ...action, end: 1 }).success).toBe(false)
+    expect(Action.safeParse({ ...action, start: -1 }).success).toBe(false)
+    expect(Action.safeParse({ ...action, end: 100001 }).success).toBe(false)
+    expect(Action.parse({ ...action, recovery: true })).toMatchObject({ recovery: true })
+  })
+
   it('caps the evidence notes in an Interview answer', () => {
     const evidenceNoteIds = ['1', '2', '3', '4', '5', '6']
     expect(Action.safeParse({ type: 'interviewAnswer', verdictId: 'v', evidenceNoteIds }).success).toBe(false)
@@ -70,6 +80,8 @@ describe('GameEvent', () => {
       { ...base, type: 'storyEvent', eventId: 'se' },
       { ...base, type: 'flag', messageId: 'm', category: 'abusive', reason: null },
       { ...base, type: 'phase', to: 'epilogue' },
+      { ...base, type: 'readingCheck', documentId: 'd', questionId: 'q', correct: false, recovery: false },
+      { ...base, type: 'essentialConversation', characterId: 'c' },
     ]
     for (const event of events) expect(GameEvent.parse(event)).toEqual(event)
   })

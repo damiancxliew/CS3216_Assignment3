@@ -1,5 +1,8 @@
 import { ImageSelection, WalkingSpriteSelection } from './media.js'
+import { ReadingCheck, StagePreparation } from './preparation.js'
 export * from './media.js'
+export * from './preparation.js'
+export * from './reading-support.js'
 /**
  * The v3 `AdventureSpec`: the full generated adventure the engine runs, the API serves and the
  * generator targets. Strict objects everywhere — unknown keys are rejected.
@@ -76,6 +79,7 @@ export const Stage = z.strictObject({
   documentPlacement: z.record(Id, Id),
   situations: z.array(Situation).default([]),
   definingMomentId: Id,
+  preparation: StagePreparation.optional(),
 })
 
 export const Stance = z.strictObject({ id: Id, label: Text, demeanour: Text, hidden: z.boolean().optional() })
@@ -145,6 +149,7 @@ export const Document = z.strictObject({
   glossary: z.array(z.strictObject({ term: Text, meaning: Text })).default([]),
   keyPassages: z.array(z.strictObject({ id: Id, start: z.number().int().nonnegative(), end: z.number().int().positive() })),
   citations: z.array(Citation).optional(),
+  readingCheck: ReadingCheck.optional(),
 })
 
 export const Trigger = z.strictObject({

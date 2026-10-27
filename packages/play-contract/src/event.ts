@@ -75,6 +75,9 @@ export const FlagEvent = z.object({
 
 export const PhaseEvent = z.object({ ...base, type: z.literal('phase'), to: Phase })
 
+export const ReadingCheckEvent = z.object({ ...base, type: z.literal('readingCheck'), documentId: Id, questionId: Id, correct: z.boolean(), recovery: z.boolean() })
+export const EssentialConversationEvent = z.object({ ...base, type: z.literal('essentialConversation'), characterId: Id })
+
 export const GameEvent = z.discriminatedUnion('type', [
   DiscoveryEvent,
   StanceChangeEvent,
@@ -87,6 +90,8 @@ export const GameEvent = z.discriminatedUnion('type', [
   StoryEventEvent,
   FlagEvent,
   PhaseEvent,
+  ReadingCheckEvent,
+  EssentialConversationEvent,
 ])
 export type GameEvent = z.infer<typeof GameEvent>
 export type GameEventType = GameEvent['type']
