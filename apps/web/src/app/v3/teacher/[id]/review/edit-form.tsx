@@ -281,6 +281,8 @@ function EditFieldContent({ spec, value, schema, path, name, onEdit }: Props) {
   if (kind === "array") {
     const list = value as unknown[];
     const element = (unwrapped as z.ZodArray).element as z.ZodType;
+    if (key === "support" && path[0] === "documents")
+      return <SupportSelections {...{ spec, value, schema, path, name, onEdit }} />;
     return (
       <fieldset className="min-w-0 space-y-3 rounded-lg border border-line p-3">
         <legend className="px-1 font-bold">{name}</legend>
@@ -449,6 +451,28 @@ function EditFieldContent({ spec, value, schema, path, name, onEdit }: Props) {
     </label>
   );
 }
+function SupportSelections({ spec, value, path, name, onEdit }: Props) {
+  const document = spec.documents[Number(path[1])];
+  const spans = value as { start: number; end: number }[];
+  const [selection, select] = useState({ start: 0, end: 0 });
+  if (!document) return null;
+  return <fieldset className="space-y-3 rounded-lg border border-line p-3">
+    <legend className="px-1 font-bold">{name}</legend>
+    <p className="text-sm">Select a complete supporting sentence. Each saved passage is an alternative valid answer.</p>
+    {spans.map((span, index) => <div key={index} className="space-y-2">
+      <blockquote className="border-l-2 border-line pl-3 text-sm">{document.body.slice(span.start, span.end) || "Choose a supporting passage."}</blockquote>
+      <button type="button" className={button.subtle} onClick={() => onEdit({ type: "remove", path: [...path, index] })}>Remove passage {index + 1}</button>
+    </div>)}
+    <label className="block space-y-1 text-sm font-bold">
+      Source text for {document.title}
+      <textarea readOnly className={input} rows={6} value={document.body} onSelect={(event) => select({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })} />
+    </label>
+    <button type="button" className={button.quiet} disabled={selection.end <= selection.start} onClick={() => {
+      onEdit({ type: "insert", path, index: spans.length, value: selection });
+      select({ start: 0, end: 0 });
+    }}>Accept selected passage</button>
+  </fieldset>;
+}
 function RecordField(props: Props) {
   const { spec, value, schema, path, name, onEdit } = props;
   const [newKey, setNewKey] = useState("");
@@ -496,7 +520,7 @@ function RecordField(props: Props) {
         </div>
       ))}
       <label className="block text-sm">
-        Add placement or stance
+        {key === "characters" ? "Add character preparation" : "Add placement or stance"}
         <select
           aria-label={`Add ${name} reference`}
           className={input}
@@ -518,7 +542,7 @@ function RecordField(props: Props) {
         className={button.subtle}
         disabled={!newKey}
         onClick={() => {
-          onEdit({ type: "set", path, value: { ...obj, [newKey]: "" } });
+          onEdit({ type: "set", path, value: { ...obj, [newKey]: template(valueSchema) } });
           setNewKey("");
         }}
       >
@@ -599,7 +623,7 @@ export function EvidenceControls({
       )}
       <p className="text-sm">
         Replacement clears old key passages. Repair their discovery links before
-        publishing.
+        publishing. Update reading questions and supporting selections when the source text changes.
       </p>
       <button
         type="button"

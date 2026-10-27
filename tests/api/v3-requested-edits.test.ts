@@ -77,6 +77,13 @@ describe("teacher-requested suggestions", () => {
     expect(result).toMatchObject({ ok: true });
     expect(llm.requests[1].user).toContain("Missing title");
   });
+  it("keeps marking keys and preparation requirements out of prose-only chat edits", async () => {
+    const document = { readingCheck: { correctOptionId: "a", support: [{ start: 0, end: 50 }] } };
+    for (const path of [["documents", "0", "readingCheck", "correctOptionId"], ["documents", "0", "readingCheck", "support", "0", "start"]]) {
+      const llm = new FakeLlmClient([answer(path, path.at(-1) === "start" ? 1 : "b"), answer(path, path.at(-1) === "start" ? 1 : "b")]);
+      expect(await proposeRequestedChanges({ llm }, { ...input, current: { documents: [document] }, roots: ["documents"] })).toMatchObject({ ok: false });
+    }
+  });
   it("includes recent exchanges so follow-up requests have context", async () => {
     const llm = new FakeLlmClient([
       answer(["stages", "0", "narration"], "Shorter."),

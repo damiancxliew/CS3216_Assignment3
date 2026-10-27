@@ -242,7 +242,7 @@ export function applyV3Edits(
           parent.splice(key, 1);
         else delete parent[key];
       } else {
-        if (!same(ids(parent[key]), ids(edit.value)))
+        if (parent[key] !== undefined && !same(ids(parent[key]), ids(edit.value)))
           throw Error(
             "Use add/remove commands to change entities; existing IDs are stable",
           );
@@ -260,6 +260,11 @@ export function applyV3Edits(
   // Parent replacement and insertion must not bypass document evidence rules.
   for (const doc of parsed.documents) {
     const old = base.documents.find((d) => d.id === doc.id);
+    if (
+      !local && old?.readingCheck && doc.body !== old.body &&
+      same(doc.readingCheck, old.readingCheck)
+    )
+      throw Error("The document changed. Review its reading questions and update their supporting passages before saving.");
     const operation = evidenceOperations.get(doc.id);
     if (operation) {
       if (
