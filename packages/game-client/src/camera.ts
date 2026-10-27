@@ -18,6 +18,15 @@ export function overviewZoom(width: number, mapWidth: number): number {
   return Math.max(0.5, Math.min(2, width / mapWidth))
 }
 
+/**
+ * The detail zoom, raised to the smallest whole step that leaves no empty band
+ * beside the map. Whole steps keep pixel art crisp; the camera follows the player
+ * across whatever extends offscreen.
+ */
+export function fillZoom(zoom: number, width: number, height: number, mapWidth: number, mapHeight: number): number {
+  return Math.max(zoom, coverZoom(width, height, mapWidth, mapHeight))
+}
+
 /** Fill the viewport with the authored world; follow travel when its edges extend offscreen. */
 export function coverZoom(width: number, height: number, mapWidth: number, mapHeight: number): number {
   return Math.max(1, Math.ceil(Math.max(width / mapWidth, height / mapHeight)))

@@ -436,6 +436,8 @@ export function V3Map(props: V3MapProps) {
           },
           camera: window.matchMedia("(min-width: 1024px)").matches ? latest.current.scenery?.authored?.desktopCamera ?? "detail" : "detail",
           zoomScale: window.matchMedia("(min-width: 1024px)").matches ? (latest.current.scenery?.authored ? 0.5 : 0.75) : 1,
+          // The desktop zoom-out must not leave an empty strip beside a narrower map.
+          fillViewport: true,
         });
         if (destroyed) {
           view.destroy();
