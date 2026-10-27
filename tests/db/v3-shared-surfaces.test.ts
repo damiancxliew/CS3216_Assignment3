@@ -1,3 +1,4 @@
+import { SupabaseV3PlayStore } from "@/lib/play/v3/store";
 import { beforeAll, describe, expect, it } from "vitest";
 import { addMember, createOrganization, createUserClient, serviceClient, uniqueEmail } from "./helpers";
 
@@ -74,6 +75,34 @@ describe("shared library and school usage", () => {
     expect((await library(student, false)).every(r => r.kind === "v2")).toBe(true);
     expect((await library(outsider)).map(r => r.adventure_id)).not.toContain(id);
     expect((await student.client.from("reporting_attempts_all_versions").select("*")).error).toBeTruthy();
+  });
+
+  it("exposes the current published version ID and never resumes an older version from the library", async () => {
+    const id = await v3("Version-one link", "published");
+    const olderAttempt = await v3Attempt(id);
+    const original = (await library()).find(row => row.adventure_id === id)!;
+    expect(original.latest_attempt_id).toBe(olderAttempt);
+    expect(original.version_id).toEqual(expect.any(String));
+    const saved = await admin.rpc("save_adventure_v3", { p_id: id, p_expected_version: 1,
+      p_spec: { title: "Version-two link", stages: [{ timePlace: "New setting" }] } });
+    expect(saved.error).toBeNull();
+    expect((await admin.rpc("publish_adventure_v3", { p_id: id, p_expected_version: 2, p_expected_published: 1, p_publish: true })).error).toBeNull();
+    const current = (await library()).find(row => row.adventure_id === id)!;
+    expect(current).toMatchObject({ title: "Version-two link", published_version: 2, latest_attempt_id: null });
+    expect(current.version_id).not.toBe(original.version_id);
+    const publication = await admin.from("adventure_publications_v3").select("link_key").eq("adventure_id", id).eq("version", 2).single();
+    expect(current.version_id).toBe(publication.data!.link_key);
+    const store = new SupabaseV3PlayStore(admin);
+    expect(await store.loadPublication(current.version_id as string)).toMatchObject({ id: current.version_id, adventureId: id, version: 2 });
+    expect(await store.loadPublication(id)).toBeNull();
+    expect(await store.loadPublication("invalid-version-id")).toBeNull();
+    const usage = await schoolAdmin.client.rpc("school_usage_all_versions", { p_org: school, p_include_v3: true });
+    expect(usage.error).toBeNull();
+    expect(usage.data.find((row: { adventure_id: string }) => row.adventure_id === id)).toMatchObject({ version_id: current.version_id, shareable: true });
+    const started = await admin.rpc("start_attempt_v3", { p_adventure_id: id, p_spec_version: 2,
+      p_student_id: student.userId, p_state: {}, p_release: current.version_id });
+    expect(started.error).toBeNull();
+    expect((await library()).find(row => row.adventure_id === id)).toMatchObject({ latest_attempt_id: started.data.id, latest_attempt_status: "active" });
   });
 
   it("only returns the caller's attempt, resumes active attempts, and marks reveal as completed", async () => {

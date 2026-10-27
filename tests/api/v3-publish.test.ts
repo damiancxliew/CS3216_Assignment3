@@ -1,3 +1,4 @@
+import { publishedVersionId } from "../fixtures/v3-publication";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -62,12 +63,12 @@ async function status(store: MemoryV3PlayStore) {
 describe("v3 publish", () => {
   it("lets the owner publish a generated draft, which opens it to students", async () => {
     const { store, deps, playDeps } = setup();
-    expect((await createAttempt(playDeps, STUDENT_ID, ADVENTURE_ID)).status).toBe(409);
+    expect((await createAttempt(playDeps, STUDENT_ID, await publishedVersionId(playDeps.store, ADVENTURE_ID))).status).toBe(404);
 
     const result = await publishAdventure(deps, OWNER_ID, ADVENTURE_ID);
     expect(result).toEqual({ status: 200, body: { status: "published" } });
     expect(await status(store)).toBe("published");
-    expect((await createAttempt(playDeps, STUDENT_ID, ADVENTURE_ID)).status).toBe(201);
+    expect((await createAttempt(playDeps, STUDENT_ID, await publishedVersionId(playDeps.store, ADVENTURE_ID))).status).toBe(201);
   });
 
   it("lets a school admin publish, but not another teacher or a student", async () => {
@@ -125,27 +126,27 @@ describe("v3 publish", () => {
     expect(await unpublishAdventure(deps, OWNER_ID, ADVENTURE_ID)).toEqual({ status: 200, body: { status: "draft" } });
     expect(await status(store)).toBe("draft");
     expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toMatchObject({ kind: "unpublished", status: "draft", version: 1, publishedVersion: null });
-    expect((await createAttempt(playDeps, STUDENT_ID, ADVENTURE_ID)).status).toBe(409);
+    expect((await createAttempt(playDeps, STUDENT_ID, await publishedVersionId(playDeps.store, ADVENTURE_ID))).status).toBe(409);
   });
 });
 
 describe("v3 student link", () => {
   it("is closed until the adventure is published", async () => {
     const { deps } = setup();
-    expect(await loadJoinView(deps, null, ADVENTURE_ID)).toEqual({ kind: "closed" });
-    expect(await loadJoinView(deps, STUDENT_ID, ADVENTURE_ID)).toEqual({ kind: "closed" });
+    expect(await loadJoinView(deps, null, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "closed" });
+    expect(await loadJoinView(deps, STUDENT_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "closed" });
     expect(await loadJoinView(deps, STUDENT_ID, "missing")).toEqual({ kind: "closed" });
   });
 
   it("asks signed-out visitors to sign in, and turns away non-members", async () => {
     const { deps } = setup({ status: "published" });
-    expect(await loadJoinView(deps, null, ADVENTURE_ID)).toEqual({ kind: "sign_in", title: goldenSpec.title });
-    expect(await loadJoinView(deps, OUTSIDER_ID, ADVENTURE_ID)).toEqual({ kind: "not_member", title: goldenSpec.title });
-    expect(await loadJoinView(deps, STUDENT_ID, ADVENTURE_ID)).toEqual({ kind: "ready", title: goldenSpec.title });
+    expect(await loadJoinView(deps, null, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "sign_in", title: goldenSpec.title });
+    expect(await loadJoinView(deps, OUTSIDER_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "not_member", title: goldenSpec.title });
+    expect(await loadJoinView(deps, STUDENT_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "ready", title: goldenSpec.title });
   });
 
   it("stays closed for a school without v3 even when published", async () => {
     const { deps } = setup({ status: "published", env: { V3_SCHOOL_IDS: "" } });
-    expect(await loadJoinView(deps, STUDENT_ID, ADVENTURE_ID)).toEqual({ kind: "closed" });
+    expect(await loadJoinView(deps, STUDENT_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "closed" });
   });
 });

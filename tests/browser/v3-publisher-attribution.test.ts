@@ -9,8 +9,8 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")("shows the actual publish
   const ui = readFileSync("apps/web/src/components/ui.tsx", "utf8");
   const buttons = ui.slice(ui.indexOf("export const button"), ui.indexOf("export const control"));
   const date = "2026-10-27T01:00:00.000Z";
-  const publication = (version: number, name: string | null) => ({ version, linkKey: `release-${version}`, firstPublishedAt: date, lastPublishedAt: date, publishedBy: name ? `staff-${version}` : null, publisherName: name });
-  const versions = [4, 3, 2, 1].map(version => ({ version, title: `Adventure revision ${version}`, createdAt: date, attempts: 0, linkKey: version === 4 ? null : `release-${version}`, publication: version === 4 ? null : publication(version, version === 3 ? "Ms Wong" : version === 2 ? "Mr Tan" : null) }));
+  const publication = (version: number, name: string | null) => ({ version, id: `release-${version}`, adventureId: "fixture", firstPublishedAt: date, lastPublishedAt: date, publishedBy: name ? `staff-${version}` : null, publisherName: name });
+  const versions = [4, 3, 2, 1].map(version => ({ version, title: `Adventure revision ${version}`, createdAt: date, attempts: 0, versionId: version === 4 ? null : `release-${version}`, publication: version === 4 ? null : publication(version, version === 3 ? "Ms Wong" : version === 2 ? "Mr Tan" : null) }));
   const root = resolve("apps/web");
   const server = await createServer({ configFile: false, root, cacheDir: resolve("node_modules/.vite/publisher-attribution"),
     server: { host: "127.0.0.1", port: 0, watch: null, fs: { allow: [resolve(".")] } },
@@ -61,6 +61,13 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")("shows the actual publish
       expect(await rows.nth(2).textContent()).toContain("Last published by Mr Tan");
       expect(await rows.nth(3).textContent()).toContain("Publisher not recorded");
       expect(await dialog.locator("time[datetime='"+date+"']").count()).toBe(7);
+      expect(await rows.nth(0).getByRole("button", { name: "Copy link", exact: true }).isDisabled()).toBe(true);
+      await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+      for (const [index, version] of [[1, 3], [2, 2], [3, 1]]) {
+        await rows.nth(index).getByRole("button", { name: "Copy link", exact: true }).click();
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(new URL(`/v3/join/release-${version}`, server.resolvedUrls!.local[0]).href);
+      }
+
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: `output/publisher-attribution/${width}.png` });
       await page.keyboard.press("Escape");

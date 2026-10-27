@@ -18,6 +18,7 @@ export const metadata: Metadata = { title: "School library", robots: { index: fa
 type LibraryEntry = {
   kind: "v2" | "v3";
   published_version: number | null;
+  version_id: string | null;
   adventure_id: string;
   organization_id: string;
   title: string;
@@ -123,7 +124,7 @@ export default async function LibraryPage({
                                 ) : null}
                               </>
                             ) : adventure.kind === "v3" ? (
-                              <Link href={`/v3/play/start/${adventure.adventure_id}`} prefetch={false} className={button.primary}>Start</Link>
+                              adventure.version_id ? <Link href={`/v3/play/start/${adventure.version_id}`} prefetch={false} className={button.primary}>Start</Link> : <span className="text-sm text-muted">Link unavailable</span>
                             ) : (
                               <form action={startAdventure.bind(null, adventure.adventure_id)}>
                                 <button type="submit" className={button.primary}>Start</button>

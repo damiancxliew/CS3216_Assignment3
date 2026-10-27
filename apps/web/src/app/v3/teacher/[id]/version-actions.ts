@@ -28,7 +28,7 @@ export async function getV3SavedVersions(id: string) {
     published: adventure.status === "published",
     versions: versions.map((row) => ({ ...row,
       publication: publications.find((p) => p.version === row.version) ?? null,
-      linkKey: publications.find((p) => p.version === row.version)?.linkKey ?? null,
+      versionId: publications.find((p) => p.version === row.version)?.id ?? null,
       attempts: attempts.filter((a) => a.specVersion === row.version).length,
     })),
   };

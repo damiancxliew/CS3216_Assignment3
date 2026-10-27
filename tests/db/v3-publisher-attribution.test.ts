@@ -34,7 +34,7 @@ describe("persisted publication attribution", () => {
     const rows = await store.listPublications(id);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ version: 2, publishedBy: owner.userId });
-    expect(rows[1]).toMatchObject({ version: 1, publishedBy: owner.userId, firstPublishedAt: first.firstPublishedAt, linkKey: first.linkKey });
+    expect(rows[1]).toMatchObject({ version: 1, publishedBy: owner.userId, firstPublishedAt: first.firstPublishedAt, id: first.id });
     expect(rows[1].lastPublishedAt! >= first.lastPublishedAt!).toBe(true);
     expect((await store.loadAdventure(id))?.specVersion).toBe(2);
   });
