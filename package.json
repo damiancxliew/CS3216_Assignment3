@@ -11,6 +11,7 @@
     "build": "npm run build --workspace web",
     "lint": "npm run lint --workspace web",
     "typecheck": "npm run typecheck --workspace web",
+    "check:schema-evolution": "vite-node scripts/check-schema-evolution.ts",
     "test": "vitest run",
     "db:reset": "supabase db reset",
     "db:start": "supabase start",
