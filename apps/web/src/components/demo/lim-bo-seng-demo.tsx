@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, Download, RotateCcw } from "lucide-react";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
+import { V3CardDialog } from "@/components/play/v3/card-dialog";
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import type { V3PlayClient as PlayClient } from "@/lib/play/v3/client";
 import { learningReportHtml } from "@/lib/demo/learning-report";
@@ -300,7 +301,7 @@ export function LimBoSengDemo() {
         </V3ScrollDialog>
       )}
       {restart && (
-        <V3ScrollDialog
+        <V3CardDialog
           eyebrow="Standalone demo"
           title="Start again?"
           footerText="Only this demo's browser save will reset."
@@ -333,7 +334,7 @@ export function LimBoSengDemo() {
               Restart demo
             </button>
           </div>
-        </V3ScrollDialog>
+        </V3CardDialog>
       )}
     </div></SourceRewards>
   );

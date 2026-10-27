@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { compactButton as button } from "@/components/ui";
 import { MediaCredit } from "@/components/play/v3/media-credit";
 import { CHARACTERS } from "@/lib/play/appearance";
@@ -182,6 +182,48 @@ function CandidateCard({
         </p>
       ) : null}
     </article>
+  );
+}
+function CandidateDialog({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className={button.subtle}
+        aria-haspopup="dialog"
+        onClick={() => {
+          setOpen(true);
+          dialog.current?.showModal();
+        }}
+      >
+        View candidates ({count})
+      </button>
+      <dialog
+        ref={dialog}
+        aria-labelledby={titleId}
+        onClose={() => setOpen(false)}
+        className="fixed inset-0 m-auto max-h-[90dvh] w-[min(52rem,calc(100vw-2rem))] overflow-y-auto rounded-surface border-2 border-ink bg-surface p-5 text-ink shadow-xl backdrop:bg-ink/40 sm:p-6"
+      >
+        <header className="mb-4 flex items-start justify-between gap-3">
+          <h2 id={titleId} className="text-lg font-bold">{title} candidates</h2>
+          <button type="button" className={button.subtle} onClick={() => dialog.current?.close()}>
+            Close candidates
+          </button>
+        </header>
+        {open ? <div className="grid min-w-0 gap-4 sm:grid-cols-2">{children}</div> : null}
+      </dialog>
+    </>
   );
 }
 function SlotActions({
@@ -856,8 +898,9 @@ export function GeneratedAssets({
                         onCandidate={onCandidate}
                       />
                     ) : null}
-                    {onEdit
-                      ? candidates.map((item) => (
+                    {onEdit && candidates.length > 0 ? (
+                      <CandidateDialog title={asset.title} count={candidates.length}>
+                        {candidates.map((item) => (
                           <CandidateCard
                             key={item.id}
                             item={item}
@@ -872,8 +915,9 @@ export function GeneratedAssets({
                               onCandidate={onCandidate}
                             /> : undefined}
                           />
-                        ))
-                      : null}
+                        ))}
+                      </CandidateDialog>
+                    ) : null}
                   </article>
                 );
               })}
