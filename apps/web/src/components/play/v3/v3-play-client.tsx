@@ -233,7 +233,7 @@ export function V3PlayClient({
           key={`stage-intro-${view.stage.index}`}
           artUrl={stageImages ? stageImages[view.stage.index]?.url ?? null : stageArtUrl(stageArtBase, view.stage.index)}
           artMetadata={stageImages?.[view.stage.index]?.metadata}
-          beats={cinematics ? [...stageIntroBeats(view.stage).filter((beat) => beat.id === "what-happened"), ...cinematics.stages[view.stage.index]] : stageIntroBeats(view.stage)}
+          beats={cinematics ? [...stageIntroBeats(view.stage).filter((beat) => beat.id === "what-happened"), ...cinematics.stages[view.stage.index], ...stageIntroBeats(view.stage).filter((beat) => beat.id === "preparation")] : stageIntroBeats(view.stage)}
           beginLabel={STAGE_INTRO_BEGIN_LABEL}
           onBegin={() => { if (!busy) send({ type: "continue" }); }}
           muted={muted}

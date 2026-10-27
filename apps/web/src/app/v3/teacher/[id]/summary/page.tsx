@@ -9,6 +9,7 @@ import { v3SummaryDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
 import type { ClassSummary } from "@adventure/play-contract";
+import { V3ReadingSummary } from "@/components/teacher/v3-reading-summary";
 
 export const dynamic = "force-dynamic";
 
@@ -375,6 +376,7 @@ function DiscoverySummary({ summary }: { summary: ClassSummary }) {
   return (
     <Section title="Discoveries">
       <div className="flex flex-col gap-7">
+        {summary.readingChecks ? <V3ReadingSummary checks={summary.readingChecks} /> : null}
         {summary.discoveries.map((holder) => (
           <div key={holder.holderId} className="flex flex-col gap-3">
             <h3 className="text-lg font-extrabold text-ink">

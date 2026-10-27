@@ -35,6 +35,7 @@ export const ENGINE_ERROR_STATUS: Record<EngineError["code"], number> = {
   not_held: 409,
   act_unavailable: 409,
   pending: 409,
+  preparation_required: 409,
 };
 
 const costlyActions = new Set(["message", "insertNote", "interviewAnswer"]);
