@@ -12,6 +12,7 @@ const examples: Action[] = [
   { type: 'openDocument', documentId: 'd1' },
   { type: 'closeDocument', documentId: 'd1' },
   { type: 'endStage' },
+  { type: 'backToExploring' },
   { type: 'act', actId: 'a1' },
   { type: 'predict', outcomeId: 'o1' },
   { type: 'interviewAnswer', verdictId: 'v1', evidenceNoteIds: ['n1', 'n2'] },

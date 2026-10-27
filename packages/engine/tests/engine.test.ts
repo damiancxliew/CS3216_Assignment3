@@ -357,6 +357,33 @@ describe('defining moments, outcomes and endings', () => {
     expect(game.state.discovered).toEqual([])
   })
 
+  it('lets the student step back from a moment they opened, resuming the timer', async () => {
+    const game = new Harness(mini)
+    await game.start()
+    const endsAt = game.state.stageEndsAt!
+    game.advance(MINUTE)
+    const moment = await game.act({ type: 'endStage' })
+    expect(moment.definingMoment).toMatchObject({ status: 'choosing', canReturn: true })
+    game.advance(5 * MINUTE)
+    const back = await game.act({ type: 'backToExploring' })
+    expect(back.definingMoment).toBeNull()
+    expect(game.state.stageEndsAt).toBe(endsAt + 5 * MINUTE)
+    await game.act({ type: 'enterRoom', roomId: 'r2' })
+    await expect(game.act({ type: 'backToExploring' })).rejects.toMatchObject({ code: 'illegal_phase' })
+    await game.act({ type: 'endStage' })
+    await game.act({ type: 'act', actId: 'frank' })
+    expect(game.view?.definingMoment).toMatchObject({ status: 'predicting', canReturn: false })
+    await expect(game.act({ type: 'backToExploring' })).rejects.toMatchObject({ code: 'illegal_phase' })
+  })
+
+  it('keeps the student in a moment the timer opened', async () => {
+    const game = new Harness(mini)
+    await game.start()
+    game.advance(10 * MINUTE)
+    expect((await game.act({ type: 'tick' })).definingMoment).toMatchObject({ status: 'choosing', canReturn: false })
+    await expect(game.act({ type: 'backToExploring' })).rejects.toMatchObject({ code: 'illegal_phase' })
+  })
+
   it('refuses an act that is not on offer', async () => {
     const game = new Harness(mini)
     await game.start()

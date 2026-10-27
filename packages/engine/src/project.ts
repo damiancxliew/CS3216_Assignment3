@@ -63,6 +63,7 @@ function momentView(spec: EngineSpec, state: EngineState): DefiningMomentView | 
           ? []
           : [{ id: chosen.id, text: chosen.text }],
     nudge: current.nudge,
+    canReturn: current.status === 'choosing' && current.returnable !== undefined,
     chosenActId: current.actId,
     reaction: chosen?.reaction ?? null,
     predictionOptions: current.status === 'predicting' ? predictionOptions(state, moment).map(({ id, predictionText }) => ({ outcomeId: id, text: predictionText })) : [],

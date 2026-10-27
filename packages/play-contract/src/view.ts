@@ -164,6 +164,8 @@ export const DefiningMomentView = z.object({
   acts: z.array(z.object({ id: Id, text: z.string(), available: z.boolean().optional() })),
   /** A non-blocking reminder when core discoveries are missing (P9.6). */
   nudge: z.string().nullable(),
+  /** True while choosing in a moment the student opened: `backToExploring` is allowed. */
+  canReturn: z.boolean().optional(),
   chosenActId: Id.nullable(),
   /** The characters' immediate reaction to the act (P9.7). */
   reaction: z.string().nullable(),

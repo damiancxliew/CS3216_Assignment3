@@ -180,7 +180,18 @@ async function handle(ctx: StepContext, action: EngineAction): Promise<void> {
     }
     case 'endStage': {
       requirePlaying(ctx, 'the defining moment')
-      return openMoment(ctx, 'student')
+      const remainingMs = state.stageEndsAt === null ? null : Math.max(0, state.stageEndsAt - ctx.now)
+      openMoment(ctx, 'student')
+      if (state.moment !== null) state.moment.returnable = { remainingMs }
+      return
+    }
+    case 'backToExploring': {
+      const moment = state.moment
+      if (state.phase !== 'stage' || moment?.status !== 'choosing' || moment.returnable === undefined) fail('illegal_phase', 'there is no decision to step back from')
+      if (moment.returnable.remainingMs !== null) state.stageEndsAt = ctx.now + moment.returnable.remainingMs
+      state.moment = null
+      ctx.touch()
+      return
     }
     case 'act':
       return chooseAct(ctx, action.actId)

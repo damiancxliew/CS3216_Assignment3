@@ -311,6 +311,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               busy={busy}
               onAct={(actId) => send({ type: "act", actId })}
               onPredict={(outcomeId) => send({ type: "predict", outcomeId })}
+              {...(view.definingMoment.canReturn ? { onBack: () => send({ type: "backToExploring" }) } : {})}
             />
           ) : openCharacter ? (
             <DialogueBox
