@@ -2,7 +2,8 @@ import { resolveAdventureImages } from "@/lib/v3/media/resolvers";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
-import { EngineSpec, type EngineState } from "@adventure/engine";
+import { type EngineState } from "@adventure/engine";
+import { decodeStoredSpec } from "@adventure/spec-v3";
 
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { v3AdventureScenery } from "@/lib/play/v3/scenery";
@@ -30,6 +31,10 @@ export default async function V3PlayPage({ params,
   const deps = v3PlayDeps();
   const result = await getAttempt(deps, user.id, attemptId);
   if (result.status === 404) notFound();
+  if (result.status !== 200) {
+    const error = result.body.error as { message?: string } | undefined;
+    return <main className="mx-auto max-w-xl p-6"><h1 className="text-xl font-bold">This adventure needs attention</h1><p role="alert" className="mt-3">{error?.message ?? 'This adventure cannot continue. Ask your teacher for help.'}</p></main>;
+  }
   const body = result.body as { revision: number; view: Parameters<typeof V3PlayClient>[0]["initialView"];
   };
   const attempt = await deps.store.loadAttempt(attemptId);
@@ -37,7 +42,8 @@ export default async function V3PlayPage({ params,
   const phase = body.view.phase;
   const rawSpec = await deps.store.loadVersionSpec(attempt.adventureId, attempt.specVersion,
   );
-  const spec = rawSpec === null ? null : EngineSpec.parse(rawSpec);
+  const decoded = decodeStoredSpec(rawSpec);
+  const spec = decoded.ok ? decoded.spec : null;
   const backdrop = spec && (phase === "epilogue" || phase === "interview") ? backdropFromState(spec, attempt.state as EngineState) : null;
   return (
     <V3PlayClient

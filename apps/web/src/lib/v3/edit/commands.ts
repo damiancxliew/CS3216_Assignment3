@@ -211,7 +211,7 @@ export function applyV3Edits(
       continue;
     }
     if (
-      ["id", "sources", "authoring"].includes(String(edit.path[0])) ||
+      ["id", "sources", "authoring", "schemaVersion"].includes(String(edit.path[0])) ||
       edit.path.some((k) => forbidden.has(String(k)))
     )
       throw Error("Protected field");
