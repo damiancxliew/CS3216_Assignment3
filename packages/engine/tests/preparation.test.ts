@@ -192,27 +192,27 @@ describe('preparation and essential conversations', () => {
     expect(game.state.moment?.status).toBe('choosing')
   })
 
-  it('announces expiry once, permits continued investigation, and never skips essential people', async () => {
+  it('announces expiry once, permits continued investigation, and lets the student decide without the remaining preparation', async () => {
     const spec = checkedSpec()
     spec.stages[0]!.preparation!.characters = {}
     spec.stages[0]!.preparation!.decision = [{ discoveryIds: ['d-letter'], minMet: 1 }]
     spec.storyEvents.push({ id: 'timer-moment', stageId: 's1', when: { timerOut: true }, effect: 'beginMoment', text: 'The time has come.' })
     const game = new Harness(spec)
     await game.start()
+    await expect(game.act({ type: 'endStage' })).rejects.toMatchObject({ code: 'preparation_required' })
     game.advance(600_001)
     await game.act({ type: 'tick' })
     expect(game.state.moment).toBeNull()
-    expect(game.view?.stage?.preparation?.timerExpired).toBe(true)
+    expect(game.view?.stage?.preparation).toMatchObject({ timerExpired: true, ready: true, completed: 0 })
+    expect(game.view?.stage?.preparation?.essentialConversations.some((conversation) => conversation.complete)).toBe(false)
     await game.act({ type: 'tick' })
     expect(game.state.transcript.filter((m) => m.text === spec.definingMoments[0]!.finalCallNarration)).toHaveLength(1)
     await game.say('a', 'What do you seek from trade?', { conveyed: ['d-a1'], substantive: true })
-    await game.act({ type: 'enterRoom', roomId: 'r2' })
-    await game.say('b', 'What do the orders require?', { conveyed: ['d-b1'], substantive: true })
-    expect(game.state.discovered).not.toContain('d-letter')
     expect(game.state.moment).toBeNull()
-    expect(game.view?.stage?.preparation?.ready).toBe(true)
+    expect(game.state.discovered).not.toContain('d-letter')
     await game.act({ type: 'endStage' })
     expect(game.state.moment?.status).toBe('choosing')
+    expect(game.state.moment?.nudge).toBe(spec.definingMoments[0]!.nudge)
   })
 
   it('loads legacy attempts without adding requirements or leaking private state', async () => {

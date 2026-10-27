@@ -192,11 +192,12 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await expect.poll(() => project(game.spec, game.state).stage?.preparation?.timerExpired).toBe(true);
     await page.getByText("Saving…", { exact: true }).waitFor({ state: "hidden" });
     expect(await page.getByRole("dialog").count()).toBe(1);
-    expect(await page.getByRole("dialog", { name: "Time for the final conversations" }).count()).toBe(0);
+    expect(await page.getByRole("dialog", { name: "Time to review the decision" }).count()).toBe(0);
     expect(game.state.moment).toBeNull();
     await page.keyboard.press("Escape");
-    const finalCall = page.getByRole("dialog", { name: "Time for the final conversations" });
-    await finalCall.getByText("The investigation time has ended. You still need to hear from every essential person before deciding.").waitFor();
+    const finalCall = page.getByRole("dialog", { name: "Time to review the decision" });
+    await finalCall.getByText("The investigation time has ended. You can decide now with the evidence you have, or keep exploring first.").waitFor();
+    await finalCall.getByRole("button", { name: "Review decision" }).waitFor();
     expect(await page.getByRole("dialog").count()).toBe(1);
     await page.screenshot({ path: resolve(output, `${name}-final-conversations.png`) });
     await page.keyboard.press("Escape");
@@ -224,8 +225,9 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await page.getByRole("button", { name: "Close conversation (Esc)" }).click();
     if (await page.getByRole("button", { name: "Show mission" }).isVisible()) await page.getByRole("button", { name: "Show mission" }).click();
     await page.getByText("Essential conversations: 1 of 2", { exact: true }).waitFor({ timeout: 10_000 });
+    // Time is up, so the decision is open even though Ben has not been heard yet.
     await page.getByRole("button", { name: "Review stage decision" }).click();
-    await page.getByRole("dialog", { name: "There is more to investigate" }).getByText("Ben: conversation still needed").waitFor();
+    await page.getByRole("dialog", { name: "Finish exploring and decide?" }).getByRole("button", { name: "Continue to decision" }).waitFor();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Hide mission" }).click();
     await walkToCharacter(page, "b");
@@ -238,11 +240,8 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     expect(await page.getByRole("dialog").count()).toBe(0);
     await page.screenshot({ path: resolve(output, `${name}-essential-conversation.png`) });
     await page.getByRole("button", { name: "Close conversation (Esc)" }).click();
-    const ready = page.getByRole("dialog", { name: "You can make the stage decision" });
-    await ready.waitFor({ timeout: 10_000 });
-    expect(await page.getByRole("dialog").count()).toBe(1);
+    expect(await page.getByRole("dialog", { name: "You can make the stage decision" }).count()).toBe(0);
     expect(game.state.moment).toBeNull();
-    await ready.getByRole("button", { name: "Keep exploring" }).click();
     await page.reload();
     await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
     expect(await page.getByRole("dialog").count()).toBe(0);
