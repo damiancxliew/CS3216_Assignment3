@@ -379,6 +379,15 @@ describe("Supabase v3 event loading", () => {
   });
 });
 
+it("shows an explicitly requested saved draft with zero attempts instead of another version’s results", async () => {
+  const { store, deps } = setup();
+  await store.publishVersion(ADVENTURE_ID, 1, 1, true);
+  await store.saveDraft(ADVENTURE_ID, 1, { ...goldenSpec, title: "Unpublished update" });
+  const result = await loadClassSummary(deps, OWNER_ID, ADVENTURE_ID, 2);
+  expect(result).toMatchObject({ status: 200, version: 2, title: "Unpublished update" });
+  if (result.status === 200) expect(result.versions).toContainEqual({ version: 2, attempts: 0 });
+});
+
 it("defaults to the live release and excludes newer unpublished drafts from results", async () => {
   const fixture = setup();
   await fixture.store.publishVersion(ADVENTURE_ID, 1, 1, true);

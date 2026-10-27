@@ -11,15 +11,30 @@ import { MAX_ARCHIVE_BYTES, readSpecArchive, restoreArchiveMedia } from "@/lib/v
 import { createAssetStore } from "@/lib/assets/store";
 
 export async function importAdventureJson(_previous: { error?: string }, form: FormData): Promise<{ error?: string }> {
+  return importAdventureFile(form);
+}
+
+export async function updateAdventureFromZip(id: string, expectedVersion: number, expectedPublished: number | null, _previous: { error?: string }, form: FormData): Promise<{ error?: string }> {
+  return importAdventureFile(form, { id, expectedVersion, expectedPublished });
+}
+
+async function importAdventureFile(form: FormData, target?: { id: string; expectedVersion: number; expectedPublished: number | null }): Promise<{ error?: string }> {
   const auth = await requireStaff();
   if ("error" in auth || !v3SchoolAllowed(auth.schoolId)) return { error: "You don’t have access to import adventures." };
   const file = form.get("file");
   if (!(file instanceof File) || !file.size) return { error: "Choose a ZIP or JSON file to import." };
   const zip = file.name.toLowerCase().endsWith(".zip");
+  if (target && !zip) return { error: "Choose an exported ZIP to update this adventure." };
   if (file.size > (zip ? MAX_ARCHIVE_BYTES : MAX_SPEC_BYTES)) return { error: zip ? "Choose a ZIP smaller than 15 MB." : "Choose a JSON file smaller than 10 MB." };
   let bundle;
   const admin = createAdminClient();
-  const id = randomUUID();
+  const id = target?.id ?? randomUUID();
+  if (target) {
+    if (!Number.isSafeInteger(target.expectedVersion) || target.expectedVersion < 1) return { error: "Reload the adventure before importing." };
+    const { data: current, error } = await admin.from("adventures_v3").select("owner_id,school_id,spec_version,published_version,status").eq("id", id).maybeSingle();
+    if (error || !current || current.owner_id !== auth.userId || !v3SchoolAllowed(current.school_id) || !["draft", "published", "archived"].includes(current.status)) return { error: "Adventure not found." };
+    if (current.spec_version !== target.expectedVersion || current.published_version !== target.expectedPublished) return { error: "This adventure changed. Reload before importing." };
+  }
   const uploaded: string[] = [];
   let storage: ReturnType<typeof createAssetStore> | undefined;
   async function cleanupMedia() {
@@ -42,6 +57,22 @@ export async function importAdventureJson(_previous: { error?: string }, form: F
   }
   // Imported raw specs also use the editor's complete pre-publication checks.
   bundle.spec.authoring ??= {};
+  bundle.spec.authoring.importId = randomUUID();
+
+  if (target) {
+    const { data, error } = await admin.rpc("import_adventure_version_v3", {
+      p_id: id, p_expected_version: target.expectedVersion, p_expected_published: target.expectedPublished,
+      p_spec: bundle.spec, p_sources: bundle.sources,
+    });
+    if (error || !data?.saved) {
+      await cleanupMedia();
+      if (error) console.error("could not update adventure from ZIP", error);
+      return { error: error ? "Could not import this update. The adventure was not changed." : "This adventure changed. Reload before importing." };
+    }
+    revalidatePath(`/v3/teacher/${id}`, "layout");
+    revalidatePath("/teacher");
+    redirect(`/v3/teacher/${id}?view=editor&importedVersion=${data.version}`);
+  }
 
   const { data, error } = await admin.from("adventures_v3").insert({
     id,

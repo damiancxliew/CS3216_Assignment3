@@ -66,11 +66,13 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id.endsWith("/media-actions")) return "\0media";
             if (id.endsWith("/edit-actions")) return "\0save";
             if (id.endsWith("/publish-actions")) return "\0publish";
-            if (id === "./import-actions") return "\0import-json";
+            if (id.endsWith("/version-actions")) return "\0versions";
+            if (id === "./import-actions" || id.endsWith("/teacher/import-actions")) return "\0import-json";
             if (id.endsWith("/lib/analytics/posthog")) return "\0analytics";
           },
           async load(id) {
-            if (id === "\0import-json") return `export async function importAdventureJson(previous,form){return {error:form.get('file').name.endsWith('.zip')?'Could not import ZIP.':'That file is not valid JSON.'}}`;
+            if (id === "\0versions") return `export async function getV3SavedVersions(){return {ok:true,latest:1,publishedVersion:1,published:true,versions:[]}}`;
+            if (id === "\0import-json") return `export async function importAdventureJson(previous,form){return {error:form.get('file').name.endsWith('.zip')?'Could not import ZIP.':'That file is not valid JSON.'}}; export async function updateAdventureFromZip(){return {error:'This adventure changed. Reload before importing.'}}`;
             if (id === "\0analytics") return `export function track(){}`;
             if (id === "\0buttons") return `import React from 'react'; ${buttons}
               export const control='rounded-control border border-line p-2';
@@ -79,7 +81,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
               export function StableLabel({label}) { return label; }
               export function ErrorText({children}) { return React.createElement('p',{role:'alert'},children); }`;
             if (id === "\0navigation")
-              return `export function useRouter(){return {refresh(){},push(){}}}`;
+              return `export function useSearchParams(){return new URLSearchParams(location.search)}; export function useRouter(){return {refresh(){},push(){}}}`;
             if (id === "\0brief-actions")
               return `export async function addV3BriefSource(){}; export async function createFromV3Brief(){}; export async function discardV3Brief(){}`;
             if (id === "\0chat")
@@ -95,7 +97,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id === "\0link")
               return `import React from 'react'; export default function Link(props) { return React.createElement('a', props); }`;
             if (id === "\0publish")
-              return `export async function currentV3StudentLink(){return {ok:true,path:"/v3/join/fixture?release=test"}}; export async function publishV3Adventure(){return {ok:true,status:'published'}}; export async function unpublishV3Adventure(){return {ok:true,status:'draft'}}`;
+              return `export async function publishSavedV3Version(){return {ok:true,status:'published'}}; export async function currentV3StudentLink(){return {ok:true,path:"/v3/join/fixture?release=test"}}; export async function publishV3Adventure(){return {ok:true,status:'published'}}; export async function unpublishV3Adventure(){return {ok:true,status:'draft'}}`;
             if (id === "\0media")
               return `export async function loadMediaAction(){return {items:JSON.parse(localStorage.getItem('media')||'[]')}};
               export async function uploadMediaAction(adventureId,form){const input=JSON.parse(form.get('input'));const file=form.get('file');const url=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(file)});const id=crypto.randomUUID();const item={id,adventureId,creatorId:'teacher',target:input.target,origin:'upload',state:'ready',snapshot:{candidateId:id,origin:'upload',url:new URL('/game/ninja/characters/Noble/walk.png',location.origin).href,format:'png',width:64,height:64,caption:input.caption,alt:input.alt,credit:input.credit,...(input.target.kind.includes('Sprite')?{spriteLayout:'4x4-down-up-left-right'}:{})},specVersion:input.version,failure:null,costUsd:0,createdAt:new Date().toISOString()};const items=JSON.parse(localStorage.getItem('media')||'[]');items.push(item);localStorage.setItem('media',JSON.stringify(items));return {item};}

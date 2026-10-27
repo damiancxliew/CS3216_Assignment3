@@ -252,6 +252,7 @@ const HintAngle = z.strictObject({
 
 export const AdventureSpec = z.strictObject({
   authoring: z.strictObject({
+    importId: z.string().uuid().optional(),
     sourcePolicy: z.strictObject({ allowAny: z.boolean().optional(), extraDomains: z.array(Text).optional() }).optional(),
     teacherContributions: z.array(z.strictObject({ entity: Text, field: Text })).optional(),
     retainedErrors: z.array(z.strictObject({ code: Text, path: Text, message: Text, ids: z.array(Text).optional() })).optional(),

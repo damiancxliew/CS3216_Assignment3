@@ -56,6 +56,27 @@ In JSON exports, images and sprites remain URL references. Generated stage and p
 pinned during export so imported copies keep using the original artwork; the
 referenced media must remain hosted and accessible.
 
+## Updating an existing adventure and managing versions
+
+In the editor, **Import ZIP update** uploads a ZIP as the next saved version of
+the same adventure. It replaces the editable draft and source text, retaining
+earlier spec and source snapshots. An import never changes the live version.
+If another author saves or publishes while the file is uploading, the import
+fails without replacing their work and removes newly uploaded media.
+
+Open **Versions** in the adventure navigation to manage saved versions in a
+popup dialog. Each version offers **Publish**, **Copy link** (after its first
+publication), and **View attempts**, with an attempt count. Publishing an older
+snapshot changes the live pointer without replacing the latest draft or moving
+student attempts. The chosen snapshot is validated using its captured source
+text and checks before publication. Invalid versions remain saved for review.
+
+Deploy `20261027010000_v3_version_import.sql` before this code. The additive
+migration introduces source/check snapshots and transactional import and
+selected-publication operations. Source snapshots are captured from deployment
+onward; source text overwritten before this migration cannot be reconstructed.
+Existing publications and student links continue to use their pinned versions.
+
 Verification:
 
 ```sh

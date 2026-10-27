@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseJobStore } from "@adventure/jobs";
 import { finalCheckErrors, type FinalCheckOutput } from "@/lib/v3/generation/check-errors";
 import type { CheckIssue } from "@adventure/spec-v3";
+import type { TransferSource } from "@/lib/v3/spec-transfer";
 import { GameEvent } from "@adventure/play-contract";
 
 export interface V3Adventure {
@@ -39,11 +40,12 @@ export interface V3Publication {
 }
 
 export interface V3PlayStore {
+  loadVersionContext?(id: string, version: number): Promise<{ sources: TransferSource[]; checkErrors: CheckIssue[] | null } | null>;
   listPublications(id: string): Promise<V3Publication[]>;
   loadAdventure(id: string): Promise<V3Adventure | null>;
-  loadCheckErrors(id: string): Promise<CheckIssue[]>;
+  loadCheckErrors(id: string, version?: number): Promise<CheckIssue[]>;
   saveDraft(id: string, expectedVersion: number, spec: unknown): Promise<{ saved: boolean; version?: number }>;
-  publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean): Promise<boolean>;
+  publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean, selectedVersion?: number): Promise<boolean>;
   setAdventureStatus(id: string, status: string): Promise<void>;
   loadVersionSpec(adventureId: string, version: number): Promise<unknown | null>;
   isActiveMember(schoolId: string, userId: string): Promise<boolean>;
@@ -136,7 +138,17 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     };
   }
 
-  async loadCheckErrors(id: string): Promise<CheckIssue[]> {
+  async loadVersionContext(id: string, version: number) {
+    const { data, error } = await this.admin.from("adventure_version_context_v3")
+      .select("sources,check_errors").eq("adventure_id", id).eq("version", version).maybeSingle();
+    if (error) throw error;
+    return data ? { sources: data.sources as TransferSource[], checkErrors: data.check_errors as CheckIssue[] | null } : null;
+  }
+
+  async loadCheckErrors(id: string, version?: number): Promise<CheckIssue[]> {
+    const selected = version ?? (await this.loadAdventure(id))?.specVersion;
+    const context = selected === undefined ? null : await this.loadVersionContext(id, selected);
+    if (context?.checkErrors) return context.checkErrors;
     const outputs = await supabaseJobStore(this.admin).outputs(id, ["check"]);
     return finalCheckErrors(outputs.check as FinalCheckOutput | undefined);
   }
@@ -147,9 +159,10 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     return data;
   }
 
-  async publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean): Promise<boolean> {
-    const { data, error } = await this.admin.rpc("publish_adventure_v3", {
-      p_id: id, p_expected_version: expectedVersion, p_expected_published: expectedPublished, p_publish: publish,
+  async publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean, selectedVersion?: number): Promise<boolean> {
+    const { data, error } = await this.admin.rpc(selectedVersion === undefined ? "publish_adventure_v3" : "publish_selected_version_v3", {
+      p_id: id, p_expected_version: expectedVersion, p_expected_published: expectedPublished,
+      ...(selectedVersion === undefined ? { p_publish: publish } : { p_selected_version: selectedVersion }),
     });
     if (error) throw error;
     return data === true;
@@ -458,14 +471,16 @@ export class MemoryV3PlayStore implements V3PlayStore {
     return { saved: true, version: a.specVersion };
   }
 
-  async publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean): Promise<boolean> {
+  async publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean, selectedVersion?: number): Promise<boolean> {
     const a = this.adventures.get(id);
     if (!a || a.specVersion !== expectedVersion || a.publishedVersion !== expectedPublished) return false;
+    const selected = selectedVersion ?? a.specVersion;
+    if (publish && !this.versions.has(`${id}:${selected}`)) return false;
     a.status = publish ? "published" : "draft";
-    a.publishedVersion = publish ? a.specVersion : null;
+    a.publishedVersion = publish ? selected : null;
     if (publish) {
       const rows = this.publications.get(id) ?? [];
-      if (!rows.some(row => row.version === a.specVersion)) rows.push({ linkKey: crypto.randomUUID(), version: a.specVersion, firstPublishedAt: null, lastPublishedAt: null });
+      if (!rows.some(row => row.version === selected)) rows.push({ linkKey: crypto.randomUUID(), version: selected, firstPublishedAt: null, lastPublishedAt: null });
       this.publications.set(id, rows);
     }
     return true;

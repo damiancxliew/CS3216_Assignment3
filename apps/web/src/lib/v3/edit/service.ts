@@ -110,7 +110,7 @@ export async function saveAdventureEdits(
           media,
         );
     if (!same(spec, parsed.spec)) {
-      if (!spec.authoring?.validationContext && deps.validationContext) {
+      if (!spec.authoring?.validationContext && !spec.authoring?.importId && deps.validationContext) {
         const context = await deps.validationContext(id);
         if (context) (spec.authoring ??= {}).validationContext = context;
       }

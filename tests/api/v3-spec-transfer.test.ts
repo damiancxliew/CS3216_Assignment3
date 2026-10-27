@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
   failSources: false,
   uploads: [] as string[],
   removals: [] as string[],
+  rpc: vi.fn(),
 }));
 vi.mock("@/lib/v3/brief/service", () => ({ requireStaff: async () => h.auth }));
 vi.mock("@/lib/v3/flag", () => ({ v3SchoolAllowed: () => h.allowed }));
@@ -21,6 +22,7 @@ vi.mock("@/lib/assets/store", () => ({ createAssetStore: () => ({
   download: async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")),
 }) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({
+  rpc: h.rpc,
   from(table: string) {
     const query = {
       select: () => query, eq: () => query,
@@ -36,7 +38,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({
   },
 }) }));
 
-import { importAdventureJson } from "@/app/v3/teacher/import-actions";
+import { importAdventureJson, updateAdventureFromZip } from "@/app/v3/teacher/import-actions";
 import { GET } from "@/app/api/v3/adventures/[id]/export/route";
 import { createSpecArchive } from "@/lib/v3/spec-archive";
 import { specExport } from "@/lib/v3/spec-transfer";
@@ -51,6 +53,7 @@ beforeEach(() => {
   h.auth = { userId: "teacher", schoolId: "school" };
   h.allowed = true; h.inserts = []; h.deleted = []; h.failSources = false;
   h.uploads = []; h.removals = [];
+  h.rpc.mockReset(); h.rpc.mockResolvedValue({ data: { saved: true, version: 3 }, error: null });
   h.row = { owner_id: "teacher", school_id: "school", status: "draft", spec, spec_version: 2 };
 });
 
@@ -124,5 +127,22 @@ describe("v3 import/export access and persistence", () => {
     expect(response.headers.get("content-disposition")).toContain(".zip");
     const bytes = new Uint8Array(await response.arrayBuffer());
     expect([...bytes.slice(0, 2)]).toEqual([80, 75]);
+  });
+
+  it("updates the owned adventure through the atomic version operation", async () => {
+    h.row!.published_version = 1;
+    const bundle = specExport(structuredClone(spec), [], "story", 2);
+    const archive = await createSpecArchive(bundle, async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")));
+    const data = new FormData(); data.set("file", new File([new Uint8Array(archive)], "update.zip"));
+    await expect(updateAdventureFromZip("story", 2, 1, {}, data)).rejects.toThrow("redirect:/v3/teacher/story?view=editor&importedVersion=3");
+    expect(h.inserts).toEqual([]);
+    expect(h.rpc).toHaveBeenCalledWith("import_adventure_version_v3", expect.objectContaining({ p_id: "story", p_expected_version: 2, p_expected_published: 1, p_spec: expect.objectContaining({ title: spec.title }) }));
+  });
+
+  it("rejects another owner's ZIP update before uploading media", async () => {
+    h.row!.owner_id = "another-owner";
+    const data = new FormData(); data.set("file", new File(["not read"], "update.zip"));
+    expect((await updateAdventureFromZip("story", 2, null, {}, data)).error).toBe("Adventure not found.");
+    expect(h.uploads).toEqual([]); expect(h.rpc).not.toHaveBeenCalled();
   });
 });
