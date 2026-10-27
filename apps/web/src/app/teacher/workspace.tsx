@@ -25,12 +25,14 @@ export function TeacherWorkspace({
   hasAdventures,
   resume,
   newAdventure,
+  importAdventure,
 }: {
   adventures: React.ReactNode;
   hasAdventures: boolean;
   resume?: BriefState;
   /** When set (v3 schools), the "new adventure" control links here instead of opening the v2 chat. */
   newAdventure?: { href: string; label: string };
+  importAdventure?: React.ReactNode;
 }) {
   const [composing, setComposing] = useState(false);
   const banner = hasAdventures && !composing;
@@ -45,7 +47,7 @@ export function TeacherWorkspace({
             : "grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)] lg:items-start"
       }
     >
-      <section className={composing ? "hidden" : "min-w-0"}>{adventures}</section>
+      <section className={composing ? "hidden" : "flex min-w-0 flex-col gap-6"}>{importAdventure}{adventures}</section>
       <section
         className={
           composing

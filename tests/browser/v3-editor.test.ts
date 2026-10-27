@@ -66,8 +66,12 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id.endsWith("/media-actions")) return "\0media";
             if (id.endsWith("/edit-actions")) return "\0save";
             if (id.endsWith("/publish-actions")) return "\0publish";
+            if (id === "./import-actions") return "\0import-json";
+            if (id.endsWith("/lib/analytics/posthog")) return "\0analytics";
           },
           async load(id) {
+            if (id === "\0import-json") return `export async function importAdventureJson(){return {error:'That file is not valid JSON.'}}`;
+            if (id === "\0analytics") return `export function track(){}`;
             if (id === "\0buttons") return `import React from 'react'; ${buttons}
               export const control='rounded-control border border-line p-2';
               export function Thinking({label}) { return React.createElement('p',null,label); }
@@ -113,9 +117,10 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           import {EditorWorkspace} from '/src/app/v3/teacher/[id]/review/editor-workspace.tsx'; import '/src/app/globals.css';
           import {EditorChatWorkspace} from '/src/app/v3/teacher/[id]/review/editor-chat-workspace.tsx';
           import {initialBriefStateV3} from '/src/lib/v3/brief/schema.ts';
+          import {ImportAdventureJson} from '/src/app/v3/teacher/import-json.tsx';
           if(!localStorage.getItem('spec')) localStorage.setItem('spec',${JSON.stringify(JSON.stringify(spec))});
           const spec=AdventureSpec.parse(JSON.parse(localStorage.getItem('spec'))); localStorage.setItem('spec',JSON.stringify(spec));
-          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><EditorChatWorkspace brief={initialBriefStateV3('fixture')}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} sources={spec.sources} capturedSources={[]} assets={{version:Number(localStorage.getItem('version')||1),items:${JSON.stringify(inventory)}.map(asset=>({...asset,url:asset.url?.startsWith('/')?new URL(asset.url,location.origin).href:asset.url}))}} errors={new URLSearchParams(location.search).has('clean')?[]:[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
+          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><ImportAdventureJson /><EditorChatWorkspace brief={initialBriefStateV3('fixture')}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} sources={spec.sources} capturedSources={[]} assets={{version:Number(localStorage.getItem('version')||1),items:${JSON.stringify(inventory)}.map(asset=>({...asset,url:asset.url?.startsWith('/')?new URL(asset.url,location.origin).href:asset.url}))}} errors={new URLSearchParams(location.search).has('clean')?[]:[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
         `,
                   "editor.tsx",
                   { loader: "tsx", jsx: "automatic" },
@@ -156,6 +161,12 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       });
       await page.goto(`${vite.resolvedUrls!.local[0]!}?clean=1`);
       await page.getByText("No issues", { exact: true }).waitFor();
+      await page.getByText("Import JSON", { exact: true }).click();
+      await page.getByLabel("Adventure JSON", { exact: true }).setInputFiles({ name: "broken.json", mimeType: "application/json", buffer: Buffer.from("{broken") });
+      await page.getByRole("button", { name: "Import adventure", exact: true }).click();
+      await page.getByText("That file is not valid JSON.", { exact: true }).waitFor();
+      await page.screenshot({ path: "/tmp/v3-json-import.png", fullPage: true });
+      expect(await page.getByRole("link", { name: "Export JSON", exact: true }).getAttribute("href")).toBe("/api/v3/adventures/fixture/export");
       expect(
         await page.getByRole("group", { name: "Adventure checks" }).count(),
       ).toBe(0);
@@ -309,6 +320,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         await page.getByRole("button", { name: "Save", exact: true }).count(),
       ).toBe(0);
       await page.locator("#edit-title").fill("A saved teacher title");
+      expect(await page.getByRole("button", { name: "Export JSON", exact: true }).isDisabled()).toBe(true);
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
       await page
         .getByRole("heading", { name: "Assets", exact: true })
@@ -344,6 +356,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         "A saved teacher title",
       );
       await page.getByRole("button", { name: "Save", exact: true }).click();
+      await page.getByRole("link", { name: "Export JSON", exact: true }).waitFor();
       await page
         .getByRole("status")
         .filter({ hasText: "Saved version 2" })

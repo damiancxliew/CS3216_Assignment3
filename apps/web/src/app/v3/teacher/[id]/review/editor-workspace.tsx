@@ -366,10 +366,15 @@ export function EditorWorkspace(props: Props) {
                       Preview
                     </Link>
                   )}
+                  {dirty || pending ? (
+                    <button type="button" disabled className={button.subtle}>Export JSON</button>
+                  ) : (
+                    <a href={`/api/v3/adventures/${props.adventureId}/export`} download className={button.quiet}>Export JSON</a>
+                  )}
                 </div>
                 {dirty ? (
                   <span className="text-sm">
-                    Unsaved edits. Save before Preview or Publish.
+                    Unsaved edits. Save before Preview, Export or Publish.
                   </span>
                 ) : null}
               </section>

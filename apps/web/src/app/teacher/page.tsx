@@ -14,6 +14,7 @@ import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
 import { V3_STATUS_LABELS } from "@/lib/v3/generation/labels";
 import { AdventureCover } from "@/components/teacher/adventure-cover";
 import { SchoolMembershipRequired } from "@/components/school-membership-required";
+import { ImportAdventureJson } from "../v3/teacher/import-json";
 
 export const metadata: Metadata = {
   title: "Your adventures",
@@ -98,6 +99,7 @@ export default async function TeacherHome() {
       <TeacherWorkspace
         resume={resume.success ? resume.data : undefined}
         hasAdventures={adventures.length > 0 || v3Adventures.length > 0}
+        importAdventure={v3Allowed ? <ImportAdventureJson /> : undefined}
         {...(v3Allowed && !resume.success ? { newAdventure: { href: "/v3/teacher/new", label: "New adventure" } } : {})}
         adventures={
           adventures.length === 0 && v3Adventures.length === 0 ? (
