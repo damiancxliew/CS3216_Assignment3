@@ -55,9 +55,13 @@ it.runIf(process.env.RUN_VERSION_LOCAL_TESTS === "1")("imports a ZIP update, sel
     await page.getByRole("button", { name: "Sign in or create account", exact: true }).click();
     await page.getByRole("heading", { name: "Choose your next adventure", exact: true }).waitFor();
     await page.goto(`${origin}/v3/teacher/${adventure.id}?view=editor`);
-    await page.getByText("Import ZIP update", { exact: true }).click();
-    await page.getByRole("heading", { name: "Add version 2", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Import / export", exact: true }).click();
+    await page.getByRole("heading", { name: "Import version 2", exact: true }).waitFor();
     await page.screenshot({ path: `${output}/01-import-zip-desktop.png` });
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `${output}/07-transfer-mobile.png` });
+    await page.setViewportSize({ width: 1440, height: 1050 });
     await page.getByLabel("Adventure ZIP", { exact: true }).setInputFiles({ name: "updated-adventure.zip", mimeType: "application/zip", buffer: Buffer.from(archive) });
     await page.getByRole("button", { name: "Import as new version", exact: true }).click();
     await page.waitForURL(`**/v3/teacher/${adventure.id}?view=editor&importedVersion=2`, { timeout: 60_000 });

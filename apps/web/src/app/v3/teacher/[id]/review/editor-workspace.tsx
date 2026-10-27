@@ -1,5 +1,5 @@
 "use client";
-import { ZipUpdate } from "@/components/teacher/v3-version-controls";
+import { AdventureTransfer } from "@/components/teacher/v3-version-controls";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -372,21 +372,11 @@ export function EditorWorkspace(props: Props) {
                       Preview
                     </Link>
                   )}
-                  {dirty || pending ? (
-                    <button type="button" disabled className={button.subtle}>Export ZIP</button>
-                  ) : (
-                    <a href={`/api/v3/adventures/${props.adventureId}/export?format=zip`} download className={button.quiet}>Export ZIP</a>
-                  )}
-                  <ZipUpdate adventureId={props.adventureId} version={version} publishedVersion={publishedVersion} disabled={dirty || pending} />
-                  {dirty || pending ? (
-                    <button type="button" disabled className={button.subtle}>Export JSON</button>
-                  ) : (
-                    <a href={`/api/v3/adventures/${props.adventureId}/export`} download className={button.quiet}>Export JSON</a>
-                  )}
+                  <AdventureTransfer adventureId={props.adventureId} version={version} publishedVersion={publishedVersion} disabled={dirty || pending} />
                 </div>
                 {dirty ? (
                   <span className="text-sm">
-                    Unsaved edits. Save before Preview, Export or Publish.
+                    Unsaved edits. Save before previewing, transferring or publishing.
                   </span>
                 ) : null}
               </section>

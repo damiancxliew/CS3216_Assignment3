@@ -40,6 +40,7 @@ export interface V3Publication {
 }
 
 export interface V3PlayStore {
+  isPlatformAdmin?(userId: string): Promise<boolean>;
   loadVersionContext?(id: string, version: number): Promise<{ sources: TransferSource[]; checkErrors: CheckIssue[] | null } | null>;
   listPublications(id: string): Promise<V3Publication[]>;
   loadAdventure(id: string): Promise<V3Adventure | null>;
@@ -106,6 +107,12 @@ type AttemptEventRow = {
 
 export class SupabaseV3PlayStore implements V3PlayStore {
   constructor(private readonly admin: SupabaseClient) {}
+
+  async isPlatformAdmin(userId: string): Promise<boolean> {
+    const { data, error } = await this.admin.from("platform_admin").select("user_id").eq("user_id", userId).limit(1);
+    if (error) throw error;
+    return !!data?.length;
+  }
 
   async listPublications(id: string): Promise<V3Publication[]> {
     const rows: V3Publication[] = [];
@@ -415,6 +422,8 @@ export class MemoryV3PlayStore implements V3PlayStore {
   addPlatformAdmin(userId: string): void {
     this.platformAdmins.add(userId);
   }
+
+  async isPlatformAdmin(userId: string): Promise<boolean> { return this.platformAdmins.has(userId); }
 
   setStudentEmail(userId: string, email: string): void {
     this.studentEmails.set(userId, email);

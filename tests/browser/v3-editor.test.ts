@@ -171,8 +171,10 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await page.getByRole("button", { name: "Import adventure", exact: true }).click();
       await page.getByText("Could not import ZIP.", { exact: true }).waitFor();
       await page.screenshot({ path: "/tmp/v3-json-import.png", fullPage: true });
-      expect(await page.getByRole("link", { name: "Export JSON", exact: true }).getAttribute("href")).toBe("/api/v3/adventures/fixture/export");
-      expect(await page.getByRole("link", { name: "Export ZIP", exact: true }).getAttribute("href")).toBe("/api/v3/adventures/fixture/export?format=zip");
+      await page.getByRole("button", { name: "Import / export", exact: true }).click();
+      expect(await page.getByRole("link", { name: "Download JSON", exact: true }).getAttribute("href")).toBe("/api/v3/adventures/fixture/export");
+      expect(await page.getByRole("link", { name: "Download ZIP", exact: true }).getAttribute("href")).toBe("/api/v3/adventures/fixture/export?format=zip");
+      await page.getByRole("button", { name: "Close import and export", exact: true }).click();
       expect(
         await page.getByRole("group", { name: "Adventure checks" }).count(),
       ).toBe(0);
@@ -326,8 +328,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         await page.getByRole("button", { name: "Save", exact: true }).count(),
       ).toBe(0);
       await page.locator("#edit-title").fill("A saved teacher title");
-      expect(await page.getByRole("button", { name: "Export JSON", exact: true }).isDisabled()).toBe(true);
-      expect(await page.getByRole("button", { name: "Export ZIP", exact: true }).isDisabled()).toBe(true);
+      expect(await page.getByRole("button", { name: "Import / export", exact: true }).isDisabled()).toBe(true);
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
       await page
         .getByRole("heading", { name: "Assets", exact: true })
@@ -363,7 +364,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         "A saved teacher title",
       );
       await page.getByRole("button", { name: "Save", exact: true }).click();
-      await page.getByRole("link", { name: "Export JSON", exact: true }).waitFor();
+      expect(await page.getByRole("button", { name: "Import / export", exact: true }).isEnabled()).toBe(true);
       await page
         .getByRole("status")
         .filter({ hasText: "Saved version 2" })

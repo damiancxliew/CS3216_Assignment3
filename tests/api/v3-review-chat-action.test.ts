@@ -11,7 +11,10 @@ const harness = vi.hoisted(() => ({
   completeJson: vi.fn(),
   conflict: false,
   version: 1,
+  role: "teacher",
+  sysadmin: false,
 }));
+vi.mock("@/lib/auth/viewer", () => ({ getViewer: async () => ({ user: { id: harness.userId }, membership: { role: harness.role, organizationId: "school" }, isSysadmin: harness.sysadmin }), isStaff: () => ["teacher", "admin"].includes(harness.role) }));
 vi.mock("@/lib/play/v3/store", () => ({
   SupabaseV3PlayStore: class {
     async loadAdventure() {
@@ -82,6 +85,7 @@ import { suggestReviewChangeAction } from "@/app/v3/teacher/[id]/chat-actions";
 const id = "00000000-0000-4000-8000-000000000226";
 const input = { pass: "sources", removedSourceIds: [] };
 beforeEach(() => {
+  harness.role = "teacher"; harness.sysadmin = false;
   vi.stubEnv("V3_FAKE_PASSES", "1");
   harness.userId = "teacher";
   harness.enabled = true;
@@ -107,6 +111,17 @@ beforeEach(() => {
   });
 });
 describe("review chat access and persistence", () => {
+  it.each(["admin", "system-admin"])("allows %s to request edits to another teacher's saved draft", async (role) => {
+    harness.userId = "another-user";
+    harness.role = role === "admin" ? "admin" : "teacher";
+    harness.sysadmin = role === "system-admin";
+    if (harness.sysadmin) harness.schoolAllowed = false;
+    harness.row!.status = "draft";
+    harness.completeJson.mockResolvedValue({ json: { notes: "No changes needed.", changes: [] } });
+    const result = await suggestReviewChangeAction(id, { pass: "draft", version: 1, edits: [] }, "Check the title");
+    expect(result.ok).toBe(true);
+    expect(harness.update).toHaveBeenCalled();
+  });
   it.each(["draft", "published", "archived"] as const)(
     "proposes changes to a saved %s adventure without saving or publishing the spec",
     async (status) => {

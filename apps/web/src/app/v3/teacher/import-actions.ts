@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/v3/brief/service";
 import { v3SchoolAllowed } from "@/lib/v3/flag";
+import { canAccessV3Authoring } from "@/lib/v3/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_SPEC_BYTES, parseSpecImport } from "@/lib/v3/spec-transfer";
 import { MAX_ARCHIVE_BYTES, readSpecArchive, restoreArchiveMedia } from "@/lib/v3/spec-archive";
@@ -20,7 +21,7 @@ export async function updateAdventureFromZip(id: string, expectedVersion: number
 
 async function importAdventureFile(form: FormData, target?: { id: string; expectedVersion: number; expectedPublished: number | null }): Promise<{ error?: string }> {
   const auth = await requireStaff();
-  if ("error" in auth || !v3SchoolAllowed(auth.schoolId)) return { error: "You don’t have access to import adventures." };
+  if ("error" in auth || (!target && !v3SchoolAllowed(auth.schoolId))) return { error: "You don’t have access to import adventures." };
   const file = form.get("file");
   if (!(file instanceof File) || !file.size) return { error: "Choose a ZIP or JSON file to import." };
   const zip = file.name.toLowerCase().endsWith(".zip");
@@ -32,7 +33,7 @@ async function importAdventureFile(form: FormData, target?: { id: string; expect
   if (target) {
     if (!Number.isSafeInteger(target.expectedVersion) || target.expectedVersion < 1) return { error: "Reload the adventure before importing." };
     const { data: current, error } = await admin.from("adventures_v3").select("owner_id,school_id,spec_version,published_version,status").eq("id", id).maybeSingle();
-    if (error || !current || current.owner_id !== auth.userId || !v3SchoolAllowed(current.school_id) || !["draft", "published", "archived"].includes(current.status)) return { error: "Adventure not found." };
+    if (error || !current || !canAccessV3Authoring(auth.viewer, { ownerId: current.owner_id, schoolId: current.school_id }) || !["draft", "published", "archived"].includes(current.status)) return { error: "Adventure not found." };
     if (current.spec_version !== target.expectedVersion || current.published_version !== target.expectedPublished) return { error: "This adventure changed. Reload before importing." };
   }
   const uploaded: string[] = [];

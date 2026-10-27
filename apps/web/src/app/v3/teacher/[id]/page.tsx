@@ -11,7 +11,9 @@ import { SiteHeader, compactButton as button } from "@/components/ui";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
+import { v3Enabled } from "@/lib/v3/flag";
+import { canAccessV3Authoring } from "@/lib/v3/access";
+import { AdventureTransfer } from "@/components/teacher/v3-version-controls";
 import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
@@ -48,10 +50,10 @@ export default async function V3AdventurePage({
   if (!v3Enabled()) notFound();
   const { id } = await params;
   const viewer = await getViewer(await createClient());
-  if (!viewer.user || !isStaff(viewer)) notFound();
+  if (!viewer.user || (!isStaff(viewer) && !viewer.isSysadmin)) notFound();
   const admin = createAdminClient();
   const row = await supabaseV3BriefStore(admin).load(id);
-  if (!row || row.ownerId !== viewer.user.id || !v3SchoolAllowed(row.schoolId))
+  if (!row || !canAccessV3Authoring(viewer, row))
     notFound();
   const query = await searchParams;
   if (
@@ -164,8 +166,7 @@ export default async function V3AdventurePage({
                 <h2 className="text-xl font-extrabold tracking-tight text-ink">
                   {title}
                 </h2>
-                {row.status === "draft" ? <a className={button.quiet} href={`/api/v3/adventures/${id}/export`} download>Export saved JSON</a> : null}
-                {row.status === "draft" ? <a className={button.quiet} href={`/api/v3/adventures/${id}/export?format=zip`} download>Export saved ZIP</a> : null}
+                {row.status === "draft" && final?.data ? <AdventureTransfer adventureId={id} version={final.data.spec_version} publishedVersion={null} /> : null}
                 {pass && validProgress?.mode === "guided" ? (
                   <span className="text-xs text-muted">
                     Step {pause?.index ?? 2} of 5

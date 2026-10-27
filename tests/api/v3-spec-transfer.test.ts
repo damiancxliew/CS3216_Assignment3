@@ -10,8 +10,10 @@ const h = vi.hoisted(() => ({
   uploads: [] as string[],
   removals: [] as string[],
   rpc: vi.fn(),
+  role: "teacher",
+  sysadmin: false,
 }));
-vi.mock("@/lib/v3/brief/service", () => ({ requireStaff: async () => h.auth }));
+vi.mock("@/lib/v3/brief/service", () => ({ requireStaff: async () => "error" in h.auth ? h.auth : { ...h.auth, viewer: { user: { id: h.auth.userId }, membership: { role: h.role, organizationId: h.auth.schoolId }, isSysadmin: h.sysadmin } } }));
 vi.mock("@/lib/v3/flag", () => ({ v3SchoolAllowed: () => h.allowed }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw Error(`redirect:${url}`); } }));
@@ -50,6 +52,7 @@ const form = (content: string) => {
 };
 const request = () => GET(new Request("http://localhost/api/v3/adventures/story/export"), { params: Promise.resolve({ id: "story" }) });
 beforeEach(() => {
+  h.role = "teacher"; h.sysadmin = false;
   h.auth = { userId: "teacher", schoolId: "school" };
   h.allowed = true; h.inserts = []; h.deleted = []; h.failSources = false;
   h.uploads = []; h.removals = [];
@@ -93,6 +96,19 @@ describe("v3 import/export access and persistence", () => {
   it("does not export another teacher’s spec", async () => {
     h.row!.owner_id = "someone-else";
     expect((await request()).status).toBe(404);
+  });
+
+  it("allows school admins to export another teacher's adventure in their school", async () => {
+    h.row!.owner_id = "other-teacher"; h.role = "admin";
+    expect((await request()).status).toBe(200);
+    h.row!.school_id = "other-school";
+    expect((await request()).status).toBe(404);
+  });
+
+  it("allows system admins to export across school boundaries and allowlists", async () => {
+    h.row!.owner_id = "other-teacher"; h.row!.school_id = "other-school";
+    h.sysadmin = true; h.allowed = false;
+    expect((await request()).status).toBe(200);
   });
 
   it("exports a JSON attachment without ownership or publication metadata", async () => {
@@ -144,5 +160,16 @@ describe("v3 import/export access and persistence", () => {
     const data = new FormData(); data.set("file", new File(["not read"], "update.zip"));
     expect((await updateAdventureFromZip("story", 2, null, {}, data)).error).toBe("Adventure not found.");
     expect(h.uploads).toEqual([]); expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(["admin", "system-admin"])("allows %s to import a new version without changing ownership", async (role) => {
+    h.row!.owner_id = "original-owner"; h.row!.published_version = null;
+    h.role = role === "admin" ? "admin" : "teacher"; h.sysadmin = role === "system-admin";
+    if (h.sysadmin) { h.row!.school_id = "other-school"; h.allowed = false; }
+    const archive = await createSpecArchive(specExport(structuredClone(spec), [], "story", 2), async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")));
+    const data = new FormData(); data.set("file", new File([new Uint8Array(archive)], "update.zip"));
+    await expect(updateAdventureFromZip("story", 2, null, {}, data)).rejects.toThrow("redirect:");
+    expect(h.inserts).toEqual([]);
+    expect(h.rpc).toHaveBeenCalledWith("import_adventure_version_v3", expect.objectContaining({ p_id: "story" }));
   });
 });
