@@ -1,3 +1,4 @@
+import { cleanReadingDocument } from '@adventure/spec-v3';
 import { describe, it, expect } from 'vitest';
 import { FakeLlmClient } from '@adventure/generation/llm';
 import { MemoryV3PlayStore } from '@/lib/play/v3/store';
@@ -352,7 +353,7 @@ describe('line-wrapped source migration', () => {
         expect(result?.findings).toEqual([]);
         expect(result?.status).toBe('ready');
         const candidate = result!.candidate as typeof raw;
-        expect(candidate.documents[0]!.body).toBe(doc.body);
+        expect(candidate.documents[0]!.body).toBe(cleanReadingDocument(doc).body);
         expect(candidate.documents[0]!.keyPassages).toEqual(doc.keyPassages);
         expect(candidate.documents[0]!.readingCheck!.variants[0]!.support).toEqual([{ start: 137, end: 278 }]);
         expect(JSON.parse(llm.requests[0]!.user).task.supportPassages).toContain(doc.body.slice(137, 278));

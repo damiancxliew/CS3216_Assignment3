@@ -52,7 +52,7 @@ export async function publishAdventure(
   if (!adventure) return error(404, "not_found", "Not found.");
   const reason = await publishBlockReason(deps, adventure);
   if (reason) return error(409, "not_ready", reason);
-  if (!(await deps.store.publishVersion(adventure.id, expected?.version ?? adventure.specVersion, expected ? expected.publishedVersion : adventure.publishedVersion ?? null, true))) return error(409, "conflict", "This adventure changed. Reload before publishing.");
+  if (!(await deps.store.publishVersion(adventure.id, expected?.version ?? adventure.specVersion, expected ? expected.publishedVersion : adventure.publishedVersion ?? null, true, undefined, userId))) return error(409, "conflict", "This adventure changed. Reload before publishing.");
   return { status: 200, body: { status: "published" } };
 }
 

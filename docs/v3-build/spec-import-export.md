@@ -70,6 +70,13 @@ snapshot changes the live pointer without replacing the latest draft or moving
 student attempts. The chosen snapshot is validated using its captured source
 text and checks before publication. Invalid versions remain saved for review.
 
+Published versions also show the teacher who last published them and when. This
+identity is recorded during publishing, separately from the owner or draft
+author. Republishing an older version updates its latest publisher. Earlier
+records without an actor show **Publisher not recorded**; names are never
+inferred from ownership. This records the latest publisher per version, not
+a separate event for every republication.
+
 School admins can open and edit adventures owned by other teachers in their
 school, including import/export, version publication, and editor chat. System
 admins can manage adventures across schools without a school membership.
@@ -79,6 +86,12 @@ migration introduces source/check snapshots and transactional import and
 selected-publication operations. Source snapshots are captured from deployment
 onward; source text overwritten before this migration cannot be reconstructed.
 Existing publications and student links continue to use their pinned versions.
+
+Also deploy `20261028010000_v3_publication_attribution.sql` before the updated
+application. It adds a nullable publisher reference and a service-only atomic
+publish operation. Legacy publish RPCs remain supported and record an unknown
+actor. Publication authorization and revision-conflict checks still run before
+attribution is written.
 
 Verification:
 

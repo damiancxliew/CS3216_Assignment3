@@ -711,7 +711,8 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("From the court at Riau · To the Temenggong");
       expect(markup).toContain("Words to know");
       expect(markup).toContain("<dt>Datoo Tumungong</dt>");
-      expect(markup).toContain("A real historical document");
+      expect(markup).toContain("Historical source");
+      expect(markup).toContain("Source details");
       expect(markup).toContain("Letter of the Riau court, 1819");
     } finally {
       vi.unstubAllGlobals();

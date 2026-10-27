@@ -18,6 +18,14 @@
       "tests": [
         "tests/api/v3-import-metadata-upgrade.test.ts"
       ]
+    },
+    {
+      "id": "reading-text",
+      "from": "2.1.0",
+      "to": "2.1.1",
+      "tests": [
+        "tests/api/v3-reading-text-upgrade.test.ts"
+      ]
     }
   ],
   "declarations": [
@@ -38,6 +46,16 @@
       "reason": "Treat PDF soft line wraps as part of complete source sentences while preserving original offsets, paragraph boundaries and the existing bounded-highlight contract. Offer the same validated passages to upgrade authoring and retain structured repair findings.",
       "tests": [
         "tests/api/v3-upgrades-content.test.ts"
+      ]
+    },
+    {
+      "baseVersion": "2.1.0",
+      "targetVersion": "2.1.1",
+      "kind": "contract",
+      "reason": "Store cleaned reading excerpts with deterministically remapped evidence offsets. Preserve captured original pages and citation quotations. Provide the same reviewed structural upgrade and chat path for older stored adventures.",
+      "tests": [
+        "tests/api/v3-reading-text-upgrade.test.ts",
+        "tests/unit/v3-upgrade-presentation.test.ts"
       ]
     }
   ]

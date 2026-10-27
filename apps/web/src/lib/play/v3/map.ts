@@ -1,3 +1,4 @@
+import { documentMapLabel } from './document-labels';
 import { compileStage, roomInterior, spaceAt, type CompiledStage, type Point, type StageLayoutInput, type StageMap } from "@adventure/game-core";
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { PlayerView } from "@adventure/play-contract";
@@ -122,7 +123,7 @@ export function v3DocumentProps(
 ): NonNullable<PlaygroundSnapshot["props"]> {
   return documents.flatMap((document, index) => {
     const position = seatIn(map, roomId, firstSeat + index);
-    return position ? [{ id: document.id, name: document.title, position, found: document.read }] : [];
+    return position ? [{ id: document.id, name: documentMapLabel(document.title), position, found: document.read }] : [];
   });
 }
 

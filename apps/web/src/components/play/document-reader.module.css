@@ -69,10 +69,13 @@
 .passageTip { border-color: #b8863f; background: #f3d98a66; color: #58391f; }
 .passageAdded { border-color: #6f8a3f80; background: #c9dc9a55; color: #3f5320; }
 .text { white-space: pre-line; font: 400 1.2rem/1.85 var(--font-record, Georgia), serif; }
+.text::selection { background: #f2d27e; color: #392515; }
 .text::first-letter { float: left; font-size: 3.4rem; line-height: 1; padding: 6px 8px 0 0; color: #784423; }
 .source { margin-top: 28px; padding: 18px 0 0; border-top: 1px solid #a6804660; font: italic 1rem/1.75 var(--font-record, Georgia), serif; color: #674929; }
 .source > p:first-child { margin-bottom: 8px; }
 .provenance { margin: -12px 0 22px; text-align: center; font: italic 1rem/1.5 var(--font-record, Georgia), serif; color: #674929; }
+.documentInfo { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .5rem .75rem; margin: -12px 0 22px; font: 400 .85rem/1.5 var(--font-ui, system-ui), sans-serif; }
+.sourceBadge { border: 1px solid #a6804680; border-radius: 1rem; padding: .1rem .6rem; font-size: .75rem; background: #79512c0a; }
 .glossaryHeading { font: 600 11px/1.5 var(--font-ui, system-ui), sans-serif; font-style: normal; letter-spacing: .14em; text-transform: uppercase; color: #856539; }
 .glossary { display: grid; gap: 8px; margin: 0 0 16px; font-style: normal; }
 .glossary dt { display: inline; font-weight: 700; color: #3c2816; }

@@ -37,6 +37,8 @@ export interface V3Publication {
   version: number;
   firstPublishedAt: string | null;
   lastPublishedAt: string | null;
+  publishedBy: string | null;
+  publisherName: string | null;
 }
 
 export interface V3PlayStore {
@@ -46,7 +48,7 @@ export interface V3PlayStore {
   loadAdventure(id: string): Promise<V3Adventure | null>;
   loadCheckErrors(id: string, version?: number): Promise<CheckIssue[]>;
   saveDraft(id: string, expectedVersion: number, spec: unknown): Promise<{ saved: boolean; version?: number }>;
-  publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean, selectedVersion?: number): Promise<boolean>;
+  publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean, selectedVersion?: number, publisherId?: string): Promise<boolean>;
   setAdventureStatus(id: string, status: string): Promise<void>;
   loadVersionSpec(adventureId: string, version: number): Promise<unknown | null>;
   isActiveMember(schoolId: string, userId: string): Promise<boolean>;
@@ -118,10 +120,10 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     const rows: V3Publication[] = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await this.admin.from("adventure_publications_v3")
-        .select("version, link_key, first_published_at, last_published_at").eq("adventure_id", id)
+        .select("version, link_key, first_published_at, last_published_at, published_by, publisher:profile!adventure_publications_v3_published_by_fkey(display_name)").eq("adventure_id", id)
         .order("version", { ascending: false }).range(from, from + 999);
       if (error) throw error;
-      for (const row of data ?? []) rows.push({ linkKey: row.link_key, version: row.version, firstPublishedAt: row.first_published_at, lastPublishedAt: row.last_published_at });
+      for (const row of data ?? []) rows.push({ linkKey: row.link_key, version: row.version, firstPublishedAt: row.first_published_at, lastPublishedAt: row.last_published_at, publishedBy: row.published_by, publisherName: (row.publisher as unknown as { display_name: string | null } | null)?.display_name ?? null });
       if ((data?.length ?? 0) < 1000) return rows;
     }
   }
@@ -166,10 +168,11 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     return data;
   }
 
-  async publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean, selectedVersion?: number): Promise<boolean> {
-    const { data, error } = await this.admin.rpc(selectedVersion === undefined ? "publish_adventure_v3" : "publish_selected_version_v3", {
+  async publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean, selectedVersion?: number, publisherId?: string): Promise<boolean> {
+    const { data, error } = await this.admin.rpc(publisherId ? "publish_attributed_version_v3" : selectedVersion === undefined ? "publish_adventure_v3" : "publish_selected_version_v3", {
       p_id: id, p_expected_version: expectedVersion, p_expected_published: expectedPublished,
-      ...(selectedVersion === undefined ? { p_publish: publish } : { p_selected_version: selectedVersion }),
+      ...(publisherId ? { p_publish: publish, p_publisher_id: publisherId, p_selected_version: selectedVersion ?? null }
+        : selectedVersion === undefined ? { p_publish: publish } : { p_selected_version: selectedVersion }),
     });
     if (error) throw error;
     return data === true;
@@ -480,16 +483,20 @@ export class MemoryV3PlayStore implements V3PlayStore {
     return { saved: true, version: a.specVersion };
   }
 
-  async publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean, selectedVersion?: number): Promise<boolean> {
+  async publishVersion(id: string, expectedVersion: number, expectedPublished: number | null, publish: boolean, selectedVersion?: number, publisherId?: string): Promise<boolean> {
     const a = this.adventures.get(id);
     if (!a || a.specVersion !== expectedVersion || a.publishedVersion !== expectedPublished) return false;
     const selected = selectedVersion ?? a.specVersion;
     if (publish && !this.versions.has(`${id}:${selected}`)) return false;
+    const changed = a.status !== "published" || a.publishedVersion !== selected;
     a.status = publish ? "published" : "draft";
     a.publishedVersion = publish ? selected : null;
-    if (publish) {
+    if (publish && changed) {
       const rows = this.publications.get(id) ?? [];
-      if (!rows.some(row => row.version === selected)) rows.push({ linkKey: crypto.randomUUID(), version: selected, firstPublishedAt: null, lastPublishedAt: null });
+      const previous = rows.find(row => row.version === selected);
+      const now = new Date().toISOString();
+      if (previous) Object.assign(previous, { lastPublishedAt: now, publishedBy: publisherId ?? null, publisherName: null });
+      else rows.push({ linkKey: crypto.randomUUID(), version: selected, firstPublishedAt: now, lastPublishedAt: now, publishedBy: publisherId ?? null, publisherName: null });
       this.publications.set(id, rows);
     }
     return true;

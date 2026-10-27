@@ -4,6 +4,7 @@
  * and the conversions to AdventureSpec fragments.
  */
 import { z } from 'zod'
+import { cleanReadingDocument } from '@adventure/spec-v3'
 import type { Condition } from '@adventure/spec-v3'
 
 const Id = z.string()
@@ -220,7 +221,7 @@ const provenance = (p: { masthead: string | null; date: string | null; sender: s
 
 /** Wire document → spec Document; key passage offsets are computed from the body. */
 export function toDocument(doc: StageDetailsLlmOutput['documents'][number]) {
-  return {
+  return cleanReadingDocument({
     id: doc.id,
     kind: doc.kind,
     title: doc.title,
@@ -241,7 +242,7 @@ export function toDocument(doc: StageDetailsLlmOutput['documents'][number]) {
         recovery: toReadingQuestion(doc.readingCheck.recovery, doc.body),
       },
     } : {}),
-  }
+  })
 }
 
 function toReadingQuestion(question: z.infer<typeof ReadingQuestionWire>, body: string) {

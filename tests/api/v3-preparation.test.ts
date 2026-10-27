@@ -52,7 +52,9 @@ describe("prepared v3 attempts through the action service", () => {
     expect(JSON.stringify(resumed.body)).not.toMatch(/correctOptionId|recoveryDiscoveryIds|"support":|check-2/);
     expect(view.notes).toEqual([]);
     await game.send(answer(game.support), 409);
-    await game.send(answer(game.support, "correction", true));
+    expect(view.documents[0]?.readingCheck?.recovery?.id).toBe("check-1");
+    await game.send(answer(game.support, "correction", true), 400);
+    await game.send(answer(game.support, view.documents[0]!.readingCheck!.recovery!.id, true));
     await game.send(answer(game.support, "check-2"));
     const loaded = await game.store.loadAttempt(game.id);
     const history = (loaded!.state as { readingChecks: Record<string, { attempts: { correct: boolean }[] }> }).readingChecks["doc-1"]!.attempts;

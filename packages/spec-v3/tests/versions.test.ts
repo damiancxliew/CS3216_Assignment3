@@ -39,12 +39,13 @@ describe('persisted schema versions', () => {
       expect(getSchemaSnapshot(version)).toEqual(frozen)
       expect(JSON.stringify(getSchemaSnapshot(version))).not.toContain('importId')
     }
-    expect(CURRENT_SCHEMA_VERSION).toBe('2.1.0')
+    expect(getSchemaSnapshot('2.1.0')).toEqual(JSON.parse(readFileSync(new URL('../schema/2.1.0.schema.json', import.meta.url), 'utf8')))
+    expect(CURRENT_SCHEMA_VERSION).toBe('2.1.1')
     expect(JSON.stringify(getSchemaSnapshot(CURRENT_SCHEMA_VERSION))).toContain('importId')
   })
   it('preserves import attribution from parallel pre-versioning content without stamping its format', () => {
     const importId = '5adc1bb8-cbe5-4b04-930f-d57c31db3316'
-    for (const schemaVersion of [undefined, 1, 2, '1.0.0', '2.0.0', '2.1.0']) {
+    for (const schemaVersion of [undefined, 1, 2, '1.0.0', '2.0.0', '2.1.0', CURRENT_SCHEMA_VERSION]) {
       const input = { ...current(), authoring: { importId }, ...(schemaVersion === undefined ? {} : { schemaVersion }) }
       if (schemaVersion === undefined) delete (input as { schemaVersion?: string | number }).schemaVersion
       const decoded = decodeStoredSpec(input)
@@ -86,8 +87,8 @@ describe('persisted schema versions', () => {
 
 describe('upgrade paths', () => {
   it('declares the content upgrade and a no-op for current content', () => {
-    expect(getUpgradePath(1)).toMatchObject([{ from: '1.0.0', to: '2.0.0', kind: 'content' }, { from: '2.0.0', to: '2.1.0', kind: 'structural' }])
-    expect(getUpgradePath(2)).toMatchObject([{ id: 'import-metadata', from: '2.0.0', to: '2.1.0', kind: 'structural' }])
+    expect(getUpgradePath(1)).toMatchObject([{ from: '1.0.0', to: '2.0.0', kind: 'content' }, { from: '2.0.0', to: '2.1.0', kind: 'structural' }, { from: '2.1.0', to: '2.1.1', kind: 'structural' }])
+    expect(getUpgradePath(2)).toMatchObject([{ id: 'import-metadata', from: '2.0.0', to: '2.1.0', kind: 'structural' }, { id: 'reading-text', from: '2.1.0', to: '2.1.1', kind: 'structural' }])
     expect(getUpgradePath(CURRENT_SCHEMA_VERSION)).toEqual([])
   })
   it('resolves multiple ordered steps without mutating a supplied future registry', () => {

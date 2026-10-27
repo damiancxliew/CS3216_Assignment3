@@ -12,6 +12,7 @@ export function V3ScrollDialog({
   footerSaved = false,
   closeLabel,
   buttonLabel = "Roll up scroll",
+  footerActions,
   onClose,
   navigation,
   banner,
@@ -24,6 +25,7 @@ export function V3ScrollDialog({
   footerSaved?: boolean;
   closeLabel: string;
   buttonLabel?: string;
+  footerActions?: ReactNode;
   onClose: () => void;
   navigation?: {
     items: { id: string; name: string }[];
@@ -116,7 +118,7 @@ export function V3ScrollDialog({
               {footerSaved ? <Check size={17} aria-hidden="true" /> : <ScrollText size={17} aria-hidden="true" />}
               {footerText}
             </p>
-            <button type="button" className={styles.button} onClick={onClose}>{buttonLabel}</button>
+            {footerActions ?? <button type="button" className={styles.button} onClick={onClose}>{buttonLabel}</button>}
           </footer>
         </div>
         <div className={styles.roller} aria-hidden="true" />

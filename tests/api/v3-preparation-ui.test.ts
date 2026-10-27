@@ -4,7 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocumentView, StageView } from "@adventure/play-contract";
 import { DocumentReader } from "@/components/play/v3/document-reader";
-import { ReadingCheck, sourceSentenceSelections } from "@/components/play/v3/reading-check";
+import { PreparationProgress } from "@/components/play/v3/preparation-progress";
+import { ReadingCheck } from "@/components/play/v3/reading-check";
 import { guidanceWasSeen, rememberGuidance } from "@/components/play/v3/preparation-dialog";
 import { stageIntroBeats } from "@/lib/play/v3/cinematic";
 
@@ -19,14 +20,25 @@ afterEach(() => vi.unstubAllGlobals());
 function render(element: React.ReactElement) { vi.stubGlobal("React", React); return renderToStaticMarkup(element); }
 
 describe("preparation guidance and reading checks", () => {
-  it("requires an interpretation and supporting selection, with a keyboard alternative", () => {
+  it("requires an interpretation and a direct supporting highlight", () => {
     const markup = render(createElement(DocumentReader, { document, documents: [document], onClose() {}, onSelectDocument() {}, onSelectPassage() {}, onSubmitReadingCheck() {} }));
     expect(markup).toContain(question.prompt);
     expect(markup).toContain("A wrong answer needs a correction");
-    expect(markup).toContain("Choose supporting sentences without dragging");
+    expect(markup).not.toContain("Choose supporting sentences without dragging");
     expect(markup).toMatch(/disabled=""[^>]*>Submit answer and evidence/);
     expect(markup).not.toContain("drag across the line that matters to save it as a note");
     expect(markup).not.toContain("correctOptionId");
+  });
+
+  it("labels source status outside the evidence body", () => {
+    const reconstructed = render(createElement(DocumentReader, { document, documents: [document], onClose() {}, onSelectDocument() {} }));
+    expect(reconstructed).toContain('Reconstruction');
+    expect(reconstructed).toContain('Written for this adventure.');
+    expect(reconstructed).toContain(document.body);
+    const historical = { ...document, real: true, sourceLabel: 'MOE press release (outside source)' };
+    const source = render(createElement(DocumentReader, { document: historical, documents: [historical], onClose() {}, onSelectDocument() {} }));
+    expect(source).toContain('Historical source');
+    expect(source).toContain('MOE press release (outside source)');
   });
 
   it("replaces a consumed question with the recovery task without revealing marking", () => {
@@ -50,16 +62,16 @@ describe("preparation guidance and reading checks", () => {
   it("keeps additional source notes accessible after the reading check passes", () => {
     const passed = { ...document, readingCheck: { ...document.readingCheck!, status: "passed" as const, question: null } };
     const markup = render(createElement(DocumentReader, { document: passed, documents: [passed], onClose() {}, onSelectDocument() {}, onSelectPassage() {} }));
-    expect(markup).toContain("Choose supporting sentences without dragging");
-    expect(markup).toContain("Save passage as a note");
+    expect(markup).not.toContain("Choose supporting sentences without dragging");
+    expect(markup).toContain("You can save other useful passages as notes.");
     expect(markup).not.toContain('type="radio"');
   });
 
-  it("preserves source quotes and raw offsets for accessible evidence choices", () => {
-    const body = '  “We have three sacks.”\n\n More will arrive tomorrow! A final report.';
-    const choices = sourceSentenceSelections(body);
-    expect(choices.map((choice) => choice.text)).toEqual(['“We have three sacks.”', 'More will arrive tomorrow!', 'A final report.']);
-    expect(choices.every((choice) => body.slice(choice.start, choice.end) === choice.text)).toBe(true);
+  it("offers clearing a highlight without a separate sentence picker", () => {
+    const markup = render(createElement(ReadingCheck, { document, selection: { start: 18, end: 44 }, onSelect() {}, onSubmit() {} }));
+    expect(markup).toContain('Clear highlight');
+    expect(markup).not.toContain('type="checkbox"');
+    expect(markup).not.toContain('choose sentences below');
   });
 
   it("introduces the essential people in the stage cinematic without changing legacy introductions", () => {
@@ -73,5 +85,25 @@ describe("preparation guidance and reading checks", () => {
     vi.stubGlobal("window", { get localStorage() { throw new Error("Storage disabled"); } });
     expect(guidanceWasSeen("stage-1")).toBe(false);
     expect(() => rememberGuidance("stage-1")).not.toThrow();
+  });
+});
+
+
+describe("preparation progress", () => {
+  it("exposes partial and completed requirements as labelled progress bars", () => {
+    const partial = render(createElement(PreparationProgress, { label: "Evidence preparation", completed: 1, required: 3 }));
+    expect(partial).toContain('role="progressbar" aria-label="Evidence preparation"');
+    expect(partial).toContain('aria-valuenow="1"');
+    expect(partial).toContain('aria-valuemax="3"');
+    expect(partial).toContain('1 of 3 complete');
+    const complete = render(createElement(PreparationProgress, { label: "Essential conversations", completed: 2, required: 2 }));
+    expect(complete).toContain('aria-label="Complete"');
+    expect(complete).toContain('width:100%');
+  });
+  it("shows no outstanding work when a stage has no requirement", () => {
+    const markup = render(createElement(PreparationProgress, { label: "Evidence preparation", completed: 0, required: 0 }));
+    expect(markup).toContain('No tasks required');
+    expect(markup).toContain('width:100%');
+    expect(markup).not.toContain('NaN');
   });
 });

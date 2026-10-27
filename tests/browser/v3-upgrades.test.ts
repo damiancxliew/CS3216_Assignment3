@@ -37,16 +37,16 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === '1')('reviews, refines, resume
         let stored=JSON.parse(sessionStorage.getItem('upgrade-run') || 'null');
         const save=run=>{stored=run;sessionStorage.setItem('upgrade-run',JSON.stringify(run));return {ok:true,run};};
         const actions={
-          get:async()=>stored ? (stored.status==='running' ? save({...stored,status:'ready',candidate}) : {ok:true,run:stored}) : null,
-          start:async(id,input)=>save({id:'run',adventureId:id,requesterId:'teacher',sourceRevision:input.expectedRevision,sourceSchemaVersion:getSchemaVersion(original),targetSchemaVersion:${JSON.stringify(CURRENT_SCHEMA_VERSION)},proposalRevision:1,status:'running',candidate:null,findings:[],summary:{documents:1,stages:1,changes:['Add source reasoning checks and essential conversations.']},progress:{completed:1,total:1,label:'Ready for review'},appliedRevision:null,error:null,instruction:'',createdAt:'2026-01-01'}),
-          refine:async(id,input)=>{const next=structuredClone(stored);next.status='ready';next.error=null;next.findings=[];next.candidate ??= structuredClone(candidate);next.candidate.documents[0].readingCheck.variants[0].prompt='Which complaints does this register describe?';next.proposalRevision++;return save(next);},
+          get:async()=>stored ? (stored.status==='running' && !stored.paused ? save({...stored,status:'ready',candidate}) : {ok:true,run:stored}) : null,
+          start:async(id,input)=>save({id:crypto.randomUUID(),adventureId:id,requesterId:'teacher',sourceRevision:input.expectedRevision,sourceSchemaVersion:getSchemaVersion(original),targetSchemaVersion:${JSON.stringify(CURRENT_SCHEMA_VERSION)},proposalRevision:1,status:'running',candidate:null,findings:[],summary:{documents:1,stages:1,changes:['Add source reasoning checks and essential conversations.']},progress:{completed:2,total:2,label:'Ready for review'},appliedRevision:null,error:null,instruction:'',createdAt:'2026-01-01'}),
+          refine:async(id,input)=>{const next=structuredClone(stored);next.status='ready';next.error=null;next.findings=[];next.candidate=structuredClone(candidate);if(input.instruction)next.candidate.documents[0].readingCheck.variants[0].prompt='Which complaints does this register describe?';next.proposalRevision++;next.progress={completed:2,total:2,label:'Ready for review'};next.paused=false;return save(next);},
           apply:async()=>save({...stored,status:'applied',appliedRevision:stored.sourceRevision+1}),
           discard:async()=>save({...stored,status:'discarded'}),
         };
         function App(){const [spec,setSpec]=useState(original);const [revision,setRevision]=useState(3);const [dirty,setDirty]=useState(false);
           useReviewChatTarget({key:'draft',revision:String(revision),pending:false,input:{pass:'draft',version:revision,edits:[]},apply:()=>{}});
           return <main className="mx-auto max-w-4xl space-y-4 p-4"><h1>Adventure editor</h1><p data-revision>Draft revision {revision}</p>
-            <button onClick={()=>setDirty(!dirty)}>Toggle unsaved changes</button><button onClick={()=>setRevision(revision+1)}>Save external revision</button><button onClick={()=>save({...stored,status:'failed',candidate:null,error:'Provider temporarily unavailable.'})}>Simulate saved failure</button><button onClick={()=>save({...stored,status:'blocked',findings:[{code:'upgrade-content',path:'documents.0.readingCheck.variants.0.support',message:'Support must quote a complete source sentence.'},{code:'upgrade-content',path:'documents.0.readingCheck.variants.1.support',message:'Support must quote a complete source sentence.'}]})}>Simulate blocked check</button>
+            <button onClick={()=>setDirty(!dirty)}>Toggle unsaved changes</button><button onClick={()=>setRevision(revision+1)}>Save external revision</button><button onClick={()=>save({...stored,status:'failed',candidate:{...candidate,schemaVersion:1,stages:candidate.stages.map(({preparation,...stage})=>stage)},progress:{completed:1,total:2,label:'Prepared 1 of 2 sections'},error:'Provider temporarily unavailable.'})}>Simulate saved failure</button><button onClick={()=>save({...stored,status:'blocked',findings:[{code:'upgrade-content',path:'documents.0.readingCheck.variants.0.support',message:'Support must quote a complete source sentence.'},{code:'upgrade-content',path:'documents.0.readingCheck.variants.1.support',message:'Support must quote a complete source sentence.'}]})}>Simulate blocked check</button><button onClick={()=>save({...stored,status:'running',paused:true,candidate:{...candidate,schemaVersion:1,stages:candidate.stages.map(({preparation,...stage})=>stage)},progress:{completed:1,total:2,label:'Prepared 1 of 2 sections'}})}>Simulate running section</button><button onClick={()=>save({...stored,status:'ready',paused:false,candidate,progress:{completed:2,total:2,label:'Ready for review'}})}>Finish simulated work</button>
             <UpgradePanel adventureId="adventure" spec={spec} revision={revision} dirty={dirty} actions={actions} onApplied={(spec,revision)=>{setSpec(spec);setRevision(revision);}} />
             <ReviewChatComposer adventureId="adventure" onConversation={()=>{}} />
           </main>;
@@ -83,10 +83,44 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === '1')('reviews, refines, resume
       await page.getByRole('button',{name:'Prepare upgrade'}).click()
       await page.getByRole('heading',{name:'Reading checks'}).waitFor()
       expect(await page.locator('[data-revision]').textContent()).toContain('3')
+      await page.getByRole('button',{name:'Simulate running section'}).click()
+      await page.reload()
+      const document = page.locator('[data-upgrade-section="documents.0"]')
+      const stage = page.locator('[data-upgrade-section="stages.0"]')
+      await page.getByRole('progressbar',{name:'Upgrade preparation'}).waitFor()
+      expect(await page.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('1')
+      expect(await page.getByRole('progressbar').getAttribute('aria-valuemax')).toBe('2')
+      expect(await document.getAttribute('open')).not.toBeNull()
+      expect(await document.getByText('Done',{exact:true}).count()).toBe(1)
+      expect(await stage.getByText('Preparing',{exact:true}).count()).toBe(1)
+      expect(await stage.getByRole('checkbox').isDisabled()).toBe(true)
+      await page.getByRole('group',{name:'Apply upgrade unavailable'}).hover()
+      await page.getByRole('tooltip').filter({hasText:'still being prepared'}).waitFor({state:'visible'})
+      await document.getByRole('checkbox').check()
+      expect(await document.getAttribute('open')).toBeNull()
+      await page.reload()
+      await page.getByRole('progressbar').waitFor()
+      expect(await document.getByRole('checkbox').isChecked()).toBe(true)
+      expect(await document.getAttribute('open')).toBeNull()
+      await page.getByRole('button',{name:'Finish simulated work'}).click()
+      await page.reload()
+      await page.getByRole('progressbar').waitFor()
+      expect(await stage.getAttribute('open')).not.toBeNull()
+      expect(await page.getByRole('button',{name:'Apply upgrade'}).isDisabled()).toBe(true)
+      await page.getByRole('group',{name:'Apply upgrade unavailable'}).focus()
+      await page.getByRole('tooltip').filter({hasText:'Mark all sections as Reviewed'}).waitFor({state:'visible'})
+      await stage.getByRole('checkbox').check()
+      expect(await page.getByRole('button',{name:'Apply upgrade'}).isEnabled()).toBe(true)
+      await document.getByRole('checkbox').uncheck()
+      expect(await page.getByRole('button',{name:'Apply upgrade'}).isDisabled()).toBe(true)
+      await document.getByRole('checkbox').check()
       await page.getByRole('button',{name:'Simulate blocked check'}).click()
       await page.reload()
       await page.getByRole('heading',{name:'Some checks need fixing'}).waitFor()
       expect(await page.getByRole('button',{name:'Apply upgrade'}).isDisabled()).toBe(true)
+      expect(await document.getByText('Needs changes',{exact:true}).count()).toBe(1)
+      await page.getByRole('group',{name:'Apply upgrade unavailable'}).hover()
+      await page.getByRole('tooltip').filter({hasText:'Fix failed checks'}).waitFor({state:'visible'})
       expect(await page.getByText(/Support must quote a complete source sentence/).count()).toBe(1)
       await mkdir('output/v3-schema-upgrade-check',{recursive:true})
       await page.screenshot({path:`output/v3-schema-upgrade-check/${width}-blocked.png`,fullPage:true})
@@ -97,15 +131,23 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === '1')('reviews, refines, resume
       await page.getByRole('button',{name:'Simulate saved failure'}).click()
       await page.reload()
       await page.getByText('Provider temporarily unavailable.',{exact:true}).waitFor()
+      expect(await stage.getByText('Failed',{exact:true}).count()).toBe(1)
+      await page.getByRole('group',{name:'Apply upgrade unavailable'}).hover()
+      await page.getByRole('tooltip').filter({hasText:'Retry upgrade'}).waitFor({state:'visible'})
       await page.getByRole('button',{name:'Retry upgrade'}).click()
-      await page.locator('details').first().locator('summary').click()
-      expect(await page.getByText('Some merchants opposed the duties. (correct)',{exact:true}).count()).toBe(5)
+      await document.evaluate(element => (element as HTMLDetailsElement).open = true)
+      expect(await page.getByText('Some merchants opposed the duties. (correct)',{exact:true}).count()).toBe(4)
+      await document.getByText('After a wrong answer, students correct that question with a fresh supporting highlight before moving to the next question.',{exact:true}).waitFor()
+      expect(await document.getByText('Guided correction:',{exact:false}).count()).toBe(0)
       await page.getByRole('textbox',{name:'Message',exact:true}).fill('Make the first question clearer')
       await page.getByRole('textbox',{name:'Message',exact:true}).press('Enter')
       await page.getByText('Question 1: Which complaints does this register describe?',{exact:true}).waitFor()
+      expect(await document.getByRole('checkbox').isChecked()).toBe(false)
+      expect(await stage.getByRole('checkbox').isChecked()).toBe(true)
+      expect(await page.getByRole('button',{name:'Apply upgrade'}).isDisabled()).toBe(true)
       await page.reload()
       await page.getByRole('button',{name:'Apply upgrade'}).waitFor()
-      await page.locator('details').first().locator('summary').click()
+      await document.evaluate(element => (element as HTMLDetailsElement).open = true)
       await page.getByText('Question 1: Which complaints does this register describe?',{exact:true}).waitFor()
       expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true)
       await mkdir('output/v3-schema-upgrade-check',{recursive:true})
@@ -120,6 +162,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === '1')('reviews, refines, resume
       await page.getByRole('button',{name:'Discard proposal'}).click()
       await page.getByRole('button',{name:'Prepare upgrade'}).click()
       await page.getByRole('heading',{name:'Reading checks'}).waitFor()
+      await page.getByText('Ready to review',{exact:true}).waitFor()
+      for (const checkbox of await page.getByRole('checkbox').all()) await checkbox.check()
+      expect(await page.getByRole('button',{name:'Apply upgrade'}).isEnabled()).toBe(true)
       await page.getByRole('button',{name:'Apply upgrade'}).focus()
       await page.keyboard.press('Enter')
       await page.getByText('Draft revision 5',{exact:true}).waitFor()
