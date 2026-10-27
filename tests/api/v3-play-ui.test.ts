@@ -808,6 +808,46 @@ describe("v3 stage play screen", () => {
 });
 
 describe("v3 cinematic", () => {
+  it("fills the frame without letterbox bars, never cropping real images (#362)", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const beats = [{ id: "role", kicker: "Your role", title: "Nadia", body: "Student" }];
+      const media = (origin: "upload" | "ai") => ({
+        candidateId: "00000000-0000-4000-8000-000000000001",
+        origin,
+        url: "https://assets.example/stage-0.webp",
+        format: "webp" as const,
+        caption: "Singapore waterfront",
+        alt: "A waterfront with boats",
+        credit: "Teacher upload",
+      });
+      const render = (origin: "upload" | "ai") => renderToStaticMarkup(createElement(V3Cinematic, {
+        artUrl: "https://assets.example/stage-0.webp",
+        artMetadata: media(origin),
+        beats,
+        beginLabel: "Enter the first stage",
+        onBegin: () => {},
+        muted: true,
+        onToggleMuted: () => {},
+      }));
+      const real = render("upload");
+      const generated = render("ai");
+
+      expect(real).not.toMatch(/barTop|barBottom/);
+      // A real image stays whole (contain); a blurred, decorative copy fills the space around it.
+      expect(real.match(/<img/g)).toHaveLength(2);
+      expect(real).toContain("object-contain");
+      expect(real).toMatch(/<img[^>]*aria-hidden="true"[^>]*blur-2xl|<img[^>]*blur-2xl[^>]*aria-hidden="true"/);
+      expect(real).toContain('alt="A waterfront with boats"');
+      // Generated art already covers the frame and needs no backdrop.
+      expect(generated.match(/<img/g)).toHaveLength(1);
+      expect(generated).toContain("object-cover");
+      expect(generated).not.toMatch(/barTop|barBottom/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("keeps every beat in the DOM and uses the dark fallback without art", () => {
     vi.stubGlobal("React", React);
     try {
