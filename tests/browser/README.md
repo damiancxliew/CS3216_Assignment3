@@ -190,3 +190,22 @@ Browser drafts do not sync across devices or survive clearing site data. Generat
 original stored portrait as a reference. It preserves current selections until
 teachers review and select each result. Publish the saved draft for new student
 runs; existing attempts remain pinned to their original version.
+
+## Sprite delivery without CDN CORS
+
+```sh
+RUN_SPRITE_DELIVERY_BROWSER_TESTS=1 npx vitest run tests/browser/v3-sprite-delivery.test.ts
+```
+
+This uses the actual sprite route and Phaser renderer with a second image origin
+that omits CORS headers. It verifies that the image displays in review while
+Phaser falls back, then renders the selected sheet through same-origin delivery
+with the correct 16-pixel frames and animations. Storage is replaced by a public
+fixture server; no authentication or AWS credentials are required. Set
+`SPRITE_SHEET_FILE` to a local 64 × 64 sheet to check its actual bytes.
+
+CloudFront media URLs remain stored in adventure snapshots and attribution.
+Only the game presentation URL changes to `/api/v3/sprites/<immutable-media-path>`.
+The route accepts UUID/UUID/SHA-256 PNG or WebP paths under the configured asset
+base; it does not accept arbitrary upstream URLs. Already-public sprite bytes
+are cached immutably. Failed reads are not cached as successful images.
