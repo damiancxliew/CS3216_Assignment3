@@ -144,6 +144,7 @@ describe('v3 post-turn check', () => {
     expect(outcome.ok).toBe(true)
     expect(outcome.result).toEqual({
       conveyed: ['d-price'],
+      substantive: false,
       assertedUndiscovered: true,
       assertion: 'Raffles will pay double',
       moderation: { flagged: false, category: 'none', reason: null },

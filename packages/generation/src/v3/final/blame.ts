@@ -63,6 +63,7 @@ export function pathOwner(path: string, ctx: BlameContext): string | null {
   const i = Number(index)
   switch (head) {
     case 'stages': {
+      if (path.split('.')[2] === 'preparation') return partId.link
       const stage = spec.stages[i]
       return stage !== undefined ? partId.stage(stage.id) : null
     }

@@ -11,6 +11,7 @@ import { currentMoment, fail, isFinalMoment, lookup, type StepContext } from '..
 import type { EngineSpec, SpecAct, SpecMoment, SpecOutcome } from '../spec'
 import type { EngineState } from '../state'
 import { missingCore } from './knowledge'
+import { requireDecisionPreparation } from './preparation'
 
 function scope(spec: EngineSpec, state: EngineState, now: number) {
   return { spec, state, now }
@@ -51,9 +52,10 @@ export function resolveOutcome(spec: EngineSpec, state: EngineState, moment: Spe
 
 /** Bring the defining moment to the student: on `endStage`, or as the final call when the timer runs out. */
 export function openMoment(ctx: StepContext, reason: 'student' | 'finalCall'): void {
+  requireDecisionPreparation(ctx)
   const moment = currentMoment(ctx)
   const { state } = ctx
-  if (reason === 'finalCall') ctx.say('narration', moment.finalCallNarration)
+  if (reason === 'finalCall' && !ctx.state.finalCallStages?.includes(ctx.spec.stages[ctx.state.stageIndex]!.id)) ctx.say('narration', moment.finalCallNarration)
   state.openDocumentId = null
   state.hints.pausedSince = null
   // The countdown has done its job once the moment is here.

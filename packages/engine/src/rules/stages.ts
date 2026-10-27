@@ -3,10 +3,11 @@
  * stage: it changes the next stage's situation (stances, who is where, documents, the opening narration).
  * Stances carry across stages unless the situation sets them; characters remember (P11.3).
  */
-import { currentStage, type StepContext } from '../context'
+import { currentMoment, currentStage, type StepContext } from '../context'
 import type { SpecStage } from '../spec'
 import type { EngineState } from '../state'
 import { openMoment } from './moment'
+import { decisionPreparation } from './preparation'
 
 function matchingSituation(state: Pick<EngineState, 'outcomes'>, stage: SpecStage) {
   return stage.situations.find((situation) => state.outcomes[situation.whenOutcome.momentId] === situation.whenOutcome.outcomeId)
@@ -26,12 +27,14 @@ export function enterStage(ctx: StepContext): void {
   const documentPlacement = stageDocumentPlacement(state, stage)
   for (const character of spec.characters) {
     const existing = state.characters[character.id]
-    const stanceId = situation?.stances?.[character.id] ?? existing?.stanceId ?? character.initialStanceId
+    const explicitStance = situation?.stances?.[character.id]
+    const stanceId = explicitStance ?? existing?.stanceId ?? character.initialStanceId
     state.characters[character.id] = {
       stanceId: character.tier === 'major' ? stanceId : null,
       roomId: placement[character.id] ?? null,
       challenged: existing?.challenged ?? 0,
       replies: existing?.replies ?? 0,
+      ...(existing?.trustRecoveryStanceId === undefined ? {} : { trustRecoveryStanceId: explicitStance === undefined ? existing.trustRecoveryStanceId : null }),
     }
   }
   state.documentRooms = {}
@@ -73,6 +76,16 @@ export function applyTimer(ctx: StepContext): boolean {
   const { state } = ctx
   if (state.phase !== 'stage' || state.stageIntroPending || state.moment !== null || state.stageEndsAt === null) return false
   if (ctx.now < state.stageEndsAt) return false
+  const stageId = currentStage(ctx).id
+  state.finalCallStages ??= []
+  if (!state.finalCallStages.includes(stageId)) {
+    state.finalCallStages.push(stageId)
+    ctx.say('narration', currentMoment(ctx).finalCallNarration)
+    ctx.touch()
+  }
+  // Checked stages offer a final decision; they never close an active investigation automatically.
+  if (currentStage(ctx).preparation !== undefined) return false
+  if (!decisionPreparation(ctx).ready) return false
   openMoment(ctx, 'finalCall')
   return true
 }

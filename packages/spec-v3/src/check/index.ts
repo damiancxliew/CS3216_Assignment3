@@ -10,6 +10,8 @@ import { gameplayIssues } from './gameplay.js'
 import { labelIssues } from './labels.js'
 import { referenceIssues } from './refs.js'
 import { checkSkeleton } from './skeleton.js'
+import { preparationIssues } from './preparation.js'
+import { automaticPreparationIssues } from './automatic-preparation.js'
 
 export function checkSpec(spec: AdventureSpec): CheckResult {
   const skeleton = checkSkeleton(spec)
@@ -19,6 +21,8 @@ export function checkSpec(spec: AdventureSpec): CheckResult {
     ...coreIssues(spec),
     ...labelIssues(spec),
     ...gameplayIssues(spec),
+    ...preparationIssues(spec),
+    ...automaticPreparationIssues(spec),
     ...(spec.authoring ? editableIssues(spec) : []),
   ]
   return { errors, warnings: skeleton.warnings }

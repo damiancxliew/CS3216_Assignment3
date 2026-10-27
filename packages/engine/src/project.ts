@@ -13,12 +13,15 @@ import { projectInterview } from './interview'
 import { predictionOptions } from './rules/moment'
 import { noteText } from './rules/knowledge'
 import { stageDocumentPlacement, stageDurationMs } from './rules/stages'
+import { readingCheckView } from './rules/reading'
+import { decisionPreparation, preparationHint } from './rules/preparation'
+import { preparationProgress } from '@adventure/spec-v3'
 import type { EngineSpec, SpecDocument } from './spec'
 import type { EngineState } from './state'
 
 export const EPILOGUE_LABEL = 'This is how your run ended: your simulation, not the historical record.'
 
-function documentView(document: SpecDocument, open: boolean): DocumentView {
+function documentView(document: SpecDocument, state: EngineState): DocumentView {
   return {
     id: document.id,
     kind: document.kind,
@@ -34,7 +37,8 @@ function documentView(document: SpecDocument, open: boolean): DocumentView {
     real: document.real,
     sourceLabel: document.real ? document.sourceLabel : null,
     glossary: document.glossary.map(({ term, meaning }) => ({ term, meaning })),
-    open,
+    open: state.openDocumentId === document.id,
+    ...(document.readingCheck === undefined ? {} : { readingCheck: readingCheckView(document, state) }),
   }
 }
 
@@ -107,6 +111,7 @@ export function project(spec: EngineSpec, state: EngineState): PlayerView {
             timePlace: stage.timePlace,
             centralQuestion: stage.centralQuestion,
             intro: state.stageIntroPending ? { narration: state.stageOpening ?? stage.openingNarration, predictionReveal: state.lastPrediction === null ? null : { ...state.lastPrediction } } : null,
+            ...(stage.preparation === undefined ? {} : { preparation: { ...decisionPreparation({ spec, state }), hint: preparationHint({ spec, state }) } }),
           },
     rooms: stage?.rooms.map(({ id, name }) => ({ id, name })) ?? [],
     currentRoomId: inStage ? state.playerRoomId : null,
@@ -117,7 +122,8 @@ export function project(spec: EngineSpec, state: EngineState): PlayerView {
             const stanceId = state.characters[character.id]?.stanceId ?? null
             const level = stanceId === null ? -1 : character.stances.findIndex((stance) => stance.id === stanceId)
             const stance = level < 0 ? null : { label: character.stances[level]!.label, level }
-            return { id: character.id, name: character.name, title: character.title, stanceId, stance, portraitKey: stanceId === null ? character.id : `${character.id}:${stanceId}` }
+            const groups = stage?.preparation?.characters[character.id]
+            return { id: character.id, name: character.name, title: character.title, stanceId, stance, portraitKey: stanceId === null ? character.id : `${character.id}:${stanceId}`, ...(groups === undefined ? {} : { preparation: { ...preparationProgress(groups, state.discovered), hint: preparationHint({ spec, state }, character.id) } }) }
           })
       : [],
     messages: state.transcript.map((message) => ({ ...message, stageIndex: message.stageIndex ?? null })),
@@ -126,7 +132,7 @@ export function project(spec: EngineSpec, state: EngineState): PlayerView {
     documents: state.heldDocuments
       .map((id) => spec.documents.find((document) => document.id === id))
       .filter((document): document is SpecDocument => document !== undefined)
-      .map((document) => documentView(document, state.openDocumentId === document.id)),
+      .map((document) => documentView(document, state)),
     documentsHere: playing && stage !== undefined
       ? Object.entries(stageDocumentPlacement(state, stage)).flatMap(([id, room]) => {
           if (room === 'held' || room !== state.playerRoomId) return []

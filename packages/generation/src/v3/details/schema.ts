@@ -9,6 +9,29 @@ import type { Condition } from '@adventure/spec-v3'
 const Id = z.string()
 const Text = z.string()
 
+const ReadingQuestionWire = z.object({
+  id: Id,
+  prompt: Text,
+  options: z.array(z.object({ id: Id, text: Text })).length(3),
+  correctOptionId: Id,
+  // Copied quotations avoid asking a model to calculate character offsets.
+  support: z.array(Text).min(1),
+  explanation: Text,
+})
+const ReadingCheckWire = z.object({
+  discoveryId: Id,
+  variants: z.array(ReadingQuestionWire).length(4),
+  recovery: ReadingQuestionWire,
+  recoveryDiscoveryIds: z.array(Id),
+})
+const PreparationGroupWire = z.object({ discoveryIds: z.array(Id), minMet: z.number().int() })
+const StagePreparationWire = z.object({
+  stageId: Id,
+  characters: z.array(z.object({ characterId: Id, groups: z.array(PreparationGroupWire) })),
+  decision: z.array(PreparationGroupWire),
+  essentialCharacters: z.array(z.object({ characterId: Id, discoveryIds: z.array(Id) })),
+})
+
 const Cit = z.object({ sourceId: Id, quote: Text.nullable() })
 const Requires = z.object({ discoveries: z.array(Id), stanceAtLeast: Id.nullable() })
 const Effect = z.object({ kind: z.enum(['toStance', 'stanceDelta']), stance: Id.nullable(), delta: z.number().int().nullable() })
@@ -47,6 +70,7 @@ export const StageDetailsLlmOutput = z.object({
       citations: z.array(Cit).nullable(),
       slanted: z.boolean(),
       slantNote: Text.nullable(),
+      readingCheck: ReadingCheckWire.optional(),
     }),
   ),
   coreLinks: z.array(z.object({ discoveryId: Id, keyPassageId: Id })),
@@ -92,6 +116,11 @@ export const StageDetailsLlmOutput = z.object({
 })
 export type StageDetailsLlmOutput = z.infer<typeof StageDetailsLlmOutput>
 
+/** Persisted parts remain readable; every newly generated scroll needs a check. */
+export const GeneratedStageDetailsLlmOutput = StageDetailsLlmOutput.extend({
+  documents: z.array(StageDetailsLlmOutput.shape.documents.element.extend({ readingCheck: ReadingCheckWire })),
+})
+
 export const PersonaLlmOutput = z.object({
   persona: PersonaCore,
   stances: z.array(z.object({ label: Text, demeanour: Text, hidden: z.boolean() })),
@@ -129,8 +158,10 @@ export const LinkLlmOutput = z.object({
   slantLinks: z.array(z.object({ slantId: Id, contradictedBy: z.array(Id) })),
   noteTriggers: z.array(z.object({ id: Id, characterId: Id, discoveryId: Id, effect: Effect, notice: Text })),
   duplicates: z.array(z.object({ keep: Id, drop: z.array(Id) })),
+  stagePreparation: z.array(StagePreparationWire).optional(),
 })
 export type LinkLlmOutput = z.infer<typeof LinkLlmOutput>
+export const GeneratedLinkLlmOutput = LinkLlmOutput.extend({ stagePreparation: z.array(StagePreparationWire) })
 
 export function detailsJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
   return z.toJSONSchema(schema, { target: 'draft-2020-12', io: 'output' }) as Record<string, unknown>
@@ -203,5 +234,22 @@ export function toDocument(doc: StageDetailsLlmOutput['documents'][number]) {
       return { id: passage.id, start, end: start + passage.text.length }
     }),
     citations: citations(doc.citations),
+    ...(doc.readingCheck ? {
+      readingCheck: {
+        ...doc.readingCheck,
+        variants: doc.readingCheck.variants.map((question) => toReadingQuestion(question, doc.body)),
+        recovery: toReadingQuestion(doc.readingCheck.recovery, doc.body),
+      },
+    } : {}),
+  }
+}
+
+function toReadingQuestion(question: z.infer<typeof ReadingQuestionWire>, body: string) {
+  return {
+    ...question,
+    support: question.support.map((text) => {
+      const start = body.indexOf(text)
+      return { start, end: start + text.length }
+    }),
   }
 }

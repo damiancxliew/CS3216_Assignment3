@@ -10,6 +10,7 @@ import { createState, runPostTurnCheck, step, type EngineSpec, type EngineState 
 
 export interface CheckScript {
   conveyed?: string[]
+  substantive?: boolean
   asserted?: boolean
   flagged?: PostTurnResult['moderation']['category']
 }
@@ -42,6 +43,7 @@ export class Harness {
     this.nextCheck = {}
     return JSON.stringify({
       conveyed: script.conveyed ?? [],
+      substantive: script.substantive ?? false,
       assertedUndiscovered: script.asserted ?? false,
       assertion: script.asserted ? 'a claim' : null,
       moderation: script.flagged === undefined ? { flagged: false, category: 'none', reason: null } : { flagged: true, category: script.flagged, reason: 'r' },

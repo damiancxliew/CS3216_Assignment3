@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -19,6 +21,11 @@ jobs:
       - run: npm run typecheck
       - run: npm run check --workspace @adventure/jobs
       - run: npm run check --workspace @adventure/spec-v3
+      - name: Enforce persisted schema upgrade paths
+        run: npm run check:schema-evolution
+        env:
+          SCHEMA_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+      - run: npx vitest run tests/unit/v3-schema-evolution.test.ts
       - run: npx vitest run tests/api
       - run: npm test --workspace @adventure/generation -- tests/assets.test.ts tests/sprite-sheet.test.ts
       - run: npm run build

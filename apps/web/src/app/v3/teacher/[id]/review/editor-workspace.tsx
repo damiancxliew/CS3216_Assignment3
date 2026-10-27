@@ -34,6 +34,7 @@ import { ReviewEditorFields } from "./editor-fields";
 import { ReviewScreen } from "./review-screen";
 import { EditorConversation } from "./editor-chat-workspace";
 import { useReviewChatTarget } from "../review-chat-context";
+import { UpgradePanel } from "../upgrade-panel";
 
 type Props = {
   adventureId: string;
@@ -73,7 +74,10 @@ export function EditorWorkspace(props: Props) {
   >({});
   const [edits, setEdits] = useState<V3Edit[]>([]);
   const [editMode, setEditMode] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [localPending, setPending] = useState(false);
+  const [upgradePending, setUpgradePending] = useState(false);
+  const pending = localPending || upgradePending;
   const assetSaveInFlight = useRef(false);
   const [message, setMessage] = useState("");
   const [failure, setFailure] = useState(false);
@@ -269,7 +273,7 @@ export function EditorWorkspace(props: Props) {
             />
           </fieldset>
         }
-        sidebar={editMode ? <EditorConversation /> : undefined}
+        sidebar={editMode || upgradeOpen ? <EditorConversation /> : undefined}
         floatingChecks
         issueActions={
           <AiFixPanel<{ edits: V3Edit[] }>
@@ -312,6 +316,10 @@ export function EditorWorkspace(props: Props) {
         renderHeader={() => (
           <header className="space-y-4" aria-busy={pending}>
             <V3AdventureNav adventureId={props.adventureId} page="adventure" />
+            <UpgradePanel adventureId={props.adventureId} spec={saved} revision={version} dirty={dirty} disabled={localPending} onPendingChange={setUpgradePending} onReviewOpen={setUpgradeOpen} onApplied={(spec, nextVersion) => {
+              setSaved(spec); setDraft(spec); setVersion(nextVersion); setEdits([]); setSavedErrors([]); setEditMode(false);
+              setMessage('Draft saved. Preview it before publishing.'); router.refresh();
+            }} />
             <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
               <section aria-label="Draft controls" className="space-y-3 py-2">
                 <p className="text-sm font-bold">

@@ -24,6 +24,7 @@ const protectedFields = new Set([
   "prototype",
   "constructor",
   "id",
+  "schemaVersion",
   "citations",
   "sourceLabel",
   "real",
@@ -34,6 +35,12 @@ const protectedFields = new Set([
   "characterId",
   "stageId",
   "endingId",
+  "correctOptionId",
+  "discoveryId",
+  "discoveryIds",
+  "recoveryDiscoveryIds",
+  "support",
+  "minMet",
 ]);
 const SYSTEM = `Help a teacher revise a history adventure for their class. Follow the teacher's requested change, keeping other content unchanged. Use the recent conversation to understand follow-up requests. Earlier suggestions may not have been applied; the supplied current content is authoritative.
 Return a short, specific explanation and proposed replacements for existing text or number fields. Paths use object keys and array positions written as digit strings. value_json is the JSON encoding of the replacement value.

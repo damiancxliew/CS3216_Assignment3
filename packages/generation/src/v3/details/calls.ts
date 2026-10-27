@@ -17,7 +17,7 @@ import { linkIssues, minorsIssues, personaIssues, stageIssues } from './checks'
 import type { LinkContext } from './checks'
 import { fillPrompt, LINK_SYSTEM_PROMPT, MINORS_SYSTEM_PROMPT, PERSONA_SYSTEM_PROMPT, STAGE_DETAILS_SYSTEM_PROMPT } from './prompt'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, StageDetailsLlmOutput } from './schema'
-import { detailsJsonSchema, LinkLlmOutput as LinkWire, MinorsLlmOutput as MinorsWire, PersonaLlmOutput as PersonaWire, StageDetailsLlmOutput as StageWire } from './schema'
+import { detailsJsonSchema, GeneratedLinkLlmOutput as LinkWire, MinorsLlmOutput as MinorsWire, PersonaLlmOutput as PersonaWire, GeneratedStageDetailsLlmOutput as StageWire } from './schema'
 
 export const DETAILS_MODEL = V3_MODEL
 export const LINK_MODEL = V3_MODEL
@@ -149,7 +149,7 @@ export function generateStageDetails(stageId: string, shared: DetailsShared, opt
       schema: StageWire,
       system: fillPrompt(STAGE_DETAILS_SYSTEM_PROMPT, { readingLevel: shared.readingLevel, stageId }),
       user: `Write stage: ${stageId}\nReading level: ${shared.readingLevel}\n\n${skeletonJsonBlock(shared.skeleton)}\n\n${sourcesBlock(shared.documents)}`,
-      check: (output) => stageIssues(stageId, output, ctx),
+      check: (output) => stageIssues(stageId, output, { ...ctx, requireReadingChecks: true }),
     },
     opts,
     { model: DETAILS_MODEL, reasoningEffort: 'medium' },
@@ -218,8 +218,9 @@ export function linkDetails(context: LinkContext, shared: DetailsShared, opts: D
       }),
       triggers: context.triggers.filter((t) => t.characterId === c.id).map((t) => ({ on: t.on, requires: t.requires, effect: t.effect })),
     })),
-    discoveries: context.discoveries.map((d) => ({ id: d.id, stageId: d.stageId, holder: d.holder, text: d.text })),
-    stages: shared.skeleton.stages.map((s, i) => ({ id: s.id, order: i })),
+    discoveries: context.discoveries.map((d) => ({ id: d.id, stageId: d.stageId, holder: d.holder, text: d.text, ...(d.condition ? { condition: d.condition } : {}) })),
+    documents: context.documents ?? [],
+    stages: shared.skeleton.stages.map((s, i) => ({ id: s.id, order: i, characterIds: Object.keys(s.placement), centralQuestion: s.centralQuestion, placement: s.placement })),
   }
   return runCall(
     {
@@ -228,7 +229,7 @@ export function linkDetails(context: LinkContext, shared: DetailsShared, opts: D
       schema: LinkWire,
       system: LINK_SYSTEM_PROMPT,
       user: JSON.stringify(compact),
-      check: (output) => ({ errors: linkIssues(output, context), warnings: [] }),
+      check: (output) => ({ errors: linkIssues(output, context, true), warnings: [] }),
     },
     opts,
     { model: LINK_MODEL, reasoningEffort: 'low' },

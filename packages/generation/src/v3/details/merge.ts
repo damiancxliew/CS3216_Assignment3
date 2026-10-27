@@ -3,6 +3,7 @@
  * endings/reveal passes are filled by `withPendingEndingsFields` placeholders.
  */
 import type { AdventureSpec, CheckIssue, Condition, SkeletonShape, SpecCharacter, SpecDiscovery, SpecDocument, SpecEnding, SpecMoment, SpecStage, SpecStoryEvent, SpecTrigger } from '@adventure/spec-v3'
+import { CURRENT_SCHEMA_VERSION } from '@adventure/spec-v3'
 
 import { citations, pairs, toCondition, toEffect, toDocument, toWhen } from './schema'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, StageDetailsLlmOutput } from './schema'
@@ -155,6 +156,12 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts, opts:
         ...(situation.openingNarration !== null ? { openingNarration: situation.openingNarration } : {}),
       })),
       definingMomentId: stage.definingMomentId,
+      ...(parts.link.stagePreparation?.find((p) => p.stageId === stage.id) ? {
+        preparation: (() => {
+          const prep = parts.link.stagePreparation!.find((p) => p.stageId === stage.id)!
+          return { characters: Object.fromEntries(prep.characters.map((c) => [c.characterId, structuredClone(c.groups)])), decision: structuredClone(prep.decision), essentialCharacters: structuredClone(prep.essentialCharacters) }
+        })(),
+      } : {}),
     }
   })
 
@@ -309,6 +316,18 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts, opts:
     for (const event of storyEvents) if ('condition' in event.when) event.when = { condition: remapCondition(event.when.condition) }
     for (const question of openQuestions) question.discoveryIds = dedupe(question.discoveryIds.map(remapId))
     for (const angle of hintAngles) angle.discoveryId = remapId(angle.discoveryId)
+    for (const doc of documents) {
+      if (!doc.readingCheck) continue
+      doc.readingCheck.discoveryId = remapId(doc.readingCheck.discoveryId)
+      doc.readingCheck.recoveryDiscoveryIds = dedupe(doc.readingCheck.recoveryDiscoveryIds.map(remapId))
+    }
+    for (const stage of stages) {
+      if (!stage.preparation) continue
+      for (const groups of [...Object.values(stage.preparation.characters), stage.preparation.decision])
+        for (const group of groups) group.discoveryIds = dedupe(group.discoveryIds.map(remapId))
+      for (const essential of stage.preparation.essentialCharacters)
+        essential.discoveryIds = dedupe(essential.discoveryIds.map(remapId))
+    }
     for (const character of characters)
       character.slants = character.slants.map((slant) => ({ ...slant, contradictedBy: dedupe(slant.contradictedBy.map(remapId)) }))
     for (let i = discoveries.length - 1; i >= 0; i--) if (dropToKeep.has(discoveries[i]!.id)) discoveries.splice(i, 1)
@@ -344,6 +363,7 @@ export function mergeDetails(skeleton: SkeletonShape, parts: DetailsParts, opts:
   })
 
   const draft: AdventureSpec = {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     id: skeleton.id,
     title: skeleton.title,
     readingLevel: skeleton.readingLevel,

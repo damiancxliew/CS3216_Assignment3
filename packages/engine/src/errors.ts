@@ -10,6 +10,7 @@ export const ENGINE_ERROR_CODES = [
   'act_unavailable',
   'pending',
   'invalid_action',
+  'preparation_required',
 ] as const
 export type EngineErrorCode = (typeof ENGINE_ERROR_CODES)[number]
 

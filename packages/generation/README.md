@@ -190,6 +190,18 @@ Limits in `LIMITS`. Scanned PDFs without a text layer are rejected with `no-text
 
 ## V3 generation checks and evidence evaluation
 
+New stage-details calls produce a reading check for every scroll: four questions about one
+discovery, three interpretations per question, exact supporting sentences and a guided correction.
+The converter derives offsets from copied text. The linker authors relevant character prerequisites,
+essential conversations and decision requirements with spare evidence routes. It receives discovery
+conditions and document placements so it can avoid circular preparation. Answer keys remain in the
+private spec. Saved parts without this capability still assemble with their original behaviour.
+
+Preparation belongs to the linking part; source text and question banks belong to the stage part.
+Repair routing and teacher-edit ownership follow those boundaries. Discovery deduplication remaps
+preparation and recovery references. Final checks reject inaccessible requirements and altered
+holders for essential conversation facts.
+
 Skeleton documents can hold at most two core discoveries, so their details can satisfy the
 two-passage limit. Hidden-entry persona triggers require at least one prerequisite in addition
 to their triggering action. Linking receives actual persona/stance metadata and existing

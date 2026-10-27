@@ -1,0 +1,23 @@
+.check, .passed { margin-top: 1.5rem; border: 1px solid #a6804680; border-radius: .25rem; padding: 1rem; font: 400 .9rem/1.5 var(--font-ui, system-ui), sans-serif; }
+.passed { border-color: #6f8a3f; background: #c9dc9a35; }
+.passed p + p { margin-top: .5rem; }
+.instructions { margin-bottom: 1rem; }
+.review { margin-bottom: 1rem; border-left: 4px solid #9b532d; padding-left: .75rem; }
+.review h3 { font-size: 1rem; font-weight: 700; margin-bottom: .5rem; }
+.options, .sentencePicker fieldset { display: grid; gap: .5rem; margin: 0; padding: 0; border: 0; }
+.options legend, .sentencePicker legend { margin-bottom: .75rem; font-weight: 700; }
+.options label, .sentencePicker label { display: flex; align-items: flex-start; gap: .75rem; padding: .75rem; border: 1px solid #a6804660; border-radius: .25rem; cursor: pointer; background: #fff8dc50; }
+.options label:has(input:checked), .sentencePicker label:has(input:checked) { border-color: #77562f; background: #e2c78e60; }
+.options input, .sentencePicker input { flex-shrink: 0; margin-top: .25rem; accent-color: #77562f; }
+.selection { margin-top: 1rem; overflow-wrap: anywhere; }
+.selection blockquote { max-height: 9rem; overflow-y: auto; margin-top: .5rem; border-left: 3px solid #a68046; padding-left: .75rem; white-space: pre-wrap; }
+.sentencePicker { margin: 1rem 0; }
+.sentencePicker summary { min-height: 2.75rem; padding-block: .5rem; cursor: pointer; text-decoration: underline; }
+.sentencePicker fieldset { margin-top: .5rem; }
+.submit, .sentencePicker button { min-height: 2.75rem; border: 1px solid #77562f; border-radius: .25rem; padding: .5rem .75rem; font-weight: 700; cursor: pointer; }
+.submit { margin-top: .75rem; color: #fff8dc; background: #684624; }
+.submit:disabled { opacity: .55; cursor: default; }
+.submit:focus-visible, .sentencePicker summary:focus-visible, .sentencePicker button:focus-visible, .check input:focus-visible { outline: 3px solid #855926; outline-offset: 3px; }
+:global([data-theme="dark"]) .check, :global([data-theme="dark"]) .passed { border-color: #80684b; }
+:global([data-theme="dark"]) .options label, :global([data-theme="dark"]) .sentencePicker label { background: #493d30; }
+:global([data-theme="dark"]) .options label:has(input:checked), :global([data-theme="dark"]) .sentencePicker label:has(input:checked) { background: #60503d; border-color: #cfbda6; }

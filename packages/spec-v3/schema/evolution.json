@@ -1,0 +1,16 @@
+{
+  "migrations": [
+    {
+      "id": "evidence-preparation",
+      "from": 1,
+      "to": 2,
+      "tests": [
+        "tests/api/v3-upgrade-registry.test.ts",
+        "tests/api/v3-upgrades.test.ts",
+        "tests/api/v3-upgrades-content.test.ts",
+        "tests/unit/v3-upgrade-runner.test.ts"
+      ]
+    }
+  ],
+  "declarations": []
+}
