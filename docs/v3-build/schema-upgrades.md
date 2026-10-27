@@ -1,8 +1,10 @@
 # Adventure schema versions and reviewed upgrades
 
-The integer `schemaVersion` inside an adventure identifies its persisted format. The database `spec_version` identifies a content revision. They serve different purposes: changing a title creates a content revision without changing the schema version.
+The stable SemVer `schemaVersion` (`MAJOR.MINOR.PATCH`) inside an adventure identifies its persisted format. The database `spec_version` identifies a content revision. They serve different purposes: changing a title creates a content revision without changing the schema version.
 
-Unversioned adventures are schema 1. Schema 2 requires reading checks on documents and preparation requirements on stages. Partial preparation content from earlier releases remains readable as schema 1 and is preserved during upgrade.
+Unversioned adventures and integer marker `1` are read as `1.0.0`. Integer marker `2` is read as `2.0.0`, which requires reading checks on documents and preparation requirements on stages. The current format, `2.1.0`, also declares optional import attribution. Historical stored markers remain unchanged until an upgrade is applied. Partial preparation content from earlier releases remains readable and is preserved during upgrade.
+
+Use a major version for breaking requirements, a minor version for compatible additions, and a patch version for compatible contract corrections. Only stable versions are persisted; prerelease and build suffixes are rejected. Version ordering compares numeric components, so `2.10.0` follows `2.9.0`. A validator implementation fix that leaves the contract unchanged needs a classification rather than a version bump.
 
 ## Support policy
 
@@ -18,11 +20,15 @@ Save current edits, then choose **Upgrade adventure**, or request an upgrade in 
 
 The proposal persists while questions and stage requirements are prepared. Teachers can inspect source support, prerequisites, essential conversations, and blocking findings. Chat can refine the proposed additions. Applying always requires an explicit **Apply upgrade**, including structural-only upgrades.
 
-The first upgrade preserves documents, historical quotations, citations, story content, IDs, and selected media. It authors missing questions and preparation using the existing evidence. If sources or discoveries are insufficient, it reports the gap and blocks applying. Edit and save the underlying adventure before rebuilding. A newer saved revision invalidates an older proposal.
+The `1.0.0 → 2.0.0` upgrade preserves documents, historical quotations, citations, story content, IDs, and selected media. It authors missing questions and preparation using the existing evidence. If sources or discoveries are insufficient, it reports the gap and blocks applying. Edit and save the underlying adventure before rebuilding. A newer saved revision invalidates an older proposal.
+
+The `2.0.0 → 2.1.0` upgrade changes the format marker and preserves all content and import attribution. It uses no model calls. Existing queued upgrades targeting `2.0.0` remain pinned to that target. An additive database migration converts upgrade-run version columns to text and normalizes their integer values.
+
+The import/export feature originally added `authoring.importId` concurrently with versioning. That changed emitted historical schemas after merge and broke CI. Historical snapshots and their strict schema definitions are now frozen; the latest snapshot includes the field. The best-effort reader preserves this metadata in older stored adventures so upgrading cannot discard it. Historical snapshot filenames `1.schema.json` and `2.schema.json` remain unchanged.
 
 ## Required steps for every persisted schema change
 
-1. Add the next integer schema and retain readers for registered historical formats. Keep released JSON schema snapshots unchanged; preserve the runtime boundary between stored formats and the current engine model.
+1. Add the next SemVer schema and retain readers for registered historical formats. Keep released JSON schema snapshots unchanged; preserve the runtime boundary between stored formats and the current engine model.
 2. Register an ordered upgrade step with a stable ID, source and target versions, explanation, and structural or content handler. Add its test paths to `packages/spec-v3/schema/evolution.json`. Every historical format must have a complete route to the latest.
 3. Exercise the step through the shared Upgrade action and chat path. Add the appropriate review presentation and blocking findings; keep server-side validation authoritative. Avoid version-specific entry points.
 4. Add representative input/output migration fixtures and tests for preservation, repeat requests, blocked content, and revision conflicts. For content upgrades, test model failures and resumability with deterministic responses, then review representative live output when available.
@@ -41,7 +47,11 @@ Upgrade runs are separate from adventure generation status. They are bound to an
 
 Retain old snapshots and readers for migration, not a promise of perpetual runtime compatibility. Removing historical runtime branches is permitted under the best-effort policy; losing the ability to read and upgrade historical data requires a separate migration decision.
 
-## Verification for the first upgrade
+## Verification
+
+The SemVer update passed 112 spec tests, 737 web API/unit tests, 255 generation tests (one existing skip), and the 43-test schema evolution gate. Web typechecking, lint, and the production build pass, with existing lint warnings. Database tests verify conversion of stored integer version columns, numeric SemVer ordering, and applying both historical integer proposals and new SemVer proposals.
+
+### First upgrade
 
 The implementation passed 109 spec tests, 109 engine tests, 225 orchestration tests, 11 play-contract tests, 255 generation tests (one existing skip), 676 web API/unit tests, 33 v3 database tests, and 63 demo/compatibility tests. The schema gate separately executes the registry, migration-service, content-authoring, and synthetic future-step suites. Package/web typechecks and the production build pass; remaining build warnings are in unrelated modules.
 

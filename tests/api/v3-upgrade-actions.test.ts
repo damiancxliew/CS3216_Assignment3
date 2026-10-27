@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CURRENT_SCHEMA_VERSION } from '@adventure/spec-v3';
 const f = vi.hoisted(() => ({ user: 'teacher' as string | null, enabled: true, start: vi.fn(), get: vi.fn(), refine: vi.fn(), apply: vi.fn(), discard: vi.fn(), deps: vi.fn(), after: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: f.user ? { id: f.user } : null } }) } }) }));
 vi.mock('@/lib/v3/flag', () => ({ v3Enabled: () => f.enabled }));
@@ -18,6 +19,17 @@ beforeEach(() => {
   f.apply.mockResolvedValue({ ok: true, run: { status: 'applied', appliedRevision: 2 } });
 });
 describe('teacher upgrade action boundary', () => {
+  it('accepts and forwards a canonical schema version string', async () => {
+    expect(await startUpgradeAction(id, { expectedRevision: 1, targetSchemaVersion: CURRENT_SCHEMA_VERSION })).toMatchObject({ ok: true });
+    expect(f.start).toHaveBeenCalledWith({}, 'teacher', id, { expectedRevision: 1, targetSchemaVersion: CURRENT_SCHEMA_VERSION });
+  });
+  it.each([2, '2.1', 'v2.1.0', '02.1.0', '2.1.0-beta', '2.1.0+build', '9007199254740992.0.0'])(
+    'rejects noncanonical target versions before creating a run: %s', async (targetSchemaVersion) => {
+      expect(await startUpgradeAction(id, { expectedRevision: 1, targetSchemaVersion } as never)).toMatchObject({ ok: false, code: 'invalid' });
+      expect(f.deps).not.toHaveBeenCalled();
+      expect(f.start).not.toHaveBeenCalled();
+    },
+  );
   it('denies unauthenticated, disabled and malformed requests before accessing proposal storage', async () => {
     f.user = null;
     expect(await startUpgradeAction(id, { expectedRevision: 1 })).toMatchObject({ ok: false, code: 'access' });

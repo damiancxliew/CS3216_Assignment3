@@ -3,6 +3,7 @@
 import { after } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { compareSchemaVersions } from '@adventure/spec-v3';
 import { createClient } from '@/lib/supabase/server';
 import { v3Enabled } from '@/lib/v3/flag';
 import { defaultUpgradeDeps } from '@/lib/v3/upgrades/deps';
@@ -12,7 +13,11 @@ import { tickUrl } from '@/lib/jobs/tick';
 import { headers } from 'next/headers';
 
 const proposalInput = z.strictObject({ runId: z.string().uuid(), proposalRevision: z.number().int().positive() });
-const startInput = z.strictObject({ expectedRevision: z.number().int().nonnegative(), targetSchemaVersion: z.number().int().positive().optional() });
+const targetVersion = z.string().refine((value) => {
+  try { compareSchemaVersions(value, value); return true; }
+  catch { return false; }
+});
+const startInput = z.strictObject({ expectedRevision: z.number().int().nonnegative(), targetSchemaVersion: targetVersion.optional() });
 const refineInput = proposalInput.extend({ instruction: z.string().trim().max(4000) });
 const denied = (): UpgradeResult => ({ ok: false, code: 'access', message: 'Not found.' });
 const invalid = (): UpgradeResult => ({ ok: false, code: 'invalid', message: 'Check the upgrade request and try again.' });

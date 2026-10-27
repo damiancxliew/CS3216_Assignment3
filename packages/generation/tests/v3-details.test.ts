@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkSpec, validateSpec } from '@adventure/spec-v3'
+import { CURRENT_SCHEMA_VERSION, checkSpec, validateSpec } from '@adventure/spec-v3'
 
 import type { ExtractedDocument } from '../src/ingest/types'
 import type { FakeReply, LlmJsonRequest, LlmJsonResponse, LlmUsage } from '../src/llm/client'
@@ -343,7 +343,7 @@ describe('generateDetails', () => {
     expect(result.ok).toBe(true)
     expect(llm.requests.filter((r) => r.key === 'stage s1')[1]!.request.user).toContain('readingCheck')
     expect(result.draft!.documents.every((d) => d.readingCheck?.variants.length === 4)).toBe(true)
-    expect(result.draft!.schemaVersion).toBe(2)
+    expect(result.draft!.schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
   })
 
   it('repairs missing stage preparation and retains every essential conversation requirement', async () => {

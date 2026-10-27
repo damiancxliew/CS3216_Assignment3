@@ -26,8 +26,8 @@ async function fixture() {
             adventure_id: a.id,
             requester_id: owner.userId,
             source_revision: 1,
-            source_schema_version: 1,
-            target_schema_version: 2,
+            source_schema_version: '1.0.0',
+            target_schema_version: '2.0.0',
             summary: {
                 documents: 0,
                 stages: 0,
@@ -143,5 +143,50 @@ describe('schema upgrade persistence', () => {
         const read = await outsider.client.from('upgrade_runs_v3').select('*').eq('id', run.id);
         expect(read.error).toBeNull();
         expect(read.data).toEqual([]);
+    });
+    it('orders semantic versions numerically and rejects malformed versions and downgrades', async () => {
+        const { run } = await fixture();
+        const advanced = await admin.from('upgrade_runs_v3').update({
+            source_schema_version: '2.9.0',
+            target_schema_version: '2.10.0'
+        }).eq('id', run.id).select('source_schema_version,target_schema_version').single();
+        expect(advanced.error).toBeNull();
+        expect(advanced.data).toEqual({
+            source_schema_version: '2.9.0',
+            target_schema_version: '2.10.0'
+        });
+        for (const target of ['2.8.0', '2.9.0', '02.10.0', '2.10.0-beta']) {
+            const refused = await admin.from('upgrade_runs_v3').update({
+                target_schema_version: target
+            }).eq('id', run.id);
+            expect(['23514', '22P02']).toContain(refused.error?.code);
+        }
+    });
+    it('keeps pinned historical and latest upgrade intents distinct for the same source revision', async () => {
+        const { run } = await fixture();
+        const latest = await admin.rpc('start_upgrade_v3', {
+            p_run: {
+                ...run,
+                id: crypto.randomUUID(),
+                target_schema_version: '2.1.0'
+            }
+        });
+        expect(latest.error).toBeNull();
+        expect(latest.data.created).toBe(true);
+        expect(latest.data.run.id).not.toBe(run.id);
+        const historical = await admin.rpc('start_upgrade_v3', {
+            p_run: {
+                ...run,
+                id: crypto.randomUUID()
+            }
+        });
+        expect(historical.error).toBeNull();
+        expect(historical.data).toMatchObject({
+            created: false,
+            run: {
+                id: run.id,
+                target_schema_version: '2.0.0'
+            }
+        });
     });
 });

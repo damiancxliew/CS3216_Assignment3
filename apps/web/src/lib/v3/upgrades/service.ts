@@ -35,7 +35,7 @@ export async function startUpgrade(deps: UpgradeDeps, user: string, id: string, 
         return fail('invalid', 'The saved adventure cannot be read. Resolve its structural issues first.');
     const from = getSchemaVersion(source);
     const target = input.targetSchemaVersion ?? CURRENT_SCHEMA_VERSION;
-    if (!from || !Number.isInteger(target) || target !== CURRENT_SCHEMA_VERSION)
+    if (!from || target !== CURRENT_SCHEMA_VERSION)
         return fail('unsupported', 'This schema upgrade is not supported.');
     if (from === target)
         return fail('unsupported', 'This adventure already uses the latest format.');
@@ -197,7 +197,7 @@ export async function discardUpgrade(deps: UpgradeDeps, user: string, id: string
 }
 /** Content refinements invalidate dependent steps; retries keep completed predecessors. */
 export function reopenUpgradeCheckpoint<T extends {
-    schemaVersion?: number;
+    schemaVersion?: number | string;
 }>(checkpoint: UpgradeCheckpoint<T> | undefined, path: readonly UpgradeDescriptor[], refine: boolean): UpgradeCheckpoint<T> | undefined {
     if (!checkpoint?.completed)
         return undefined;
@@ -223,7 +223,7 @@ export function reopenUpgradeCheckpoint<T extends {
             ...recorded,
             candidate: {
                 ...recorded.candidate,
-                schemaVersion: recorded.source.schemaVersion ?? 1
+                schemaVersion: recorded.source.schemaVersion ?? '1.0.0'
             }
         };
     }

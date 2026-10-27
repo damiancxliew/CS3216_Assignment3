@@ -1,7 +1,8 @@
 import { isDeepStrictEqual } from 'node:util';
+import { normalizeSchemaVersion, compareSchemaVersions } from '@adventure/spec-v3';
 import type { CheckIssue, UpgradeDescriptor } from '@adventure/spec-v3';
 
-type Versioned = { schemaVersion?: number };
+type Versioned = { schemaVersion?: number | string };
 export type UpgradeCheckpoint<T> = {
   completed: { stepId: string; source: T; candidate: T }[];
   active?: { stepId: string; source: T; candidate: T };
@@ -16,7 +17,7 @@ export type UpgradeRunnerInput<T> = {
   path: readonly UpgradeDescriptor[];
   handlers: Readonly<Record<string, UpgradeStepHandler<T>>>;
   checkpoint?: UpgradeCheckpoint<T>;
-  validate(version: number, candidate: T): CheckIssue[];
+  validate(version: string, candidate: T): CheckIssue[];
   onCheckpoint?(checkpoint: UpgradeCheckpoint<T>): Promise<void>;
 };
 export type UpgradeValidationInput<T> = Omit<UpgradeRunnerInput<T>, 'handlers' | 'onCheckpoint'> & {
@@ -29,13 +30,21 @@ export type UpgradeRunnerResult<T> = {
   findings: CheckIssue[];
 };
 const issue = (message: string): CheckIssue => ({ code: 'upgrade-checkpoint', path: '', message });
-const version = (candidate: Versioned): number => candidate.schemaVersion ?? 1;
+const version = (candidate: Versioned): string | undefined => {
+  const marker = candidate.schemaVersion;
+  if (marker === undefined) return '1.0.0';
+  if (typeof marker === 'string') {
+    compareSchemaVersions(marker, marker);
+    return marker;
+  }
+  return normalizeSchemaVersion(marker);
+};
 
 function checkPath<T extends Versioned>(input: UpgradeValidationInput<T>): void {
   let at = version(input.source);
   const seen = new Set<string>();
   for (const step of input.path) {
-    if (step.from !== at || !Number.isSafeInteger(step.to) || step.to <= at || seen.has(step.id)) throw Error('The migration path does not follow the source schema version.');
+    if (step.from !== at || !at || compareSchemaVersions(step.to, at) <= 0 || seen.has(step.id)) throw Error('The migration path does not follow the source schema version.');
     const handler = input.handlers[step.id];
     if (!handler || handler.kind !== step.kind) throw Error(`No matching ${step.kind} handler is registered for ${step.id}.`);
     at = step.to;

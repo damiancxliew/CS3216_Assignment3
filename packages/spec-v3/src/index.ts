@@ -303,27 +303,41 @@ const AdventureSpecObject = z.strictObject({
   openQuestions: z.array(OpenQuestion).default([]),
   hintAngles: z.array(HintAngle).default([]),
 })
+/** Released contracts exclude import attribution added by a parallel pre-versioning feature. */
+const ReleasedAdventureSpecObject = AdventureSpecObject.extend({
+  authoring: AdventureSpecObject.shape.authoring.unwrap().omit({ importId: true }).optional(),
+})
 /** The first persisted contract permits unversioned content and partial preparation. */
-export const LegacyAdventureSpec = AdventureSpecObject.extend({ schemaVersion: z.literal(1).optional() })
-/** Required mechanics for newly generated and explicitly upgraded adventures. */
-export const LatestAdventureSpec = AdventureSpecObject.extend({
+export const LegacyAdventureSpec = ReleasedAdventureSpecObject.extend({ schemaVersion: z.literal(1).optional() })
+/** Frozen preparation contract, before import attribution became part of the format. */
+export const V2AdventureSpec = ReleasedAdventureSpecObject.extend({
   schemaVersion: z.literal(2),
   stages: z.array(Stage.extend({ preparation: StagePreparation })).min(1),
   documents: z.array(Document.extend({ readingCheck: ReadingCheck })),
 })
+/** Current format records import attribution and retains the required preparation mechanics. */
+export const LatestAdventureSpec = AdventureSpecObject.extend({
+  schemaVersion: z.literal('2.1.0'),
+  stages: z.array(Stage.extend({ preparation: StagePreparation })).min(1),
+  documents: z.array(Document.extend({ readingCheck: ReadingCheck })),
+})
 
-/** One runtime shape; old content is adapted without silently changing its format or gameplay. */
-export const AdventureSpec = AdventureSpecObject.extend({ schemaVersion: z.union([z.literal(1), z.literal(2)]).optional() })
+/** One runtime shape; old content is adapted without changing its format or gameplay.
+ * Compatibility reading also preserves import attribution from the parallel pre-versioning
+ * import feature, even on old content. Frozen contracts remain unchanged; no metadata is lost.
+ */
+export const AdventureSpec = AdventureSpecObject.extend({ schemaVersion: z.union([z.literal(1), z.literal(2), z.literal('1.0.0'), z.literal('2.0.0'), z.literal('2.1.0')]).optional() })
   .superRefine((spec, ctx) => {
-    if (spec.schemaVersion !== 2) return
+    if (!spec.schemaVersion || spec.schemaVersion === 1 || spec.schemaVersion === '1.0.0') return
     spec.stages.forEach((stage, i) => {
-      if (!stage.preparation) ctx.addIssue({ code: 'custom', path: ['stages', i, 'preparation'], message: 'Schema version 2 requires stage preparation. Upgrade this adventure before saving it as version 2.' })
+      if (!stage.preparation) ctx.addIssue({ code: 'custom', path: ['stages', i, 'preparation'], message: `Schema version ${spec.schemaVersion} requires stage preparation. Upgrade this adventure before saving it in this format.` })
     })
     spec.documents.forEach((document, i) => {
-      if (!document.readingCheck) ctx.addIssue({ code: 'custom', path: ['documents', i, 'readingCheck'], message: 'Schema version 2 requires a reading check on every document.' })
+      if (!document.readingCheck) ctx.addIssue({ code: 'custom', path: ['documents', i, 'readingCheck'], message: `Schema version ${spec.schemaVersion} requires a reading check on every document.` })
     })
   })
 export type AdventureSpec = z.infer<typeof AdventureSpec>
+export type V2AdventureSpec = z.infer<typeof V2AdventureSpec>
 export type LatestAdventureSpec = z.infer<typeof LatestAdventureSpec>
 export type LegacyAdventureSpec = z.infer<typeof LegacyAdventureSpec>
 export type SpecStage = z.infer<typeof Stage>
