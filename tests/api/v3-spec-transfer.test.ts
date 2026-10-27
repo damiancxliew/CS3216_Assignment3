@@ -7,12 +7,19 @@ const h = vi.hoisted(() => ({
   inserts: [] as { table: string; value: unknown }[],
   deleted: [] as string[],
   failSources: false,
+  uploads: [] as string[],
+  removals: [] as string[],
 }));
 vi.mock("@/lib/v3/brief/service", () => ({ requireStaff: async () => h.auth }));
 vi.mock("@/lib/v3/flag", () => ({ v3SchoolAllowed: () => h.allowed }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw Error(`redirect:${url}`); } }));
 vi.mock("@/lib/v3/generation/deps", () => ({ supabaseV3SourceStore: () => ({ load: async () => [] }) }));
+vi.mock("@/lib/assets/store", () => ({ createAssetStore: () => ({
+  put: async (key: string) => { h.uploads.push(key); return `https://new.test/${key}`; },
+  remove: async (key: string) => { h.removals.push(key); },
+  download: async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")),
+}) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({
   from(table: string) {
     const query = {
@@ -31,6 +38,8 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({
 
 import { importAdventureJson } from "@/app/v3/teacher/import-actions";
 import { GET } from "@/app/api/v3/adventures/[id]/export/route";
+import { createSpecArchive } from "@/lib/v3/spec-archive";
+import { specExport } from "@/lib/v3/spec-transfer";
 const spec = JSON.parse(readFileSync("fixtures/golden-1819.json", "utf8"));
 const form = (content: string) => {
   const data = new FormData();
@@ -41,6 +50,7 @@ const request = () => GET(new Request("http://localhost/api/v3/adventures/story/
 beforeEach(() => {
   h.auth = { userId: "teacher", schoolId: "school" };
   h.allowed = true; h.inserts = []; h.deleted = []; h.failSources = false;
+  h.uploads = []; h.removals = [];
   h.row = { owner_id: "teacher", school_id: "school", status: "draft", spec, spec_version: 2 };
 });
 
@@ -91,5 +101,28 @@ describe("v3 import/export access and persistence", () => {
     expect(body).toMatchObject({ format: "pocket-adventure-v3", version: 1, spec: { title: spec.title }, sources: [] });
     expect(body.owner_id).toBeUndefined();
     expect(body.published_version).toBeUndefined();
+  });
+
+  it("imports ZIP assets into new storage and removes uploaded media when sources fail", async () => {
+    const bundle = specExport(structuredClone(spec), [{ id: "reading", title: "Reading", kind: "text", pages: [] }], "story", 2);
+    bundle.spec.authoring!.stageImages![bundle.spec.stages[0].id] = { type: "legacy", version: 2, url: "https://old.test/art.png" };
+    const bytes = await createSpecArchive(bundle, async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")));
+    const data = new FormData();
+    data.set("file", new File([new Uint8Array(bytes)], "adventure.zip"));
+    h.failSources = true;
+    expect((await importAdventureJson({}, data)).error).toContain("Could not import source text");
+    expect(h.uploads.length).toBeGreaterThan(0);
+    expect(h.removals).toEqual(h.uploads);
+    expect(JSON.stringify(h.inserts[0].value)).toContain("https://new.test/v3/imports/");
+    expect(h.deleted).toEqual(["adventures_v3"]);
+  });
+
+  it("exports a ZIP attachment with the saved spec", async () => {
+    const response = await GET(new Request("http://localhost/api/v3/adventures/story/export?format=zip"), { params: Promise.resolve({ id: "story" }) });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/zip");
+    expect(response.headers.get("content-disposition")).toContain(".zip");
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    expect([...bytes.slice(0, 2)]).toEqual([80, 75]);
   });
 });

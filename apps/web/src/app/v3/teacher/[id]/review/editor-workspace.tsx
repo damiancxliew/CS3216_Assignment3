@@ -367,6 +367,11 @@ export function EditorWorkspace(props: Props) {
                     </Link>
                   )}
                   {dirty || pending ? (
+                    <button type="button" disabled className={button.subtle}>Export ZIP</button>
+                  ) : (
+                    <a href={`/api/v3/adventures/${props.adventureId}/export?format=zip`} download className={button.quiet}>Export ZIP</a>
+                  )}
+                  {dirty || pending ? (
                     <button type="button" disabled className={button.subtle}>Export JSON</button>
                   ) : (
                     <a href={`/api/v3/adventures/${props.adventureId}/export`} download className={button.quiet}>Export JSON</a>

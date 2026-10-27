@@ -70,7 +70,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id.endsWith("/lib/analytics/posthog")) return "\0analytics";
           },
           async load(id) {
-            if (id === "\0import-json") return `export async function importAdventureJson(){return {error:'That file is not valid JSON.'}}`;
+            if (id === "\0import-json") return `export async function importAdventureJson(previous,form){return {error:form.get('file').name.endsWith('.zip')?'Could not import ZIP.':'That file is not valid JSON.'}}`;
             if (id === "\0analytics") return `export function track(){}`;
             if (id === "\0buttons") return `import React from 'react'; ${buttons}
               export const control='rounded-control border border-line p-2';
@@ -161,12 +161,16 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       });
       await page.goto(`${vite.resolvedUrls!.local[0]!}?clean=1`);
       await page.getByText("No issues", { exact: true }).waitFor();
-      await page.getByText("Import JSON", { exact: true }).click();
-      await page.getByLabel("Adventure JSON", { exact: true }).setInputFiles({ name: "broken.json", mimeType: "application/json", buffer: Buffer.from("{broken") });
+      await page.locator("summary").filter({ hasText: /^Import adventure$/ }).click();
+      await page.getByLabel("ZIP or JSON file", { exact: true }).setInputFiles({ name: "broken.json", mimeType: "application/json", buffer: Buffer.from("{broken") });
       await page.getByRole("button", { name: "Import adventure", exact: true }).click();
       await page.getByText("That file is not valid JSON.", { exact: true }).waitFor();
+      await page.getByLabel("ZIP or JSON file", { exact: true }).setInputFiles({ name: "broken.zip", mimeType: "application/zip", buffer: Buffer.from("broken zip") });
+      await page.getByRole("button", { name: "Import adventure", exact: true }).click();
+      await page.getByText("Could not import ZIP.", { exact: true }).waitFor();
       await page.screenshot({ path: "/tmp/v3-json-import.png", fullPage: true });
       expect(await page.getByRole("link", { name: "Export JSON", exact: true }).getAttribute("href")).toBe("/api/v3/adventures/fixture/export");
+      expect(await page.getByRole("link", { name: "Export ZIP", exact: true }).getAttribute("href")).toBe("/api/v3/adventures/fixture/export?format=zip");
       expect(
         await page.getByRole("group", { name: "Adventure checks" }).count(),
       ).toBe(0);
@@ -321,6 +325,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       ).toBe(0);
       await page.locator("#edit-title").fill("A saved teacher title");
       expect(await page.getByRole("button", { name: "Export JSON", exact: true }).isDisabled()).toBe(true);
+      expect(await page.getByRole("button", { name: "Export ZIP", exact: true }).isDisabled()).toBe(true);
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
       await page
         .getByRole("heading", { name: "Assets", exact: true })
