@@ -102,8 +102,8 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
               return `export async function publishSavedV3Version(){return {ok:true,status:'published'}}; export async function currentV3StudentLink(){return {ok:true,path:"/v3/join/fixture?release=test"}}; export async function publishV3Adventure(){return {ok:true,status:'published'}}; export async function unpublishV3Adventure(){return {ok:true,status:'draft'}}`;
             if (id === "\0media")
               return `export async function loadMediaAction(){return {items:JSON.parse(localStorage.getItem('media')||'[]')}};
-              export async function uploadMediaAction(adventureId,form){const input=JSON.parse(form.get('input'));const file=form.get('file');const url=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(file)});const id=crypto.randomUUID();const item={id,adventureId,creatorId:'teacher',target:input.target,origin:'upload',state:'ready',snapshot:{candidateId:id,origin:'upload',url:new URL('/game/ninja/characters/Noble/walk.png',location.origin).href,format:'png',width:64,height:64,caption:input.caption,alt:input.alt,credit:input.credit,...(input.target.kind.includes('Sprite')?{spriteLayout:'4x4-down-up-left-right'}:{})},specVersion:input.version,failure:null,costUsd:0,createdAt:new Date().toISOString()};const items=JSON.parse(localStorage.getItem('media')||'[]');items.push(item);localStorage.setItem('media',JSON.stringify(items));return {item};}
-              export async function createMediaAction(id,input){window.candidateKeys=[...(window.candidateKeys||[]),input.key];throw Error('Response lost in browser fixture')};export async function searchImagesAction(){return {items:[],nextPage:null}};`;
+              export async function uploadMediaAction(adventureId,form){const input=JSON.parse(form.get('input'));const file=form.get('file');const url=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(file)});const id=crypto.randomUUID();const item={id,adventureId,creatorId:'teacher',target:input.target,origin:'upload',state:'ready',snapshot:{candidateId:id,origin:'upload',url:new URL('/game/ninja/characters/Noble/walk.png',location.origin).href,storageKey:'v3/media/fixture/'+id+'/image.png',format:'png',width:64,height:64,caption:input.caption,alt:input.alt,credit:input.credit,...(input.target.kind.includes('Sprite')?{spriteLayout:'4x4-down-up-left-right'}:{})},specVersion:input.version,failure:null,costUsd:0,createdAt:new Date().toISOString()};const items=JSON.parse(localStorage.getItem('media')||'[]');items.push(item);localStorage.setItem('media',JSON.stringify(items));return {item};}
+              export async function createMediaAction(id,input){if(input.referenceCandidateId){window.stanceRequests=[...(window.stanceRequests||[]),input];const item={id:crypto.randomUUID(),adventureId:id,target:input.target,origin:'ai',state:'pending',snapshot:null,specVersion:input.version,failure:null,costUsd:0,createdAt:new Date().toISOString()};const items=JSON.parse(localStorage.getItem('media')||'[]');items.push(item);localStorage.setItem('media',JSON.stringify(items));return {item}};window.candidateKeys=[...(window.candidateKeys||[]),input.key];throw Error('Response lost in browser fixture')};export async function searchImagesAction(){return {items:[],nextPage:null}};`;
             if (id === "\0save")
               return `export async function fixV3EditsWithAiAction(){return {ok:true,notes:'I corrected the title.',edits:[{type:'set',path:['title'],value:'Suggested teacher title'}]}}; import {applyV3Edits} from '/src/lib/v3/edit/commands.ts';
           export async function saveV3AdventureEdits(id,version,edits){
@@ -562,6 +562,46 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         path: "/tmp/v3-editor-toolbar-mobile.png",
         fullPage: true,
       });
+      // Drop validation and character-wide portrait selection, with queued reference variants.
+      await page.getByRole("tab", { name: "Assets", exact: true }).click();
+      const portraitSlot = page.locator('[id^="asset-portrait-"]').first();
+      await portraitSlot.getByRole("button", { name: "Upload", exact: true }).click();
+      const dropzone = portraitSlot.getByText("Drop an image here, or choose a file.").locator("..");
+      await dropzone.evaluate(element => {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File(["bad"], "bad.txt", { type: "text/plain" }));
+        element.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
+      });
+      await portraitSlot.getByRole("alert").filter({ hasText: "Choose a JPEG, PNG or WebP image." }).waitFor();
+      const imageBytes = [...await readFile("apps/web/public/game/ninja/characters/Noble/walk.png")];
+      await dropzone.evaluate((element, bytes) => {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([new Uint8Array(bytes)], "portrait.png", { type: "image/png" }));
+        element.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
+      }, imageBytes);
+      const portraitCandidate = portraitSlot.getByRole("article", { name: "Asset candidate" });
+      const beforeAssetsVersion = await page.evaluate(() => localStorage.getItem("version"));
+      await portraitCandidate.getByRole("button", { name: "Use for all stances", exact: true }).click();
+      await portraitSlot.getByText("Unsaved selection", { exact: false }).waitFor();
+      expect(await page.evaluate(() => localStorage.getItem("version"))).toBe(beforeAssetsVersion);
+      const portraitSaved = await page.evaluate(() => {
+        const draft = JSON.parse(localStorage.getItem("v3-editor-draft:fixture")!);
+        return draft.edits.find((edit: any) => edit.type === "portraitImage");
+      });
+      const firstCharacter = spec.characters.find((c: any) => c.tier === "major");
+      expect(portraitSaved.allStances).toBe(true);
+      await portraitCandidate.getByRole("button", { name: "Generate other stances", exact: true }).click();
+      await portraitCandidate.getByRole("status").filter({ hasText: "stance candidates queued" }).waitFor();
+      const stanceRequests = await page.evaluate(() => (window as any).stanceRequests);
+      expect(stanceRequests).toHaveLength(firstCharacter.stances.length - 1);
+      expect(new Set(stanceRequests.map((r: any) => r.referenceCandidateId)).size).toBe(1);
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await portraitCandidate.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: "/tmp/v3-portrait-stances-desktop.png" });
+      await page.setViewportSize({ width: 320, height: 850 });
+      await portraitCandidate.scrollIntoViewIfNeeded();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: "/tmp/v3-portrait-stances-mobile.png" });
       // Review and select a walking-sheet upload without losing the unsaved story title.
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
       const stageSlot = page.locator('[id^="asset-stage-"]').first();
@@ -600,35 +640,61 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await candidate.getByRole("button", { name: "Use sheet", exact: true }).waitFor();
       expect(await candidate.getByRole("button", { name: "Use sheet", exact: true }).isDisabled()).toBe(true);
       await candidate.getByLabel("I reviewed all four labelled directions and animation frames.").check();
-      await page.evaluate(() => { window.saveMode = "conflict"; });
       await candidate.getByRole("button", { name: "Use sheet", exact: true }).click();
-      await page.getByRole("alert").filter({ hasText: "This adventure changed" }).waitFor();
-      expect(await candidate.getByRole("button", { name: "Use sheet", exact: true }).isEnabled()).toBe(true);
-      await page.evaluate(() => { window.saveMode = "success"; });
-      await candidate.getByRole("button", { name: "Use sheet", exact: true }).click();
-      await page.getByRole("status").filter({ hasText: "Asset saved" }).waitFor();
-      await playerSlot.getByText(/Saved selection/).waitFor();
-      const assetSavedSpec = await page.evaluate(() => JSON.parse(localStorage.getItem("spec")!));
-      expect(assetSavedSpec.authoring.walkingSprites.player.type).toBe("custom");
-      expect(assetSavedSpec.title).not.toBe("Newer manual title");
-      await page.getByRole("tab", { name: "Settings", exact: true }).click();
-      expect(await page.locator("#edit-title").inputValue()).toBe("Newer manual title");
-      page.once("dialog", (dialog) => dialog.accept());
-      await page.getByRole("button", { name: "Discard edits", exact: true }).click();
-      expect(await page.locator("#edit-title").count()).toBe(0);
+      await playerSlot.getByText(/Unsaved selection/).waitFor();
+      expect(await page.evaluate(() => localStorage.getItem("version"))).toBe(beforeAssetsVersion);
+      page.once("dialog", dialog => dialog.accept());
+      await page.goto("about:blank");
+      await page.goto(vite.resolvedUrls!.local[0]!);
+      await page.getByRole("status").filter({ hasText: "Recovered your unsaved draft" }).waitFor();
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
+      await playerSlot.getByText(/Unsaved selection/).waitFor();
       expect(await playerSlot.getByRole("button", { name: "Selected", exact: true }).count()).toBe(1);
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
-      await page.getByRole("button", { name: "Edit", exact: true }).click();
-      await page.locator("#edit-title").fill("Newer manual title");
+      expect(await page.locator("#edit-title").inputValue()).toBe("Newer manual title");
+      await page.evaluate(() => { window.saveMode = "conflict"; });
       await page.getByRole("button", { name: "Save", exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: "This adventure changed" }).waitFor();
+      expect(await page.evaluate(() => localStorage.getItem("v3-editor-draft:fixture"))).not.toBeNull();
+      await page.evaluate(() => { window.saveMode = "success"; });
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await page.getByRole("status").filter({ hasText: "Saved version" }).waitFor();
+      expect(await page.evaluate(() => Number(localStorage.getItem("version")))).toBe(Number(beforeAssetsVersion) + 1);
+      expect(await page.evaluate(() => localStorage.getItem("v3-editor-draft:fixture"))).toBeNull();
+      const assetSavedSpec = await page.evaluate(() => JSON.parse(localStorage.getItem("spec")!));
+      expect(assetSavedSpec.authoring.walkingSprites.player.type).toBe("custom");
+      expect(assetSavedSpec.title).toBe("Newer manual title");
+      expect(Object.keys(assetSavedSpec.authoring.portraitImages)).toEqual(firstCharacter.stances.map((s: any) => `${firstCharacter.id}:${s.id}`));
       await page.reload();
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
-      await page.locator('[id="asset-sprite-player"]').getByText(/Saved selection/).waitFor();
+      await playerSlot.getByText(/Saved selection/).waitFor();
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.reload();
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
       await page.locator('[id="asset-sprite-player"]').getByRole("button", { name: "Play walking preview", exact: true }).first().waitFor();
+      // A recovered old base must not silently replace a newer saved adventure.
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
+      await page.locator("#edit-title").fill("Older unsaved draft");
+      await page.evaluate(() => {
+        const spec = JSON.parse(localStorage.getItem("spec")!);
+        spec.title = "Newer saved adventure";
+        localStorage.setItem("spec", JSON.stringify(spec));
+        localStorage.setItem("version", String(Number(localStorage.getItem("version")) + 1));
+      });
+      page.once("dialog", dialog => dialog.accept());
+      await page.reload();
+      await page.getByRole("alert").filter({ hasText: "saved adventure changed while you were away" }).waitFor();
+      const downloadPromise = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Download recovered draft" }).click();
+      const download = await downloadPromise;
+      expect(JSON.parse(await readFile((await download.path())!, "utf8")).title).toBe("Older unsaved draft");
+      page.once("dialog", dialog => dialog.accept());
+      await page.getByRole("button", { name: "Discard edits", exact: true }).click();
+      expect(await page.evaluate(() => localStorage.getItem("v3-editor-draft:fixture"))).toBeNull();
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      expect(await page.locator("#edit-title").inputValue()).toBe("Newer saved adventure");
       expect(errors).toEqual([]);
     } finally {
       await browser?.close();

@@ -13,6 +13,7 @@ import { supabaseMediaRepository, type MediaCandidate } from "./repository";
 import { isSprite, validTarget } from "./resolvers";
 import {
   CreateMediaInput,
+  portraitReference,
   storeCandidateBytes,
   type MediaDeps,
 } from "./service";
@@ -53,6 +54,9 @@ export async function generateMediaCandidate(
             (p) => p.portraitKey === item.target.key,
           )?.prompt ?? "") +
           `\nTeacher appearance request (data): ${JSON.stringify(input.appearance)}`;
+    const reference = await portraitReference(deps.media, item.adventureId, spec, input);
+    const referenceBytes = reference ? await deps.storage.download(reference.url) : null;
+    if (reference && !referenceBytes) throw Error("The original portrait is unavailable. Upload it again before generating stances.");
     // The existing image service performs strict pose checks + sprite normalization.
     const result = await deps.images.generate({
       kind: sprite
@@ -60,7 +64,13 @@ export async function generateMediaCandidate(
         : item.target.kind === "stage"
           ? "cutscene"
           : "portrait",
-      prompt,
+      prompt: reference
+        ? `${prompt}\nUse the supplied original portrait as the visual identity reference. Preserve the same face, age, skin tone, hair, clothing, accessories, art style, palette, lighting, background and framing. Change only facial expression and subtle posture to match this stance. Do not add text or other people.`
+        : prompt,
+      ...(reference && referenceBytes ? { referenceImage: {
+        bytes: referenceBytes,
+        mimeType: `image/${reference.format}` as "image/png" | "image/webp" | "image/jpeg",
+      } } : {}),
       size: item.target.kind === "stage" ? "1536x1024" : "1024x1024",
       quality: "medium",
     });

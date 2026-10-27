@@ -151,9 +151,42 @@ RUN_V3_MAP_BROWSER_TESTS=1 PLAYWRIGHT_CHANNEL=chrome npx vitest run tests/browse
 Omit `PLAYWRIGHT_CHANNEL` to use Playwright Chromium. The test checks scenery and
 weather, resident/animal counts and distinct spawns, keyboard movement and engine
 room entry, local greetings, reduced motion, sound-toggle propagation, Role brief
-opening/return, and mobile layout. It uses the golden
+opening/return, and mobile layout. An isolated map fixture also changes only the
+walking-sprite scenery prop and verifies that the mounted game's texture updates. It uses the golden
 1819 adventure plus a clearly labelled synthetic rainy-office variant. HTTP transport
 and Next font/link adapters are replaced; authentication, persistence and model
 responses are not exercised. Screenshots and metrics go to `output/v3-map-check/`
 (or `V3_MAP_OUTPUT`). The population-overview screenshot changes camera zoom only
 inside the test; other screenshots use the actual play camera.
+
+## Portrait uploads and stances
+
+The editor harness covers invalid drops, image drops, saving one portrait across
+all character stances in one revision, and queuing variants with the same source
+candidate. It also checks keyboard file selection, mobile overflow, leaving and
+returning with an unsaved draft, batched Save, and recovery after a newer version
+was saved elsewhere:
+
+```sh
+RUN_REVIEW_BROWSER_TESTS=1 npx vitest run tests/browser/v3-editor.test.ts
+```
+
+Upload and generation actions use deterministic transport fixtures here. API tests
+in `tests/api/v3-media.test.ts` verify same-character reference authorization,
+original image bytes, missing-reference failures, and publication pinning.
+`tests/api/v3-portrait-reference-service.test.ts` verifies the image edit request
+against a mocked SDK boundary. Live model quality and visual identity preservation
+require review of generated candidates; these tests do not measure them. The edit
+adapter follows the [OpenAI image edits API](https://developers.openai.com/api/reference/resources/images/methods/edit).
+
+In Assets, upload a portrait by dropping a JPEG, PNG or WebP into its upload area,
+or use Choose image. Use for all stances selects that exact image in every stance
+of the same character. Selections remain pending until Save, which saves all asset
+and story changes in one version. Pending edits are kept in this browser and
+recovered on return; successful Save or explicit discard clears that copy. Storage
+failures show a warning. When the saved version changes, the recovered draft is
+retained with its original base version and can be downloaded before discarding it.
+Browser drafts do not sync across devices or survive clearing site data. Generate other stances queues paid AI candidates using the
+original stored portrait as a reference. It preserves current selections until
+teachers review and select each result. Publish the saved draft for new student
+runs; existing attempts remain pinned to their original version.

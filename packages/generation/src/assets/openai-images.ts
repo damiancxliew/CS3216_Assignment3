@@ -115,6 +115,17 @@ export class OpenAiImageService implements ImageService {
           background: 'transparent',
           n: 1,
         })
+        : request.referenceImage
+          ? await this.client.images.edit({
+            model: this.modelForKind(request.kind),
+            image: await toFile(request.referenceImage.bytes, `portrait-reference.${request.referenceImage.mimeType.split('/')[1]}`, { type: request.referenceImage.mimeType }),
+            prompt: request.prompt,
+            size: request.size,
+            quality: request.quality,
+            output_format: 'webp',
+            background: 'opaque',
+            n: 1,
+          })
         : await this.client.images.generate({
           model: this.modelForKind(request.kind),
           prompt: request.prompt,
