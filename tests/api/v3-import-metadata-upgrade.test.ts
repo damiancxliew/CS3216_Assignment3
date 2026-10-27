@@ -112,10 +112,8 @@ describe('import metadata schema upgrade', () => {
                     }
                 }, {
                     stepId: 'import-metadata',
-                    candidate: {
-                        schemaVersion: CURRENT_SCHEMA_VERSION
-                    }
-                }]
+                    candidate: { schemaVersion: '2.1.0' }
+                }, { stepId: 'reading-text', candidate: { schemaVersion: CURRENT_SCHEMA_VERSION } }]
         });
         expect(calls()).toBe(0);
         const applied = await applyUpgrade(deps, 'u', 'a', {

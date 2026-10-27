@@ -6,6 +6,8 @@ import type { FakeReply, LlmJsonRequest, LlmJsonResponse, LlmUsage } from '../sr
 import { tryParseJson } from '../src/llm/client'
 import type { LlmClient } from '../src/llm/client'
 import { assembleDetails, blame, finalRepair, generateDetails, specErrors, toSkeleton } from '../src/v3/index'
+import { toDocument } from '../src/v3/details/schema'
+import { sourcesBlock } from '../src/v3/skeleton/prompt'
 import { mergeDetails } from '../src/v3/details/merge'
 import type { LinkLlmOutput, MinorsLlmOutput, PersonaLlmOutput, SkeletonLlmOutput, StageDetailsLlmOutput } from '../src/v3/index'
 
@@ -878,5 +880,35 @@ describe('final check-and-repair (#209)', () => {
     const repair = await finalRepair({ skeleton, documents: [doc], parts: result.parts }, { llm })
     expect(repair).toMatchObject({ errors: [], unresolved: [], partErrors: [], repaired: [] })
     expect(llm.requests).toEqual([])
+  })
+})
+
+
+describe('stored reading text ingestion', () => {
+  it('provides clean text to authoring while retaining the captured source', () => {
+    const source = structuredClone(doc)
+    source.pages[0]!.text = 'The treaty was signed\r\non 6 February 1819.\r\n\r\nThe register names the vessels.'
+    const original = structuredClone(source)
+    expect(sourcesBlock([source])).toContain('The treaty was signed on 6 February 1819.\n\nThe register names the vessels.')
+    expect(source).toEqual(original)
+  })
+  it('stores generated documents with aligned passages and all question supports', () => {
+    const generated = structuredClone(stageOutput.documents[0]!)
+    generated.body = SOURCE_TEXT.replace('signed on', 'signed\r\non')
+    generated.keyPassages[0]!.text = 'signed\r\non 6 February 1819'
+    if (!generated.readingCheck) throw Error('Fixture requires a reading bank')
+    for (const q of [...generated.readingCheck.variants, generated.readingCheck.recovery]) q.support = ['The treaty was signed\r\non 6 February 1819.']
+    const original = structuredClone(generated)
+    const stored = toDocument(generated)
+    expect(stored.body).toBe(SOURCE_TEXT)
+    const passage = stored.keyPassages[0]!
+    expect(stored.body.slice(passage.start, passage.end)).toBe('signed on 6 February 1819')
+    if (!stored.readingCheck) throw Error('Stored document lost its reading bank')
+    for (const q of [...stored.readingCheck.variants, stored.readingCheck.recovery]) {
+      const support = q.support[0]!
+      expect(stored.body.slice(support.start, support.end)).toBe('The treaty was signed on 6 February 1819.')
+    }
+    expect(generated).toEqual(original)
+    expect(stored.citations).toEqual(generated.citations?.map(c => ({ ...c, quote: c.quote ?? undefined })))
   })
 })
