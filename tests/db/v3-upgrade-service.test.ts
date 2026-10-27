@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { FakeLlmClient } from '@adventure/generation/llm';
-import { checkSpec } from '@adventure/spec-v3';
+import { checkSpec, CURRENT_SCHEMA_VERSION } from '@adventure/spec-v3';
 import { SupabaseV3PlayStore } from '@/lib/play/v3/store';
 import { SupabaseUpgradeRepository } from '@/lib/v3/upgrades/repository';
 import { startUpgrade, applyUpgrade } from '@/lib/v3/upgrades/service';
@@ -35,10 +35,10 @@ it('runs the real upgrade service and persisted proof through database Apply wit
   expect(prepared?.status).toBe('ready');
   expect(llm.requests).toHaveLength(0);
   const persisted = await repository.get(started.run.id);
-  expect(persisted?.migrationState).toMatchObject({ completed: [{ stepId: 'evidence-preparation' }] });
+  expect(persisted?.migrationState).toMatchObject({ completed: [{ stepId: 'evidence-preparation' },{stepId:'import-metadata'}] });
   const applied = await applyUpgrade(deps, owner.userId, id, { runId: started.run.id, proposalRevision: 1 });
   expect(applied).toMatchObject({ ok: true, run: { status: 'applied', appliedRevision: 2 } });
   expect(await store.loadVersionSpec(id, 1)).toEqual(spec);
-  expect(await store.loadVersionSpec(id, 2)).toMatchObject({ schemaVersion: 2, documents: spec.documents, stages: spec.stages });
+  expect(await store.loadVersionSpec(id, 2)).toMatchObject({ schemaVersion: CURRENT_SCHEMA_VERSION, documents: spec.documents, stages: spec.stages });
   expect(await applyUpgrade(deps, owner.userId, id, { runId: started.run.id, proposalRevision: 1 })).toEqual(applied);
 });

@@ -1,3 +1,5 @@
+import { CURRENT_SCHEMA_VERSION } from '@adventure/spec-v3';
+import { prepareUpgrade } from '@/lib/v3/upgrades/migrate';
 import { describe, expect, it } from "vitest";
 import { MemoryV3PlayStore } from "@/lib/play/v3/store";
 import { MemoryUpgradeRepository } from "@/lib/v3/upgrades/repository";
@@ -79,7 +81,7 @@ describe('reviewed schema upgrades', () => {
         })).ok).toBe(false);
     });
     it('requires ready proposal and exact revision for apply, then applies once', async () => {
-        const { deps, repository, store, spec } = fixture();
+        const { deps, store } = fixture();
         const first = await startUpgrade(deps, 'teacher', 'a', {
             expectedRevision: 1
         });
@@ -89,21 +91,10 @@ describe('reviewed schema upgrades', () => {
             runId: first.run.id,
             proposalRevision: 1
         })).ok).toBe(false);
-        const candidate = {
-            ...preserveUpgradeMedia(spec, 'a', 1),
-            schemaVersion: 2
-        };
-        await repository.update(first.run.id, 1, {
-            status: 'ready',
-            candidate,
-            migrationState: {
-                completed: [{
-                        stepId: 'evidence-preparation',
-                        source: spec,
-                        candidate
-                    }]
-            }
-        });
+        await prepareUpgrade({
+            ...deps,
+            llm: () => { throw Error('No model call expected'); },
+        }, first.run);
         const result = await applyUpgrade(deps, 'teacher', 'a', {
             runId: first.run.id,
             proposalRevision: 1
@@ -164,7 +155,7 @@ describe('proposal concurrency and preservation', () => {
             throw Error(start.message);
         const candidate = {
             ...preserveUpgradeMedia(spec, 'a', 1),
-            schemaVersion: 2,
+            schemaVersion: CURRENT_SCHEMA_VERSION,
             title: 'Tampered'
         };
         await repository.update(start.run.id, 1, {
@@ -238,24 +229,24 @@ describe('future-step refinement policy', () => {
         const { reopenUpgradeCheckpoint } = await import('@/lib/v3/upgrades/service');
         const path = [{
                 id: 'rename',
-                from: 1,
-                to: 2,
+                from: '1.0.0',
+                to: '2.0.0',
                 kind: 'structural' as const,
                 title: 'Rename',
                 summary: 'Rename',
                 requirements: []
             }, {
                 id: 'questions',
-                from: 2,
-                to: 3,
+                from: '2.0.0',
+                to: '3.0.0',
                 kind: 'content' as const,
                 title: 'Questions',
                 summary: 'Questions',
                 requirements: []
             }, {
                 id: 'followup',
-                from: 3,
-                to: 4,
+                from: '3.0.0',
+                to: '4.0.0',
                 kind: 'content' as const,
                 title: 'Followup',
                 summary: 'Followup',
@@ -279,7 +270,7 @@ describe('future-step refinement policy', () => {
         expect(refined?.active).toMatchObject({
             stepId: 'questions',
             candidate: {
-                schemaVersion: 2,
+                schemaVersion: '2.0.0',
                 value: 2
             }
         });

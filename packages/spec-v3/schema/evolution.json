@@ -2,15 +2,34 @@
   "migrations": [
     {
       "id": "evidence-preparation",
-      "from": 1,
-      "to": 2,
+      "from": "1.0.0",
+      "to": "2.0.0",
       "tests": [
         "tests/api/v3-upgrade-registry.test.ts",
         "tests/api/v3-upgrades.test.ts",
         "tests/api/v3-upgrades-content.test.ts",
         "tests/unit/v3-upgrade-runner.test.ts"
       ]
+    },
+    {
+      "id": "import-metadata",
+      "from": "2.0.0",
+      "to": "2.1.0",
+      "tests": [
+        "tests/api/v3-import-metadata-upgrade.test.ts"
+      ]
     }
   ],
-  "declarations": []
+  "declarations": [
+    {
+      "baseVersion": "2.0.0",
+      "targetVersion": "2.1.0",
+      "kind": "contract",
+      "reason": "Make optional import attribution explicit after the parallel import feature and move schema identifiers to SemVer while preserving released integer aliases and snapshots.",
+      "tests": [
+        "tests/unit/v3-schema-evolution.test.ts",
+        "tests/api/v3-import-metadata-upgrade.test.ts"
+      ]
+    }
+  ]
 }

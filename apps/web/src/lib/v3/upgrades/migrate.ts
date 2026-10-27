@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import { ReadingQuestion, StagePreparation, PreparationGroup, checkSpec, decodeStoredSpec, getUpgradePath, type AdventureSpec, type CheckIssue, } from '@adventure/spec-v3';
 import { DETAILS_MODEL } from '@adventure/generation/v3';
@@ -116,6 +117,18 @@ type UpgradeImplementation = {
     finish(candidate: AdventureSpec, run: UpgradeRun): AdventureSpec;
 };
 export const UPGRADE_IMPLEMENTATIONS: Record<string, UpgradeImplementation> = {
+    'import-metadata': {
+        kind: 'structural',
+        tasks: () => [],
+        preserves(source, candidate) {
+            const before = { ...source };
+            const after = { ...candidate };
+            delete before.schemaVersion;
+            delete after.schemaVersion;
+            return isDeepStrictEqual(before, after);
+        },
+        finish: candidate => candidate,
+    },
     'evidence-preparation': {
         kind: 'content',
         preserves: preservesUpgradeSource,
@@ -168,7 +181,7 @@ export const UPGRADE_IMPLEMENTATIONS: Record<string, UpgradeImplementation> = {
     },
 };
 /** Decode and validate every intermediate according to its declared contract. */
-export function upgradeCandidateIssues(version: number, candidate: AdventureSpec): CheckIssue[] {
+export function upgradeCandidateIssues(version: string, candidate: AdventureSpec): CheckIssue[] {
     const decoded = decodeStoredSpec(candidate);
     if (!decoded.ok)
         return decoded.issues.map(e => ({

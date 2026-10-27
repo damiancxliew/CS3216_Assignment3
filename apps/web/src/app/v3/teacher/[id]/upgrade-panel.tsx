@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { CURRENT_SCHEMA_VERSION, getSchemaVersion, getUpgradePath, type AdventureSpec } from "@adventure/spec-v3";
+import { CURRENT_SCHEMA_VERSION, compareSchemaVersions, getSchemaVersion, getUpgradePath, type AdventureSpec } from "@adventure/spec-v3";
 import { compactButton as button } from "@/components/ui";
 import { startUpgradeAction, getUpgradeAction, refineUpgradeAction, applyUpgradeAction, discardUpgradeAction } from "./upgrade-actions";
 import { useUpgradeWorkflow, type UpgradeActions } from "./use-upgrade-workflow";
@@ -15,7 +15,7 @@ export function UpgradePanel({ adventureId, spec, revision, dirty = false, disab
   onPendingChange?(pending: boolean): void;
 }) {
   const version = getSchemaVersion(spec);
-  const workflow = useUpgradeWorkflow({ adventureId, revision, dirty, disabled, actions, onApplied, enabled: Boolean(version && version < CURRENT_SCHEMA_VERSION) });
+  const workflow = useUpgradeWorkflow({ adventureId, revision, dirty, disabled, actions, onApplied, enabled: Boolean(version && compareSchemaVersions(version, CURRENT_SCHEMA_VERSION) < 0) });
   useEffect(() => onReviewOpen?.(workflow.open), [workflow.open, onReviewOpen]);
   useEffect(() => {
     onPendingChange?.(workflow.pending);

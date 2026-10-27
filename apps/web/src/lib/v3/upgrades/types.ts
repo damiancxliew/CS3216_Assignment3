@@ -6,8 +6,8 @@ export interface UpgradeRun {
     requesterId: string;
     schoolId: string;
     sourceRevision: number;
-    sourceSchemaVersion: number;
-    targetSchemaVersion: number;
+    sourceSchemaVersion: string;
+    targetSchemaVersion: string;
     proposalRevision: number;
     status: UpgradeStatus;
     candidate: unknown | null;
@@ -39,7 +39,7 @@ export type UpgradeResult = {
 };
 export type UpgradeStartInput = {
     expectedRevision: number;
-    targetSchemaVersion?: number;
+    targetSchemaVersion?: string;
 };
 export type UpgradeProposalInput = {
     runId: string;
