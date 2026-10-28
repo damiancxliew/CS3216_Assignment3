@@ -87,7 +87,7 @@ async function importAdventureFile(form: FormData, target?: { id: string; expect
     }
     revalidatePath(`/v3/teacher/${id}`, "layout");
     revalidatePath("/teacher");
-    redirect(`/v3/teacher/${id}?view=editor&importedVersion=${data.version}`);
+    redirect(`/v3/teacher/${id}?view=editor`);
   }
 
   const { data, error } = await admin.from("adventures_v3").insert({

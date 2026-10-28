@@ -16,18 +16,10 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")("offers ZIP and JSON upda
     resolve: { alias: { "@": resolve(root, "src") }, dedupe: ["react", "react-dom"] },
     plugins: [{ name: "transfer-harness", enforce: "pre", resolveId(id) {
       if (id === "virtual:transfer") return "\0transfer";
-      if (id === "next/link") return "\0link";
-      if (id === "next/navigation") return "\0navigation";
-      if (id.endsWith("/version-actions")) return "\0versions";
-      if (id.endsWith("/publish-actions")) return "\0publish";
       if (id.endsWith("/teacher/import-actions")) return "\0import";
       if (id.endsWith("/src/components/ui")) return "\0ui";
       if (id.endsWith("/analytics/posthog")) return "\0analytics";
     }, async load(id) {
-      if (id === "\0link") return `import React from 'react';export default function Link({children,...props}){return React.createElement('a',props,children)}`;
-      if (id === "\0navigation") return `export const useRouter=()=>({});export const useSearchParams=()=>new URLSearchParams()`;
-      if (id === "\0versions") return `export const getV3SavedVersions=async()=>({})`;
-      if (id === "\0publish") return `export const publishSavedV3Version=async()=>({})`;
       if (id === "\0analytics") return `export const track=()=>{}`;
       if (id === "\0import") return `export const updateAdventureFromFile=async(id,version,published,previous,form)=>({error:'Received '+form.get('file').name+' for '+id+' version '+(version+1)});`;
       if (id === "\0ui") return (await transformWithEsbuild(`${buttons}

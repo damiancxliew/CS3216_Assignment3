@@ -199,7 +199,7 @@ describe("v3 import/export access and persistence", () => {
     const bundle = specExport(structuredClone(spec), [], "story", 2);
     const archive = await createSpecArchive(bundle, async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")));
     const data = new FormData(); data.set("file", new File([new Uint8Array(archive)], "update.zip"));
-    await expect(updateAdventureFromFile("story", 2, 1, {}, data)).rejects.toThrow("redirect:/v3/teacher/story?view=editor&importedVersion=3");
+    await expect(updateAdventureFromFile("story", 2, 1, {}, data)).rejects.toThrow("redirect:/v3/teacher/story?view=editor");
     expect(h.inserts).toEqual([]);
     expect(h.rpc).toHaveBeenCalledWith("import_adventure_version_v3", expect.objectContaining({ p_id: "story", p_expected_version: 2, p_expected_published: 1, p_spec: expect.objectContaining({ title: spec.title }) }));
   });
@@ -218,7 +218,7 @@ describe("v3 import/export access and persistence", () => {
     bundle.spec.title = "Updated from JSON";
     bundle.spec.authoring!.stageImages![bundle.spec.stages[0].id] = { type: "legacy", version: 2, url: "https://old.test/art.png" };
     const data = form(JSON.stringify(format === "bundle" ? bundle : bundle.spec));
-    await expect(updateAdventureFromFile("story", 2, 1, {}, data)).rejects.toThrow("redirect:/v3/teacher/story?view=editor&importedVersion=3");
+    await expect(updateAdventureFromFile("story", 2, 1, {}, data)).rejects.toThrow("redirect:/v3/teacher/story?view=editor");
     expect(h.rpc).toHaveBeenCalledWith("import_adventure_version_v3", {
       p_id: "story", p_expected_version: 2, p_expected_published: 1,
       p_spec: expect.objectContaining({ title: "Updated from JSON", authoring: expect.objectContaining({ stageImages: bundle.spec.authoring!.stageImages }) }),
