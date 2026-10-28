@@ -10,27 +10,73 @@ export const MAX_ARCHIVE_BYTES = 15 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 40 * 1024 * 1024;
 const MAX_ENTRIES = 200;
 const Manifest = z.array(z.strictObject({ url: z.url(), path: z.string().regex(/^assets\/[0-9]+\.bin$/) })).max(MAX_ENTRIES - 2);
-type MediaRef = { url: string; sprite: boolean; replace(media: NormalizedMedia & { url: string; storageKey: string }): void };
+type MediaRef = { url: string; label: string; sprite: boolean; replace(media: NormalizedMedia & { url: string; storageKey: string }): void };
 
 /** Only presentation URLs are media; citations and attribution links are never fetched. */
 function mediaRefs(bundle: SpecBundle): MediaRef[] {
   const refs: MediaRef[] = [];
-  const snapshot = (candidate: MediaSnapshot, sprite: boolean) => {
-    refs.push({ url: candidate.url, sprite, replace(media) {
+  const snapshot = (candidate: MediaSnapshot, sprite: boolean, label: string) => {
+    refs.push({ url: candidate.url, sprite, label, replace(media) {
       const { url, storageKey, width, height, format } = media;
       Object.assign(candidate, { url, storageKey, width, height, format, candidateId: randomUUID() });
     } });
   };
-  for (const images of [bundle.spec.authoring?.stageImages, bundle.spec.authoring?.portraitImages]) {
-    for (const image of Object.values(images ?? {})) {
-      if (image.type === "candidate") snapshot(image.candidate, false);
-      else if (image.type === "legacy" && image.url) refs.push({ url: image.url, sprite: false, replace(media) { image.url = media.url; image.version = 1; } });
+  for (const [kind, images] of [["stage", bundle.spec.authoring?.stageImages], ["portrait", bundle.spec.authoring?.portraitImages]] as const) {
+    for (const [key, image] of Object.entries(images ?? {})) {
+      const label = `${kind} image "${key}"`;
+      if (image.type === "candidate") snapshot(image.candidate, false, label);
+      else if (image.type === "legacy" && image.url) refs.push({ url: image.url, sprite: false, label, replace(media) { image.url = media.url; image.version = 1; } });
     }
   }
-  for (const sprite of Object.values(bundle.spec.authoring?.walkingSprites ?? {})) {
-    if (sprite.type === "custom") snapshot(sprite.candidate, true);
+  for (const [key, sprite] of Object.entries(bundle.spec.authoring?.walkingSprites ?? {})) {
+    if (sprite.type === "custom") snapshot(sprite.candidate, true, `sprite "${key}"`);
   }
   return refs;
+}
+
+/** Validate linked media without rewriting URLs or storing copies. */
+export async function validateLinkedMedia(bundle: SpecBundle, download: (url: string, signal: AbortSignal) => Promise<Uint8Array>): Promise<void> {
+  const refs = mediaRefs(bundle);
+  const urls = [...new Set(refs.map((ref) => ref.url))];
+  if (urls.length > MAX_ENTRIES - 2) throw Error("Too many linked media files (198 max).");
+  if (!urls.length) return;
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(Error("Checking linked media timed out. Try again or import a ZIP with its media included."));
+      controller.abort();
+    }, 30_000);
+  });
+  async function validate() {
+    let total = 0;
+    for (const url of urls) {
+      controller.signal.throwIfAborted();
+      const targets = refs.filter((ref) => ref.url === url);
+      let label = targets[0].label;
+      let bytes: Uint8Array;
+      try {
+        bytes = await download(url, controller.signal);
+      } catch (cause) {
+        throw new Error(`Could not download ${label}. Fix its media link or import a ZIP with its media included.`, { cause });
+      }
+      controller.signal.throwIfAborted();
+      if (!bytes.length || bytes.length > MAX_SPEC_BYTES) throw Error(`${label} must be nonempty and 10 MB or smaller.`);
+      total += bytes.length;
+      if (total > MAX_EXPANDED_BYTES) throw Error("Linked media exceeds the 40 MB limit.");
+      try {
+        for (const sprite of new Set(targets.map((ref) => ref.sprite))) {
+          label = targets.find((ref) => ref.sprite === sprite)!.label;
+          if (sprite) await validateSpriteUpload(bytes);
+          else await normalizeImageUpload(bytes);
+        }
+      } catch (cause) {
+        throw new Error(`Invalid ${label}: ${cause instanceof Error ? cause.message : "Use a valid image or sprite file."}`, { cause });
+      }
+    }
+  }
+  try { await Promise.race([validate(), timeout]); }
+  finally { clearTimeout(timer); }
 }
 
 export async function createSpecArchive(bundle: SpecBundle, download: (url: string) => Promise<Uint8Array>): Promise<Uint8Array> {
