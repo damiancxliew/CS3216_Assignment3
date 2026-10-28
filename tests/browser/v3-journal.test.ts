@@ -129,6 +129,9 @@ it.runIf(process.env.RUN_JOURNAL_BROWSER_TESTS === "1")(
         messages: [{id: 'hint', kind: 'thought', text: 'Ask the clerk about the ships.', stageIndex: 0, at: 60_000}],
         notes: [], documents: [],
       }));
+      await page.getByRole('button', {name: 'A thought: Ask the clerk about the ships.. Dismiss'}).waitFor();
+      await page.screenshot({path: '/tmp/restored-hint-notification.png'});
+      await page.getByRole('button', {name: 'A thought: Ask the clerk about the ships.. Dismiss'}).click();
       await mission.getByText('Ask the clerk about the ships.').waitFor();
       await page.screenshot({ path: '/tmp/mission-hint-desktop.png' });
       await mission.getByRole('button', {name: 'Open in Journal'}).click();
@@ -136,12 +139,28 @@ it.runIf(process.env.RUN_JOURNAL_BROWSER_TESTS === "1")(
       await journal.getByText('Ask the clerk about the ships.').waitFor();
       await page.keyboard.press('Escape');
       await page.evaluate(() => (window as unknown as {setMissionActivity(value: unknown): void}).setMissionActivity({
+        messages: [
+          {id: 'hint', kind: 'thought', text: 'Ask the clerk about the ships.', stageIndex: 0, at: 60_000},
+          {id: 'story', kind: 'narration', text: 'Another ship reaches the harbour.', stageIndex: 0, at: 61_000},
+          {id: 'reaction', kind: 'notice', text: 'The clerk warms to your proposal.', stageIndex: 0, at: 62_000},
+        ],
+        notes: [], documents: [],
+      }));
+      await page.getByRole('button', {name: 'Meanwhile: Another ship reaches the harbour.. Dismiss'}).click();
+      await page.getByRole('button', {name: 'A reaction: The clerk warms to your proposal.. Dismiss'}).click();
+      await page.evaluate(() => (window as unknown as {setMissionActivity(value: unknown): void}).setMissionActivity({
         messages: [{id: 'hint', kind: 'thought', text: 'Ask the clerk about the ships.', stageIndex: 0, at: 60_000}],
         notes: [{id: 'note', text: 'The ships need permission.', source: 'conversation', stageIndex: 0, at: 120_000}],
         documents: [{id:'letter', title:'Harbour letter', kind:'letter', body:'A record from the harbour.',
           provenance:{masthead:null,date:'1819',sender:'A clerk',recipient:null,place:null},
           real:false, sourceLabel:null, glossary:[], open:false}],
       }));
+      await page.getByRole('button', {name: 'New note: The ships need permission.. Open notes'}).waitFor();
+      await page.screenshot({path: '/tmp/restored-note-notification.png'});
+      await page.getByRole('button', {name: 'New note: The ships need permission.. Open notes'}).click();
+      await journal.getByRole('tab', {name: /Notes/}).waitFor();
+      await journal.getByText('The ships need permission.').waitFor();
+      await page.keyboard.press('Escape');
       await mission.getByText('The ships need permission.').waitFor();
       expect(await mission.getByText('Ask the clerk about the ships.').count()).toBe(0);
       await mission.getByRole('button', {name: 'Open in Journal'}).click();

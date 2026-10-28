@@ -252,6 +252,7 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await highlight(page, fixture.support.start + 2, fixture.support.end - 2);
     await reader.getByRole("button", { name: "Submit answer and evidence" }).click();
     await reader.getByLabel("Reading check complete", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "New note: Only three sacks remained at the harbour.. Open notes" }).waitFor();
     expect(game.state.discovered.filter(id => id === "d-letter")).toHaveLength(1);
     expect(game.state.readingChecks!.letter!.attempts.map(attempt => attempt.correct)).toEqual([false, false, false, true, false, true, true]);
     // Direct highlighting still saves additional notes after the reading check.
