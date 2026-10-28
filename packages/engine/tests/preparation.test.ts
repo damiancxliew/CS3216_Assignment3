@@ -67,17 +67,22 @@ describe('reading checks', () => {
     expect(game.state.readingChecks?.letter?.attempts.map((attempt) => attempt.correct)).toEqual([false, true, true])
   })
 
-  it('explains a rejected correction and retains that feedback after reopening', async () => {
+  it('reveals a failed retry without completing the evidence and advances only on Continue', async () => {
     const game = new Harness(checkedSpec())
     await game.start()
     await openLetter(game)
-    await game.act(answer('q1', 'supported', { start: 0, end: game.spec.documents[0]!.body.length }))
-    const rejected = await game.act(answer('q1', 'supported', { start: 0, end: game.spec.documents[0]!.body.length }, true))
-    expect(rejected.documents.find(d => d.id === 'letter')?.readingCheck).toMatchObject({ status: 'needsReview', feedback: 'That correction is not supported. Re-read the source, then choose an answer and highlight one or two sentences that support it.' })
+    await game.act(answer('q1', 'b'))
+    const revealed = await game.act(answer('q1', 'b', LETTER_KEY, true))
+    expect(revealed.documents.find(d => d.id === 'letter')?.readingCheck).toMatchObject({
+      status: 'needsReview', question: null, recovery: null,
+      revealedAnswer: { questionId: 'q1', answer: 'The limited claim.', support: [LETTER_KEY] },
+    })
     await game.act({ type: 'closeDocument', documentId: 'letter' })
+    // Related discoveries must not skip the answer review.
+    await game.say('b', 'What do your orders say?', { conveyed: ['d-b1'] })
     const reopened = await game.act({ type: 'openDocument', documentId: 'letter' })
-    expect(reopened.documents.find(d => d.id === 'letter')?.readingCheck?.feedback).toBe(rejected.documents.find(d => d.id === 'letter')?.readingCheck?.feedback)
-    await game.act(answer('q1', 'supported', LETTER_KEY, true))
+    expect(reopened.documents.find(d => d.id === 'letter')?.readingCheck).toEqual(revealed.documents.find(d => d.id === 'letter')?.readingCheck)
+    await game.act({ type: 'continueReadingCheck', documentId: 'letter', questionId: 'q1' })
     expect(game.view?.documents.find(d => d.id === 'letter')?.readingCheck).toMatchObject({ status: 'unanswered', question: { id: 'q2' }, feedback: null })
     expect(game.state.discovered).not.toContain('d-letter')
   })
@@ -119,7 +124,6 @@ describe('reading checks', () => {
     expect(game.view?.documents.find((document) => document.id === 'letter')?.readingCheck?.status).toBe('needsReview')
     await game.act(answer('q1', 'b', LETTER_KEY, true))
     expect(game.view?.documents.find((document) => document.id === 'letter')?.readingCheck?.question).toBeNull()
-    await game.act(answer('q1', 'supported', LETTER_KEY, true))
     await expect(game.act(answer('q1', 'supported', LETTER_KEY, true))).rejects.toMatchObject({ code: 'invalid_action' })
   })
 

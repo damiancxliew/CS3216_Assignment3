@@ -8,6 +8,7 @@ import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
 import { ReadingCheck, type ReadingCheckSubmission, type SupportingSelection } from "./reading-check";
 import { documentDisplayTitle } from "@/lib/play/v3/document-labels";
 import styles from "@/components/play/document-reader.module.css";
+import readingStyles from "./reading-check.module.css";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
 
 function endpointFor(container: HTMLElement, node: Node, offset: number) {
@@ -108,6 +109,17 @@ function DocumentNotes({ document }: { document: DocumentView }) {
   );
 }
 
+/** Keep the source text and offsets intact, including selections across marked text nodes. */
+function highlightedBody(body: string, spans: SupportingSelection[]) {
+  const boundaries = [...new Set([0, body.length, ...spans.flatMap(({ start, end }) => [start, end])])].sort((a, b) => a - b);
+  return boundaries.slice(0, -1).map((start, index) => {
+    const end = boundaries[index + 1]!;
+    const text = body.slice(start, end);
+    return spans.some(span => span.start <= start && span.end >= end)
+      ? <mark key={start} className={readingStyles.correctHighlight} data-correct-support="">{text}</mark> : text;
+  });
+}
+
 export function DocumentReader({
   document,
   documents,
@@ -119,11 +131,13 @@ export function DocumentReader({
   supplement,
   readingHint,
   onSubmitReadingCheck,
+  onContinueReadingCheck,
   busy = false,
 }: {
   supplement?: ReactNode;
   readingHint?: string;
   onSubmitReadingCheck?: (submission: ReadingCheckSubmission, onSettled: (succeeded: boolean) => void) => void;
+  onContinueReadingCheck?: (questionId: string, onSettled: (succeeded: boolean) => void) => void;
   busy?: boolean;
   document: DocumentView | null;
   documents: DocumentView[];
@@ -143,7 +157,7 @@ export function DocumentReader({
   const saved = index >= 0;
   const readingCheck = document?.readingCheck;
   const task = readingCheck?.status === "needsReview" ? readingCheck.recovery : readingCheck?.question;
-  const taskId = `${readingCheck?.status ?? ""}:${task?.id ?? ""}`;
+  const taskId = `${readingCheck?.status ?? ""}:${readingCheck?.revealedAnswer ? "answer:" + readingCheck.revealedAnswer.questionId : task?.id ?? ""}`;
   const checkedSelection = support?.documentId === document?.id && support?.taskId === taskId ? support.selection : null;
   const needsCheck = Boolean(readingCheck && readingCheck.status !== "passed");
   const previousTask = useRef<{ documentId: string; key: string; needsReview: boolean } | null>(null);
@@ -209,7 +223,7 @@ export function DocumentReader({
       closeLabel={document ? `Put down ${documentDisplayTitle(document.title)}` : "Close documents"}
       buttonLabel={document ? undefined : "Continue exploring"}
       onClose={onClose}
-      banner={document && readingCheck ? readingCheck.status === "passed" && status ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={false} status={status} /> : <p className={`${styles.passageHint} ${readingCheck.status === "passed" ? styles.passageAdded : styles.passageTip}`} role="status">{readingCheck.status === "passed" ? "Reading complete. You can save other useful passages as notes." : readingCheck.status === "needsReview" ? "Reading check: correction required." : correctionAccepted ? "Correction accepted. Answer the new question to finish this reading check." : "Read the source, then answer with a short supporting passage."}</p> : document && readingHint ? <p className={styles.passageHint}>{readingHint}</p> : document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
+      banner={document && readingCheck ? readingCheck.status === "passed" && status ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={false} status={status} /> : <p className={`${styles.passageHint} ${readingCheck.status === "passed" ? styles.passageAdded : styles.passageTip}`} role="status">{readingCheck.status === "passed" ? "Reading complete. You can save other useful passages as notes." : readingCheck.status === "needsReview" ? readingCheck.revealedAnswer ? "Review the answer and supporting passage." : "Review the evidence and try again." : correctionAccepted ? "Answer the new question to finish this reading check." : "Read the source, then answer with a short supporting passage."}</p> : document && readingHint ? <p className={styles.passageHint}>{readingHint}</p> : document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
       navigation={document && saved && documents.length > 1 ? {
         items: documents.map((item) => ({ id: item.id, name: documentDisplayTitle(item.title) })),
         selectedId: document.id,
@@ -220,12 +234,12 @@ export function DocumentReader({
         <>
           <DocumentDetails document={document} />
           <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text">
-            <p data-document-paragraph="" className={styles.text}>{document.body}</p>
+            <p data-document-paragraph="" className={styles.text}>{highlightedBody(document.body, readingCheck?.revealedAnswer?.support ?? [])}</p>
           </div>
           {readingCheck ? <ReadingCheck key={`${document.id}:${taskId}`} document={document} selection={checkedSelection} onSelect={(selection) => {
             if (!selection) window.getSelection()?.removeAllRanges();
             setSupport({ documentId: document.id, taskId, selection });
-          }} onSubmit={onSubmitReadingCheck} busy={busy} /> : null}
+          }} onSubmit={onSubmitReadingCheck} onContinue={onContinueReadingCheck} busy={busy} /> : null}
           {supplement}
           <DocumentNotes document={document} />
         </>

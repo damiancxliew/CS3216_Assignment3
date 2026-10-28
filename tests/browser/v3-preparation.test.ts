@@ -169,12 +169,12 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     expect(selectionColors).toEqual({ background: "rgb(242, 210, 126)", color: "rgb(57, 37, 21)" });
     await page.evaluate(() => document.documentElement.dataset.theme = "dark");
     expect(await page.locator("[data-document-paragraph]").evaluate(element => ({ background: getComputedStyle(element, "::selection").backgroundColor, color: getComputedStyle(element, "::selection").color }))).toEqual(selectionColors);
-    await page.evaluate(() => delete document.documentElement.dataset.theme);
+    await page.evaluate(() => document.documentElement.dataset.theme = "light");
     expect(await reader.getByText("Choose supporting sentences without dragging").count()).toBe(0);
     await reader.getByRole("button", { name: "Submit answer and evidence" }).click();
     await reader.getByRole("heading", { name: "Review the evidence before trying again" }).waitFor();
     expect(await reader.locator("input[type=radio]:checked").count()).toBe(0);
-    expect(await reader.getByRole("button", { name: "Submit correction" }).isDisabled()).toBe(true);
+    expect(await reader.getByRole("button", { name: "Try again" }).isDisabled()).toBe(true);
     expect(game.state.discovered).not.toContain("d-letter");
     expect(await reader.getByRole("button", { name: "Submit answer and evidence" }).count()).toBe(0);
     await page.screenshot({ path: resolve(output, `${name}-needs-review.png`) });
@@ -186,15 +186,33 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await reader.getByRole("heading", { name: "Review the evidence before trying again" }).waitFor();
     await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
     await highlight(page, 0, fixture.spec.documents[0]!.body.length);
-    await reader.getByRole("button", { name: "Submit correction" }).click();
-    await reader.getByRole("alert").filter({ hasText: "That correction is not supported." }).waitFor();
-    expect(await reader.getByRole("button", { name: "Submit correction" }).isDisabled()).toBe(true);
+    await reader.getByRole("button", { name: "Try again" }).click();
+    await reader.getByRole("heading", { name: "Review the answer", exact: true }).waitFor();
+    expect(await reader.getByRole("radio").count()).toBe(0);
+    expect(await reader.getByText("What does the stock count tell the council?", { exact: true }).count()).toBe(0);
+    expect(game.state.discovered).not.toContain("d-letter");
     expect(game.state.readingChecks!.letter!.attempts.at(-1)).toMatchObject({ correct: false, recovery: true });
-    await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
-    await chooseSentence(page, "Only three sacks remained for the households.");
-    await reader.getByRole("button", { name: "Submit correction" }).click();
-    await reader.getByText("Correction accepted. Answer the new question to finish this reading check.", { exact: true }).waitFor();
+    const correctSupport = reader.locator("[data-correct-support]");
+    expect(await correctSupport.textContent()).toBe("Only three sacks remained for the households.");
+    const green = { background: "rgb(189, 232, 192)", color: "rgb(22, 60, 32)" };
+    expect(await correctSupport.evaluate(element => ({ background: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color }))).toEqual(green);
+    await page.evaluate(() => document.documentElement.dataset.theme = "dark");
+    expect(await correctSupport.evaluate(element => ({ background: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color }))).toEqual(green);
+    await page.evaluate(() => document.documentElement.dataset.theme = "light");
+    await expect.poll(() => reader.getByLabel("Review the answer", { exact: true }).evaluate(element => getComputedStyle(element).color)).toBe("rgb(57, 37, 21)");
+    await page.screenshot({ path: resolve(output, `${name}-answer-review.png`) });
+    await page.keyboard.press("Escape");
+    await page.reload();
+    await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
+    await openScroll(page, "The harbour letter");
+    reader = page.getByRole("dialog", { name: "The harbour letter" });
+    await reader.getByRole("heading", { name: "Review the answer", exact: true }).waitFor();
+    expect(await reader.locator("[data-correct-support]").textContent()).toBe("Only three sacks remained for the households.");
+    await reader.getByRole("button", { name: "Try another question", exact: true }).click();
     await reader.getByText("What does the stock count tell the council?", { exact: true }).waitFor();
+    expect(await reader.locator("[data-correct-support]").count()).toBe(0);
+    expect(await reader.locator("input[type=radio]:checked").count()).toBe(0);
+    expect(await reader.getByRole("button", { name: "Submit answer and evidence" }).isDisabled()).toBe(true);
     expect(game.state.discovered).not.toContain("d-letter");
     // Several failures in a row must correct the current question, never the
     // document's old shared correction or a previous variant.
@@ -216,8 +234,8 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
       }
       await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
       await highlight(page, fixture.support.start, fixture.support.end);
-      await reader.getByRole("button", { name: "Submit correction" }).click();
-      await reader.getByText("Correction accepted. Answer the new question to finish this reading check.", { exact: true }).waitFor();
+      await reader.getByRole("button", { name: "Try again" }).click();
+      await reader.getByText("Answer the new question to finish this reading check.", { exact: true }).waitFor();
     }
     await reader.getByText("Which account fits the supply report?", { exact: true }).waitFor();
     await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
@@ -225,7 +243,7 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await reader.getByRole("button", { name: "Submit answer and evidence" }).click();
     await reader.getByLabel("Reading check complete", { exact: true }).waitFor();
     expect(game.state.discovered.filter(id => id === "d-letter")).toHaveLength(1);
-    expect(game.state.readingChecks!.letter!.attempts.map(attempt => attempt.correct)).toEqual([false, false, true, false, true, false, true, true]);
+    expect(game.state.readingChecks!.letter!.attempts.map(attempt => attempt.correct)).toEqual([false, false, false, true, false, true, true]);
     // Direct highlighting still saves additional notes after the reading check.
     await chooseSentence(page, "The letter gives no count of households.");
     await reader.getByText("Added to your notes.", { exact: true }).waitFor();

@@ -52,6 +52,10 @@ export const StagePreparationView = PreparationView.extend({
   timerExpired: z.boolean(),
 })
 export const ReadingCheckView = z.object({
+  revealedAnswer: z.object({
+    questionId: Id, prompt: z.string(), answer: z.string(), explanation: z.string(),
+    support: z.array(z.object({ start: z.number().int().nonnegative(), end: z.number().int().positive() })),
+  }).optional(),
   status: z.enum(['unanswered', 'needsReview', 'passed']),
   question: z.object({ id: Id, prompt: z.string(), options: z.array(z.object({ id: Id, text: z.string() })) }).nullable(),
   recovery: z.object({ id: Id, prompt: z.string(), options: z.array(z.object({ id: Id, text: z.string() })) }).nullable(),

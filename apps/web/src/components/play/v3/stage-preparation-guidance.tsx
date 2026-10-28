@@ -57,7 +57,7 @@ export function StagePreparationGuidance({ guidance, view, busy, decisionHint, o
         {guidance.type === "help" && preparation?.timerExpired ? <p>Time has run out. You can decide once every essential conversation is complete.</p> : null}
         {essential.length ? <ul>{essential.map((conversation) => <li key={conversation.characterId}>{conversation.name}: {conversation.complete ? "conversation complete" : "conversation still needed"}</li>)}</ul> : null}
         {preparation?.hint ? <p>{preparation.hint}</p> : null}
-        {guidance.type === "help" ? <p>Use the Journal to revisit documents and notes. If an answer needs review, complete its correction or investigate another relevant source before retrying.</p> : null}
+        {guidance.type === "help" ? <p>Use the Journal to revisit documents and notes. If an answer needs review, try again or investigate another relevant source. If you are still unsure, review the answer and continue to a different question.</p> : null}
       </>}
     </PreparationDialog>
   );
