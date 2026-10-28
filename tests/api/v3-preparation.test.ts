@@ -63,6 +63,22 @@ describe("prepared v3 attempts through the action service", () => {
     expect((await getAttempt(game.deps, "another-student", game.id)).status).toBe(404);
   });
 
+  it("persists answer review and requires Continue and a different correct answer to unlock the evidence", async () => {
+    const game = await session();
+    await game.send(answer({ start: 0, end: game.spec.documents[0]!.body.length }));
+    const result = await game.send({ ...answer(game.support, "check-1", true), choiceId: "overstated" });
+    const view = result.body.view as PlayerView;
+    expect(view.documents[0]?.readingCheck).toMatchObject({ status: "needsReview", question: null, recovery: null,
+      revealedAnswer: { questionId: "check-1", support: [game.support] } });
+    expect(view.notes).toEqual([]);
+    const resumed = await createAttempt(game.deps, "student", await publishedVersionId(game.deps.store, "prepared"));
+    expect((resumed.body.view as PlayerView).documents[0]?.readingCheck).toEqual(view.documents[0]?.readingCheck);
+    await game.send({ type: "continueReadingCheck", documentId: "doc-1", questionId: "check-1" });
+    await game.send({ type: "continueReadingCheck", documentId: "doc-1", questionId: "check-1" }, 400);
+    const passed = await game.send(answer(game.support, "check-2"));
+    expect((passed.body.view as PlayerView).documents[0]?.readingCheck?.status).toBe("passed");
+  });
+
   it("serializes simultaneous submissions and rejects forged marking keys", async () => {
     const game = await session();
     const request = { revision: game.revision(), action: answer(game.support) };

@@ -74,12 +74,13 @@ describe('question-specific reading corrections', () => {
       expect(reading(game).status).toBe('needsReview')
       expect(game.state.readingChecks!.letter!.attempts.at(-1)).toMatchObject({ correct: false, recovery: true })
 
-      await game.act(answer(game, index, true))
+      expect(reading(game)).toMatchObject({ question: null, recovery: null, revealedAnswer: { questionId: variants[index]!.id, answer: variants[index]!.options[0]!.text, support: variants[index]!.support } })
+      await game.act({ type: 'continueReadingCheck', documentId: 'letter', questionId: variants[index]!.id })
       expect(reading(game)).toMatchObject({ status: 'unanswered', question: { id: variants[(index + 1) % variants.length]!.id }, recovery: null })
       expect(game.state.discovered).not.toContain('d-letter')
       expect(game.eventsOf('discovery')).toHaveLength(0)
     }
-    expect(game.state.readingChecks!.letter!.attempts).toHaveLength(15)
+    expect(game.state.readingChecks!.letter!.attempts).toHaveLength(10)
   })
 
   it('rejects previous and obsolete correction IDs without changing state or advancing twice', async () => {
@@ -106,29 +107,34 @@ describe('question-specific reading corrections', () => {
     expect(game.state.discovered).not.toContain('d-letter')
   })
 
-  it('keeps the current correction after repeated failures, JSON storage and reopening the document', async () => {
+  it('shows the answer until Continue, survives resume, and still requires a different question to pass', async () => {
     const game = new Harness(checkedSpec())
     await openLetter(game)
+    await expect(game.act({ type: 'continueReadingCheck', documentId: 'letter', questionId: 'q1' })).rejects.toMatchObject({ code: 'invalid_action' })
     await game.act(answer(game, 0, false, false))
-    await game.act(answer(game, 0, true))
-    await game.act(answer(game, 1, false, false))
-
-    for (let attempt = 0; attempt < 3; attempt++) {
-      await game.act(answer(game, 1, true, false))
-      game.state = JSON.parse(JSON.stringify(game.state))
-      await game.act({ type: 'closeDocument', documentId: 'letter' })
-      await game.act({ type: 'openDocument', documentId: 'letter' })
-      expect(reading(game)).toMatchObject({ status: 'needsReview', recovery: { id: 'q2', prompt: facts[1][0] } })
-      expect(reading(game).feedback).toBeTruthy()
-    }
-
-    expect(game.state.readingChecks!.letter!.attempts.filter(attempt => attempt.recovery && !attempt.correct)).toHaveLength(3)
-    await game.act(answer(game, 1, true))
-    expect(reading(game).question!.id).toBe('q3')
+    expect(reading(game).revealedAnswer).toBeUndefined()
+    await game.act(answer(game, 0, true, false))
+    const revealed = reading(game)
+    expect(revealed).toMatchObject({ status: 'needsReview', question: null, recovery: null, revealedAnswer: {
+      questionId: 'q1', prompt: facts[0][0], answer: facts[0][1], explanation: `The source says: ${facts[0][1]}`,
+      support: game.spec.documents[0]!.readingCheck!.variants[0]!.support,
+    } })
+    expect(JSON.stringify(revealed)).not.toContain('q2')
+    await expect(game.act(answer(game, 0, true))).rejects.toMatchObject({ code: 'invalid_action' })
+    game.state = JSON.parse(JSON.stringify(game.state))
+    await game.act({ type: 'closeDocument', documentId: 'letter' })
+    await game.act({ type: 'openDocument', documentId: 'letter' })
+    expect(reading(game)).toEqual(revealed)
     expect(game.state.discovered).not.toContain('d-letter')
-    await game.act(answer(game, 2, false))
+    await game.act({ type: 'continueReadingCheck', documentId: 'letter', questionId: 'q1' })
+    expect(reading(game)).toMatchObject({ status: 'unanswered', question: { id: 'q2' } })
+    expect(reading(game).revealedAnswer).toBeUndefined()
+    await expect(game.act({ type: 'continueReadingCheck', documentId: 'letter', questionId: 'q1' })).rejects.toMatchObject({ code: 'invalid_action' })
+    expect(game.state.discovered).not.toContain('d-letter')
+    await game.act(answer(game, 1, false))
     expect(reading(game).status).toBe('passed')
     expect(game.state.discovered).toContain('d-letter')
+    expect(game.state.readingChecks!.letter!.attempts.map(attempt => attempt.correct)).toEqual([false, false, true])
   })
 
   it('uses the active variant for old review states with no recorded attempts', async () => {

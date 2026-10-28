@@ -496,6 +496,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
           noteCount={view.notes.length}
           hasDocumentNote={view.notes.some((note) => note.source === "document")}
           busy={busy}
+          onContinueReadingCheck={!isMoment ? (questionId, onSettled) => send({ type: "continueReadingCheck", documentId: openedDocument.id, questionId }, onSettled) : undefined}
           {...(!isMoment ? { onSubmitReadingCheck: (submission: import("./reading-check").ReadingCheckSubmission, onSettled: (succeeded: boolean) => void) => send({ type: "submitReadingCheck", documentId: openedDocument.id, ...submission }, onSettled) } : {})}
           {...(openedDocument && !isMoment
             ? {

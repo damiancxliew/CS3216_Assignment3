@@ -23,7 +23,7 @@ import { project } from './project'
 import { noteText } from './rules/knowledge'
 import { chooseAct, openMoment, predict, refreshActs } from './rules/moment'
 import { selectPassage } from './rules/passages'
-import { refreshReadingChecks, submitReadingCheck } from './rules/reading'
+import { continueReadingCheck, refreshReadingChecks, submitReadingCheck } from './rules/reading'
 import { applyTimer, enterStage, startStagePlay } from './rules/stages'
 import { onNotePassed, settleTriggers } from './rules/triggers'
 import type { EngineSpec } from './spec'
@@ -157,6 +157,10 @@ async function handle(ctx: StepContext, action: EngineAction): Promise<void> {
       if (action.end > document.body.length) fail('invalid_action', 'selection is outside the document')
       selectPassage(ctx, document, action.start, action.end)
       return
+    }
+    case 'continueReadingCheck': {
+      requirePlaying(ctx, 'reading')
+      return continueReadingCheck(ctx, action)
     }
     case 'submitReadingCheck': {
       requirePlaying(ctx, 'reading')

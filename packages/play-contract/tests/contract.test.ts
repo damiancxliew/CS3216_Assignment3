@@ -8,6 +8,7 @@ const examples: Action[] = [
   { type: 'insertNote', characterId: 'raffles', noteId: 'n1', text: 'You should hear this.' },
   { type: 'selectPassage', documentId: 'd1', start: 10, end: 80 },
   { type: 'submitReadingCheck', documentId: 'd1', questionId: 'q1', choiceId: 'a', start: 10, end: 80 },
+  { type: 'continueReadingCheck', documentId: 'd1', questionId: 'q1' },
   { type: 'enterRoom', roomId: 'balai' },
   { type: 'openDocument', documentId: 'd1' },
   { type: 'closeDocument', documentId: 'd1' },

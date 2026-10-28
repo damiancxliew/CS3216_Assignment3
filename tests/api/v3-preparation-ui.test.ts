@@ -23,7 +23,7 @@ describe("preparation guidance and reading checks", () => {
   it("requires an interpretation and a direct supporting highlight", () => {
     const markup = render(createElement(DocumentReader, { document, documents: [document], onClose() {}, onSelectDocument() {}, onSelectPassage() {}, onSubmitReadingCheck() {} }));
     expect(markup).toContain(question.prompt);
-    expect(markup).toContain("A wrong answer needs a correction");
+    expect(markup).toContain("If your answer is not supported, you can try again.");
     expect(markup).not.toContain("Choose supporting sentences without dragging");
     expect(markup).toMatch(/disabled=""[^>]*>Submit answer and evidence/);
     expect(markup).not.toContain("drag across the line that matters to save it as a note");
@@ -47,8 +47,26 @@ describe("preparation guidance and reading checks", () => {
     expect(markup).toContain("Review the evidence before trying again");
     expect(markup).toContain("Which claim fits the source sentence?");
     expect(markup).not.toContain(question.prompt);
-    expect(markup).toContain("Submit correction");
+    expect(markup).toContain("Try again");
     expect(markup).not.toContain("Submit answer and evidence");
+  });
+
+  it("shows only the failed question's answer, green source support, and Try another question before the next variation", () => {
+    const revealedAnswer = { questionId: question.id, prompt: question.prompt, answer: question.options[0]!.text,
+      explanation: "Three sacks cannot support an unlimited supply.", support: [{ start: 19, end: 45 }] };
+    const reviewing = { ...document, readingCheck: { ...document.readingCheck!, status: "needsReview" as const,
+      question: null, recovery: null, revealedAnswer } };
+    const markup = render(createElement(DocumentReader, { document: reviewing, documents: [reviewing], onClose() {}, onSelectDocument() {}, onContinueReadingCheck() {} }));
+    expect(markup).toContain("Correct answer:");
+    expect(markup).toContain(revealedAnswer.answer);
+    expect(markup).toContain(revealedAnswer.explanation);
+    expect(markup).toContain('data-correct-support="">Only three sacks remained.</mark>');
+    expect(markup).toContain("Supporting passage (green):");
+    expect(markup).toMatch(/>Try another question<\/button>/);
+    expect(markup).not.toContain("Continue to a different question");
+    expect(markup).not.toContain('type="radio"');
+    expect(markup).not.toContain("Reading check complete.");
+    expect(markup).not.toContain("correction");
   });
 
   it("shows completion and explanation without requiring another answer", () => {
