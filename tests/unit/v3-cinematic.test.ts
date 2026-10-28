@@ -33,8 +33,8 @@ describe("V3 cinematic beats", () => {
       { id: "situation", kicker: "The situation", body: "Ships have anchored at the river mouth." },
       { id: "stakes", kicker: "What is at stake", body: "Your work in Malacca is gone.", items: ["Your reputation: Both sides trust you a little."] },
       { id: "goals", kicker: "Your goals", items: ["See a post founded."] },
-      { id: "knows", kicker: "What you already know", items: ["Raffles is in a hurry."] },
-      { id: "relationships", kicker: "People you know", items: ["You have worked with Farquhar."] },
+      { id: "knows", kicker: "What you already know", items: ["Raffles is in a hurry."], more: true },
+      { id: "relationships", kicker: "People you know", items: ["You have worked with Farquhar."], more: true },
     ]);
   });
 
