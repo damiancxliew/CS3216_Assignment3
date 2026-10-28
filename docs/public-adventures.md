@@ -1,7 +1,7 @@
 # Public adventures
 
 Adventures default to **School members**. In legacy adventures, open **Publish & share**;
-for v3 adventures, open **Version history**. Set **Who can play** to **Anyone with the link**,
+for v3 adventures, use the editor or the publication-history page. Set **Who can play** to **Anyone with the link**,
 publish, and share the existing player link. This applies to all release links for that
 adventure; it does not publish draft edits or add adventures to a public directory.
 
