@@ -73,7 +73,6 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id.endsWith("/lib/analytics/posthog")) return "\0analytics";
           },
           async load(id) {
-            if (id === "\0access-action") return `export async function setAdventurePublic(id,kind,isPublic){localStorage.setItem("isPublic",String(isPublic));return {ok:true}}`;
             if (id === "\0versions") return `export async function getV3SavedVersions(){return {ok:true,latest:1,publishedVersion:1,published:true,versions:[]}}`;
             if (id === "\0import-json") return `export async function importAdventureJson(previous,form){return {error:form.get('file').name.endsWith('.zip')?'Could not import ZIP.':'That file is not valid JSON.'}}; export async function updateAdventureFromFile(){return {error:'This adventure changed. Reload before importing.'}}`;
             if (id === "\0analytics") return `export function track(){}`;
@@ -83,6 +82,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
               export function Pending({children}) { return children; }
               export function StableLabel({label}) { return label; }
               export function ErrorText({children}) { return React.createElement('p',{role:'alert'},children); }`;
+            if (id === "\0access-action") return `export async function setAdventurePublic(id,kind,isPublic){localStorage.setItem("isPublic",String(isPublic));return {ok:true}}`;
             if (id === "\0upgrades") return `export const getUpgradeAction=async()=>null; export const startUpgradeAction=async()=>({ok:false,message:"Unavailable"}); export const refineUpgradeAction=startUpgradeAction; export const applyUpgradeAction=startUpgradeAction; export const discardUpgradeAction=startUpgradeAction;`;
             if (id === "\0navigation")
               return `export function useSearchParams(){return new URLSearchParams(location.search)}; export function useRouter(){return {refresh(){},push(){}}}`;
