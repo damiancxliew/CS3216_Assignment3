@@ -73,6 +73,7 @@ export default async function AdventureWorkspace({
             initialVersion={adventure.specVersion}
             publishedVersion={adventure.publishedVersion ?? null}
             published={adventure.status === "published"}
+            isPublic={adventure.isPublic ?? false}
             capturedSources={sources}
             initial={parsed.spec}
             sources={reviewSources(parsed.spec, documents)}

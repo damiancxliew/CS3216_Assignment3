@@ -29,7 +29,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
     }));
     const vite = await createServer({
       configFile: false,
-      cacheDir: resolve("node_modules/.vite/v3-editor"),
+      cacheDir: resolve("/tmp/v3-editor-vite-cache"),
       root,
       publicDir: resolve("apps/web/public"),
       define: {
@@ -56,6 +56,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           name: "editor-harness",
           enforce: "pre",
           resolveId(id, importer) {
+            if (id === "./adventure-access-actions") return "\0access-action";
             if (id === "virtual:editor") return "\0editor";
             if (id === "next/link") return "\0link";
             if (id === "next/image") return "\0image";
@@ -72,6 +73,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id.endsWith("/lib/analytics/posthog")) return "\0analytics";
           },
           async load(id) {
+            if (id === "\0access-action") return `export async function setAdventurePublic(id,kind,isPublic){localStorage.setItem("isPublic",String(isPublic));return {ok:true}}`;
             if (id === "\0versions") return `export async function getV3SavedVersions(){return {ok:true,latest:1,publishedVersion:1,published:true,versions:[]}}`;
             if (id === "\0import-json") return `export async function importAdventureJson(previous,form){return {error:form.get('file').name.endsWith('.zip')?'Could not import ZIP.':'That file is not valid JSON.'}}; export async function updateAdventureFromFile(){return {error:'This adventure changed. Reload before importing.'}}`;
             if (id === "\0analytics") return `export function track(){}`;
@@ -124,7 +126,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           import {ImportAdventureJson} from '/src/app/v3/teacher/import-json.tsx';
           if(!localStorage.getItem('spec')) localStorage.setItem('spec',${JSON.stringify(JSON.stringify(spec))});
           const spec=AdventureSpec.parse(JSON.parse(localStorage.getItem('spec'))); localStorage.setItem('spec',JSON.stringify(spec));
-          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><ImportAdventureJson /><EditorChatWorkspace brief={initialBriefStateV3('fixture')}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} sources={spec.sources} capturedSources={[]} assets={{version:Number(localStorage.getItem('version')||1),items:${JSON.stringify(inventory)}.map(asset=>({...asset,url:asset.url?.startsWith('/')?new URL(asset.url,location.origin).href:asset.url}))}} errors={new URLSearchParams(location.search).has('clean')?[]:[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
+          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><ImportAdventureJson /><EditorChatWorkspace brief={initialBriefStateV3('fixture')}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} isPublic={localStorage.getItem("isPublic")==="true"} sources={spec.sources} capturedSources={[]} assets={{version:Number(localStorage.getItem('version')||1),items:${JSON.stringify(inventory)}.map(asset=>({...asset,url:asset.url?.startsWith('/')?new URL(asset.url,location.origin).href:asset.url}))}} errors={new URLSearchParams(location.search).has('clean')?[]:[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
         `,
                   "editor.tsx",
                   { loader: "tsx", jsx: "automatic" },
@@ -165,6 +167,14 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       });
       await page.goto(`${vite.resolvedUrls!.local[0]!}?clean=1`);
       await page.getByText("No issues", { exact: true }).waitFor();
+      const access = page.getByRole("combobox", { name: "Who can play" });
+      expect(await access.inputValue()).toBe("school");
+      await access.selectOption("public");
+      await expect.poll(() => access.inputValue()).toBe("public");
+      await page.reload();
+      expect(await access.inputValue()).toBe("public");
+      await access.selectOption("school");
+      await expect.poll(() => access.inputValue()).toBe("school");
       await page.locator("summary").filter({ hasText: /^Import adventure$/ }).click();
       await page.getByLabel("ZIP or JSON file", { exact: true }).setInputFiles({ name: "broken.json", mimeType: "application/json", buffer: Buffer.from("{broken") });
       await page.getByRole("button", { name: "Import adventure", exact: true }).click();
