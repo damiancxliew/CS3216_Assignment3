@@ -359,7 +359,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             </button>
           </header>
 
-          <div className="mt-2 space-y-2">
+          <div className={`${missionCollapsed ? "mt-1" : "mt-2"} flex flex-col gap-2`}>
             <div hidden={missionCollapsed}>
               {experience?.mission}
               {stage?.centralQuestion && !experience?.mission ? (
@@ -373,7 +373,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                 setIslandRequest({ tab, key: Date.now() });
               }
             }} />
-            <div hidden={missionCollapsed}>
+            <div hidden={missionCollapsed} className="space-y-2">
               {!isMoment ? (
                 <>
                   <p className="text-xs text-[#5c6472]">

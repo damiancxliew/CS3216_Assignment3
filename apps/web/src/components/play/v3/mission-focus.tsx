@@ -70,10 +70,10 @@ export function MissionFocus({ view, onOpenDocument, onOpenJournal, showNextStep
   if (!item && !showNextStep) return null;
 
   return (
-    <div aria-label="Current focus" className={collapsed ? "mt-1" : "rounded-lg border border-[#1f2433]/15 bg-white/65 p-2.5"}>
+    <div aria-label="Current focus" className={collapsed ? undefined : "rounded-md border-2 border-[#1f2433] bg-[#fff1c7] px-2 py-1.5"}>
       <div role="status" aria-live="polite" aria-atomic="true" className={collapsed ? "line-clamp-2 text-xs font-bold leading-snug" : undefined}>
-        <h3 className={collapsed ? "mr-1 inline font-black" : "mb-1 text-[11px] font-black uppercase tracking-wide text-[#5c6472]"}>{item?.label ?? "Next"}:</h3>
-        <p className={collapsed ? "inline" : "max-h-32 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed"}>{item?.text ?? nextAction}</p>
+        <h3 className={collapsed ? "mr-1 inline font-black" : "mb-1 text-[11px] font-black uppercase tracking-wide"}>{item?.label ?? "Next"}:</h3>
+        <p className={collapsed ? "inline" : "max-h-32 overflow-y-auto whitespace-pre-wrap text-xs font-bold leading-snug"}>{item?.text ?? nextAction}</p>
       </div>
       {item && !collapsed ? <button type="button" onClick={() => item.documentId ? onOpenDocument(item.documentId) : onOpenJournal(item.tab)} className="mt-1 min-h-9 text-xs font-bold underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#3659cf]">
         {item.documentId ? "Read document" : "Open in Journal"}
