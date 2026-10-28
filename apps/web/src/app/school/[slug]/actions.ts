@@ -6,7 +6,6 @@ import type { ActionResult } from "@/app/teacher/actions";
 import { getViewer } from "@/lib/auth/viewer";
 import { resolveSchoolContext } from "@/lib/school/context";
 import { createClient } from "@/lib/supabase/server";
-import { v3SchoolAllowed } from "@/lib/v3/flag";
 
 type SchoolActionContext = NonNullable<Awaited<ReturnType<typeof resolveSchoolContext>>> & {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -140,7 +139,6 @@ export async function setAdventureArchived(slug: string, adventureId: string, ar
   const context = await schoolContext(slug, true);
   if (!context) return accessError();
   if (kind !== "v2" && kind !== "v3") return accessError();
-  if (kind === "v3" && !v3SchoolAllowed(context.organizationId)) return accessError();
   const { error } = kind === "v3"
     ? await context.supabase.rpc("set_adventure_archived_v3", {
         p_org: context.organizationId, p_adventure_id: adventureId, p_archived: archived,

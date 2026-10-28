@@ -3,7 +3,7 @@
 /**
  * Teacher-facing v3 actions: the guided brief (start, turn, source upload,
  * discard, confirm, restart), skeleton approval and generation progress.
- * Everything is behind V3_ENABLED plus the school allowlist; state is loaded
+ * Staff access and ownership are checked; state is loaded
  * from the store on the server, never trusted from the client.
  */
 import { after } from "next/server";
@@ -18,7 +18,7 @@ import { getJobs, kickTick } from "@/lib/jobs/runner";
 import { tickUrl } from "@/lib/jobs/tick";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { v3SchoolAllowed } from "@/lib/v3/flag";
+
 import { requireStaff, requireBriefingRow, runV3BriefTurn } from "@/lib/v3/brief/service";
 import type { BriefInputV3, BriefStateV3 } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
@@ -105,7 +105,6 @@ async function extractUpload(formData: FormData): Promise<{ doc: ExtractedDocume
 export async function startV3Brief() {
   const auth = await requireStaff();
   if ("error" in auth) return auth;
-  if (!v3SchoolAllowed(auth.schoolId)) return notFound;
 
   const store = supabaseV3BriefStore(createAdminClient());
   try {
@@ -178,7 +177,6 @@ export async function createFromV3Brief(adventureId: string) {
     supabaseV3BriefStore(createAdminClient()),
     auth.userId,
     adventureId,
-    process.env,
   );
   if ("error" in result) return result;
   await kickAfter();
@@ -196,7 +194,6 @@ export async function restartV3Generation(adventureId: string) {
     supabaseJobStore(createAdminClient()),
     auth.userId,
     adventureId,
-    process.env,
   );
 }
 
@@ -204,7 +201,7 @@ export async function restartV3Generation(adventureId: string) {
 export async function saveV3SkeletonDraft(adventureId: string, draft: unknown) {
   const auth = await requireStaff();
   if ("error" in auth) return auth;
-  const result = await saveSkeletonDraft(defaultGenerationDeps(), auth.userId, adventureId, draft, process.env);
+  const result = await saveSkeletonDraft(defaultGenerationDeps(), auth.userId, adventureId, draft);
   return "ok" in result ? { ok: true as const, savedAt: new Date().toISOString() } : result;
 }
 
@@ -212,7 +209,7 @@ export async function saveV3SkeletonDraft(adventureId: string, draft: unknown) {
 export async function discardV3SkeletonDraft(adventureId: string) {
   const auth = await requireStaff();
   if ("error" in auth) return auth;
-  return discardSkeletonDraft(defaultGenerationDeps(), auth.userId, adventureId, process.env);
+  return discardSkeletonDraft(defaultGenerationDeps(), auth.userId, adventureId);
 }
 
 export async function approveV3Skeleton(adventureId: string, skeleton?: unknown) {
@@ -220,7 +217,7 @@ export async function approveV3Skeleton(adventureId: string, skeleton?: unknown)
   if ("error" in auth) return auth;
 
   const store = supabaseJobStore(createAdminClient());
-  const result = await approveSkeleton(defaultGenerationDeps(), getJobs(), store, auth.userId, adventureId, skeleton, process.env);
+  const result = await approveSkeleton(defaultGenerationDeps(), getJobs(), store, auth.userId, adventureId, skeleton);
   if ("error" in result) return result;
 
   await kickAfter();
@@ -241,7 +238,6 @@ export async function getV3GenerationProgress(adventureId: string) {
   if (!data) return notFound;
 
   const adventure = { id: data.id, schoolId: data.school_id, ownerId: data.owner_id, status: data.status };
-  if (!auth.viewer.isSysadmin && !v3SchoolAllowed(adventure.schoolId)) return notFound;
 
   // self-healing: a ready step with no in-flight tick gets a spare kick from the poll
   if (adventure.status === "generating") {

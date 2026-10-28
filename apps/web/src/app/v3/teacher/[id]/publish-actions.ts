@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { publishAdventure, unpublishAdventure } from "@/lib/play/v3/publish";
 import { v3PublishDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
-import { v3Enabled } from "@/lib/v3/flag";
 
 export type PublishActionResult = { ok: true; status: string } | { ok: false; message: string };
 
@@ -14,7 +13,6 @@ async function run(
   change: typeof publishAdventure,
   expected?: { version: number; publishedVersion: number | null },
 ): Promise<PublishActionResult> {
-  if (!v3Enabled()) return { ok: false, message: "Not found." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "Sign in again to continue." };
@@ -38,7 +36,6 @@ export async function unpublishV3Adventure(adventureId: string, expected?: { ver
 
 /** Returns the already-issued current release link; never creates or rotates one. */
 export async function currentV3StudentLink(adventureId: string): Promise<{ ok: true; path: string } | { ok: false; message: string }> {
-  if (!v3Enabled()) return { ok: false, message: 'Not found.' };
   const { data: { user } } = await (await createClient()).auth.getUser();
   if (!user) return { ok: false, message: 'Sign in again.' };
   const deps = v3PublishDeps();

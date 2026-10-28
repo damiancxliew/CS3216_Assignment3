@@ -11,7 +11,7 @@ import { SiteHeader, compactButton as button } from "@/components/ui";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { v3Enabled } from "@/lib/v3/flag";
+
 import { canAccessV3Authoring } from "@/lib/v3/access";
 import { AdventureTransfer } from "@/components/teacher/v3-version-controls";
 import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
@@ -47,7 +47,6 @@ export default async function V3AdventurePage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ view?: string }>;
 }) {
-  if (!v3Enabled()) notFound();
   const { id } = await params;
   const viewer = await getViewer(await createClient());
   if (!viewer.user || (!isStaff(viewer) && !viewer.isSysadmin)) notFound();

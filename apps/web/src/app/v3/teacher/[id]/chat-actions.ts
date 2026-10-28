@@ -3,7 +3,7 @@ import { z } from "zod";
 import { OpenAiLlmClient } from "@adventure/generation/llm";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { v3Enabled } from "@/lib/v3/flag";
+
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { canAccessV3Authoring } from "@/lib/v3/access";
 import { briefStateV3Schema, initialBriefStateV3 } from "@/lib/v3/brief/schema";
@@ -27,7 +27,7 @@ export async function suggestReviewChangeAction(
   rawInput: unknown,
   rawText: string,
 ): Promise<ReviewChatResult> {
-  if (!v3Enabled() || !z.string().uuid().safeParse(adventureId).success)
+  if (!z.string().uuid().safeParse(adventureId).success)
     return failure("Not found.");
   const viewer = await getViewer(await createClient());
   const { user } = viewer;

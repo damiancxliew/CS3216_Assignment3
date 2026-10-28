@@ -18,7 +18,6 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")("shows publishers and cop
     resolve: { alias: { "@": resolve(root, "src") }, dedupe: ["react", "react-dom"] },
     plugins: [{ name: "publisher-harness", enforce: "pre", resolveId(id) {
       if (id === "virtual:publisher") return "\0publisher";
-      if (id.endsWith("/v3/flag")) return "\0flag";
       if (id === "next/link") return "\0link";
       if (id === "next/headers") return "\0headers";
       if (id === "next/navigation") return "\0navigation";
@@ -28,7 +27,6 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")("shows publishers and cop
       if (id === "./adventure-access-actions") return "\0access";
       if (id.endsWith("/components/ui")) return "\0ui";
     }, async load(id) {
-      if (id === "\0flag") return `export const v3Enabled=()=>true`;
       if (id === "\0link") return `import React from 'react';export default function Link({children,...props}){return React.createElement('a',props,children)}`;
       if (id === "\0navigation") return `export function notFound(){throw Error('not found')} export function redirect(){throw Error('redirect')}`;
       if (id === "\0headers") return `export const headers=async()=>new Map([['host',location.host],['x-forwarded-proto','http']])`;

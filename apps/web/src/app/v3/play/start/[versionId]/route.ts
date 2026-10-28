@@ -7,14 +7,10 @@ import { loadJoinView } from "@/lib/play/v3/publish";
 import { createAttempt } from "@/lib/play/v3/service";
 import { v3PlayDeps, v3PublishDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
-import { v3Enabled } from "@/lib/v3/flag";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, { params }: { params: Promise<{ versionId: string }> }) {
-  if (!v3Enabled()) {
-    return NextResponse.json({ error: { code: "not_found", message: "Not found." } }, { status: 404 });
-  }
   const origin = requestOrigin(request);
   const supabase = await createClient();
   let { data: { user } } = await supabase.auth.getUser();

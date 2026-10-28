@@ -23,7 +23,7 @@ export function upgradeSteps(getDeps: () => MigrationDeps = defaultUpgradeDeps):
                 };
             }
             const a = await deps.store.loadAdventure(run.adventureId);
-            if (!a || !await canStaffAdventure(deps.store, a, run.requesterId, deps.env)) {
+            if (!a || !await canStaffAdventure(deps.store, a, run.requesterId)) {
                 await deps.repository.update(run.id, run.proposalRevision, {
                     status: 'failed',
                     error: 'Access to this adventure is no longer available.'

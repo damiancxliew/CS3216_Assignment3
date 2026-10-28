@@ -4,7 +4,6 @@ import { requireUserId } from "@/lib/play/http";
 import { v3PreviewDeps } from "@/lib/play/v3/http";
 import { previewBodyTooLarge } from "@/lib/play/v3/preview-body";
 import { previewAction } from "@/lib/play/v3/preview";
-import { v3Enabled } from "@/lib/v3/flag";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -13,9 +12,6 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ adventureId: string }> },
 ) {
-  if (!v3Enabled()) {
-    return NextResponse.json({ error: { code: "not_found", message: "Not found." } }, { status: 404 });
-  }
   const userId = await requireUserId();
   if (userId instanceof NextResponse) return userId;
   const { adventureId } = await params;

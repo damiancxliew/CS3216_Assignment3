@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Page } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
-import { v3Enabled } from "@/lib/v3/flag";
+
 import { v3PublishDeps } from "@/lib/play/v3/http";
 import { loadPublicationHistory } from "@/lib/play/v3/publication-history";
 import { CopyStudentLink, ReleaseLink } from "./student-link";
@@ -22,7 +22,6 @@ export default async function StudentLinkHistoryPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  if (!v3Enabled()) notFound();
   const { id } = await params;
   const {
     data: { user },

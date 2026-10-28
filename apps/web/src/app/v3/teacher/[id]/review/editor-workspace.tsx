@@ -1,5 +1,6 @@
 "use client";
 import { AdventureTransfer } from "@/components/teacher/v3-version-controls";
+import { AdventureAccess } from "@/components/teacher/adventure-access";
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -44,6 +45,7 @@ type Props = {
   initialVersion: number;
   publishedVersion: number | null;
   published: boolean;
+  isPublic: boolean;
   sources: SpecSource[];
   capturedSources: CapturedSource[];
   errors: CheckIssue[];
@@ -373,6 +375,7 @@ export function EditorWorkspace(props: Props) {
                   )}
                   {chatClosed ? <button type="button" className={button.quiet} onClick={() => { setChatClosed(false); setEditMode(true); }}>Edit with chat</button> : null}
                   <AdventureTransfer adventureId={props.adventureId} version={version} publishedVersion={publishedVersion} disabled={dirty || pending} />
+                  <AdventureAccess adventureId={props.adventureId} kind="v3" isPublic={props.isPublic} compact />
                 </div>
                 {dirty ? (
                   <span className="text-sm">

@@ -22,7 +22,6 @@ import { button, EmptyState, Field, Page, Section, SelectField, StatusBadge } fr
 import { getViewer } from "@/lib/auth/viewer";
 import { resolveSchoolContext } from "@/lib/school/context";
 import { createClient } from "@/lib/supabase/server";
-import { v3SchoolAllowed } from "@/lib/v3/flag";
 
 export const metadata: Metadata = { title: "School console", robots: { index: false } };
 
@@ -107,7 +106,6 @@ export default async function SchoolPage({
   const tabs = adminRole ? ADMIN_TABS : STAFF_TABS;
   const tab = tabs.find((item) => item.id === query.tab)?.id ?? "students";
   const organizationId = school.organizationId;
-  const allowV3 = v3SchoolAllowed(organizationId);
   const { data: rosterData, error: rosterError } = await supabase.rpc("school_roster", { p_org: organizationId });
   if (rosterError) console.error("could not load school roster", rosterError);
   const roster = (rosterData ?? []) as unknown as MemberRow[];
@@ -161,7 +159,7 @@ export default async function SchoolPage({
 
   let adventures: UsageRow[] = [];
   if (tab === "adventures" && adminRole) {
-    const { data, error } = await supabase.rpc("school_usage_all_versions", { p_org: organizationId, p_include_v3: allowV3 });
+    const { data, error } = await supabase.rpc("school_usage_all_versions", { p_org: organizationId, p_include_v3: true });
     if (error) console.error("could not load school adventure usage", error);
     adventures = (data ?? []) as unknown as UsageRow[];
   }

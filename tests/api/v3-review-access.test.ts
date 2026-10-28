@@ -2,8 +2,6 @@ import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  enabled: true,
-  allowed: true,
   staff: true,
   sysadmin: false,
   membership: null as { role: string; organizationId: string } | null,
@@ -22,10 +20,7 @@ vi.mock("next/navigation", () => ({
     throw new Error("NOT_FOUND");
   },
 }));
-vi.mock("@/lib/v3/flag", () => ({
-  v3Enabled: () => mocks.enabled,
-  v3SchoolAllowed: () => mocks.allowed,
-}));
+
 vi.mock("@/lib/auth/viewer", () => ({
   getViewer: async () => ({ user: mocks.user, membership: mocks.membership, isSysadmin: mocks.sysadmin }),
   isStaff: () => mocks.staff,
@@ -63,8 +58,6 @@ const visit = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(mocks, {
-    enabled: true,
-    allowed: true,
     staff: true,
     sysadmin: false,
     membership: null,
@@ -81,7 +74,7 @@ beforeEach(() => {
 describe("review page access", () => {
   it("allows a system admin without a school membership to open any school's editor", async () => {
     mocks.row!.ownerId = "other-teacher";
-    mocks.sysadmin = true; mocks.staff = false; mocks.allowed = false;
+    mocks.sysadmin = true; mocks.staff = false;
     expect(await visit()).toBeTruthy();
   });
   it("allows an admin to edit another teacher's adventure in the same school", async () => {
@@ -97,16 +90,12 @@ describe("review page access", () => {
     expect(mocks.loadSpec).not.toHaveBeenCalled();
   });
   it.each([
-    "feature",
-    "school",
     "signed-out",
     "student",
     "other-owner",
     "missing",
     "generating",
   ])("rejects %s before loading private content", async (guard) => {
-    if (guard === "feature") mocks.enabled = false;
-    if (guard === "school") mocks.allowed = false;
     if (guard === "signed-out") mocks.user = null;
     if (guard === "student") mocks.staff = false;
     if (guard === "other-owner") mocks.row!.ownerId = "other";

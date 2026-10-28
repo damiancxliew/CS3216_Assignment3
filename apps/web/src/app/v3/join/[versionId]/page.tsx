@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { SignInButton } from "@/components/sign-in-button";
 import { ErrorText, SiteHeader, button } from "@/components/ui";
 import { loadJoinView } from "@/lib/play/v3/publish";
 import { v3PublishDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
-import { v3Enabled } from "@/lib/v3/flag";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +21,6 @@ export default async function V3JoinPage({ params, searchParams }: {
   params: Promise<{ versionId: string }>;
   searchParams?: Promise<{ release?: string }>;
 }) {
-  if (!v3Enabled()) notFound();
   const { versionId } = await params;
   if (!UUID.test(versionId)) {
     return <Shell intro="This link isn’t open" title="Ask your teacher for the current one" />;

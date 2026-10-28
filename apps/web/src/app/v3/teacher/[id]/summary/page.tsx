@@ -7,7 +7,7 @@ import { EmptyState, Page, Section } from "@/components/ui";
 import { loadClassSummary } from "@/lib/play/v3/summary";
 import { v3SummaryDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
-import { v3Enabled } from "@/lib/v3/flag";
+
 import type { ClassSummary } from "@adventure/play-contract";
 import { V3ReadingSummary } from "@/components/teacher/v3-reading-summary";
 
@@ -36,7 +36,6 @@ export default async function V3ClassSummaryPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ version?: string; tab?: string }>;
 }) {
-  if (!v3Enabled()) notFound();
   const { id } = await params;
   const query = await searchParams;
   const requestedTab =

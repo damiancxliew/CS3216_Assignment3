@@ -15,9 +15,8 @@ import {
 } from "@/lib/v3/media/service";
 import { searchProvider } from "@/lib/v3/media/providers";
 import { MAX_MEDIA_BYTES } from "@/lib/v3/media/uploads";
-import { v3Enabled } from "@/lib/v3/flag";
+
 async function context(adventureId: string) {
-  if (!v3Enabled()) throw Error("Not found.");
   z.string().uuid().parse(adventureId);
   const {
     data: { user },

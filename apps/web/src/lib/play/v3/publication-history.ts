@@ -9,7 +9,7 @@ export async function loadPublicationHistory(
   const adventure = await deps.store.loadAdventure(id);
   if (
     !adventure ||
-    !(await canStaffAdventure(deps.store, adventure, userId, deps.env))
+    !(await canStaffAdventure(deps.store, adventure, userId))
   )
     return null;
   const [publications, attempts] = await Promise.all([

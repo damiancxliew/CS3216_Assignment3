@@ -3,7 +3,7 @@
 On **Your adventures**, expand **Import adventure**, choose a ZIP or JSON file, and select
 **Import adventure**. The file creates a new draft owned by the signed-in
 teacher in their current school, then opens the editor. Existing adventures and
-published versions are untouched. This requires v3 access for the school.
+published versions are untouched. This requires staff membership in the school.
 
 Open **Import / export** in the editor or a completed guided draft. **Download
 ZIP** includes selected artwork and custom sprites; **Download JSON** keeps media
@@ -16,6 +16,20 @@ the restored spec points to these new URLs. Image attribution and sprite layout
 are preserved. Bundled sprites remain references to game assets shipped with the
 application. A ZIP containing only a root `adventure.json` is also accepted; like
 JSON import, it retains its URL references.
+
+Before saving a new draft or an update from JSON (including a JSON-only ZIP),
+the importer downloads every selected stage image, portrait, and custom walking
+sprite to verify it exists and decodes correctly. Custom sprites must pass the
+same 4 × 4 sheet checks as uploaded sprites. Fallback artwork, bundled sprites,
+and citation/attribution links do not require downloads. Duplicate media URLs
+are downloaded once; the JSON and its URLs are preserved.
+
+Linked media is limited to 198 unique files, 10 MB per file and 40 MB total,
+with a 30-second validation deadline. External downloads use the existing
+DNS-pinned public-address checks, bounded responses, and redirect validation;
+private-network URLs are rejected. Missing or invalid media prevents the draft
+or version from being saved. Links must remain available after import; passing
+validation cannot guarantee future availability.
 
 ZIPs are limited to 15 MB, 40 MB expanded, 200 entries, and 10 MB per entry.
 Unsupported or duplicate paths, missing/unlisted media, invalid image files, and

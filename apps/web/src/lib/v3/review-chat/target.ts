@@ -5,7 +5,7 @@ import {
   type CheckIssue,
 } from "@adventure/spec-v3";
 import { supabaseJobStore } from "@adventure/jobs";
-import { v3SchoolAllowed } from "../flag";
+
 import type { V3BriefRow } from "../brief/store";
 import { defaultGenerationDeps } from "../generation/deps";
 import {
@@ -109,11 +109,9 @@ export async function loadReviewChatTarget(
           userId,
           adventureId,
           input.pass,
-          process.env,
         );
       const candidate = await deps.adventures.get(adventureId);
       return candidate?.ownerId === userId &&
-        v3SchoolAllowed(candidate.schoolId) &&
         candidate.status === "needs_review" &&
         pausedPass(await steps.list(adventureId)) === "skeleton"
         ? candidate

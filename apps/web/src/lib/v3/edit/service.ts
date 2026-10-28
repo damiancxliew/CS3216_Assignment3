@@ -59,7 +59,7 @@ export async function saveAdventureEdits(
   const adventure = await deps.store.loadAdventure(id);
   if (
     !adventure ||
-    !(await canStaffAdventure(deps.store, adventure, userId, deps.env)) ||
+    !(await canStaffAdventure(deps.store, adventure, userId)) ||
     !["draft", "published", "archived"].includes(adventure.status)
   )
     return { ok: false, code: "access", message: "Not found." };

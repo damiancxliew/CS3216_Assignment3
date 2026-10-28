@@ -1,27 +1,36 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { strToU8, zipSync } from "fflate";
 const h = vi.hoisted(() => ({
   auth: { userId: "teacher", schoolId: "school" } as { userId: string; schoolId: string } | { error: string },
-  allowed: true,
   row: null as Record<string, unknown> | null,
   inserts: [] as { table: string; value: unknown }[],
   deleted: [] as string[],
   failSources: false,
   uploads: [] as string[],
   removals: [] as string[],
+  failDownload: false,
+  invalidDownload: false,
+  externalDownload: false,
+  downloads: [] as string[],
   rpc: vi.fn(),
   role: "teacher",
   sysadmin: false,
 }));
 vi.mock("@/lib/v3/brief/service", () => ({ requireStaff: async () => "error" in h.auth ? h.auth : { ...h.auth, viewer: { user: { id: h.auth.userId }, membership: { role: h.role, organizationId: h.auth.schoolId }, isSysadmin: h.sysadmin } } }));
-vi.mock("@/lib/v3/flag", () => ({ v3SchoolAllowed: () => h.allowed }));
+
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw Error(`redirect:${url}`); } }));
 vi.mock("@/lib/v3/generation/deps", () => ({ supabaseV3SourceStore: () => ({ load: async () => [] }) }));
 vi.mock("@/lib/assets/store", () => ({ createAssetStore: () => ({
   put: async (key: string) => { h.uploads.push(key); return `https://new.test/${key}`; },
   remove: async (key: string) => { h.removals.push(key); },
-  download: async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")),
+  download: async (url: string) => {
+    h.downloads.push(url);
+    if (h.externalDownload) return null;
+    if (h.failDownload) throw Error("Object not found");
+    return h.invalidDownload ? new TextEncoder().encode("not an image") : new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png"));
+  },
 }) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({
   rpc: h.rpc,
@@ -54,13 +63,54 @@ const request = () => GET(new Request("http://localhost/api/v3/adventures/story/
 beforeEach(() => {
   h.role = "teacher"; h.sysadmin = false;
   h.auth = { userId: "teacher", schoolId: "school" };
-  h.allowed = true; h.inserts = []; h.deleted = []; h.failSources = false;
+  h.inserts = []; h.deleted = []; h.failSources = false;
   h.uploads = []; h.removals = [];
+  h.failDownload = false; h.invalidDownload = false; h.externalDownload = false; h.downloads = [];
   h.rpc.mockReset(); h.rpc.mockResolvedValue({ data: { saved: true, version: 3 }, error: null });
   h.row = { owner_id: "teacher", school_id: "school", status: "draft", spec, spec_version: 2 };
 });
 
 describe("v3 import/export access and persistence", () => {
+  it.each(["new draft", "update"])("rejects missing JSON media before writing a %s", async (target) => {
+    const imported = structuredClone(spec);
+    imported.authoring = { stageImages: { [spec.stages[0].id]: { type: "legacy", version: 1, url: "https://old.test/missing.png" } } };
+    h.failDownload = true; h.row!.published_version = null;
+    const data = form(JSON.stringify(imported));
+    const result = target === "new draft" ? await importAdventureJson({}, data) : await updateAdventureFromFile("story", 2, null, {}, data);
+    expect(result.error).toContain("stage image");
+    expect(h.inserts).toEqual([]);
+    expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.uploads).toEqual([]);
+  });
+
+  it("rejects JSON links that return invalid image bytes before creating a draft", async () => {
+    const imported = structuredClone(spec);
+    imported.authoring = { portraitImages: { portrait: { type: "legacy", version: 1, url: "https://old.test/page.html" } } };
+    h.invalidDownload = true;
+    expect((await importAdventureJson({}, form(JSON.stringify(imported)))).error).toContain("portrait image");
+    expect(h.inserts).toEqual([]);
+  });
+
+  it("rejects unavailable media in a JSON-only ZIP without creating a draft", async () => {
+    const imported = structuredClone(spec);
+    imported.authoring = { stageImages: { [spec.stages[0].id]: { type: "legacy", version: 1, url: "https://old.test/missing.png" } } };
+    const archive = zipSync({ "adventure.json": strToU8(JSON.stringify(imported)) });
+    const data = new FormData(); data.set("file", new File([new Uint8Array(archive)], "adventure.zip"));
+    h.failDownload = true;
+    expect((await importAdventureJson({}, data)).error).toContain("Could not import ZIP");
+    expect(h.inserts).toEqual([]);
+    expect(h.uploads).toEqual([]);
+  });
+
+  it("blocks private-network JSON media URLs through the protected public downloader", async () => {
+    const imported = structuredClone(spec);
+    imported.authoring = { stageImages: { [spec.stages[0].id]: { type: "legacy", version: 1, url: "http://127.0.0.1/private.png" } } };
+    h.externalDownload = true;
+    expect((await importAdventureJson({}, form(JSON.stringify(imported)))).error).toContain("stage image");
+    expect(h.inserts).toEqual([]);
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
   it("creates an unpublished copy owned by the signed-in teacher", async () => {
     await expect(importAdventureJson({}, form(JSON.stringify(spec)))).rejects.toThrow("redirect:/v3/teacher/new-copy?view=editor");
     expect(h.inserts).toHaveLength(1);
@@ -85,9 +135,8 @@ describe("v3 import/export access and persistence", () => {
     expect(h.inserts).toEqual([]);
   });
 
-  it.each(["unsigned", "school-blocked"])("denies import and export for %s callers", async (kind) => {
-    if (kind === "unsigned") h.auth = { error: "not_found" };
-    else h.allowed = false;
+  it("denies import and export for unsigned callers", async () => {
+    h.auth = { error: "not_found" };
     expect((await importAdventureJson({}, form(JSON.stringify(spec)))).error).toBeTruthy();
     expect((await request()).status).toBe(404);
     expect(h.inserts).toEqual([]);
@@ -107,7 +156,7 @@ describe("v3 import/export access and persistence", () => {
 
   it("allows system admins to export across school boundaries and allowlists", async () => {
     h.row!.owner_id = "other-teacher"; h.row!.school_id = "other-school";
-    h.sysadmin = true; h.allowed = false;
+    h.sysadmin = true;
     expect((await request()).status).toBe(200);
   });
 
@@ -159,7 +208,7 @@ describe("v3 import/export access and persistence", () => {
     h.row!.owner_id = "another-owner";
     const data = new FormData(); data.set("file", new File(["not read"], "update.zip"));
     expect((await updateAdventureFromFile("story", 2, null, {}, data)).error).toBe("Adventure not found.");
-    expect(h.uploads).toEqual([]); expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.uploads).toEqual([]); expect(h.downloads).toEqual([]); expect(h.rpc).not.toHaveBeenCalled();
   });
 
   it.each(["bundle", "raw spec"])("updates an existing adventure from a JSON %s", async (format) => {
@@ -205,7 +254,7 @@ describe("v3 import/export access and persistence", () => {
   it.each(["admin", "system-admin"])("allows %s to import a new version without changing ownership", async (role) => {
     h.row!.owner_id = "original-owner"; h.row!.published_version = null;
     h.role = role === "admin" ? "admin" : "teacher"; h.sysadmin = role === "system-admin";
-    if (h.sysadmin) { h.row!.school_id = "other-school"; h.allowed = false; }
+    if (h.sysadmin) { h.row!.school_id = "other-school"; }
     const archive = await createSpecArchive(specExport(structuredClone(spec), [], "story", 2), async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")));
     const data = new FormData(); data.set("file", new File([new Uint8Array(archive)], "update.zip"));
     await expect(updateAdventureFromFile("story", 2, null, {}, data)).rejects.toThrow("redirect:");

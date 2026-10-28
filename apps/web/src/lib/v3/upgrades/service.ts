@@ -21,7 +21,7 @@ const fail = (code: 'access' | 'conflict' | 'invalid' | 'unsupported', message: 
 });
 async function authorized(deps: UpgradeDeps, user: string, id: string) {
     const a = await deps.store.loadAdventure(id);
-    return a && await canStaffAdventure(deps.store, a, user, deps.env) && ['draft', 'published', 'archived'].includes(a.status) ? a : null;
+    return a && await canStaffAdventure(deps.store, a, user) && ['draft', 'published', 'archived'].includes(a.status) ? a : null;
 }
 export async function startUpgrade(deps: UpgradeDeps, user: string, id: string, input: UpgradeStartInput): Promise<UpgradeResult> {
     const a = await authorized(deps, user, id);

@@ -10,7 +10,7 @@ function setup(spec: unknown) {
   const store = new MemoryV3PlayStore();
   store.addAdventure({ id: 'game', ownerId: 'teacher', schoolId: 'school', status: 'published', specVersion: 1, spec });
   store.addMember('school', 'student');
-  const deps: V3PlayServiceDeps = { store, llm: () => new FakeLlmClient(), now: () => 1000, env: { V3_ENABLED: '1', V3_SCHOOL_IDS: 'school' } };
+  const deps: V3PlayServiceDeps = { store, llm: () => new FakeLlmClient(), now: () => 1000, env: {} };
   return { store, deps };
 }
 const legacy = () => AdventureSpec.parse(JSON.parse(readFileSync('fixtures/golden-1819.json', 'utf8')));
