@@ -17,6 +17,20 @@ are preserved. Bundled sprites remain references to game assets shipped with the
 application. A ZIP containing only a root `adventure.json` is also accepted; like
 JSON import, it retains its URL references.
 
+Before saving a new draft or an update from JSON (including a JSON-only ZIP),
+the importer downloads every selected stage image, portrait, and custom walking
+sprite to verify it exists and decodes correctly. Custom sprites must pass the
+same 4 × 4 sheet checks as uploaded sprites. Fallback artwork, bundled sprites,
+and citation/attribution links do not require downloads. Duplicate media URLs
+are downloaded once; the JSON and its URLs are preserved.
+
+Linked media is limited to 198 unique files, 10 MB per file and 40 MB total,
+with a 30-second validation deadline. External downloads use the existing
+DNS-pinned public-address checks, bounded responses, and redirect validation;
+private-network URLs are rejected. Missing or invalid media prevents the draft
+or version from being saved. Links must remain available after import; passing
+validation cannot guarantee future availability.
+
 ZIPs are limited to 15 MB, 40 MB expanded, 200 entries, and 10 MB per entry.
 Unsupported or duplicate paths, missing/unlisted media, invalid image files, and
 invalid custom sprite sheets are rejected before draft creation. Failed imports
