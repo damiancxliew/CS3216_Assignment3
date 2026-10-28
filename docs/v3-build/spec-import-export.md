@@ -64,16 +64,15 @@ with the same 10 MB limit as new imports. An import never changes the live versi
 If another author saves or publishes while the file is uploading, the import
 fails without replacing their work and removes newly uploaded media.
 
-Open **Versions** in the adventure navigation to manage saved versions in a
-popup dialog. Each version offers **Publish**, **Copy link** (after its first
-publication), and **View attempts**, with an attempt count. Publishing an older
-snapshot changes the live pointer without replacing the latest draft or moving
-student attempts. The chosen snapshot is validated using its captured source
-text and checks before publication. Invalid versions remain saved for review.
+Follow **Version history** in the adventure navigation to open the publication-history
+page. Each published version has a stable student link, publisher attribution,
+completion counts, and **View results**. Publish draft changes from the editor;
+importing returns to the editor without opening a dialog. Earlier snapshots and
+student attempts remain unchanged.
 
 Student links use `/v3/join/<versionId>`, where `versionId` is the stable UUID
 already issued to that published snapshot. Every copy control uses this URL:
-the publish panel, Versions dialog, desktop/mobile version history, and school
+the publish panel, desktop/mobile version history, and school
 console. The library starts and resumes only the currently published version.
 `/v3/play/<attemptId>` continues to identify one student's saved session.
 

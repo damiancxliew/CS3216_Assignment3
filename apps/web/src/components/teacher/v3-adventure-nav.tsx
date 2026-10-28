@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AdventureVersions } from "./v3-version-controls";
+import { History } from "lucide-react";
 
 /** Consistent navigation for the adventure workspace and its teacher pages. */
 export function V3AdventureNav({
@@ -32,7 +32,7 @@ export function V3AdventureNav({
         ← Back to {page === "adventure" ? "adventures" : "adventure"}
       </Link>
       <div className="flex flex-wrap items-center gap-4">
-        <AdventureVersions adventureId={adventureId} />
+        {page !== "history" ? <Link href={`${href}/links`} className="inline-flex items-center gap-1.5 text-muted underline underline-offset-4 hover:text-ink"><History className="size-4" aria-hidden />Version history</Link> : null}
         {secondary.map((item) => (
           <Link
             key={item.href}

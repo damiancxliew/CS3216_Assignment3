@@ -55,7 +55,7 @@ export function EditorWorkspace(props: Props) {
   const [publishedVersion, setPublishedVersion] = useState(
     props.publishedVersion,
   );
-  // Publication can change from the versions dialog while local edits stay open.
+  // Keep publication state in sync after a server refresh.
   useEffect(() => {
     setPublished(props.published);
     setPublishedVersion(props.publishedVersion);
@@ -75,6 +75,7 @@ export function EditorWorkspace(props: Props) {
   >({});
   const [edits, setEdits] = useState<V3Edit[]>([]);
   const [editMode, setEditMode] = useState(false);
+  const [chatClosed, setChatClosed] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [localPending, setPending] = useState(false);
   const [upgradePending, setUpgradePending] = useState(false);
@@ -256,7 +257,7 @@ export function EditorWorkspace(props: Props) {
             />
           </fieldset>
         }
-        sidebar={editMode || upgradeOpen ? <EditorConversation /> : undefined}
+        sidebar={(editMode || upgradeOpen) && !chatClosed ? <EditorConversation onClose={() => setChatClosed(true)} /> : undefined}
         floatingChecks
         issueActions={
           <AiFixPanel<{ edits: V3Edit[] }>
@@ -370,6 +371,7 @@ export function EditorWorkspace(props: Props) {
                       Preview
                     </Link>
                   )}
+                  {chatClosed ? <button type="button" className={button.quiet} onClick={() => { setChatClosed(false); setEditMode(true); }}>Edit with chat</button> : null}
                   <AdventureTransfer adventureId={props.adventureId} version={version} publishedVersion={publishedVersion} disabled={dirty || pending} />
                 </div>
                 {dirty ? (

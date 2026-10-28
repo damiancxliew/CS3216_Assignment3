@@ -6,7 +6,6 @@ import { publishAdventure, unpublishAdventure } from "@/lib/play/v3/publish";
 import { v3PublishDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
 import { v3Enabled } from "@/lib/v3/flag";
-import { publishSelectedVersion } from "@/lib/v3/versions";
 
 export type PublishActionResult = { ok: true; status: string } | { ok: false; message: string };
 
@@ -35,17 +34,6 @@ export async function publishV3Adventure(adventureId: string, expected?: { versi
 
 export async function unpublishV3Adventure(adventureId: string, expected?: { version: number; publishedVersion: number | null }): Promise<PublishActionResult> {
   return run(adventureId, unpublishAdventure, expected);
-}
-
-export async function publishSavedV3Version(adventureId: string, selected: number, expected: { version: number; publishedVersion: number | null }): Promise<PublishActionResult> {
-  if (!v3Enabled()) return { ok: false, message: "Not found." };
-  const { data: { user } } = await (await createClient()).auth.getUser();
-  if (!user) return { ok: false, message: "Sign in again." };
-  const result = await publishSelectedVersion(v3PublishDeps(), user.id, adventureId, selected, expected);
-  if (result.status !== 200) return { ok: false, message: (result.body as { error: { message: string } }).error.message };
-  revalidatePath(`/v3/teacher/${adventureId}`, "layout");
-  revalidatePath("/teacher");
-  return { ok: true, status: "published" };
 }
 
 /** Returns the already-issued current release link; never creates or rotates one. */
