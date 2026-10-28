@@ -11,9 +11,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/components/play/adventure-chrome.module.css";
 import { DialogueBox } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
-import { NotePickup, useNotePickups } from "@/components/play/v3/note-pickup";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
-import { StoryToast, talkLines, useStanceShifts, useStoryToasts } from "@/components/play/v3/story-lines";
+import { talkLines, useStanceShifts } from "@/components/play/v3/story-lines";
+import { MissionFocus } from "./mission-focus";
 import { StageIsland } from "@/components/play/v3/stage-island";
 import { V3CardDialog } from "./card-dialog";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
@@ -99,7 +99,6 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   );
   const [now, setNow] = useState<number | null>(null);
   const mapSection = useRef<HTMLElement>(null);
-  const pickup = useNotePickups(view.notes);
   const talkingRoomId = useRef<string | null>(null);
   const seenAtTalkOpen = useRef<ReadonlySet<string>>(new Set());
   const acknowledgeIslandRequest = useCallback((key: number) => {
@@ -121,11 +120,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const preparation = stage?.preparation;
   const essential = preparation?.essentialConversations ?? [];
   const completedConversations = essential.filter((conversation) => conversation.complete).length;
-  const nextConversation = essential.find((conversation) => !conversation.complete);
   const stepsLeft = preparation ? (preparation.timerExpired ? 0 : Math.max(0, preparation.required - preparation.completed)) + essential.length - completedConversations : 0;
-  const nextStep = !preparation ? null
-    : preparation.ready ? "You can make the stage decision."
-    : preparation.hint ?? (nextConversation ? `Speak with ${nextConversation.name}.` : null);
   const guidanceKey = `v3.guidance:${attemptId}:${stageIndex}`;
   const spawnRoomId = view.rooms[0]?.id ?? "";
   const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
@@ -139,7 +134,6 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     () => openCharacter ? talkLines(view.messages, view.currentRoomId, openCharacter.id, seenAtTalkOpen.current) : [],
     [openCharacter, view.currentRoomId, view.messages],
   );
-  const storyToasts = useStoryToasts(view.messages, view.phase === "stage" && !isMoment && !isTalkOpen);
   const stanceShifts = useStanceShifts(view.characters);
   const dialogueMessages = useMemo(() => messages.map((item) => ({
     ...item,
@@ -290,7 +284,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               onOpenDocument={openDocument}
               onOpenRoleBrief={onOpenRoleBrief}
               definingMoment={isMoment}
-              pulseKey={pickup.current?.id ?? null}
+              pulseKey={view.notes.at(-1)?.id ?? null}
               openRequest={islandRequest}
               onOpenRequestHandled={acknowledgeIslandRequest}
               shortcutsLocked={externalMovementLock || guidance !== null || Boolean(experience?.movementLocked)}
@@ -365,22 +359,27 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             </button>
           </header>
 
-          {missionCollapsed && nextStep && !isMoment ? (
-            <p className="mt-1 line-clamp-2 text-xs font-bold leading-snug"><span className="font-black uppercase tracking-wide">Next:</span> {nextStep}</p>
-          ) : null}
-          {!missionCollapsed ? (
-            <div className="mt-2 space-y-2">
+          <div className={`${missionCollapsed ? "mt-1" : "mt-2"} flex flex-col gap-2`}>
+            <div hidden={missionCollapsed}>
               {experience?.mission}
               {stage?.centralQuestion && !experience?.mission ? (
                 <p className="text-sm font-semibold leading-snug">{stage.centralQuestion}</p>
               ) : null}
+            </div>
+            <MissionFocus key={`${attemptId}:${stageIndex}`} view={view} collapsed={missionCollapsed} showNextStep={!experience?.mission} onOpenDocument={openDocument} onOpenJournal={(tab) => {
+              if (isTalkOpen && tab === "notes") setNotesOpen(true);
+              else {
+                if (isTalkOpen) closeTalk();
+                setIslandRequest({ tab, key: Date.now() });
+              }
+            }} />
+            <div hidden={missionCollapsed} className="space-y-2">
               {!isMoment ? (
                 <>
                   <p className="text-xs text-[#5c6472]">
                     You are in {view.rooms.find((room) => room.id === view.currentRoomId)?.name ?? "an unknown room"}
                   </p>
                   {preparation ? <div className="space-y-1 text-xs" role="status" aria-live="polite">
-                    {nextStep ? <p className="rounded-md border-2 border-[#1f2433] bg-[#fff1c7] px-2 py-1.5 text-xs font-bold leading-snug"><span className="font-black uppercase tracking-wide">Next:</span> {nextStep}</p> : null}
                     <PreparationProgress label="Evidence preparation" completed={preparation.completed} required={preparation.required} />
                     <PreparationProgress label="Essential conversations" completed={completedConversations} required={essential.length} />
                     {essential.length ? <ul aria-label="Essential conversations" className="space-y-0.5">{essential.map((conversation) => <li key={conversation.characterId} className="flex items-center gap-1.5">{conversation.complete ? <Check size={13} aria-hidden /> : <Circle size={11} aria-hidden />}<span className={conversation.complete ? "text-[#5c6472] line-through" : ""}>Speak with {conversation.name}</span><span className="sr-only">{conversation.complete ? ": conversation complete" : ": conversation still needed"}</span></li>)}</ul> : null}
@@ -441,7 +440,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                 </>
               ) : null}
             </div>
-          ) : null}
+          </div>
         </section>
         </section>
       </div>
@@ -475,28 +474,6 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             }}
           />
         </V3CardDialog>
-      ) : null}
-
-      {storyToasts.current ? (
-        <StoryToast
-          key={storyToasts.current.id}
-          message={storyToasts.current}
-          characters={view.characters}
-          shift={storyToasts.current.characterId ? stanceShifts.get(storyToasts.current.characterId) ?? null : null}
-          onDismiss={storyToasts.dismiss}
-        />
-      ) : null}
-      {pickup.current ? (
-        <NotePickup
-          key={pickup.current.id}
-          note={pickup.current}
-          onOpen={() => {
-            pickup.dismiss();
-            if (openedDocument) closeDocument();
-            if (isTalkOpen) setNotesOpen(true);
-            else setIslandRequest({ tab: "notes", key: Date.now() });
-          }}
-        />
       ) : null}
 
       {openedDocument ? (

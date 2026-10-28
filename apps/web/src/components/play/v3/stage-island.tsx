@@ -432,7 +432,7 @@ export function StageIsland({
     <section
       ref={island}
       aria-label="Journal"
-      className={`absolute bottom-2 left-2 w-[min(22rem,calc(100%_-_1rem))] rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433] sm:bottom-4 sm:left-4 ${layerClass}`}
+      className={`absolute bottom-2 left-2 ${expanded ? "w-[min(40rem,calc(100%_-_1rem))] sm:max-w-[calc(100%_-_2rem)]" : "w-[min(22rem,calc(100%_-_1rem))]"} rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433] sm:bottom-4 sm:left-4 ${layerClass}`}
     >
       <header className="shrink-0 rounded-t-[9px] bg-[#1f2433] px-3 py-2 text-[#fffaf0]">
         <h2 className="text-xs font-bold">

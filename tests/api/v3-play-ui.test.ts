@@ -427,7 +427,7 @@ describe("v3 stage play screen", () => {
       expect(notesMarkup).toContain('id="stage-island-panel"');
       expect(notesMarkup).toContain('aria-expanded="true"');
       expect(notesMarkup).toContain('id="stage-island-panel" aria-hidden="false"');
-      expect(notesMarkup).toContain("w-[min(22rem,calc(100%_-_1rem))]");
+      expect(notesMarkup).toContain("w-[min(40rem,calc(100%_-_1rem))]");
       expect(notesMarkup.indexOf('<section aria-label="Stage 2 notes">'))
         .toBeLessThan(notesMarkup.indexOf('<section aria-label="Stage 1 notes">'));
       expect(notesMarkup).toContain("A later conversation.");
