@@ -38,7 +38,7 @@ export function requireDecisionPreparation(ctx: StepContext): void {
   if (!decisionPreparation(ctx).ready) fail('preparation_required', 'finish the essential conversations and evidence before deciding')
 }
 
-/** All designated information must be discussed, across one or more server-confirmed substantive exchanges. */
+/** Record designated facts confirmed by a substantive reply or by showing a verified note. */
 export function confirmEssentialConversation(ctx: StepContext, characterId: string, conveyed: readonly string[]): void {
   const stage = currentStage(ctx)
   const requirement = stage.preparation?.essentialCharacters.find((character) => character.characterId === characterId)
@@ -136,6 +136,13 @@ function preparationHintTask(scope: Scope, characterId?: string, now = scope.sta
     return undefined
   }
   for (const id of roots) {
+    const recipient = stage.preparation.essentialCharacters.find((required) => required.discoveryIds.includes(id)
+      && state.notes.some((note) => note.discoveryId === id) && state.discovered.includes(id)
+      && !state.essentialConversations?.[stage.id]?.[required.characterId]?.includes(id)
+      && state.characters[required.characterId]?.roomId != null
+      && preparationProgress(stage.preparation!.characters[required.characterId] ?? [], state.discovered).ready)
+    const discovery = spec.discoveries.find((candidate) => candidate.id === id)
+    if (recipient !== undefined && discovery !== undefined) return { discovery, shareWith: recipient.characterId }
     const target = accessible(id, new Set())
     if (target !== undefined) return target
   }
