@@ -132,7 +132,15 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await page.getByRole("button", { name: "Start exploring" }).click();
     await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
     expect(game.state.stageEndsAt).not.toBeNull();
-    if (name === "mobile") await page.getByRole("button", { name: "Show mission" }).click();
+    if (name === "mobile") {
+      await page.getByRole("region", { name: "Mission" }).getByText(/Next:.*Read.*harbour letter/).waitFor();
+      await page.getByRole("button", { name: "Show mission" }).click();
+    }
+    const mission = page.getByRole("region", { name: "Mission" });
+    await mission.getByText(/Next:.*Read.*harbour letter/).waitFor();
+    await mission.getByRole("list", { name: "Essential conversations" }).getByText("Speak with Ada").waitFor();
+    await page.getByRole("button", { name: /Review stage decision \(\d+ steps left\)/ }).waitFor();
+    await page.screenshot({ path: resolve(output, `${name}-mission-next-step.png`) });
     await page.getByRole("button", { name: "Review stage decision" }).click();
     const locked = page.getByRole("dialog", { name: "There is more to investigate" });
     await locked.getByText("Essential conversations: 0 of 2", { exact: false }).waitFor();
@@ -144,6 +152,8 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     expect(await page.getByRole("button", { name: "Review stage decision" }).evaluate(element => element === document.activeElement)).toBe(true);
     if (await page.getByRole("button", { name: "Hide mission" }).isVisible()) await page.getByRole("button", { name: "Hide mission" }).click();
     await walkToCharacter(page, "a");
+    await page.getByRole("button", { name: /talk to Ada/ }).getByText(/Read.*harbour letter/).waitFor();
+    await page.screenshot({ path: resolve(output, `${name}-nearby-lock-reason.png`) });
     await page.getByRole("button", { name: /talk to Ada/ }).click();
     const preparation = page.getByRole("dialog", { name: "Prepare to talk to Ada" });
     expect(await preparation.getByLabel("Scroll contents").count()).toBe(0);
@@ -316,7 +326,8 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await page.getByRole("button", { name: "Help with this stage" }).click();
     await page.getByRole("dialog", { name: "How to prepare for this stage" }).getByText("Essential conversations: 2 of 2", { exact: false }).waitFor();
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Review stage decision" }).click();
+    await page.getByRole("region", { name: "Mission" }).getByText("You can make the stage decision.", { exact: false }).waitFor();
+    await page.getByRole("button", { name: "Review stage decision", exact: true }).click();
     const confirm = page.getByRole("dialog", { name: "Finish exploring and decide?" });
     await confirm.getByText(fixture.spec.stages[0]!.centralQuestion).waitFor();
     await page.screenshot({ path: resolve(output, `${name}-decision-confirmation.png`) });
