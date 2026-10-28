@@ -15,7 +15,7 @@ export async function importAdventureJson(_previous: { error?: string }, form: F
   return importAdventureFile(form);
 }
 
-export async function updateAdventureFromZip(id: string, expectedVersion: number, expectedPublished: number | null, _previous: { error?: string }, form: FormData): Promise<{ error?: string }> {
+export async function updateAdventureFromFile(id: string, expectedVersion: number, expectedPublished: number | null, _previous: { error?: string }, form: FormData): Promise<{ error?: string }> {
   return importAdventureFile(form, { id, expectedVersion, expectedPublished });
 }
 
@@ -25,7 +25,6 @@ async function importAdventureFile(form: FormData, target?: { id: string; expect
   const file = form.get("file");
   if (!(file instanceof File) || !file.size) return { error: "Choose a ZIP or JSON file to import." };
   const zip = file.name.toLowerCase().endsWith(".zip");
-  if (target && !zip) return { error: "Choose an exported ZIP to update this adventure." };
   if (file.size > (zip ? MAX_ARCHIVE_BYTES : MAX_SPEC_BYTES)) return { error: zip ? "Choose a ZIP smaller than 15 MB." : "Choose a JSON file smaller than 10 MB." };
   let bundle;
   const admin = createAdminClient();
@@ -67,7 +66,7 @@ async function importAdventureFile(form: FormData, target?: { id: string; expect
     });
     if (error || !data?.saved) {
       await cleanupMedia();
-      if (error) console.error("could not update adventure from ZIP", error);
+      if (error) console.error("could not import adventure update", error);
       return { error: error ? "Could not import this update. The adventure was not changed." : "This adventure changed. Reload before importing." };
     }
     revalidatePath(`/v3/teacher/${id}`, "layout");

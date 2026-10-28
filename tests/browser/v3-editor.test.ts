@@ -73,7 +73,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           },
           async load(id) {
             if (id === "\0versions") return `export async function getV3SavedVersions(){return {ok:true,latest:1,publishedVersion:1,published:true,versions:[]}}`;
-            if (id === "\0import-json") return `export async function importAdventureJson(previous,form){return {error:form.get('file').name.endsWith('.zip')?'Could not import ZIP.':'That file is not valid JSON.'}}; export async function updateAdventureFromZip(){return {error:'This adventure changed. Reload before importing.'}}`;
+            if (id === "\0import-json") return `export async function importAdventureJson(previous,form){return {error:form.get('file').name.endsWith('.zip')?'Could not import ZIP.':'That file is not valid JSON.'}}; export async function updateAdventureFromFile(){return {error:'This adventure changed. Reload before importing.'}}`;
             if (id === "\0analytics") return `export function track(){}`;
             if (id === "\0buttons") return `import React from 'react'; ${buttons}
               export const control='rounded-control border border-line p-2';

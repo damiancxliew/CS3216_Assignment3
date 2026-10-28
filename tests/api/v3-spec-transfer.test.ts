@@ -40,7 +40,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({
   },
 }) }));
 
-import { importAdventureJson, updateAdventureFromZip } from "@/app/v3/teacher/import-actions";
+import { importAdventureJson, updateAdventureFromFile } from "@/app/v3/teacher/import-actions";
 import { GET } from "@/app/api/v3/adventures/[id]/export/route";
 import { createSpecArchive } from "@/lib/v3/spec-archive";
 import { specExport } from "@/lib/v3/spec-transfer";
@@ -150,7 +150,7 @@ describe("v3 import/export access and persistence", () => {
     const bundle = specExport(structuredClone(spec), [], "story", 2);
     const archive = await createSpecArchive(bundle, async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")));
     const data = new FormData(); data.set("file", new File([new Uint8Array(archive)], "update.zip"));
-    await expect(updateAdventureFromZip("story", 2, 1, {}, data)).rejects.toThrow("redirect:/v3/teacher/story?view=editor&importedVersion=3");
+    await expect(updateAdventureFromFile("story", 2, 1, {}, data)).rejects.toThrow("redirect:/v3/teacher/story?view=editor&importedVersion=3");
     expect(h.inserts).toEqual([]);
     expect(h.rpc).toHaveBeenCalledWith("import_adventure_version_v3", expect.objectContaining({ p_id: "story", p_expected_version: 2, p_expected_published: 1, p_spec: expect.objectContaining({ title: spec.title }) }));
   });
@@ -158,8 +158,48 @@ describe("v3 import/export access and persistence", () => {
   it("rejects another owner's ZIP update before uploading media", async () => {
     h.row!.owner_id = "another-owner";
     const data = new FormData(); data.set("file", new File(["not read"], "update.zip"));
-    expect((await updateAdventureFromZip("story", 2, null, {}, data)).error).toBe("Adventure not found.");
+    expect((await updateAdventureFromFile("story", 2, null, {}, data)).error).toBe("Adventure not found.");
     expect(h.uploads).toEqual([]); expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(["bundle", "raw spec"])("updates an existing adventure from a JSON %s", async (format) => {
+    h.row!.published_version = 1;
+    const sources = [{ id: "reading", title: "Reading", kind: "text" as const, pages: [{ page: 1, text: "Captured source text" }] }];
+    const bundle = specExport(structuredClone(spec), sources, "story", 2);
+    bundle.spec.title = "Updated from JSON";
+    bundle.spec.authoring!.stageImages![bundle.spec.stages[0].id] = { type: "legacy", version: 2, url: "https://old.test/art.png" };
+    const data = form(JSON.stringify(format === "bundle" ? bundle : bundle.spec));
+    await expect(updateAdventureFromFile("story", 2, 1, {}, data)).rejects.toThrow("redirect:/v3/teacher/story?view=editor&importedVersion=3");
+    expect(h.rpc).toHaveBeenCalledWith("import_adventure_version_v3", {
+      p_id: "story", p_expected_version: 2, p_expected_published: 1,
+      p_spec: expect.objectContaining({ title: "Updated from JSON", authoring: expect.objectContaining({ stageImages: bundle.spec.authoring!.stageImages }) }),
+      p_sources: format === "bundle" ? sources : [],
+    });
+    expect(h.inserts).toEqual([]);
+    expect(h.uploads).toEqual([]);
+  });
+
+  it("rejects malformed JSON updates without saving a version", async () => {
+    h.row!.published_version = null;
+    expect((await updateAdventureFromFile("story", 2, null, {}, form("{broken"))).error).toContain("not valid JSON");
+    expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.inserts).toEqual([]);
+  });
+
+  it("rejects JSON updates over 10 MB without saving a version", async () => {
+    expect((await updateAdventureFromFile("story", 2, null, {}, form(" ".repeat(10 * 1024 * 1024 + 1)))).error).toContain("smaller than 10 MB");
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(["another owner", "changed draft", "changed publication"])("rejects JSON updates for %s", async (reason) => {
+    h.row!.published_version = 1;
+    if (reason === "another owner") h.row!.owner_id = "someone-else";
+    if (reason === "changed draft") h.row!.spec_version = 3;
+    if (reason === "changed publication") h.row!.published_version = 2;
+    const result = await updateAdventureFromFile("story", 2, 1, {}, form(JSON.stringify(spec)));
+    expect(result.error).toBe(reason === "another owner" ? "Adventure not found." : "This adventure changed. Reload before importing.");
+    expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.inserts).toEqual([]);
   });
 
   it.each(["admin", "system-admin"])("allows %s to import a new version without changing ownership", async (role) => {
@@ -168,7 +208,7 @@ describe("v3 import/export access and persistence", () => {
     if (h.sysadmin) { h.row!.school_id = "other-school"; h.allowed = false; }
     const archive = await createSpecArchive(specExport(structuredClone(spec), [], "story", 2), async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")));
     const data = new FormData(); data.set("file", new File([new Uint8Array(archive)], "update.zip"));
-    await expect(updateAdventureFromZip("story", 2, null, {}, data)).rejects.toThrow("redirect:");
+    await expect(updateAdventureFromFile("story", 2, null, {}, data)).rejects.toThrow("redirect:");
     expect(h.inserts).toEqual([]);
     expect(h.rpc).toHaveBeenCalledWith("import_adventure_version_v3", expect.objectContaining({ p_id: "story" }));
   });

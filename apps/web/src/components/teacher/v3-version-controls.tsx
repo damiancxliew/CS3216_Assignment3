@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowDownUp, Download, Upload, History, Copy, ExternalLink } from "lucide-react";
 import { compactButton as button } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
-import { updateAdventureFromZip } from "@/app/v3/teacher/import-actions";
+import { updateAdventureFromFile } from "@/app/v3/teacher/import-actions";
 import { getV3SavedVersions } from "@/app/v3/teacher/[id]/version-actions";
 import { PublicationAttribution } from "./v3-publication-attribution";
 import { publishSavedV3Version } from "@/app/v3/teacher/[id]/publish-actions";
@@ -32,11 +32,11 @@ export function AdventureTransfer({ adventureId, version, publishedVersion, disa
           <h3 className="flex items-center gap-2 font-bold"><Upload className="size-4" aria-hidden />Import version {version + 1}</h3>
           <p className="mt-2 text-sm text-muted">Earlier versions and student attempts are kept. {publishedVersion ? `Version ${publishedVersion} stays live.` : "The new version stays unpublished."}</p>
         </div>
-        <ActionForm action={updateAdventureFromZip.bind(null, adventureId, version, publishedVersion)} submitLabel="Import as new version" pendingLabel="Importing…">
-          <label className="flex flex-col gap-2 text-sm font-bold">Adventure ZIP
-            <input type="file" name="file" accept=".zip,application/zip" required className="w-full rounded-control border border-line p-2 font-normal" />
+        <ActionForm action={updateAdventureFromFile.bind(null, adventureId, version, publishedVersion)} submitLabel="Import as new version" pendingLabel="Importing…">
+          <label className="flex flex-col gap-2 text-sm font-bold">Adventure ZIP or JSON
+            <input type="file" name="file" accept=".zip,.json,application/zip,application/json" required className="w-full rounded-control border border-line p-2 font-normal" />
           </label>
-          <p className="text-xs text-muted">15 MB max, including images and sprites.</p>
+          <p className="text-xs text-muted">ZIP: 15 MB max, including images and sprites. JSON: 10 MB max, keeping media links.</p>
         </ActionForm>
       </dialog>
     </>
