@@ -139,11 +139,11 @@ export function V3Cinematic({
         ) : null}
       </div>
       <div className={styles.scrim} aria-hidden />
-      <div className={`${styles.bar} ${styles.barTop}`} aria-hidden />
+      {/* The header is a full-width strip from the top edge (#362), so it replaces the top bar. */}
       <div className={`${styles.bar} ${styles.barBottom}`} aria-hidden />
 
       {artMetadata ? <div className="absolute bottom-2 right-3 z-20 max-w-[70%] rounded bg-black/75 px-2 py-1 text-xs text-white"><MediaCredit media={artMetadata} caption /></div> : null}
-      <header className={styles.top}>
+      <header className={`${styles.top} ${styles.topFlush}`}>
         <p className={styles.chapter}>Historical adventure</p>
         <div className={styles.controls}>
           {fullscreen.supported ? (
