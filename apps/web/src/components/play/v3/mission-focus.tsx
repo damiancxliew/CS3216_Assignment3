@@ -17,6 +17,7 @@ export function recentMissionItem(view: PlayerView, previous?: PlayerView): Miss
   const knownMessages = new Set(previous?.messages.map((message) => message.id));
   const knownNotes = new Set(previous?.notes.map((note) => note.id));
   const messages = view.messages.filter((message) => message.stageIndex === stageIndex && message.kind !== "player"
+    && (previous || !view.stage?.preparation || message.kind === "thought")
     && !knownMessages.has(message.id));
   const notes = view.notes.filter((note) => note.stageIndex === stageIndex
     && !knownNotes.has(note.id));
@@ -32,8 +33,22 @@ export function recentMissionItem(view: PlayerView, previous?: PlayerView): Miss
   return document ? { label: "Latest document", text: documentDisplayTitle(document.title), tab: "documents", documentId: document.id } : null;
 }
 
-export function MissionFocus({ view, onOpenDocument, onOpenJournal, showNextStep = true }: {
+export function missionNextStep(view: PlayerView): string {
+  const preparation = view.stage?.preparation;
+  const moment = view.definingMoment;
+  if (moment) return moment.status === "predicting" ? "Predict what happens next." : "Choose your course of action.";
+  if (preparation?.ready) return "You can make the stage decision.";
+  if (preparation?.hint) return preparation.hint;
+  const nextConversation = preparation?.essentialConversations?.find((conversation) => !conversation.complete);
+  if (nextConversation) return `Speak with ${nextConversation.name}.`;
+  return preparation?.timerExpired
+    ? "Hear from the remaining essential people before deciding."
+    : "Explore the rooms, read the evidence, and talk to the people you meet.";
+}
+
+export function MissionFocus({ view, onOpenDocument, onOpenJournal, showNextStep = true, collapsed = false }: {
   view: PlayerView;
+  collapsed?: boolean;
   /** Authored experiences already supply their own next-step controls. */
   showNextStep?: boolean;
   onOpenDocument: (id: string) => void;
@@ -43,29 +58,24 @@ export function MissionFocus({ view, onOpenDocument, onOpenJournal, showNextStep
   // Keep the last update visible until something newer arrives; reset at stage boundaries.
   let item = focus.item;
   if (focus.view !== view) {
+    const nextStepChanged = missionNextStep(focus.view) !== missionNextStep(view);
     item = focus.view.stage?.index !== view.stage?.index
       ? recentMissionItem(view)
-      : recentMissionItem(view, focus.view) ?? focus.item;
+      : recentMissionItem(view, focus.view) ?? (nextStepChanged ? null : focus.item);
     setFocus({ view, item });
   }
   const preparation = view.stage?.preparation;
-  const moment = view.definingMoment;
-  const nextAction = moment
-    ? moment.status === "predicting" ? "Predict what happens next." : "Choose your course of action."
-    : preparation?.ready ? "You’re ready. Review the stage decision, or keep exploring."
-      : preparation?.hint ?? (preparation?.timerExpired
-        ? "Hear from the remaining essential people before deciding."
-        : "Explore the rooms, read the evidence, and talk to the people you meet.");
-  if (moment || (preparation?.ready && showNextStep)) item = null;
+  const nextAction = missionNextStep(view);
+  if (view.definingMoment || (preparation?.ready && showNextStep)) item = null;
   if (!item && !showNextStep) return null;
 
   return (
-    <div aria-label="Current focus" className="rounded-lg border border-[#1f2433]/15 bg-white/65 p-2.5">
-      <div role="status" aria-live="polite" aria-atomic="true">
-        <h3 className="mb-1 text-[11px] font-black uppercase tracking-wide text-[#5c6472]">{item?.label ?? "Next step"}</h3>
-        <p className="max-h-32 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed">{item?.text ?? nextAction}</p>
+    <div aria-label="Current focus" className={collapsed ? "mt-1" : "rounded-lg border border-[#1f2433]/15 bg-white/65 p-2.5"}>
+      <div role="status" aria-live="polite" aria-atomic="true" className={collapsed ? "line-clamp-2 text-xs font-bold leading-snug" : undefined}>
+        <h3 className={collapsed ? "mr-1 inline font-black" : "mb-1 text-[11px] font-black uppercase tracking-wide text-[#5c6472]"}>{item?.label ?? "Next"}:</h3>
+        <p className={collapsed ? "inline" : "max-h-32 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed"}>{item?.text ?? nextAction}</p>
       </div>
-      {item ? <button type="button" onClick={() => item.documentId ? onOpenDocument(item.documentId) : onOpenJournal(item.tab)} className="mt-1 min-h-9 text-xs font-bold underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#3659cf]">
+      {item && !collapsed ? <button type="button" onClick={() => item.documentId ? onOpenDocument(item.documentId) : onOpenJournal(item.tab)} className="mt-1 min-h-9 text-xs font-bold underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#3659cf]">
         {item.documentId ? "Read document" : "Open in Journal"}
       </button> : null}
     </div>

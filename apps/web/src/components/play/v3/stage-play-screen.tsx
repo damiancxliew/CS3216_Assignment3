@@ -120,11 +120,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const preparation = stage?.preparation;
   const essential = preparation?.essentialConversations ?? [];
   const completedConversations = essential.filter((conversation) => conversation.complete).length;
-  const nextConversation = essential.find((conversation) => !conversation.complete);
   const stepsLeft = preparation ? (preparation.timerExpired ? 0 : Math.max(0, preparation.required - preparation.completed)) + essential.length - completedConversations : 0;
-  const nextStep = !preparation ? null
-    : preparation.ready ? "You can make the stage decision."
-    : preparation.hint ?? (nextConversation ? `Speak with ${nextConversation.name}.` : null);
   const guidanceKey = `v3.guidance:${attemptId}:${stageIndex}`;
   const spawnRoomId = view.rooms[0]?.id ?? "";
   const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
@@ -363,25 +359,27 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             </button>
           </header>
 
-            <div hidden={missionCollapsed} className="mt-2 space-y-2">
+          <div className="mt-2 space-y-2">
+            <div hidden={missionCollapsed}>
               {experience?.mission}
               {stage?.centralQuestion && !experience?.mission ? (
                 <p className="text-sm font-semibold leading-snug">{stage.centralQuestion}</p>
               ) : null}
-              <MissionFocus key={`${attemptId}:${stageIndex}`} view={view} showNextStep={!experience?.mission} onOpenDocument={openDocument} onOpenJournal={(tab) => {
-                if (isTalkOpen && tab === "notes") setNotesOpen(true);
-                else {
-                  if (isTalkOpen) closeTalk();
-                  setIslandRequest({ tab, key: Date.now() });
-                }
-              }} />
+            </div>
+            <MissionFocus key={`${attemptId}:${stageIndex}`} view={view} collapsed={missionCollapsed} showNextStep={!experience?.mission} onOpenDocument={openDocument} onOpenJournal={(tab) => {
+              if (isTalkOpen && tab === "notes") setNotesOpen(true);
+              else {
+                if (isTalkOpen) closeTalk();
+                setIslandRequest({ tab, key: Date.now() });
+              }
+            }} />
+            <div hidden={missionCollapsed}>
               {!isMoment ? (
                 <>
                   <p className="text-xs text-[#5c6472]">
                     You are in {view.rooms.find((room) => room.id === view.currentRoomId)?.name ?? "an unknown room"}
                   </p>
                   {preparation ? <div className="space-y-1 text-xs" role="status" aria-live="polite">
-                    {nextStep ? <p className="rounded-md border-2 border-[#1f2433] bg-[#fff1c7] px-2 py-1.5 text-xs font-bold leading-snug"><span className="font-black uppercase tracking-wide">Next:</span> {nextStep}</p> : null}
                     <PreparationProgress label="Evidence preparation" completed={preparation.completed} required={preparation.required} />
                     <PreparationProgress label="Essential conversations" completed={completedConversations} required={essential.length} />
                     {essential.length ? <ul aria-label="Essential conversations" className="space-y-0.5">{essential.map((conversation) => <li key={conversation.characterId} className="flex items-center gap-1.5">{conversation.complete ? <Check size={13} aria-hidden /> : <Circle size={11} aria-hidden />}<span className={conversation.complete ? "text-[#5c6472] line-through" : ""}>Speak with {conversation.name}</span><span className="sr-only">{conversation.complete ? ": conversation complete" : ": conversation still needed"}</span></li>)}</ul> : null}
@@ -442,6 +440,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                 </>
               ) : null}
             </div>
+          </div>
         </section>
         </section>
       </div>

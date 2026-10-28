@@ -130,6 +130,7 @@ it.runIf(process.env.RUN_JOURNAL_BROWSER_TESTS === "1")(
         notes: [], documents: [],
       }));
       await mission.getByText('Ask the clerk about the ships.').waitFor();
+      await page.screenshot({ path: '/tmp/mission-hint-desktop.png' });
       await mission.getByRole('button', {name: 'Open in Journal'}).click();
       await journal.getByRole('tab', {name: /Log/}).waitFor();
       await journal.getByText('Ask the clerk about the ships.').waitFor();
@@ -157,6 +158,8 @@ it.runIf(process.env.RUN_JOURNAL_BROWSER_TESTS === "1")(
           provenance:{masthead:null,date:null,sender:null,recipient:null,place:null},
           real:false, sourceLabel:null, glossary:[], open:false}],
       }));
+      await mission.getByText('Ships register').waitFor();
+      expect(await mission.getByRole('button', {name: 'Read document'}).count()).toBe(0);
       await mission.getByRole('button', {name: 'Show mission'}).click();
       await mission.getByText('Ships register').waitFor();
       await page.screenshot({ path: '/tmp/mission-focus-desktop.png' });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlayerView } from "@adventure/play-contract";
-import { recentMissionItem } from "@/components/play/v3/mission-focus";
+import { missionNextStep, recentMissionItem } from "@/components/play/v3/mission-focus";
 
 const hint = { id: "hint", kind: "thought", text: "Ask the clerk about the ships.", stageIndex: 0, at: 60_000 };
 const note = { id: "note", text: "The ships need permission.", stageIndex: 0, at: 120_000 };
@@ -34,5 +34,18 @@ describe("Mission's shared focus", () => {
   it("uses timestamps across notes and log entries, even if the arrays arrive out of order", () => {
     expect(recentMissionItem(view({ messages: [{ ...hint, id: "new-hint", at: 180_000 }, hint], notes: [note] })))
       .toMatchObject({ label: "Hint", text: hint.text });
+  });
+
+  it("starts with actionable preparation guidance rather than replaying an old story event", () => {
+    const current = view({ stage: { index: 0, preparation: { hint: "Read the harbour letter." } }, messages: [{ ...hint, kind: "narration" }] });
+    expect(recentMissionItem(current)).toBeNull();
+    expect(missionNextStep(current)).toBe("Read the harbour letter.");
+  });
+
+  it("preserves the parent's essential-person fallback and ready-state guidance", () => {
+    expect(missionNextStep(view({ stage: { preparation: { hint: null, essentialConversations: [{ name: "Ada", complete: false }] } } })))
+      .toBe("Speak with Ada.");
+    expect(missionNextStep(view({ stage: { preparation: { ready: true } } })))
+      .toBe("You can make the stage decision.");
   });
 });
