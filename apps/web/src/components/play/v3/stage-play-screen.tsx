@@ -11,9 +11,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/components/play/adventure-chrome.module.css";
 import { DialogueBox } from "@/components/play/v3/dialogue-box";
 import { DocumentReader } from "@/components/play/v3/document-reader";
-import { NotePickup, useNotePickups } from "@/components/play/v3/note-pickup";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
-import { StoryToast, talkLines, useStanceShifts, useStoryToasts } from "@/components/play/v3/story-lines";
+import { talkLines, useStanceShifts } from "@/components/play/v3/story-lines";
+import { MissionFocus } from "./mission-focus";
 import { StageIsland } from "@/components/play/v3/stage-island";
 import { V3CardDialog } from "./card-dialog";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
@@ -99,7 +99,6 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   );
   const [now, setNow] = useState<number | null>(null);
   const mapSection = useRef<HTMLElement>(null);
-  const pickup = useNotePickups(view.notes);
   const talkingRoomId = useRef<string | null>(null);
   const seenAtTalkOpen = useRef<ReadonlySet<string>>(new Set());
   const acknowledgeIslandRequest = useCallback((key: number) => {
@@ -139,7 +138,6 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
     () => openCharacter ? talkLines(view.messages, view.currentRoomId, openCharacter.id, seenAtTalkOpen.current) : [],
     [openCharacter, view.currentRoomId, view.messages],
   );
-  const storyToasts = useStoryToasts(view.messages, view.phase === "stage" && !isMoment && !isTalkOpen);
   const stanceShifts = useStanceShifts(view.characters);
   const dialogueMessages = useMemo(() => messages.map((item) => ({
     ...item,
@@ -290,7 +288,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               onOpenDocument={openDocument}
               onOpenRoleBrief={onOpenRoleBrief}
               definingMoment={isMoment}
-              pulseKey={pickup.current?.id ?? null}
+              pulseKey={view.notes.at(-1)?.id ?? null}
               openRequest={islandRequest}
               onOpenRequestHandled={acknowledgeIslandRequest}
               shortcutsLocked={externalMovementLock || guidance !== null || Boolean(experience?.movementLocked)}
@@ -365,15 +363,18 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             </button>
           </header>
 
-          {missionCollapsed && nextStep && !isMoment ? (
-            <p className="mt-1 line-clamp-2 text-xs font-bold leading-snug"><span className="font-black uppercase tracking-wide">Next:</span> {nextStep}</p>
-          ) : null}
-          {!missionCollapsed ? (
-            <div className="mt-2 space-y-2">
+            <div hidden={missionCollapsed} className="mt-2 space-y-2">
               {experience?.mission}
               {stage?.centralQuestion && !experience?.mission ? (
                 <p className="text-sm font-semibold leading-snug">{stage.centralQuestion}</p>
               ) : null}
+              <MissionFocus key={`${attemptId}:${stageIndex}`} view={view} showNextStep={!experience?.mission} onOpenDocument={openDocument} onOpenJournal={(tab) => {
+                if (isTalkOpen && tab === "notes") setNotesOpen(true);
+                else {
+                  if (isTalkOpen) closeTalk();
+                  setIslandRequest({ tab, key: Date.now() });
+                }
+              }} />
               {!isMoment ? (
                 <>
                   <p className="text-xs text-[#5c6472]">
@@ -441,7 +442,6 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                 </>
               ) : null}
             </div>
-          ) : null}
         </section>
         </section>
       </div>
@@ -475,28 +475,6 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             }}
           />
         </V3CardDialog>
-      ) : null}
-
-      {storyToasts.current ? (
-        <StoryToast
-          key={storyToasts.current.id}
-          message={storyToasts.current}
-          characters={view.characters}
-          shift={storyToasts.current.characterId ? stanceShifts.get(storyToasts.current.characterId) ?? null : null}
-          onDismiss={storyToasts.dismiss}
-        />
-      ) : null}
-      {pickup.current ? (
-        <NotePickup
-          key={pickup.current.id}
-          note={pickup.current}
-          onOpen={() => {
-            pickup.dismiss();
-            if (openedDocument) closeDocument();
-            if (isTalkOpen) setNotesOpen(true);
-            else setIslandRequest({ tab: "notes", key: Date.now() });
-          }}
-        />
       ) : null}
 
       {openedDocument ? (
