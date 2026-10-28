@@ -4,8 +4,6 @@ import { createRng, type LlmClient } from "@adventure/orchestration";
 import { z } from "zod";
 import { decodeStoredSpec } from "@adventure/spec-v3";
 
-import { v3SchoolAllowed } from "@/lib/v3/flag";
-
 import { createRateLimiter } from "./rate-limit";
 import type { V3Attempt, V3FlagInput, V3PlayStore } from "./store";
 
@@ -81,7 +79,6 @@ async function permittedAdventure(
   const adventure = await deps.store.loadAdventure(adventureId);
   if (
     !adventure ||
-    !v3SchoolAllowed(adventure.schoolId, deps.env) ||
     (!(adventure.isPublic && adventure.status === "published") &&
       !(await deps.store.isActiveMember(adventure.schoolId, userId)))
   ) {
@@ -150,7 +147,6 @@ export async function getAttempt(
   if (
     !attempt ||
     attempt.studentId !== userId ||
-    !v3SchoolAllowed(attempt.schoolId, deps.env) ||
     !(await permittedAdventure(deps, userId, attempt.adventureId))
   ) {
     return error(404, "not_found", "Not found.");
@@ -177,7 +173,6 @@ export async function postAction(
   if (
     !attempt ||
     attempt.studentId !== userId ||
-    !v3SchoolAllowed(attempt.schoolId, deps.env) ||
     !(await permittedAdventure(deps, userId, attempt.adventureId))
   ) {
     return error(404, "not_found", "Not found.");

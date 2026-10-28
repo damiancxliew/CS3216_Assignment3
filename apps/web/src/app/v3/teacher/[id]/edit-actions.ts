@@ -17,14 +17,12 @@ import { capturedSources } from "@/lib/v3/edit/apply";
 import { canStaffAdventure } from "@/lib/play/v3/access";
 import { proposeEditFix } from "@/lib/v3/edit/ai-fix";
 import { editFixLlm } from "@/lib/v3/edit/ai-deps";
-import { v3Enabled } from "@/lib/v3/flag";
 
 export async function saveV3AdventureEdits(
   adventureId: string,
   expectedVersion: number,
   edits: V3Edit[],
 ): Promise<SaveV3Result> {
-  if (!v3Enabled()) return { ok: false, code: "access", message: "Not found." };
   const {
     data: { user },
   } = await (await createClient()).auth.getUser();
@@ -84,7 +82,6 @@ export async function fixV3EditsWithAiAction(
   expectedVersion: number,
   edits: V3Edit[],
 ) {
-  if (!v3Enabled()) return { error: "not_found" };
   const {
     data: { user },
   } = await (await createClient()).auth.getUser();

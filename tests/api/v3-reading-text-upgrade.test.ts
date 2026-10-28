@@ -22,7 +22,7 @@ describe('stored reading text upgrade', () => {
     const store = new MemoryV3PlayStore();
     store.addAdventure({ id: 'game', schoolId: 'school', ownerId: 'teacher', status: 'published', specVersion: 1, publishedVersion: 1, spec });
     const repository = new MemoryUpgradeRepository(store);
-    const deps = { store, repository, env: { V3_ENABLED: '1', V3_SCHOOL_IDS: 'school' }, enqueue: async () => {}, llm: () => { throw Error('No model is required'); } };
+    const deps = { store, repository, env: {}, enqueue: async () => {}, llm: () => { throw Error('No model is required'); } };
     const started = await startUpgrade(deps, 'teacher', 'game', { expectedRevision: 1 });
     if (!started.ok) throw Error(started.message);
     const ready = await prepareUpgrade(deps, started.run);

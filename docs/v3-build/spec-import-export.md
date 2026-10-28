@@ -3,7 +3,7 @@
 On **Your adventures**, expand **Import adventure**, choose a ZIP or JSON file, and select
 **Import adventure**. The file creates a new draft owned by the signed-in
 teacher in their current school, then opens the editor. Existing adventures and
-published versions are untouched. This requires v3 access for the school.
+published versions are untouched. This requires staff membership in the school.
 
 Open **Import / export** in the editor or a completed guided draft. **Download
 ZIP** includes selected artwork and custom sprites; **Download JSON** keeps media

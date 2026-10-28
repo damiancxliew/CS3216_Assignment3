@@ -9,7 +9,7 @@ import { startPreview } from "@/lib/play/v3/preview";
 import { v3PreviewDeps, v3PublishDeps } from "@/lib/play/v3/http";
 import { EngineSpec } from "@adventure/engine";
 import { createClient } from "@/lib/supabase/server";
-import { v3Enabled } from "@/lib/v3/flag";
+
 import type { PlayerView } from "@adventure/play-contract";
 
 export const metadata: Metadata = {
@@ -22,7 +22,6 @@ export default async function V3TeacherPreviewPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  if (!v3Enabled()) notFound();
   const { id } = await params;
   const supabase = await createClient();
   const {

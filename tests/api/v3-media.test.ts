@@ -101,7 +101,7 @@ function setup() {
     play,
     media,
     storage,
-    env: { V3_ENABLED: "true", V3_SCHOOL_IDS: "school" },
+    env: {},
   };
   const input = {
     target: { kind: "stage" as const, key: spec.stages[0].id },

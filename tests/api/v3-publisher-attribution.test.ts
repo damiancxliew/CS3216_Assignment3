@@ -4,7 +4,7 @@ import { AdventureSpec } from "@adventure/spec-v3";
 import { MemoryV3PlayStore } from "@/lib/play/v3/store";
 import { publishAdventure, unpublishAdventure } from "@/lib/play/v3/publish";
 import { publishSelectedVersion } from "@/lib/v3/versions";
-const env = { V3_ENABLED: "true", V3_SCHOOL_IDS: "school" };
+const env = {};
 function setup() {
   const store = new MemoryV3PlayStore();
   const spec = AdventureSpec.parse(JSON.parse(readFileSync("fixtures/golden-1819.json", "utf8")));

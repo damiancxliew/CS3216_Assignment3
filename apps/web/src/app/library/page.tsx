@@ -10,7 +10,7 @@ import { getViewer } from "@/lib/auth/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { loadLibraryArtwork } from "@/lib/teacher/library";
-import { v3SchoolAllowed } from "@/lib/v3/flag";
+
 import { stageArtUrl, v3StageArtBase } from "@/lib/play/v3/stage-art";
 
 export const metadata: Metadata = { title: "School library", robots: { index: false } };
@@ -57,8 +57,7 @@ export default async function LibraryPage({
     );
   }
 
-  const allowV3 = v3SchoolAllowed(viewer.membership.organizationId);
-  const { data: libraryRows, error: libraryError } = await supabase.rpc("list_library_all_versions", { p_include_v3: allowV3 }).returns<LibraryEntry[]>();
+  const { data: libraryRows, error: libraryError } = await supabase.rpc("list_library_all_versions", { p_include_v3: true }).returns<LibraryEntry[]>();
   if (libraryError) console.error("could not load school library", libraryError);
   const adventures = (libraryRows ?? []) as unknown as LibraryEntry[];
   const v2Adventures = adventures.filter((adventure) => adventure.kind === "v2");

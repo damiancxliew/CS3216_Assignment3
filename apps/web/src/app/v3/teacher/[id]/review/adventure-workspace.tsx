@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { supabaseV3SourceStore } from "@/lib/v3/generation/deps";
-import { v3Enabled } from "@/lib/v3/flag";
+
 import { canAccessV3Authoring } from "@/lib/v3/access";
 import { reviewErrors, reviewSources } from "@/lib/v3/review";
 import { SupabaseV3PlayStore } from "@/lib/play/v3/store";
@@ -25,7 +25,6 @@ export default async function AdventureWorkspace({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  if (!v3Enabled()) notFound();
   const { id } = await params;
   const viewer = await getViewer(await createClient());
   if (!viewer.user || (!isStaff(viewer) && !viewer.isSysadmin)) notFound();

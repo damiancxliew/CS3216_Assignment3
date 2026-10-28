@@ -2,7 +2,7 @@
  * Orchestration for the v3 generation job: a confirmed brief enqueues the pass
  * steps (quick = all seven, standard = sources + skeleton, guided = one pass at a time),
  * approve resumes a reviewed skeleton, and progress reads the step rows.
- * No Next imports — deps and the flag env are injected.
+ * No Next imports — dependencies are injected.
  */
 import { checkSkeleton, validateSkeleton } from "@adventure/spec-v3";
 import { quoteIssues, sourceTexts } from "@adventure/generation/v3";
@@ -10,7 +10,7 @@ import type { AdventureSpec, CheckIssue, SkeletonShape } from "@adventure/spec-v
 import type { createJobs, EnqueueStep, JobStep, Json } from "@adventure/jobs";
 
 import type { Viewer } from "@/lib/auth/viewer";
-import { v3SchoolAllowed } from "@/lib/v3/flag";
+
 import { completeDraft, type BriefStateV3 } from "@/lib/v3/brief/schema";
 import type { V3BriefStore } from "@/lib/v3/brief/store";
 
@@ -71,11 +71,10 @@ export async function startFromBrief(
   briefStore: V3BriefStore,
   userId: string,
   adventureId: string,
-  env: NodeJS.ProcessEnv,
 ): Promise<{ ok: true } | { error: string }> {
   const row = await briefStore.load(adventureId);
   if (row === null || row.ownerId !== userId) return { error: "not_found" };
-  if (!v3SchoolAllowed(row.schoolId, env)) return { error: "not_found" };
+
   if (row.status !== "briefing") return { error: "not awaiting confirmation" };
 
   const draft = row.state?.draft;
@@ -117,11 +116,10 @@ export async function restartGeneration(
   store: StepStore,
   userId: string,
   adventureId: string,
-  env: NodeJS.ProcessEnv,
 ): Promise<{ adventureId: string } | { error: string }> {
   const adventure = await deps.adventures.get(adventureId);
   if (adventure === null || adventure.ownerId !== userId) return { error: "not_found" };
-  if (!v3SchoolAllowed(adventure.schoolId, env)) return { error: "not_found" };
+
   if (adventure.status !== "failed") return { error: "only a failed generation can be started again" };
 
   const oldBrief = await storedBrief(store, adventureId);
@@ -171,11 +169,10 @@ export async function saveSkeletonDraft(
   userId: string,
   adventureId: string,
   draft: unknown,
-  env: NodeJS.ProcessEnv,
 ): Promise<{ ok: true } | { error: string }> {
   const adventure = await deps.adventures.get(adventureId);
   if (adventure === null || adventure.ownerId !== userId) return { error: "not_found" };
-  if (!v3SchoolAllowed(adventure.schoolId, env)) return { error: "not_found" };
+
   if (adventure.status !== "needs_review") return { error: "not awaiting review" };
   if (JSON.stringify(draft).length > SKELETON_DRAFT_MAX_BYTES) return { error: "The draft is too large to save" };
   await deps.adventures.saveSkeletonDraft(adventureId, draft);
@@ -186,11 +183,10 @@ export async function discardSkeletonDraft(
   deps: GenerationDeps,
   userId: string,
   adventureId: string,
-  env: NodeJS.ProcessEnv,
 ): Promise<{ ok: true } | { error: string }> {
   const adventure = await deps.adventures.get(adventureId);
   if (adventure === null || adventure.ownerId !== userId) return { error: "not_found" };
-  if (!v3SchoolAllowed(adventure.schoolId, env)) return { error: "not_found" };
+
   if (adventure.status !== "needs_review") return { error: "not awaiting review" };
   await deps.adventures.clearSkeletonDraft(adventureId);
   return { ok: true };
@@ -227,11 +223,10 @@ export async function approveSkeleton(
   userId: string,
   adventureId: string,
   editedSkeleton: unknown | undefined,
-  env: NodeJS.ProcessEnv,
 ): Promise<{ ok: true } | { error: string; issues?: CheckIssue[] }> {
   const adventure = await deps.adventures.get(adventureId);
   if (adventure === null || adventure.ownerId !== userId) return { error: "not_found" };
-  if (!v3SchoolAllowed(adventure.schoolId, env)) return { error: "not_found" };
+
   if (adventure.status === "generating") return { error: "already approved" };
   if (adventure.status !== "needs_review") return { error: "not awaiting review" };
 
@@ -369,16 +364,16 @@ export async function loadPause(deps: GenerationDeps, store: StepStore, adventur
     ...validateEditedSpec(base, capturedSources(documents)) };
 }
 
-/** Every pause mutation requires the owner, flag, guided mode and the exact completed pass. */
-export async function requirePause(deps: GenerationDeps, store: StepStore, userId: string, adventureId: string, pass: GuidedPass, env: NodeJS.ProcessEnv): Promise<V3AdventureRow | null> {
+/** Every pause mutation requires the owner, guided mode and the exact completed pass. */
+export async function requirePause(deps: GenerationDeps, store: StepStore, userId: string, adventureId: string, pass: GuidedPass): Promise<V3AdventureRow | null> {
   const adventure = await deps.adventures.get(adventureId);
-  if (!adventure || adventure.ownerId !== userId || !v3SchoolAllowed(adventure.schoolId, env) || adventure.status !== "needs_review") return null;
+  if (!adventure || adventure.ownerId !== userId || adventure.status !== "needs_review") return null;
   if ((await storedBrief(store, adventureId))?.mode !== "guided" || pausedPass(await store.list(adventureId)) !== pass) return null;
   return adventure;
 }
 
-export async function continueFromSources(deps: GenerationDeps, jobs: Jobs, store: StepStore, userId: string, adventureId: string, removedSourceIds: string[], env: NodeJS.ProcessEnv): Promise<{ ok: true } | { error: string }> {
-  if (!await requirePause(deps, store, userId, adventureId, "sources", env)) return { error: "not awaiting sources review" };
+export async function continueFromSources(deps: GenerationDeps, jobs: Jobs, store: StepStore, userId: string, adventureId: string, removedSourceIds: string[]): Promise<{ ok: true } | { error: string }> {
+  if (!await requirePause(deps, store, userId, adventureId, "sources")) return { error: "not awaiting sources review" };
   const documents = await (deps.sources.loadAll?.(adventureId) ?? deps.sources.load(adventureId));
   if (!Array.isArray(removedSourceIds) || removedSourceIds.some(id => !documents.some(doc => doc.id === id && doc.origin === "outside"))) return { error: "Only outside sources from this adventure can be removed." };
   if (!documents.some(doc => !removedSourceIds.includes(doc.id))) return { error: "Keep at least one source." };
@@ -398,8 +393,8 @@ export async function continueFromSources(deps: GenerationDeps, jobs: Jobs, stor
   return { ok: true };
 }
 
-export async function savePauseEdits(deps: GenerationDeps, store: StepStore, userId: string, adventureId: string, pass: EditablePass, rawEdits: unknown, env: NodeJS.ProcessEnv): Promise<{ ok: true; warnings: CheckIssue[] } | { ok: false; errors: CheckIssue[] }> {
-  const adventure = ["details", "endings", "reveal"].includes(pass) ? await requirePause(deps, store, userId, adventureId, pass, env) : null;
+export async function savePauseEdits(deps: GenerationDeps, store: StepStore, userId: string, adventureId: string, pass: EditablePass, rawEdits: unknown): Promise<{ ok: true; warnings: CheckIssue[] } | { ok: false; errors: CheckIssue[] }> {
+  const adventure = ["details", "endings", "reveal"].includes(pass) ? await requirePause(deps, store, userId, adventureId, pass) : null;
   const pause = adventure ? await loadPause(deps, store, adventure) : null;
   if (!pause || !("base" in pause)) return { ok: false, errors: [{ code: "access", path: "", message: "Not awaiting this review." }] };
   const checked = checkTeacherEdits(pause.base, rawEdits, capturedSources(await deps.sources.load(adventureId)));
@@ -408,8 +403,8 @@ export async function savePauseEdits(deps: GenerationDeps, store: StepStore, use
   return { ok: true, warnings: checked.warnings };
 }
 
-export async function continuePause(deps: GenerationDeps, jobs: Jobs, store: StepStore, userId: string, adventureId: string, pass: EditablePass, rawEdits: unknown, env: NodeJS.ProcessEnv): Promise<{ ok: true } | { error: string; issues?: CheckIssue[] }> {
-  const adventure = ["details", "endings", "reveal"].includes(pass) ? await requirePause(deps, store, userId, adventureId, pass, env) : null;
+export async function continuePause(deps: GenerationDeps, jobs: Jobs, store: StepStore, userId: string, adventureId: string, pass: EditablePass, rawEdits: unknown): Promise<{ ok: true } | { error: string; issues?: CheckIssue[] }> {
+  const adventure = ["details", "endings", "reveal"].includes(pass) ? await requirePause(deps, store, userId, adventureId, pass) : null;
   const pause = adventure ? await loadPause(deps, store, adventure) : null;
   if (!pause || !("base" in pause)) return { error: "not awaiting this review" };
   const checked = checkTeacherEdits(pause.base, rawEdits, capturedSources(await deps.sources.load(adventureId)));

@@ -43,10 +43,7 @@ function fixture(schemaVersion: 1 | 2) {
     const deps = {
         store,
         repository,
-        env: {
-            V3_ENABLED: '1',
-            V3_SCHOOL_IDS: 's'
-        },
+        env: {},
         enqueue: async () => {
         },
         llm: () => {

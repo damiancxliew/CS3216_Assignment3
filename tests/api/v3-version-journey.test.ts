@@ -12,7 +12,7 @@ function setup() {
   const store = new MemoryV3PlayStore();
   store.addAdventure({ id: 'a', ownerId: 'teacher', schoolId: 's', status: 'draft', specVersion: 1, spec });
   for (const id of ['teacher', 'A', 'B', 'C']) store.addMember('s', id);
-  const deps = { store, env: { V3_ENABLED: 'true', V3_SCHOOL_IDS: 's' }, now: () => 0, llm: () => { throw Error('Unexpected model call'); } };
+  const deps = { store, env: {}, now: () => 0, llm: () => { throw Error('Unexpected model call'); } };
   return { spec, store, deps };
 }
 describe('published version entry', () => {

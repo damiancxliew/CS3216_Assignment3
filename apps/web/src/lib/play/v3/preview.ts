@@ -31,7 +31,7 @@ async function permittedPreview(
   adventureId: string,
 ) {
   const adventure = await deps.store.loadAdventure(adventureId);
-  if (!adventure || !(await canStaffAdventure(deps.store, adventure, userId, deps.env))) {
+  if (!adventure || !(await canStaffAdventure(deps.store, adventure, userId))) {
     return error(404, "not_found", "Not found.");
   }
   if (adventure.spec === null) {

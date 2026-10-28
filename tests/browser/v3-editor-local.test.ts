@@ -15,10 +15,7 @@ import { validateEditedSpec } from "@/lib/v3/edit/validation";
 it.runIf(process.env.RUN_EDITOR_LOCAL_TESTS === "1")(
   "walks through fixture creation, review, edit, preview, publish and student start locally",
   async () => {
-    const school = readFileSync("apps/web/.env.local", "utf8")
-      .match(/^V3_SCHOOL_IDS=(.*)$/m)![1]
-      .replaceAll('"', "")
-      .split(",")[0];
+    const school = process.env.EDITOR_LOCAL_SCHOOL_ID ?? "00000000-0000-4000-8000-000000005c01";
     const admin = serviceClient();
     const schoolRow = await admin
       .from("organization")

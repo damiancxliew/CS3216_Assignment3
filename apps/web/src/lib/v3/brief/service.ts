@@ -4,7 +4,7 @@ import { getViewer, isStaff, type Viewer } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withJsonUsage } from "@/lib/usage/ledger";
-import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
+
 import { supabaseV3BriefStore } from "./store";
 import { briefTurnV3 } from "./turn";
 import type { BriefInputV3 } from "./schema";
@@ -14,18 +14,17 @@ import { replyStreamOptions, type ReplyListener } from "@/lib/brief/stream";
 const notFound = { error: "not_found" } as const;
 
 export async function requireStaff(): Promise<{ viewer: Viewer; userId: string; schoolId: string } | { error: string }> {
-  if (!v3Enabled()) return notFound;
   const supabase = await createClient();
   const viewer = await getViewer(supabase);
   if (!viewer.user || (!isStaff(viewer) && !viewer.isSysadmin) || (!viewer.membership && !viewer.isSysadmin)) return notFound;
   return { viewer, userId: viewer.user.id, schoolId: viewer.membership?.organizationId ?? "" };
 }
 
-/** Loads a briefing row and checks the caller owns it and the school is allowed. */
+/** Loads a briefing row and checks the caller owns it. */
 export async function requireBriefingRow(adventureId: string, userId: string) {
   const store = supabaseV3BriefStore(createAdminClient());
   const row = await store.load(adventureId);
-  if (!row || row.ownerId !== userId || !v3SchoolAllowed(row.schoolId)) return null;
+  if (!row || row.ownerId !== userId) return null;
   return { store, row };
 }
 

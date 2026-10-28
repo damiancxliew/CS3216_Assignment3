@@ -9,7 +9,7 @@ export async function publishSelectedVersion(
 ) {
   const fail = (status: number, message: string) => ({ status, body: { error: { message } } });
   const adventure = await deps.store.loadAdventure(id);
-  if (!adventure || !(await canStaffAdventure(deps.store, adventure, userId, deps.env))) return fail(404, "Not found.");
+  if (!adventure || !(await canStaffAdventure(deps.store, adventure, userId))) return fail(404, "Not found.");
   if (!Number.isSafeInteger(selected) || selected < 1) return fail(404, "Version not found.");
   if (adventure.specVersion !== expected.version || (adventure.publishedVersion ?? null) !== expected.publishedVersion)
     return fail(409, "This adventure changed. Reload before publishing.");
