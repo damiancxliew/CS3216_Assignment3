@@ -44,11 +44,7 @@ function setup(
   });
   const deps = {
     store,
-    env: {
-      V3_ENABLED: "true",
-      V3_SCHOOL_IDS: SCHOOL_ID,
-      ...options.env,
-    },
+    env: { ...options.env },
   };
   return { store, deps };
 }
@@ -164,7 +160,7 @@ describe("v3 class summary service", () => {
     ).toBe(200);
   });
 
-  it("returns 404 for non-admin members, outsiders and unknown adventures, ignoring retired rollout settings", async () => {
+  it("returns 404 for non-admin members, outsiders and unknown adventures", async () => {
     const fixture = setup();
     fixture.store.addMember(SCHOOL_ID, OTHER_USER_ID, true);
     expect(
@@ -179,10 +175,6 @@ describe("v3 class summary service", () => {
         .status,
     ).toBe(404);
 
-    const disallowed = setup({ env: { V3_SCHOOL_IDS: "school-2" } });
-    expect(
-      (await loadClassSummary(disallowed.deps, OWNER_ID, ADVENTURE_ID)).status,
-    ).toBe(200);
   });
 
   it("returns not_published before loading results for an unpublished adventure", async () => {

@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   auth: { userId: "teacher", schoolId: "school" } as { userId: string; schoolId: string } | { error: string },
-  allowed: true,
   row: null as Record<string, unknown> | null,
   inserts: [] as { table: string; value: unknown }[],
   deleted: [] as string[],
@@ -54,7 +53,7 @@ const request = () => GET(new Request("http://localhost/api/v3/adventures/story/
 beforeEach(() => {
   h.role = "teacher"; h.sysadmin = false;
   h.auth = { userId: "teacher", schoolId: "school" };
-  h.allowed = true; h.inserts = []; h.deleted = []; h.failSources = false;
+  h.inserts = []; h.deleted = []; h.failSources = false;
   h.uploads = []; h.removals = [];
   h.rpc.mockReset(); h.rpc.mockResolvedValue({ data: { saved: true, version: 3 }, error: null });
   h.row = { owner_id: "teacher", school_id: "school", status: "draft", spec, spec_version: 2 };
@@ -106,7 +105,7 @@ describe("v3 import/export access and persistence", () => {
 
   it("allows system admins to export across school boundaries and allowlists", async () => {
     h.row!.owner_id = "other-teacher"; h.row!.school_id = "other-school";
-    h.sysadmin = true; h.allowed = false;
+    h.sysadmin = true;
     expect((await request()).status).toBe(200);
   });
 
@@ -204,7 +203,7 @@ describe("v3 import/export access and persistence", () => {
   it.each(["admin", "system-admin"])("allows %s to import a new version without changing ownership", async (role) => {
     h.row!.owner_id = "original-owner"; h.row!.published_version = null;
     h.role = role === "admin" ? "admin" : "teacher"; h.sysadmin = role === "system-admin";
-    if (h.sysadmin) { h.row!.school_id = "other-school"; h.allowed = false; }
+    if (h.sysadmin) { h.row!.school_id = "other-school"; }
     const archive = await createSpecArchive(specExport(structuredClone(spec), [], "story", 2), async () => new Uint8Array(readFileSync("apps/web/public/game/ninja/characters/Noble/walk.png")));
     const data = new FormData(); data.set("file", new File([new Uint8Array(archive)], "update.zip"));
     await expect(updateAdventureFromFile("story", 2, null, {}, data)).rejects.toThrow("redirect:");

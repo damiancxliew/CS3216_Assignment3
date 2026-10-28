@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MemoryV3PlayStore } from "@/lib/play/v3/store";
 import { loadPublicationHistory } from "@/lib/play/v3/publication-history";
 
-const env = { V3_ENABLED: "true", V3_SCHOOL_IDS: "school" };
+const env = {};
 function setup() {
   const store = new MemoryV3PlayStore();
   store.addAdventure({
@@ -53,14 +53,14 @@ describe("student link and version history", () => {
       )?.rows.every((r) => !r.live),
     ).toBe(true);
   });
-  it("restricts history to adventure staff regardless of retired rollout settings", async () => {
+  it("restricts history to adventure staff", async () => {
     const store = setup();
     expect(
       await loadPublicationHistory({ store, env }, "outsider", "a"),
     ).toBeNull();
     expect(
       await loadPublicationHistory(
-        { store, env: { V3_ENABLED: "false" } },
+        { store, env: {} },
         "teacher",
         "a",
       ),

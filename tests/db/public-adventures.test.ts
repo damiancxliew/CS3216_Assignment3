@@ -57,7 +57,7 @@ describe("public adventure authorization", () => {
     const guestId = login.data.user!.id;
     const llm = new FakeLlmClient({ replies: [() => { throw new Error("No model calls expected"); }] });
     const deps = { store: new SupabaseV3PlayStore(admin), now: () => 1000,
-      env: { V3_ENABLED: "1", V3_SCHOOL_IDS: school }, llm: () => llm };
+      env: {}, llm: () => llm };
     // v3 attempts start from a published version's link ID (#360), not the adventure ID.
     const versionId = (await deps.store.listPublications(a.id)).find((row) => row.version === 1)!.id;
     expect((await createAttempt(deps, guestId, versionId)).status).toBe(404);

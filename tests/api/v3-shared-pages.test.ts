@@ -38,7 +38,7 @@ vi.stubGlobal("React", React);
 afterAll(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv("V3_ENABLED", "1"); vi.stubEnv("V3_SCHOOL_IDS", "school");
+
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://assets.example.test");
   mocks.library = []; mocks.usage = [];
   mocks.viewer.mockResolvedValue({ user: { id: "staff" }, isSysadmin: true,
@@ -64,8 +64,7 @@ function usageRow(id: string, kind: "v2" | "v3", status = "published") {
     image_cost_usd: kind === "v3" ? null : 0.01, school_students: 1, version_students: 1 };
 }
 describe("version-aware shared pages", () => {
-  it("offers staff imports and new adventures despite retired rollout settings", async () => {
-    vi.stubEnv("V3_ENABLED", "0"); vi.stubEnv("V3_SCHOOL_IDS", "other-school");
+  it("offers staff imports and new adventures without rollout configuration", async () => {
     const html = renderToStaticMarkup(await TeacherHome());
     expect(html).toContain("Import adventure");
     expect(html).toContain('accept=".zip,.json,application/zip,application/json"');
@@ -91,13 +90,6 @@ describe("version-aware shared pages", () => {
     expect(mocks.artwork).toHaveBeenCalledWith(expect.anything(), [{ id: "old", published_version: 1 }], { publishedOnly: true });
   });
 
-  it.each(["disabled", "other-school"])("includes v3 library rows despite retired rollout settings: %s", async (reason) => {
-    if (reason === "disabled") vi.stubEnv("V3_ENABLED", "0");
-    else vi.stubEnv("V3_SCHOOL_IDS", "different-school");
-    await LibraryPage({ searchParams: Promise.resolve({}) });
-    expect(mocks.rpc).toHaveBeenCalledWith("list_library_all_versions", { p_include_v3: true });
-  });
-
   it("shows both school listings with correct detail/share/results links and missing measurements", async () => {
     mocks.usage = [usageRow("old", "v2"), usageRow("new", "v3"), usageRow("busy", "v3", "generating")];
     const html = renderToStaticMarkup(await SchoolPage({ params: Promise.resolve({ slug: "school" }), searchParams: Promise.resolve({ tab: "adventures" }) }));
@@ -112,14 +104,12 @@ describe("version-aware shared pages", () => {
     expect(html.match(/>Archive</g)).toHaveLength(4);
   });
 
-  it("ignores retired rollout settings and passes school and version to archive RPCs", async () => {
+  it("passes school and version to archive RPCs", async () => {
     expect(await setAdventureArchived("school", "new", true, "v3")).toMatchObject({ notice: "Adventure archived." });
     expect(mocks.rpc).toHaveBeenCalledWith("set_adventure_archived_v3", { p_org: "school", p_adventure_id: "new", p_archived: true });
     await setAdventureArchived("school", "old", false);
     expect(mocks.rpc).toHaveBeenCalledWith("set_adventure_archived", { p_adventure_id: "old", p_archived: false });
-    mocks.rpc.mockClear(); vi.stubEnv("V3_ENABLED", "0");
-    expect(await setAdventureArchived("school", "new", true, "v3")).toMatchObject({ notice: "Adventure archived." });
-    expect(mocks.rpc).toHaveBeenCalledWith("set_adventure_archived_v3", { p_org: "school", p_adventure_id: "new", p_archived: true });
+
   });
 
   it("loads combined admin metrics and labels partial measurement coverage", async () => {

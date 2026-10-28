@@ -66,12 +66,7 @@ function setup(options: {
     store,
     llm: () => llm,
     now: () => time,
-    env: {
-      V3_ENABLED: "true",
-      V3_SCHOOL_IDS: SCHOOL_ID,
-      V3_RATE_LIMIT_PER_10S: "20",
-      ...options.env,
-    },
+    env: { V3_RATE_LIMIT_PER_10S: "20", ...options.env },
     stateSecret: "test-preview-secret",
   };
   return { store, deps, llm, setTime: (next: number) => { time = next; } };
@@ -88,11 +83,6 @@ function previewBody(result: { body: Record<string, unknown> }): PreviewBody {
 }
 
 describe("v3 teacher preview service", () => {
-  it("starts a teacher preview without v3 rollout configuration", async () => {
-    const fixture = setup({ env: { V3_ENABLED: undefined, V3_SCHOOL_IDS: undefined } });
-    expect((await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(201);
-  });
-
   it("starts an owner preview without saving an attempt or events", async () => {
     const fixture = setup();
     fixture.store.addMember(SCHOOL_ID, OWNER_ID, false);
@@ -120,16 +110,11 @@ describe("v3 teacher preview service", () => {
     expect((await startPreview(platformAdmin.deps, OTHER_USER_ID, ADVENTURE_ID)).status).toBe(201);
   });
 
-  it("conceals previews from non-admin members while ignoring retired rollout settings", async () => {
+  it("conceals previews from non-admin members", async () => {
     const nonAdmin = setup();
     nonAdmin.store.addMember(SCHOOL_ID, OTHER_USER_ID, true);
     expect((await startPreview(nonAdmin.deps, OTHER_USER_ID, ADVENTURE_ID)).status).toBe(404);
 
-    const disallowed = setup({ env: { V3_SCHOOL_IDS: "school-2" } });
-    expect((await startPreview(disallowed.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(201);
-
-    const disabled = setup({ env: { V3_ENABLED: "0" } });
-    expect((await startPreview(disabled.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(201);
   });
 
   it("returns not_ready for missing and invalid working specs", async () => {

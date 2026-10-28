@@ -44,7 +44,7 @@ function setup(options: { isPublic?: boolean; status?: string; spec?: unknown | 
   store.addMember(SCHOOL_ID, OTHER_TEACHER_ID);
   store.addMember(SCHOOL_ID, STUDENT_ID);
   store.addSchoolAdmin(SCHOOL_ID, ADMIN_ID);
-  const env = { V3_ENABLED: "true", V3_SCHOOL_IDS: SCHOOL_ID, ...options.env };
+  const env = { ...options.env };
   const deps: V3PublishDeps = { store, env };
   const playDeps: V3PlayServiceDeps = {
     store,
@@ -127,13 +127,6 @@ describe("v3 publish", () => {
     expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toMatchObject({ kind: "unpublished", blockedReason: expect.any(String) });
   });
 
-  it("ignores a retired school allowlist when publishing", async () => {
-    const { store, deps } = setup({ env: { V3_SCHOOL_IDS: "another-school" } });
-    expect((await publishAdventure(deps, OWNER_ID, ADVENTURE_ID)).status).toBe(200);
-    expect(await loadPublishState(deps, OWNER_ID, ADVENTURE_ID)).toMatchObject({ kind: "published" });
-    expect(await status(store)).toBe("published");
-  });
-
   it("is idempotent and can be undone, republishing the archived adventure too", async () => {
     const { store, deps, playDeps } = setup({ status: "archived" });
     expect((await publishAdventure(deps, OWNER_ID, ADVENTURE_ID)).status).toBe(200);
@@ -149,7 +142,7 @@ describe("v3 publish", () => {
 
 describe("v3 student link", () => {
   it("opens a published adventure to members without v3 rollout configuration", async () => {
-    const { deps } = setup({ status: "published", env: { V3_ENABLED: undefined, V3_SCHOOL_IDS: undefined } });
+    const { deps } = setup({ status: "published", env: {} });
     expect(await loadJoinView(deps, STUDENT_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "ready", title: goldenSpec.title });
     expect(await loadJoinView(deps, OUTSIDER_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "not_member", title: goldenSpec.title });
   });
@@ -168,8 +161,4 @@ describe("v3 student link", () => {
     expect(await loadJoinView(deps, STUDENT_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "ready", title: goldenSpec.title });
   });
 
-  it("opens published adventures regardless of a retired school allowlist", async () => {
-    const { deps } = setup({ status: "published", env: { V3_SCHOOL_IDS: "another-school" } });
-    expect(await loadJoinView(deps, STUDENT_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "ready", title: goldenSpec.title });
-  });
 });

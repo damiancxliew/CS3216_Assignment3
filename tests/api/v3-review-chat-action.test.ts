@@ -5,8 +5,6 @@ import type { V3BriefRow } from "@/lib/v3/brief/store";
 const harness = vi.hoisted(() => ({
   row: null as V3BriefRow | null,
   userId: "teacher",
-  enabled: true,
-  schoolAllowed: true,
   update: vi.fn(),
   completeJson: vi.fn(),
   conflict: false,
@@ -85,8 +83,7 @@ beforeEach(() => {
   harness.role = "teacher"; harness.sysadmin = false;
   vi.stubEnv("V3_FAKE_PASSES", "1");
   harness.userId = "teacher";
-  harness.enabled = true;
-  harness.schoolAllowed = true;
+
   harness.conflict = false;
   harness.version = 1;
   harness.row = {
@@ -112,7 +109,6 @@ describe("review chat access and persistence", () => {
     harness.userId = "another-user";
     harness.role = role === "admin" ? "admin" : "teacher";
     harness.sysadmin = role === "system-admin";
-    if (harness.sysadmin) harness.schoolAllowed = false;
     harness.row!.status = "draft";
     harness.completeJson.mockResolvedValue({ json: { notes: "No changes needed.", changes: [] } });
     const result = await suggestReviewChangeAction(id, { pass: "draft", version: 1, edits: [] }, "Check the title");

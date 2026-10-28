@@ -47,10 +47,7 @@ async function fixture(remove = false) {
         llm: () => llm,
         enqueue: async () => {
         },
-        env: {
-            V3_ENABLED: '1',
-            V3_SCHOOL_IDS: 's'
-        }
+        env: {}
     };
     const result = await startUpgrade(deps, 'u', 'a', {
         expectedRevision: 1

@@ -2,8 +2,6 @@ import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  enabled: true,
-  allowed: true,
   staff: true,
   sysadmin: false,
   membership: null as { role: string; organizationId: string } | null,
@@ -60,8 +58,6 @@ const visit = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(mocks, {
-    enabled: true,
-    allowed: true,
     staff: true,
     sysadmin: false,
     membership: null,
@@ -78,7 +74,7 @@ beforeEach(() => {
 describe("review page access", () => {
   it("allows a system admin without a school membership to open any school's editor", async () => {
     mocks.row!.ownerId = "other-teacher";
-    mocks.sysadmin = true; mocks.staff = false; mocks.allowed = false;
+    mocks.sysadmin = true; mocks.staff = false;
     expect(await visit()).toBeTruthy();
   });
   it("allows an admin to edit another teacher's adventure in the same school", async () => {

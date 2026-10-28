@@ -40,10 +40,7 @@ function fixture() {
     const deps = {
         store,
         repository,
-        env: {
-            V3_ENABLED: '1',
-            V3_SCHOOL_IDS: 'school'
-        },
+        env: {},
         enqueue: async (...args: unknown[]) => {
             queue.push(args);
         }

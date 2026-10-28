@@ -90,7 +90,6 @@ const skeleton = validateSkeleton({
 
 const schoolId = "school-1";
 const ownerId = "user-1";
-const env = { V3_ENABLED: "1", V3_SCHOOL_IDS: schoolId } as NodeJS.ProcessEnv;
 
 const uploadDoc: ExtractedDocument = {
   id: "handout",
@@ -240,11 +239,6 @@ async function start(
   if ("ok" in result) harness.adventures.rows.get(adventureId)!.row.status = "generating";
   return { adventureId, result };
 }
-
-beforeEach(() => {
-  process.env.V3_ENABLED = "1";
-  process.env.V3_SCHOOL_IDS = schoolId;
-});
 
 describe("v3 generation job", () => {
   it("quick: runs all seven steps in order and lands the spec as a draft", async () => {
@@ -527,31 +521,6 @@ describe("v3 generation job", () => {
     expect(report.steps.find((s) => s.name === "skeleton")?.error).toContain("bad skeleton");
   });
 
-  describe("retired rollout flags", () => {
-    it("starts generation for schools regardless of retired rollout settings", async () => {
-      const harness = await makeJob();
-      const { deps, jobs, adventures, store, briefStore } = harness;
-      const off = await briefingAtConfirm(harness);
-      const r1 = await startFromBrief(deps, jobs, briefStore, ownerId, off);
-      expect(r1).toEqual({ ok: true });
-      const unlisted = await briefingAtConfirm(harness, "quick", { school: "other-school" });
-      const r2 = await startFromBrief(deps, jobs, briefStore, ownerId, unlisted);
-      expect(r2).toEqual({ ok: true });
-      expect((await store.list(off)).length + (await store.list(unlisted)).length).toBe(14);
-      expect((await briefStore.load(off))!.status).toBe("generating");
-      expect((await briefStore.load(unlisted))!.status).toBe("generating");
-    });
-
-    it("does not interrupt generation when a retired allowlist changes", async () => {
-      const harness = await makeJob();
-      const { jobs } = harness;
-      const { adventureId } = await start(harness, "quick");
-      process.env.V3_SCHOOL_IDS = "other-school";
-      const progress = await jobs.drain({ jobId: adventureId });
-      expect(progress?.status).toBe("succeeded");
-    });
-  });
-
   it("progress sums costUsd and tags warnings with their pass", async () => {
     const harness = await makeJob();
     const { deps, jobs, adventures, store } = harness;
@@ -780,9 +749,7 @@ describe("skeleton drafts", () => {
   });
 });
 
-
 describe("guided pauses", () => {
-  beforeEach(() => { vi.stubEnv("V3_ENABLED", "1"); vi.stubEnv("V3_SCHOOL_IDS", schoolId); });
   async function atDetails() {
     const harness = await makeJob();
     const { adventureId } = await start(harness, "guided");
@@ -886,20 +853,6 @@ describe("guided pauses", () => {
       expect((await h.adventures.get(id))!.status).toBe("draft");
     }
   });
-});
-
-
-it.each([
-  { V3_ENABLED: "0", V3_SCHOOL_IDS: schoolId },
-  { V3_ENABLED: "1", V3_SCHOOL_IDS: "another-school" },
-])("allows Guided creation despite retired rollout settings: %j", async permissions => {
-  vi.stubEnv("V3_ENABLED", permissions.V3_ENABLED); vi.stubEnv("V3_SCHOOL_IDS", permissions.V3_SCHOOL_IDS);
-  const h = await makeJob();
-  const id = await briefingAtConfirm(h, "guided");
-  const result = await startFromBrief(h.deps, h.jobs, h.briefStore, ownerId, id);
-  expect(result).toEqual({ ok: true });
-  expect(await h.store.list(id)).toHaveLength(1);
-  expect((await h.briefStore.load(id))!.status).toBe("generating");
 });
 
 function neutralOpenings(spec: AdventureSpec) {

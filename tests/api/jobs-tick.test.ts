@@ -6,11 +6,7 @@ import { handleTick, TICK_SECRET_HEADER, tickUrl } from "@/lib/jobs/tick";
 const tickSecret = "test-tick-secret";
 
 function enabledEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
-  return {
-    V3_ENABLED: "1",
-    JOBS_TICK_SECRET: tickSecret,
-    ...overrides,
-  };
+  return { JOBS_TICK_SECRET: tickSecret, ...overrides };
 }
 
 function newJobs() {
@@ -26,24 +22,12 @@ describe("jobs tick handler", () => {
     vi.restoreAllMocks();
   });
 
-  it("ignores retired rollout settings and still requires the tick secret", async () => {
-    const getJobs = vi.fn(() => newJobs());
-    const outcome = await handleTick({
-      getJobs,
-      secretHeader: tickSecret,
-      env: enabledEnv({ V3_ENABLED: "0", V3_SCHOOL_IDS: "other-school" }),
-    });
-
-    expect(outcome).toEqual({ status: 200, body: { ran: false }, kicks: 0 });
-    expect(getJobs).toHaveBeenCalledOnce();
-  });
-
   it("does not construct jobs when the tick secret is not configured", async () => {
     const getJobs = vi.fn(() => newJobs());
     const outcome = await handleTick({
       getJobs,
       secretHeader: tickSecret,
-      env: { V3_ENABLED: "1" },
+      env: {},
     });
 
     expect(outcome).toEqual({ status: 503, body: { error: "not_configured" }, kicks: 0 });

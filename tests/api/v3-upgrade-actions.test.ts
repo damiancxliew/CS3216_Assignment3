@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CURRENT_SCHEMA_VERSION } from '@adventure/spec-v3';
-const f = vi.hoisted(() => ({ user: 'teacher' as string | null, enabled: true, start: vi.fn(), get: vi.fn(), refine: vi.fn(), apply: vi.fn(), discard: vi.fn(), deps: vi.fn(), after: vi.fn(), revalidate: vi.fn() }));
+const f = vi.hoisted(() => ({ user: 'teacher' as string | null, start: vi.fn(), get: vi.fn(), refine: vi.fn(), apply: vi.fn(), discard: vi.fn(), deps: vi.fn(), after: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: f.user ? { id: f.user } : null } }) } }) }));
 
 vi.mock('@/lib/v3/upgrades/deps', () => ({ defaultUpgradeDeps: f.deps }));
@@ -12,7 +12,7 @@ import { startUpgradeAction, getUpgradeAction, refineUpgradeAction, applyUpgrade
 const id = '00000000-0000-4000-8000-000000000346';
 const proposal = { runId: '00000000-0000-4000-8000-000000000347', proposalRevision: 1 };
 beforeEach(() => {
-  vi.clearAllMocks(); f.user = 'teacher'; f.enabled = true;
+  vi.clearAllMocks(); f.user = 'teacher';
   f.deps.mockReturnValue({});
   f.start.mockResolvedValue({ ok: true, run: { status: 'running' } });
   f.get.mockResolvedValue(null);

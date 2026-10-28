@@ -75,12 +75,7 @@ function setup(options: {
     store,
     llm: () => llm,
     now: () => time,
-    env: {
-      V3_ENABLED: "true",
-      V3_SCHOOL_IDS: SCHOOL_ID,
-      V3_RATE_LIMIT_PER_10S: "20",
-      ...options.env,
-    },
+    env: { V3_RATE_LIMIT_PER_10S: "20", ...options.env },
   };
   return { store, deps, llm, setTime: (next: number) => { time = next; } };
 }
@@ -109,13 +104,7 @@ async function createPendingMessage(deps: V3PlayServiceDeps, attemptId: string, 
 }
 
 describe("v3 attempts API service", () => {
-  it("ignores retired rollout settings but conceals inactive members", async () => {
-    const disabled = setup({ env: { V3_ENABLED: "0" } });
-    expect((await createAttempt(disabled.deps, USER_ID, await publishedVersionId(disabled.deps.store, ADVENTURE_ID))).status).toBe(201);
-
-    const disallowed = setup({ env: { V3_SCHOOL_IDS: "school-2" } });
-    expect((await createAttempt(disallowed.deps, USER_ID, await publishedVersionId(disallowed.deps.store, ADVENTURE_ID))).status).toBe(201);
-
+  it("conceals inactive members and unknown adventures", async () => {
     const inactive = setup({ activeMember: false });
     expect((await createAttempt(inactive.deps, USER_ID, await publishedVersionId(inactive.deps.store, ADVENTURE_ID))).status).toBe(404);
     expect((await createAttempt(inactive.deps, USER_ID, "missing")).status).toBe(404);
@@ -140,8 +129,6 @@ describe("v3 attempts API service", () => {
       const { deps } = setup({ isPublic: true, activeMember: false, status });
       expect((await createAttempt(deps, USER_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).status).not.toBe(201);
     }
-    const { deps } = setup({ isPublic: true, env: { V3_ENABLED: "0" } });
-    expect((await createAttempt(deps, USER_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).status).toBe(201);
   });
 
   it("retains the original sprite when resuming after a newer sprite was saved and published", async () => {

@@ -19,7 +19,7 @@ async function session() {
     return JSON.stringify({ conveyed: schema.properties.conveyed.items.enum ?? [], substantive: !request.user.includes("Hello"), assertedUndiscovered: false, assertion: null, moderation: { flagged: false, category: "none", reason: null } });
   }] });
   let time = 1000;
-  const deps: V3PlayServiceDeps = { store, llm: () => llm, now: () => time, env: { V3_ENABLED: "1", V3_SCHOOL_IDS: "school", V3_RATE_LIMIT_PER_10S: "100" } };
+  const deps: V3PlayServiceDeps = { store, llm: () => llm, now: () => time, env: { V3_RATE_LIMIT_PER_10S: "100" } };
   const created = await createAttempt(deps, "student", await publishedVersionId(deps.store, "prepared"));
   const id = created.body.attemptId as string;
   let revision = created.body.revision as number;
