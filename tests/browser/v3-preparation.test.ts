@@ -132,7 +132,10 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await page.getByRole("button", { name: "Start exploring" }).click();
     await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
     expect(game.state.stageEndsAt).not.toBeNull();
-    if (name === "mobile") await page.getByRole("button", { name: "Show mission" }).click();
+    if (name === "mobile") {
+      await page.getByRole("region", { name: "Mission" }).getByText(/Next:.*Read.*harbour letter/).waitFor();
+      await page.getByRole("button", { name: "Show mission" }).click();
+    }
     const mission = page.getByRole("region", { name: "Mission" });
     await mission.getByText(/Next:.*Read.*harbour letter/).waitFor();
     await mission.getByRole("list", { name: "Essential conversations" }).getByText("Speak with Ada").waitFor();

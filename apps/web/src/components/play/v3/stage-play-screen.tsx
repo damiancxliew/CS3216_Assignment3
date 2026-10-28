@@ -365,6 +365,9 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             </button>
           </header>
 
+          {missionCollapsed && nextStep && !isMoment ? (
+            <p className="mt-1 line-clamp-2 text-xs font-bold leading-snug"><span className="font-black uppercase tracking-wide">Next:</span> {nextStep}</p>
+          ) : null}
           {!missionCollapsed ? (
             <div className="mt-2 space-y-2">
               {experience?.mission}
