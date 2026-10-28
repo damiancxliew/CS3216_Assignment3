@@ -53,7 +53,7 @@ describe("student link and version history", () => {
       )?.rows.every((r) => !r.live),
     ).toBe(true);
   });
-  it("restricts history to adventure staff in enabled schools", async () => {
+  it("restricts history to adventure staff regardless of retired rollout settings", async () => {
     const store = setup();
     expect(
       await loadPublicationHistory({ store, env }, "outsider", "a"),
@@ -64,6 +64,6 @@ describe("student link and version history", () => {
         "teacher",
         "a",
       ),
-    ).toBeNull();
+    ).not.toBeNull();
   });
 });

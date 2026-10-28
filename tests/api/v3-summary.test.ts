@@ -164,7 +164,7 @@ describe("v3 class summary service", () => {
     ).toBe(200);
   });
 
-  it("returns 404 for non-admin members, outsiders, disallowed schools, and unknown adventures", async () => {
+  it("returns 404 for non-admin members, outsiders and unknown adventures, ignoring retired rollout settings", async () => {
     const fixture = setup();
     fixture.store.addMember(SCHOOL_ID, OTHER_USER_ID, true);
     expect(
@@ -182,7 +182,7 @@ describe("v3 class summary service", () => {
     const disallowed = setup({ env: { V3_SCHOOL_IDS: "school-2" } });
     expect(
       (await loadClassSummary(disallowed.deps, OWNER_ID, ADVENTURE_ID)).status,
-    ).toBe(404);
+    ).toBe(200);
   });
 
   it("returns not_published before loading results for an unpublished adventure", async () => {

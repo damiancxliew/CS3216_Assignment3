@@ -59,9 +59,8 @@ v3 is enabled for all schools by default. Add your model key to `apps/web/.env.l
 OPENAI_API_KEY=...
 ```
 
-Set `V3_ENABLED=0` or `false` to disable v3. An optional nonempty `V3_SCHOOL_IDS`
-list restricts access to those schools; unset or empty allows all schools. Existing
-deployments with an allowlist must clear it to open access to every school.
+V3 is available to every school; staff roles, school membership, and ownership
+control authoring access.
 The local "Testing School" ID is `00000000-0000-4000-8000-000000005c01`. Then seed and run:
 
 ```bash
@@ -125,8 +124,7 @@ Some routes and modules from before v3 are still in the codebase and are not the
 See [`.env.example`](.env.example). Deployment (Vercel) needs
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
 `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_POSTHOG_KEY` and `OPENAI_API_KEY`, with the Vercel
-project's root directory set to `apps/web` and the Next.js preset. v3 is enabled by default;
-`V3_ENABLED` and `V3_SCHOOL_IDS` are optional rollout restrictions.
+project's root directory set to `apps/web` and the Next.js preset. v3 is available to every school without rollout environment variables.
 
 `main` is for development and deploys as a Vercel preview; `production` deploys to production.
 No other branch deploys automatically ([`apps/web/vercel.json`](apps/web/vercel.json), read from

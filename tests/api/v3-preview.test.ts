@@ -120,16 +120,16 @@ describe("v3 teacher preview service", () => {
     expect((await startPreview(platformAdmin.deps, OTHER_USER_ID, ADVENTURE_ID)).status).toBe(201);
   });
 
-  it("conceals previews from non-admin members, disallowed schools, and a disabled v3 flag", async () => {
+  it("conceals previews from non-admin members while ignoring retired rollout settings", async () => {
     const nonAdmin = setup();
     nonAdmin.store.addMember(SCHOOL_ID, OTHER_USER_ID, true);
     expect((await startPreview(nonAdmin.deps, OTHER_USER_ID, ADVENTURE_ID)).status).toBe(404);
 
     const disallowed = setup({ env: { V3_SCHOOL_IDS: "school-2" } });
-    expect((await startPreview(disallowed.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(404);
+    expect((await startPreview(disallowed.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(201);
 
     const disabled = setup({ env: { V3_ENABLED: "0" } });
-    expect((await startPreview(disabled.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(404);
+    expect((await startPreview(disabled.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(201);
   });
 
   it("returns not_ready for missing and invalid working specs", async () => {

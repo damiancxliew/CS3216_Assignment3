@@ -54,10 +54,7 @@ vi.mock("@/lib/v3/brief/store", () => ({
     load: async () => structuredClone(harness.row),
   }),
 }));
-vi.mock("@/lib/v3/flag", () => ({
-  v3Enabled: () => harness.enabled,
-  v3SchoolAllowed: () => harness.schoolAllowed,
-}));
+
 vi.mock("@adventure/jobs", () => ({ supabaseJobStore: () => ({}) }));
 vi.mock("@/lib/v3/generation/deps", () => ({
   defaultGenerationDeps: () => ({ sources: { load: async () => [] } }),
@@ -161,12 +158,10 @@ describe("review chat access and persistence", () => {
       .toMatchObject({ ok: false });
     expect(harness.update).not.toHaveBeenCalled();
   });
-  it.each(["owner", "school", "flag"])(
+  it.each(["owner"])(
     "rejects a failed %s guard before a model call or write",
     async (guard) => {
       if (guard === "owner") harness.userId = "someone-else";
-      if (guard === "school") harness.schoolAllowed = false;
-      if (guard === "flag") harness.enabled = false;
       expect(
         await suggestReviewChangeAction(id, input, "Exclude Extra"),
       ).toMatchObject({ ok: false });

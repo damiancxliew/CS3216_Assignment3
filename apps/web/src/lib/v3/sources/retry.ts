@@ -19,7 +19,6 @@ export async function retrySources(
       userId,
       adventureId,
       "sources",
-      process.env,
     ))
   )
     return { error: "Not awaiting sources review." };

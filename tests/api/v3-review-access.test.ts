@@ -22,10 +22,7 @@ vi.mock("next/navigation", () => ({
     throw new Error("NOT_FOUND");
   },
 }));
-vi.mock("@/lib/v3/flag", () => ({
-  v3Enabled: () => mocks.enabled,
-  v3SchoolAllowed: () => mocks.allowed,
-}));
+
 vi.mock("@/lib/auth/viewer", () => ({
   getViewer: async () => ({ user: mocks.user, membership: mocks.membership, isSysadmin: mocks.sysadmin }),
   isStaff: () => mocks.staff,
@@ -97,16 +94,12 @@ describe("review page access", () => {
     expect(mocks.loadSpec).not.toHaveBeenCalled();
   });
   it.each([
-    "feature",
-    "school",
     "signed-out",
     "student",
     "other-owner",
     "missing",
     "generating",
   ])("rejects %s before loading private content", async (guard) => {
-    if (guard === "feature") mocks.enabled = false;
-    if (guard === "school") mocks.allowed = false;
     if (guard === "signed-out") mocks.user = null;
     if (guard === "student") mocks.staff = false;
     if (guard === "other-owner") mocks.row!.ownerId = "other";

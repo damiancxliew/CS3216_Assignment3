@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CURRENT_SCHEMA_VERSION } from '@adventure/spec-v3';
 const f = vi.hoisted(() => ({ user: 'teacher' as string | null, enabled: true, start: vi.fn(), get: vi.fn(), refine: vi.fn(), apply: vi.fn(), discard: vi.fn(), deps: vi.fn(), after: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: f.user ? { id: f.user } : null } }) } }) }));
-vi.mock('@/lib/v3/flag', () => ({ v3Enabled: () => f.enabled }));
+
 vi.mock('@/lib/v3/upgrades/deps', () => ({ defaultUpgradeDeps: f.deps }));
 vi.mock('@/lib/v3/upgrades/service', () => ({ startUpgrade: f.start, getUpgrade: f.get, refineUpgrade: f.refine, applyUpgrade: f.apply, discardUpgrade: f.discard }));
 vi.mock('next/server', () => ({ after: f.after }));
@@ -30,12 +30,10 @@ describe('teacher upgrade action boundary', () => {
       expect(f.start).not.toHaveBeenCalled();
     },
   );
-  it('denies unauthenticated, disabled and malformed requests before accessing proposal storage', async () => {
+  it('denies unauthenticated and malformed requests before accessing proposal storage', async () => {
     f.user = null;
     expect(await startUpgradeAction(id, { expectedRevision: 1 })).toMatchObject({ ok: false, code: 'access' });
-    f.user = 'teacher'; f.enabled = false;
-    expect(await getUpgradeAction(id)).toMatchObject({ ok: false, code: 'access' });
-    f.enabled = true;
+    f.user = 'teacher';
     expect(await getUpgradeAction(id, 'bad')).toMatchObject({ ok: false, code: 'invalid' });
     expect(await startUpgradeAction(id, { expectedRevision: -1 })).toMatchObject({ ok: false, code: 'invalid' });
     expect(await applyUpgradeAction(id, { ...proposal, proposalRevision: 0 })).toMatchObject({ ok: false, code: 'invalid' });

@@ -11,7 +11,6 @@ import { backdropFromState } from "@/lib/play/v3/backdrop";
 import { getAttempt } from "@/lib/play/v3/service";
 import { v3PlayDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
-import { v3Enabled } from "@/lib/v3/flag";
 
 export const metadata: Metadata = {
   title: "Your adventure",
@@ -21,7 +20,6 @@ export const metadata: Metadata = {
 export default async function V3PlayPage({ params,
 }: { params: Promise<{ attemptId: string }>;
 }) {
-  if (!v3Enabled()) notFound();
   const { attemptId } = await params;
   const supabase = await createClient();
   const { data: { user },

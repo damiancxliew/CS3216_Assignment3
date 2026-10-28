@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { compareSchemaVersions } from '@adventure/spec-v3';
 import { createClient } from '@/lib/supabase/server';
-import { v3Enabled } from '@/lib/v3/flag';
+
 import { defaultUpgradeDeps } from '@/lib/v3/upgrades/deps';
 import { startUpgrade, getUpgrade, refineUpgrade, applyUpgrade, discardUpgrade } from '@/lib/v3/upgrades/service';
 import type { UpgradeResult, UpgradeStartInput, UpgradeProposalInput, UpgradeRefineInput } from '@/lib/v3/upgrades/types';
@@ -23,7 +23,7 @@ const denied = (): UpgradeResult => ({ ok: false, code: 'access', message: 'Not 
 const invalid = (): UpgradeResult => ({ ok: false, code: 'invalid', message: 'Check the upgrade request and try again.' });
 
 async function actor(adventureId: string) {
-  if (!v3Enabled() || !z.string().uuid().safeParse(adventureId).success) return null;
+  if (!z.string().uuid().safeParse(adventureId).success) return null;
   const { data: { user } } = await (await createClient()).auth.getUser();
   return user;
 }

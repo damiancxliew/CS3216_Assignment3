@@ -9,13 +9,19 @@ const mocks = vi.hoisted(() => ({
 vi.mock("next/link", () => ({ default: ({ children, href }: { children: React.ReactNode; href: string }) => React.createElement("a", { href }, children) }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw Error("NOT_FOUND"); }, redirect: (url: string) => { throw Error(url); } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc: mocks.rpc, from: () => {
+  const query = { select: () => query, eq: () => query, neq: () => query, is: () => query, not: () => query, order: () => query, limit: () => query,
+    returns: async () => ({ data: [] }), maybeSingle: async () => ({ data: null }) };
+  return query;
+} }) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.rpc, from: mocks.adminFrom }) }));
 vi.mock("@/lib/auth/viewer", () => ({ getViewer: mocks.viewer, isStaff: (viewer: { membership?: { role: string } }) => ["teacher", "admin"].includes(viewer.membership?.role ?? "") }));
 vi.mock("@/lib/teacher/library", () => ({ loadLibraryArtwork: mocks.artwork }));
 vi.mock("@/components/site-navigation", () => ({ SiteNavigation: () => null }));
 vi.mock("@/components/theme-provider", () => ({ ThemeSelect: () => null }));
 vi.mock("@/components/sign-in-button", () => ({ SignInButton: () => null }));
+vi.mock("@/app/teacher/workspace", () => ({ TeacherWorkspace: ({ importAdventure, newAdventure }: { importAdventure: React.ReactNode; newAdventure?: { href: string; label: string } }) =>
+  React.createElement("div", null, importAdventure, newAdventure ? React.createElement("a", { href: newAdventure.href }, newAdventure.label) : null) }));
 vi.mock("@/components/action-form", () => ({
   ActionButton: ({ label }: { label: string }) => React.createElement("button", null, label),
   ActionForm: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
@@ -23,6 +29,7 @@ vi.mock("@/components/action-form", () => ({
 vi.mock("@/app/school/[slug]/school-link-copy", () => ({ SchoolLinkCopy: ({ path }: { path: string }) => React.createElement("a", { href: path }, "Copy link") }));
 
 import LibraryPage from "@/app/library/page";
+import TeacherHome from "@/app/teacher/page";
 import SchoolPage from "@/app/school/[slug]/page";
 import AdminPage from "@/app/admin/page";
 import { setAdventureArchived } from "@/app/school/[slug]/actions";
@@ -57,6 +64,15 @@ function usageRow(id: string, kind: "v2" | "v3", status = "published") {
     image_cost_usd: kind === "v3" ? null : 0.01, school_students: 1, version_students: 1 };
 }
 describe("version-aware shared pages", () => {
+  it("offers staff imports and new adventures despite retired rollout settings", async () => {
+    vi.stubEnv("V3_ENABLED", "0"); vi.stubEnv("V3_SCHOOL_IDS", "other-school");
+    const html = renderToStaticMarkup(await TeacherHome());
+    expect(html).toContain("Import adventure");
+    expect(html).toContain('accept=".zip,.json,application/zip,application/json"');
+    expect(html).toContain('href="/v3/teacher/new"');
+    mocks.viewer.mockResolvedValueOnce({ user: { id: "student" }, membership: { role: "student", organizationId: "school" } });
+    await expect(TeacherHome()).rejects.toThrow("/library");
+  });
   it("routes starts, resumes and completed results by version and uses published-version artwork", async () => {
     mocks.library = [libraryRow("old", "v2"), libraryRow("start", "v3"), libraryRow("resume", "v3", "active"),
       libraryRow("finished", "v3", "completed"), libraryRow("legacy-results", "v2", "completed")];
@@ -75,11 +91,11 @@ describe("version-aware shared pages", () => {
     expect(mocks.artwork).toHaveBeenCalledWith(expect.anything(), [{ id: "old", published_version: 1 }], { publishedOnly: true });
   });
 
-  it.each(["disabled", "other-school"])("does not request v3 library rows when %s", async (reason) => {
+  it.each(["disabled", "other-school"])("includes v3 library rows despite retired rollout settings: %s", async (reason) => {
     if (reason === "disabled") vi.stubEnv("V3_ENABLED", "0");
     else vi.stubEnv("V3_SCHOOL_IDS", "different-school");
     await LibraryPage({ searchParams: Promise.resolve({}) });
-    expect(mocks.rpc).toHaveBeenCalledWith("list_library_all_versions", { p_include_v3: false });
+    expect(mocks.rpc).toHaveBeenCalledWith("list_library_all_versions", { p_include_v3: true });
   });
 
   it("shows both school listings with correct detail/share/results links and missing measurements", async () => {
@@ -96,14 +112,14 @@ describe("version-aware shared pages", () => {
     expect(html.match(/>Archive</g)).toHaveLength(4);
   });
 
-  it("rejects disabled-school mutations and passes school and version to archive RPCs", async () => {
+  it("ignores retired rollout settings and passes school and version to archive RPCs", async () => {
     expect(await setAdventureArchived("school", "new", true, "v3")).toMatchObject({ notice: "Adventure archived." });
     expect(mocks.rpc).toHaveBeenCalledWith("set_adventure_archived_v3", { p_org: "school", p_adventure_id: "new", p_archived: true });
     await setAdventureArchived("school", "old", false);
     expect(mocks.rpc).toHaveBeenCalledWith("set_adventure_archived", { p_adventure_id: "old", p_archived: false });
     mocks.rpc.mockClear(); vi.stubEnv("V3_ENABLED", "0");
-    expect(await setAdventureArchived("school", "new", true, "v3")).toHaveProperty("error");
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(await setAdventureArchived("school", "new", true, "v3")).toMatchObject({ notice: "Adventure archived." });
+    expect(mocks.rpc).toHaveBeenCalledWith("set_adventure_archived_v3", { p_org: "school", p_adventure_id: "new", p_archived: true });
   });
 
   it("loads combined admin metrics and labels partial measurement coverage", async () => {

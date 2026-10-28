@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/v3/brief/service";
-import { v3SchoolAllowed } from "@/lib/v3/flag";
+
 import { canAccessV3Authoring } from "@/lib/v3/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_SPEC_BYTES, parseSpecImport } from "@/lib/v3/spec-transfer";
@@ -21,7 +21,7 @@ export async function updateAdventureFromFile(id: string, expectedVersion: numbe
 
 async function importAdventureFile(form: FormData, target?: { id: string; expectedVersion: number; expectedPublished: number | null }): Promise<{ error?: string }> {
   const auth = await requireStaff();
-  if ("error" in auth || (!target && !v3SchoolAllowed(auth.schoolId))) return { error: "You don’t have access to import adventures." };
+  if ("error" in auth) return { error: "You don’t have access to import adventures." };
   const file = form.get("file");
   if (!(file instanceof File) || !file.size) return { error: "Choose a ZIP or JSON file to import." };
   const zip = file.name.toLowerCase().endsWith(".zip");

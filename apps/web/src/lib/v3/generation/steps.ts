@@ -14,7 +14,6 @@ import { defineStep } from "@adventure/jobs";
 import { pathOwner } from "@adventure/generation/v3";
 import { applyTeacherEdits, capturedSources } from "@/lib/v3/edit/apply";
 import type { V3Edit } from "@/lib/v3/edit/commands";
-import { v3SchoolAllowed } from "@/lib/v3/flag";
 
 import type { GenerationDeps } from "./deps";
 import type { GenerationBrief } from "./types";
@@ -45,7 +44,7 @@ export function v3GenerationSteps(getDeps: () => GenerationDeps): StepDefinition
       const deps = getDeps();
       const input = ctx.input as unknown as GenerationBrief | { brief: GenerationBrief };
       const brief = "brief" in input ? input.brief : input;
-      if (!v3SchoolAllowed(brief.schoolId)) throw new Error(`v3 generation is not enabled for school ${brief.schoolId}`);
+
       try {
         return await body(ctx, deps, brief);
       } catch (error) {

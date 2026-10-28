@@ -11,7 +11,6 @@ import { playDeps } from "@/lib/play/http";
 import { getState } from "@/lib/play/service";
 import { v3PlayDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
-import { v3Enabled } from "@/lib/v3/flag";
 
 export const metadata: Metadata = {
   title: "Your attempt",
@@ -40,10 +39,8 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
 
   const resume = await loadResumeState(supabase, attemptId);
   if (!resume) {
-    if (v3Enabled()) {
-      const attempt = await v3PlayDeps().store.loadAttempt(attemptId);
-      if (attempt?.studentId === user.id) redirect(`/v3/play/${attemptId}`);
-    }
+    const attempt = await v3PlayDeps().store.loadAttempt(attemptId);
+    if (attempt?.studentId === user.id) redirect(`/v3/play/${attemptId}`);
     notFound();
   }
 

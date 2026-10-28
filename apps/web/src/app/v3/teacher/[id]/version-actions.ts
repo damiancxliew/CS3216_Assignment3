@@ -4,15 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { v3PublishDeps } from "@/lib/play/v3/http";
 import { canStaffAdventure } from "@/lib/play/v3/access";
-import { v3Enabled } from "@/lib/v3/flag";
 
 export async function getV3SavedVersions(id: string) {
-  if (!v3Enabled()) return { ok: false as const, message: "Not found." };
   const { data: { user } } = await (await createClient()).auth.getUser();
   if (!user) return { ok: false as const, message: "Sign in again." };
   const deps = v3PublishDeps();
   const adventure = await deps.store.loadAdventure(id);
-  if (!adventure || !(await canStaffAdventure(deps.store, adventure, user.id, deps.env))) return { ok: false as const, message: "Not found." };
+  if (!adventure || !(await canStaffAdventure(deps.store, adventure, user.id))) return { ok: false as const, message: "Not found." };
   const admin = createAdminClient();
   const versions: { version: number; title: string; createdAt: string }[] = [];
   for (let from = 0; ; from += 1000) {

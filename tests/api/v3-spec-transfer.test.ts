@@ -14,7 +14,7 @@ const h = vi.hoisted(() => ({
   sysadmin: false,
 }));
 vi.mock("@/lib/v3/brief/service", () => ({ requireStaff: async () => "error" in h.auth ? h.auth : { ...h.auth, viewer: { user: { id: h.auth.userId }, membership: { role: h.role, organizationId: h.auth.schoolId }, isSysadmin: h.sysadmin } } }));
-vi.mock("@/lib/v3/flag", () => ({ v3SchoolAllowed: () => h.allowed }));
+
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw Error(`redirect:${url}`); } }));
 vi.mock("@/lib/v3/generation/deps", () => ({ supabaseV3SourceStore: () => ({ load: async () => [] }) }));
@@ -85,9 +85,8 @@ describe("v3 import/export access and persistence", () => {
     expect(h.inserts).toEqual([]);
   });
 
-  it.each(["unsigned", "school-blocked"])("denies import and export for %s callers", async (kind) => {
-    if (kind === "unsigned") h.auth = { error: "not_found" };
-    else h.allowed = false;
+  it("denies import and export for unsigned callers", async () => {
+    h.auth = { error: "not_found" };
     expect((await importAdventureJson({}, form(JSON.stringify(spec)))).error).toBeTruthy();
     expect((await request()).status).toBe(404);
     expect(h.inserts).toEqual([]);

@@ -2,8 +2,6 @@ import { validateEditedSpec } from "@/lib/v3/edit/validation";
 import type { CapturedSource } from "@/lib/v3/edit/commands";
 import { EngineSpec, checkSpec } from "@adventure/engine";
 
-import { v3SchoolAllowed } from "@/lib/v3/flag";
-
 import { canStaffAdventure } from "./access";
 import type { ServiceResponse } from "./service";
 import type { V3Adventure, V3PlayStore } from "./store";
@@ -26,7 +24,7 @@ function specTitle(spec: unknown): string | null {
 
 async function staffAdventure(deps: V3PublishDeps, userId: string, adventureId: string): Promise<V3Adventure | null> {
   const adventure = await deps.store.loadAdventure(adventureId);
-  if (!adventure || !(await canStaffAdventure(deps.store, adventure, userId, deps.env))) return null;
+  if (!adventure || !(await canStaffAdventure(deps.store, adventure, userId))) return null;
   return adventure;
 }
 
@@ -93,7 +91,7 @@ export type V3JoinView =
   | { kind: "ready"; title: string | null };
 
 /**
- * The student link. Anything that isn't a published adventure in a v3 school looks the same from
+ * The student link. Anything that isn't a published adventure looks the same from
  * outside: closed. The title only shows once the link is actually open.
  */
 export async function loadJoinView(
@@ -107,8 +105,7 @@ export async function loadJoinView(
   if (
     !adventure ||
     adventure.status !== "published" ||
-    adventure.spec === null ||
-    !v3SchoolAllowed(adventure.schoolId, deps.env)
+    adventure.spec === null
   ) {
     return { kind: "closed" };
   }
