@@ -193,39 +193,9 @@ it.runIf(process.env.RUN_PREPARATION_BROWSER_TESTS === "1").each([
     await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
     await chooseSentence(page, "Only three sacks remained for the households.");
     await reader.getByRole("button", { name: "Submit correction" }).click();
-    await reader.getByText("Correction accepted. Answer the new question to finish this reading check.", { exact: true }).waitFor();
-    await reader.getByText("What does the stock count tell the council?", { exact: true }).waitFor();
-    expect(game.state.discovered).not.toContain("d-letter");
-    // Several failures in a row must correct the current question, never the
-    // document's old shared correction or a previous variant.
-    for (const [index, prompt] of ["What does the stock count tell the council?", "Which conclusion stays within the letter's evidence?"] .entries()) {
-      await reader.getByRole("radio", { name: "Every household was guaranteed a sack." }).check();
-      await highlight(page, fixture.support.start, fixture.support.end);
-      await reader.getByRole("button", { name: "Submit answer and evidence" }).click();
-      await reader.getByRole("heading", { name: "Review the evidence before trying again" }).waitFor();
-      expect(await reader.getByText(prompt, { exact: true }).count()).toBe(1);
-      expect(await reader.getByText("What can the letter support?", { exact: true }).count()).toBe(0);
-      expect(await reader.locator("input[type=radio]:checked").count()).toBe(0);
-      if (index === 1) {
-        await page.keyboard.press("Escape");
-        await page.reload();
-        await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
-        await openScroll(page, "The harbour letter");
-        reader = page.getByRole("dialog", { name: "The harbour letter" });
-        await reader.getByText(prompt, { exact: true }).waitFor();
-      }
-      await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
-      await highlight(page, fixture.support.start, fixture.support.end);
-      await reader.getByRole("button", { name: "Submit correction" }).click();
-      await reader.getByText("Correction accepted. Answer the new question to finish this reading check.", { exact: true }).waitFor();
-    }
-    await reader.getByText("Which account fits the supply report?", { exact: true }).waitFor();
-    await reader.getByRole("radio", { name: "The council had a limited supply to divide." }).check();
-    await highlight(page, fixture.support.start + 2, fixture.support.end - 2);
-    await reader.getByRole("button", { name: "Submit answer and evidence" }).click();
     await reader.getByLabel("Reading check complete", { exact: true }).waitFor();
     expect(game.state.discovered.filter(id => id === "d-letter")).toHaveLength(1);
-    expect(game.state.readingChecks!.letter!.attempts.map(attempt => attempt.correct)).toEqual([false, false, true, false, true, false, true, true]);
+    expect(game.state.readingChecks!.letter!.attempts.map(attempt => attempt.correct)).toEqual([false, false, true]);
     // Direct highlighting still saves additional notes after the reading check.
     await chooseSentence(page, "The letter gives no count of households.");
     await reader.getByText("Added to your notes.", { exact: true }).waitFor();

@@ -55,11 +55,12 @@ describe("prepared v3 attempts through the action service", () => {
     await game.send(answer(game.support), 409);
     expect(view.documents[0]?.readingCheck?.recovery?.id).toBe("check-1");
     await game.send(answer(game.support, "correction", true), 400);
+    // A supported correction earns the note directly.
     await game.send(answer(game.support, view.documents[0]!.readingCheck!.recovery!.id, true));
-    await game.send(answer(game.support, "check-2"));
     const loaded = await game.store.loadAttempt(game.id);
-    const history = (loaded!.state as { readingChecks: Record<string, { attempts: { correct: boolean }[] }> }).readingChecks["doc-1"]!.attempts;
-    expect(history.map(attempt => attempt.correct)).toEqual([false, true, true]);
+    const saved = loaded!.state as { discovered: string[]; readingChecks: Record<string, { status: string; attempts: { correct: boolean }[] }> };
+    expect(saved.readingChecks["doc-1"]!.attempts.map(attempt => attempt.correct)).toEqual([false, true]);
+    expect(saved.readingChecks["doc-1"]!.status).toBe("passed");
     expect((await getAttempt(game.deps, "another-student", game.id)).status).toBe(404);
   });
 

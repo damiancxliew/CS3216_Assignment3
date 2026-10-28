@@ -1171,7 +1171,8 @@ describe("v3 dialogue box", () => {
       }));
 
       expect(markup).toContain("The people watch in silence.");
-      expect(markup).toContain("What will Temenggong Abdul Rahman decide?");
+      expect(markup).toContain("Predict: what will Temenggong Abdul Rahman decide?");
+      expect(markup).toMatch(/Your guess won(&apos;|&#x27;|')t change what happens./);
       expect(markup).toContain("They will accept the proposal.");
       expect(markup).toContain("They will refuse the proposal.");
     } finally {
