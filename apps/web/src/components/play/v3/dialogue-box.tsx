@@ -484,8 +484,9 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
                 </p>
               ) : null}
               <h3 className="mt-2 text-sm font-black sm:text-base">
-                What will {moment.deciderName || "they"} decide?
+                Predict: what will {moment.deciderName || "they"} decide?
               </h3>
+              <p className="text-xs text-[#5c6472] sm:text-sm">Your guess won&apos;t change what happens.</p>
             </>
           ) : null}
 

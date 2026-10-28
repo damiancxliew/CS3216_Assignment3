@@ -83,28 +83,29 @@ describe('question-specific reading corrections', () => {
     expect(game.state.readingChecks!.letter!.attempts).toHaveLength(10)
   })
 
-  it('rejects previous and obsolete correction IDs without changing state or advancing twice', async () => {
+  it('rejects other and obsolete correction IDs without changing state; a supported correction earns the note once', async () => {
     const game = new Harness(checkedSpec())
     await openLetter(game)
     await game.act(answer(game, 0, false, false))
-    await game.act(answer(game, 0, true))
-    const afterCorrection = structuredClone(game.state)
-    await expect(game.act(answer(game, 0, true))).rejects.toMatchObject({ code: 'invalid_action' })
-    expect(game.state).toEqual(afterCorrection)
-    await game.act(answer(game, 1, false, false))
 
-    for (const questionId of ['q1', 'obsolete-correction']) {
+    for (const questionId of ['q2', 'obsolete-correction']) {
       const before = structuredClone(game.state)
       const eventCount = game.events.length
-      await expect(game.act({ ...answer(game, 1, true), questionId })).rejects.toMatchObject({ code: 'invalid_action' })
+      await expect(game.act({ ...answer(game, 0, true), questionId })).rejects.toMatchObject({ code: 'invalid_action' })
       expect(game.state).toEqual(before)
       expect(game.events).toHaveLength(eventCount)
     }
 
-    await game.act(answer(game, 1, true))
-    expect(reading(game).question!.id).toBe('q3')
-    expect(game.state.readingChecks!.letter!.attempts).toHaveLength(4)
-    expect(game.state.discovered).not.toContain('d-letter')
+    await game.act(answer(game, 0, true))
+    expect(reading(game).status).toBe('passed')
+    expect(game.state.discovered).toContain('d-letter')
+    expect(game.state.readingChecks!.letter!.attempts).toHaveLength(2)
+    // A replayed delivery after passing changes nothing.
+    const afterPass = structuredClone(game.state)
+    const eventCount = game.events.length
+    await game.act(answer(game, 0, true))
+    expect(game.state).toEqual(afterPass)
+    expect(game.events).toHaveLength(eventCount)
   })
 
   it('shows the answer until Continue, survives resume, and still requires a different question to pass', async () => {
@@ -146,7 +147,7 @@ describe('question-specific reading corrections', () => {
     game.state = JSON.parse(JSON.stringify(game.state))
     expect(reading(game)).toMatchObject({ status: 'needsReview', recovery: { id: 'q3', prompt: facts[2][0] } })
     await game.act(answer(game, 2, true))
-    expect(reading(game).question!.id).toBe('q4')
-    expect(game.state.discovered).not.toContain('d-letter')
+    expect(reading(game).status).toBe('passed')
+    expect(game.state.discovered).toContain('d-letter')
   })
 })

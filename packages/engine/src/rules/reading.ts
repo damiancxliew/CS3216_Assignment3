@@ -105,10 +105,8 @@ export function submitReadingCheck(ctx: StepContext, action: Extract<Action, { t
   const correct = action.choiceId === question.correctOptionId && supportsReadingSelection(document.body, question.support, action.start, action.end)
   progress.attempts.push({ at: ctx.now, questionId: question.id, choiceId: action.choiceId, start: action.start, end: action.end, correct, recovery })
   ctx.emit({ type: 'readingCheck', documentId: document.id, questionId: question.id, correct, recovery })
-  if (correct && recovery) {
-    advance(progress, check.variants.length)
-    markProgress(ctx)
-  } else if (correct) {
+  // A supported answer earns the note, including a correction after a failed attempt.
+  if (correct) {
     const discovery = lookup.discovery(ctx.spec, check.discoveryId)
     if (!evaluate(discovery.condition, { spec: ctx.spec, state, now: ctx.now })) fail('preparation_required', 'more preparation is needed for this source')
     progress.status = 'passed'
