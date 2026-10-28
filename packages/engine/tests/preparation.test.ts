@@ -266,7 +266,7 @@ describe('preparation and essential conversations', () => {
     expect(game.eventsOf('essentialConversation')).toHaveLength(1)
   })
 
-  it('counts relevant shared-note and slant replies only after substantive confirmation', async () => {
+  it('counts a note that explicitly unlocks the required fact before any reply check', async () => {
     const spec = checkedSpec()
     spec.stages[0]!.preparation!.characters = {}
     spec.stages[0]!.preparation!.decision = []
@@ -279,10 +279,63 @@ describe('preparation and essential conversations', () => {
     await game.act({ type: 'enterRoom', roomId: 'r1' })
     await game.act({ type: 'insertNote', characterId: 'm', noteId: game.noteFor('d-letter') })
     expect(game.state.discovered).toContain('d-m2')
-    expect(game.view?.stage?.preparation?.ready).toBe(false)
-    await game.check({ conveyed: ['d-m2'], substantive: true })
+    expect(game.view?.stage?.preparation?.ready).toBe(true)
+    await game.check({ conveyed: [], substantive: false })
     expect(game.view?.stage?.preparation?.ready).toBe(true)
     expect(game.eventsOf('essentialConversation')).toEqual([expect.objectContaining({ characterId: 'm' })])
+  })
+
+  it('credits the exact collected note only for its recipient and keeps other facts required', async () => {
+    const spec = checkedSpec()
+    spec.stages[0]!.preparation = { characters: {}, decision: [], essentialCharacters: [
+      { characterId: 'a', discoveryIds: ['d-a1', 'd-a2'] },
+      { characterId: 'b', discoveryIds: ['d-b1'] },
+    ] }
+    const game = new Harness(spec)
+    await game.start()
+    // The fact was collected previously without a substantive exchange being confirmed.
+    await game.say('a', 'Tell me about trade.', { conveyed: ['d-a1'], substantive: false })
+    expect(game.view?.stage?.preparation?.essentialConversations[0]?.complete).toBe(false)
+    expect(game.view?.stage?.preparation?.hint).toContain('Show your note')
+    await game.act({ type: 'enterRoom', roomId: 'r2' })
+    await game.act({ type: 'insertNote', characterId: 'b', noteId: game.noteFor('d-a1') })
+    expect(game.state.essentialConversations?.s1).toBeUndefined()
+    await game.check({ substantive: false })
+    await game.act({ type: 'enterRoom', roomId: 'r1' })
+    await game.act({ type: 'insertNote', characterId: 'a', noteId: game.noteFor('d-a1') })
+    expect(game.state.essentialConversations?.s1?.a).toEqual(['d-a1'])
+    expect(game.view?.stage?.preparation?.essentialConversations[0]?.complete).toBe(false)
+    expect(game.state.discovered).not.toContain('d-a2')
+    await game.check({ substantive: false })
+    await game.act({ type: 'insertNote', characterId: 'a', noteId: game.noteFor('d-a1') })
+    expect(game.state.essentialConversations?.s1?.a).toEqual(['d-a1'])
+    expect(game.eventsOf('essentialConversation')).toHaveLength(0)
+    await game.check({ substantive: false })
+    game.state.characters.a!.stanceId = 'a3'
+    await game.say('a', 'Why do you fear Riau?', { conveyed: ['d-a2'], substantive: true })
+    expect(game.view?.stage?.preparation?.essentialConversations[0]?.complete).toBe(true)
+    expect(game.view?.stage?.preparation?.ready).toBe(false)
+    await game.act({ type: 'enterRoom', roomId: 'r2' })
+    await game.say('b', 'What do the orders require?', { conveyed: ['d-b1'], substantive: true })
+    expect(game.view?.stage?.preparation?.ready).toBe(true)
+    expect(game.eventsOf('essentialConversation')).toHaveLength(2)
+  })
+
+  it('can show a held fact even when its original reveal condition no longer holds', async () => {
+    const spec = checkedSpec()
+    spec.stages[0]!.preparation = { characters: {}, decision: [], essentialCharacters: [{ characterId: 'a', discoveryIds: ['d-a2'] }] }
+    const game = new Harness(spec)
+    await game.start()
+    game.state.characters.a!.stanceId = 'a3'
+    await game.say('a', 'What do you fear?', { conveyed: ['d-a2'], substantive: false })
+    game.state.characters.a!.stanceId = 'a1'
+    await game.act({ type: 'tick' })
+    expect(game.view?.stage?.preparation?.hint).toContain('Show your note from “A” to A')
+    await game.act({ type: 'insertNote', characterId: 'a', noteId: game.noteFor('d-a2') })
+    expect(game.view?.stage?.preparation?.ready).toBe(true)
+    await game.check({ conveyed: [], substantive: false })
+    expect(game.view?.stage?.preparation?.ready).toBe(true)
+    expect(game.eventsOf('essentialConversation')).toHaveLength(1)
   })
 
   it('does not expand a character reply to undiscovered facts held by another source', async () => {
