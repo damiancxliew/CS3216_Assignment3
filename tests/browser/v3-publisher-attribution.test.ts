@@ -31,7 +31,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")("shows the actual publish
       if (id === "\0navigation") return `export const useRouter=()=>({refresh(){}});export const useSearchParams=()=>new URLSearchParams()`;
       if (id === "\0versions") return `export const getV3SavedVersions=async()=>(${JSON.stringify({ ok: true, latest: 4, publishedVersion: 3, published: true, versions })})`;
       if (id === "\0publish") return `export const publishSavedV3Version=async()=>({ok:true})`;
-      if (id === "\0import") return `export const updateAdventureFromZip=async()=>({})`;
+      if (id === "\0import") return `export const updateAdventureFromFile=async()=>({})`;
       if (id === "\0form") return `export const ActionForm=()=>null`;
       if (id === "\0ui") return `${buttons}`;
       if (id === "\0publisher") return (await transformWithEsbuild(`

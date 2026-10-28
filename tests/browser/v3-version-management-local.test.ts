@@ -62,7 +62,7 @@ it.runIf(process.env.RUN_VERSION_LOCAL_TESTS === "1")("imports a ZIP update, sel
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `${output}/07-transfer-mobile.png` });
     await page.setViewportSize({ width: 1440, height: 1050 });
-    await page.getByLabel("Adventure ZIP", { exact: true }).setInputFiles({ name: "updated-adventure.zip", mimeType: "application/zip", buffer: Buffer.from(archive) });
+    await page.getByLabel("Adventure ZIP or JSON", { exact: true }).setInputFiles({ name: "updated-adventure.zip", mimeType: "application/zip", buffer: Buffer.from(archive) });
     await page.getByRole("button", { name: "Import as new version", exact: true }).click();
     await page.waitForURL(`**/v3/teacher/${adventure.id}?view=editor&importedVersion=2`, { timeout: 60_000 });
     const versions = page.getByRole("dialog", { name: "Adventure versions", exact: true });

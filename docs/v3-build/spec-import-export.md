@@ -57,9 +57,10 @@ referenced media must remain hosted and accessible.
 
 ## Updating an existing adventure and managing versions
 
-In **Import / export**, **Import as new version** uploads a ZIP as the next saved version of
+In **Import / export**, **Import as new version** uploads a ZIP or JSON file as the next saved version of
 the same adventure. It replaces the editable draft and source text, retaining
-earlier spec and source snapshots. An import never changes the live version.
+earlier spec and source snapshots. JSON updates retain media URL references and accept exported bundles or raw specs,
+with the same 10 MB limit as new imports. An import never changes the live version.
 If another author saves or publishes while the file is uploading, the import
 fails without replacing their work and removes newly uploaded media.
 
