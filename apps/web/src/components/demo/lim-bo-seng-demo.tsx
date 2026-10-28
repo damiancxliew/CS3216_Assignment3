@@ -26,6 +26,8 @@ import { SourceQuestion, SourceFootnote, SourceRewards } from "./source-question
 import { useChapterExperience } from "./chapter-experience";
 import { useWaterfrontExperience } from "./waterfront-experience";
 import { SourceInferenceTask } from "./source-inference-task";
+import { trackDemo } from "@/lib/analytics/posthog";
+import { demoActionEvents, demoContext, type DemoEventName, type DemoEvent } from "@/lib/demo/analytics-events";
 
 export function LimBoSengDemo() {
   const [boot, setBoot] = useState<{
@@ -36,10 +38,25 @@ export function LimBoSengDemo() {
   const saveKey = useRef(DEMO_SAVE_KEY);
   const previewStart = useRef(0);
   const latest = useRef<DemoV3State>(newDemoV3State());
+  const booted = useRef(false);
+  const report = useCallback((event: DemoEventName, properties: DemoEvent["properties"] = {}) => {
+    trackDemo({ event, properties: {
+      ...demoContext(latest.current),
+      preview_mode: new URLSearchParams(window.location.search).has("preview"),
+      ...properties,
+    } });
+  }, []);
+  const inspectSource = useCallback((sourceId: string) => {
+    report("demo_source_inspected", { source_id: sourceId });
+  }, [report]);
+  const answerQuiz = useCallback((sourceId: string, choice: number, correct: boolean, attempt: number) => {
+    report("demo_quiz_answered", { source_id: sourceId, option_index: choice, correct, attempt_in_visit: attempt });
+  }, [report]);
   const waterfrontExperience = useWaterfrontExperience(
     () => latest.current,
     boot?.key ?? 0,
     boot ? saveKey.current : null,
+    report,
   );
   const chapterExperience = useChapterExperience(
     () => latest.current,
@@ -98,11 +115,16 @@ export function LimBoSengDemo() {
             return false;
           }
         },
+        onCommitted: (before, after, action) => {
+          for (const event of demoActionEvents(before, after, action)) report(event.event, event.properties);
+        },
       },
     );
     return { initial, client, key };
-  }, []);
+  }, [report]);
   useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
     const preview = new URLSearchParams(window.location.search).get("preview");
     const chapterPreview = preview?.match(/^chapter-([2-5])$/);
     previewStart.current = chapterPreview ? 1 : 0;
@@ -120,7 +142,8 @@ export function LimBoSengDemo() {
       setSaveError(true);
     }
     setBoot(createBoot(state));
-  }, [createBoot]);
+    report(state.revision > 0 ? "demo_resumed" : "demo_started");
+  }, [createBoot, report]);
   function download() {
     let task = restoreSourceTask(null);
     try {
@@ -137,6 +160,7 @@ export function LimBoSengDemo() {
     a.href = url;
     a.download = "lim-bo-seng-learning-report.html";
     a.click();
+    report("demo_report_downloaded");
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   if (!boot)
@@ -147,7 +171,7 @@ export function LimBoSengDemo() {
     );
   const source = sourceById(selectedSource);
   return (
-    <SourceRewards key={boot.key} storageKey={`${saveKey.current}.source-hints`}><div className="history-demo">
+    <SourceRewards key={boot.key} storageKey={`${saveKey.current}.source-hints`} onInspect={inspectSource} onAnswer={answerQuiz}><div className="history-demo">
       <V3PlayClient
         key={boot.key}
         attemptId="standalone-lim-bo-seng"
@@ -319,6 +343,7 @@ export function LimBoSengDemo() {
             <button
               className="min-h-11 rounded-lg border-2 border-[#183e35] bg-[#285c4d] px-4 py-2 font-bold text-[#fff9e9] hover:bg-[#193f35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b87522]"
               onClick={() => {
+                report("demo_restarted");
                 const fresh = newDemoV3State(previewStart.current);
                 try {
                   localStorage.setItem(saveKey.current, JSON.stringify(fresh));
@@ -328,6 +353,7 @@ export function LimBoSengDemo() {
                   setSaveError(true);
                 }
                 setBoot(createBoot(fresh, boot.key + 1));
+                report("demo_started");
                 setRestart(false);
               }}
             >

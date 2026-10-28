@@ -599,6 +599,8 @@ function roomOpening(s: DemoV3State) {
 export type DemoClientOptions = {
   /** Chapter 2's newspaper note is earned by submitting the written inference, not by highlighting. */
   inferenceSubmitted?: () => boolean;
+  /** Runs after an action is validated and saved (staging analytics). Its failures never undo progress. */
+  onCommitted?: (before: DemoV3State, after: DemoV3State, action: Action) => void;
 };
 
 export function createDemoV3Client(
@@ -816,8 +818,14 @@ export function createDemoV3Client(
         } else if (action.type !== "tick")
           throw new Error("This action is not available now.");
         next.revision++;
+        const before = state;
         state = next;
         save(state);
+        try {
+          options.onCommitted?.(before, state, action);
+        } catch {
+          // Analytics must never prevent progress or make a committed action retry.
+        }
         return result();
       } catch (e) {
         return {

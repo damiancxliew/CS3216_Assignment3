@@ -1,16 +1,20 @@
 "use client";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { sourceQuestions } from "@/lib/demo/source-questions";
 import styles from "./source-question.module.css";
 
 const Rewards = createContext<{
   solved: string[];
   unlock: (id: string) => void;
+  onInspect?: (id: string) => void;
+  onAnswer?: (id: string, choice: number, correct: boolean, attempt: number) => void;
 }>({ solved: [], unlock: () => {} });
 
-export function SourceRewards({ storageKey, children }: {
+export function SourceRewards({ storageKey, children, onInspect, onAnswer }: {
   storageKey: string;
   children: ReactNode;
+  onInspect?: (id: string) => void;
+  onAnswer?: (id: string, choice: number, correct: boolean, attempt: number) => void;
 }) {
   const [solved, setSolved] = useState<string[]>([]);
   const [saveError, setSaveError] = useState(false);
@@ -35,7 +39,7 @@ export function SourceRewards({ storageKey, children }: {
     }
   }
   return (
-    <Rewards.Provider value={{ solved, unlock }}>
+    <Rewards.Provider value={{ solved, unlock, onInspect, onAnswer }}>
       {children}
       {saveError && (
         <p className={styles.saveError} role="status">
@@ -57,7 +61,15 @@ export function SourceQuestion(props: QuestionProps) {
 }
 function Question({ id, onReward, hasNote = false }: QuestionProps) {
   const quiz = sourceQuestions[id];
-  const { solved, unlock } = useContext(Rewards);
+  const { solved, unlock, onInspect, onAnswer } = useContext(Rewards);
+  const inspected = useRef(false);
+  const attempts = useRef(0);
+  useEffect(() => {
+    if (quiz && !inspected.current) {
+      inspected.current = true;
+      onInspect?.(id);
+    }
+  }, [id, quiz, onInspect]);
   const [choice, setChoice] = useState<number | null>(null);
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,7 +89,9 @@ function Question({ id, onReward, hasNote = false }: QuestionProps) {
     });
   }
   function check() {
-    if (choice === null) return;
+    if (choice === null || checked || earned) return;
+    attempts.current++;
+    onAnswer?.(id, choice, choice === quiz.answer, attempts.current);
     setChecked(true);
     if (choice === quiz.answer) {
       unlock(id);

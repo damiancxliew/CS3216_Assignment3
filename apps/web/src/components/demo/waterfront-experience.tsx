@@ -26,6 +26,7 @@ import { ARCHIVE_SHELVES } from "@/lib/demo/archive-shelves";
 import { RickshawRide } from "./rickshaw-ride";
 import { WaterfrontDeparture } from "./waterfront-departure";
 import { stages } from "@/lib/demo/lim-bo-seng";
+import type { DemoEvent, DemoEventName } from "@/lib/demo/analytics-events";
 import styles from "./waterfront-experience.module.css";
 
 const commitments = [
@@ -57,6 +58,7 @@ export function useWaterfrontExperience(
   getState: () => DemoV3State,
   restartKey: number,
   saveScope: string | null,
+  report?: (event: DemoEventName, properties: DemoEvent["properties"]) => void,
 ) {
   const storageKey = saveScope ? `${saveScope}.waterfront` : null;
   const [activity, setActivity] = useState<
@@ -76,6 +78,11 @@ export function useWaterfrontExperience(
   const [riding, setRiding] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
   const [destination, setDestination] = useState<Point | null>(null);
+  const dateAttempts = useRef(0);
+  useEffect(() => {
+    dateAttempts.current = 0;
+    if (activity === "news") report?.("demo_source_inspected", { source_id: "surrender" });
+  }, [activity, report]);
   useEffect(() => {
     if (!storageKey) return;
     try {
@@ -458,11 +465,15 @@ export function useWaterfrontExperience(
                       ["route", "The exact boat and quay Lim used to leave"],
                       ["context", "The surrender that followed his departure"],
                       ["family", "How his household felt when he left"],
-                    ].map(([id, label]) => (
+                    ].map(([id, label], optionIndex) => (
                       <button
                         key={id}
                         aria-pressed={answer === id}
                         onClick={() => {
+                          if (answer !== id) {
+                            dateAttempts.current++;
+                            report?.("demo_quiz_answered", { source_id: "surrender", option_index: optionIndex, correct: id === "context", attempt_in_visit: dateAttempts.current });
+                          }
                           setAnswer(id);
                           if (id === "context") save(selected, true);
                         }}
