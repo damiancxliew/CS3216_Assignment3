@@ -265,6 +265,21 @@ export function ReviewScreen({
   const [activeAnchor, setActiveAnchor] = useState(reviewAnchor(selected));
   const [destination, setDestination] = useState<(ReviewTarget & { fieldPath?: string }) | null>(null);
   const detail = useRef<HTMLDivElement>(null);
+  const workspace = useRef<HTMLDivElement>(null);
+  // One height for the chat, index and details; their contents scroll inside it.
+  useLayoutEffect(() => {
+    const element = workspace.current;
+    if (!element) return;
+    const resize = () => {
+      const top = Math.max(0, element.getBoundingClientRect().top);
+      element.style.setProperty("--review-height", `${Math.max(160, window.innerHeight - top - 16)}px`);
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(element.parentElement!);
+    window.addEventListener("resize", resize);
+    return () => { observer.disconnect(); window.removeEventListener("resize", resize); };
+  }, []);
   const checksDisclosure = useRef<HTMLDetailsElement>(null);
   const targets = useMemo(() => reviewTargets(spec), [spec]);
   const names = useMemo(() => reviewNames(spec), [spec]);
@@ -520,8 +535,9 @@ export function ReviewScreen({
         </aside>
       ) : null}
       <div
+        ref={workspace}
         data-review-workspace
-        className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4"
+        className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4 xl:h-[var(--review-height,100dvh)] xl:min-h-0"
       >
         <div
           role="tablist"
@@ -581,10 +597,10 @@ export function ReviewScreen({
           className={tab === "assets" ? "min-w-0" : `grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${sidebar ? "xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(20rem,0.9fr)_15rem_minmax(0,2fr)]" : "md:min-h-0 md:flex-1"}`}
         >
           {tab === "assets" ? assets : <>
-          {sidebar ? <div className="min-h-0 min-w-0 md:col-span-2 xl:col-span-1">{sidebar}</div> : null}
+          {sidebar ? <div className="min-h-0 min-w-0 md:col-span-2 xl:col-span-1 xl:h-full">{sidebar}</div> : null}
           <nav
             aria-label={`${tabs.find((t) => t.id === tab)?.label} items`}
-            className="h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] md:h-full"
+            className={`h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] ${sidebar ? "xl:h-full" : "md:h-full"}`}
           >
             <h2 className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted">
               Index

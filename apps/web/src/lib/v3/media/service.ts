@@ -65,7 +65,7 @@ export async function requireMediaAdventure(
   const adventure = await deps.play.loadAdventure(adventureId);
   if (
     !adventure ||
-    !(await canStaffAdventure(deps.play, adventure, userId, deps.env)) ||
+    !(await canStaffAdventure(deps.play, adventure, userId)) ||
     !["draft", "published", "archived"].includes(adventure.status)
   )
     throw Error("Adventure not found.");

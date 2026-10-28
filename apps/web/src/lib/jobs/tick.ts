@@ -1,7 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 import type { createJobs, RunResult } from "@adventure/jobs";
-import { v3Enabled } from "@/lib/v3/flag";
 
 export const TICK_SECRET_HEADER = "x-jobs-tick-secret";
 
@@ -17,7 +16,6 @@ export async function handleTick(opts: {
   env?: NodeJS.ProcessEnv;
 }): Promise<TickOutcome> {
   const env = opts.env ?? process.env;
-  if (!v3Enabled(env)) return { status: 404, body: { error: "not_found" }, kicks: 0 };
 
   const secret = env.JOBS_TICK_SECRET;
   if (!secret) return { status: 503, body: { error: "not_configured" }, kicks: 0 };

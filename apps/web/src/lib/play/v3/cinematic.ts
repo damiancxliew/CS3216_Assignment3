@@ -8,6 +8,8 @@ export interface V3CinematicBeat {
   items?: string[];
   image?: { src: string; alt: string; caption: string; credit: string; href: string };
   journey?: { stops: string[]; current: number };
+  /** Held back behind "More about your role" on first viewing so the opening stays short. */
+  more?: boolean;
 }
 
 export const BRIEFING_BEGIN_LABEL = "Enter the first stage";
@@ -28,6 +30,7 @@ function nonEmpty(beat: V3CinematicBeat): V3CinematicBeat | null {
     ...(title ? { title } : {}),
     ...(body ? { body } : {}),
     ...(items?.length ? { items } : {}),
+    ...(beat.more ? { more: true } : {}),
   };
 }
 
@@ -56,9 +59,9 @@ export function briefingBeats(briefing: RoleBriefingView, firstStage?: StageView
       ...(briefing.reputation.trim() ? { items: [`Your reputation: ${briefing.reputation}`] } : {}),
     }),
     nonEmpty({ id: "goals", kicker: "Your goals", items: briefing.privateBrief.goals }),
-    nonEmpty({ id: "fears", kicker: "Your fears", items: briefing.privateBrief.fears }),
-    nonEmpty({ id: "knows", kicker: "What you already know", items: briefing.privateBrief.knows }),
-    nonEmpty({ id: "relationships", kicker: "People you know", items: briefing.relationships }),
+    nonEmpty({ id: "fears", kicker: "Your fears", items: briefing.privateBrief.fears, more: true }),
+    nonEmpty({ id: "knows", kicker: "What you already know", items: briefing.privateBrief.knows, more: true }),
+    nonEmpty({ id: "relationships", kicker: "People you know", items: briefing.relationships, more: true }),
   ].filter((beat): beat is V3CinematicBeat => beat !== null);
 }
 

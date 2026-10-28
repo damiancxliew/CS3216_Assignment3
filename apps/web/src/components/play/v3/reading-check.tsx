@@ -11,11 +11,12 @@ export type ReadingCheckSubmission = SupportingSelection & {
   recovery?: boolean;
 };
 
-export function ReadingCheck({ document, selection, onSelect, onSubmit, busy = false }: {
+export function ReadingCheck({ document, selection, onSelect, onSubmit, onContinue, busy = false }: {
   document: DocumentView;
   selection: SupportingSelection | null;
   onSelect: (selection: SupportingSelection | null) => void;
   onSubmit?: (submission: ReadingCheckSubmission, onSettled: (succeeded: boolean) => void) => void;
+  onContinue?: (questionId: string, onSettled: (succeeded: boolean) => void) => void;
   busy?: boolean;
 }) {
   const check = document.readingCheck!;
@@ -27,6 +28,26 @@ export function ReadingCheck({ document, selection, onSelect, onSubmit, busy = f
   const name = useId();
   const review = useRef<HTMLDivElement>(null);
   const disabled = busy || sending || !onSubmit;
+
+  if (check.revealedAnswer) {
+    const answer = check.revealedAnswer;
+    return <section data-reading-check="" tabIndex={-1} className={`${styles.check} ${styles.answerReview}`} aria-label="Review the answer">
+      <div role="status">
+        <h3>Review the answer</h3>
+        <p>{answer.prompt}</p>
+        <p><strong>Correct answer:</strong> {answer.answer}</p>
+        <p><strong>Supporting passage (green):</strong></p>
+        {answer.support.map(({ start, end }) => <blockquote key={`${start}:${end}`}><mark className={styles.correctHighlight}>{document.body.slice(start, end)}</mark></blockquote>)}
+        <p>{answer.explanation}</p>
+      </div>
+      <button type="button" className={styles.submit} disabled={busy || sending || !onContinue} onClick={() => {
+        setSending(true);
+        setTransportError(false);
+        onContinue?.(answer.questionId, succeeded => { setSending(false); setTransportError(!succeeded); });
+      }}>{sending ? "Loading…" : "Try another question"}</button>
+      {transportError ? <p role="alert">Could not load the next question. Please try again.</p> : null}
+    </section>;
+  }
 
   if (check.status === "passed") return (
     <section data-reading-check="" tabIndex={-1} className={styles.passed} aria-label="Reading check complete">
@@ -41,10 +62,10 @@ export function ReadingCheck({ document, selection, onSelect, onSubmit, busy = f
       {recovery ? (
         <div ref={review} tabIndex={-1} className={styles.review} role="alert">
           <h3>Review the evidence before trying again</h3>
-          <p>{check.feedback ?? "That answer was not supported. Complete the correction below or investigate another relevant source first."}</p>
+          <p>{check.feedback ?? "That answer was not supported. Try again below or investigate another relevant source first."}</p>
         </div>
       ) : (
-        <p className={styles.instructions}>Choose an answer, then highlight the sentence or sentences that support it. A wrong answer needs a correction before you can try again.</p>
+        <p className={styles.instructions}>Choose an answer, then highlight the sentence or sentences that support it. If your answer is not supported, you can try again.</p>
       )}
       {question ? (
         <form onSubmit={(event) => {
@@ -78,7 +99,7 @@ export function ReadingCheck({ document, selection, onSelect, onSubmit, busy = f
           </div>
           {selection ? <button type="button" className={styles.clear} disabled={disabled} onClick={() => onSelect(null)}>Clear highlight</button> : null}
           <button type="submit" className={styles.submit} disabled={disabled || !choiceId || !selection}>
-            {sending ? "Checking your answer…" : recovery ? "Submit correction" : "Submit answer and evidence"}
+            {sending ? "Checking your answer…" : recovery ? "Try again" : "Submit answer and evidence"}
           </button>
           {transportError ? <p role="alert">Your answer could not be saved. Close and reopen the source, then try again.</p> : null}
         </form>

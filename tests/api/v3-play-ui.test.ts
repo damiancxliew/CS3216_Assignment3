@@ -427,7 +427,7 @@ describe("v3 stage play screen", () => {
       expect(notesMarkup).toContain('id="stage-island-panel"');
       expect(notesMarkup).toContain('aria-expanded="true"');
       expect(notesMarkup).toContain('id="stage-island-panel" aria-hidden="false"');
-      expect(notesMarkup).toContain("w-[min(22rem,calc(100%_-_1rem))]");
+      expect(notesMarkup).toContain("w-[min(40rem,calc(100%_-_1rem))]");
       expect(notesMarkup.indexOf('<section aria-label="Stage 2 notes">'))
         .toBeLessThan(notesMarkup.indexOf('<section aria-label="Stage 1 notes">'));
       expect(notesMarkup).toContain("A later conversation.");
@@ -808,6 +808,26 @@ describe("v3 stage play screen", () => {
 });
 
 describe("v3 cinematic", () => {
+  it("runs the header strip from the top edge instead of floating it over the artwork (#362)", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(V3Cinematic, {
+        artUrl: "https://assets.example/stage-0.webp",
+        beats: [{ id: "role", kicker: "Your role", title: "Nadia", body: "Student" }],
+        beginLabel: "Enter the first stage",
+        onBegin: () => {},
+        muted: true,
+        onToggleMuted: () => {},
+      }));
+      expect(markup).toMatch(/<header class="[^"]*topFlush/);
+      // The flush header replaces the top letterbox bar; the bottom bar is unchanged.
+      expect(markup).not.toMatch(/barTop/);
+      expect(markup).toMatch(/barBottom/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("keeps every beat in the DOM and uses the dark fallback without art", () => {
     vi.stubGlobal("React", React);
     try {

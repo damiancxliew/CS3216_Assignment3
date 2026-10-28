@@ -10,7 +10,7 @@ import { briefStateSchema } from "@/lib/brief/schema";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { loadLibraryArtwork } from "@/lib/teacher/library";
-import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
+
 import { V3_STATUS_LABELS } from "@/lib/v3/generation/labels";
 import { AdventureCover } from "@/components/teacher/adventure-cover";
 import { SchoolMembershipRequired } from "@/components/school-membership-required";
@@ -78,16 +78,13 @@ export default async function TeacherHome() {
   const resume = briefStateSchema.safeParse(unfinished?.brief_state);
   const artwork = await loadLibraryArtwork(supabase, adventures);
 
-  const v3Allowed = viewer.membership ? v3Enabled() && v3SchoolAllowed(viewer.membership.organizationId) : false;
-  const { data: v3Rows } = v3Allowed
-    ? await supabase
-        .from("adventures_v3")
-        .select("id, title, status, updated_at")
-        .eq("owner_id", user.id)
-        .neq("status", "archived")
-        .order("updated_at", { ascending: false })
-        .returns<V3Row[]>()
-    : { data: null };
+  const { data: v3Rows } = await supabase
+    .from("adventures_v3")
+    .select("id, title, status, updated_at")
+    .eq("owner_id", user.id)
+    .neq("status", "archived")
+    .order("updated_at", { ascending: false })
+    .returns<V3Row[]>();
   const v3Adventures = v3Rows ?? [];
 
   return (
@@ -99,8 +96,8 @@ export default async function TeacherHome() {
       <TeacherWorkspace
         resume={resume.success ? resume.data : undefined}
         hasAdventures={adventures.length > 0 || v3Adventures.length > 0}
-        importAdventure={v3Allowed ? <ImportAdventureJson /> : undefined}
-        {...(v3Allowed && !resume.success ? { newAdventure: { href: "/v3/teacher/new", label: "New adventure" } } : {})}
+        importAdventure={<ImportAdventureJson />}
+        {...(!resume.success ? { newAdventure: { href: "/v3/teacher/new", label: "New adventure" } } : {})}
         adventures={
           adventures.length === 0 && v3Adventures.length === 0 ? (
             <EmptyState title="No adventures yet">Start with the class you are teaching next.</EmptyState>

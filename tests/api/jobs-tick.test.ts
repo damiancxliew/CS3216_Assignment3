@@ -2,16 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createJobs, defineStep, memoryJobStore } from "@adventure/jobs";
 
 import { handleTick, TICK_SECRET_HEADER, tickUrl } from "@/lib/jobs/tick";
-import { v3Enabled, v3SchoolAllowed } from "@/lib/v3/flag";
 
 const tickSecret = "test-tick-secret";
 
 function enabledEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
-  return {
-    V3_ENABLED: "1",
-    JOBS_TICK_SECRET: tickSecret,
-    ...overrides,
-  };
+  return { JOBS_TICK_SECRET: tickSecret, ...overrides };
 }
 
 function newJobs() {
@@ -27,24 +22,12 @@ describe("jobs tick handler", () => {
     vi.restoreAllMocks();
   });
 
-  it("does not construct jobs when v3 is disabled", async () => {
-    const getJobs = vi.fn(() => newJobs());
-    const outcome = await handleTick({
-      getJobs,
-      secretHeader: tickSecret,
-      env: enabledEnv({ V3_ENABLED: "0" }),
-    });
-
-    expect(outcome).toEqual({ status: 404, body: { error: "not_found" }, kicks: 0 });
-    expect(getJobs).not.toHaveBeenCalled();
-  });
-
   it("does not construct jobs when the tick secret is not configured", async () => {
     const getJobs = vi.fn(() => newJobs());
     const outcome = await handleTick({
       getJobs,
       secretHeader: tickSecret,
-      env: { V3_ENABLED: "1" },
+      env: {},
     });
 
     expect(outcome).toEqual({ status: 503, body: { error: "not_configured" }, kicks: 0 });
@@ -148,28 +131,5 @@ describe("jobs tick handler", () => {
       JOBS_TICK_URL: "https://internal.example/tick",
     })).toBe("https://internal.example/tick");
     expect(TICK_SECRET_HEADER).toBe("x-jobs-tick-secret");
-  });
-});
-
-describe("v3 school flags", () => {
-  it("enables only for the exact supported values", () => {
-    expect(v3Enabled({ V3_ENABLED: "1" })).toBe(true);
-    expect(v3Enabled({ V3_ENABLED: "true" })).toBe(true);
-    expect(v3Enabled({ V3_ENABLED: "TRUE" })).toBe(false);
-    expect(v3Enabled({ V3_ENABLED: "yes" })).toBe(false);
-  });
-
-  it("checks a trimmed allowlist only when v3 is enabled", () => {
-    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "1" })).toBe(false);
-    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "1", V3_SCHOOL_IDS: "" })).toBe(false);
-    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "1", V3_SCHOOL_IDS: " , \t, " })).toBe(false);
-    expect(v3SchoolAllowed("school-1", {
-      V3_ENABLED: "true",
-      V3_SCHOOL_IDS: " school-0, school-1 ,school-2 ",
-    })).toBe(true);
-    expect(v3SchoolAllowed("school-1", {
-      V3_ENABLED: "0",
-      V3_SCHOOL_IDS: "school-1",
-    })).toBe(false);
   });
 });

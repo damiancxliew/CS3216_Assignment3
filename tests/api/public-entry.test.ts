@@ -11,7 +11,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: moc
 vi.mock("@/lib/play/v3/http", () => ({ v3PlayDeps: () => ({}), v3PublishDeps: () => ({}) }));
 vi.mock("@/lib/play/v3/publish", () => ({ loadJoinView: mocks.loadJoinView }));
 vi.mock("@/lib/play/v3/service", () => ({ createAttempt: mocks.createAttempt }));
-vi.mock("@/lib/v3/flag", () => ({ v3Enabled: () => true }));
+
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
 import { GET } from "@/app/v3/play/start/[versionId]/route";

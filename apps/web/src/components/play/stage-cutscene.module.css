@@ -47,6 +47,9 @@
 .barBottom { bottom: 0; transform-origin: bottom; }
 
 .top { border-radius: var(--radius-control); background: color-mix(in srgb, var(--paper) 96%, transparent); padding: 0 10px; position: absolute; z-index: 3; top: calc(var(--bar) + 14px); left: var(--gutter); right: var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* v3: the header strip runs from the top edge across the full width, so no artwork shows above or
+   beside it. Its title and controls stay where the floating panel put them. */
+.topFlush { top: 0; left: 0; right: 0; border-radius: 0; padding: calc(var(--bar) + 14px) calc(var(--gutter) + 10px) 4px; border-bottom: 1px solid var(--line); background: var(--paper); }
 .chapter { margin: 0; min-width: 0; overflow: hidden; color: var(--ink-muted); font-size: .875rem; font-weight: 800; letter-spacing: .06em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .chapter span { margin: 0 .4em; opacity: .6; }
 .controls { display: flex; flex-shrink: 0; gap: 6px; }

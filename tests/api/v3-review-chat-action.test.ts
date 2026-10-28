@@ -5,8 +5,6 @@ import type { V3BriefRow } from "@/lib/v3/brief/store";
 const harness = vi.hoisted(() => ({
   row: null as V3BriefRow | null,
   userId: "teacher",
-  enabled: true,
-  schoolAllowed: true,
   update: vi.fn(),
   completeJson: vi.fn(),
   conflict: false,
@@ -54,10 +52,7 @@ vi.mock("@/lib/v3/brief/store", () => ({
     load: async () => structuredClone(harness.row),
   }),
 }));
-vi.mock("@/lib/v3/flag", () => ({
-  v3Enabled: () => harness.enabled,
-  v3SchoolAllowed: () => harness.schoolAllowed,
-}));
+
 vi.mock("@adventure/jobs", () => ({ supabaseJobStore: () => ({}) }));
 vi.mock("@/lib/v3/generation/deps", () => ({
   defaultGenerationDeps: () => ({ sources: { load: async () => [] } }),
@@ -88,8 +83,7 @@ beforeEach(() => {
   harness.role = "teacher"; harness.sysadmin = false;
   vi.stubEnv("V3_FAKE_PASSES", "1");
   harness.userId = "teacher";
-  harness.enabled = true;
-  harness.schoolAllowed = true;
+
   harness.conflict = false;
   harness.version = 1;
   harness.row = {
@@ -115,7 +109,6 @@ describe("review chat access and persistence", () => {
     harness.userId = "another-user";
     harness.role = role === "admin" ? "admin" : "teacher";
     harness.sysadmin = role === "system-admin";
-    if (harness.sysadmin) harness.schoolAllowed = false;
     harness.row!.status = "draft";
     harness.completeJson.mockResolvedValue({ json: { notes: "No changes needed.", changes: [] } });
     const result = await suggestReviewChangeAction(id, { pass: "draft", version: 1, edits: [] }, "Check the title");
@@ -161,12 +154,10 @@ describe("review chat access and persistence", () => {
       .toMatchObject({ ok: false });
     expect(harness.update).not.toHaveBeenCalled();
   });
-  it.each(["owner", "school", "flag"])(
+  it.each(["owner"])(
     "rejects a failed %s guard before a model call or write",
     async (guard) => {
       if (guard === "owner") harness.userId = "someone-else";
-      if (guard === "school") harness.schoolAllowed = false;
-      if (guard === "flag") harness.enabled = false;
       expect(
         await suggestReviewChangeAction(id, input, "Exclude Extra"),
       ).toMatchObject({ ok: false });

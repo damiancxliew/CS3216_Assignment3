@@ -4,7 +4,7 @@ import type { Point } from "@adventure/game-core";
 import type { PlaygroundSnapshot } from "@adventure/game-client";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
-import { ChevronDown, CircleHelp, Timer } from "lucide-react";
+import { Check, ChevronDown, Circle, CircleHelp, Timer } from "lucide-react";
 import type { Action, PlayerView, DocumentView } from "@adventure/play-contract";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -14,6 +14,7 @@ import { DocumentReader } from "@/components/play/v3/document-reader";
 import { NotePickup, useNotePickups } from "@/components/play/v3/note-pickup";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { StoryToast, talkLines, useStanceShifts, useStoryToasts } from "@/components/play/v3/story-lines";
+import { MissionFocus } from "./mission-focus";
 import { StageIsland } from "@/components/play/v3/stage-island";
 import { V3CardDialog } from "./card-dialog";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
@@ -121,6 +122,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const preparation = stage?.preparation;
   const essential = preparation?.essentialConversations ?? [];
   const completedConversations = essential.filter((conversation) => conversation.complete).length;
+  const stepsLeft = preparation ? (preparation.timerExpired ? 0 : Math.max(0, preparation.required - preparation.completed)) + essential.length - completedConversations : 0;
   const guidanceKey = `v3.guidance:${attemptId}:${stageIndex}`;
   const spawnRoomId = view.rooms[0]?.id ?? "";
   const requestRoomEntry = useCallback((roomId: string) => new Promise<boolean>((resolve) => {
@@ -285,7 +287,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
               onOpenDocument={openDocument}
               onOpenRoleBrief={onOpenRoleBrief}
               definingMoment={isMoment}
-              pulseKey={pickup.current?.id ?? null}
+              pulseKey={view.notes.at(-1)?.id ?? null}
               openRequest={islandRequest}
               onOpenRequestHandled={acknowledgeIslandRequest}
               shortcutsLocked={externalMovementLock || guidance !== null || Boolean(experience?.movementLocked)}
@@ -296,10 +298,11 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             <button
               type="button"
               onClick={() => openTalk(nearbyCharacter.id)}
-              className="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 sm:bottom-3 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
+              className="absolute bottom-24 left-1/2 z-10 w-max max-w-[min(22rem,calc(100%_-_1rem))] -translate-x-1/2 sm:bottom-3 rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#1f2433] shadow-[3px_3px_0_#1f2433]"
             >
               {touch ? "Tap to talk to" : "Press E to talk to"} {nearbyCharacter.name}
               {nearbyCharacter.preparation && !nearbyCharacter.preparation.ready ? <PreparationProgress label="Preparation" completed={nearbyCharacter.preparation.completed} required={nearbyCharacter.preparation.required} /> : null}
+              {nearbyCharacter.preparation && !nearbyCharacter.preparation.ready && nearbyCharacter.preparation.hint ? <span className="mt-1 block text-xs font-semibold">{nearbyCharacter.preparation.hint}</span> : null}
             </button>
           ) : null}
 
@@ -359,20 +362,33 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
             </button>
           </header>
 
-          {!missionCollapsed ? (
-            <div className="mt-2 space-y-2">
+          <div className={`${missionCollapsed ? "mt-1" : "mt-2"} flex flex-col gap-2`}>
+            <div hidden={missionCollapsed}>
               {experience?.mission}
               {stage?.centralQuestion && !experience?.mission ? (
                 <p className="text-sm font-semibold leading-snug">{stage.centralQuestion}</p>
               ) : null}
+            </div>
+            <MissionFocus key={`${attemptId}:${stageIndex}`} view={view} collapsed={missionCollapsed} showNextStep={!experience?.mission} onOpenDocument={openDocument} onOpenJournal={(tab) => {
+              if (isTalkOpen && tab === "notes") setNotesOpen(true);
+              else {
+                if (isTalkOpen) closeTalk();
+                setIslandRequest({ tab, key: Date.now() });
+              }
+            }} />
+            <div hidden={missionCollapsed} className="space-y-2">
               {!isMoment ? (
                 <>
                   <p className="text-xs text-[#5c6472]">
                     You are in {view.rooms.find((room) => room.id === view.currentRoomId)?.name ?? "an unknown room"}
                   </p>
-                  {preparation ? <div className="space-y-1 text-xs" role="status" aria-live="polite"><PreparationProgress label="Evidence preparation" completed={preparation.completed} required={preparation.required} /><PreparationProgress label="Essential conversations" completed={completedConversations} required={essential.length} /></div> : null}
+                  {preparation ? <div className="space-y-1 text-xs" role="status" aria-live="polite">
+                    <PreparationProgress label="Evidence preparation" completed={preparation.completed} required={preparation.required} />
+                    <PreparationProgress label="Essential conversations" completed={completedConversations} required={essential.length} />
+                    {essential.length ? <ul aria-label="Essential conversations" className="space-y-0.5">{essential.map((conversation) => <li key={conversation.characterId} className="flex items-center gap-1.5">{conversation.complete ? <Check size={13} aria-hidden /> : <Circle size={11} aria-hidden />}<span className={conversation.complete ? "text-[#5c6472] line-through" : ""}>Speak with {conversation.name}</span><span className="sr-only">{conversation.complete ? ": conversation complete" : ": conversation still needed"}</span></li>)}</ul> : null}
+                  </div> : null}
                   {experience?.hideDecision ? null : preparation ? (
-                    <button type="button" disabled={busy || isTalkOpen} onClick={() => setGuidance({ type: preparation.ready ? "confirm" : "decision" })} aria-haspopup="dialog" className={`${styles.primary} min-h-11 px-3 text-xs font-black disabled:opacity-50`}>Review stage decision</button>
+                    <button type="button" disabled={busy || isTalkOpen} onClick={() => setGuidance({ type: preparation.ready ? "confirm" : "decision" })} aria-haspopup="dialog" className={preparation.ready ? `${styles.primary} min-h-11 px-3 text-xs font-black disabled:opacity-50` : "min-h-11 rounded-md border-2 border-dashed border-[#1f2433]/45 bg-[#1f2433]/5 px-3 text-xs font-black text-[#5c6472] disabled:opacity-50"}>Review stage decision{preparation.ready ? null : ` (${stepsLeft} ${stepsLeft === 1 ? "step" : "steps"} left)`}</button>
                   ) : confirmEndStage ? (
                     <div role="alert" className="space-y-2">
                       <p className="text-xs font-bold">{experience?.decisionHint ?? "You won’t be able to explore after this."}</p>
@@ -427,7 +443,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                 </>
               ) : null}
             </div>
-          ) : null}
+          </div>
         </section>
         </section>
       </div>
@@ -496,6 +512,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
           noteCount={view.notes.length}
           hasDocumentNote={view.notes.some((note) => note.source === "document")}
           busy={busy}
+          onContinueReadingCheck={!isMoment ? (questionId, onSettled) => send({ type: "continueReadingCheck", documentId: openedDocument.id, questionId }, onSettled) : undefined}
           {...(!isMoment ? { onSubmitReadingCheck: (submission: import("./reading-check").ReadingCheckSubmission, onSettled: (succeeded: boolean) => void) => send({ type: "submitReadingCheck", documentId: openedDocument.id, ...submission }, onSettled) } : {})}
           {...(openedDocument && !isMoment
             ? {

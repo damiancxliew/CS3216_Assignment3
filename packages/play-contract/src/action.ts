@@ -53,6 +53,10 @@ export const SubmitReadingCheckAction = z.strictObject({
   recovery: z.boolean().optional(),
 }).refine(action => action.end > action.start, { message: 'Select supporting evidence.', path: ['end'] })
 
+export const ContinueReadingCheckAction = z.strictObject({
+  type: z.literal('continueReadingCheck'), documentId: Id, questionId: Id,
+})
+
 /** The student arrived in a room. Walking itself stays on the client. */
 export const EnterRoomAction = z.strictObject({ type: z.literal('enterRoom'), roomId: Id })
 
@@ -89,6 +93,7 @@ export const Action = z.discriminatedUnion('type', [
   InsertNoteAction,
   SelectPassageAction,
   SubmitReadingCheckAction,
+  ContinueReadingCheckAction,
   EnterRoomAction,
   OpenDocumentAction,
   CloseDocumentAction,
@@ -107,6 +112,7 @@ export const ACTION_TYPES = [
   'insertNote',
   'selectPassage',
   'submitReadingCheck',
+  'continueReadingCheck',
   'enterRoom',
   'openDocument',
   'closeDocument',

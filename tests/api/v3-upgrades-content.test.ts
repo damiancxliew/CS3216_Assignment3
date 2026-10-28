@@ -47,10 +47,7 @@ async function fixture(remove = false) {
         llm: () => llm,
         enqueue: async () => {
         },
-        env: {
-            V3_ENABLED: '1',
-            V3_SCHOOL_IDS: 's'
-        }
+        env: {}
     };
     const result = await startUpgrade(deps, 'u', 'a', {
         expectedRevision: 1
@@ -167,7 +164,7 @@ describe('checkpointed authoring', () => {
 });
 describe('upgrade worker', () => {
     it('rechecks staff access before model calls and skips superseded checkpoint inputs', async () => {
-        const { deps, run, llm } = await fixture(true);
+        const { deps, run, llm, store } = await fixture(true);
         const { upgradeSteps } = await import('@/lib/v3/upgrades/steps');
         const worker = upgradeSteps(() => deps)[0]!;
         const base = {
@@ -190,7 +187,7 @@ describe('upgrade worker', () => {
             skipped: true
         });
         expect(llm.requests).toHaveLength(0);
-        deps.env.V3_ENABLED = '0';
+        store.addAdventure({ ...(await store.loadAdventure('a'))!, ownerId: 'other-teacher' });
         await worker.run({
             ...base,
             input: {

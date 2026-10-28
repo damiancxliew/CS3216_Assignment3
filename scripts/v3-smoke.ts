@@ -3,7 +3,7 @@
  * v3 student, starts golden-1819 and plays the historical path through the real API, engine and models.
  *
  *   npx vitest run --config scripts/vitest.v3-seed.config.ts          # once: seed golden-1819 and the student
- *   V3_ENABLED=1 V3_SCHOOL_IDS=<testing school id> npm run dev        # the app, in another terminal
+ *   npm run dev        # the app, in another terminal
  *   npx vite-node scripts/v3-smoke.ts                                 # this
  *
  * Localhost only; each run creates a throwaway student in the testing school. It reports what happened (notes, stances, phases, timings); it does not assert, because

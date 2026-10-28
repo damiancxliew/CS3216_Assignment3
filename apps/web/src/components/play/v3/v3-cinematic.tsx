@@ -18,7 +18,7 @@ function beatDuration(text: string): number {
 export function V3Cinematic({
   artUrl,
   artMetadata,
-  beats,
+  beats: allBeats,
   beginLabel,
   onBegin,
   onClose,
@@ -39,6 +39,9 @@ export function V3Cinematic({
   dialogLabel?: string;
 }) {
   const fullscreen = useFullscreen();
+  const [showMore, setShowMore] = useState(initiallySettled);
+  const beats = showMore ? allBeats : allBeats.filter((beat) => !beat.more);
+  const hasMore = beats.length < allBeats.length;
   const [step, setStep] = useState(() => initiallySettled ? beats.length : 0);
   const [paused, setPaused] = useState(initiallySettled);
   const [imageFailed, setImageFailed] = useState(!artUrl);
@@ -139,11 +142,11 @@ export function V3Cinematic({
         ) : null}
       </div>
       <div className={styles.scrim} aria-hidden />
-      <div className={`${styles.bar} ${styles.barTop}`} aria-hidden />
+      {/* The header is a full-width strip from the top edge (#362), so it replaces the top bar. */}
       <div className={`${styles.bar} ${styles.barBottom}`} aria-hidden />
 
       {artMetadata ? <div className="absolute bottom-2 right-3 z-20 max-w-[70%] rounded bg-black/75 px-2 py-1 text-xs text-white"><MediaCredit media={artMetadata} caption /></div> : null}
-      <header className={styles.top}>
+      <header className={`${styles.top} ${styles.topFlush}`}>
         <p className={styles.chapter}>Historical adventure</p>
         <div className={styles.controls}>
           {fullscreen.supported ? (
@@ -215,9 +218,16 @@ export function V3Cinematic({
 
       <div className={styles.actions}>
         {told ? (
-          <button ref={beginButton} type="button" className={styles.begin} onClick={onBegin}>
-            {beginLabel} <ArrowRight size={18} aria-hidden />
-          </button>
+          <div className={styles.buttons}>
+            {hasMore ? (
+              <button type="button" className={styles.skip} onClick={() => { setShowMore(true); setStep(allBeats.length); }}>
+                More about your role
+              </button>
+            ) : null}
+            <button ref={beginButton} type="button" className={styles.begin} onClick={onBegin}>
+              {beginLabel} <ArrowRight size={18} aria-hidden />
+            </button>
+          </div>
         ) : (
           <>
             <div className={styles.progress} aria-label={`Part ${Math.min(step + 1, beats.length)} of ${beats.length}`}>

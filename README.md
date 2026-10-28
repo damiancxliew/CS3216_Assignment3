@@ -53,15 +53,15 @@ Next.js only reads `.env.local` from `apps/web/`, not the repository root. The d
 `supabase/migrations/`; a schema change that is not a migration does not exist. To apply new migrations without
 wiping local data, run `npx supabase migration up --local`.
 
-v3 is enabled per school by a feature flag. Add to `apps/web/.env.local`:
+v3 is enabled for all schools by default. Add your model key to `apps/web/.env.local`:
 
 ```
-V3_ENABLED=true
-V3_SCHOOL_IDS=00000000-0000-4000-8000-000000005c01
 OPENAI_API_KEY=...
 ```
 
-The school ID is the local "Testing School". Then seed and run:
+V3 is available to every school; staff roles, school membership, and ownership
+control authoring access.
+The local "Testing School" ID is `00000000-0000-4000-8000-000000005c01`. Then seed and run:
 
 ```bash
 npx vitest run --config scripts/vitest.v3-seed.config.ts   # idempotent, localhost Supabase only
@@ -124,7 +124,7 @@ Some routes and modules from before v3 are still in the codebase and are not the
 See [`.env.example`](.env.example). Deployment (Vercel) needs
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
 `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_POSTHOG_KEY` and `OPENAI_API_KEY`, with the Vercel
-project's root directory set to `apps/web` and the Next.js preset. v3 also needs `V3_ENABLED` and `V3_SCHOOL_IDS`.
+project's root directory set to `apps/web` and the Next.js preset. v3 is available to every school without rollout environment variables.
 
 `main` is for development and deploys as a Vercel preview; `production` deploys to production.
 No other branch deploys automatically ([`apps/web/vercel.json`](apps/web/vercel.json), read from

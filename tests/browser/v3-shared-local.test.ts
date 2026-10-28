@@ -6,8 +6,8 @@ import { expect, it } from "vitest";
 import { createState, EngineSpec } from "@adventure/engine";
 import { addMember, createUserClient, serviceClient, uniqueEmail, SUPABASE_ANON_KEY, SUPABASE_URL } from "../db/helpers";
 
-// Uses a running local Next server configured with V3_ENABLED=1 and the supplied
-// test school in V3_SCHOOL_IDS. Only disposable accounts/adventures are created.
+// Uses a running local Next server and a local test school.
+// Only disposable accounts/adventures are created.
 it.runIf(process.env.RUN_SHARED_LOCAL_TESTS === "1")(
   "separates school/library versions, archives, starts, resumes and opens completed v3 results",
   async () => {
@@ -15,7 +15,7 @@ it.runIf(process.env.RUN_SHARED_LOCAL_TESTS === "1")(
     const base = process.env.SHARED_LOCAL_BASE_URL ?? "http://localhost:3105";
     if (!["localhost", "127.0.0.1"].includes(new URL(base).hostname)) throw Error("Local Next server required");
     const school = process.env.SHARED_LOCAL_SCHOOL_ID;
-    if (!school) throw Error("Set SHARED_LOCAL_SCHOOL_ID to a local test school enabled in Next's V3_SCHOOL_IDS");
+    if (!school) throw Error("Set SHARED_LOCAL_SCHOOL_ID to a local test school");
     const admin = serviceClient();
     const org = await admin.from("organization").select("slug,name").eq("id", school).single();
     if (org.error || !/test|local/i.test(org.data.name)) throw Error("A local test school is required");

@@ -29,7 +29,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
     }));
     const vite = await createServer({
       configFile: false,
-      cacheDir: resolve("node_modules/.vite/v3-editor"),
+      cacheDir: resolve("/tmp/v3-editor-vite-cache"),
       root,
       publicDir: resolve("apps/web/public"),
       define: {
@@ -56,6 +56,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           name: "editor-harness",
           enforce: "pre",
           resolveId(id, importer) {
+            if (id === "./adventure-access-actions") return "\0access-action";
             if (id === "virtual:editor") return "\0editor";
             if (id === "next/link") return "\0link";
             if (id === "next/image") return "\0image";
@@ -67,13 +68,11 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id.endsWith("/media-actions")) return "\0media";
             if (id.endsWith("/edit-actions")) return "\0save";
             if (id.endsWith("/publish-actions")) return "\0publish";
-            if (id.endsWith("/version-actions")) return "\0versions";
             if (id === "./import-actions" || id.endsWith("/teacher/import-actions")) return "\0import-json";
             if (id.endsWith("/lib/analytics/posthog")) return "\0analytics";
           },
           async load(id) {
-            if (id === "\0versions") return `export async function getV3SavedVersions(){return {ok:true,latest:1,publishedVersion:1,published:true,versions:[]}}`;
-            if (id === "\0import-json") return `export async function importAdventureJson(previous,form){return {error:form.get('file').name.endsWith('.zip')?'Could not import ZIP.':'That file is not valid JSON.'}}; export async function updateAdventureFromZip(){return {error:'This adventure changed. Reload before importing.'}}`;
+            if (id === "\0import-json") return `export async function importAdventureJson(previous,form){return {error:form.get('file').name.endsWith('.zip')?'Could not import ZIP.':'That file is not valid JSON.'}}; export async function updateAdventureFromFile(){return {error:'This adventure changed. Reload before importing.'}}`;
             if (id === "\0analytics") return `export function track(){}`;
             if (id === "\0buttons") return `import React from 'react'; ${buttons}
               export const control='rounded-control border border-line p-2';
@@ -81,6 +80,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
               export function Pending({children}) { return children; }
               export function StableLabel({label}) { return label; }
               export function ErrorText({children}) { return React.createElement('p',{role:'alert'},children); }`;
+            if (id === "\0access-action") return `export async function setAdventurePublic(id,kind,isPublic){localStorage.setItem("isPublic",String(isPublic));return {ok:true}}`;
             if (id === "\0upgrades") return `export const getUpgradeAction=async()=>null; export const startUpgradeAction=async()=>({ok:false,message:"Unavailable"}); export const refineUpgradeAction=startUpgradeAction; export const applyUpgradeAction=startUpgradeAction; export const discardUpgradeAction=startUpgradeAction;`;
             if (id === "\0navigation")
               return `export function useSearchParams(){return new URLSearchParams(location.search)}; export function useRouter(){return {refresh(){},push(){}}}`;
@@ -99,7 +99,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             if (id === "\0link")
               return `import React from 'react'; export default function Link(props) { return React.createElement('a', props); }`;
             if (id === "\0publish")
-              return `export async function publishSavedV3Version(){return {ok:true,status:'published'}}; export async function currentV3StudentLink(){return {ok:true,path:"/v3/join/test"}}; export async function publishV3Adventure(){return {ok:true,status:'published'}}; export async function unpublishV3Adventure(){return {ok:true,status:'draft'}}`;
+              return `export async function currentV3StudentLink(){return {ok:true,path:"/v3/join/test"}}; export async function publishV3Adventure(){return {ok:true,status:'published'}}; export async function unpublishV3Adventure(){return {ok:true,status:'draft'}}`;
             if (id === "\0media")
               return `export async function loadMediaAction(){return {items:JSON.parse(localStorage.getItem('media')||'[]')}};
               export async function uploadMediaAction(adventureId,form){const input=JSON.parse(form.get('input'));const file=form.get('file');const url=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(file)});const id=crypto.randomUUID();const item={id,adventureId,creatorId:'teacher',target:input.target,origin:'upload',state:'ready',snapshot:{candidateId:id,origin:'upload',url:new URL('/game/ninja/characters/Noble/walk.png',location.origin).href,storageKey:'v3/media/fixture/'+id+'/image.png',format:'png',width:64,height:64,caption:input.caption,alt:input.alt,credit:input.credit,...(input.target.kind.includes('Sprite')?{spriteLayout:'4x4-down-up-left-right'}:{})},specVersion:input.version,failure:null,costUsd:0,createdAt:new Date().toISOString()};const items=JSON.parse(localStorage.getItem('media')||'[]');items.push(item);localStorage.setItem('media',JSON.stringify(items));return {item};}
@@ -124,7 +124,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           import {ImportAdventureJson} from '/src/app/v3/teacher/import-json.tsx';
           if(!localStorage.getItem('spec')) localStorage.setItem('spec',${JSON.stringify(JSON.stringify(spec))});
           const spec=AdventureSpec.parse(JSON.parse(localStorage.getItem('spec'))); localStorage.setItem('spec',JSON.stringify(spec));
-          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><ImportAdventureJson /><EditorChatWorkspace brief={initialBriefStateV3('fixture')}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} sources={spec.sources} capturedSources={[]} assets={{version:Number(localStorage.getItem('version')||1),items:${JSON.stringify(inventory)}.map(asset=>({...asset,url:asset.url?.startsWith('/')?new URL(asset.url,location.origin).href:asset.url}))}} errors={new URLSearchParams(location.search).has('clean')?[]:[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
+          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><ImportAdventureJson /><EditorChatWorkspace brief={initialBriefStateV3('fixture')}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} isPublic={localStorage.getItem("isPublic")==="true"} sources={spec.sources} capturedSources={[]} assets={{version:Number(localStorage.getItem('version')||1),items:${JSON.stringify(inventory)}.map(asset=>({...asset,url:asset.url?.startsWith('/')?new URL(asset.url,location.origin).href:asset.url}))}} errors={new URLSearchParams(location.search).has('clean')?[]:[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
         `,
                   "editor.tsx",
                   { loader: "tsx", jsx: "automatic" },
@@ -165,6 +165,14 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       });
       await page.goto(`${vite.resolvedUrls!.local[0]!}?clean=1`);
       await page.getByText("No issues", { exact: true }).waitFor();
+      const access = page.getByRole("combobox", { name: "Who can play" });
+      expect(await access.inputValue()).toBe("school");
+      await access.selectOption("public");
+      await expect.poll(() => access.inputValue()).toBe("public");
+      await page.reload();
+      expect(await access.inputValue()).toBe("public");
+      await access.selectOption("school");
+      await expect.poll(() => access.inputValue()).toBe("school");
       await page.locator("summary").filter({ hasText: /^Import adventure$/ }).click();
       await page.getByLabel("ZIP or JSON file", { exact: true }).setInputFiles({ name: "broken.json", mimeType: "application/json", buffer: Buffer.from("{broken") });
       await page.getByRole("button", { name: "Import adventure", exact: true }).click();
@@ -177,6 +185,8 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await page.getByRole("link", { name: "Download JSON", exact: true }).getAttribute("href")).toBe("/api/v3/adventures/fixture/export");
       expect(await page.getByRole("link", { name: "Download ZIP", exact: true }).getAttribute("href")).toBe("/api/v3/adventures/fixture/export?format=zip");
       await page.getByRole("button", { name: "Close import and export", exact: true }).click();
+      expect(await page.getByRole("link", { name: "Version history", exact: true }).getAttribute("href")).toBe("/v3/teacher/fixture/links");
+      expect(await page.getByRole("button", { name: "Versions", exact: true }).count()).toBe(0);
       expect(
         await page.getByRole("group", { name: "Adventure checks" }).count(),
       ).toBe(0);
@@ -267,6 +277,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             composer: rect('[aria-label="Message"]'),
           };
         });
+        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
         expect(Math.abs(chat!.y - index!.y)).toBeLessThan(2);
         expect(Math.abs(chat!.y - content!.y)).toBeLessThan(2);
         expect(chat!.width).toBeGreaterThanOrEqual(300);
@@ -274,6 +285,13 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         expect(composer!.y + composer!.height).toBeLessThanOrEqual(
           chat!.y + chat!.height,
         );
+      }
+      for (const width of [1024, 768, 375, 320]) {
+        await page.setViewportSize({ width, height: 812 });
+        const chat = await page.getByRole("region", { name: "Adventure conversation" }).boundingBox();
+        const index = await page.getByRole("navigation", { name: "Characters items" }).boundingBox();
+        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       }
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.screenshot({
@@ -449,6 +467,16 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           () => JSON.parse(localStorage.getItem("spec")!).title,
         ),
       ).toBe("A saved teacher title");
+      // Closing chat preserves the local draft and restores space to the index.
+      for (const width of [1440, 375]) {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.getByRole("button", { name: "Close chat", exact: true }).click();
+        expect(await page.getByRole("region", { name: "Adventure conversation" }).count()).toBe(0);
+        expect(await page.locator("#edit-title").inputValue()).toBe("Suggested teacher title");
+        await page.getByRole("button", { name: "Edit with chat", exact: true }).click();
+        await page.getByRole("region", { name: "Adventure conversation" }).waitFor();
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
       // Chat uses the same local draft and leaves saving/publishing explicit.
       const message = page.getByRole("textbox", {
         name: "Message",

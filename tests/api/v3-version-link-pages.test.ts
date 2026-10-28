@@ -28,7 +28,7 @@ import { currentV3StudentLink } from "@/app/v3/teacher/[id]/publish-actions";
 
 beforeEach(() => {
   vi.stubGlobal("React", React);
-  vi.stubEnv("V3_ENABLED", "true"); vi.stubEnv("V3_SCHOOL_IDS", "school");
+
   context.user = "teacher";
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });

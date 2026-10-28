@@ -28,7 +28,7 @@ it('runs the real upgrade service and persisted proof through database Apply wit
   const store = new SupabaseV3PlayStore(admin);
   const repository = new SupabaseUpgradeRepository(admin);
   const llm = new FakeLlmClient([]);
-  const deps = { store, repository, enqueue: async () => {}, llm: () => llm, env: { V3_ENABLED: '1', V3_SCHOOL_IDS: school } };
+  const deps = { store, repository, enqueue: async () => {}, llm: () => llm, env: {} };
   const started = await startUpgrade(deps, owner.userId, id, { expectedRevision: 1 });
   if (!started.ok) throw Error(started.message);
   const prepared = await prepareUpgrade(deps, started.run);

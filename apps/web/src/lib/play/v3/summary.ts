@@ -31,7 +31,7 @@ export async function loadClassSummary(
   const adventure = await deps.store.loadAdventure(adventureId);
   if (
     !adventure ||
-    !(await canStaffAdventure(deps.store, adventure, userId, deps.env))
+    !(await canStaffAdventure(deps.store, adventure, userId))
   ) {
     return { status: 404 };
   }

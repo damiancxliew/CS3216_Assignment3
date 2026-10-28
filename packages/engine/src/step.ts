@@ -23,7 +23,8 @@ import { project } from './project'
 import { noteText } from './rules/knowledge'
 import { chooseAct, openMoment, predict, refreshActs } from './rules/moment'
 import { selectPassage } from './rules/passages'
-import { refreshReadingChecks, submitReadingCheck } from './rules/reading'
+import { confirmEssentialConversation } from './rules/preparation'
+import { continueReadingCheck, refreshReadingChecks, submitReadingCheck } from './rules/reading'
 import { applyTimer, enterStage, startStagePlay } from './rules/stages'
 import { onNotePassed, settleTriggers } from './rules/triggers'
 import type { EngineSpec } from './spec'
@@ -158,6 +159,10 @@ async function handle(ctx: StepContext, action: EngineAction): Promise<void> {
       selectPassage(ctx, document, action.start, action.end)
       return
     }
+    case 'continueReadingCheck': {
+      requirePlaying(ctx, 'reading')
+      return continueReadingCheck(ctx, action)
+    }
     case 'submitReadingCheck': {
       requirePlaying(ctx, 'reading')
       return submitReadingCheck(ctx, action)
@@ -171,7 +176,14 @@ async function handle(ctx: StepContext, action: EngineAction): Promise<void> {
       const character = requireConversation(ctx, action.characterId)
       const note = state.notes.find((candidate) => candidate.id === action.noteId) ?? fail('not_held', `no note ${action.noteId}`)
       const message = ctx.say('player', action.text ?? '', { characterId: character.id, insertedNoteId: note.id })
+      const known = new Set(state.discovered)
       const effects = onNotePassed(ctx, character.id, note.discoveryId)
+      // A held note and facts explicitly unlocked by showing it are already verified by the rules.
+      const shared = spec.discoveries.filter((discovery) => discovery.stageId === currentStage(ctx).id
+        && 'characterId' in discovery.holder && discovery.holder.characterId === character.id
+        && state.discovered.includes(discovery.id)
+        && (discovery.id === note.discoveryId || !known.has(discovery.id)))
+      confirmEssentialConversation(ctx, character.id, shared.map((discovery) => discovery.id))
       return reply(ctx, character, message.id, { kind: 'note', note: noteText(spec, note.discoveryId), text: action.text ?? null }, {
         stanceJustChanged: effects.stanceChanged,
         handingOver: effects.handedOver,

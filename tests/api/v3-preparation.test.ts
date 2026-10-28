@@ -19,7 +19,7 @@ async function session() {
     return JSON.stringify({ conveyed: schema.properties.conveyed.items.enum ?? [], substantive: !request.user.includes("Hello"), assertedUndiscovered: false, assertion: null, moderation: { flagged: false, category: "none", reason: null } });
   }] });
   let time = 1000;
-  const deps: V3PlayServiceDeps = { store, llm: () => llm, now: () => time, env: { V3_ENABLED: "1", V3_SCHOOL_IDS: "school", V3_RATE_LIMIT_PER_10S: "100" } };
+  const deps: V3PlayServiceDeps = { store, llm: () => llm, now: () => time, env: { V3_RATE_LIMIT_PER_10S: "100" } };
   const created = await createAttempt(deps, "student", await publishedVersionId(deps.store, "prepared"));
   const id = created.body.attemptId as string;
   let revision = created.body.revision as number;
@@ -62,6 +62,22 @@ describe("prepared v3 attempts through the action service", () => {
     expect(saved.readingChecks["doc-1"]!.attempts.map(attempt => attempt.correct)).toEqual([false, true]);
     expect(saved.readingChecks["doc-1"]!.status).toBe("passed");
     expect((await getAttempt(game.deps, "another-student", game.id)).status).toBe(404);
+  });
+
+  it("persists answer review and requires Continue and a different correct answer to unlock the evidence", async () => {
+    const game = await session();
+    await game.send(answer({ start: 0, end: game.spec.documents[0]!.body.length }));
+    const result = await game.send({ ...answer(game.support, "check-1", true), choiceId: "overstated" });
+    const view = result.body.view as PlayerView;
+    expect(view.documents[0]?.readingCheck).toMatchObject({ status: "needsReview", question: null, recovery: null,
+      revealedAnswer: { questionId: "check-1", support: [game.support] } });
+    expect(view.notes).toEqual([]);
+    const resumed = await createAttempt(game.deps, "student", await publishedVersionId(game.deps.store, "prepared"));
+    expect((resumed.body.view as PlayerView).documents[0]?.readingCheck).toEqual(view.documents[0]?.readingCheck);
+    await game.send({ type: "continueReadingCheck", documentId: "doc-1", questionId: "check-1" });
+    await game.send({ type: "continueReadingCheck", documentId: "doc-1", questionId: "check-1" }, 400);
+    const passed = await game.send(answer(game.support, "check-2"));
+    expect((passed.body.view as PlayerView).documents[0]?.readingCheck?.status).toBe("passed");
   });
 
   it("serializes simultaneous submissions and rejects forged marking keys", async () => {

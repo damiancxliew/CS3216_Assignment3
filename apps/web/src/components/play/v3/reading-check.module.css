@@ -2,7 +2,7 @@
 .passed { border-color: #6f8a3f; background: #c9dc9a35; }
 .passed p + p { margin-top: .5rem; }
 .instructions { margin-bottom: 1rem; }
-.review { margin-bottom: 1rem; border-left: 4px solid #9b532d; padding-left: .75rem; }
+.review { margin-bottom: 1rem; border-left: 4px solid #9b532d; padding: .75rem; background: #f5d99260; }
 .review h3 { font-size: 1rem; font-weight: 700; margin-bottom: .5rem; }
 .options { display: grid; gap: .5rem; margin: 0; padding: 0; border: 0; }
 .options legend { margin-bottom: .75rem; font-weight: 700; }
@@ -19,3 +19,13 @@
 :global([data-theme="dark"]) .check, :global([data-theme="dark"]) .passed { border-color: #80684b; }
 :global([data-theme="dark"]) .options label { background: #493d30; }
 :global([data-theme="dark"]) .options label:has(input:checked) { background: #60503d; border-color: #cfbda6; }
+
+.correctHighlight { background: #bde8c0; color: #163c20; }
+
+.answerReview { border-color: #52754d; background: #e0ecd080; }
+.answerReview h3 { margin-bottom: .75rem; color: #294c2b; font-size: 1rem; font-weight: 700; }
+.answerReview p + p, .answerReview blockquote + p { margin-top: .5rem; }
+.answerReview blockquote { margin: .5rem 0; border-left: 3px solid #52754d; padding-left: .75rem; white-space: pre-wrap; }
+:global([data-theme="dark"]) .answerReview { border-color: #839d6d; background: #283b2c; }
+:global([data-theme="dark"]) .answerReview h3 { color: #c3dfac; }
+:global([data-theme="dark"]) .review { background: #4a3b2466; }

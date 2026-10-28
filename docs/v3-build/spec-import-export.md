@@ -3,7 +3,7 @@
 On **Your adventures**, expand **Import adventure**, choose a ZIP or JSON file, and select
 **Import adventure**. The file creates a new draft owned by the signed-in
 teacher in their current school, then opens the editor. Existing adventures and
-published versions are untouched. This requires v3 access for the school.
+published versions are untouched. This requires staff membership in the school.
 
 Open **Import / export** in the editor or a completed guided draft. **Download
 ZIP** includes selected artwork and custom sprites; **Download JSON** keeps media
@@ -16,6 +16,20 @@ the restored spec points to these new URLs. Image attribution and sprite layout
 are preserved. Bundled sprites remain references to game assets shipped with the
 application. A ZIP containing only a root `adventure.json` is also accepted; like
 JSON import, it retains its URL references.
+
+Before saving a new draft or an update from JSON (including a JSON-only ZIP),
+the importer downloads every selected stage image, portrait, and custom walking
+sprite to verify it exists and decodes correctly. Custom sprites must pass the
+same 4 × 4 sheet checks as uploaded sprites. Fallback artwork, bundled sprites,
+and citation/attribution links do not require downloads. Duplicate media URLs
+are downloaded once; the JSON and its URLs are preserved.
+
+Linked media is limited to 198 unique files, 10 MB per file and 40 MB total,
+with a 30-second validation deadline. External downloads use the existing
+DNS-pinned public-address checks, bounded responses, and redirect validation;
+private-network URLs are rejected. Missing or invalid media prevents the draft
+or version from being saved. Links must remain available after import; passing
+validation cannot guarantee future availability.
 
 ZIPs are limited to 15 MB, 40 MB expanded, 200 entries, and 10 MB per entry.
 Unsupported or duplicate paths, missing/unlisted media, invalid image files, and
@@ -57,22 +71,22 @@ referenced media must remain hosted and accessible.
 
 ## Updating an existing adventure and managing versions
 
-In **Import / export**, **Import as new version** uploads a ZIP as the next saved version of
+In **Import / export**, **Import as new version** uploads a ZIP or JSON file as the next saved version of
 the same adventure. It replaces the editable draft and source text, retaining
-earlier spec and source snapshots. An import never changes the live version.
+earlier spec and source snapshots. JSON updates retain media URL references and accept exported bundles or raw specs,
+with the same 10 MB limit as new imports. An import never changes the live version.
 If another author saves or publishes while the file is uploading, the import
 fails without replacing their work and removes newly uploaded media.
 
-Open **Versions** in the adventure navigation to manage saved versions in a
-popup dialog. Each version offers **Publish**, **Copy link** (after its first
-publication), and **View attempts**, with an attempt count. Publishing an older
-snapshot changes the live pointer without replacing the latest draft or moving
-student attempts. The chosen snapshot is validated using its captured source
-text and checks before publication. Invalid versions remain saved for review.
+Follow **Version history** in the adventure navigation to open the publication-history
+page. Each published version has a stable student link, publisher attribution,
+completion counts, and **View results**. Publish draft changes from the editor;
+importing returns to the editor without opening a dialog. Earlier snapshots and
+student attempts remain unchanged.
 
 Student links use `/v3/join/<versionId>`, where `versionId` is the stable UUID
 already issued to that published snapshot. Every copy control uses this URL:
-the publish panel, Versions dialog, desktop/mobile version history, and school
+the publish panel, desktop/mobile version history, and school
 console. The library starts and resumes only the currently published version.
 `/v3/play/<attemptId>` continues to identify one student's saved session.
 

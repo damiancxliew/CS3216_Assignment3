@@ -29,7 +29,7 @@ function setup() {
   ];
   const deps = {
     store,
-    env: { V3_ENABLED: "true", V3_SCHOOL_IDS: "s" },
+    env: {},
     sources: async () => sources,
     queueStageArt: async () => {},
   };
@@ -362,7 +362,6 @@ it('keeps a later invented conversion after an excerpt replacement', async () =>
   if (result.ok) expect(result.spec.documents[0]).toMatchObject({ real: false, sourceLabel: 'invented', citations: [], body: 'Teacher invented prose',
     });
 });
-
 
 it("adds no snapshot when an edit adds an empty required prose field", async () => {
   const { save, store } = setup();
