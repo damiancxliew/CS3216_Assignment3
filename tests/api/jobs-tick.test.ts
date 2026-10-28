@@ -152,17 +152,28 @@ describe("jobs tick handler", () => {
 });
 
 describe("v3 school flags", () => {
-  it("enables only for the exact supported values", () => {
+  it("enables v3 for every school without rollout configuration", () => {
+    expect(v3Enabled({})).toBe(true);
+    expect(v3Enabled({ V3_ENABLED: "" })).toBe(true);
+    expect(v3SchoolAllowed("school-1", {})).toBe(true);
+    expect(v3SchoolAllowed("school-2", {})).toBe(true);
+    expect(v3SchoolAllowed("", {})).toBe(false);
+    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "0" })).toBe(false);
+    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "false" })).toBe(false);
+  });
+
+  it("accepts only supported values when explicitly configured", () => {
     expect(v3Enabled({ V3_ENABLED: "1" })).toBe(true);
     expect(v3Enabled({ V3_ENABLED: "true" })).toBe(true);
     expect(v3Enabled({ V3_ENABLED: "TRUE" })).toBe(false);
     expect(v3Enabled({ V3_ENABLED: "yes" })).toBe(false);
   });
 
-  it("checks a trimmed allowlist only when v3 is enabled", () => {
-    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "1" })).toBe(false);
-    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "1", V3_SCHOOL_IDS: "" })).toBe(false);
-    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "1", V3_SCHOOL_IDS: " , \t, " })).toBe(false);
+  it("applies a school restriction only when a nonempty allowlist is configured", () => {
+    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "1" })).toBe(true);
+    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "1", V3_SCHOOL_IDS: "" })).toBe(true);
+    expect(v3SchoolAllowed("school-1", { V3_ENABLED: "1", V3_SCHOOL_IDS: " , \t, " })).toBe(true);
+    expect(v3SchoolAllowed("school-1", { V3_SCHOOL_IDS: "school-2" })).toBe(false);
     expect(v3SchoolAllowed("school-1", {
       V3_ENABLED: "true",
       V3_SCHOOL_IDS: " school-0, school-1 ,school-2 ",

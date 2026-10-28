@@ -88,6 +88,11 @@ function previewBody(result: { body: Record<string, unknown> }): PreviewBody {
 }
 
 describe("v3 teacher preview service", () => {
+  it("starts a teacher preview without v3 rollout configuration", async () => {
+    const fixture = setup({ env: { V3_ENABLED: undefined, V3_SCHOOL_IDS: undefined } });
+    expect((await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(201);
+  });
+
   it("starts an owner preview without saving an attempt or events", async () => {
     const fixture = setup();
     fixture.store.addMember(SCHOOL_ID, OWNER_ID, false);
@@ -123,7 +128,7 @@ describe("v3 teacher preview service", () => {
     const disallowed = setup({ env: { V3_SCHOOL_IDS: "school-2" } });
     expect((await startPreview(disallowed.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(404);
 
-    const disabled = setup({ env: { V3_ENABLED: undefined } });
+    const disabled = setup({ env: { V3_ENABLED: "0" } });
     expect((await startPreview(disabled.deps, OWNER_ID, ADVENTURE_ID)).status).toBe(404);
   });
 

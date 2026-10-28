@@ -148,6 +148,12 @@ describe("v3 publish", () => {
 });
 
 describe("v3 student link", () => {
+  it("opens a published adventure to members without v3 rollout configuration", async () => {
+    const { deps } = setup({ status: "published", env: { V3_ENABLED: undefined, V3_SCHOOL_IDS: undefined } });
+    expect(await loadJoinView(deps, STUDENT_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "ready", title: goldenSpec.title });
+    expect(await loadJoinView(deps, OUTSIDER_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "not_member", title: goldenSpec.title });
+  });
+
   it("is closed until the adventure is published", async () => {
     const { deps } = setup();
     expect(await loadJoinView(deps, null, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "closed" });
@@ -163,7 +169,7 @@ describe("v3 student link", () => {
   });
 
   it("stays closed for a school without v3 even when published", async () => {
-    const { deps } = setup({ status: "published", env: { V3_SCHOOL_IDS: "" } });
+    const { deps } = setup({ status: "published", env: { V3_SCHOOL_IDS: "another-school" } });
     expect(await loadJoinView(deps, STUDENT_ID, await publishedVersionId(deps.store, ADVENTURE_ID))).toEqual({ kind: "closed" });
   });
 });

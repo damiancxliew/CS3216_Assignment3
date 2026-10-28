@@ -8,6 +8,14 @@ afterEach(() => vi.unstubAllEnvs());
 describe("v3 authoring roles", () => {
   const row = { ownerId: "owner", schoolId: "school" };
   const viewer = (role: "teacher" | "admin" | "student", school = "school", sysadmin = false): Viewer => ({ user: { id: "other-user" } as Viewer["user"], membership: { role, organizationId: school, organizationName: "School", slug: "school" }, isSysadmin: sysadmin });
+  it("allows staff authoring by default while retaining ownership and school boundaries", () => {
+    vi.stubEnv("V3_ENABLED", undefined); vi.stubEnv("V3_SCHOOL_IDS", undefined);
+    expect(canAccessV3Authoring({ ...viewer("teacher"), user: { id: "owner" } as Viewer["user"] }, row)).toBe(true);
+    expect(canAccessV3Authoring(viewer("admin"), row)).toBe(true);
+    expect(canAccessV3Authoring(viewer("admin", "elsewhere"), row)).toBe(false);
+    expect(canAccessV3Authoring(viewer("teacher"), row)).toBe(false);
+    expect(canAccessV3Authoring(viewer("student"), row)).toBe(false);
+  });
   it("limits school admins to their school and teachers to their own adventures", () => {
     vi.stubEnv("V3_ENABLED", "1"); vi.stubEnv("V3_SCHOOL_IDS", "school");
     expect(canAccessV3Authoring(viewer("admin"), row)).toBe(true);
