@@ -195,6 +195,53 @@ Each phase is one or more small PRs, with CI green between them.
 8. Which subject comes first: literature, geography or philosophy?
 9. A subject-neutral product and package name (instead of the `@adventure/*` scope)? Cheapest to do once, during phase 4.
 
+## 8. Moving the repo to a GitHub organisation (target: January)
+
+The team plans to have the product in a new repo under a new GitHub organisation by January, while the current repo (`damiancxliew/CS3216_Assignment3`) keeps existing. Moving the code is easy. The real work is moving **ownership of the accounts and secrets** the repo depends on.
+
+### The main risk: two repos that can both touch production
+
+The `migrate` job in `.github/workflows/ci.yml` runs `supabase db push` against the hosted database on every push to `production`. `aws-deploy.yml` deploys to EC2 the same way. If both repos keep these jobs and their secrets, either one can change the production schema or deploy, and the two will drift.
+
+Rule: **exactly one repo owns production.** The other becomes read-only: archived, or at least stripped of its Supabase/AWS secrets and its `production` branch.
+
+### How to create the new repo
+
+| Option | Keeps | Has to be redone by hand |
+|---|---|---|
+| **A. Transfer** the repo to the org (Damian forks it back if he wants a copy) | history, issues, PRs, secrets, variables, environments, URL redirects | integrations (Vercel, Linear, Devin) |
+| **B. Mirror** (`git push --mirror`) into a new org repo, then archive the old one | git history and branches | issues, PRs, secrets, variables, environments, branch protection, integrations |
+
+Do not copy files into a fresh repo with no history: git history and blame matter when debugging production. Option A is the least work.
+
+### What the repo is wired to
+
+| Area | What exists today | What to do |
+|---|---|---|
+| GitHub Actions | Secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`. Variables: `SUPABASE_PROJECT_REF`, `AWS_INSTANCE_ID`, `AWS_DEPLOY_ENABLED`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_DATA_URL`, `NEXT_PUBLIC_DATA_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_POSTHOG_HOST`. Environment `aws-staging`. Branches `main` and `production`. | Recreate (option B) or check (option A). Rotate the secrets as part of the move. |
+| Branch protection | `.github/settings.yml` only takes effect if the GitHub Settings app is installed. | Install the app on the org, or apply the rules with `docs/branch-protection.md`. Required reviewers on private repos may need a paid plan. |
+| Vercel | Deploys only `main`/`production` (`apps/web/vercel.json`); app runs at `historical-adventures-ten.vercel.app`. Runtime env vars live in the Vercel project, not the repo. | Move the project to a team account, reconnect it to the new repo, and set the real domain. Check whether deploying from a private org repo needs Vercel Pro. |
+| Supabase | Hosted project holding all production data and auth. `SUPABASE_ACCESS_TOKEN` is a personal access token. | Transfer the project to a shared Supabase organisation instead of migrating data. Replace the personal token. Add the new domain to the Auth site URL and redirect URLs. |
+| Google sign-in | OAuth client (`SUPABASE_AUTH_EXTERNAL_GOOGLE_*`) in someone's Google Cloud project. | Move it to a shared Google Cloud project and update the allowed redirect URLs. |
+| AWS | `aws-deploy.yml` with static IAM keys, EC2 in `ap-southeast-2`, S3 buckets `assets-cs3216` and `backups-cs3216`. | Settle open decision 3 first. If AWS is not a target, remove it before the move rather than migrating it. |
+| OpenAI, PostHog | `OPENAI_API_KEY`, the PostHog project. | Move billing and ownership to shared accounts, then rotate the keys. |
+| Integrations | Devin (environment config points at `damiancxliew/CS3216_Assignment3`), Linear (GitHub app not yet installed). | Install both on the org and update the Devin environment config. |
+
+### Other things to settle
+
+- **Ownership:** every account (GitHub, Vercel, Supabase, Google Cloud, AWS, OpenAI, PostHog, domain) is owned by a shared identity, such as a team email, with at least two admins.
+- **Student data:** keep the same Supabase project and transfer its ownership. Migrating real school data adds risk, and the PDPA applies to personal data such as student names.
+- **What doesn't move:** write-ups, lesson materials and promo videos (open decisions 2 and 4). The move is a natural cut-off for that cleanup.
+- **IP:** check whether CS3216 or NUS has terms on code written for the module before it becomes a product.
+
+### Timeline
+
+| When | What |
+|---|---|
+| November | Answer the open decisions. Create the org and shared accounts. Rotate secrets. |
+| December | Dry run: the new repo against a staging Supabase project and a Vercel preview. |
+| January | Freeze the old repo, move it, and reconnect everything. Confirm a production deploy and a `migrate` run from the new repo, then archive the old one. Combine with the phase 4 freeze so integrations are reconnected only once. |
+
 ## Appendix: how the audit was done
 
 - **Reachability:** an import graph (madge) over `apps/web/src`, walked from every Next.js page and route to classify files as v2-only, v3-only, demo-only or shared.
