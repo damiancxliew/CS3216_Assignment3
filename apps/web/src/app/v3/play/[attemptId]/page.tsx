@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { type EngineState } from "@adventure/engine";
 import { decodeStoredSpec } from "@adventure/spec-v3";
 
+import { StartOverButton } from "@/components/play/v3/start-over-button";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { v3AdventureScenery } from "@/lib/play/v3/scenery";
 import { backdropFromState } from "@/lib/play/v3/backdrop";
@@ -48,6 +49,7 @@ export default async function V3PlayPage({ params,
       attemptId={attemptId}
       initialView={body.view}
       initialRevision={body.revision}
+      headerActions={<StartOverButton attemptId={attemptId} />}
       {...(spec
         ? resolveAdventureImages(spec, attempt.adventureId, attempt.specVersion)
         : {})}

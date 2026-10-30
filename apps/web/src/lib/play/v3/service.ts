@@ -138,6 +138,35 @@ export async function createAttempt(
   return { status: 201, body: { attemptId: attempt.id, revision: attempt.revision, view: engine.project(spec, state), resumed: false } };
 }
 
+/** Starts a fresh attempt on the same adventure version; the old attempt is kept for the teacher. */
+export async function restartAttempt(
+  deps: V3PlayServiceDeps,
+  userId: string,
+  attemptId: string,
+): Promise<ServiceResponse> {
+  const current = await deps.store.loadAttempt(attemptId);
+  if (!current || current.studentId !== userId) return error(404, "not_found", "Not found.");
+  const adventure = await permittedAdventure(deps, userId, current.adventureId);
+  if (!adventure) return error(404, "not_found", "Not found.");
+  if (adventure.status !== "published") return error(409, "not_open", "This adventure is not open for play.");
+
+  const version = current.specVersion;
+  const release = adventure.publishedVersion === version
+    ? undefined
+    : (await deps.store.listPublications(adventure.id)).find((publication) => publication.version === version)?.linkKey;
+  if (adventure.publishedVersion !== version && !release) return error(409, "not_open", "This adventure is not open for play.");
+
+  const decoded = decodeStoredSpec(await deps.store.loadVersionSpec(adventure.id, version));
+  if (!decoded.ok) return incompatibleSpec();
+  const state = engine.createState(decoded.spec, crypto.randomUUID());
+  const attempt = await deps.store.createAttempt({ adventureId: adventure.id, specVersion: version, studentId: userId, state, ...(release ? { release } : {}) });
+  if (!attempt) return error(409, "conflict", "Publication changed. Try starting again.");
+  return {
+    status: 201,
+    body: { attemptId: attempt.id, revision: 0, view: engine.project(decoded.spec, state), resumed: false },
+  };
+}
+
 export async function getAttempt(
   deps: V3PlayServiceDeps,
   userId: string,
