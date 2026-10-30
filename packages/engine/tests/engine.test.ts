@@ -366,17 +366,30 @@ describe('defining moments, outcomes and endings', () => {
 })
 
 describe('timer and final call', () => {
-  it('brings the defining moment when the timer runs out, and drops the action that arrived too late', async () => {
+  it('announces the final call when the timer runs out without opening the defining moment', async () => {
     const game = new Harness(mini)
     await game.start()
     game.advance(10 * MINUTE - 1)
     expect((await game.act({ type: 'tick' })).definingMoment).toBeNull()
     game.advance(1)
-    const late = await game.act({ type: 'message', characterId: 'a', text: 'One more thing' })
-    expect(late.definingMoment).toMatchObject({ status: 'choosing' })
-    expect(late.messages.map((message) => message.text)).toContain('Time is up: A will answer now.')
-    expect(late.messages.map((message) => message.text)).not.toContain('One more thing')
-    expect(late.timer).toBeNull()
+    await game.act({ type: 'tick' })
+    await game.act({ type: 'tick' })
+    expect(game.view?.definingMoment).toBeNull()
+    expect(game.view?.timer).toEqual({ endsAt: game.now, durationMs: 10 * MINUTE })
+    expect(game.state.transcript.filter((message) => message.text === 'Time is up: A will answer now.')).toHaveLength(1)
+    await game.act({ type: 'enterRoom', roomId: 'r2' })
+    expect(game.state.playerRoomId).toBe('r2')
+    const moment = await game.act({ type: 'endStage' })
+    expect(moment.definingMoment).toMatchObject({ status: 'choosing' })
+    expect(moment.timer).toBeNull()
+  })
+
+  it('does not open the moment from a timerOut beginMoment story event', async () => {
+    const game = new Harness({ ...mini, storyEvents: [{ id: 'force', stageId: 's1', when: { timerOut: true }, effect: 'beginMoment', text: 'A summons you.' }] })
+    await game.start()
+    game.advance(10 * MINUTE)
+    await game.act({ type: 'tick' })
+    expect(game.view?.definingMoment).toBeNull()
   })
 
   it('has no timer when the teacher turns it off', async () => {

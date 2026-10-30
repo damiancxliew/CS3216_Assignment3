@@ -26,7 +26,8 @@ export function decisionPreparation(scope: Scope) {
   const progress = preparationProgress(groups, scope.state.discovered)
   const essentialConversations = essentialProgress(scope)
   const expired = timerExpired(scope)
-  return { ...progress, ready: (progress.ready || expired) && essentialConversations.every((character) => character.complete), essentialConversations, timerExpired: expired }
+  // When time runs out the student may decide with whatever they have gathered.
+  return { ...progress, ready: expired || (progress.ready && essentialConversations.every((character) => character.complete)), essentialConversations, timerExpired: expired }
 }
 
 export function requireCharacterPreparation(ctx: StepContext, characterId: string): void {

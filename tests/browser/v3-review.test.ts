@@ -157,7 +157,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           await page.getByRole("tab", { name: label, exact: true }).click();
           if (tab === "stages") {
             await panel.getByRole("heading", { name: "Preparation and essential conversations", exact: true }).waitFor();
-            expect(await panel.getByText("Every essential conversation is required, even when time expires.", { exact: true }).count()).toBe(1);
+            expect(await panel.getByText("Every essential conversation and evidence group is required until time runs out. After that, students can decide without them.", { exact: true }).count()).toBe(1);
           }
           if (tab === "documents") {
             await panel.getByRole("heading", { name: "Reading check", exact: true }).waitFor();
