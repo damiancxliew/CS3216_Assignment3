@@ -42,6 +42,8 @@ type MomentProps = {
   busy: boolean;
   onAct: (actId: string) => void;
   onPredict: (outcomeId: string) => void;
+  /** Present only when the student may leave the moment and keep exploring. */
+  onBack?: () => void;
 };
 
 export type DialogueBoxProps = TalkProps | MomentProps;
@@ -393,7 +395,7 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
   );
 }
 
-function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict }: MomentProps) {
+function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict, onBack }: MomentProps) {
   const section = useRef<HTMLElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { shown: reactionShown, done: reactionDone, skip: skipReaction } = useTypewriter(
@@ -415,6 +417,11 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
       if (event.defaultPrevented || document.querySelector("dialog[open]") || isTextEntryTarget(event.target)) return;
       // Global decision shortcuts must not activate while using another control, such as the Journal.
       if (event.target instanceof HTMLElement && event.target.closest("button, a, [role='tab']") && !section.current?.contains(event.target)) return;
+      if (event.key === "Escape" && onBack && moment.status === "choosing") {
+        event.preventDefault();
+        if (!busy) onBack();
+        return;
+      }
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       const delta = key === "ArrowUp" || key === "w" ? -1 : key === "ArrowDown" || key === "s" ? 1 : 0;
       const select = key === "Enter" || event.key === " " || event.code === "Space";
@@ -438,7 +445,7 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [busy, choices, moment.status, onAct, onPredict, reactionDone, selectedIndex, skipReaction]);
+  }, [busy, choices, moment.status, onAct, onBack, onPredict, reactionDone, selectedIndex, skipReaction]);
 
   const handleBodyClickCapture = (event: MouseEvent<HTMLDivElement>) => {
     if (reactionDone) return;
@@ -459,8 +466,19 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
         </div>
       ) : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="shrink-0 pb-2 pr-2 pt-1">
+        <div className="flex shrink-0 items-start justify-between gap-2 pb-2 pr-2 pt-1">
           <NameTag>A defining moment</NameTag>
+          {onBack && moment.status === "choosing" ? (
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={busy}
+              aria-keyshortcuts="Escape"
+              className="min-h-8 shrink-0 rounded-lg px-2 text-xs font-bold text-[#3659cf] underline hover:bg-[#1f2433]/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf] disabled:opacity-60 sm:text-sm"
+            >
+              ← Back to exploring (Esc)
+            </button>
+          ) : null}
         </div>
         <div
           onClickCapture={handleBodyClickCapture}
