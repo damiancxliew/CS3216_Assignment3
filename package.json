@@ -19,7 +19,8 @@
     "db:seed": "vitest run --config scripts/vitest.seed.config.ts",
     "admin:grant": "vitest run --config scripts/vitest.admin.config.ts",
     "measure:play-cost": "vitest run --config scripts/vitest.measure.config.ts",
-    "dev:local": "bash scripts/dev-local.sh"
+    "dev:local": "bash scripts/dev-local.sh",
+    "load:v3": "node scripts/load/v3-public-link.mjs"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.116.0",
