@@ -266,7 +266,13 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await page.setViewportSize({ width: 1440, height: 1000 });
       for (const height of [1000, 720]) {
         await page.setViewportSize({ width: 1440, height });
-        await page.waitForTimeout(150);
+        // Teachers must be able to scroll the headers away before using the panes.
+        await page.getByRole("tablist").evaluate((element) =>
+          element.scrollIntoView({ block: "start", behavior: "instant" }),
+        );
+        expect(await page.getByRole("tablist").evaluate((element) =>
+          Math.abs(element.getBoundingClientRect().top),
+        )).toBeLessThanOrEqual(1);
         // Read all geometry in one browser frame while smooth focus scrolling may still run.
         const { chat, index, content, composer } = await page.evaluate(() => {
           const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().toJSON();
@@ -488,7 +494,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         .click();
       await page.getByRole("region", { name: "Suggested changes" }).waitFor();
       await page.setViewportSize({ width: 1440, height: 720 });
-      await page.waitForTimeout(150);
+      await page.getByRole("tablist").evaluate((element) =>
+        element.scrollIntoView({ block: "start", behavior: "instant" }),
+      );
       const suggestionComposer = await message.boundingBox();
       expect(
         suggestionComposer!.y + suggestionComposer!.height,
