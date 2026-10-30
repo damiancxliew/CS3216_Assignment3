@@ -265,21 +265,6 @@ export function ReviewScreen({
   const [activeAnchor, setActiveAnchor] = useState(reviewAnchor(selected));
   const [destination, setDestination] = useState<(ReviewTarget & { fieldPath?: string }) | null>(null);
   const detail = useRef<HTMLDivElement>(null);
-  const workspace = useRef<HTMLDivElement>(null);
-  // One height for the chat, index and details; their contents scroll inside it.
-  useLayoutEffect(() => {
-    const element = workspace.current;
-    if (!element) return;
-    const resize = () => {
-      const top = Math.max(0, element.getBoundingClientRect().top);
-      element.style.setProperty("--review-height", `${Math.max(160, window.innerHeight - top - 16)}px`);
-    };
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(element.parentElement!);
-    window.addEventListener("resize", resize);
-    return () => { observer.disconnect(); window.removeEventListener("resize", resize); };
-  }, []);
   const checksDisclosure = useRef<HTMLDetailsElement>(null);
   const targets = useMemo(() => reviewTargets(spec), [spec]);
   const names = useMemo(() => reviewNames(spec), [spec]);
@@ -535,9 +520,8 @@ export function ReviewScreen({
         </aside>
       ) : null}
       <div
-        ref={workspace}
         data-review-workspace
-        className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4 xl:h-[var(--review-height,100dvh)] xl:min-h-0"
+        className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4"
       >
         <div
           role="tablist"
