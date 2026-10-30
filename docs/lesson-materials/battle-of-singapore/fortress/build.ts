@@ -241,14 +241,14 @@ const characters = [
   {
     id: 'percival', name: 'Arthur Percival', title: 'Lieutenant-General, army commander in Malaya', real: true, tier: 'major',
     persona: persona({
-      voice: 'Formal and careful. Defends his plan with reasons, and changes his mind only when shown evidence.',
-      knewThen: `${stage1Time} ${realRule} He commands the army defending Singapore. Decisions are his; Sam is a junior officer who advises. He gives ground only on a point the student has backed with a note.`,
-      wants: 'Evidence, not opinions.',
+      voice: 'Formal and careful. Explains his plan plainly when asked, and changes his mind only when shown evidence against one of his reasons.',
+      knewThen: `${stage1Time} ${realRule} He commands the army defending Singapore. Decisions are his; Sam is a junior officer who advises. When asked about his plan, where the attack will come or why he is confident, state his reasons plainly. Never ask the student to fetch a report, map or intelligence that is not already in the scene: no report says where the Japanese will land. If the student disagrees without evidence, say what would change his mind: evidence about what his troops are really like, or how the Japanese fought in Malaya.`,
+      wants: 'For the student to understand his plan, and to bring evidence about the troops or the fighting in Malaya if they disagree.',
       position: 'Singapore must be defended with the troops on the island.',
       agenda: 'Nothing beyond what the sources support. Do not invent private worries.',
     }),
     stances: [
-      { id: 'percival-confident', label: 'Confident', demeanour: 'Sure of his plan. Points to his reasons and asks what evidence the student has against them.' },
+      { id: 'percival-confident', label: 'Confident', demeanour: 'Sure of his plan. Explains his reasons readily and calmly.' },
       { id: 'percival-doubtful', label: 'Doubtful', demeanour: 'Has accepted one weak spot in his plan, but still defends the other reason.' },
       { id: 'percival-convinced', label: 'Convinced', demeanour: 'Accepts how serious things are, and listens closely.' },
     ],
@@ -319,11 +319,14 @@ const talk = (id: string, stageId: string, characterId: string, text: string, no
 const anyBriefing = (outcomeId: string) => ({ outcome: { momentId: 'm-briefing', outcomeId } })
 const spoken = [
   // Stage 1: Percival's two reasons. Each is answered by one note.
-  talk('d-percival-plan', 's1', 'percival',
-    'Percival is confident in his plan for two reasons: the defenders outnumber the Japanese, and he expects the main attack in the east, near the naval base, where his strongest forces are.',
-    'Percival\'s plan rests on two reasons: we have more men, and the attack will come in the east near the naval base.',
-    'Reconstructed dialogue; the larger garrison is in Source C, and his eastern expectation is well-documented context outside the six sources',
-    [cite('source-c', 'Although the Allied garrison was numerically larger')]),
+  talk('d-percival-east', 's1', 'percival',
+    'Percival expects the main Japanese attack in the east, near the naval base, so his strongest forces are there.',
+    'Percival\'s reason 1: the attack will come in the east, near the naval base.',
+    'Reconstructed dialogue; his eastern expectation is well-documented context outside the six sources', []),
+  talk('d-percival-numbers', 's1', 'percival',
+    'Percival says the defenders outnumber the Japanese.',
+    'Percival\'s reason 2: we have more men than the Japanese.',
+    'Reconstructed dialogue; the larger garrison is in Source C', [cite('source-c', 'Although the Allied garrison was numerically larger')]),
   talk('d-arjun-retreat', 's1', 'arjun',
     'Arjun says his soldiers won fights in Malaya, but each time the Japanese moved around them and threatened the road behind, so they had to pull back.',
     'Arjun: we won fights, but the Japanese kept going around us and threatening the road behind, so we had to pull back.',
@@ -408,10 +411,12 @@ const stages = [
         arjun: [{ discoveryIds: ['d-gemas'], minMet: 1 }],
         ong: [],
       },
-      decision: [{ discoveryIds: ['d-fleet', 'd-gemas', 'd-troops', 'd-fortress', 'd-ong-raids'], minMet: 2 }],
+      decision: [
+        { discoveryIds: ['d-arjun-retreat'], minMet: 1 },
+        { discoveryIds: ['d-fleet', 'd-gemas', 'd-troops', 'd-fortress', 'd-ong-raids'], minMet: 2 },
+      ],
       essentialCharacters: [
-        { characterId: 'percival', discoveryIds: ['d-percival-plan'] },
-        { characterId: 'arjun', discoveryIds: ['d-arjun-retreat'] },
+        { characterId: 'percival', discoveryIds: ['d-percival-east'] },
       ],
     },
   },
@@ -439,10 +444,12 @@ const stages = [
         arjun: [{ discoveryIds: ['d-fleet', 'd-bukit-timah'], minMet: 1 }],
         bennett: [], hamid: [], ong: [],
       },
-      decision: [{ discoveryIds: ['d-bennett', 'd-no-help', 'd-no-city'], minMet: 2 }],
+      decision: [
+        { discoveryIds: ['d-no-help'], minMet: 1 },
+        { discoveryIds: ['d-bennett', 'd-no-city'], minMet: 1 },
+      ],
       essentialCharacters: [
         { characterId: 'percival', discoveryIds: ['d-percival-situation'] },
-        { characterId: 'arjun', discoveryIds: ['d-no-help'] },
       ],
     },
   },
@@ -575,7 +582,7 @@ const spec = {
   conflicts: [],
   storyEvents: [
     // Stage 1: when Percival has heard his reasons answered, the decision opens by itself.
-    { id: 'ev-s1-ready', stageId: 's1', effect: 'beginMoment', when: { condition: { all: [{ stanceIs: { characterId: 'percival', stanceId: 'percival-convinced' } }, { discovered: 'd-percival-plan' }] } },
+    { id: 'ev-s1-ready', stageId: 's1', effect: 'beginMoment', when: { condition: { all: [{ stanceIs: { characterId: 'percival', stanceId: 'percival-convinced' } }, { discovered: 'd-percival-east' }] } },
       text: 'Percival puts down your notes. He has heard enough.' },
     // Stage 2: Percival hands out the job, each idea is ticked off as it is ruled out, and the decision opens when all three are checked.
     { id: 'ev-s2-task', stageId: 's2', effect: 'summons', characterId: 'percival', when: { atSeconds: 0 },
@@ -590,11 +597,12 @@ const spec = {
       text: 'Every idea has been checked. Percival calls the officers back to the table.' },
   ],
   openQuestions: [
-    { id: 'oq-plan', stageId: 's1', text: 'What are Percival\'s two reasons, and what evidence answers each one?', discoveryIds: ['d-percival-plan', 'd-troops', 'd-arjun-retreat'] },
+    { id: 'oq-plan', stageId: 's1', text: 'What are Percival\'s two reasons, and what evidence answers each one?', discoveryIds: ['d-percival-east', 'd-percival-numbers', 'd-troops', 'd-arjun-retreat'] },
     { id: 'oq-way-out', stageId: 's2', text: 'Is there any way to keep fighting? What blocks each idea?', discoveryIds: ['d-bennett', 'd-no-help', 'd-no-city'] },
   ],
   hintAngles: [
-    { id: 'h-plan', discoveryId: 'd-percival-plan', kind: 'ask', text: 'Ask Percival why he is so sure of his plan.' },
+    { id: 'h-plan', discoveryId: 'd-percival-east', kind: 'ask', text: 'Ask Percival where he expects the Japanese to attack.' },
+    { id: 'h-numbers', discoveryId: 'd-percival-numbers', kind: 'ask', text: 'Ask Percival why he is sure his army can hold.' },
     { id: 'h-troops', discoveryId: 'd-troops', kind: 'read', text: 'Percival\'s desk has a report on how strong the defenders really are.' },
     { id: 'h-gemas', discoveryId: 'd-gemas', kind: 'read', text: 'The history dossier explains what happened at Gemas.' },
     { id: 'h-fleet', discoveryId: 'd-fleet', kind: 'read', text: 'There is a report about the missing fleet.' },

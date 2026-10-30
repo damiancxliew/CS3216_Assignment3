@@ -192,6 +192,12 @@
           "decision": [
             {
               "discoveryIds": [
+                "d-arjun-retreat"
+              ],
+              "minMet": 1
+            },
+            {
+              "discoveryIds": [
                 "d-fleet",
                 "d-gemas",
                 "d-troops",
@@ -205,13 +211,7 @@
             {
               "characterId": "percival",
               "discoveryIds": [
-                "d-percival-plan"
-              ]
-            },
-            {
-              "characterId": "arjun",
-              "discoveryIds": [
-                "d-arjun-retreat"
+                "d-percival-east"
               ]
             }
           ]
@@ -315,11 +315,16 @@
           "decision": [
             {
               "discoveryIds": [
+                "d-no-help"
+              ],
+              "minMet": 1
+            },
+            {
+              "discoveryIds": [
                 "d-bennett",
-                "d-no-help",
                 "d-no-city"
               ],
-              "minMet": 2
+              "minMet": 1
             }
           ],
           "essentialCharacters": [
@@ -327,12 +332,6 @@
               "characterId": "percival",
               "discoveryIds": [
                 "d-percival-situation"
-              ]
-            },
-            {
-              "characterId": "arjun",
-              "discoveryIds": [
-                "d-no-help"
               ]
             }
           ]
@@ -347,10 +346,10 @@
         "real": true,
         "tier": "major",
         "persona": {
-          "voice": "Formal and careful. Defends his plan with reasons, and changes his mind only when shown evidence.",
+          "voice": "Formal and careful. Explains his plan plainly when asked, and changes his mind only when shown evidence against one of his reasons.",
           "phrases": [],
-          "knewThen": "Use only the date and place of the current scene. Never mention or hint at anything that happens after it, including where or when the Japanese will land. Speak in two to four short, plain sentences that a 13-year-old can follow. Share facts only from the facts you are allowed to share now; if something is not among them, say you cannot say yet or do not know. The dossier summaries are modern; you have not read them. This is a real person. Say only what the lesson sources support. Do not invent private feelings, quotations, orders or numbers. He commands the army defending Singapore. Decisions are his; Sam is a junior officer who advises. He gives ground only on a point the student has backed with a note.",
-          "wantsFromStudent": "Evidence, not opinions.",
+          "knewThen": "Use only the date and place of the current scene. Never mention or hint at anything that happens after it, including where or when the Japanese will land. Speak in two to four short, plain sentences that a 13-year-old can follow. Share facts only from the facts you are allowed to share now; if something is not among them, say you cannot say yet or do not know. The dossier summaries are modern; you have not read them. This is a real person. Say only what the lesson sources support. Do not invent private feelings, quotations, orders or numbers. He commands the army defending Singapore. Decisions are his; Sam is a junior officer who advises. When asked about his plan, where the attack will come or why he is confident, state his reasons plainly. Never ask the student to fetch a report, map or intelligence that is not already in the scene: no report says where the Japanese will land. If the student disagrees without evidence, say what would change his mind: evidence about what his troops are really like, or how the Japanese fought in Malaya.",
+          "wantsFromStudent": "For the student to understand his plan, and to bring evidence about the troops or the fighting in Malaya if they disagree.",
           "withholds": [],
           "publicPosition": "Singapore must be defended with the troops on the island.",
           "privateAgenda": "Nothing beyond what the sources support. Do not invent private worries."
@@ -359,7 +358,7 @@
           {
             "id": "percival-confident",
             "label": "Confident",
-            "demeanour": "Sure of his plan. Points to his reasons and asks what evidence the student has against them."
+            "demeanour": "Sure of his plan. Explains his reasons readily and calmly."
           },
           {
             "id": "percival-doubtful",
@@ -583,15 +582,27 @@
         ]
       },
       {
-        "id": "d-percival-plan",
+        "id": "d-percival-east",
         "stageId": "s1",
         "holder": {
           "characterId": "percival"
         },
-        "text": "Percival is confident in his plan for two reasons: the defenders outnumber the Japanese, and he expects the main attack in the east, near the naval base, where his strongest forces are.",
-        "note": "Percival's plan rests on two reasons: we have more men, and the attack will come in the east near the naval base.",
+        "text": "Percival expects the main Japanese attack in the east, near the naval base, so his strongest forces are there.",
+        "note": "Percival's reason 1: the attack will come in the east, near the naval base.",
         "core": false,
-        "sourceLabel": "Reconstructed dialogue; the larger garrison is in Source C, and his eastern expectation is well-documented context outside the six sources",
+        "sourceLabel": "Reconstructed dialogue; his eastern expectation is well-documented context outside the six sources",
+        "citations": []
+      },
+      {
+        "id": "d-percival-numbers",
+        "stageId": "s1",
+        "holder": {
+          "characterId": "percival"
+        },
+        "text": "Percival says the defenders outnumber the Japanese.",
+        "note": "Percival's reason 2: we have more men than the Japanese.",
+        "core": false,
+        "sourceLabel": "Reconstructed dialogue; the larger garrison is in Source C",
         "citations": [
           {
             "sourceId": "source-c",
@@ -2527,7 +2538,7 @@
                 }
               },
               {
-                "discovered": "d-percival-plan"
+                "discovered": "d-percival-east"
               }
             ]
           }
@@ -2608,7 +2619,8 @@
         "stageId": "s1",
         "text": "What are Percival's two reasons, and what evidence answers each one?",
         "discoveryIds": [
-          "d-percival-plan",
+          "d-percival-east",
+          "d-percival-numbers",
           "d-troops",
           "d-arjun-retreat"
         ]
@@ -2627,9 +2639,15 @@
     "hintAngles": [
       {
         "id": "h-plan",
-        "discoveryId": "d-percival-plan",
+        "discoveryId": "d-percival-east",
         "kind": "ask",
-        "text": "Ask Percival why he is so sure of his plan."
+        "text": "Ask Percival where he expects the Japanese to attack."
+      },
+      {
+        "id": "h-numbers",
+        "discoveryId": "d-percival-numbers",
+        "kind": "ask",
+        "text": "Ask Percival why he is sure his army can hold."
       },
       {
         "id": "h-troops",
