@@ -3,6 +3,7 @@ import http.server
 import os
 from pathlib import Path
 import socket
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -37,10 +38,16 @@ with http.server.ThreadingHTTPServer(("127.0.0.1", 0), Upstream) as upstream:
             config = config.replace(original, f"127.0.0.1:{upstream.server_port}")
         filename = Path(directory) / "Caddyfile"
         filename.write_text(config)
-        env = {**os.environ, "SITE_DOMAIN": f"http://127.0.0.1:{port}",
+        sentinel = "pocket-test-secret-must-not-appear-in-logs"
+        env = {**os.environ, "SITE_DOMAIN": f"http://127.0.0.1:{port}", "POCKET_TEST_SECRET": sentinel,
                "XDG_CONFIG_HOME": directory, "XDG_DATA_HOME": directory}
         with (Path(directory) / "caddy.log").open("w+") as log:
-            process = subprocess.Popen([sys.argv[1], "run", "--config", str(filename), "--adapter", "caddyfile"],
+            unit = Path("infra/aws/systemd/caddy.service").read_text()
+            command = shlex.split(next(line.removeprefix("ExecStart=") for line in unit.splitlines()
+                                       if line.startswith("ExecStart=")))
+            command[0] = sys.argv[1]
+            command = [str(filename) if arg == "/etc/caddy/Caddyfile" else arg for arg in command]
+            process = subprocess.Popen(command,
                                        env=env, stdout=log, stderr=log)
             try:
                 for _ in range(100):
@@ -70,7 +77,10 @@ with http.server.ThreadingHTTPServer(("127.0.0.1", 0), Upstream) as upstream:
                             assert "object-src 'none'" in headers.get("Content-Security-Policy", "")
                             assert "base-uri 'self'" in headers.get("Content-Security-Policy", "")
                             assert headers.get("X-Powered-By") is None
-                print("PASS: headers and routing on app/Data API 200, 401 and 404 responses")
+                log.flush()
+                log.seek(0)
+                assert sentinel not in log.read(), "Service startup leaked environment secrets"
+                print("PASS: app/Data API headers and routing; service does not dump environment secrets")
             finally:
                 process.terminate()
                 process.wait(timeout=5)
