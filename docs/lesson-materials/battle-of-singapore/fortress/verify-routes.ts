@@ -64,7 +64,7 @@ for (const briefing of briefings) for (const [answer, ending] of Object.entries(
 
   // The report on Percival's desk unlocks him; he states his two reasons.
   await read(g, 'doc-troops')
-  await say(g, 'percival', ['d-percival-plan'])
+  await say(g, 'percival', ['d-percival-east', 'd-percival-numbers'])
   assert.equal(g.state.characters.percival!.stanceId, 'percival-confident')
 
   // Arjun explains the retreat only after being shown the Gemas note.
