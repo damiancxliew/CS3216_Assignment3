@@ -8,6 +8,7 @@ import Link from "next/link";
 import { SiteNavigation } from "@/components/site-navigation";
 import { ThemeSelect } from "@/components/theme-provider";
 import { Select } from "@/components/select";
+import headerStyles from "./site-header.module.css";
 
 /** Teacher-facing names for the Spec v2 reading bands. */
 export { READING_BAND_LABELS } from "@/lib/brief/schema";
@@ -341,18 +342,17 @@ export function Wordmark({ className = "" }: { className?: string }) {
   return (
     <Link href="/" className={`group inline-flex shrink-0 items-center gap-2.5 whitespace-nowrap text-base font-black tracking-tight text-ink transition-transform hover:-rotate-1 hover:scale-[1.02] sm:text-lg ${className}`}>
       <span className="rounded-control border-2 border-ink bg-signal-wash p-1 shadow-[0_2px_0_var(--ink)]"><Mark className="h-5 w-5" /></span>
-      Historical Adventures
+      <span className="truncate">Historical Adventures</span>
     </Link>
   );
 }
 
 export function SiteHeader({ children }: { children?: React.ReactNode }) {
   return (
-    <header className="flex w-full flex-wrap items-center gap-2 px-5 py-4 sm:gap-3 sm:px-8 [&>nav]:max-sm:order-2">
-      <Wordmark className="mr-auto" />
-      <span aria-hidden className="hidden max-sm:order-1 max-sm:block max-sm:h-0 max-sm:basis-full" />
+    <header className={`${headerStyles.header} flex w-full items-center gap-2 px-5 py-4 sm:gap-3 sm:px-8`}>
+      <Wordmark className={headerStyles.brand} />
       <SiteNavigation />
-      {children ? <div className="flex flex-wrap items-center gap-2 max-sm:order-2">{children}</div> : null}
+      {children ? <div className="flex min-w-0 flex-wrap items-center gap-2">{children}</div> : null}
       <ThemeSelect />
     </header>
   );

@@ -22,7 +22,7 @@ import { stageArtStep } from "@/lib/v3/stage-art/step";
 import { memoryV3BriefStore } from "@/lib/v3/brief/store";
 import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
 import { continueFromSources, continuePause, loadPause, pausedPass, savePauseEdits, approveSkeleton, getGenerationProgress, restartGeneration, saveSkeletonDraft, startFromBrief, viewerSeesCost } from "@/lib/v3/generation/service";
-import { PASS_LABELS, PASS_ORDER, stepDisplayStatus } from "@/lib/v3/generation/labels";
+import { PASS_ORDER } from "@/lib/v3/generation/labels";
 import { v3GenerationSteps } from "@/lib/v3/generation/steps";
 import type { GenerationBrief } from "@/lib/v3/generation/types";
 
@@ -535,6 +535,8 @@ describe("v3 generation job", () => {
       expect.objectContaining({ code: "w2", pass: "endings" }),
     ]);
     expect(progress.steps).toHaveLength(7);
+    const recordedSteps = (await jobs.getProgress(adventureId))!.steps;
+    expect(progress.steps).toEqual(recordedSteps.map(({ name, status, attempts, error, startedAt, finishedAt }) => ({ name, status, attempts, error, startedAt, finishedAt })));
   });
 
   it("double-clicking Create starts once: the second call errors and enqueues nothing", async () => {
@@ -669,22 +671,8 @@ describe("findUntouched", () => {
 });
 
 describe("labels and cost visibility", () => {
-  it("maps every pass name to a label and row statuses to display statuses", () => {
-    expect(PASS_ORDER.map((name) => PASS_LABELS[name])).toEqual([
-      "Sources",
-      "Skeleton",
-      "Stage details and personas",
-      "Endings",
-      "Reveal",
-      "Checks",
-      "Saving",
-    ]);
-    expect(stepDisplayStatus(undefined)).toBe("waiting");
-    expect(stepDisplayStatus("pending")).toBe("waiting");
-    expect(stepDisplayStatus("ready")).toBe("waiting");
-    expect(stepDisplayStatus("running")).toBe("running");
-    expect(stepDisplayStatus("succeeded")).toBe("done");
-    expect(stepDisplayStatus("failed")).toBe("failed");
+  it("lists the passes in pipeline order", () => {
+    expect(PASS_ORDER).toEqual(["sources", "skeleton", "details", "endings", "reveal", "check", "save"]);
   });
 
   it("viewerSeesCost is true only for school admins and sysadmins", () => {

@@ -263,8 +263,6 @@ export function EditorWorkspace(props: Props) {
         floatingChecks
         issueActions={
           <AiFixPanel<{ edits: V3Edit[] }>
-            floating={false}
-            inToolbar
             hasIssues={
               errors.length + props.warnings.length + checks.warnings.length > 0
             }

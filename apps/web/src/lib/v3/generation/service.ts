@@ -271,7 +271,7 @@ export interface GenerationProgress {
   mode: GenerationBrief["mode"];
   pausedAt?: GuidedPass;
   status: V3AdventureRow["status"];
-  steps: { name: string; status: string; attempts: number; error: string | null }[];
+  steps: { name: string; status: string; attempts: number; error: string | null; startedAt?: string | null; finishedAt?: string | null }[];
   costUsd: number;
   warnings: (CheckIssue & { pass: string })[];
   /** errors left after the final check-and-repair; the review screen shows them (#209) */
@@ -303,7 +303,7 @@ export async function getGenerationProgress(
     mode: brief?.mode ?? "quick",
     ...(pausedAt ? { pausedAt } : {}),
     status: adventure.status,
-    steps: (progress?.steps ?? []).map((s) => ({ name: s.name, status: s.status, attempts: s.attempts, error: s.error })),
+    steps: (progress?.steps ?? []).map((s) => ({ name: s.name, status: s.status, attempts: s.attempts, error: s.error, startedAt: s.startedAt, finishedAt: s.finishedAt })),
     costUsd,
     warnings,
     ...(outputs.check !== undefined

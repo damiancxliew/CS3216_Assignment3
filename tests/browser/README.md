@@ -1,5 +1,33 @@
 # Student browser acceptance
 
+## Teacher creation workspace
+
+```sh
+RUN_CREATION_BROWSER_TESTS=1 npm test -- tests/browser/v3-creation.test.ts
+```
+
+This runs the real creation/chat/source/upload components in an isolated Vite
+fixture with deterministic server transport. It checks desktop light/dark
+layouts, narrow-screen overflow, source-preview keyboard controls and paging,
+brief pencil edits, sequential multi-file picking/dropping, retries, invalid
+files and the source cap. Evidence is saved in `output/v3-creation-check/`.
+
+For an authenticated integration run, start local Supabase and Next on an unused
+port without resetting the database. Configure Next with its normal local
+environment. Export `SUPABASE_URL`,
+`SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` for the test process using the
+same local credentials as Next. The existing testing school must be present.
+
+```sh
+RUN_CREATION_LOCAL_TESTS=1 CREATION_LOCAL_ORIGIN=http://127.0.0.1:3237 \
+  npm test -- tests/browser/v3-creation-local.test.ts
+```
+
+This creates and removes only a disposable teacher, membership and adventure.
+It exercises real TXT/MD/PDF extraction, batch drops, database/brief persistence,
+reload and source previews. It makes no model calls. Evidence is saved in
+`output/v3-creation-local-check/`.
+
 The shared v2/v3 listings regression uses local Next and Supabase with disposable
 accounts and adventures. Apply migrations first. Configure Next with
 `V3_ENABLED=1` and a local test school's UUID in `V3_SCHOOL_IDS`, then run:
