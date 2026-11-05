@@ -16,7 +16,9 @@
     "./assets": "./src/assets/index.ts",
     "./play": "./src/play/index.ts",
     "./publish": "./src/publish/index.ts",
-    "./runtime": "./src/runtime/index.ts"
+    "./runtime": "./src/runtime/index.ts",
+    "./v3": "./src/v3/index.ts",
+    "./sources-labels": "./src/sources/labels.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -26,12 +28,16 @@
     "schema": "vite-node scripts/write-json-schema.ts",
     "schema:check": "vitest run tests/json-schema.test.ts",
     "eval": "vite-node evals/run.ts --",
+    "eval:v3-grounding": "vite-node evals/run-v3-grounding.ts --",
     "generate": "vite-node scripts/generate.ts --",
+    "generate:v3": "vite-node scripts/generate-v3.ts --",
     "assets": "vite-node scripts/assets.ts --"
   },
   "dependencies": {
+    "@adventure/spec-v3": "file:../spec-v3",
     "openai": "~7.15.0",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
+    "undici": "~6.29.0",
     "unpdf": "^1.8.1",
     "zod": "^4.6.5"
   },

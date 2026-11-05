@@ -1,0 +1,12 @@
+{
+  "extends": "../apps/web/tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": [
+    "../apps/web/next-env.d.ts",
+    "../apps/web/src/components/demo/**/*.tsx",
+    "../apps/web/src/lib/demo/**/*.ts",
+    "../apps/web/src/app/demo/**/*.tsx",
+    "../apps/web/src/app/api/demo/**/*.ts"
+  ],
+  "exclude": []
+}

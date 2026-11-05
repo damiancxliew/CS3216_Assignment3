@@ -1,6 +1,6 @@
 # Team plan — CS3216 Assignment 3
 
-Companion to [`PRD.md`](PRD.md) (what and why) and [`EXECUTION_SPEC.md`](EXECUTION_SPEC.md) (the
+Companion to [`PRD-v2.md`](archive/PRD-v2.md) (what and why) and [`EXECUTION_SPEC.md`](EXECUTION_SPEC.md) (the
 per-task validation and the C0–C6 checkpoint gates). Deadline **Fri 25 Sep 2026, 23:59** — that is
 **6 calendar days from Sun 20 Sep**, so this plan is a sprint, not a roadmap. Everything here is
 sized to that.

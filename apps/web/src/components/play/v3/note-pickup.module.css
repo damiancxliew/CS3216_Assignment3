@@ -1,0 +1,79 @@
+.pickup {
+  position: fixed;
+  inset: 16px auto auto 50%;
+  width: min(440px, calc(100vw - 32px));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  transform: translateX(-50%);
+  animation: pickup-in 420ms cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  padding: 12px 16px;
+  border: 3px solid #1f2433;
+  border-radius: 12px;
+  background: #fff3cf;
+  color: #1f2433;
+  box-shadow: 4px 4px 0 #1f2433, 0 0 0 6px #f6c95c55;
+  text-align: left;
+  cursor: pointer;
+}
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, #ffffffb0 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: pickup-shine 900ms 250ms ease-out both;
+  pointer-events: none;
+}
+.card:focus-visible { outline: 3px solid #855926; outline-offset: 3px; }
+.icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 2px solid #1f2433;
+  border-radius: 50%;
+  background: #f6c95c;
+  animation: pickup-icon 700ms 120ms ease-out both;
+}
+.body { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.kicker { font: 800 11px/1.4 var(--font-ui, system-ui), sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #8a5a1c; }
+.text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font: 600 14px/1.45 var(--font-ui, system-ui), sans-serif;
+}
+.pulse { animation: notes-pulse 900ms ease-out 2; }
+
+@keyframes pickup-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-18px) scale(.9); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+@keyframes pickup-shine { to { transform: translateX(100%); } }
+@keyframes pickup-icon {
+  0% { transform: scale(.4) rotate(-30deg); }
+  60% { transform: scale(1.2) rotate(8deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+@keyframes notes-pulse {
+  0% { box-shadow: 0 3px 0 #211d18, 0 0 0 0 #f6c95ccc; }
+  100% { box-shadow: 0 3px 0 #211d18, 0 0 0 12px #f6c95c00; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pickup, .card::after, .icon, .pulse { animation: none; }
+  .card::after { display: none; }
+}

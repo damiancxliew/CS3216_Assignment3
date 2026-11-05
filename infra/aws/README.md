@@ -18,7 +18,10 @@ provider; the application database and generated images live on EC2 and S3.
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
    `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_DATA_URL` (the Caddy origin),
    `AWS_REGION=ap-southeast-2`, `ASSET_BUCKET=assets-cs3216`,
-   `ASSET_PUBLIC_BASE_URL` (the CloudFront base URL), and `SITE_DOMAIN`.
+   `ASSET_PUBLIC_BASE_URL` (the CloudFront base URL), `SITE_DOMAIN`,
+   `JOBS_TICK_SECRET`, `V3_ENABLED`, and `V3_SCHOOL_IDS`. Use a long random
+   shared secret for the jobs tick route, set `V3_ENABLED=1` to enable v3, and
+   provide a comma-separated school ID allowlist in `V3_SCHOOL_IDS`.
    Bootstrap generates `NEXT_PUBLIC_DATA_ANON_KEY` and
    `DATA_SERVICE_ROLE_KEY` into `/etc/data-api.env` from the Supabase JWKS.
 4. Set these database values in `/etc/db-admin.env`:
@@ -29,8 +32,8 @@ provider; the application database and generated images live on EC2 and S3.
    superuser password supplied in the file; it does not generate passwords.
 5. Run `sudo bash infra/aws/bootstrap.sh` on the instance. It installs pinned
    binaries, initializes PostgreSQL, creates the local `adventure` database,
-   installs systemd units, and enables the nightly backup timer. It does not
-   copy hosted data or start the app before a release is deployed.
+   installs systemd units, and enables the nightly backup and jobs tick timers.
+   It does not copy hosted data or start the app before a release is deployed.
 6. Apply schema migrations with
    `DATABASE_URL=... AUTHENTICATOR_PASSWORD=... bash infra/aws/migrate.sh supabase/migrations`.
    The first run applies `compat.sql` and then each migration in a transaction.
@@ -57,7 +60,7 @@ uses a 300-second response-header timeout for both upstreams.
 
 | File | Variables |
 | --- | --- |
-| `/etc/app.env` | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_DATA_URL`, `AWS_REGION`, `ASSET_BUCKET`, `ASSET_PUBLIC_BASE_URL`, `SITE_DOMAIN` |
+| `/etc/app.env` | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_DATA_URL`, `AWS_REGION`, `ASSET_BUCKET`, `ASSET_PUBLIC_BASE_URL`, `SITE_DOMAIN`, `JOBS_TICK_SECRET`, `V3_ENABLED`, `V3_SCHOOL_IDS` |
 | `/etc/db-admin.env` | `POSTGRES_SUPERUSER_PASSWORD`, `DATABASE_URL`, `AUTHENTICATOR_PASSWORD`; set `SUPABASE_DB_URL` here only during an approved rehearsal/cutover |
 | `/etc/postgrest.env` | `PGRST_DB_URI` |
 | generated `/etc/data-api.env` | `NEXT_PUBLIC_DATA_ANON_KEY`, `DATA_SERVICE_ROLE_KEY` |

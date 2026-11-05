@@ -1,0 +1,413 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { chromium, type Page } from "playwright";
+import { createServer, transformWithEsbuild } from "vite";
+import tailwind from "@tailwindcss/postcss";
+import { expect, it } from "vitest";
+import { createState, EngineSpec, project, step } from "@adventure/engine";
+import { canStep, findPath, spaceAt, type Point } from "@adventure/game-core";
+import { createRng, FakeLlmClient } from "@adventure/orchestration";
+import { v3AdventureScenery } from "@/lib/play/v3/scenery";
+
+// Actual v3 UI, CSS, renderer and engine. Only HTTP transport and Next's font/link
+// adapters are replaced. No authentication, database or model service is exercised.
+it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1").each(["scenery", "room entry"])("renders public scenery and lets the player walk, greet and resize (%s)", async (scenario) => {
+  const output = resolve(process.env.V3_MAP_OUTPUT ?? "output/v3-map-check");
+  await mkdir(output, { recursive: true });
+  const golden = EngineSpec.parse(JSON.parse(await readFile("fixtures/golden-1819.json", "utf8")));
+  const rainy = structuredClone(golden);
+  rainy.stages[0]!.title = "Rain at the harbour records office";
+  rainy.stages[0]!.timePlace = "Singapore harbour, a rainy afternoon in 1930 — visual test fixture";
+  rainy.stages[0]!.rooms[0]!.name = "Harbour records office";
+  rainy.stages[0]!.rooms[0]!.description = "A shortwave radio and telegraph on a desk beside the filing cabinet.";
+  rainy.stages[0]!.rooms[1]!.name = "Records archive";
+  rainy.stages[0]!.rooms[1]!.description = "Shelves of records and a filing cabinet.";
+  rainy.stages[0]!.rooms[2]!.name = "Cargo warehouse";
+  rainy.stages[0]!.rooms[2]!.description = "A warehouse beside the harbour quay and docks.";
+  const custom = structuredClone(golden);
+  custom.authoring = { walkingSprites: {
+    player: { type: "custom", fallback: "Boy", candidate: { candidateId: "00000000-0000-4000-8000-000000000099", origin: "upload", url: "https://map-assets.example/custom.png", format: "png", caption: "Custom interpreter", alt: "Interpreter walking sheet", credit: "Teacher", spriteLayout: "4x4-down-up-left-right" } },
+    ...Object.fromEntries(custom.characters.map(character => [`character:${character.id}`, { type: "bundled" as const, bundledId: "Noble", fallback: "Boy" }])),
+  } };
+  const broken = structuredClone(custom);
+  if (broken.authoring!.walkingSprites!.player.type === "custom") broken.authoring!.walkingSprites!.player.candidate.url = "https://map-assets.example/missing.png";
+  const specs = { golden, rainy, custom, broken, spriteUpdate: golden };
+  const deps = { now: Date.now(), rng: createRng("map-browser"), llm: new FakeLlmClient({ replies: [() => { throw new Error("Map checks must not call an LLM"); }] }) };
+  const sessions = await Promise.all(Object.entries(specs).map(async ([id, spec]) => {
+    let state = createState(spec, id);
+    for (let i = 0; i < 2; i++) state = (await step({ spec, state, action: { type: "continue" } }, deps)).state;
+    return [id, { spec, state, revision: 0 }] as const;
+  }));
+  const data = Object.fromEntries(sessions);
+  const root = resolve("apps/web");
+  const stubs: Record<string, string> = {
+    "next/image": "import React from 'react'; export default function Image({fill,unoptimized,...props}) { return React.createElement('img', props); }",
+    "next/font/google": "export const Pixelify_Sans = () => ({className: ''});",
+    "next/link": "import React from 'react'; export default function Link(p) { return React.createElement('a', p); }",
+  };
+  const vite = await createServer({
+    configFile: false, root, publicDir: resolve(root, "public"),
+    cacheDir: resolve("node_modules/.vite/v3-map"),
+    server: { host: "127.0.0.1", port: 0, watch: null, fs: { allow: [resolve(".")] } },
+    esbuild: { jsx: "automatic" },
+    optimizeDeps: { include: ["react", "react-dom/client", "phaser", "lucide-react"] },
+    css: { postcss: { plugins: [tailwind()] } },
+    resolve: { alias: { "@": resolve(root, "src") } },
+    plugins: [{
+      name: "v3-map-browser-fixture", enforce: "pre",
+      resolveId(id) {
+        if (stubs[id]) return `\0stub:${id}`;
+        if (id.startsWith("virtual:v3-map-")) return `\0${id}`;
+      },
+      async load(id) {
+        if (id.startsWith("\0stub:")) return stubs[id.slice(6)];
+        if (!id.startsWith("\0virtual:v3-map-")) return;
+        const name = id.slice("\0virtual:v3-map-".length);
+        const session = data[name]!;
+        return (await transformWithEsbuild(`
+          import React from 'react';
+          import Phaser from 'phaser';
+          import {createRoot} from 'react-dom/client';
+          import {V3PlayClient} from '/src/components/play/v3/v3-play-client.tsx';
+          import {V3Map} from '/src/components/play/v3/v3-map.tsx';
+          import {V3PreviewHeaderActions} from '/src/components/play/v3/v3-preview-client.tsx';
+          import '/src/app/globals.css';
+          const boot = Phaser.Game.prototype.boot;
+          Phaser.Game.prototype.boot = function() { window.mapReviewGame = this; boot.call(this); };
+          const initialView = ${JSON.stringify(project(session.spec, session.state))};
+          const noop = () => {};
+          const stableProps = {
+            attemptId: 'sprite-update', stageId: 'stage-0', stageIndex: 0,
+            rooms: initialView.rooms, spawnRoomId: initialView.rooms[0].id,
+            currentRoomId: initialView.currentRoomId, characters: initialView.characters,
+            documents: initialView.documentsHere, walkTo: null, movementLocked: true,
+            ambient: { id: 'clear', intensity: 1 }, audio: { muted: true, cues: [] },
+            onWalkDone: noop, onEnterRoom: async () => true, onSelectCharacter: noop,
+            onTalk: noop, onNearbyCharacterChange: noop, onOpenDocument: noop, onReadyChange: noop,
+          };
+          function Harness() {
+            const [scenery, setScenery] = React.useState(${JSON.stringify(v3AdventureScenery(session.spec))});
+            if (${JSON.stringify(name)} === 'spriteUpdate') return <>
+              <button onClick={() => setScenery(${JSON.stringify(v3AdventureScenery(custom))})}>Update walking sprites</button>
+              <div style={{height:'90vh',position:'relative'}}><V3Map {...stableProps} scenery={scenery[0]} /></div>
+            </>;
+            return <V3PlayClient
+            attemptId=${JSON.stringify(name)}
+            initialView={${JSON.stringify(project(session.spec, session.state))}}
+            initialRevision={0}
+            scenery={scenery}
+            headerActions={<V3PreviewHeaderActions adventureId="local-visual-fixture" />}
+          />;
+          }
+          createRoot(document.getElementById('root')).render(<Harness />);
+        `, "map-fixture.tsx", { loader: "tsx", jsx: "automatic" })).code;
+      },
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          const name = req.url?.slice(1);
+          if (!name || !data[name]) return next();
+          res.setHeader("Content-Type", "text/html");
+          res.end(`<html style="--font-ui:Arial;--font-record:Georgia"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/@id/__x00__virtual:v3-map-${name}"></script></body></html>`);
+        });
+      },
+    }],
+  });
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+  const errors: string[] = [];
+  const actions: string[] = [];
+  const metrics: unknown[] = [];
+  const expectedImageErrors: string[] = [];
+  let testingBrokenSheet = false;
+  let roomEntryGate: Promise<void> | null = null;
+  let rejectNextEntry = false;
+  try {
+    await vite.listen();
+    browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || undefined });
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
+    await page.addInitScript(() => localStorage.setItem("play.muted", "1"));
+    page.on("pageerror", error => { errors.push(error.message); console.error(error.stack); });
+    page.on("console", message => { if (message.type() === "error") {
+      const text = message.text();
+      if (testingBrokenSheet && text.includes('Failed to process file:') && text.endsWith('image asset-11b4e374')) expectedImageErrors.push(text);
+      else errors.push(text);
+    } });
+    await page.route("https://map-assets.example/**", async route => {
+      await route.fulfill({ status: 200, contentType: "image/png", headers: { "access-control-allow-origin": "*" }, body: route.request().url().endsWith("missing.png") ? Buffer.from("invalid image") : await readFile("apps/web/public/game/ninja/characters/Inspector/walk.png") });
+    });
+    await page.route("**/api/v3/attempts/**", async route => {
+      const name = new URL(route.request().url()).pathname.split("/")[4]!;
+      const session = data[name]!;
+      if (route.request().method() === "POST") {
+        const { action } = route.request().postDataJSON();
+        actions.push(action.type);
+        if (action.type === "enterRoom") {
+          await roomEntryGate;
+          if (rejectNextEntry) {
+            rejectNextEntry = false;
+            await route.fulfill({ status: 500, json: { error: { code: "error", message: "Room entry test rejection." } } });
+            return;
+          }
+        }
+        session.state = (await step({ spec: session.spec, state: session.state, action }, deps)).state;
+        session.revision++;
+      }
+      await route.fulfill({ json: { revision: session.revision, view: project(session.spec, session.state) } });
+    });
+    const open = async (name: string) => {
+      await page.goto(`${vite.resolvedUrls!.local[0]}${name}`);
+      try { await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 }); }
+      catch (cause) { console.error({ errors, body: (await page.locator("body").innerText()).slice(0,1500) }); throw cause; }
+      await page.getByRole("button", { name: "Hide mission" }).click();
+      await expect.poll(() => inspect(page)).toMatchObject({ ready: true });
+    };
+    await page.goto(`${vite.resolvedUrls!.local[0]}spriteUpdate`);
+    await page.locator('canvas[tabindex="0"]').waitFor({ timeout: 45_000 });
+    await expect.poll(() => inspect(page)).toMatchObject({ ready: true });
+    // Change only the scenery prop while keeping the current map and player view mounted.
+    await page.evaluate(() => { (window as any).originalMapGame = (window as any).mapReviewGame; });
+    await page.getByRole("button", { name: "Update walking sprites" }).click();
+    await expect.poll(() => page.evaluate(() => {
+      const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
+      const player = scene.current.actors.find((a: any) => a.id === "player");
+      const marker = scene.markers.get("player");
+      return { url: player.spriteSheetUrl, texture: marker.sprite.texture.key, sameGame: (window as any).originalMapGame === (window as any).mapReviewGame };
+    })).toMatchObject({ url: "https://map-assets.example/custom.png", texture: expect.stringMatching(/^asset-/), sameGame: true });
+    await open("golden");
+    const first = await inspect(page);
+    expect(first.descriptions).toEqual(v3AdventureScenery(golden)[0]!.roomDescriptions);
+    expect(first.fixtures).toBe(3);
+    expect(first.streetStops).toBeGreaterThan(12);
+    expect(first.outdoorProps).toBeGreaterThan(0);
+    expect(first.people).toBe(4);
+    expect(first.uniqueStarts).toBe(first.people + first.animals);
+    expect(first.animals).toBeGreaterThan(0);
+    expect(first.weather).toBe("clear");
+    await page.screenshot({ path: resolve(output, "1819-desktop.png") });
+    metrics.push({ scene: "1819", ...first });
+    // The merged cinematic controls must coexist with the same mounted map.
+    await page.getByRole("button", { name: "Sound off", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.audio.muted)).toBe(false);
+    await page.getByRole("button", { name: "Sound on", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.audio.muted)).toBe(true);
+    await page.getByRole("button", { name: "Role brief", exact: true }).click();
+    const roleBrief = page.getByRole("dialog", { name: "Role brief" });
+    await roleBrief.waitFor();
+    await page.screenshot({ path: resolve(output, "1819-role-brief.png") });
+    await roleBrief.getByRole("button", { name: "Back to the map" }).click();
+    await roleBrief.waitFor({ state: "detached" });
+    expect(await inspect(page)).toEqual(first);
+    // Diagnostic evidence only: zoom out to show the whole population in one frame.
+    await page.evaluate(() => {
+      const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
+      const camera = scene.cameras.main;
+      scene.following = false;
+      camera.stopFollow(); camera.removeBounds();
+      camera.setZoom(Math.min(scene.scale.width / (scene.current.map.width * 16), scene.scale.height / (scene.current.map.height * 16)) * 0.95);
+      camera.centerOn(scene.current.map.width * 8, scene.current.map.height * 8);
+    });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: resolve(output, "1819-population-overview.png") });
+    await page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").fitCamera());
+
+
+    // Walk with actual keyboard input through the real map and engine room handler.
+    const target = await page.evaluate(() => {
+      const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
+      return scene.ambientLife.people()[0].at;
+    });
+    await walkTo(page, target);
+    const before = JSON.stringify(data.golden!.state);
+    const beforeActions = actions.length;
+    await page.keyboard.press("e");
+    await expect.poll(() => page.evaluate(() => {
+      const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
+      return scene.ambientLife.residents.some((r: any) => r.person && r.bubble);
+    })).toBe(true);
+    expect(JSON.stringify(data.golden!.state)).toBe(before);
+    expect(actions.length).toBe(beforeActions);
+    await page.screenshot({ path: resolve(output, "1819-street-greeting.png") });
+
+    // Animation works, while reduced motion keeps people/animals in place.
+    const residents = () => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").ambientLife.residents.map((r: any) => [r.sprite.x, r.sprite.y]));
+    const still = await residents();
+    await page.waitForTimeout(350);
+    expect(await residents()).toEqual(still);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expect.poll(residents, { timeout: 8000 }).not.toEqual(still);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+
+    const nextDoor = await page.evaluate(() => {
+      const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
+      return scene.current.map.doors.find((door: any) => door.roomId !== "landing");
+    });
+    if (scenario === "room entry") {
+      await walkTo(page, nextDoor.outside);
+      let releaseEntry!: () => void;
+      roomEntryGate = new Promise<void>((resolve) => { releaseEntry = resolve; });
+      rejectNextEntry = true;
+      const entriesBefore = actions.filter((action) => action === "enterRoom").length;
+      await walkTo(page, nextDoor.inside, false);
+      await expect.poll(() => actions.filter((action) => action === "enterRoom").length).toBe(entriesBefore + 1);
+      const insideStep = await page.evaluate(({ inside, roomId }) => {
+        const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
+        return { map: scene.current.map, doors: scene.current.doors, inside, roomId };
+      }, nextDoor);
+      const next = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]
+        .map((delta) => ({ x: insideStep.inside.x + delta.x, y: insideStep.inside.y + delta.y }))
+        .find((point) => {
+          const space = spaceAt(insideStep.map, point);
+          return space?.kind === "room" && space.roomId === nextDoor.roomId && canStep(insideStep.map, insideStep.doors, insideStep.inside, point);
+        });
+      expect(next).toBeDefined();
+      const started = Date.now();
+      try {
+        await page.keyboard.press(next!.x > nextDoor.inside.x ? "ArrowRight" : next!.x < nextDoor.inside.x ? "ArrowLeft" : next!.y > nextDoor.inside.y ? "ArrowDown" : "ArrowUp");
+        await expect.poll(() => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.actors.find((a: any) => a.id === "player").position), { timeout: 750 }).toEqual(next);
+        expect(actions.filter((action) => action === "enterRoom").length).toBe(entriesBefore + 1);
+        metrics.push({ check: "movement while room entry is pending", responseHeld: true, movementMs: Date.now() - started });
+      } finally {
+        releaseEntry();
+        roomEntryGate = null;
+      }
+      await expect.poll(() => page.getByRole("alert").textContent()).toContain("Room entry test rejection.");
+      const rolledBack = await page.evaluate(() => {
+        const snapshot = (window as any).mapReviewGame.scene.getScene("tiled-map").current;
+        return snapshot.actors.find((actor: any) => actor.id === "player").space;
+      });
+      expect(rolledBack).toEqual({ kind: "room", roomId: data.golden!.state.playerRoomId });
+      expect(data.golden!.state.playerRoomId).not.toBe(nextDoor.roomId);
+      await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+      await walkTo(page, nextDoor.inside);
+      await expect.poll(() => data.golden!.state.playerRoomId).toBe(nextDoor.roomId);
+      expect(actions).toContain("enterRoom");
+      // The deliberately rejected entry produces one browser network error.
+      expect(errors).toEqual(["Failed to load resource: the server responded with a status of 500 (Internal Server Error)"]);
+      await writeFile(resolve(output, "room-entry-results.json"), JSON.stringify({ metrics, actions, errors }, null, 2));
+      return;
+    }
+    await walkTo(page, nextDoor.inside);
+    await expect.poll(() => data.golden!.state.playerRoomId).toBe(nextDoor.roomId);
+    expect(actions).toContain("enterRoom");
+
+    await open("rainy");
+    const rain = await inspect(page);
+    expect(rain.weather).toBe("rain");
+    expect(rain.people).toBe(6);
+    expect(rain.uniqueStarts).toBe(rain.people + rain.animals);
+    expect(rain.weatherSurface).toBe(true);
+    expect(rain.storyContext).toContain("1930");
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: resolve(output, "rainy-office-desktop.png") });
+    metrics.push({ scene: "rainy office", ...rain });
+    // The player arrives at the door, so walk up to someone before checking the talk prompt.
+    const seated = await page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.actors.find((a: any) => a.id !== "player").position);
+    await walkTo(page, seated, { stopBefore: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(500);
+    expect(await page.locator("h1").count()).toBe(1);
+    const talk = await page.getByRole("button", { name: /Press E to talk/ }).boundingBox();
+    const journal = await page.locator('section[aria-label="Journal"]').boundingBox();
+    expect(talk!.y + talk!.height).toBeLessThanOrEqual(journal!.y);
+
+    await page.screenshot({ path: resolve(output, "rainy-office-mobile.png") });
+    const size = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, height: innerHeight, scrollHeight: document.documentElement.scrollHeight }));
+    expect(size.scroll).toBeLessThanOrEqual(size.width);
+    expect(size.scrollHeight).toBeLessThanOrEqual(size.height);
+    metrics.push({ scene: "mobile", ...size });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await open("custom");
+    const actorReview = () => page.evaluate(() => {
+      const scene = (window as any).mapReviewGame.scene.getScene("tiled-map");
+      const marker = scene.markers.get("player");
+      return { key: marker.key, frame: String(marker.sprite.frame.name), facing: marker.facing, playing: marker.sprite.anims.isPlaying,
+        actors: scene.current.actors.map((actor: any) => ({ id: actor.id, sprite: actor.sprite, url: actor.spriteSheetUrl })),
+        animations: ["down", "up", "left", "right"].map(direction => {
+          const animation = scene.anims.get(`${marker.key}-${direction}`);
+          return { direction, fps: animation?.frameRate, frames: animation?.frames.map((frame: any) => String(frame.textureFrame)) };
+        }) };
+    });
+    await expect.poll(async () => (await actorReview()).key).toMatch(/^asset-/);
+    const selected = await actorReview();
+    expect(selected.actors.find((actor: any) => actor.id === "player")?.url).toBe("https://map-assets.example/custom.png");
+    expect(selected.actors.filter((actor: any) => actor.id !== "player").every((actor: any) => actor.sprite === "Noble")).toBe(true);
+    for (const [column, animation] of selected.animations.entries()) expect(animation).toMatchObject({ fps: 8, frames: [0, 1, 2, 3].map(row => String(row * 4 + column)) });
+    expect(selected.frame).toBe(String(["down", "up", "left", "right"].indexOf(selected.facing)));
+    const walkingSnapshot = await page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current);
+    const walker = walkingSnapshot.actors.find((actor: any) => actor.id === "player");
+    const room = walkingSnapshot.map.rooms.find((room: any) => room.id === walker.space.roomId);
+    const directions = [ ["down", "ArrowDown", 0, 1], ["up", "ArrowUp", 0, -1], ["left", "ArrowLeft", -1, 0], ["right", "ArrowRight", 1, 0] ] as const;
+    let centre: Point | undefined;
+    for(let y=room.y+2; y<room.y+room.height-2 && !centre; y++) for(let x=room.x+2; x<room.x+room.width-2 && !centre; x++) {
+      const point={x,y};
+      if(directions.every(([, ,dx,dy]) => findPath(walkingSnapshot.map,walkingSnapshot.doors,point,{x:x+dx,y:y+dy})?.length===1)) centre=point;
+    }
+    expect(centre).toBeDefined();
+    for(const [direction,key,dx,dy] of directions) {
+      await walkTo(page,centre!);
+      await page.keyboard.press(key);
+      await expect.poll(() => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.actors.find((actor: any)=>actor.id==="player").position)).toEqual({x:centre!.x+dx,y:centre!.y+dy});
+      await expect.poll(async () => (await actorReview()).facing).toBe(direction);
+      await page.getByText("Saving…",{exact:true}).waitFor({state:"hidden"});
+      await expect.poll(async () => {
+        const review=await actorReview();
+        return { frame:review.frame, playing:review.playing };
+      }, {timeout:3000}).toEqual({frame:String(["down","up","left","right"].indexOf(direction)),playing:false});
+    }
+    await page.reload();
+    await page.locator('canvas[tabindex="0"]').waitFor();
+    await expect.poll(async () => (await actorReview()).key).toMatch(/^asset-/);
+    await page.screenshot({ path: resolve(output, "custom-sprite-map.png") });
+    testingBrokenSheet = true;
+    await open("broken");
+    await expect.poll(async () => (await actorReview()).key).toBe("char-Boy");
+    expect(expectedImageErrors).toHaveLength(1);
+    metrics.push({ scene: "walking sprites", selected, failedSheetFallback: await actorReview(), expectedImageErrors });
+    expect(errors).toEqual([]);
+    await writeFile(resolve(output, "results.json"), JSON.stringify({ checks: ["public scenery projection", "bundled fixtures", "people and animals", "sound toggle reaches map", "role brief opens and returns to populated map", "keyboard walk", "local E greeting without engine mutation", "animation and reduced motion", "engine room entry", "mobile controls do not overlap", "rain surface", "mobile overflow", "no browser errors"], metrics, actions, errors }, null, 2));
+  } finally {
+    await browser?.close();
+    await vite.close();
+  }
+}, 120_000);
+
+async function inspect(page: Page) {
+  return page.evaluate(() => {
+    const scene = (window as any).mapReviewGame?.scene.getScene("tiled-map");
+    return {
+      ready: Boolean(scene?.ambientLife), descriptions: scene?.current.roomDescriptions,
+      outdoorProps: scene?.current.map.scenery?.length,
+      streetStops: scene?.ambientLife?.stops.length,
+      fixtures: scene?.current.landmarks?.length, people: scene?.ambientLife?.people().length,
+      animals: scene?.ambientLife?.residents.filter((r: any) => !r.person).length,
+      uniqueStarts: new Set(scene?.ambientLife?.residents.map((r: any) => `${r.at.x},${r.at.y}`)).size,
+      weather: scene?.current.ambient?.id, storyContext: scene?.current.storyContext,
+      weatherSurface: Boolean(scene?.children.getByName("weather-surface")),
+    };
+  });
+}
+
+async function walkTo(
+  page: Page,
+  target: Point,
+  options: boolean | { stopBefore?: boolean; waitForSave?: boolean } = {},
+) {
+  const { stopBefore = false, waitForSave = true } =
+    typeof options === "boolean" ? { stopBefore: false, waitForSave: options } : options;
+  const snapshot = await page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current);
+  const player = snapshot.actors.find((a: any) => a.id === "player").position;
+  const path = findPath(snapshot.map, snapshot.doors, player, target);
+  expect(path).not.toBeNull();
+  let from = player;
+  await page.locator("canvas").focus();
+  const steps = path!.filter(point => point.x !== player.x || point.y !== player.y);
+  // Stopping one tile short of an occupied target leaves the player facing it.
+  if (stopBefore) steps.pop();
+  for (const point of steps) {
+    await page.keyboard.press(point.x > from.x ? "ArrowRight" : point.x < from.x ? "ArrowLeft" : point.y > from.y ? "ArrowDown" : "ArrowUp");
+    await expect.poll(() => page.evaluate(() => (window as any).mapReviewGame.scene.getScene("tiled-map").current.actors.find((a: any) => a.id === "player").position)).toEqual(point);
+    if (waitForSave) await page.getByText("Saving…", { exact: true }).waitFor({ state: "hidden" });
+    await page.waitForTimeout(170);
+    from = point;
+  }
+}

@@ -7,6 +7,7 @@ import {
   GENERATOR_VERSION,
   MAP_SCHEMA_VERSION,
   type CompiledStage,
+  type CompileOptions,
   type DoorState,
   type MapDoor,
   type MapLandmark,
@@ -78,8 +79,8 @@ function tileGrid(width: number, height: number): StageMap['tiles'] {
   return tiles
 }
 
-export function compileStage(value: unknown, seed: string): CompiledStage {
-  const layoutResult = validateStageLayout(value)
+export function compileStage(value: unknown, seed: string, options: CompileOptions = {}): CompiledStage {
+  const layoutResult = validateStageLayout(value, options)
   const errors = [...layoutResult.errors]
   if (!isValidSeed(seed)) errors.push('seed: expected 1 to 64 ASCII letters, digits, dot, underscore, or hyphen')
   if (errors.length > 0) throw new Error(errors.join('; '))
@@ -149,7 +150,9 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
   const doorByRoom = new Map(doors.map((door) => [door.roomId, door]))
   const roomInputById = new Map(input.rooms.map((room) => [room.id, room]))
   const initialDoors: Record<string, DoorState> = {}
-  for (const door of doors) initialDoors[door.id] = roomInputById.get(door.roomId)!.doorDefault as DoorState
+  for (const door of doors) {
+    initialDoors[door.id] = options.doors === false ? 'open' : roomInputById.get(door.roomId)!.doorDefault as DoorState
+  }
 
   const placements: CompiledStage['placements'] = []
   const sortedPlacements = [...input.placements].sort(compareIds)
@@ -191,6 +194,7 @@ export function compileStage(value: unknown, seed: string): CompiledStage {
     tiles,
     rooms,
     doors,
+    ...(options.doors === false ? { doorless: true as const } : {}),
     ...(landmarks.length ? { landmarks } : {}),
   }
   const reserved = [playerSpawn, ...placements.map(p => p.position), ...doors.flatMap(d => [d.position, d.inside, d.outside])]

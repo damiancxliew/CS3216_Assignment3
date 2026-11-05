@@ -54,6 +54,8 @@ export const PRICING: Record<string, { input: number; cachedInput: number; outpu
   'gpt-5.6-sol': { input: 4, cachedInput: 0.4, output: 20 },
   'gpt-5.6-terra': { input: 2, cachedInput: 0.2, output: 12 },
   'gpt-5.6-luna': { input: 0.2, cachedInput: 0.02, output: 1.2 },
+  'gpt-6-sol': { input: 2, cachedInput: 0.2, output: 10 },
+  'gpt-6.1-sol': { input: 2, cachedInput: 0.1, output: 10 },
 }
 
 /** Default model per tier. Yi Hao pins the final choice (EXECUTION_SPEC §6.1); env overrides win. */

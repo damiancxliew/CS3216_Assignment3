@@ -1,0 +1,2 @@
+# Rendered videos are large; keep them out of git.
+renders/

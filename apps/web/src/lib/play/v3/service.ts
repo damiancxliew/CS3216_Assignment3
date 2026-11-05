@@ -1,0 +1,305 @@
+import { EngineError, engine, pendingCheckIds, runPostTurnCheck, type EngineState } from "@adventure/engine";
+import { Action, type GameEvent } from "@adventure/play-contract";
+import { createRng, type LlmClient } from "@adventure/orchestration";
+import { z } from "zod";
+import { decodeStoredSpec } from "@adventure/spec-v3";
+
+import { createRateLimiter } from "./rate-limit";
+import type { V3Attempt, V3FlagInput, V3PlayStore } from "./store";
+
+type LlmContext = { attemptId: string; organizationId: string; userId: string };
+
+export interface V3PlayServiceDeps {
+  store: V3PlayStore;
+  llm: (context: LlmContext) => LlmClient;
+  now: () => number;
+  env?: NodeJS.ProcessEnv;
+}
+
+export type ServiceResponse = {
+  status: number;
+  body: Record<string, unknown>;
+};
+
+const ActionRequest = z.strictObject({
+  revision: z.number().int().nonnegative(),
+  action: Action,
+});
+
+export const ENGINE_ERROR_STATUS: Record<EngineError["code"], number> = {
+  invalid_action: 400,
+  unknown_id: 400,
+  illegal_phase: 409,
+  not_present: 409,
+  not_held: 409,
+  act_unavailable: 409,
+  pending: 409,
+  preparation_required: 409,
+};
+
+const costlyActions = new Set(["message", "insertNote", "interviewAnswer"]);
+const DEFAULT_TOKEN_CEILING = 1_500_000;
+const DEFAULT_RATE_LIMIT = 20;
+const rateLimiters = new WeakMap<V3PlayStore, {
+  limit: number;
+  now: () => number;
+  allow: (key: string) => boolean;
+}>();
+
+function error(status: number, code: string, message: string, extra: Record<string, unknown> = {}): ServiceResponse {
+  return { status, body: { error: { code, message }, ...extra } };
+}
+
+function integerSetting(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === "") return fallback;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+type RateLimitDeps = Pick<V3PlayServiceDeps, "store" | "now" | "env">;
+
+export function limiterFor(deps: RateLimitDeps): (key: string) => boolean {
+  const limit = integerSetting(deps.env?.V3_RATE_LIMIT_PER_10S, DEFAULT_RATE_LIMIT);
+  const current = rateLimiters.get(deps.store);
+  if (current?.limit === limit && current.now === deps.now) return current.allow;
+  const allow = createRateLimiter({ limit, windowMs: 10_000, now: deps.now });
+  rateLimiters.set(deps.store, { limit, now: deps.now, allow });
+  return allow;
+}
+
+function tokenCeiling(env: NodeJS.ProcessEnv | undefined): number {
+  return integerSetting(env?.V3_ATTEMPT_TOKEN_CEILING, DEFAULT_TOKEN_CEILING);
+}
+
+async function permittedAdventure(
+  deps: V3PlayServiceDeps,
+  userId: string,
+  adventureId: string,
+) {
+  const adventure = await deps.store.loadAdventure(adventureId);
+  if (
+    !adventure ||
+    (!(adventure.isPublic && adventure.status === "published") &&
+      !(await deps.store.isActiveMember(adventure.schoolId, userId)))
+  ) {
+    return null;
+  }
+  return adventure;
+}
+
+async function pinnedSpec(deps: V3PlayServiceDeps, attempt: V3Attempt) {
+  const raw = await deps.store.loadVersionSpec(attempt.adventureId, attempt.specVersion);
+  const decoded = decodeStoredSpec(raw);
+  return decoded.ok ? decoded.spec : null;
+}
+
+function incompatibleSpec(): ServiceResponse {
+  return error(409, "schema_upgrade_required", "This adventure cannot run in its saved format. Your progress is saved. Ask your teacher to upgrade the adventure; a new attempt may be needed.");
+}
+
+function staleState(revision: number, view: ReturnType<typeof engine.project>): ServiceResponse {
+  return error(409, "stale_state", "This attempt has changed. Refresh before trying again.", {
+    revision,
+    view,
+  });
+}
+
+async function currentView(deps: V3PlayServiceDeps, attempt: V3Attempt) {
+  const spec = await pinnedSpec(deps, attempt);
+  return spec ? engine.project(spec, attempt.state as EngineState) : null;
+}
+
+/** Student entry accepts one immutable published-version ID. */
+export async function createAttempt(
+  deps: V3PlayServiceDeps,
+  userId: string,
+  versionId: string,
+): Promise<ServiceResponse> {
+  const publication = await deps.store.loadPublication(versionId);
+  if (!publication) return error(404, "not_found", "Not found.");
+  const adventure = await permittedAdventure(deps, userId, publication.adventureId);
+  if (!adventure) return error(404, "not_found", "Not found.");
+  if (adventure.status !== "published")
+    return error(409, "not_open", "This adventure is not open for play.");
+  const existing = await deps.store.findLatestAttempt(adventure.id, userId, publication.version);
+  if (existing) {
+    const view = await currentView(deps, existing);
+    if (!view) return incompatibleSpec();
+    return { status: 200, body: { attemptId: existing.id, revision: existing.revision, view, resumed: true } };
+  }
+  const rawSpec = await deps.store.loadVersionSpec(adventure.id, publication.version);
+  const decoded = decodeStoredSpec(rawSpec);
+  if (!decoded.ok) return incompatibleSpec();
+  const spec = decoded.spec;
+  const state = engine.createState(spec, crypto.randomUUID());
+  const attempt = await deps.store.createAttempt({ adventureId: adventure.id, specVersion: publication.version,
+    versionId: publication.id, studentId: userId, state });
+  if (!attempt) return error(409, "conflict", "This version is no longer open for play.");
+  return { status: 201, body: { attemptId: attempt.id, revision: attempt.revision, view: engine.project(spec, state), resumed: false } };
+}
+
+export async function getAttempt(
+  deps: V3PlayServiceDeps,
+  userId: string,
+  attemptId: string,
+): Promise<ServiceResponse> {
+  const attempt = await deps.store.loadAttempt(attemptId);
+  if (
+    !attempt ||
+    attempt.studentId !== userId ||
+    !(await permittedAdventure(deps, userId, attempt.adventureId))
+  ) {
+    return error(404, "not_found", "Not found.");
+  }
+
+  const view = await currentView(deps, attempt);
+  if (!view) return incompatibleSpec();
+  return {
+    status: 200,
+    body: { attemptId: attempt.id, revision: attempt.revision, view },
+  };
+}
+
+export async function postAction(
+  deps: V3PlayServiceDeps,
+  userId: string,
+  attemptId: string,
+  body: unknown,
+): Promise<ServiceResponse> {
+  const parsed = ActionRequest.safeParse(body);
+  if (!parsed.success) return error(400, "invalid_request", "Invalid action request.");
+
+  const attempt = await deps.store.loadAttempt(attemptId);
+  if (
+    !attempt ||
+    attempt.studentId !== userId ||
+    !(await permittedAdventure(deps, userId, attempt.adventureId))
+  ) {
+    return error(404, "not_found", "Not found.");
+  }
+
+  if (!limiterFor(deps)(attemptId)) {
+    return error(429, "rate_limited", "You're moving too quickly. Please wait a moment and try again.");
+  }
+
+  const spec = await pinnedSpec(deps, attempt);
+  if (!spec) return incompatibleSpec();
+  const state = attempt.state as EngineState;
+  if (attempt.revision !== parsed.data.revision) return staleState(attempt.revision, engine.project(spec, state));
+
+  if (
+    costlyActions.has(parsed.data.action.type) &&
+    (await deps.store.tokensUsed(attempt.id)) >= tokenCeiling(deps.env)
+  ) {
+    return error(
+      429,
+      "attempt_limit",
+      "This attempt has reached its limit. Your notes are saved; ask your teacher to continue.",
+    );
+  }
+
+  const llm = deps.llm({
+    attemptId: attempt.id,
+    organizationId: attempt.schoolId,
+    userId,
+  });
+  let result;
+  try {
+    result = await engine.step(
+      { spec, state, action: parsed.data.action },
+      { llm, now: deps.now(), rng: createRng(`${attemptId}:${attempt.revision}`) },
+    );
+  } catch (cause) {
+    if (cause instanceof EngineError) {
+      return error(ENGINE_ERROR_STATUS[cause.code], cause.code, cause.message);
+    }
+    throw cause;
+  }
+
+  const saved = await deps.store.save(attempt.id, attempt.revision, result.state, result.events as GameEvent[]);
+  if (!saved.saved) {
+    const latest = await deps.store.loadAttempt(attempt.id);
+    if (!latest || latest.studentId !== userId) return error(404, "not_found", "Not found.");
+    const view = await currentView(deps, latest);
+    return view ? staleState(latest.revision, view) : incompatibleSpec();
+  }
+
+  return {
+    status: 200,
+    body: {
+      revision: saved.revision,
+      view: result.view,
+      pendingCheckIds: pendingCheckIds(result.state),
+    },
+  };
+}
+
+export async function runPostTurnChecks(
+  deps: V3PlayServiceDeps,
+  attemptId: string,
+  messageIds: readonly string[],
+): Promise<void> {
+  for (const messageId of new Set(messageIds)) {
+    let checkResult: Awaited<ReturnType<typeof runPostTurnCheck>> | null = null;
+    for (let retry = 0; retry < 3; retry += 1) {
+      try {
+        const attempt = await deps.store.loadAttempt(attemptId);
+        if (!attempt) break;
+        const spec = await pinnedSpec(deps, attempt);
+        if (!spec) break;
+        const state = attempt.state as EngineState;
+        const pending = state.pendingChecks.find((check) => check.messageId === messageId);
+        if (pending === undefined) break;
+
+        const llm = deps.llm({
+          attemptId: attempt.id,
+          organizationId: attempt.schoolId,
+          userId: attempt.studentId,
+        });
+        checkResult ??= await runPostTurnCheck(spec, state, messageId, { llm });
+        const result = await engine.step(
+          { spec, state, action: { type: "postTurn", messageId, result: checkResult } },
+          { llm, now: deps.now(), rng: createRng(`${attempt.id}:${attempt.revision}`) },
+        );
+        const flags = flagsFromEvents(pending, result.events);
+        const saved = await deps.store.save(
+          attempt.id,
+          attempt.revision,
+          result.state,
+          result.events as GameEvent[],
+          flags,
+        );
+        if (saved.saved) break;
+      } catch (cause) {
+        console.error("Failed to run v3 post-turn check", cause);
+        break;
+      }
+    }
+  }
+}
+
+export function flagsFromEvents(
+  pending: EngineState["pendingChecks"][number],
+  events: readonly GameEvent[],
+): V3FlagInput[] {
+  const excerpt = (
+    pending.turn.kind === "message"
+      ? pending.turn.text
+      : [pending.turn.text, pending.turn.note].filter(Boolean).join("\n")
+  ).trim().slice(0, 1000);
+
+  return events.flatMap((event) => (
+    event.type === "flag" && event.messageId === pending.messageId
+      ? [{
+          messageId: event.messageId,
+          category: event.category,
+          excerpt,
+          result: {
+            reason: event.reason,
+            characterId: pending.characterId,
+            stageIndex: pending.stageIndex,
+          },
+        }]
+      : []
+  ));
+}

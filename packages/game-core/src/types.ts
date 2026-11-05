@@ -14,6 +14,10 @@ export type DoorState = 'open' | 'closed'
 export type DoorStates = Readonly<Record<string, DoorState>>
 export type ActorPositions = Readonly<Record<string, Point>>
 
+export interface CompileOptions {
+  doors?: boolean
+}
+
 export interface SpatialState {
   doors: DoorStates
   actors: ActorPositions
@@ -81,6 +85,8 @@ export interface StageMap {
   tiles: Tile[][]
   rooms: MapRoom[]
   doors: MapDoor[]
+  /** v3: doorways are permanently open; no door to open, close or knock on. Older maps omit this. */
+  doorless?: true
   /** Tile-built fixtures that occupy and block their footprint. Older maps omit this. */
   landmarks?: MapLandmark[]
 }

@@ -1,0 +1,50 @@
+import { mkdir } from "node:fs/promises";
+import { chromium } from "playwright";
+import { expect, it } from "vitest";
+import { DEMO_SAVE_KEY, newDemoV3State } from "../../apps/web/src/lib/demo/v3-session";
+
+it.runIf(process.env.RUN_HISTORY_DEMO_BROWSER === "1")("presents newspaper and notice board frames with working activities and keyboard dismissal", async () => {
+  const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || "chrome" });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 950 }, reducedMotion: "reduce" });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  try {
+    const state = newDemoV3State(); state.intro = false;
+    await page.addInitScript(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), { key: DEMO_SAVE_KEY, state });
+    await page.goto("http://127.0.0.1:3012/demo/lim-bo-seng", { waitUntil: "networkidle" });
+    await page.getByText("Optional discoveries", { exact: true }).click();
+    const newspaperButton = page.getByRole("button", { name: "Newspaper board · 20 February 1942" });
+    await newspaperButton.click();
+    const newspaper = page.locator('dialog[data-evidence-frame="newspaper"]');
+    await newspaper.waitFor();
+    expect(await newspaper.getByRole("button", { name: "Roll up scroll" }).count()).toBe(0);
+    await page.waitForFunction(() => { const img = document.querySelector<HTMLImageElement>('dialog[data-evidence-frame="newspaper"] img'); return img?.complete && img.naturalWidth > 0; });
+    await mkdir("output/history-demo-check", { recursive: true });
+    await page.screenshot({ path: "output/history-demo-check/newspaper-frame.png" });
+    await newspaper.getByRole("radio", { name: "Who controlled publication and whose views are missing" }).check();
+    await newspaper.getByRole("button", { name: "Check answer" }).click();
+    await newspaper.getByText("✓ Hint unlocked").waitFor();
+    await page.keyboard.press("Escape");
+    expect(await newspaper.count()).toBe(0);
+    await page.waitForFunction(() => document.activeElement?.tagName === "CANVAS");
+    await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+    await page.getByRole("button", { name: "Check the dated record" }).click();
+    const board = page.locator('dialog[data-evidence-frame="noticeboard"]');
+    await board.waitFor();
+    expect(await board.locator("[data-record-credit]").evaluate((node) => getComputedStyle(node).color)).toBe("rgb(97, 91, 79)");
+    await page.screenshot({ path: "output/history-demo-check/noticeboard-frame.png" });
+    await board.getByRole("button", { name: "The surrender that followed his departure" }).click();
+    await board.getByText(/Yes. It establishes surrender context/).waitFor();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: "output/history-demo-check/noticeboard-frame-mobile.png" });
+    expect(await board.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+    await board.getByRole("button", { name: "Back to the map" }).click();
+    await newspaperButton.click();
+    await page.screenshot({ path: "output/history-demo-check/newspaper-frame-mobile.png" });
+    expect(await newspaper.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+    await newspaper.getByRole("button", { name: "Enlarge image" }).click();
+    await newspaper.getByRole("button", { name: "Fit image" }).waitFor();
+    await page.keyboard.press("Escape");
+    expect(errors).toEqual([]);
+  } finally { await browser.close(); }
+}, 60000);

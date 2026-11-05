@@ -127,3 +127,42 @@ describe('OpenAiLlmClient background responses', () => {
     expect(result.json).toEqual({ ok: true })
   })
 })
+
+describe('OpenAiLlmClient streaming', () => {
+  it('forwards provider deltas before completion and preserves structured output and usage', async () => {
+    const events: string[] = []
+    let listener!: (event: { delta: string }) => void
+    let finish!: (response: unknown) => void
+    const final = new Promise((resolve) => { finish = resolve })
+    const stream = vi.fn(() => ({
+      on: (_: string, callback: typeof listener) => { listener = callback },
+      finalResponse: () => final,
+    }))
+    const client = new OpenAiLlmClient({
+      apiKey: 'test-key', maxRetries: 0,
+      onResponseStarted: () => { events.push('started') },
+      onTextDelta: (delta) => { events.push(delta) },
+    })
+    ;(client as unknown as { client: unknown }).client = { responses: { stream } }
+    let completed = false
+    const pending = client.completeJson(request).then((response) => { completed = true; return response })
+    listener({ delta: '{"reply":"Hello' })
+    expect(events).toEqual(['started', '{"reply":"Hello'])
+    expect(completed).toBe(false)
+    listener({ delta: '"}' })
+    finish({ status: 'completed', output: [], output_text: '{"reply":"Hello"}', model: 'gpt-test', usage: {
+      input_tokens: 10, output_tokens: 5, input_tokens_details: { cached_tokens: 2 }, output_tokens_details: { reasoning_tokens: 1 },
+    } })
+    expect(await pending).toMatchObject({ json: { reply: 'Hello' }, refusal: null, usage: {
+      inputTokens: 10, outputTokens: 5, cachedInputTokens: 2, reasoningTokens: 1,
+    } })
+  })
+
+  it('does not accept an incomplete provider stream as a finished JSON response', async () => {
+    const client = new OpenAiLlmClient({ apiKey: 'test-key', onTextDelta: () => {} })
+    ;(client as unknown as { client: unknown }).client = { responses: { stream: () => ({
+      on: () => {}, finalResponse: async () => ({ status: 'incomplete', output_text: '{"reply":"cut off' }),
+    }) } }
+    await expect(client.completeJson(request)).rejects.toThrow('did not complete')
+  })
+})

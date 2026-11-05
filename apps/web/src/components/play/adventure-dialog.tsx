@@ -1,14 +1,15 @@
 "use client";
 
-import { Compass, Flag, ScrollText, UserRound, X } from "lucide-react";
+import { ClipboardList, Compass, Flag, NotebookPen, ScrollText, UserRound, X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import styles from "./adventure-chrome.module.css";
 
 /** The browser's modal layer keeps keyboard focus (and map input) inside the card. */
-export function AdventureDialog({ kind, titleId, descriptionId, onClose, children }: {
-  kind: "landmark" | "character" | "accounts" | "board";
+export function AdventureDialog({ kind, titleId, descriptionId, onClose, closeLabel = "Close", children }: {
+  kind: "landmark" | "character" | "accounts" | "board" | "preparation" | "notes" | "activity";
   titleId: string;
   descriptionId?: string;
+  closeLabel?: string;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -26,10 +27,18 @@ export function AdventureDialog({ kind, titleId, descriptionId, onClose, childre
     };
   }, []);
 
-  const Icon = kind === "landmark" ? Compass : kind === "accounts" ? ScrollText : kind === "board" ? Flag : UserRound;
+  const { icon: Icon, label } = {
+    landmark: { icon: Compass, label: "A closer look" },
+    accounts: { icon: ScrollText, label: "Compare accounts" },
+    board: { icon: Flag, label: "Case board" },
+    character: { icon: UserRound, label: "Meet your character" },
+    preparation: { icon: ClipboardList, label: "Stage preparation" },
+    notes: { icon: NotebookPen, label: "Your notes" },
+    activity: { icon: Compass, label: "Explore" },
+  }[kind];
   return (
     <dialog ref={dialog} className={`${styles.dialog} ${styles[kind]}`} aria-labelledby={titleId} aria-describedby={descriptionId} onCancel={onClose} onClick={(event) => {
-      // The frame fills the dialog, so only a click on the backdrop lands on the dialog itself, as with the notes scroll.
+      // The frame fills the dialog, so only a click on the backdrop lands on the dialog itself, as with the evidence reader.
       if (event.target === event.currentTarget) onClose();
     }} onKeyDown={(event) => {
       if (event.key !== "Tab") return;
@@ -47,8 +56,8 @@ export function AdventureDialog({ kind, titleId, descriptionId, onClose, childre
       <div className={styles.modalFrame}>
         <header className={styles.modalHeader}>
           <span className={styles.modalEmblem}><Icon size={24} aria-hidden="true" /></span>
-          <p>{kind === "landmark" ? "A closer look" : kind === "accounts" ? "Compare accounts" : kind === "board" ? "Case board" : "Meet your character"}</p>
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Close"><X size={20} aria-hidden="true" /></button>
+          <p>{label}</p>
+          <button type="button" className={styles.close} onClick={onClose} aria-label={closeLabel}><X size={20} aria-hidden="true" /></button>
         </header>
         <div className={styles.modalPaper}>{children}</div>
       </div>

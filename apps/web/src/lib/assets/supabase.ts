@@ -12,6 +12,11 @@ const BUCKET = "assets";
 export class SupabaseAssetStore implements AssetStore {
   constructor(private readonly admin: SupabaseClient) {}
 
+  async remove(key: string): Promise<void> {
+    const { error } = await this.admin.storage.from(BUCKET).remove([key]);
+    if (error) throw new Error(`asset removal failed: ${error.message}`);
+  }
+
   async put(key: string, bytes: Uint8Array, mimeType: string): Promise<string> {
     const { error } = await this.admin.storage.from(BUCKET).upload(key, bytes, { contentType: mimeType, upsert: true });
     if (error) throw new Error(`asset upload failed: ${error.message}`);

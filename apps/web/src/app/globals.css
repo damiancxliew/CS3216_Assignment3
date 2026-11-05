@@ -177,6 +177,11 @@ select {
   box-shadow: 0 7px 0 color-mix(in srgb, var(--shadow) 12%, transparent), 0 22px 60px color-mix(in srgb, var(--shadow) 10%, transparent);
 }
 
+/* A smaller lift for cards inside the scrolling creation pane. */
+.creation-card {
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--shadow) 12%, transparent), 0 8px 20px color-mix(in srgb, var(--shadow) 6%, transparent);
+}
+
 .sticker {
   box-shadow: 0 4px 0 color-mix(in srgb, var(--shadow) 18%, transparent);
   transform: rotate(-1.5deg);
@@ -268,4 +273,15 @@ select {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Review tabs change content length. Anchor the wash to the viewport and reserve
+   the page scrollbar so neither the background nor the shell shifts with them. */
+html:has([data-review-screen]) {
+  scrollbar-gutter: stable;
+  overflow-anchor: none;
+}
+
+body:has([data-review-screen]) {
+  background-attachment: fixed;
 }
