@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Trash2 } from "lucide-react";
 import { currentSlot, type BriefStateV3 } from "@/lib/v3/brief/schema";
-import { Pending } from "@/components/ui";
+import { Pending, StableLabel } from "@/components/ui";
 import { V3BriefChat, type BriefChatActions } from "./brief-chat";
 import { ReviewChatProvider } from "./review-chat-context";
 import { ConfirmButton } from "./confirm-button";
@@ -94,7 +94,7 @@ export function CreationWorkspace({
   useStepScroll(content, contentBody);
 
   return (
-    <ReviewToolbarProvider progress={generationProgress ?? (starting ? <Pending>Preparing…</Pending> : null)} busy={generating || starting}>
+    <ReviewToolbarProvider progress={generationProgress ?? null} busy={generating || starting}>
     <ReviewChatProvider>
       <div className={styles.workspace} data-creation-workspace>
         <header className={styles.header}>
@@ -146,7 +146,7 @@ export function CreationWorkspace({
               resolve={null}
               disabled={disabled}
               primary={<button type="button" onClick={() => actions.current?.create()} className={reviewCreate}>
-                {starting ? <Pending>Creating…</Pending> : "Create adventure"}
+                <StableLabel label="Create adventure" pending={starting} pendingLabel={<Pending>Creating…</Pending>} />
               </button>}
             /> : null}
             <div data-review-dock className={styles.dock} />

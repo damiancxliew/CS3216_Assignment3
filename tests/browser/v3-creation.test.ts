@@ -191,6 +191,21 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
       await page.getByRole("dialog").waitFor();
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
 
+      // Starting generation has one horizontal loading label and keeps the button's footprint.
+      await visit("ready");
+      const create = page.getByRole("button", { name: "Create adventure", exact: true });
+      const beforeCreate = await create.boundingBox();
+      await create.click();
+      const creating = page.getByRole("button", { name: "Creating…", exact: true });
+      await creating.waitFor();
+      expect(await creating.isDisabled()).toBe(true);
+      expect(await page.locator('[data-review-dock] [data-toolbar-progress]').count()).toBe(0);
+      expect(await page.locator('[data-review-dock]').textContent()).not.toContain("Preparing");
+      const duringCreate = await creating.boundingBox();
+      expect(duringCreate!.height).toBe(beforeCreate!.height);
+      expect(duringCreate!.width).toBe(beforeCreate!.width);
+      await page.screenshot({ path: resolve(output, "starting-generation.png"), fullPage: true });
+
       // A completed pass must refresh server-rendered content even while generation continues.
       await page.clock.install();
       for (const mode of ["quick", "standard"]) {
