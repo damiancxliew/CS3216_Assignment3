@@ -118,6 +118,8 @@ class TiledScene extends Phaser.Scene {
   private previousLandmarkPositions: Point[] = []
   private doors = new Map<string, Phaser.GameObjects.Image>()
   private labels: Phaser.GameObjects.Text[] = []
+  /** Map pins drawn above room labels; rebuilt with them. */
+  private labelPins: Phaser.GameObjects.Graphics[] = []
   private captions = new Map<string, Phaser.GameObjects.Text>()
   private captionSizes = new Map<string, { content: string; width: number; height: number }>()
   private captionLines?: Phaser.GameObjects.Graphics
@@ -134,6 +136,8 @@ class TiledScene extends Phaser.Scene {
       last: Point
       /** Pending "stop walking": re-armed by each step, so a continuous walk keeps its animation. */
       idle: Phaser.Time.TimerEvent | null
+      /** The bubble above the head, if any, and which one it is. */
+      emote?: { kind: 'talk'; object: Phaser.GameObjects.Container } | null
     }
   >()
   private props = new Map<string, { container: Phaser.GameObjects.Container; found: boolean; imageUrl: string | null }>()
@@ -396,6 +400,8 @@ class TiledScene extends Phaser.Scene {
     this.doors.clear()
     this.labels.forEach((l) => l.destroy())
     this.labels = []
+    this.labelPins.forEach((pin) => pin.destroy())
+    this.labelPins = []
     this.markers.forEach((m) => { m.idle?.remove(); m.container.destroy() })
     this.markers.clear()
     this.props.forEach((p) => p.container.destroy())
@@ -430,23 +436,32 @@ class TiledScene extends Phaser.Scene {
       }
       // A door on the top wall keeps the room name outside the room, above the wall.
       const doorOnTopWall = source.doors.some((door) => door.roomId === room.id && door.position.y === room.y)
-      if (this.current.interactionLabels !== "hover") this.labels.push(
-        this.add
-          .text((room.x + room.width / 2) * T, doorOnTopWall ? room.y * T - 1 : room.y * T + 1, this.roomName(room.id), {
-            color: '#fff8e7',
+      if (this.current.interactionLabels !== "hover") {
+        const label = this.add
+          .text((room.x + room.width / 2) * T, doorOnTopWall ? room.y * T - 1 : room.y * T + 8, this.roomName(room.id), {
+            color: '#fffaf0',
             fontFamily: 'system-ui, "Segoe UI", sans-serif',
             fontSize: '6px',
             wordWrap: { width: room.width * T - 12, useAdvancedWrap: true },
             align: 'center',
             fontStyle: 'bold',
-            backgroundColor: '#2e2620',
+            backgroundColor: '#1f2433',
             padding: { x: 4, y: 2 },
             resolution: 8,
           })
           .setOrigin(0.5, doorOnTopWall ? 1 : 0)
           .setDepth(60)
-          .setAlpha(0.95),
-      )
+          .setAlpha(0.96)
+        this.labels.push(label)
+        // A pixel map pin sitting on the label, as on a field map.
+        const bounds = label.getBounds()
+        const pin = this.add.graphics().setDepth(60)
+        const px = Math.round(bounds.centerX), py = Math.round(bounds.y) - 1
+        pin.fillStyle(0x1f2433, 1).fillRect(px - 4, py - 9, 8, 6).fillRect(px - 3, py - 10, 6, 1).fillRect(px - 3, py - 3, 6, 1).fillRect(px - 2, py - 2, 4, 1).fillRect(px - 1, py - 1, 2, 1)
+        pin.fillStyle(0xd85f35, 1).fillRect(px - 3, py - 9, 6, 6).fillRect(px - 2, py - 3, 4, 1)
+        pin.fillStyle(0x1f2433, 1).fillRect(px - 1, py - 7, 2, 2)
+        this.labelPins.push(pin)
+      }
     }
     // Map border: a wall ring so the world has an edge.
     for (let x = 0; x < source.width; x += 1) {
@@ -659,6 +674,7 @@ class TiledScene extends Phaser.Scene {
       } else if (marker.idle === null && this.textures.exists(key)) {
         marker.sprite.setFrame(DIRECTIONS.indexOf(facing))
       }
+      this.syncEmote(marker, actor.emote ?? null)
       if (actor.id === 'player' && moved && !snap && !this.reducedMotion) this.footstep()
       marker.container.setDepth(10 + actor.position.y / 1000 + (actor.id === 'player' ? 0.5 : 0))
       if (snap || this.reducedMotion || withPlayer) {
@@ -716,6 +732,27 @@ class TiledScene extends Phaser.Scene {
     const lines = imageUrl ? [] : [-3, 0, 3].map((offset) => this.add.rectangle(0, offset, 6, 1, 0x8a7550))
     container.add([shadow, sheet, ...lines])
     return { container, found: false, imageUrl }
+  }
+
+  /** A small white "!" bubble that bobs above a character until the host clears it. */
+  private syncEmote(marker: NonNullable<ReturnType<typeof this.markers.get>>, kind: 'talk' | null): void {
+    if ((marker.emote?.kind ?? null) === kind) return
+    if (marker.emote) {
+      this.tweens.killTweensOf(marker.emote.object)
+      marker.emote.object.destroy()
+      marker.emote = null
+    }
+    if (!kind) return
+    // Beside the head, below the name caption pinned above it, so the caption never covers the bubble.
+    const bubble = this.add.container(13, -3)
+    const box = this.add.graphics()
+    box.fillStyle(0x1f2433, 1).fillRect(-5, -7, 10, 12).fillRect(-1, 5, 3, 2)
+    box.fillStyle(0xfffaf0, 1).fillRect(-4, -6, 8, 10).fillRect(0, 4, 1, 1)
+    box.fillStyle(0xd85f35, 1).fillRect(-1, -5, 2, 5).fillRect(-1, 1, 2, 2)
+    bubble.add(box)
+    marker.container.add(bubble)
+    marker.emote = { kind, object: bubble }
+    if (!this.reducedMotion) this.tweens.add({ targets: bubble, y: -5, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
   }
 
   private createMarker(key: string, position: Point) {

@@ -9,6 +9,10 @@ import { ReadingCheck } from "@/components/play/v3/reading-check";
 import { guidanceWasSeen, rememberGuidance } from "@/components/play/v3/preparation-dialog";
 import { stageIntroBeats } from "@/lib/play/v3/cinematic";
 
+vi.mock("next/font/google", () => ({
+  Pixelify_Sans: () => ({ className: "pixel-font" }),
+}));
+
 const question = { id: "q1", prompt: "What does this account support?", options: [{ id: "a", text: "Supplies were limited." }, { id: "b", text: "Everyone had enough." }, { id: "c", text: "The account says nothing about supplies." }] };
 const document: DocumentView = {
   id: "letter", title: "The supply letter", body: "The boats arrived. Only three sacks remained. More were expected tomorrow.",

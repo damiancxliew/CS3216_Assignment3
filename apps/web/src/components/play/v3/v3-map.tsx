@@ -62,6 +62,8 @@ interface V3MapProps {
   ambient: NonNullable<PlaygroundSnapshot["ambient"]>;
   audio: NonNullable<PlaygroundSnapshot["audio"]>;
   onReadyChange: (ready: boolean) => void;
+  /** Characters to mark with a "!" bubble: essential conversations the student hasn't finished. */
+  attentionIds?: readonly string[];
 }
 
 export function v3AudioSnapshot(
@@ -126,7 +128,7 @@ export function V3Map(props: V3MapProps) {
     if (latest.current.movementLocked) movementLockHandler.current();
     renderRef.current?.();
     nearbyChangeHandler.current();
-  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio, props.scenery, inspection]);
+  }, [props.currentRoomId, props.characters, props.documents, props.movementLocked, props.ambient, props.audio, props.scenery, props.attentionIds, inspection]);
 
   useEffect(() => {
     const parent = host.current;
@@ -204,6 +206,7 @@ export function V3Map(props: V3MapProps) {
             ...walkingActor(latest.current.scenery, `character:${character.id}`, sprite, latest.current.scenery?.authored?.characterSheets?.[character.id]),
             // While locked (a conversation, the defining moment, an end screen's backdrop) nobody offers "Talk".
             ...(latest.current.movementLocked ? { interactive: false } : {}),
+            emote: !latest.current.movementLocked && latest.current.attentionIds?.includes(character.id) ? "talk" as const : null,
           };
         }),
       ],

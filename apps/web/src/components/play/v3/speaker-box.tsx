@@ -45,10 +45,10 @@ export function SpeakerBox({
     <section
       aria-label={`${speaker} says`}
       onClick={onAdvance}
-      className={`${boxClass} cursor-pointer flex-row items-stretch gap-2 px-2 py-2 sm:gap-3 sm:px-3 sm:py-3`}
+      className={`${boxClass} cursor-pointer flex-row items-stretch gap-2 px-2 py-2 sm:gap-5 sm:px-5 sm:py-4`}
     >
       <div className="flex shrink-0 items-center">
-        <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden border-4 border-[#1f2433] bg-[#2a2f3d] min-[480px]:h-24 min-[480px]:w-24 sm:h-28 sm:w-28">
+        <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden border-4 border-[#1f2433] bg-[#2a2f3d] min-[480px]:h-24 min-[480px]:w-24 sm:h-28 sm:w-28 lg:h-36 lg:w-36">
           <span className={`${pixelFont.className} text-2xl font-bold text-[#fffaf0] sm:text-4xl`}>{initials || "?"}</span>
         </div>
       </div>
@@ -56,7 +56,7 @@ export function SpeakerBox({
         <div className="flex shrink-0 flex-wrap items-center gap-2 pb-2 pr-2 pt-1">
           <NameTag>{speaker}</NameTag>
           {tag ? (
-            <span className="inline-block rounded-md border-2 border-[#1f2433] bg-[#ffd65a] px-2 py-0.5 text-xs font-black uppercase tracking-wide">
+            <span className={`${pixelFont.className} inline-block rounded-full border-2 border-[#9a6a0d] bg-[#f2b33d] px-3 py-0.5 text-xs font-bold uppercase tracking-[0.06em] text-[#2b1d05]`}>
               {tag}
             </span>
           ) : null}
@@ -64,7 +64,7 @@ export function SpeakerBox({
         <div className="min-h-0 flex-1 overflow-y-auto pb-7 pr-2">
           {note ? <p className="text-xs font-bold uppercase tracking-wide text-[#5c6472]">{note}</p> : null}
           {before ? <PlayerLine text={before} /> : null}
-          <p aria-live="polite" className={`${pixelFont.className} mt-1 whitespace-pre-line text-base leading-relaxed sm:text-lg`}>
+          <p aria-live="polite" className={`${pixelFont.className} mt-1 whitespace-pre-line text-lg leading-snug sm:text-2xl`}>
             {text}
           </p>
           {after ? (
@@ -84,7 +84,7 @@ export function SpeakerBox({
               event.stopPropagation();
               onAdvance();
             }}
-            className="absolute bottom-0 right-6 min-h-8 px-2 text-sm font-black text-[#e36b33] disabled:opacity-50"
+            className={`${pixelFont.className} absolute bottom-0 right-7 min-h-8 px-2 text-base font-bold text-[#d85f35] disabled:opacity-50 sm:text-lg`}
           >
             {continueLabel}
           </button>

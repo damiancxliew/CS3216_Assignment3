@@ -334,7 +334,7 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain('aria-expanded="false"');
       expect(markup).toContain('aria-controls="stage-island-panel"');
       expect(markup).toContain('id="stage-island-panel" aria-hidden="true"');
-      expect(markup).toContain("w-[min(22rem,calc(100%_-_1rem))]");
+      expect(markup).toContain('title="Journal (J)"');
       expect(markup).toContain('aria-label="1 note"');
       expect(markup).toContain('aria-label="1 document"');
       expect(markup).toContain('aria-label="0 log lines"');
@@ -427,7 +427,7 @@ describe("v3 stage play screen", () => {
       expect(notesMarkup).toContain('id="stage-island-panel"');
       expect(notesMarkup).toContain('aria-expanded="true"');
       expect(notesMarkup).toContain('id="stage-island-panel" aria-hidden="false"');
-      expect(notesMarkup).toContain("w-[min(40rem,calc(100%_-_1rem))]");
+      expect(notesMarkup).toContain("w-[min(40rem,calc(100vw_-_1rem))]");
       expect(notesMarkup.indexOf('<section aria-label="Stage 2 notes">'))
         .toBeLessThan(notesMarkup.indexOf('<section aria-label="Stage 1 notes">'));
       expect(notesMarkup).toContain("A later conversation.");
@@ -712,7 +712,6 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("Words to know");
       expect(markup).toContain("<dt>Datoo Tumungong</dt>");
       expect(markup).toContain("Historical source");
-      expect(markup).toContain("Source details");
       expect(markup).toContain("Letter of the Riau court, 1819");
     } finally {
       vi.unstubAllGlobals();
@@ -1113,7 +1112,7 @@ describe("v3 dialogue box", () => {
         onAct: () => {},
         onPredict: () => {},
       }));
-      expect(markup).toContain("line-through");
+      expect(markup).toContain('data-closed="true"');
       expect(markup).toContain("(no longer possible)");
       expect(markup.match(/aria-disabled="true"/g)).toHaveLength(1);
       expect(markup).toMatch(/aria-selected="true"[^>]*>[\s\S]*?Refuse their proposal/);
@@ -1140,7 +1139,9 @@ describe("v3 dialogue box", () => {
 
       expect(markup.match(/role="option"/g)).toHaveLength(2);
       expect(markup.match(/aria-selected="true"/g)).toHaveLength(1);
-      expect(markup).toContain("▶");
+      expect(markup).toContain(">A</span>");
+      expect(markup).toContain(">B</span>");
+      expect(markup).toContain("Decision");
       expect(markup).toContain("Welcome the British ships.");
       expect(markup).toContain("Refuse their proposal.");
       expect(markup).not.toContain("<img");

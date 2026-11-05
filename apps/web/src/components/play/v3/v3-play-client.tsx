@@ -3,17 +3,21 @@ import type { ResolvedImage } from "@/lib/v3/media/resolvers";
 import type { V3StageScenery } from "@/lib/play/v3/scenery";
 import type { PortraitBase } from "@/lib/play/v3/portraits";
 
-import { Compass, ScrollText, Volume2, VolumeX } from "lucide-react";
+import { Clapperboard, IdCard, Volume2, VolumeX } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import type { PlayerView } from "@adventure/play-contract";
 import { selectMusicTrack } from "@adventure/game-client/music";
 
 import { EpilogueScreen } from "@/components/play/v3/epilogue-screen";
-import { InterviewScreen } from "@/components/play/v3/interview-screen";
+import { InterviewScreen, journeyPills } from "@/components/play/v3/interview-screen";
 import { MapBackdrop } from "@/components/play/v3/map-backdrop";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
 import { StagePlayScreen, type StageExperience } from "@/components/play/v3/stage-play-screen";
 import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
+import { HudButton, PocketLogo } from "@/components/play/v3/pocket-ui";
+import { pixelFont } from "@/components/play/v3/pixel-font";
+import { RoleCard } from "@/components/play/v3/role-card";
+import { StageTitleCard } from "@/components/play/v3/stage-title-card";
 import { useV3Play } from "@/components/play/v3/use-v3-play";
 import styles from "@/components/play/adventure-chrome.module.css";
 import { backdropFromView, type V3MapBackdrop } from "@/lib/play/v3/backdrop";
@@ -28,7 +32,7 @@ import { stageArtUrl } from "@/lib/play/v3/stage-art";
 import { v3Ambient } from "@/lib/play/v3/atmosphere";
 import type { V3PlayClient as PlayClient } from "@/lib/play/v3/client";
 import { useV3SoundCues } from "@/components/play/v3/v3-sound";
-import { ASSET_BASE } from "@/lib/play/appearance";
+import { ASSET_BASE, facesetUrl, PLAYER_CHARACTER } from "@/lib/play/appearance";
 import { useStageMusic } from "@/components/play/sound";
 
 export function V3PlayClient({
@@ -64,6 +68,7 @@ export function V3PlayClient({
 }) {
   const [roleBriefOpen, setRoleBriefOpen] = useState(false);
   const [introReplayOpen, setIntroReplayOpen] = useState(false);
+  const [titleShown, setTitleShown] = useState<number | null>(null);
   const { view, busy, banner, send, clearBanner } = useV3Play(
     attemptId,
     initialView,
@@ -102,66 +107,36 @@ export function V3PlayClient({
       <button type="button" onClick={clearBanner} className="min-h-9 rounded-lg px-2 underline">Dismiss</button>
     </div>
   ) : null;
-  const titleBlock = (
-    <h1 className={styles.adventureTitle}>
-      <span className={styles.headerEmblem}><Compass size={24} aria-hidden /></span>
-      <span className="min-w-0">
-        <span className="block truncate">{view.briefing.name}</span>
-        <span className="hidden truncate text-[13px] font-normal text-[#ead5ae] sm:block">Historical adventure · {view.briefing.position}</span>
-      </span>
-    </h1>
-  );
-  const roleBriefButton = view.phase === "stage" && view.stage?.intro === null ? (
-    <button
-      type="button"
-      aria-label="Role brief"
-      aria-haspopup="dialog"
-      aria-expanded={roleBriefOpen}
-      onClick={() => setRoleBriefOpen(true)}
-      className={`${styles.tool} inline-flex min-h-9 items-center justify-center gap-2 px-2.5 py-1 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffe0a2]`}
-    >
-      <ScrollText className="h-4 w-4 shrink-0" aria-hidden />
-      <span className="hidden sm:inline">Role brief</span>
-    </button>
-  ) : null;
-  const soundButton = (
-    <button
-      type="button"
-      className={`${styles.tool} inline-flex min-h-9 items-center justify-center gap-2 px-2.5 py-1 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffe0a2]`}
-      onClick={toggleMuted}
-      aria-label={muted ? "Sound off" : "Sound on"}
-      aria-pressed={!muted}
-    >
-      {muted ? <VolumeX className="h-4 w-4 shrink-0" aria-hidden /> : <Volume2 className="h-4 w-4 shrink-0" aria-hidden />}
-      <span className="hidden sm:inline">{muted ? "Sound off" : "Sound on"}</span>
-    </button>
-  );
-  const headerActionGroup = (
-    <div className={styles.headerActions}>
-      {busy ? <span role="status" className="text-sm font-semibold">{busyLabel}</span> : null}
-      {headerActions}
-      {cinematics && view.phase === "stage" && !view.stage?.intro ? <button type="button" aria-label="Stage introduction" className={`${styles.tool} min-h-9 px-2.5 text-sm font-semibold`} onClick={() => setIntroReplayOpen(true)}>▶ <span className="hidden sm:inline">Stage introduction</span></button> : null}
-      {roleBriefButton}
-      {soundButton}
-    </div>
+  // The opening and stage titles use the player's face; a generated walking sheet has no face crop yet.
+  const playerPortrait = facesetUrl(PLAYER_CHARACTER);
+  const hudButtons = (
+    <>
+      {busy ? <span role="status" className="sr-only">{busyLabel}</span> : null}
+      {headerActions ? <div className={`${styles.headerActions} rounded-xl border-4 border-[#1f2433] bg-[#3b3026] px-2 py-1.5 shadow-[0_4px_0_rgb(31_36_51/0.6)]`}>{headerActions}</div> : null}
+      {cinematics && view.phase === "stage" && !view.stage?.intro ? (
+        <HudButton label="Stage introduction" onClick={() => setIntroReplayOpen(true)}><Clapperboard size={26} aria-hidden /></HudButton>
+      ) : null}
+      {view.phase === "stage" && view.stage?.intro === null ? (
+        <HudButton label="Role brief" aria-haspopup="dialog" aria-expanded={roleBriefOpen} aria-keyshortcuts="R" onClick={() => setRoleBriefOpen(true)}>
+          <IdCard size={28} aria-hidden />
+        </HudButton>
+      ) : null}
+      <HudButton label={muted ? "Sound off" : "Sound on"} aria-pressed={!muted} onClick={toggleMuted}>
+        {muted ? <VolumeX size={26} aria-hidden /> : <Volume2 size={26} aria-hidden />}
+      </HudButton>
+    </>
   );
   const endScreen =
     view.phase === "epilogue" && view.epilogue
       ? { label: "Epilogue", screen: <EpilogueScreen epilogue={view.epilogue} busy={busy} send={send} /> }
       : view.phase === "interview" && view.interview
-        ? { label: "The Interview", screen: <InterviewScreen interview={view.interview} notes={view.notes} busy={busy} send={send} /> }
+        ? { label: "The Interview", screen: <InterviewScreen interview={view.interview} notes={view.notes} busy={busy} send={send} journey={journeyPills({ notes: view.notes.length, documents: view.documents.length, decisions: view.stage?.count ?? 0 })} /> }
         : null;
 
   if (endScreen) {
     return (
-      <div className={`${styles.shell} flex h-dvh min-h-0 flex-col`}>
-        <header className={`${styles.header} shrink-0 lg:[zoom:0.75]`}>
-          {titleBlock}
-          <div className={`${styles.chapter} flex min-w-0 items-center gap-3`}>
-            <span className={styles.chapterNumber}>{endScreen.label}</span>
-          </div>
-          {headerActionGroup}
-        </header>
+      <div className={`${styles.shell} relative flex h-dvh min-h-0 flex-col`}>
+        <h1 className="sr-only">{view.briefing.name}: {endScreen.label}</h1>
         {bannerAlert}
         <MapBackdrop
           attemptId={attemptId}
@@ -172,6 +147,7 @@ export function V3PlayClient({
         >
           {endScreen.screen}
         </MapBackdrop>
+        <div className="absolute right-2 top-2 z-40 flex items-start gap-2 sm:right-4 sm:top-4">{hudButtons}</div>
       </div>
     );
   }
@@ -179,28 +155,19 @@ export function V3PlayClient({
   if (view.phase === "stage" && view.stage && view.stage.intro === null) {
     return (
       <div className={`${styles.shell} flex h-dvh min-h-0 flex-col`}>
-        <header className={`${styles.header} shrink-0 lg:[zoom:0.75]`}>
-          {titleBlock}
-          <div className={`${styles.chapter} flex min-w-0 items-center gap-3`}>
-            <span className={styles.chapterNumber}>Stage {view.stage.index + 1} of {view.stage.count}</span>
-            <span className={`${styles.chapterTitle} min-w-0 truncate`} title={view.stage.title}>{view.stage.title}</span>
-          </div>
-          {headerActionGroup}
-        </header>
+        <h1 className="sr-only">{view.briefing.name}: Stage {view.stage.index + 1} of {view.stage.count}, {view.stage.title}</h1>
         {bannerAlert}
-        <StagePlayScreen experience={experience} scenery={scenery[view.stage?.index ?? 0]} view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen || introReplayOpen} onOpenRoleBrief={() => setRoleBriefOpen(true)} ambient={{ id: v3Ambient(view.stage), intensity: 1 }} audio={{ muted, cues }} />
+        <StagePlayScreen experience={experience} scenery={scenery[view.stage?.index ?? 0]} view={view} busy={busy} send={send} portraitBase={portraitBase} attemptId={attemptId} movementLocked={roleBriefOpen || introReplayOpen} onOpenRoleBrief={() => setRoleBriefOpen(true)} ambient={{ id: v3Ambient(view.stage), intensity: 1 }} audio={{ muted, cues }} hud={hudButtons} />
         {introReplayOpen && cinematics ? <V3Cinematic artUrl={null} beats={cinematics.stages[view.stage.index]} beginLabel="Back to the map" dialogLabel="Stage introduction" onBegin={() => setIntroReplayOpen(false)} onClose={() => setIntroReplayOpen(false)} muted={muted} onToggleMuted={toggleMuted} /> : null}
         {roleBriefOpen ? (
-          <V3Cinematic
-            artUrl={stageImages ? stageImages[0]?.url ?? null : stageArtUrl(stageArtBase, 0)}
-            artMetadata={stageImages?.[0]?.metadata}
-            beats={cinematics?.briefing ?? briefingBeats(view.briefing)}
+          <RoleCard
+            briefing={view.briefing}
+            stage={view.stage}
+            portraitUrl={playerPortrait}
+            artUrl={stageImages ? stageImages[view.stage.index]?.url ?? null : stageArtUrl(stageArtBase, view.stage.index)}
             beginLabel="Back to the map"
             onBegin={() => setRoleBriefOpen(false)}
             onClose={() => setRoleBriefOpen(false)}
-            muted={muted}
-            onToggleMuted={toggleMuted}
-            initiallySettled
           />
         ) : null}
       </div>
@@ -209,15 +176,26 @@ export function V3PlayClient({
 
   return (
     <div className={`${styles.shell} min-h-screen`}>
-      <header className={`${styles.header} shrink-0`}>
-        <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#ead5ae]">Historical adventure</p>
-          <h1 className={`${styles.adventureTitle} mt-1 break-words`}>{view.stage?.title ?? view.briefing.name}</h1>
-        </div>
-        {headerActionGroup}
+      <header className="sticky top-0 z-20 flex items-center gap-3 border-b-4 border-[#1f2433] bg-[#26304a] px-3 py-2 sm:px-6">
+        <PocketLogo width={132} />
+        <h1 className="sr-only">{view.stage?.title ?? view.briefing.name}</h1>
+        <p className={`${pixelFont.className} min-w-0 flex-1 truncate text-base font-bold text-[#fffaf0] sm:text-lg`} aria-hidden>{view.phase === "reveal" ? "What really happened" : view.briefing.name}</p>
+        <div className="flex shrink-0 items-center gap-2">{hudButtons}</div>
       </header>
       {bannerAlert}
-      {view.phase === "briefing" ? (
+      {view.phase === "briefing" && !cinematics ? (
+        <RoleCard
+          key="briefing"
+          briefing={view.briefing}
+          stage={view.stage}
+          portraitUrl={playerPortrait}
+          artUrl={stageImages ? stageImages[0]?.url ?? null : stageArtUrl(stageArtBase, 0)}
+          beginLabel={BRIEFING_BEGIN_LABEL}
+          busy={busy}
+          showLogo
+          onBegin={() => { if (!busy) send({ type: "continue" }); }}
+        />
+      ) : view.phase === "briefing" ? (
         <V3Cinematic
           key="briefing"
           artUrl={stageImages ? stageImages[0]?.url ?? null : stageArtUrl(stageArtBase, 0)}
@@ -227,6 +205,16 @@ export function V3PlayClient({
           onBegin={() => { if (!busy) send({ type: "continue" }); }}
           muted={muted}
           onToggleMuted={toggleMuted}
+        />
+      ) : view.phase === "stage" && view.stage?.intro && titleShown !== view.stage.index ? (
+        <StageTitleCard
+          key={`stage-title-${view.stage.index}`}
+          index={view.stage.index}
+          count={view.stage.count}
+          title={view.stage.title}
+          timePlace={view.stage.timePlace}
+          artUrl={stageImages ? stageImages[view.stage.index]?.url ?? null : stageArtUrl(stageArtBase, view.stage.index)}
+          onDone={() => setTitleShown(view.stage?.index ?? null)}
         />
       ) : view.phase === "stage" && view.stage?.intro ? (
         <V3Cinematic

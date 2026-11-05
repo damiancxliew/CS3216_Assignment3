@@ -43,6 +43,8 @@ export interface PlaygroundSnapshot {
     portraitFallbackUrl?: string | null
     /** Whether the host considers this actor close enough to interact with now. */
     interactive?: boolean
+    /** A speech bubble over the head: `talk` is "!" (someone the student still needs to hear from). */
+    emote?: 'talk' | null
     /** Which way the actor last moved, for a walk cycle. */
     facing?: 'down' | 'up' | 'left' | 'right'
   }>

@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Lightbulb, ScrollText, UserRound } from "lucide-rea
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import styles from "@/components/play/v3/story-lines.module.css";
+import { PocketPill, stanceTone } from "@/components/play/v3/pocket-ui";
 
 export const STORY_TOAST_MS = 6_000;
 const STANCE_SHIFT_MS = 6_000;
@@ -113,15 +114,16 @@ export function useStanceShifts(characters: CharacterView[]): ReadonlyMap<string
   return shifts;
 }
 
-export function StanceTag({ label, shift }: { label: string; shift?: StanceShift | null }) {
+export function StanceTag({ label, shift, level }: { label: string; shift?: StanceShift | null; level?: number }) {
   return (
-    <span
-      className={`${styles.stance} ${shift === "up" ? styles.up : shift === "down" ? styles.down : ""}`}
-      aria-label={`Stance: ${label}${shift ? (shift === "up" ? ", just warmed to you" : ", just cooled towards you") : ""}`}
+    <PocketPill
+      tone={stanceTone(level)}
+      shift={shift}
+      label={`Stance: ${label}${shift ? (shift === "up" ? ", just warmed to you" : ", just cooled towards you") : ""}`}
     >
       {shift === "up" ? <ArrowUp size={13} aria-hidden="true" /> : shift === "down" ? <ArrowDown size={13} aria-hidden="true" /> : null}
       {label}
-    </span>
+    </PocketPill>
   );
 }
 
@@ -166,7 +168,7 @@ export function StoryToast({
         <span className={styles.body}>
           <span className={styles.kicker}>
             {kicker}
-            {stance ? <StanceTag label={stance.label} shift={shift} /> : null}
+            {stance ? <StanceTag label={stance.label} level={stance.level} shift={shift} /> : null}
           </span>
           <span className={styles.text}>{message.text}</span>
         </span>
