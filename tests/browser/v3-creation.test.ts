@@ -62,7 +62,7 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
         return {ok:true,state:structuredClone(fixture.state)};
       }
       export async function discardV3Brief() { return {}; }
-      export async function getV3GenerationProgress() { return ${JSON.stringify(progress)}; }
+      export async function getV3GenerationProgress() { return window.__creation.progress ?? ${JSON.stringify(progress)}; }
     `;
     const vite = await createServer({
       configFile: false, cacheDir: resolve("node_modules/.vite/v3-creation"), root, publicDir: false,
@@ -84,7 +84,7 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
           if (absolute.endsWith("/chat-actions")) return "\0chat-action";
         },
         async load(id) {
-          if (id === "\0next-navigation") return "const router={refresh(){},push(){}}; export function useRouter(){return router}; export function usePathname(){return '/v3/teacher/fixture'};";
+          if (id === "\0next-navigation") return "const router={refresh(){window.__creation.refreshes=(window.__creation.refreshes??0)+1},push(){}}; export function useRouter(){return router}; export function usePathname(){return '/v3/teacher/fixture'};";
           if (id === "\0next-link") return "import React from 'react'; export default function Link({children,...props}){return React.createElement('a',props,children)}";
           if (id === "\0creation-actions") return actions;
           if (id === "\0chat-action") return "export async function suggestReviewChangeAction(){return {ok:false,message:'No review target in fixture'}}";
@@ -179,6 +179,35 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
         await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
       };
 
+      // Discard remains available throughout briefing, including confirmation and pencil edits.
+      await visit("ready");
+      await page.getByRole("button", { name: "Discard brief", exact: true }).click();
+      await page.getByRole("dialog").waitFor();
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page.getByRole("button", { name: "Change timer", exact: true }).click();
+      await page.getByRole("button", { name: "Discard brief", exact: true }).click();
+      await page.getByRole("dialog").waitFor();
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
+      // A completed pass must refresh server-rendered content even while generation continues.
+      await page.clock.install();
+      for (const mode of ["quick", "standard"]) {
+        await visit("generating");
+        await page.evaluate((mode) => {
+          const fixture = (window as unknown as { __creation: { progress?: unknown; refreshes?: number } }).__creation;
+          fixture.refreshes = 0;
+          fixture.progress = { status: "generating", mode, costUsd: 0, warnings: [], steps: [
+            { name: "sources", status: "succeeded" }, { name: "skeleton", status: "succeeded" },
+            { name: "details", status: "succeeded" }, { name: "endings", status: "running" },
+          ] };
+        }, mode);
+        await page.clock.runFor(4000);
+        await expect.poll(() => page.evaluate(() => (window as unknown as { __creation: { progress?: unknown; refreshes?: number } }).__creation.refreshes ?? 0)).toBe(1);
+        await page.clock.runFor(8000);
+        expect(await page.evaluate(() => (window as unknown as { __creation: { progress?: unknown; refreshes?: number } }).__creation.refreshes)).toBe(1);
+      }
+      await page.clock.resume();
+
       await page.setViewportSize({ width: 1280, height: 800 });
       await visit("scroll");
       const content = page.locator("[data-generated-content]");
@@ -225,7 +254,7 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
           let generatingControls: unknown;
           for (const mode of ["empty", "ready", "generating", "review"]) {
             await visit(mode, theme);
-            expect(await page.getByRole("button", { name: "Discard brief", exact: true }).count()).toBe(mode === "empty" ? 1 : 0);
+            expect(await page.getByRole("button", { name: "Discard brief", exact: true }).count()).toBe(mode === "empty" || mode === "ready" ? 1 : 0);
             const send = page.getByRole("button", { name: "Send", exact: true });
             if (await send.count()) {
               const shape = await send.evaluate(node => {

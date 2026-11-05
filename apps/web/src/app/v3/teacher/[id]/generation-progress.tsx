@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { GenerationProgress as ProgressData } from "@/lib/v3/generation/service";
 import styles from "./progress.module.css";
 
@@ -13,10 +13,16 @@ import { getV3GenerationProgress } from "../actions";
 const activity: Record<PassName, string> = { sources: "Reading sources", skeleton: "Planning the story", details: "Writing scenes", endings: "Writing endings", reveal: "Writing the reveal", check: "Checking the story", save: "Saving the draft" };
 const stepNames: Record<PassName, string> = { sources: "sources", skeleton: "story outline", details: "scenes", endings: "endings", reveal: "reveal", check: "checks", save: "save" };
 
+// Only changes to the rendered steps need a server refresh; clock/cost polling does not.
+function contentRevision(data: ProgressData | null) {
+  return JSON.stringify(data && [data.status, data.pausedAt, data.steps.map(step => [step.name, step.status])]);
+}
+
 /** Polls progress every 4 s, starting from the server's snapshot so the bar never resets. */
 export function GenerationProgress({ adventureId, seesCost, initial = null }: { adventureId: string; seesCost: boolean; initial?: ProgressData | null }) {
   const router = useRouter();
   const [progress, setProgress] = useState<ProgressData | null>(initial);
+  const renderedRevision = useRef(contentRevision(initial));
   const [retrying, setRetrying] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const clockRunning = !retrying && isWorking(progress) && !!progress?.steps.some((step) => step.status === "running" && step.startedAt);
@@ -37,8 +43,11 @@ export function GenerationProgress({ adventureId, seesCost, initial = null }: { 
         setRetrying(false);
         setProgress(result);
         setNow(Date.now());
-        // A pass marks the row for review just before its step is recorded as done.
-        if (!isWorking(result)) router.refresh();
+        const revision = contentRevision(result);
+        if (revision !== renderedRevision.current) {
+          renderedRevision.current = revision;
+          router.refresh();
+        }
       } catch { if (!cancelled) setRetrying(true); }
     };
     void tick();

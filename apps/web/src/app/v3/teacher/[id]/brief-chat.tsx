@@ -138,7 +138,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
         <div ref={endRef} />
       </div>
 
-      <footer className={`flex min-h-0 ${compact ? "shrink flex-col gap-3 border-t border-line pt-4" : `shrink-0 flex-col border-t border-line ${styles.composer} ${sourcesStep ? styles.composerWithActions : ""}`}`}>
+      <footer className={`flex min-h-0 ${compact ? "shrink flex-col gap-3 border-t border-line pt-4" : `shrink-0 flex-col border-t border-line ${styles.composer} ${active ? styles.composerWithActions : ""}`}`}>
         {error ? <div className="col-span-full"><ErrorText>{error}</ErrorText></div> : null}
         <div className={compact ? "contents" : styles.composerMain}>
         {!active ? (
@@ -186,8 +186,8 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
           </form>
         )}
         </div>
-        {sourcesStep && !compact ? <div className={styles.composerActions}>
-          {uploads && state.sources.length > 0 ? <button
+        {active && !compact ? <div className={styles.composerActions}>
+          {sourcesStep && uploads && state.sources.length > 0 ? <button
             type="button"
             aria-label="All sources added"
             title="All sources added"
