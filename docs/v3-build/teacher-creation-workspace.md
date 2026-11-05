@@ -1,6 +1,6 @@
 # Teacher creation workspace
 
-The teacher briefing and generation workspace follows the approved desktop mockup: a full-height conversation, a narrower left pane, source tiles inside a parent card, and step cards with text dividers. The font and layout styles are scoped to this workspace; the direct editor and student interfaces retain their existing presentation. Albert Sans is bundled with its SIL Open Font License.
+The teacher briefing and generation workspace follows the approved desktop mockup: a full-height conversation, a narrower left pane, source tiles inside a parent card, and step cards with text dividers. Layout styles are scoped to this workspace; typography inherits the app’s shared font.
 
 Colors use the existing theme provider and semantic tokens. Local surfaces retain blue source material, mint duration, lavender reading level, and orange section tabs in both themes. The product header and theme control remain shared. On narrow screens the panes stack; the desktop layout is verified at 1440×1000 and 1280×800.
 

@@ -1,17 +1,8 @@
-@font-face {
-  font-family: "Albert Sans Creation";
-  src: url("./creation-fonts/AlbertSans-Variable.ttf") format("truetype");
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-}
-
 .workspace {
   --creation-frame: #62635f;
   --creation-control: #858172;
   --creation-mint: #dff2e7;
   --creation-lavender: #eee5fa;
-  font-family: "Albert Sans Creation", system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.5;
   width: 100%;
