@@ -121,7 +121,7 @@ export class Metrics {
   summary() {
     const rows = [];
     for (const [step, row] of this.steps) {
-      const failed = Object.entries(row.statuses).filter(([s]) => !isSuccess(step, Number(s))).reduce((n, [, c]) => n + c, 0);
+      const failed = Object.entries(row.statuses).filter(([s]) => !isSuccess(step, s)).reduce((n, [, c]) => n + c, 0);
       rows.push({
         step,
         requests: row.latencies.length,
@@ -137,12 +137,18 @@ export class Metrics {
   }
 }
 
-/** 409 stale_state is normal concurrency (tick vs action), not a failure; the student just retries. */
+/**
+ * `status` is the HTTP status, or "409 <code>" when the app said why. 409 stale_state is normal
+ * concurrency (tick vs action), not a failure; the student just retries. Any other 409 (the action
+ * was refused, e.g. not_present) is a failure, so a refused chat is not mistaken for a measured one.
+ */
 export function isSuccess(step, status) {
-  if (status === 0) return false;
-  if (step === "start") return status === 302 || status === 303 || status === 307;
-  if (step.startsWith("action:")) return status === 200 || status === 409;
-  return status >= 200 && status < 300;
+  const [code, reason] = String(status).split(" ");
+  const n = Number(code);
+  if (n === 0) return false;
+  if (step === "start") return n === 302 || n === 303 || n === 307;
+  if (step.startsWith("action:")) return n === 200 || (n === 409 && (!reason || reason === "stale_state"));
+  return n >= 200 && n < 300;
 }
 
 /** Which p95 budget a step falls under. */
@@ -183,7 +189,8 @@ export function nextAction(view, memory, chatBudget) {
     memory.read.add(unread.id);
     return { type: "openDocument", documentId: unread.id };
   }
-  const listener = view.characters?.[0];
+  // Characters gated behind evidence tasks refuse to talk until `preparation.ready`; the client hides them too.
+  const listener = view.characters?.find((c) => !c.preparation || c.preparation.ready);
   if (listener && memory.chats < chatBudget && !memory.talkedIn.has(view.currentRoomId)) {
     memory.chats++;
     memory.talkedIn.add(view.currentRoomId);
@@ -212,8 +219,10 @@ async function timed(metrics, step, jar, url, init, timeoutMs) {
     jar.store(response);
     const ms = Math.round(performance.now() - started);
     const body = (response.headers.get("content-type") ?? "").includes("json") ? await response.json().catch(() => null) : await response.text();
-    const ok = isSuccess(step, response.status);
-    metrics.record(step, ms, response.status, ok ? null : snippet(body));
+    const reason = response.status === 409 && typeof body?.error?.code === "string" ? body.error.code : null;
+    const status = reason ? `409 ${reason}` : response.status;
+    const ok = isSuccess(step, status);
+    metrics.record(step, ms, status, ok ? null : snippet(body));
     return { response, body };
   } catch (error) {
     metrics.record(step, Math.round(performance.now() - started), 0, String(error?.name === "TimeoutError" ? "timeout" : error?.message ?? error));

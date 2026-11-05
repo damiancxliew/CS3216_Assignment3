@@ -48,6 +48,8 @@ describe("v3 load test helpers", () => {
 
   it("counts a stale-revision 409 as normal concurrency but a 5xx or redirect-less start as failure", () => {
     expect(isSuccess("action:tick", 409)).toBe(true);
+    expect(isSuccess("action:tick", "409 stale_state")).toBe(true);
+    expect(isSuccess("action:message", "409 not_present")).toBe(false);
     expect(isSuccess("action:message", 500)).toBe(false);
     expect(isSuccess("start", 307)).toBe(true);
     expect(isSuccess("start", 503)).toBe(false);
@@ -82,6 +84,17 @@ describe("v3 load test helpers", () => {
     expect(nextAction(view, memory, 1)).toEqual({ type: "enterRoom", roomId: "b" });
     expect(nextAction(view, memory, 1)).toBeNull();
     expect(nextAction({ phase: "interview" }, memory, 1)).toBeNull();
+  });
+
+  it("only talks to characters whose evidence tasks are done", () => {
+    const view = {
+      phase: "stage", stage: { intro: null }, currentRoomId: "a", rooms: [], documents: [], documentsHere: [],
+      characters: [{ id: "percival", preparation: { ready: false } }, { id: "lim", preparation: { ready: true } }],
+    };
+    expect(nextAction(view, { read: new Set(), visited: new Set(), talkedIn: new Set(), chats: 0 }, 1))
+      .toMatchObject({ type: "message", characterId: "lim" });
+    const gated = { ...view, characters: [{ id: "percival", preparation: { ready: false } }] };
+    expect(nextAction(gated, { read: new Set(), visited: new Set(), talkedIn: new Set(), chats: 0 }, 1)).toBeNull();
   });
 });
 
