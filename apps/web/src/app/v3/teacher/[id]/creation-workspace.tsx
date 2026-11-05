@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import { currentSlot, type BriefStateV3 } from "@/lib/v3/brief/schema";
 import { Pending } from "@/components/ui";
 import { V3BriefChat, type BriefChatActions } from "./brief-chat";
 import { ReviewChatProvider } from "./review-chat-context";
+import { ConfirmButton } from "./confirm-button";
 import { BriefOverview } from "./brief-overview";
 import { useBriefUploads } from "./use-brief-uploads";
 import styles from "./creation-workspace.module.css";
@@ -97,7 +98,19 @@ export function CreationWorkspace({
     <ReviewChatProvider>
       <div className={styles.workspace} data-creation-workspace>
         <header className={styles.header}>
-          <h1 className={styles.title}>{liveBrief.draft.episode ?? "New adventure"}</h1>
+          <div className={styles.titleGroup}>
+            <h1 className={styles.title}>{liveBrief.draft.episode ?? "New adventure"}</h1>
+            {active ? <ConfirmButton
+              label={<Trash2 size={16} aria-hidden />}
+              ariaLabel="Discard brief"
+              className={styles.discard}
+              title="Discard this brief?"
+              body="The conversation and any sources you added are thrown away."
+              confirmLabel="Discard"
+              disabled={disabled || generating}
+              onConfirm={() => actions.current?.discard()}
+            /> : null}
+          </div>
           <span className={`${styles.status} ${ready || complete ? styles.ready : ""} ${failed ? styles.stopped : ""}`}>
             {ready || complete ? <Check size={14} aria-hidden /> : null}
             {generating || starting ? "Creating" : ready ? "Brief ready" : active ? "The brief" : complete ? "Ready" : failed ? "Stopped" : "Review"}

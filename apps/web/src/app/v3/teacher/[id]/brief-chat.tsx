@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Trash2 } from "lucide-react";
+import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useImperativeHandle, useRef, useState, useTransition, type Ref } from "react";
 
@@ -15,14 +15,13 @@ import {
 } from "@/lib/v3/brief/schema";
 
 import { createFromV3Brief, discardV3Brief } from "../actions";
-import { ConfirmButton } from "./confirm-button";
 import { ReviewChatComposer } from "./review-chat-composer";
 import { ChatSendButton } from "./chat-send-button";
 import { SourceUpload } from "./source-upload";
 import type { BriefUploads } from "./use-brief-uploads";
 import styles from "./creation-workspace.module.css";
 
-export type BriefChatActions = { change(slot: string): void; create(): void };
+export type BriefChatActions = { change(slot: string): void; create(): void; discard(): void };
 
 /**
  * The conversation pane. While the brief is active (always inside the creation
@@ -71,6 +70,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
   useImperativeHandle(actionsRef, () => ({
     change(slot) { if (!pending && !generating) { focusRequested.current = true; send({ change: slot }); } },
     create,
+    discard,
   }));
 
   function send(input: BriefInputV3) {
@@ -99,6 +99,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
   }
 
   function discard() {
+    if (pending || generating) return;
     startTransition(async () => {
       const result = await discardV3Brief(state.adventureId);
       if ("error" in result) setError(result.error);
@@ -138,7 +139,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
         <div ref={endRef} />
       </div>
 
-      <footer className={`flex min-h-0 ${compact ? "shrink flex-col gap-3 border-t border-line pt-4" : `shrink-0 flex-col border-t border-line ${styles.composer} ${active ? styles.composerWithActions : ""}`}`}>
+      <footer className={`flex min-h-0 ${compact ? "shrink flex-col gap-3 border-t border-line pt-4" : `shrink-0 flex-col border-t border-line ${styles.composer} ${sourcesStep ? styles.composerWithActions : ""}`}`}>
         {error ? <div className="col-span-full"><ErrorText>{error}</ErrorText></div> : null}
         <div className={compact ? "contents" : styles.composerMain}>
         {!active ? (
@@ -186,25 +187,15 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
           </form>
         )}
         </div>
-        {active && !compact ? <div className={styles.composerActions}>
-          {sourcesStep && uploads && state.sources.length > 0 ? <button
+        {sourcesStep && !compact && uploads && state.sources.length > 0 ? <div className={styles.composerActions}>
+          <button
             type="button"
             aria-label="All sources added"
             title="All sources added"
             className={styles.sourcesDone}
             disabled={pending || generating || uploads.busy}
             onClick={() => send({ text: SOURCES_DONE })}
-          ><Check size={18} aria-hidden /></button> : null}
-          <ConfirmButton
-            label={<Trash2 size={16} aria-hidden />}
-            ariaLabel="Discard brief"
-            className={styles.discard}
-            title="Discard this brief?"
-            body="The conversation and any sources you added are thrown away."
-            confirmLabel="Discard"
-            disabled={pending || generating}
-            onConfirm={discard}
-          />
+          ><Check size={18} aria-hidden /></button>
         </div> : null}
       </footer>
     </div>

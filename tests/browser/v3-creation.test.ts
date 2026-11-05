@@ -181,6 +181,8 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
 
       // Discard remains available throughout briefing, including confirmation and pencil edits.
       await visit("ready");
+      expect(await page.locator('[data-creation-workspace] > header').getByRole("button", { name: "Discard brief", exact: true }).count()).toBe(1);
+      expect(await page.locator('[aria-label="Adventure conversation"] footer').getByRole("button", { name: "Discard brief", exact: true }).count()).toBe(0);
       await page.getByRole("button", { name: "Discard brief", exact: true }).click();
       await page.getByRole("dialog").waitFor();
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
