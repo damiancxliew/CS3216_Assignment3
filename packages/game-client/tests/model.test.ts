@@ -111,6 +111,27 @@ describe('PlaygroundModel', () => {
     expect(actor(model.snapshot(), 'player').space).toEqual({ kind: 'outdoor' })
   })
 
+  it('keeps doorless doorways open when toggled', () => {
+    const model = new PlaygroundModel('doorless-test')
+    const internal = model as unknown as {
+      mapValue: { doorless?: true }
+      spatial: { doors: Record<string, 'open' | 'closed'>; actors: Record<string, { x: number; y: number }> }
+    }
+    internal.mapValue.doorless = true
+    internal.spatial = {
+      ...internal.spatial,
+      doors: Object.fromEntries(Object.keys(internal.spatial.doors).map((id) => [id, 'open'])),
+    }
+    const before = model.snapshot()
+    const doorId = Object.keys(before.doors)[0]!
+
+    model.toggleDoor(doorId)
+
+    expect(model.snapshot().doors[doorId]).toBe('open')
+    expect(model.snapshot().doors).toEqual(before.doors)
+    expect(model.snapshot().revision).toBe(before.revision)
+  })
+
   it('keeps NPC routes stable, allows player progress while disabled, and supports manual ticks', () => {
     const pausedModel = new PlaygroundModel('paused-test')
     pausedModel.setRunning(false)

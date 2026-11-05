@@ -1,5 +1,5 @@
 import { storyFauna } from '../src/fauna.js'
-import { detailZoom } from '../src/camera.js'
+import { coverZoom, detailZoom, fillZoom, scaledZoom } from '../src/camera.js'
 import { SCENERY_KINDS } from '@adventure/game-core'
 import { environmentSchema, ENVIRONMENT_MATERIALS, ENVIRONMENT_PROPS, MAP_STYLES } from '@adventure/generation/spec'
 import { describe, expect, it } from 'vitest'
@@ -9,7 +9,35 @@ describe('story art direction', () => {
   it('keeps detail readable on compact and desktop screens', () => {
     expect(detailZoom(390, 780, 512, 640)).toBe(3)
     expect(detailZoom(1440, 960, 512, 640)).toBe(4)
+    expect(detailZoom(770, 675, 512, 640, true)).toBe(3)
+    expect(detailZoom(1020, 810, 512, 640, true)).toBe(4)
+  })
+  it('only shrinks laptop-sized frames for callers that ask (v2), so the v3 map keeps its zoom', () => {
+    expect(detailZoom(770, 675, 512, 640)).toBe(4)
+    expect(detailZoom(850, 560, 512, 640)).toBe(4)
+    expect(detailZoom(390, 780, 512, 640, true)).toBe(3)
     expect(Number.isInteger(detailZoom(900, 600, 720, 480))).toBe(true)
+  })
+  it('scales detail zoom to crisp integer steps', () => {
+    expect(scaledZoom(4, 0.75)).toBe(3)
+    expect(scaledZoom(8, 0.75)).toBe(6)
+    expect(scaledZoom(3, 0.75)).toBe(2)
+    expect(scaledZoom(1, 0.5)).toBe(1)
+  })
+  it('raises a zoomed-out desktop camera just enough to leave no empty band beside the map', () => {
+    // A 28×24-tile map in a 1440×900 window: the v3 desktop zoom-out (0.75) gives 3×,
+    // which is 1344px wide, leaving a 96px strip. Filling needs 4×.
+    const [mapW, mapH] = [28 * 16, 24 * 16]
+    const zoomedOut = scaledZoom(detailZoom(1440, 900, mapW, mapH), 0.75)
+    expect(mapW * zoomedOut).toBeLessThan(1440)
+    const filled = fillZoom(zoomedOut, 1440, 900, mapW, mapH)
+    expect(filled).toBe(4)
+    expect(mapW * filled).toBeGreaterThanOrEqual(1440)
+    expect(mapH * filled).toBeGreaterThanOrEqual(900)
+    // Never zooms out a camera that already fills the frame.
+    expect(fillZoom(6, 1440, 900, mapW, mapH)).toBe(6)
+    for (const [w, h] of [[1280, 720], [1920, 1080], [2560, 1440], [1024, 768], [390, 780]] as const)
+      expect(Number.isInteger(fillZoom(scaledZoom(detailZoom(w, h, mapW, mapH), 0.75), w, h, mapW, mapH))).toBe(true)
   })
   it('uses stage fauna and preserves a deliberate choice of no animals', () => {
     expect(storyFauna(undefined, STORY_ART.desert, 'A caravan oasis')).toEqual(['camel', 'goat'])
@@ -59,4 +87,13 @@ describe('story art direction', () => {
     expect(openFloorForKind('field')).toBe('earth')
     expect(openFloorForKind()).toBe('cobble')
   })
+})
+
+it('fills wide and tall viewports without changing map geometry', () => {
+  for (const [width, height] of [[1910, 1030], [1440, 900], [1024, 768]] as const) {
+    const zoom = coverZoom(width, height, 512, 384)
+    expect(512 * zoom).toBeGreaterThanOrEqual(width)
+    expect(384 * zoom).toBeGreaterThanOrEqual(height)
+    expect(Number.isInteger(zoom)).toBe(true)
+  }
 })

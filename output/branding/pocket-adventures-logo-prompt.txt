@@ -1,0 +1,9 @@
+Generated with the built-in image-generation tool.
+
+Use case: logo-brand.
+Create one polished original logo for "Pocket Adventures", an educational platform that turns historical source material into interactive adventures where students take roles, question characters, examine evidence and make decisions.
+This is a fresh brand identity, not a UI mockup.
+Design: a bold, beautifully balanced minimal symbol combining a small pocket with an unfolding map/page emerging from it. A single simple branching route or negative-space trail in the map subtly suggests exploration and choices. Make the pocket silhouette recognizable, avoid excessive literal details. Pair with a refined highly legible wordmark, exactly "Pocket Adventures". Use a warm, confident contemporary humanist typeface, substantial weight, carefully spaced. Both words equally readable, no tagline. Horizontal lockup, symbol on left and two-line wordmark on right, comfortably centered with ample clear margin.
+Palette grounded in the existing icon: deep ink blue #1c468a and muted olive #4f6033, optionally warm parchment as a small solid fill within map only. Wordmark dark ink blue.
+Style: professional flat vector-like brand design, crisp edges, simple reproducible shapes, distinctive silhouette, approachable to students and credible to teachers. Not childish, not a generic graduation cap, no medical or history initials.
+Transparent background with real alpha. One logo only; no presentation board, mockup, surrounding card, decorative environment, gradients, shadows, watermarks or additional text.

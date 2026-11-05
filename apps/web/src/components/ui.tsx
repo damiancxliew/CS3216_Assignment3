@@ -22,6 +22,14 @@ export const button = {
   link: "text-base text-muted underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink",
 };
 
+const compactButtonBase = "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full border px-3.5 text-sm font-semibold leading-5 transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50";
+
+export const compactButton = {
+  primary: `${compactButtonBase} border-ink bg-signal text-on-signal shadow-[0_1px_3px_rgb(0_0_0/0.12)] hover:bg-ink hover:text-paper`,
+  quiet: `${compactButtonBase} border-line-strong bg-surface text-ink hover:border-ink hover:bg-sunken`,
+  subtle: `${compactButtonBase} border-line bg-surface text-muted hover:border-line-strong hover:text-ink`,
+};
+
 export const control =
   "w-full rounded-control border-2 border-line bg-surface px-3.5 py-3 text-base text-ink placeholder:text-muted transition-all focus:border-record focus:shadow-[0_0_0_4px_var(--record-wash)] focus:outline-none disabled:opacity-60";
 
@@ -281,20 +289,22 @@ export function Page({
   lede,
   width = "narrow",
   fill,
+  className = "",
   children,
 }: {
   kicker?: React.ReactNode;
   title: React.ReactNode;
   lede?: React.ReactNode;
-  width?: "narrow" | "wide";
+  width?: "narrow" | "wide" | "full";
   /** Fill the viewport on large screens so children can scroll inside the page. */
   fill?: boolean;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className={`flex min-h-screen flex-col${fill ? " lg:h-dvh lg:overflow-hidden" : ""}`}>
       <SiteHeader />
-      <main className={`mx-auto flex w-full flex-1 flex-col gap-6 px-5 py-5 sm:gap-8 sm:px-6 sm:py-8 ${width === "wide" ? "max-w-6xl" : "max-w-3xl"}${fill ? " lg:min-h-0 lg:overflow-hidden" : ""}`}>
+      <main className={`mx-auto flex w-full flex-1 flex-col gap-6 px-5 py-5 sm:gap-8 sm:px-6 sm:py-8 ${width === "full" ? "max-w-[100rem]" : width === "wide" ? "max-w-6xl" : "max-w-3xl"}${fill ? " lg:min-h-0 lg:overflow-hidden" : ""} ${className}`}>
         {kicker ? <div className="text-base text-muted">{kicker}</div> : null}
         <header className="flex flex-col gap-3">
           <h1 className="text-4xl font-black tracking-[-0.045em] text-ink sm:text-6xl">{title}</h1>

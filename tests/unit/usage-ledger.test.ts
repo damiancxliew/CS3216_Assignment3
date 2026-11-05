@@ -73,6 +73,20 @@ describe("withJsonUsage", () => {
     }));
   });
 
+  it("includes the v3 adventure id only when provided", async () => {
+    const client: GenerationLlmClient = { completeJson: vi.fn().mockResolvedValue(jsonResponse) };
+    const tagged = withJsonUsage(client, { purpose: "generation", adventureV3Id: "adventure-v3-1" });
+    await tagged.completeJson(jsonRequest);
+
+    const untagged = withJsonUsage(client, { purpose: "generation" });
+    await untagged.completeJson(jsonRequest);
+
+    expect(insert).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      adventure_v3_id: "adventure-v3-1",
+    }));
+    expect(insert.mock.calls[1]?.[0]).not.toHaveProperty("adventure_v3_id");
+  });
+
   it("swallows an insert failure", async () => {
     const client: GenerationLlmClient = { completeJson: vi.fn().mockResolvedValue(jsonResponse) };
     const wrapped = withJsonUsage(client, { purpose: "generation", adventureId: "adventure-1", userId: "user-1" });

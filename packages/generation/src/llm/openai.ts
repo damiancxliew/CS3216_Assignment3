@@ -8,6 +8,9 @@ import { PendingResponseError, type LlmClient, type LlmJsonRequest, type LlmJson
 export { PendingResponseError } from './client'
 
 export interface OpenAiClientOptions {
+  /** Receives structured output as the provider generates it. */
+  onTextDelta?: (delta: string) => void
+  onResponseStarted?: () => void
   apiKey?: string
   /** Strict mode guarantees schema adherence; turn off only to debug a schema the API rejects. */
   strict?: boolean
@@ -51,6 +54,8 @@ export function toOpenAiStrictSchema(schema: Record<string, unknown>): Record<st
 }
 
 export class OpenAiLlmClient implements LlmClient {
+  private readonly onTextDelta: OpenAiClientOptions['onTextDelta']
+  private readonly onResponseStarted: OpenAiClientOptions['onResponseStarted']
   private readonly client: OpenAI
   private readonly strict: boolean
   private readonly timeoutMs: number
@@ -63,6 +68,8 @@ export class OpenAiLlmClient implements LlmClient {
   private readonly pollIntervalMs: number
 
   constructor(options: OpenAiClientOptions = {}) {
+    this.onTextDelta = options.onTextDelta
+    this.onResponseStarted = options.onResponseStarted
     const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY
     if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
     this.timeoutMs = options.timeoutMs ?? 300_000
@@ -135,6 +142,15 @@ export class OpenAiLlmClient implements LlmClient {
       }
       if (response.status === 'failed') throw new Error(response.error?.message ?? 'model response failed')
       if (response.status === 'cancelled') throw new Error('model response cancelled')
+    } else if (this.onTextDelta) {
+      this.onResponseStarted?.()
+      const stream = this.client.responses.stream(body, {
+        timeout: Math.min(this.timeoutMs, remainingMs),
+        maxRetries: this.maxRetries,
+      })
+      stream.on('response.output_text.delta', (event) => this.onTextDelta?.(event.delta))
+      response = await stream.finalResponse()
+      if (response.status !== 'completed') throw new Error('Model stream did not complete')
     } else {
       response = await this.client.responses.create(body, {
         timeout: Math.min(this.timeoutMs, remainingMs),

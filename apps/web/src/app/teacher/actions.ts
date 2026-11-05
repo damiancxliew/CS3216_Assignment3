@@ -14,7 +14,6 @@ import {
   type ExtractedDocument,
 } from "@adventure/generation";
 import { isCurrentSpriteRecord, isRawRejectedSpriteUrl, normalizeWalkingSpriteSheet, OpenAiImageService, OpenAiSceneAnnotator, playableAssetEligibility } from "@adventure/generation/assets";
-import { OpenAiLlmClient } from "@adventure/generation/llm";
 import { MAP_STYLES, validatePublishedSpec } from "@adventure/generation/spec";
 
 import { type SourceRow, sourcesToDocuments } from "@/lib/adventures/generate-from-sources";
@@ -25,19 +24,17 @@ import { applySpecEdit, type SpecEdit } from "@/lib/teacher/edit-spec";
 import { persistSpecVersion, SpecPersistError } from "@/lib/adventures/persist-spec";
 import {
   type BriefInput,
-  type BriefSource,
   type BriefState,
-  briefStateSchema,
   completeBrief,
   currentSlot,
   initialBriefState,
 } from "@/lib/brief/schema";
-import { runBriefTurn, type TurnResult } from "@/lib/brief/turn";
+import { type TurnResult } from "@/lib/brief/turn";
+import { requireBrief, loadBriefSources, saveBrief, runStreamingBriefTurn } from "@/lib/brief/service";
 import { parseBriefEdit } from "@/lib/brief/edit";
 import { getViewer } from "@/lib/auth/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { withJsonUsage } from "@/lib/usage/ledger";
 
 /**
  * Every action here re-establishes who is asking from the session cookie and
@@ -103,57 +100,8 @@ export async function startBrief(): Promise<TurnResult> {
   return saveBrief(initialBriefState(data.id));
 }
 
-/** Re-establishes ownership of the adventure the conversation belongs to and re-validates the state the client sent back. */
-async function requireBrief(state: BriefState): Promise<{ state: BriefState; userId: string } | { error: string }> {
-  const parsed = briefStateSchema.safeParse(state);
-  if (!parsed.success) return { error: "The conversation got out of step — reload to start again" };
-  const { user } = await requireOwnership(parsed.data.adventureId);
-  return { state: parsed.data, userId: user.id };
-}
-
-/** The sources uploaded so far, both as the chat lists them and as the documents the assistant reads. */
-async function loadBriefSources(adventureId: string) {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("source")
-    .select("id, title, kind, page_map, content_hash")
-    .eq("adventure_id", adventureId)
-    .order("created_at")
-    .returns<(SourceRow & { page_map: { pages?: number } | null })[]>();
-  const rows = data ?? [];
-  const list: BriefSource[] = rows.map((row) => ({ id: row.id, title: row.title ?? "Untitled", pages: row.page_map?.pages ?? 0 }));
-  return { list, documents: sourcesToDocuments(rows).documents };
-}
-
-async function saveBrief(state: BriefState): Promise<TurnResult> {
-  const supabase = await createClient();
-  const { error } = await supabase.from("adventure").update({ brief_state: state }).eq("id", state.adventureId);
-  if (error) {
-    console.error("could not save adventure setup", state.adventureId, error);
-    return { ok: false, error: "Couldn’t save your progress. Please try again." };
-  }
-  return { ok: true, state };
-}
-
 export async function briefTurn(state: BriefState, input: BriefInput): Promise<TurnResult> {
-  const checked = await requireBrief(state);
-  if ("error" in checked) return { ok: false, error: checked.error };
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("adventure assistant unavailable: OPENAI_API_KEY is missing");
-    return { ok: false, error: "This feature is temporarily unavailable. Please try again later." };
-  }
-  const { list, documents } = await loadBriefSources(checked.state.adventureId);
-  const result = await runBriefTurn(
-    { ...checked.state, sources: list },
-    input,
-    withJsonUsage(new OpenAiLlmClient({ timeoutMs: 90_000 }), {
-      purpose: "brief",
-      adventureId: checked.state.adventureId,
-      userId: checked.userId,
-    }),
-    documents,
-  );
-  return result.ok ? saveBrief(result.state) : result;
+  return runStreamingBriefTurn(state, input);
 }
 
 /**

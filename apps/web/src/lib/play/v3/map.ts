@@ -1,0 +1,135 @@
+import { documentMapLabel } from './document-labels';
+import { compileStage, roomInterior, spaceAt, type CompiledStage, type Point, type StageLayoutInput, type StageMap } from "@adventure/game-core";
+import type { PlaygroundSnapshot } from "@adventure/game-client";
+import type { PlayerView } from "@adventure/play-contract";
+
+import { layoutSeed } from "@/lib/play/layout";
+
+import { v3Environment, type V3StageScenery } from "./scenery";
+
+type V3Room = PlayerView["rooms"][number];
+
+const COMPILER_ANCHOR_ID = "v3-map-layout-anchor";
+
+export function v3StageLayout(stageId: string, rooms: readonly V3Room[], spawnRoomId: string, scenery?: V3StageScenery): StageLayoutInput {
+  const environment = v3Environment(scenery);
+  return {
+    ...(environment ? { landscape: { layout: environment.layout ?? "meandering", water: environment.waterfront }, scenery: { palette: environment.props, density: environment.propDensity } } : {}),
+    stageId,
+    spawnRoomId,
+    rooms: rooms.map(({ id }) => ({
+      id,
+      size: "medium",
+      enclosure: "enclosed",
+      doorDefault: null,
+    })),
+    placements: [],
+  };
+}
+
+export function compileV3StageMap(
+  attemptId: string,
+  stageId: string,
+  stageIndex: number,
+  rooms: readonly V3Room[],
+  spawnRoomId: string,
+  scenery?: V3StageScenery,
+): Pick<CompiledStage, "map" | "playerSpawn" | "initialDoors"> {
+  if (scenery?.authored) {
+    const { map, playerSpawn, initialDoors } = scenery.authored;
+    return { map, playerSpawn, initialDoors };
+  }
+  const layout = v3StageLayout(stageId, rooms, spawnRoomId, scenery);
+  const compiled = compileStage({
+    ...layout,
+    placements: [{ id: COMPILER_ANCHOR_ID, kind: "decision", roomId: spawnRoomId }],
+  }, layoutSeed(attemptId, stageIndex), { doors: false });
+
+  return {
+    map: compiled.map,
+    playerSpawn: compiled.playerSpawn,
+    initialDoors: compiled.initialDoors,
+  };
+}
+
+export function roomIdToEnter(map: StageMap, point: Point, currentRoomId: string | null): string | null {
+  const space = spaceAt(map, point);
+  const roomId = space?.kind === "room" ? space.roomId : space?.kind === "outdoor" ? space.locationId : null;
+  return roomId && roomId !== currentRoomId ? roomId : null;
+}
+
+export function nearbyCharacterId(
+  player: Point,
+  facing: "up" | "down" | "left" | "right",
+  seats: readonly { id: string; position: Point }[],
+): string | null {
+  const direction: Point = facing === "up"
+    ? { x: 0, y: -1 }
+    : facing === "down"
+      ? { x: 0, y: 1 }
+      : facing === "left"
+        ? { x: -1, y: 0 }
+        : { x: 1, y: 0 };
+  const faced = { x: player.x + direction.x, y: player.y + direction.y };
+  const nearby = seats.filter(({ position }) =>
+    Math.max(Math.abs(position.x - player.x), Math.abs(position.y - player.y)) <= 1,
+  );
+  const inFront = nearby.find(({ position }) => position.x === faced.x && position.y === faced.y);
+  if (inFront) return inFront.id;
+  if (nearby.length === 0) return null;
+
+  let closest = nearby[0]!;
+  let closestDistance = Math.abs(closest.position.x - player.x) + Math.abs(closest.position.y - player.y);
+  for (const seat of nearby.slice(1)) {
+    const distance = Math.abs(seat.position.x - player.x) + Math.abs(seat.position.y - player.y);
+    if (distance < closestDistance) {
+      closest = seat;
+      closestDistance = distance;
+    }
+  }
+  return closest.id;
+}
+
+export function seatIn(map: StageMap, roomId: string | null, index: number): Point | null {
+  const room = map.rooms.find((candidate) => candidate.id === roomId);
+  if (!room) return null;
+  const interior: Point[] = [];
+  for (let y = room.y + 1; y < room.y + room.height - 1; y += 1) {
+    for (let x = room.x + 1; x < room.x + room.width - 1; x += 1) {
+      const point = { x, y };
+      if (roomInterior(room, point)) interior.push(point);
+    }
+  }
+  const center = { x: room.x + room.width / 2, y: room.y + room.height / 2 };
+  interior.sort((left, right) =>
+    Math.hypot(left.x - center.x, left.y - center.y) - Math.hypot(right.x - center.x, right.y - center.y)
+    || left.y - right.y
+    || left.x - right.x,
+  );
+  return interior[index % interior.length] ?? null;
+}
+
+/** Where the player stands on arriving in a room: just inside its door, clear of the people seated in the middle. */
+export function arrivalPoint(map: StageMap, roomId: string | null): Point | null {
+  const door = map.doors.find((candidate) => candidate.roomId === roomId);
+  return door?.inside ?? seatIn(map, roomId, 0);
+}
+
+export function v3DocumentProps(
+  map: StageMap,
+  roomId: string | null,
+  documents: PlayerView["documentsHere"],
+  firstSeat: number,
+): NonNullable<PlaygroundSnapshot["props"]> {
+  return documents.flatMap((document, index) => {
+    const position = seatIn(map, roomId, firstSeat + index);
+    return position ? [{ id: document.id, name: documentMapLabel(document.title), position, found: document.read }] : [];
+  });
+}
+
+export function unreadDocumentAt(
+  props: NonNullable<PlaygroundSnapshot["props"]>,
+  point: Point,
+): string | null {
+  return props.find(({ found, position }) => !found && position.x === point.x && position.y === point.y)?.id ?? null;
+}

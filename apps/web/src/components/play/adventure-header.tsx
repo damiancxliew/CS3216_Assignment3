@@ -13,7 +13,7 @@ export function AdventureHeader({ title, active, recap }: {
     <header className={`${styles.header} shrink-0`}>
       <h1 className={styles.adventureTitle}>
         <span className={styles.headerEmblem}><Compass size={24} aria-hidden /></span>
-        <span className="break-words">{title}</span>
+        <span className="break-words" title={title}>{title}</span>
       </h1>
       {active ? (
         <details data-walkthrough="story" className={`${styles.chapter} group`}>

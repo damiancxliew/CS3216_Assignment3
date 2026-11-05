@@ -30,6 +30,7 @@ type SchoolRow = {
   attempts_since: number | string;
   llm_cost_since: number | string;
   image_cost: number | string;
+  unmeasured_v3_adventures: number | string;
 };
 type DailyRow = {
   day: string;
@@ -213,10 +214,10 @@ export default async function AdminPage({
 
   if (tab === "overview") {
     const [overviewResult, dailyResult, activityResult, schoolsResult] = await Promise.all([
-      admin.rpc("platform_overview", { p_since: since }),
+      admin.rpc("platform_overview_all_versions", { p_since: since }),
       admin.rpc("platform_llm_daily", { p_since: since }),
-      admin.rpc("platform_activity_daily", { p_since: since }),
-      admin.rpc("platform_school_stats", { p_since: since }),
+      admin.rpc("platform_activity_daily_all_versions", { p_since: since }),
+      admin.rpc("platform_school_stats_all_versions", { p_since: since }),
     ]);
     if (overviewResult.error) console.error("could not load platform overview", overviewResult.error);
     if (dailyResult.error) console.error("could not load platform LLM daily usage", dailyResult.error);
@@ -227,7 +228,7 @@ export default async function AdminPage({
     activity = (activityResult.data ?? []) as unknown as ActivityRow[];
     schools = (schoolsResult.data ?? []) as unknown as SchoolRow[];
   } else if (tab === "schools") {
-    const { data, error } = await admin.rpc("platform_school_stats", { p_since: since });
+    const { data, error } = await admin.rpc("platform_school_stats_all_versions", { p_since: since });
     if (error) console.error("could not load platform school stats", error);
     schools = (data ?? []) as unknown as SchoolRow[];
   } else if (tab === "users") {
@@ -292,6 +293,7 @@ export default async function AdminPage({
             <DateWindow days={days} tab={tab} />
             {overview ? (
               <>
+                {number(overview.unmeasured_v3_attempts) > 0 || number(overview.unmeasured_v3_adventures) > 0 ? <p className="text-sm text-muted">Adventure and activity counts include v2 and v3. Play time and image spend include measured values only; v3 play time and image costs aren’t recorded. LLM spend includes both versions.</p> : null}
                 <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Metric accent="var(--record)" label="Active students" value={compact(number(overview.active_students_since))} hint={`${compact(number(overview.students))} enrolled across ${number(overview.schools)} schools`} />
                   <Metric accent="var(--world)" label="Attempts" value={compact(number(overview.attempts_since))} hint={`${number(overview.attempts_since) ? Math.round((number(overview.completed_since) / number(overview.attempts_since)) * 100) : 0}% completed · ${minutes(number(overview.play_seconds_since))} played`} />
@@ -396,6 +398,7 @@ export default async function AdminPage({
         <div className="flex flex-col gap-8">
           <Section title="Schools" lede="School activity and costs across the platform.">
             <DateWindow days={days} tab={tab} />
+            {schools.some((school) => number(school.unmeasured_v3_adventures) > 0) ? <p className="text-sm text-muted">Image costs include measured values only; v3 image costs aren’t recorded.</p> : null}
             {schools.length ? (
               <div className="overflow-x-auto rounded-surface border border-line">
                 <table className="w-full min-w-[55rem] text-left text-sm">

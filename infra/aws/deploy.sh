@@ -42,7 +42,7 @@ install -m 0644 "$RELEASE_INFRA/compat.sql" "$RELEASE_INFRA/gen-keys.mjs" "$RELE
   "$APP_ROOT/bin/check-isolation.sh"
 )
 
-for unit in app.service postgrest.service caddy.service backup.service backup.timer; do
+for unit in app.service postgrest.service caddy.service backup.service backup.timer jobs-tick.service jobs-tick.timer; do
   install -m 0644 "$RELEASE_INFRA/systemd/$unit" "/etc/systemd/system/$unit"
 done
 
@@ -60,6 +60,7 @@ if [[ "$caddyfile_changed" == 1 ]]; then
   fi
 fi
 systemctl enable --now backup.timer
+systemctl enable --now jobs-tick.timer
 
 bash "$RELEASE_INFRA/migrate.sh" "$RELEASE/supabase/migrations"
 systemctl restart postgrest.service

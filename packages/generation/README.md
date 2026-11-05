@@ -187,3 +187,52 @@ compiler is passed in via the `compile` hook). Across cases: max pairwise struct
 → `ExtractedDocument { pages[{ page, text }], contentHash, warnings }`. PDFs go through `unpdf`
 (pdf.js) per page; pasted text is paginated on form feeds or cut into ~2.5k-char pseudo-pages.
 Limits in `LIMITS`. Scanned PDFs without a text layer are rejected with `no-text-layer`.
+
+## V3 generation checks and evidence evaluation
+
+New stage-details calls produce a reading check for every scroll: four questions about one
+discovery, three interpretations per question, exact supporting sentences and a guided correction.
+The converter derives offsets from copied text. The linker authors relevant character prerequisites,
+essential conversations and decision requirements with spare evidence routes. It receives discovery
+conditions and document placements so it can avoid circular preparation. Answer keys remain in the
+private spec. Saved parts without this capability still assemble with their original behaviour.
+
+Preparation belongs to the linking part; source text and question banks belong to the stage part.
+Repair routing and teacher-edit ownership follow those boundaries. Discovery deduplication remaps
+preparation and recovery references. Final checks reject inaccessible requirements and altered
+holders for essential conversation facts.
+
+Skeleton documents can hold at most two core discoveries, so their details can satisfy the
+two-passage limit. Hidden-entry persona triggers require at least one prerequisite in addition
+to their triggering action. Linking receives actual persona/stance metadata and existing
+guards; its unguarded note triggers cannot target hidden stances. Authored hidden-entry guards
+are preserved. Secret unlocks require positive achievements; ordinary conditional rules can
+still use negation.
+
+Moment context identifies current participants, includes their voices and agendas, and sends
+the first unconditional fallback plus ordered alternatives. Runtime still prefers matching
+rules whose endings are open. Shared source formatting includes teacher/outside origin and
+available URL; legacy documents default to teacher origin.
+
+Literal quote validation checks occurrence in the cited source. It cannot establish that a
+quotation supports every factual part of a discovery or its student note. The optional
+relevance evaluator judges those two fields independently using their quoted evidence:
+
+```bash
+npm run eval:v3-grounding --workspace @adventure/generation -- --help
+npm run eval:v3-grounding --workspace @adventure/generation -- --live --out /tmp/v3-grounding.json
+```
+
+The live command requires `OPENAI_API_KEY` and makes four calls using the shared `V3_MODEL`
+default in `src/v3/config.ts` over synthetic
+cases: a supported paraphrase, an unrelated genuine quote, an unsupported addition in a note,
+and a partially supported compound claim. Results report quote occurrence separately from
+model-assessed support. This evaluation is advisory and does not run during generation;
+passing scripted-client tests verifies the evaluation plumbing, not the model's accuracy.
+
+The [recorded live run](evals/results/issue-298-postfix/grounding.report.json) passed all four
+constructed relevance cases. Separate [production-prompt probes](evals/results/issue-298-postfix/production-probes.report.json)
+passed stage details, linking, fallback-moment and secret-moment validation. Stage details
+needed one repair after quote validation caught an unsupported paragraph; the other calls
+passed first try. These samples establish targeted behavior, not a population accuracy rate
+or a complete adventure-generation result.

@@ -9,6 +9,7 @@ import { button } from "@/components/ui";
 import { loadResumeState } from "@/lib/attempts/resume";
 import { playDeps } from "@/lib/play/http";
 import { getState } from "@/lib/play/service";
+import { v3PlayDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -37,7 +38,11 @@ export default async function PlayPage({ params }: { params: Promise<{ attemptId
   if (!user) redirect("/");
 
   const resume = await loadResumeState(supabase, attemptId);
-  if (!resume) notFound();
+  if (!resume) {
+    const attempt = await v3PlayDeps().store.loadAttempt(attemptId);
+    if (attempt?.studentId === user.id) redirect(`/v3/play/${attemptId}`);
+    notFound();
+  }
 
   const initial = await getState(playDeps(attemptId), attemptId, user.id);
   if (!initial.ok) console.error("Unable to load play state", initial.error);

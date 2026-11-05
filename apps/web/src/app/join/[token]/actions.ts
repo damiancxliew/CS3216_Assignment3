@@ -1,5 +1,6 @@
 "use server";
 
+import { createGuestSession } from "@/lib/auth/guest";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
@@ -13,6 +14,13 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function joinAdventure(token: string) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    const { data: isPublic } = await supabase.rpc("public_share_link", { p_token: token });
+    if (isPublic !== true) redirect(`/join/${token}`);
+    const guest = await createGuestSession(supabase);
+    if (!guest) redirect(`/join/${token}?error=join`);
+  }
   const { data, error } = await supabase.rpc("join_adventure", {
     p_token: token,
   });

@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import type { AssetStore } from "@adventure/generation/assets";
 
 const MAX_OBJECT_BYTES = 10 * 1024 * 1024;
@@ -38,6 +38,10 @@ export class S3AssetStore implements AssetStore {
       CacheControl: "public, max-age=604800",
     }));
     return `${this.publicBaseUrl}/${key}`;
+  }
+
+  async remove(key: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 
   async download(url: string): Promise<Uint8Array | null> {

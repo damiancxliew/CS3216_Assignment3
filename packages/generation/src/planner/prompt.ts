@@ -194,7 +194,7 @@ export function buildRepairPrompt(previousOutput: string, issues: readonly SpecI
       'Stages:',
       ...allowedIds.stages.map((stage) => `- ${stage.id} (stage ${stage.index}) — ${stage.title}`),
       '',
-      'A `branchTarget` may only name an ending id that appears in `endings` or a later stage id that appears in `stages`. For each unknown-ending issue either repoint the option at one of the ending ids listed above, or declare the missing ending as a full ending object in `endings` (max 4 endings total, `historicalOutcome` needs verbatim spans, and every declared ending must be targeted by at least one option). For each unknown-stage issue, repoint the option at one of the later stage ids listed above.',
+      'A `branchTarget` may only name an ending id that appears in `endings` or a later stage id that appears in `stages`. For each unknown-ending issue either repoint the option at one of the ending ids listed above, or declare the missing ending as a full ending object in `endings` (max 4 endings total, `historicalOutcome` needs verbatim spans, and every declared ending must be targeted by at least one option). For each unknown-stage issue, either repoint the option at one of the later stage ids listed above, or, if the option should end the adventure, change its branchTarget to { "kind": "ending", "endingId": "<id>" } using one of the ending ids listed above (or a newly declared ending). Options in the last stage must always target endings.',
     ] : []),
     '',
     '## Your previous output',

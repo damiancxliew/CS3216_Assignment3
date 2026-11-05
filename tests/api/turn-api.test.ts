@@ -438,10 +438,16 @@ describe("server authority (FR-21)", () => {
     expect(leaked.leakedText).toContain("$.state.announcement");
   });
 
-  it("keeps every API route behind the response wrapper", () => {
+  it("keeps v2 routes behind the wrapper and v3 routes on their own boundary", () => {
     const apiRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../apps/web/src/app/api");
     for (const route of routeFiles(apiRoot)) {
-      expect(readFileSync(route, "utf8"), `${route} must use publicJson/errorResponse`).not.toMatch(/NextResponse\.json\s*\(/);
+      const source = readFileSync(route, "utf8");
+      if (route.split(/[\\/]/).includes("v3")) {
+        expect(source, `${route} must use NextResponse.json`).toMatch(/NextResponse\.json\s*\(/);
+        expect(source, `${route} must not use v2 response filters`).not.toMatch(/publicJson|FORBIDDEN_RESPONSE_KEYS/);
+      } else {
+        expect(source, `${route} must not bypass the response wrapper`).not.toMatch(/NextResponse\.json\s*\(/);
+      }
     }
   });
 

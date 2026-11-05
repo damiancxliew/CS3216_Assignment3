@@ -59,6 +59,8 @@ export interface PlaygroundSnapshot {
   revision: number
   /** Display names for rooms, when the caller has them; the demo fixture's names are the fallback. */
   roomNames?: Readonly<Record<string, string>>
+  /** Opt-in discovery UI: objects reveal their names on hover or close approach. */
+  interactionLabels?: "hover"
   /** Public room purposes used to choose materials and period-appropriate fixtures. */
   roomDescriptions?: Readonly<Record<string, string>>
   /** Authored location kinds used to choose curated ground for open locations. */
@@ -68,8 +70,12 @@ export interface PlaygroundSnapshot {
   environment?: EnvironmentPlan | null
   /** Public setting and stage context only; never private agent or unrevealed evidence text. */
   storyContext?: string
+  /** Opt-in stage crowds; absent for v2 and the generic playground. Public framing only. */
+  crowdContext?: string
+  /** Optional authored, fictional street flavour for curated historical scenes. */
+  streetTalk?: Array<{ name: string; lines: string[] }>
   /** Physical, inspectable fixtures placed within named rooms. Ready art is a 32px tile sheet. */
-  landmarks?: Array<{ id: string; roomId: string; name: string; description?: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string }>
+  landmarks?: Array<{ id: string; roomId: string; name: string; description?: string; kind: LandmarkKind; position: Point; width: 2; height: 2; imageUrl?: string; interactive?: boolean; pulse?: boolean }>
   /** Stage atmosphere (FR-15a) and one-shot effects to play (FR-15b), for renderers that support them. */
   ambient?: { id: AmbientOverlayId; intensity: 1 | 2 | 3 }
   effects?: Array<{ key: string; id: SceneEffectId; roomId?: string | null }>
@@ -218,7 +224,7 @@ export class PlaygroundModel {
   }
 
   toggleDoor(doorId: string): void {
-    if (!this.mapValue.doors.some(({ id }) => id === doorId)) return
+    if (this.mapValue.doorless || !this.mapValue.doors.some(({ id }) => id === doorId)) return
     const current = this.spatial.doors[doorId]
     if (current === 'open') {
       this.spatial = closeSpatialDoor(this.mapValue, this.spatial, doorId)

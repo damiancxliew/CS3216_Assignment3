@@ -1,0 +1,212 @@
+{
+  "commit": "5435d17c1d57864966d7151dd4af8ca16e37183f",
+  "runDate": "2026-10-20",
+  "model": "gpt-6-sol",
+  "scope": "Four targeted production-prompt calls using inline synthetic test fixtures and the actual schema/check/repair loops. Not a complete adventure generation or an estimate of failure frequency.",
+  "results": [
+    {
+      "label": "stage",
+      "pass": true,
+      "issues": [],
+      "warnings": [],
+      "calls": [
+        {
+          "label": "stage s1",
+          "model": "gpt-6-sol",
+          "latencyMs": 33929,
+          "usage": {
+            "inputTokens": 3798,
+            "cachedInputTokens": 0,
+            "outputTokens": 2986,
+            "reasoningTokens": 1542
+          },
+          "costUsd": 0.037456,
+          "issueCount": 1
+        },
+        {
+          "label": "stage s1",
+          "model": "gpt-6-sol",
+          "latencyMs": 10543,
+          "usage": {
+            "inputTokens": 5303,
+            "cachedInputTokens": 2281,
+            "outputTokens": 1440,
+            "reasoningTokens": 77
+          },
+          "costUsd": 0.0209002,
+          "issueCount": 0
+        }
+      ],
+      "outputSha256": "d43a9aa395b640757ddcb5fe8ea22921cf0999640034ce814ba4ea500ae8d2ed",
+      "documents": [
+        {
+          "id": "doc-1",
+          "real": true,
+          "keyPassageCount": 1
+        },
+        {
+          "id": "s1-doc-captain-letter",
+          "real": false,
+          "keyPassageCount": 1
+        }
+      ],
+      "coreLinks": [
+        {
+          "discoveryId": "d-dues",
+          "keyPassageId": "s1-kp-register"
+        }
+      ],
+      "repairReasons": [
+        "The first real document included a second paragraph absent from its cited source. quote-not-in-source was returned; the repair removed the unsupported paragraph."
+      ]
+    },
+    {
+      "label": "link",
+      "pass": true,
+      "issues": [],
+      "warnings": [],
+      "calls": [
+        {
+          "label": "link",
+          "model": "gpt-6-sol",
+          "latencyMs": 3037,
+          "usage": {
+            "inputTokens": 1265,
+            "cachedInputTokens": 0,
+            "outputTokens": 106,
+            "reasoningTokens": 65
+          },
+          "costUsd": 0.00359,
+          "issueCount": 0
+        }
+      ],
+      "outputSha256": "f64a1e2ed833d10228520fcdaf66a3920248f1b599fee8c7b667adddfb99180e",
+      "noteTriggers": [],
+      "note": "No new note triggers were emitted. The deterministic injected-output regression separately verifies that hidden destinations are rejected."
+    },
+    {
+      "label": "moment-fallback",
+      "pass": true,
+      "issues": [],
+      "warnings": [],
+      "calls": [
+        {
+          "label": "moment m1",
+          "model": "gpt-6-sol",
+          "latencyMs": 15389,
+          "usage": {
+            "inputTokens": 2657,
+            "cachedInputTokens": 0,
+            "outputTokens": 1129,
+            "reasoningTokens": 758
+          },
+          "costUsd": 0.016604,
+          "issueCount": 0
+        }
+      ],
+      "outputSha256": "c1d4629fc3e09ca2897ae8437ab235bb3070f2dffdcd975ab60a7c2884a06057",
+      "conditionalRules": [
+        {
+          "actId": "a1-yield",
+          "outcomeId": "o1-stall",
+          "when": [
+            {
+              "kind": "notePassed",
+              "negate": false,
+              "discoveryId": "d-guarded",
+              "characterId": "farquhar",
+              "stanceId": null,
+              "slantId": null,
+              "momentId": null,
+              "outcomeId": null
+            }
+          ]
+        }
+      ],
+      "secretUnlock": null,
+      "fallbackContext": {
+        "actId": "a1-yield",
+        "fallbackOutcomeId": "o1-yield",
+        "alternateOutcomeIds": [
+          "o1-stall"
+        ]
+      }
+    },
+    {
+      "label": "moment-secret",
+      "pass": true,
+      "issues": [],
+      "warnings": [],
+      "calls": [
+        {
+          "label": "moment m2",
+          "model": "gpt-6-sol",
+          "latencyMs": 10779,
+          "usage": {
+            "inputTokens": 2996,
+            "cachedInputTokens": 0,
+            "outputTokens": 921,
+            "reasoningTokens": 345
+          },
+          "costUsd": 0.015202,
+          "issueCount": 0
+        }
+      ],
+      "outputSha256": "d2d2e3fc1bc0ff442a29c4a50bf757b6450d6944f374323974f99be4e1f46ec9",
+      "conditionalRules": [
+        {
+          "actId": "a2-refuse",
+          "outcomeId": "o2-defer",
+          "when": [
+            {
+              "kind": "notePassed",
+              "negate": false,
+              "discoveryId": "d-core2",
+              "characterId": "raffles",
+              "stanceId": null,
+              "slantId": null,
+              "momentId": null,
+              "outcomeId": null
+            }
+          ]
+        }
+      ],
+      "secretUnlock": {
+        "actId": "a2-secret",
+        "conditions": [
+          {
+            "kind": "discovered",
+            "negate": false,
+            "discoveryId": "d-guarded",
+            "characterId": null,
+            "stanceId": null,
+            "slantId": null,
+            "momentId": null,
+            "outcomeId": null
+          },
+          {
+            "kind": "slantConfronted",
+            "negate": false,
+            "discoveryId": null,
+            "characterId": null,
+            "stanceId": null,
+            "slantId": "farquhar-sl1",
+            "momentId": null,
+            "outcomeId": null
+          },
+          {
+            "kind": "notePassed",
+            "negate": false,
+            "discoveryId": "d-core2",
+            "characterId": "raffles",
+            "stanceId": null,
+            "slantId": null,
+            "momentId": null,
+            "outcomeId": null
+          }
+        ],
+        "minMet": 2
+      }
+    }
+  ]
+}

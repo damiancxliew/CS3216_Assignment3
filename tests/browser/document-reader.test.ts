@@ -34,7 +34,7 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
   const initial = { ...currentState(), revision: 1, mintReady: false };
   const root = resolve("apps/web");
   const stubs: Record<string, string> = {
-    "next/navigation": "export const useRouter = () => ({ refresh() {}, push() {} });",
+    "next/navigation": "export const useRouter = () => ({ refresh() {}, push() {} }); export const usePathname = () => '/play/reader-browser';",
     "next/link": "import React from 'react'; export default function Link(p) { return React.createElement('a', p); }",
     "next/dynamic": "import React from 'react'; export default function dynamic(load) { const C = React.lazy(() => load().then(defaultExport => ({default: defaultExport}))); return p => React.createElement(React.Suspense, {fallback: null}, React.createElement(C, p)); }",
     "@/app/play/[attemptId]/actions": "export const restartAttempt = async () => ({ok:false}); export const completeWalkthrough = async () => ({ok:true});",
@@ -44,6 +44,8 @@ it.runIf(process.env.RUN_READER_BROWSER_TESTS === "1")("opens a parchment immedi
     configFile: false, root, publicDir: resolve(root, "public"),
     server: { host: "127.0.0.1", port: 0, watch: null, fs: { allow: [resolve(".")] } },
     esbuild: { jsx: "automatic" },
+    // The isolated reader fixture has no Supabase account or Next env replacement.
+    define: { "process.env.NEXT_PUBLIC_SUPABASE_URL": '""', "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY": '""' },
     optimizeDeps: { include: ["react", "react-dom/client", "lucide-react", "phaser", "openai"] },
     css: { postcss: { plugins: [tailwind()] } },
     resolve: { alias: { "@": resolve(root, "src") } },

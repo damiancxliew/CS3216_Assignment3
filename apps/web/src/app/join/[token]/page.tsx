@@ -13,6 +13,7 @@ type Preview = {
   teacher_name: string | null;
   organization_name?: string | null;
   assets_ready: boolean;
+  is_public: boolean;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -20,11 +21,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function preview(token: string): Promise<Preview | null> {
   if (!UUID.test(token)) return null;
   const supabase = await createClient();
-  const [details, readiness] = await Promise.all([
-    supabase.rpc("share_link_preview", { p_token: token }).maybeSingle<Omit<Preview, "assets_ready">>(),
+  const [details, readiness, access] = await Promise.all([
+    supabase.rpc("share_link_preview", { p_token: token }).maybeSingle<Omit<Preview, "assets_ready" | "is_public">>(),
     supabase.rpc("share_link_ready", { p_token: token }),
+    supabase.rpc("public_share_link", { p_token: token }),
   ]);
-  return details.data ? { ...details.data, assets_ready: readiness.data === true } : null;
+  return details.data ? { ...details.data, assets_ready: readiness.data === true, is_public: access.data === true } : null;
 }
 
 export const metadata: Metadata = {
@@ -64,8 +66,9 @@ export default async function JoinPage({
       {adventure.setting ? <p className="max-w-[54ch] text-lg text-muted">{adventure.setting}</p> : null}
       {adventure.teacher_name ? <p className="text-base text-muted">Set by {adventure.teacher_name}</p> : null}
 
+      {adventure.is_public && !user ? <p className="text-sm text-muted">No sign-in needed. Your progress is saved in this browser.</p> : null}
       <div className="pt-2">
-        {user ? (
+        {(user && !user.is_anonymous) || adventure.is_public ? (
           <form
             action={async () => {
               "use server";

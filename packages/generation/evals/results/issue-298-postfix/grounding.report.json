@@ -1,0 +1,69 @@
+{
+  "model": "gpt-6-sol",
+  "cases": [
+    {
+      "id": "supported-paraphrase",
+      "expected": {
+        "textSupported": true,
+        "noteSupported": true
+      },
+      "quoteErrors": [],
+      "support": {
+        "textSupported": true,
+        "noteSupported": true,
+        "reason": "The quoted passage explicitly states that the treaty was signed on 6 February 1819."
+      },
+      "pass": true
+    },
+    {
+      "id": "unrelated-genuine-quote",
+      "expected": {
+        "textSupported": false,
+        "noteSupported": false
+      },
+      "quoteErrors": [],
+      "support": {
+        "textSupported": false,
+        "noteSupported": false,
+        "reason": "The quote only states when a treaty was signed; it says nothing about merchants, port dues, or their views."
+      },
+      "pass": true
+    },
+    {
+      "id": "unsupported-note",
+      "expected": {
+        "textSupported": true,
+        "noteSupported": false
+      },
+      "quoteErrors": [],
+      "support": {
+        "textSupported": true,
+        "noteSupported": false,
+        "reason": "The quote supports the signing date but says nothing about merchants celebrating."
+      },
+      "pass": true
+    },
+    {
+      "id": "partially-supported-claim",
+      "expected": {
+        "textSupported": false,
+        "noteSupported": true
+      },
+      "quoteErrors": [],
+      "support": {
+        "textSupported": false,
+        "noteSupported": true,
+        "reason": "The quote supports the signing date but says nothing about merchants opposing new dues."
+      },
+      "pass": true
+    }
+  ],
+  "passed": 4,
+  "total": 4,
+  "verification": {
+    "commit": "5435d17c1d57864966d7151dd4af8ca16e37183f",
+    "runDate": "2026-10-20",
+    "mode": "live OpenAI calls",
+    "scope": "Four constructed synthetic cases, one sample per case; not a representative accuracy measurement."
+  }
+}

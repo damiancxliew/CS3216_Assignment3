@@ -1,4 +1,15 @@
 {$SITE_DOMAIN} {
+	# Apply at the edge so Next.js and PostgREST share the same protections.
+	# Start HSTS at one day; do not commit other subdomains or preload yet.
+	header {
+		Strict-Transport-Security "max-age=86400"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Baseline only: a script policy needs a separate nonce/asset inventory.
+		Content-Security-Policy "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+		-X-Powered-By
+	}
 	handle_path /rest/v1/* {
 		reverse_proxy 127.0.0.1:3001 {
 			transport http {

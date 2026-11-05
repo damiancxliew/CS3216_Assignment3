@@ -18,13 +18,14 @@ import { layoutMapLabels, overlaps, type LabelRect } from './map-labels.js'
 import { RoomPointers } from './room-pointers.js'
 import { fixtureScenery } from './scenery.js'
 import { matchMapPalette } from './pixel-art.js'
-import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, surfaceNoise } from './materials.js'
+import { materialTile, MATERIAL_COUNT, MATERIAL_VARIANTS, paintMaterials, roomFinish, surfaceNoise } from './materials.js'
 import { isExposed, WeatherSurface } from './weather.js'
 import { RoomShells } from './room-shells.js'
-import { detailZoom, overviewZoom } from './camera.js'
+import { coverZoom, detailZoom, fillZoom, overviewZoom, scaledZoom } from './camera.js'
+import { STAGE_CROWD_SPRITES } from './stage-crowds.js'
 import { AmbientLife, RESIDENT_SPRITES } from './ambient-life.js'
 import { EnvironmentArt } from './environment-art.js'
-import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, storyArt } from './story-art.js'
+import { applyEnvironment, MATERIAL_NAMES, openFloorForKind, paintStoryWalls, roomMaterial, storyArt } from './story-art.js'
 import type { PlaygroundSnapshot, SoundCueId } from './model.js'
 import { RoomWandering, ROOM_STEP_MS } from './room-wandering.js'
 import type { MapView } from './view.js'
@@ -71,14 +72,24 @@ export interface TiledViewOptions {
   themeBase?: string
   /** Sprite key to use for an actor that does not name one. */
   defaultSprite?: string
+  /** Allow mouse clicks on tiles to request a walk, in addition to touch taps. */
+  clickToWalk?: boolean
   /** Called when the player clicks a character instead of a tile. */
   onActor?: (actorId: string) => void
   /** Called when the player clicks a document or object lying on the map. */
   onProp?: (propId: string) => void
   /** Called when the player clicks an in-world landmark. */
   onLandmark?: (landmarkId: string) => void
-  /** "detail" (play) magnifies around the player; "overview" fits the stage's width in a small preview. */
-  camera?: 'detail' | 'overview'
+  /** Called when the player clicks the edge pointer to a room that is off screen. */
+  onRoomPointer?: (roomId: string) => void
+  /** "detail" magnifies around the player; "overview" fits small previews; opt-in "cover" fills the viewport. */
+  camera?: 'detail' | 'overview' | 'cover'
+  /** Optional scale for detail camera zoom. */
+  zoomScale?: number
+  /** Treat detail frames under 900×600 as compact (3x, not 4x); see `detailZoom`. */
+  laptopFrames?: boolean
+  /** Detail camera never zooms out so far that the map leaves an empty band in the viewport. */
+  fillViewport?: boolean
 }
 
 class TiledScene extends Phaser.Scene {
@@ -87,10 +98,15 @@ class TiledScene extends Phaser.Scene {
   private readonly onReady: () => void
   private readonly base: string
   private readonly defaultSprite: string
-  private readonly cameraMode: 'detail' | 'overview'
+  private readonly clickToWalk: boolean
+  private readonly cameraMode: 'detail' | 'overview' | 'cover'
+  private readonly zoomScale: number
+  private readonly laptopFrames: boolean
+  private readonly fillViewport: boolean
   private readonly onActor: ((actorId: string) => void) | undefined
   private readonly onProp: ((propId: string) => void) | undefined
   private readonly onLandmark: ((landmarkId: string) => void) | undefined
+  private readonly onRoomPointer: ((roomId: string) => void) | undefined
   private reducedMotion: boolean
   private ready = false
   private map?: Phaser.Tilemaps.Tilemap
@@ -105,6 +121,7 @@ class TiledScene extends Phaser.Scene {
   private captions = new Map<string, Phaser.GameObjects.Text>()
   private captionSizes = new Map<string, { content: string; width: number; height: number }>()
   private captionLines?: Phaser.GameObjects.Graphics
+  private interactionGlow?: Phaser.GameObjects.Graphics
   private readonly roomPointers = new RoomPointers(this)
   private hoveredTarget: string | null = null
   private markers = new Map<
@@ -146,10 +163,15 @@ class TiledScene extends Phaser.Scene {
     this.onReady = onReady
     this.base = options.assetBase.replace(/\/$/, '')
     this.defaultSprite = options.defaultSprite ?? 'Villager'
+    this.clickToWalk = options.clickToWalk ?? false
     this.cameraMode = options.camera ?? 'detail'
+    this.zoomScale = options.zoomScale ?? 1
+    this.laptopFrames = options.laptopFrames ?? false
+    this.fillViewport = options.fillViewport ?? false
     this.onActor = options.onActor
     this.onProp = options.onProp
     this.onLandmark = options.onLandmark
+    this.onRoomPointer = options.onRoomPointer
   }
 
   preload(): void {
@@ -180,13 +202,21 @@ class TiledScene extends Phaser.Scene {
     this.buildMap()
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       this.hoveredTarget = this.hitTarget({ x: pointer.worldX, y: pointer.worldY })
-      this.game.canvas.style.cursor = this.hoveredTarget ? 'pointer' : 'default'
+      const overPointer = Boolean(this.onRoomPointer && this.roomPointers.hit({ x: pointer.worldX, y: pointer.worldY }))
+      this.game.canvas.style.cursor = this.hoveredTarget || overPointer ? 'pointer' : 'default'
     })
     this.input.on('gameout', () => {
       this.hoveredTarget = null
       this.game.canvas.style.cursor = 'default'
     })
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // Edge pointers sit above the world: clicking one heads for that room.
+      const pointedRoom = this.onRoomPointer ? this.roomPointers.hit({ x: pointer.worldX, y: pointer.worldY }) : null
+      if (pointedRoom) {
+        this.onRoomPointer!(pointedRoom)
+        this.game.canvas.focus()
+        return
+      }
       const target = this.hitTarget({ x: pointer.worldX, y: pointer.worldY })
       if (target && this.activateTarget(target)) {
         this.game.canvas.focus()
@@ -195,7 +225,7 @@ class TiledScene extends Phaser.Scene {
       const point = tileFromPointer(pointer.worldX, pointer.worldY, T, this.current.map.width, this.current.map.height)
       if (!point) return
       // A mouse walks with the keyboard; only touch, which has no keys, taps a tile to walk there.
-      const walks = pointer.wasTouch
+      const walks = pointer.wasTouch || this.clickToWalk
       if (!this.pointRevealed(point)) { if (walks) this.onDestination(point, pointer.time || performance.now()); this.game.canvas.focus(); return }
       // A character under the pointer means "talk to them", not "walk here".
       const actor = this.current.actors.find((a) => {
@@ -220,7 +250,7 @@ class TiledScene extends Phaser.Scene {
       }
       const landmark = (this.current.landmarks ?? []).find((item) =>
         point.x >= item.position.x && point.x < item.position.x + item.width && point.y >= item.position.y && point.y < item.position.y + item.height)
-      if (landmark && this.onLandmark) {
+      if (landmark && landmark.interactive !== false && this.onLandmark) {
         this.onLandmark(landmark.id)
         this.game.canvas.focus()
         return
@@ -253,7 +283,7 @@ class TiledScene extends Phaser.Scene {
     if (!this.ready) return
     const mapChanged = snapshot.map.id !== previous.map.id || snapshot.visualStyle !== previous.visualStyle
       || JSON.stringify(snapshot.environment) !== JSON.stringify(previous.environment)
-      || snapshot.mapTheme !== previous.mapTheme || snapshot.storyContext !== previous.storyContext
+      || snapshot.mapTheme !== previous.mapTheme || snapshot.storyContext !== previous.storyContext || snapshot.crowdContext !== previous.crowdContext
       || JSON.stringify(snapshot.roomDescriptions) !== JSON.stringify(previous.roomDescriptions)
       || JSON.stringify(snapshot.roomKinds) !== JSON.stringify(previous.roomKinds)
       || JSON.stringify(snapshot.roomNames) !== JSON.stringify(previous.roomNames)
@@ -283,7 +313,7 @@ class TiledScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   private spriteKeys(snapshot: PlaygroundSnapshot): string[] {
-    return [...new Set([...RESIDENT_SPRITES, this.defaultSprite, ...snapshot.actors.map((a) => a.sprite ?? this.defaultSprite)])]
+    return [...new Set([...RESIDENT_SPRITES, ...(snapshot.crowdContext === undefined ? [] : STAGE_CROWD_SPRITES), this.defaultSprite, ...snapshot.actors.map((a) => a.sprite ?? this.defaultSprite)])]
   }
 
   private assetUrls(snapshot: PlaygroundSnapshot): string[] {
@@ -306,7 +336,9 @@ class TiledScene extends Phaser.Scene {
   private queueGeneratedSprite(url: string): void {
     if (this.queuedAssets.has(url)) return
     this.queuedAssets.add(url)
-    this.load.spritesheet(assetTextureKey(url), url, { frameWidth: T, frameHeight: T })
+    // Authored and generated walking sheets share a 4x4 layout, but may have
+    // higher-resolution artwork than the native 16px characters.
+    this.load.image(assetTextureKey(url), url)
   }
 
   private queueAsset(url: string): void {
@@ -318,6 +350,18 @@ class TiledScene extends Phaser.Scene {
   private registerAnimations(key: string, generated = false): void {
     const textureKey = generated ? key : `char-${key}`
     if (!this.textures.exists(textureKey)) return
+    if (generated) {
+      const texture = this.textures.get(textureKey)
+      const source = texture.getSourceImage()
+      const width = source.width / 4
+      const height = source.height / 4
+      for (let row = 0; row < 4; row++) {
+        for (let column = 0; column < 4; column++) {
+          const frame = row * 4 + column
+          if (!texture.has(String(frame))) texture.add(frame, 0, column * width, row * height, width, height)
+        }
+      }
+    }
     DIRECTIONS.forEach((facing, column) => {
       const anim = `${textureKey}-${facing}`
       if (this.anims.exists(anim)) return
@@ -343,6 +387,8 @@ class TiledScene extends Phaser.Scene {
     this.captionSizes.clear()
     this.captionLines?.destroy()
     this.captionLines = this.add.graphics().setDepth(59)
+    this.interactionGlow?.destroy()
+    this.interactionGlow = this.add.graphics().setDepth(58)
     this.hoveredTarget = null
     this.landmarkTileSignature = ''
     this.previousLandmarkPositions = []
@@ -384,12 +430,12 @@ class TiledScene extends Phaser.Scene {
       }
       // A door on the top wall keeps the room name outside the room, above the wall.
       const doorOnTopWall = source.doors.some((door) => door.roomId === room.id && door.position.y === room.y)
-      this.labels.push(
+      if (this.current.interactionLabels !== "hover") this.labels.push(
         this.add
           .text((room.x + room.width / 2) * T, doorOnTopWall ? room.y * T - 1 : room.y * T + 1, this.roomName(room.id), {
             color: '#fff8e7',
             fontFamily: 'system-ui, "Segoe UI", sans-serif',
-            fontSize: '8px',
+            fontSize: '6px',
             wordWrap: { width: room.width * T - 12, useAdvancedWrap: true },
             align: 'center',
             fontStyle: 'bold',
@@ -418,6 +464,19 @@ class TiledScene extends Phaser.Scene {
 
     for (const door of source.doors) {
       this.walls.removeTileAt(door.position.x, door.position.y)
+      if (source.doorless) {
+        const room = source.rooms.find(({ id }) => id === door.roomId)
+        if (room) {
+          const material = roomMaterial(`${this.current.roomNames?.[room.id] ?? ''} ${this.current.roomDescriptions?.[room.id] ?? ''}`, art)
+          const finish = roomFinish(`${this.current.storyContext ?? this.current.seed}:${room.id}`)
+          this.ground.putTileAt(
+            materialTile(material, door.position.x - room.x, door.position.y - room.y, finish.seed),
+            door.position.x,
+            door.position.y,
+          )
+        }
+        continue
+      }
       const image = this.add.image(door.position.x * T + T / 2, door.position.y * T + T / 2, 'house', DOOR.closed).setDepth(3)
       image.setTint(Phaser.Display.Color.HexStringToColor(art.wallLight).color)
       this.doors.set(door.id, image)
@@ -528,7 +587,9 @@ class TiledScene extends Phaser.Scene {
   private renderSnapshot(snapshot: PlaygroundSnapshot, snap = false): void {
     this.wandering.sync(snapshot, Boolean(snapshot.roomWandering && snapshot.running && !this.reducedMotion))
     this.renderLandmarkTiles(snapshot)
-    for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
+    if (!snapshot.map.doorless) {
+      for (const door of snapshot.map.doors) this.doors.get(door.id)?.setFrame(snapshot.doors[door.id] === 'open' ? DOOR.open : DOOR.closed)
+    }
 
     this.renderProps(snapshot)
     this.renderActors(snapshot, snap)
@@ -549,7 +610,9 @@ class TiledScene extends Phaser.Scene {
       const requestedKey = actor.sprite ?? this.defaultSprite
       const fallbackKey = this.textures.exists(`char-${requestedKey}`) ? `char-${requestedKey}` : `char-${this.defaultSprite}`
       const generatedKey = actor.spriteSheetUrl ? assetTextureKey(actor.spriteSheetUrl) : null
-      const key = generatedKey && this.textures.exists(generatedKey) ? generatedKey : fallbackKey
+      // A generated sheet is cached as one image before registerAnimations slices its frames;
+      // keep the fallback until frame 0 exists so a marker is never sized from the whole sheet.
+      const key = generatedKey && this.textures.exists(generatedKey) && this.textures.get(generatedKey).has('0') ? generatedKey : fallbackKey
       const positionKey = `${actor.position.x},${actor.position.y}`
       const offset = occupied.get(positionKey) ?? 0
       occupied.set(positionKey, offset + 1)
@@ -659,7 +722,7 @@ class TiledScene extends Phaser.Scene {
     const container = this.add.container(0, 0)
     const shadow = this.add.ellipse(0, 8, 16, 5, 0x000000, 0.3)
     const textureKey = this.textures.exists(key) ? key : '__DEFAULT'
-    const sprite = this.add.sprite(0, 0, textureKey, 0)
+    const sprite = this.add.sprite(0, 0, textureKey, 0).setDisplaySize(T, T)
     container.add([shadow, sprite])
     return { container, sprite, key, facing: 'down' as Facing, last: { x: position.x, y: position.y }, idle: null as Phaser.Time.TimerEvent | null }
   }
@@ -721,7 +784,8 @@ class TiledScene extends Phaser.Scene {
         near: Math.abs(person.at.x - player.position.x) <= 1 && Math.abs(person.at.y - player.position.y) <= 1,
         bounds: person.bounds,
       })) : []),
-      ...(this.current.landmarks ?? []).filter(landmark => this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
+      // A landmark with no inspect handler is scenery: an "Inspect" label that does nothing would mislead.
+      ...(this.onLandmark ? this.current.landmarks ?? [] : []).filter(landmark => landmark.interactive !== false && this.pointRevealed(landmark.position)).map((landmark) => ({ id: `landmark:${landmark.id}`, name: landmark.name, action: 'Inspect', priority: 15,
         near: playerRoom !== null && landmark.roomId === playerRoom,
         bounds: { x: landmark.position.x * T, y: landmark.position.y * T, width: 32, height: 32 } })),
     ]
@@ -778,15 +842,30 @@ class TiledScene extends Phaser.Scene {
     const player = this.markers.get('player')?.container
     const distance = (target: typeof targets[number]) => player
       ? Math.hypot(target.bounds.x + target.bounds.width / 2 - player.x, target.bounds.y + target.bounds.height / 2 - player.y) : Infinity
-    const focused = this.hoveredTarget ?? targets.filter((target) => target.near)
+    const discovery = this.current.interactionLabels === 'hover'
+    const focused = this.hoveredTarget ?? targets.filter((target) => discovery ? target.action && distance(target) <= T * 1.75 : target.near)
       .sort((a, b) => distance(a) - distance(b) || a.id.localeCompare(b.id))[0]?.id
+    this.interactionGlow?.clear()
+    for (const landmark of this.current.landmarks ?? []) {
+      if (!landmark.pulse || !landmark.interactive) continue
+      const alpha = this.reducedMotion ? 0.8 : 0.55 + Math.sin(this.time.now / 400) * 0.3
+      const x = landmark.position.x * T, y = landmark.position.y * T
+      this.interactionGlow?.lineStyle(2, 0xffd54a, alpha).strokeRoundedRect(x - 1, y - 1, 34, 34, 2)
+    }
+    const highlight = discovery ? targets.find((target) => target.id === focused && target.action) : undefined
+    if (highlight && this.interactionGlow) {
+      const { x, y, width, height } = highlight.bounds
+      // Layered gold halo works with tile stamps, documents and sprites alike, without changing their art.
+      for (const [padding, alpha] of [[3, 0.12], [2, 0.25], [1, 0.8]] as const)
+        this.interactionGlow.lineStyle(1.5, 0xffdf88, alpha).strokeRoundedRect(x - padding, y - padding, width + padding * 2, height + padding * 2, 3)
+    }
     const candidates = targets.map((target) => {
       let text = this.captions.get(target.id)
       if (!text) {
         text = this.add.text(0, 0, '', {
-          color: '#fff6df', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '7px', fontStyle: 'bold',
+          color: '#fff6df', fontFamily: 'system-ui, "Segoe UI", sans-serif', fontSize: '5.5px', fontStyle: 'bold',
           backgroundColor: '#29322f', padding: { x: 3, y: 2 }, resolution: 8,
-          wordWrap: { width: 76, useAdvancedWrap: true }, align: 'center',
+          wordWrap: { width: 64, useAdvancedWrap: true }, align: 'center',
         }).setDepth(60)
         this.captions.set(target.id, text)
       }
@@ -810,9 +889,11 @@ class TiledScene extends Phaser.Scene {
     })
     const roomBounds = this.labels.map((label) => label.getBounds())
     const doorBounds = this.current.map.doors.map((door) => ({ x: door.position.x * T, y: door.position.y * T, width: T, height: T }))
-    // Room names and speech bubbles are text too: no name tag may sit on top of them.
-    const placed = layoutMapLabels(candidates.filter((candidate) => overlaps(candidate.anchor, viewport, 0)), viewport,
-      [...doorBounds, ...targets.map((target) => target.bounds)], focused, [...roomBounds, ...(this.ambientLife?.bubbleBounds() ?? [])])
+    // Room names and speech bubbles are text too: no name tag may sit on top of them. Nor may one hide the
+    // player's own sprite, or a student standing just north of someone loses sight of themselves.
+    const playerBounds = player ? [{ x: player.x - 7, y: player.y - 8, width: 14, height: 16 }] : []
+    const placed = layoutMapLabels(candidates.filter((candidate) => (!discovery || candidate.id.startsWith('actor:') || candidate.id === focused) && overlaps(candidate.anchor, viewport, 0)), viewport,
+      [...doorBounds, ...targets.map((target) => target.bounds)], focused, [...roomBounds, ...(this.ambientLife?.bubbleBounds() ?? []), ...playerBounds])
     this.captionLines?.clear().lineStyle(0.5, 0xe1d1af, 0.7)
     for (const target of targets) {
       const text = this.captions.get(target.id)!
@@ -850,7 +931,11 @@ class TiledScene extends Phaser.Scene {
     const mapW = this.current.map.width * T
     const mapH = this.current.map.height * T
     const { width, height } = this.scale.gameSize
-    const zoom = this.cameraMode === 'overview' ? overviewZoom(width, mapW) : detailZoom(width, height, mapW, mapH)
+    const detail = scaledZoom(detailZoom(width, height, mapW, mapH, this.laptopFrames), this.zoomScale)
+    const zoom = this.cameraMode === 'overview'
+      ? overviewZoom(width, mapW)
+      : this.cameraMode === 'cover' ? coverZoom(width, height, mapW, mapH)
+      : this.fillViewport ? fillZoom(detail, width, height, mapW, mapH) : detail
     cam.setZoom(zoom)
     cam.setRoundPixels(true)
     if (mapW * zoom <= width && mapH * zoom <= height) {
@@ -1033,6 +1118,7 @@ class TiledScene extends Phaser.Scene {
     }
 
     for (const cue of snapshot.audio?.cues ?? []) {
+      if (snapshot.map.doorless && cue.id === 'door') continue
       if (this.playedCues.has(cue.key)) continue
       this.playedCues.add(cue.key)
       this.playSfx(cue.id, cue.id === 'step' ? 0.25 : 0.6)
