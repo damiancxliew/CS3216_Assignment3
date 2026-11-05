@@ -80,7 +80,7 @@
 .sourcesDone { background: var(--world-wash); color: var(--world); border-color: color-mix(in srgb, var(--world) 30%, transparent); }
 .sourcesDone:hover { background: color-mix(in srgb, var(--world) 18%, var(--surface)); }
 .sourcesDone:focus-visible { outline: 2px solid var(--world); outline-offset: 2px; }
-.sourcesDone:disabled { opacity: .5; cursor: not-allowed; }
+.sourcesDone:disabled { background: var(--surface-sunken); color: var(--ink-muted); border-color: var(--line); cursor: not-allowed; }
 .discard:hover { background: var(--danger-wash); }
 .discard:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
 .discard:disabled { opacity: .5; cursor: not-allowed; }

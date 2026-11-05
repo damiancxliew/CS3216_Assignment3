@@ -272,6 +272,12 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
           for (const mode of ["empty", "ready", "generating", "review"]) {
             await visit(mode, theme);
             expect(await page.getByRole("button", { name: "Discard brief", exact: true }).count()).toBe(mode === "empty" || mode === "ready" ? 1 : 0);
+            if (mode === "empty") {
+              const done = page.getByRole("button", { name: "All sources added", exact: true });
+              expect(await done.count()).toBe(1);
+              expect(await done.isVisible()).toBe(true);
+              expect(await done.isDisabled()).toBe(true);
+            }
             const send = page.getByRole("button", { name: "Send", exact: true });
             if (await send.count()) {
               const shape = await send.evaluate(node => {

@@ -187,13 +187,13 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
           </form>
         )}
         </div>
-        {sourcesStep && !compact && uploads && state.sources.length > 0 ? <div className={styles.composerActions}>
+        {sourcesStep && !compact && uploads ? <div className={styles.composerActions}>
           <button
             type="button"
             aria-label="All sources added"
             title="All sources added"
             className={styles.sourcesDone}
-            disabled={pending || generating || uploads.busy}
+            disabled={pending || generating || uploads.busy || state.sources.length === 0}
             onClick={() => send({ text: SOURCES_DONE })}
           ><Check size={18} aria-hidden /></button>
         </div> : null}
