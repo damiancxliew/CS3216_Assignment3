@@ -21,7 +21,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import { requireStaff, requireBriefingRow, runV3BriefTurn } from "@/lib/v3/brief/service";
 import type { BriefInputV3, BriefStateV3 } from "@/lib/v3/brief/schema";
-import { currentSlot } from "@/lib/v3/brief/schema";
+import { briefStateV3Schema, currentSlot } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
 import { allowKick, shouldKick } from "@/lib/v3/generation/heal";
@@ -182,10 +182,12 @@ export async function removeV3BriefSource(adventureId: string, sourceId: string)
     const state = context.row.state;
     // After "All sources added" the digest and proposals depend on this set.
     if (currentSlot(state.draft).name !== "sources") return { ok: false as const, error: "Sources can only be removed while you’re adding them." };
-    await defaultGenerationDeps().sources.removeUpload(adventureId, sourceId);
-    const next: BriefStateV3 = { ...state, sources: state.sources.filter((source) => source.id !== sourceId) };
-    await context.store.save(adventureId, next);
-    return { ok: true as const, state: next };
+    // Both writes must commit together; a failed brief save must retain the source text.
+    const { data, error } = await createAdminClient().rpc("remove_brief_source_v3", {
+      p_adventure_id: adventureId, p_owner_id: auth.userId, p_source_key: sourceId,
+    });
+    if (error) throw error;
+    return { ok: true as const, state: briefStateV3Schema.parse(data) };
   } catch (error) {
     console.error("could not remove v3 brief source", error);
     return { ok: false as const, error: "Couldn’t remove that source. Please try again." };

@@ -10,7 +10,12 @@ const h = vi.hoisted(() => ({
 vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn() }));
 vi.mock("@/lib/jobs/runner", () => ({ getJobs: vi.fn(), kickTick: vi.fn() }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: async (_name: string, args: { p_source_key: string }) => {
+  if (h.failSave) return { data: null, error: Error("private database error") };
+  h.documents = h.documents.filter(d => d.id !== args.p_source_key);
+  h.state = { ...h.state, sources: h.state.sources.filter(s => s.id !== args.p_source_key) };
+  return { data: structuredClone(h.state), error: null };
+} }) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/v3/generation/service", () => ({}));
 vi.mock("@/lib/v3/brief/store", () => ({ supabaseV3BriefStore: vi.fn() }));
@@ -30,7 +35,7 @@ vi.mock("@/lib/v3/generation/deps", () => ({ defaultGenerationDeps: () => ({ sou
     for (const { doc } of uploads) { h.documents = [...h.documents.filter((d) => d.id !== doc.id), doc]; }
   },
 } }) }));
-import { addV3BriefSource } from "@/app/v3/teacher/actions";
+import { addV3BriefSource, removeV3BriefSource } from "@/app/v3/teacher/actions";
 
 const token = "00000000-0000-4000-8000-000000000002";
 function form(uploadId: string | null = token) {
@@ -117,5 +122,31 @@ describe("brief upload queue boundary", () => {
     data.set("file", mode === "large" ? new File([new Uint8Array(15 * 1024 * 1024 + 1)], "large.txt", { type: "text/plain" }) : new File(["image"], "image.png", { type: "image/png" }));
     expect(await addV3BriefSource(h.state.adventureId, data)).toHaveProperty("error");
     expect(h.writes).toBe(0);
+  });
+});
+
+describe("brief source removal", () => {
+  it("keeps both source text and brief metadata if removal fails", async () => {
+    await addV3BriefSource(h.state.adventureId, form());
+    h.failSave = true;
+    expect(await removeV3BriefSource(h.state.adventureId, `upload-${token}`)).toHaveProperty("ok", false);
+    expect(h.state.sources).toHaveLength(1);
+    expect(h.documents).toHaveLength(1);
+  });
+  it("removes the source and metadata together and accepts a repeated removal", async () => {
+    await addV3BriefSource(h.state.adventureId, form());
+    expect(await removeV3BriefSource(h.state.adventureId, `upload-${token}`)).toHaveProperty("ok", true);
+    expect(h.state.sources).toHaveLength(0);
+    expect(h.documents).toHaveLength(0);
+    expect(await removeV3BriefSource(h.state.adventureId, `upload-${token}`)).toHaveProperty("ok", true);
+  });
+  it.each(["foreign", "unauthenticated", "sources complete"])("preserves source text for %s requests", async mode => {
+    await addV3BriefSource(h.state.adventureId, form());
+    if (mode === "foreign") h.owned = false;
+    else if (mode === "unauthenticated") h.authenticated = false;
+    else h.state.draft.sources = { summary: "Source summary", episodeProposal: "Singapore" };
+    expect(await removeV3BriefSource(h.state.adventureId, `upload-${token}`)).toHaveProperty("error");
+    expect(h.documents).toHaveLength(1);
+    expect(h.state.sources).toHaveLength(1);
   });
 });

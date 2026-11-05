@@ -18,7 +18,7 @@ The composer and source card accept PDF, TXT and Markdown drops while collecting
 
 Failed items remain available for retry or dismissal; successful uploads appear once in the source library. Each queued item retains an optional UUID `uploadId` across retries. The upload action encodes this in the existing source key (`upload-<UUID>`), allowing a lost response or partial document-save retry to reuse the source rather than create a second copy. Legacy action callers without a token retain their existing behavior. No persisted fields or schema validators change.
 
-The queue serializes one workspace. Source writes remain the existing document-save plus whole-brief update; simultaneous changes from separate tabs are not transactional. A refresh does not restore unsent browser File objects.
+The queue serializes one workspace. Uploads retain the existing document-save plus whole-brief update; simultaneous upload changes from separate tabs are not transactional. Removing a source deletes its stored text and updates the brief together in one database transaction; a failed removal retains both. A refresh does not restore unsent browser File objects.
 
 Eye buttons fetch the selected source only after authentication and authoring-access checks. The read action scopes its query by adventure and source keys and returns only title, kind and extracted pages. Source-card props contain metadata rather than eagerly serialized document text. Native dialogs preserve actual PDF page numbers, show text sources continuously, support retry and empty states, and restore trigger focus after dismissal. Original PDF bytes are not retained by the upload flow, so this is an extracted-text preview.
 
