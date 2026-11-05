@@ -35,6 +35,8 @@ export interface V3SourceStore {
   saveOutside(adventureId: string, sources: OutsideSource[], documents: ExtractedDocument[],
   ): Promise<void>;
   removeOutside(adventureId: string, ids: string[]): Promise<void>;
+  /** deletes one teacher upload (briefing only); idempotent */
+  removeUpload(adventureId: string, id: string): Promise<void>;
   /** copies every stored row (uploads and outside docs) to another adventure */
   copyUploads(fromId: string, toId: string): Promise<void>;
 }
@@ -275,6 +277,10 @@ export function supabaseV3SourceStore(getClient: () => SupabaseClient,
       const { error } = await getClient().from("sources_v3").delete().eq("adventure_id", adventureId).eq("origin", "outside").in("source_key", ids);
       if (error) throw error;
     },
+    async removeUpload(adventureId, id) {
+      const { error } = await getClient().from("sources_v3").delete().eq("adventure_id", adventureId).eq("origin", "upload").eq("source_key", id);
+      if (error) throw error;
+    },
     async copyUploads(fromId, toId) {
       const { data, error } = await getClient()
         .from("sources_v3")
@@ -448,6 +454,9 @@ export function memoryV3SourceStore() {
           (row) => !row.outside || !ids.includes(row.doc.id),
         ),
       );
+    },
+    async removeUpload(adventureId: string, id: string) {
+      rows.set(adventureId, (rows.get(adventureId) ?? []).filter((row) => row.outside || row.doc.id !== id));
     },
     async copyUploads(fromId: string, toId: string) {
       const list = rows.get(toId) ?? [];

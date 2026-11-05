@@ -21,6 +21,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import { requireStaff, requireBriefingRow, runV3BriefTurn } from "@/lib/v3/brief/service";
 import type { BriefInputV3, BriefStateV3 } from "@/lib/v3/brief/schema";
+import { currentSlot } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { dedupeUploadIds } from "@/lib/v3/generation/dedupe";
 import { allowKick, shouldKick } from "@/lib/v3/generation/heal";
@@ -127,33 +128,68 @@ export async function v3BriefTurn(adventureId: string, input: BriefInputV3) {
 
 /** Adds one uploaded or pasted source to a briefing, deduped against the ids already there. */
 export async function addV3BriefSource(adventureId: string, formData: FormData) {
-  const auth = await requireStaff();
-  if ("error" in auth) return auth;
-  const context = await requireBriefingRow(adventureId, auth.userId);
-  if (!context || context.row.status !== "briefing" || !context.row.state) return notFound;
-
-  const extracted = await extractUpload(formData);
-  if ("error" in extracted) return { ok: false as const, error: extracted.error };
-
-  const state = context.row.state;
-  const doc = dedupeUploadIds([
-    ...state.sources.map((source) => ({ doc: { id: source.id } as ExtractedDocument, storageKey: "" })),
-    extracted,
-  ]).at(-1)!.doc;
-
   try {
-    await defaultGenerationDeps().sources.saveUploads(adventureId, [{ doc, storageKey: extracted.storageKey }]);
+    const auth = await requireStaff();
+    if ("error" in auth) return auth;
+    const context = await requireBriefingRow(adventureId, auth.userId);
+    if (!context || context.row.status !== "briefing" || !context.row.state) return notFound;
+
+    const rawId = formData.get("uploadId");
+    if (rawId !== null && !z.string().uuid().safeParse(rawId).success) {
+      return { ok: false as const, error: "That upload could not be identified. Choose the file again." };
+    }
+    const sourceId = typeof rawId === "string" ? `upload-${rawId.toLowerCase()}` : null;
+    const state = context.row.state;
+    // The source key is the request token: a lost response can safely be retried.
+    if (sourceId && state.sources.some((source) => source.id === sourceId)) return { ok: true as const, state };
+    const sources = defaultGenerationDeps().sources;
+    const stored = await sources.load(adventureId);
+    const previous = sourceId ? stored.find((source) => source.id === sourceId) : undefined;
+    const sourceIds = new Set([...state.sources.map((source) => source.id), ...stored.map((source) => source.id)]);
+    if (!previous && sourceIds.size >= 20) return { ok: false as const, error: "You can add up to 20 sources. Start with the material already added." };
+
+    let doc = previous;
+    if (!doc) {
+      const extracted = await extractUpload(formData);
+      if ("error" in extracted) return { ok: false as const, error: extracted.error };
+      doc = sourceId ? { ...extracted.doc, id: sourceId } : dedupeUploadIds([
+        ...Array.from(sourceIds, (id) => ({ doc: { id } as ExtractedDocument, storageKey: "" })),
+        extracted,
+      ]).at(-1)!.doc;
+      await sources.saveUploads(adventureId, [{ doc, storageKey: extracted.storageKey }]);
+    }
+    // If a previous attempt saved the document but not the brief, reuse it.
+    const next: BriefStateV3 = {
+      ...state,
+      sources: [...state.sources, { id: doc.id, title: doc.title, kind: doc.kind === "pdf" ? "pdf" : "text" }],
+    };
+    await context.store.save(adventureId, next);
+    return { ok: true as const, state: next };
   } catch (error) {
     console.error("could not save v3 brief source", error);
     return { ok: false as const, error: "Couldn’t save that source. Please try again." };
   }
+}
 
-  const next: BriefStateV3 = {
-    ...state,
-    sources: [...state.sources, { id: doc.id, title: doc.title, kind: doc.kind === "pdf" ? "pdf" : "text" }],
-  };
-  await context.store.save(adventureId, next);
-  return { ok: true as const, state: next };
+/** Removes one uploaded source while the teacher is still adding sources. Idempotent. */
+export async function removeV3BriefSource(adventureId: string, sourceId: string) {
+  try {
+    const auth = await requireStaff();
+    if ("error" in auth) return auth;
+    if (typeof sourceId !== "string" || !sourceId) return notFound;
+    const context = await requireBriefingRow(adventureId, auth.userId);
+    if (!context || context.row.status !== "briefing" || !context.row.state) return notFound;
+    const state = context.row.state;
+    // After "All sources added" the digest and proposals depend on this set.
+    if (currentSlot(state.draft).name !== "sources") return { ok: false as const, error: "Sources can only be removed while you’re adding them." };
+    await defaultGenerationDeps().sources.removeUpload(adventureId, sourceId);
+    const next: BriefStateV3 = { ...state, sources: state.sources.filter((source) => source.id !== sourceId) };
+    await context.store.save(adventureId, next);
+    return { ok: true as const, state: next };
+  } catch (error) {
+    console.error("could not remove v3 brief source", error);
+    return { ok: false as const, error: "Couldn’t remove that source. Please try again." };
+  }
 }
 
 export async function discardV3Brief(adventureId: string) {
@@ -201,8 +237,7 @@ export async function restartV3Generation(adventureId: string) {
 export async function saveV3SkeletonDraft(adventureId: string, draft: unknown) {
   const auth = await requireStaff();
   if ("error" in auth) return auth;
-  const result = await saveSkeletonDraft(defaultGenerationDeps(), auth.userId, adventureId, draft);
-  return "ok" in result ? { ok: true as const, savedAt: new Date().toISOString() } : result;
+  return saveSkeletonDraft(defaultGenerationDeps(), auth.userId, adventureId, draft);
 }
 
 /** Reverts to the generated skeleton by clearing the saved draft. */

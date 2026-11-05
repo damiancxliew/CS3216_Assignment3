@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Plus, Trash2, Pencil, Check as CheckIcon } from "lucide-react";
+import { ChevronRight, Plus, Undo2, Trash2, Pencil, Check as CheckIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
@@ -9,15 +9,18 @@ import type { CheckIssue, SkeletonShape } from "@adventure/spec-v3";
 
 import { button, compactButton, control, ErrorText, Section, StableLabel } from "@/components/ui";
 import { addItem, dependentsOf, issuesAt, removeItem, type AddKind, type Ref } from "@/lib/v3/skeleton-edit";
+import { reviewIssueMessage } from "@/lib/v3/review-presentation";
 
 import { approveV3Skeleton, discardV3SkeletonDraft, saveV3SkeletonDraft, getV3GenerationProgress } from "../actions";
 import { ReviewToolbar } from "./review-toolbar";
 import { AiFixPanel } from "./review/ai-fix-panel";
+import { IssueList } from "./review/issue-list";
 import { fixSkeletonWithAiAction } from "./pause-actions";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
 import { ConfirmButton } from "./confirm-button";
 import { useReviewChatTarget } from "./review-chat-context";
-import { reviewToolbar, reviewPrimary, reviewEdit } from "./creation-styles";
+import { reviewPrimary, reviewEdit, reviewDiscard } from "./creation-styles";
+import { OutlineSummary } from "./outline-summary";
 
 type Draft = SkeletonShape;
 type Moment = Draft["definingMoments"][number];
@@ -30,11 +33,18 @@ function friendlyMessage(issue: CheckIssue): string {
       return "This quote isn't in the source it cites";
     case "ref":
       return "This cites a source that doesn't exist";
-    case "schema":
-      return issue.message;
     default:
       return issue.message;
   }
+}
+
+/** reviewIssueMessage's catch-all; the skeleton's own wording is better than it. */
+const UNEXPLAINED = reviewIssueMessage({ code: "", path: "", message: "" });
+
+/** Teacher-facing issue sentence for the list: shared wording when the code is known, never a raw path. */
+function issueMessage(issue: CheckIssue): string {
+  const shared = reviewIssueMessage(issue);
+  return shared === UNEXPLAINED ? friendlyMessage(issue) : shared;
 }
 
 /**
@@ -44,13 +54,12 @@ function friendlyMessage(issue: CheckIssue): string {
  * when they carry errors or were just added. Continue is blocked while errors
  * remain.
  */
-export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false }: { adventureId: string; initial: SkeletonShape; hasDraft: boolean; compact?: boolean }) {
+export function SkeletonEditor({ adventureId, initial, hasDraft }: { adventureId: string; initial: SkeletonShape; hasDraft: boolean }) {
   const [draft, setDraft] = useState<Draft>(initial);
-  const [editing, setEditing] = useState(!compact);
+  const [editing, setEditing] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [addedPaths, setAddedPaths] = useState<Set<string>>(new Set());
   const [saveState, setSaveState] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [showIssues, setShowIssues] = useState(false);
   const [discardPending, startDiscard] = useTransition();
   const [continuePending, startContinue] = useTransition();
@@ -86,7 +95,6 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
     if ("ok" in result) {
       pendingRef.current = null;
       setSaveState("saved");
-      setSavedAt(new Date(result.savedAt));
       return;
     }
     setSaveState("error");
@@ -155,6 +163,26 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
 
   const isOpen = (path: string, issueCount: number) => open[path] ?? (issueCount > 0 || addedPaths.has(path));
 
+  const discardConfirm = () =>
+    startDiscard(async () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      inFlight.current += 1;
+      attemptRef.current += 1;
+      pendingRef.current = null;
+      try {
+        await Promise.allSettled([...saving.current]);
+        const result = await discardV3SkeletonDraft(adventureId);
+        if ("error" in result) { setContinueError("Couldn't discard edits. Please try again."); return; }
+        const progress = await getV3GenerationProgress(adventureId);
+        const generated = validateSkeleton("error" in progress ? undefined : progress.skeleton);
+        if (!generated.ok) { setContinueError("Couldn't reload the generated skeleton. Please try again."); return; }
+        setDraft(generated.spec);
+        setSaveState("idle");
+        setServerIssues([]);
+        router.refresh();
+      } catch { setContinueError("Couldn't discard edits. Please try again."); }
+    });
+
   const continueConfirm = () =>
     startContinue(async () => {
       setContinueError(null);
@@ -193,82 +221,59 @@ export function SkeletonEditor({ adventureId, initial, hasDraft, compact = false
 
   const momentOf = (stage: Stage): Moment | undefined => draft.definingMoments.find((m) => m.id === stage.definingMomentId);
   const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
-  const fixPanel = <AiFixPanel<{ skeleton: SkeletonShape }> floating={false} inToolbar={compact} hasIssues={errors.length + warnings.length > 0} revision={JSON.stringify(draft)} disabled={continuePending || discardPending} request={() => fixSkeletonWithAiAction(adventureId, draft)} apply={proposal => update(proposal.skeleton)} />;
+  const fixPanel = <AiFixPanel<{ skeleton: SkeletonShape }> hasIssues={errors.length + warnings.length > 0} revision={JSON.stringify(draft)} disabled={continuePending || discardPending} request={() => fixSkeletonWithAiAction(adventureId, draft)} apply={proposal => update(proposal.skeleton)} />;
+  const issueToggle = errors.length + warnings.length > 0 ? (
+    <button type="button" onClick={() => setShowIssues((v) => !v)} className={compactButton.subtle} aria-expanded={showIssues}>
+      <StableLabel label={`${errors.length} error${errors.length === 1 ? "" : "s"} · ${warnings.length} warning${warnings.length === 1 ? "" : "s"}`} pending={false} pendingLabel="" />
+    </button>
+  ) : null;
+  const saveStatus = saveState === "saving" || saveState === "dirty" || saveState === "error" ? (
+    <span className="text-sm text-muted" role="status">
+      {saveState === "error" ? "Couldn't save — retrying" : "Saving…"}
+    </span>
+  ) : null;
 
   return (
     <fieldset disabled={continuePending || discardPending} aria-label="Skeleton review" className="min-w-0 flex flex-col gap-4">
       {/* Review actions stay beside the cards. */}
-      <ReviewToolbar floating={compact} disabled={continuePending || discardPending} className={compact ? reviewToolbar : "sticky top-0 z-30 -mx-2 flex flex-wrap items-center gap-3 border-b border-line bg-paper/95 px-2 py-3 backdrop-blur"}>
-        <button type="button" onClick={() => setShowIssues((v) => !v)} className={compact ? compactButton.subtle : `${button.subtle} text-sm`} aria-expanded={showIssues}>
-          <StableLabel label={`${errors.length} error${errors.length === 1 ? "" : "s"} · ${warnings.length} warning${warnings.length === 1 ? "" : "s"}`} pending={false} pendingLabel="" />
-        </button>
-        <span className="text-sm text-muted" role="status">
-          {saveState === "saving" ? "Saving…" : saveState === "saved" && savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : saveState === "error" ? "Couldn't save — retrying" : saveState === "dirty" ? "Saving…" : hasDraft ? "Draft restored" : "No unsaved changes"}
-        </span>
-        <div className={compact ? "contents" : "ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto"}>
+      <ReviewToolbar
+        disabled={continuePending || discardPending}
+        discard={
           <ConfirmButton
-            label={compact ? "Discard" : "Discard my edits"}
+            label={<Undo2 aria-hidden size={16} />}
             ariaLabel="Discard my edits"
-            className={compact ? compactButton.subtle : button.subtle}
-            pendingLabel="Discarding…"
+            className={reviewDiscard}
+            pendingLabel=""
             title="Discard your edits?"
             body="This restores the generated outline and removes your changes."
             confirmLabel="Discard edits"
             pending={discardPending}
-            onConfirm={() =>
-              startDiscard(async () => {
-                if (timerRef.current) clearTimeout(timerRef.current);
-                inFlight.current += 1;
-                attemptRef.current += 1;
-                pendingRef.current = null;
-                try {
-                  await Promise.allSettled([...saving.current]);
-                  const result = await discardV3SkeletonDraft(adventureId);
-                  if ("error" in result) { setContinueError("Couldn't discard edits. Please try again."); return; }
-                  const progress = await getV3GenerationProgress(adventureId);
-                  const generated = validateSkeleton("error" in progress ? undefined : progress.skeleton);
-                  if (!generated.ok) { setContinueError("Couldn't reload the generated skeleton. Please try again."); return; }
-                  setDraft(generated.spec);
-                  setSaveState("idle");
-                  setSavedAt(null);
-                  setServerIssues([]);
-                  router.refresh();
-                } catch { setContinueError("Couldn't discard edits. Please try again."); }
-              })
-            }
+            onConfirm={discardConfirm}
           />
+        }
+        primary={
           <ConfirmButton
-            label={compact ? "Continue" : "Continue generation"}
+            label="Continue"
             ariaLabel="Continue generation"
             pendingLabel="Continuing…"
             title="Continue generation?"
             body="The next step will use this outline, including your changes."
             confirmLabel="Continue"
-            className={compact ? reviewPrimary : button.primary}
+            className={reviewPrimary}
             disabled={errors.length > 0 || continuePending}
             pending={continuePending}
             onConfirm={continueConfirm}
           />
-        </div>
-        {compact ? fixPanel : null}
-      </ReviewToolbar>
-      {!compact ? fixPanel : null}
+        }
+        summary={issueToggle || saveStatus ? <>{issueToggle}{saveStatus}</> : null}
+        resolve={fixPanel}
+      />
+      {hasDraft && saveState === "idle" ? <p role="status" className="text-sm">Saved edits restored.</p> : null}
       {continueError ? <ErrorText>{continueError}</ErrorText> : null}
-      {showIssues ? (
-        <ul className="flex flex-col gap-1 rounded-surface border-2 border-line bg-sunken p-4 text-sm">
-          {[...errors, ...warnings].map((issue, i) => (
-            <li key={i}>
-              <button type="button" onClick={() => openTo(issue.path)} className="text-left underline decoration-dotted underline-offset-2">
-                <span className={i < errors.length ? "text-record" : "text-muted"}>{issue.path || "(top)"} — {issue.message}</span>
-              </button>
-            </li>
-          ))}
-          {errors.length === 0 && warnings.length === 0 ? <li className="text-muted">No issues.</li> : null}
-        </ul>
-      ) : null}
+      {showIssues ? <IssueList issues={errors} warnings={warnings} onSelect={(issue) => openTo(issue.path)} message={issueMessage} /> : null}
 
-      {compact ? <section className="creation-card rounded-surface border border-line-strong bg-surface p-5" aria-label="Adventure plan" data-review-card><div className="mb-3 flex items-center justify-between gap-3"><h2 className="text-lg font-extrabold tracking-tight">{draft.title}</h2><button type="button" className={reviewEdit} aria-expanded={editing} onClick={() => setEditing(!editing)}>{editing ? <CheckIcon size={14} aria-hidden /> : <Pencil size={14} aria-hidden />}{editing ? "Done" : "Edit plan"}</button></div><p className="text-sm leading-relaxed">{draft.arc}</p><ol className="mt-4 list-decimal space-y-3 pl-5 text-sm">{draft.stages.map(stage => <li key={stage.id}><span className="font-semibold">{stage.title}</span><p className="text-muted">{stage.centralQuestion}</p></li>)}</ol><p className="mt-4 text-xs text-muted">{draft.characters.length} characters · {draft.documents.length} documents · {draft.endings.length} endings</p></section> : null}
-      {editing ? <div className={compact ? "creation-card space-y-6 rounded-surface border border-line-strong bg-surface p-5 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0" : "space-y-8"}>
+      <OutlineSummary skeleton={draft} action={<button type="button" className={reviewEdit} aria-expanded={editing} onClick={() => setEditing(!editing)}>{editing ? <CheckIcon size={14} aria-hidden /> : <Pencil size={14} aria-hidden />}{editing ? "Done" : "Edit plan"}</button>} />
+      {editing ? <div className="creation-card space-y-6 rounded-surface border border-line-strong bg-surface p-5 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0">
       {/* 1. Overview — always expanded */}
       <Section title="Overview">
         <ItemIssues issues={issuesAt(errors, "title")} />
@@ -711,7 +716,7 @@ function ItemIssues({ issues }: { issues: CheckIssue[] }) {
   return (
     <ul className="flex flex-col gap-0.5 text-sm text-record">
       {issues.map((issue, i) => (
-        <li key={i}>{issue.path ? `${issue.path} — ` : ""}{issue.message}</li>
+        <li key={i}>{issueMessage(issue)}</li>
       ))}
     </ul>
   );

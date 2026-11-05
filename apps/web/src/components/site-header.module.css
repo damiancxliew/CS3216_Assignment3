@@ -1,0 +1,19 @@
+.header { container-type: inline-size; position: relative; }
+.header .brand { flex: 1 1 auto; min-width: 0; }
+.navigation, .account { flex-shrink: 0; }
+.links { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.dropdown { display: none; position: relative; }
+.navigationPanel { position: absolute; right: 0; top: 100%; z-index: 60; display: flex; flex-direction: column; gap: 4px; width: 192px; max-width: calc(100vw - 32px); margin-top: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: 0 4px 16px #00000020; }
+.navigationPanel a { justify-content: flex-start; border-color: transparent; }
+.navigationPanel a[aria-current="page"] { background: var(--surface-sunken); }
+@container (max-width: 1120px) {
+  .links { display: none; }
+  .dropdown { display: block; }
+}
+@container (max-width: 760px) {
+  .account .accountDetails, .account .accountRole { display: none; }
+}
+@container (max-width: 480px) {
+  .header .dropdown, .header .account { position: static; }
+  .navigationPanel, .accountMenu { left: 16px; right: 16px; width: auto; max-width: none; }
+}

@@ -1,13 +1,14 @@
 "use client";
+import { Undo2 } from "lucide-react";
 import { sourceFailureLabel } from "@adventure/generation/sources-labels";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   type AdventureSpec as Spec,
   type CheckIssue,
 } from "@adventure/spec-v3";
 import { compactButton as button } from "@/components/ui";
-import type { PauseView, GuidedPass } from "@/lib/v3/generation/service";
+import type { PauseView } from "@/lib/v3/generation/service";
 import {
   applyV3Edits,
   type V3Edit,
@@ -15,7 +16,6 @@ import {
 } from "@/lib/v3/edit/commands";
 import { newLocalErrors } from "@/lib/v3/edit/local-checks";
 import { safeSourceUrl } from "@/lib/v3/review";
-import { reviewIssueMessage } from "@/lib/v3/review-presentation";
 import {
   retrySourcesAction,
   saveSourceSelectionAction,
@@ -25,38 +25,16 @@ import {
   fixPauseEditsWithAiAction,
 } from "./pause-actions";
 import { ReviewToolbar } from "./review-toolbar";
+import { ConfirmButton } from "./confirm-button";
 import { AiFixPanel } from "./review/ai-fix-panel";
 import { PauseContentCards } from "./review/pause-content-cards";
 import { ExistingIssues } from "./review/existing-issues";
+import { IssueList } from "./review/issue-list";
 import { useUnsavedEdits } from "./review/use-unsaved-edits";
 import { useReviewChatTarget } from "./review-chat-context";
-import { reviewPrimary } from "./creation-styles";
+import { reviewDiscard, reviewPrimary } from "./creation-styles";
+import styles from "./creation-workspace.module.css";
 
-const steps: GuidedPass[] = [
-  "sources",
-  "skeleton",
-  "details",
-  "endings",
-  "reveal",
-];
-export function GuidedSteps({ pass }: { pass: GuidedPass }) {
-  return (
-    <nav aria-label="Guided generation" className="mb-6">
-      <ol className="flex flex-wrap gap-3 text-sm">
-        {steps.map((step, i) => (
-          <li
-            key={step}
-            aria-current={step === pass ? "step" : undefined}
-            className={step === pass ? "font-bold text-ink" : "text-muted"}
-          >
-            {i + 1}. {step[0].toUpperCase() + step.slice(1)}
-            {step === pass ? " · Review now" : ""}
-          </li>
-        ))}
-      </ol>
-    </nav>
-  );
-}
 export function SourcesReview({
   adventureId,
   pause,
@@ -67,6 +45,7 @@ export function SourcesReview({
   const [removed, setRemoved] = useState<string[]>(pause.excluded ?? []);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
+  const saveSeq = useRef(0);
   const router = useRouter();
   useEffect(() => {
     if (!pause.importing) return;
@@ -76,37 +55,51 @@ export function SourcesReview({
   const busy = pending || !!pause.importing;
   useUnsavedEdits(pending);
   const empty = pause.uploads.length + pause.outside.length === removed.length;
+  /** Background save: only the latest selection's outcome is shown. */
+  const select = (next: string[]) => {
+    setRemoved(next);
+    const seq = ++saveSeq.current;
+    saveSourceSelectionAction(adventureId, next)
+      .then((result) => {
+        if (seq === saveSeq.current) setMessage("error" in result ? result.error! : "");
+      })
+      .catch(() => {
+        if (seq === saveSeq.current) setMessage("Could not save source selection. Try again before reloading.");
+      });
+  };
   useReviewChatTarget({
     key: "sources",
     revision: JSON.stringify(removed),
     pending,
     input: { pass: "sources", removedSourceIds: removed },
     apply: (proposal) => {
-      if (proposal.pass === "sources") {
-        setRemoved(proposal.removedSourceIds);
-        void saveSourceSelectionAction(adventureId, proposal.removedSourceIds).then(result => {
-          if ("error" in result) setMessage(result.error!);
-        }).catch(() => setMessage("Could not save source selection. Try again before reloading."));
-      }
+      if (proposal.pass === "sources") select(proposal.removedSourceIds);
     },
   });
+  const continueGeneration = async () => {
+    saveSeq.current += 1; // the continue call is authoritative for the selection
+    setPending(true);
+    setMessage("");
+    try {
+      const result = await continueFromSourcesAction(adventureId, removed);
+      if ("error" in result) setMessage(result.error);
+      else router.refresh();
+    } catch {
+      setMessage("Could not continue. Your selection is still here. Try again.");
+    } finally {
+      setPending(false);
+    }
+  };
+  const uploads = pause.uploads.length;
   return (
-    <div
-      className="creation-card space-y-6 rounded-surface border-2 border-ink bg-surface p-5 sm:p-6"
-      aria-busy={pending}
-    >
+    <div className={`${styles.card} space-y-6`} aria-busy={pending}>
+      {uploads ? (
+        <p className="text-sm text-muted">
+          Your {uploads === 1 ? "upload is" : `${uploads} uploads are`} always included.
+        </p>
+      ) : null}
       <section className="space-y-3">
-        <h2 className="text-lg font-extrabold">Uploads</h2>
-        <p className="text-sm text-muted">These are always included.</p>
-        <ul className="space-y-2">
-          {pause.uploads.map((source) => (
-            <li key={source.id}>{source.title} · Included</li>
-          ))}
-        </ul>
-        {!pause.uploads.length ? <p>No uploads.</p> : null}
-      </section>
-      <section className="space-y-3">
-        <h2 className="text-lg font-extrabold">Outside sources</h2>
+        <h3 className="text-base font-bold">Outside sources</h3>
         <p className="text-sm">Uncheck any you don’t want to use.</p>
         {pause.outside.map((source) => (
           <div
@@ -119,16 +112,13 @@ export function SourcesReview({
                 className="m-0 mt-1 h-4 w-4 accent-record"
                 checked={!removed.includes(source.id)}
                 disabled={busy}
-                onChange={async (event) => {
-                  const next = event.target.checked ? removed.filter(id => id !== source.id) : [...removed, source.id];
-                  setRemoved(next);
-                  setPending(true);
-                  try {
-                    const result = await saveSourceSelectionAction(adventureId, next);
-                    if ("error" in result) setMessage(result.error!);
-                  } catch { setMessage("Could not save source selection. Retry before reloading."); }
-                  finally { setPending(false); }
-                }}
+                onChange={(event) =>
+                  select(
+                    event.target.checked
+                      ? removed.filter((id) => id !== source.id)
+                      : [...removed, source.id],
+                  )
+                }
               />
               <span className="break-words">{source.title}</span>
             </label>
@@ -146,31 +136,30 @@ export function SourcesReview({
         ))}
         {!pause.outside.length ? <p>{pause.noResults ? "Search found no sources." : "No outside sources were imported."}</p> : null}
       </section>
-      <details className="space-y-3">
-        <summary className="cursor-pointer font-bold">Couldn’t import {pause.rejected.length} sources</summary>
-        <ul className="space-y-2 text-sm">
-          {pause.rejected.map((source, index) => (
-            <li key={index} className="break-words">
-              {safeSourceUrl(source.url) ? (
-                <a
-                  className="text-record underline decoration-record/40 underline-offset-4 hover:decoration-record"
-                  href={safeSourceUrl(source.url)!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {source.url}
-                </a>
-              ) : (
-                source.url
-              )}
-              <p className="mt-1 text-muted">{sourceFailureLabel(source.reason)}</p>
-            </li>
-          ))}
-        </ul>
-        {!pause.rejected.length ? (
-          <p className="text-sm text-muted">{pause.noResults ? "Search found no sources." : "No import failures."}</p>
-        ) : null}
-      </details>
+      {pause.rejected.length ? (
+        <details className="space-y-3">
+          <summary className="cursor-pointer font-bold">Couldn’t import {pause.rejected.length} sources</summary>
+          <ul className="space-y-2 text-sm">
+            {pause.rejected.map((source, index) => (
+              <li key={index} className="break-words">
+                {safeSourceUrl(source.url) ? (
+                  <a
+                    className="text-record underline decoration-record/40 underline-offset-4 hover:decoration-record"
+                    href={safeSourceUrl(source.url)!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {source.url}
+                  </a>
+                ) : (
+                  source.url
+                )}
+                <p className="mt-1 text-muted">{sourceFailureLabel(source.reason)}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
       <button type="button" className={button.subtle} disabled={busy} onClick={async () => {
         setPending(true); setMessage("");
         try {
@@ -182,36 +171,33 @@ export function SourcesReview({
       }}>{pause.importing ? "Importing sources…" : "Retry search"}</button>
       {empty ? <p role="alert">Keep at least one source.</p> : null}
       {message ? <p role="alert">{message}</p> : null}
-      <ReviewToolbar>
-        <button
-          className={reviewPrimary}
-          aria-label="Continue generation"
-          disabled={busy || empty}
-          onClick={async () => {
-            setPending(true);
-            setMessage("");
-            try {
-              const result = await continueFromSourcesAction(
-                adventureId,
-                removed,
-              );
-              if ("error" in result) setMessage(result.error);
-              else router.refresh();
-            } catch {
-              setMessage(
-                "Could not continue. Your selection is still here. Try again.",
-              );
-            } finally {
-              setPending(false);
-            }
-          }}
-        >
-          {pending ? "Continuing…" : "Continue"}
-        </button>
-      </ReviewToolbar>
+      <ReviewToolbar
+        primary={
+          <ConfirmButton
+            label="Continue"
+            ariaLabel="Continue generation"
+            pendingLabel="Continuing…"
+            title="Continue to the story outline?"
+            body="The outline is planned from the sources you keep. You can’t change the selection afterwards."
+            confirmLabel="Continue"
+            className={reviewPrimary}
+            disabled={busy || empty}
+            pending={pending}
+            onConfirm={() => void continueGeneration()}
+          />
+        }
+      />
     </div>
   );
 }
+
+const continueBody = {
+  details: "The endings are written from these scenes, including your changes.",
+  endings: "The reveal is written from these decisions and endings, including your changes.",
+  reveal: "We’ll check the story and save your draft, including your changes.",
+} as const;
+
+const AUTOSAVE_DELAY = 1_000;
 
 type EditablePause = Extract<PauseView, { base: Spec }>;
 export function PauseEditor({
@@ -224,7 +210,6 @@ export function PauseEditor({
   sources: CapturedSource[];
 }) {
   const [edits, setEdits] = useState<V3Edit[]>(pause.edits);
-  const [checkpoint, setCheckpoint] = useState<V3Edit[]>(pause.edits);
   const [draft, setDraft] = useState(() =>
     applyV3Edits(pause.base, pause.edits, sources, true),
   );
@@ -233,16 +218,65 @@ export function PauseEditor({
     pause.edits.length ? "Saved edits restored." : "",
   );
   const [serverErrors, setServerErrors] = useState<CheckIssue[]>([]);
+  const [saveState, setSaveState] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
   const router = useRouter();
-  const dirty = JSON.stringify(edits) !== JSON.stringify(checkpoint);
-  useUnsavedEdits(dirty);
   const errors = [...newLocalErrors(pause.base, draft), ...serverErrors];
-  const replace = (next: V3Edit[]) => {
+
+  // --- autosave: debounced, latest response wins -----------------------------
+  const savedRef = useRef(JSON.stringify(pause.edits)); // what the server holds
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveSeq = useRef(0);
+  const outstanding = useRef(0);
+  useUnsavedEdits(saveState === "dirty" || saveState === "saving" || saveState === "error");
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    saveSeq.current += 1;
+  }, []);
+  const cancelAutosave = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    saveSeq.current += 1;
+  };
+  const save = async (target: V3Edit[]) => {
+    const seq = ++saveSeq.current;
+    outstanding.current += 1;
+    setSaveState("saving");
     try {
-      setDraft(applyV3Edits(pause.base, next, sources, true));
+      const result = await savePauseEditsAction(adventureId, pause.pass, target);
+      if (result.ok) savedRef.current = JSON.stringify(target);
+      if (seq !== saveSeq.current) return; // a newer edit won
+      if (result.ok) setSaveState("saved");
+      else {
+        setServerErrors(result.errors);
+        setSaveState("error");
+        setMessage("These edits add errors. Fix them to save.");
+      }
+    } catch {
+      if (seq === saveSeq.current) setSaveState("error");
+    } finally {
+      outstanding.current -= 1;
+    }
+  };
+  const schedule = (next: V3Edit[], nextDraft: Spec, delay: number) => {
+    cancelAutosave();
+    if (JSON.stringify(next) === savedRef.current && !outstanding.current) {
+      setSaveState("idle");
+      return;
+    }
+    setSaveState("dirty");
+    if (newLocalErrors(pause.base, nextDraft).length) return; // saves once fixed
+    if (delay === 0) void save(next);
+    else timerRef.current = setTimeout(() => void save(next), delay);
+  };
+
+  const replace = (next: V3Edit[], delay = AUTOSAVE_DELAY) => {
+    try {
+      const nextDraft = applyV3Edits(pause.base, next, sources, true);
+      setDraft(nextDraft);
       setEdits(next);
       setServerErrors([]);
       setMessage("");
+      schedule(next, nextDraft, delay);
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not apply edits.",
@@ -262,99 +296,85 @@ export function PauseEditor({
   const edit = (command: V3Edit) => {
     if (!pending) replace([...edits, command]);
   };
-  const submit = async (advance: boolean) => {
+  const continueGeneration = async () => {
     if (errors.length) return;
+    cancelAutosave(); // continue sends the edits itself
     setPending(true);
     setMessage("");
     try {
-      if (advance) {
-        const result = await continuePauseAction(
-          adventureId,
-          pause.pass,
-          edits,
-        );
-        if ("error" in result) {
-          setMessage(result.error);
-          setServerErrors("issues" in result ? (result.issues ?? []) : []);
-        } else {
-          setCheckpoint(edits);
-          router.refresh();
-        }
+      const result = await continuePauseAction(adventureId, pause.pass, edits);
+      if ("error" in result) {
+        setMessage(result.error);
+        const issues = "issues" in result ? (result.issues ?? []) : [];
+        setServerErrors(issues);
+        if (issues.length) setSaveState("error");
+        else schedule(edits, draft, AUTOSAVE_DELAY);
       } else {
-        const result = await savePauseEditsAction(
-          adventureId,
-          pause.pass,
-          edits,
-        );
-        if (result.ok) {
-          setCheckpoint(edits);
-          setMessage("Edits saved.");
-        } else {
-          setServerErrors(result.errors);
-          setMessage(
-            "These edits add errors. Fix them before saving or continuing.",
-          );
-        }
+        savedRef.current = JSON.stringify(edits);
+        setSaveState("idle");
+        router.refresh();
       }
     } catch {
       setMessage("Request failed. Your local edits are still here. Try again.");
+      schedule(edits, draft, AUTOSAVE_DELAY);
     } finally {
       setPending(false);
     }
   };
+  const status =
+    saveState === "dirty" || saveState === "saving"
+      ? "Saving…"
+      : saveState === "error"
+        ? "Couldn’t save"
+        : null;
   return (
     <div className="space-y-5" aria-busy={pending}>
-      <ReviewToolbar>
-        <button
-          type="button"
-          className={button.quiet}
-          disabled={pending || errors.length > 0 || !dirty}
-          onClick={() => void submit(false)}
-        >
-          Save
-        </button>
-        <button
-          type="button"
-          className={button.subtle}
-          aria-label="Discard unsaved edits"
-          disabled={pending || !dirty}
-          onClick={() => {
-            if (
-              window.confirm(
-                "Discard unsaved edits and restore your last save?",
-              )
-            ) {
-              replace(checkpoint);
-              setMessage("Last saved edits restored.");
+      <ReviewToolbar
+        discard={
+          <ConfirmButton
+            label={<Undo2 aria-hidden size={16} />}
+            ariaLabel="Discard my edits"
+            title="Discard your edits?"
+            body="This restores the generated content for this step and removes your changes."
+            confirmLabel="Discard edits"
+            className={reviewDiscard}
+            disabled={pending || edits.length === 0}
+            onConfirm={() => replace([], 0)}
+          />
+        }
+        primary={
+          <ConfirmButton
+            label="Continue"
+            ariaLabel="Continue generation"
+            pendingLabel="Continuing…"
+            title="Continue generation?"
+            body={continueBody[pause.pass]}
+            confirmLabel="Continue"
+            className={reviewPrimary}
+            disabled={pending || errors.length > 0}
+            pending={pending}
+            onConfirm={() => void continueGeneration()}
+          />
+        }
+        summary={
+          status ? (
+            <span role="status" className="text-sm text-muted">
+              {status}
+            </span>
+          ) : null
+        }
+        resolve={
+          <AiFixPanel<{ edits: V3Edit[] }>
+            hasIssues={errors.length + pause.errors.length + pause.warnings.length > 0}
+            revision={JSON.stringify(edits)}
+            disabled={pending}
+            request={() =>
+              fixPauseEditsWithAiAction(adventureId, pause.pass, edits)
             }
-          }}
-        >
-          Discard
-        </button>
-        <button
-          type="button"
-          className={reviewPrimary}
-          aria-label="Continue generation"
-          disabled={pending || errors.length > 0}
-          onClick={() => void submit(true)}
-        >
-          {pending ? "Working…" : "Continue"}
-        </button>
-        <span className="text-sm text-muted">
-          {dirty ? "Unsaved edits" : "All edits saved"}
-        </span>
-        <AiFixPanel<{ edits: V3Edit[] }>
-          floating={false}
-          inToolbar
-          hasIssues={errors.length + pause.errors.length > 0}
-          revision={JSON.stringify(edits)}
-          disabled={pending}
-          request={() =>
-            fixPauseEditsWithAiAction(adventureId, pause.pass, edits)
-          }
-          apply={(proposal) => replace(proposal.edits)}
-        />
-      </ReviewToolbar>
+            apply={(proposal) => replace(proposal.edits)}
+          />
+        }
+      />
       {message ? (
         <p role="status" className="text-sm">
           {message}
@@ -362,29 +382,8 @@ export function PauseEditor({
       ) : null}
 
       <ExistingIssues issues={pause.errors} />
-      <div aria-live="polite">
-        {errors.length ? (
-          <p role="alert">
-            {errors.length === 1
-              ? "One issue needs attention"
-              : `${errors.length} issues need attention`}{" "}
-            before you can save or continue.
-          </p>
-        ) : null}
-      </div>
+      <IssueList issues={errors} />
       <fieldset disabled={pending} className="min-w-0">
-        {errors.length ? (
-          <section
-            className="mb-4 rounded-surface border border-signal/40 bg-surface p-4"
-            aria-label="Issues to resolve"
-          >
-            <ul className="list-disc space-y-2 pl-4 text-sm">
-              {errors.map((issue, index) => (
-                <li key={index}>{reviewIssueMessage(issue)}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
         <PauseContentCards
           pass={pause.pass}
           draft={draft}
