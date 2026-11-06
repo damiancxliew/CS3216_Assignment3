@@ -738,7 +738,7 @@ export function ReviewScreen({
                               <p key={person.characterId}>{name(person.characterId)}: discuss {person.discoveryIds.map(name).join("; ")}</p>
                             ))}
                           </Field>
-                          <p className="text-sm text-muted">Every essential conversation is required, even when time expires.</p>
+                          <p className="text-sm text-muted">Every essential conversation and evidence group is required until time runs out. After that, students can decide without them.</p>
                         </Card>
                       ) : null}
                       <Card

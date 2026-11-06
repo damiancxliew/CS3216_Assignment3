@@ -89,7 +89,7 @@ describe("prepared v3 attempts through the action service", () => {
     expect((await postAction(game.deps, "student", game.id, { revision: game.revision(), action: { ...answer(game.support), correct: true } })).status).toBe(400);
   });
 
-  it("requires both essential exchanges after delayed checks, including at timer expiry", async () => {
+  it("requires both essential exchanges after delayed checks until the timer expires", async () => {
     const game = await session();
     await game.send({ type: "message", characterId: "char-nakhoda", text: "What do your routes reveal?" }, 409);
     await game.send(answer(game.support));
@@ -97,8 +97,6 @@ describe("prepared v3 attempts through the action service", () => {
     await game.send({ type: "message", characterId: "char-nakhoda", text: "Hello" });
     await game.check();
     await game.send({ type: "endStage" }, 409);
-    game.setTime(2_000_000);
-    await game.send({ type: "tick" });
     await game.send({ type: "message", characterId: "char-nakhoda", text: "Why do the Riau routes matter to your trade?" });
     await game.check();
     await game.send({ type: "endStage" }, 409);
@@ -106,6 +104,19 @@ describe("prepared v3 attempts through the action service", () => {
     await game.send({ type: "message", characterId: "char-farquhar", text: "What does the treaty reveal about Raffles's role?" });
     await game.send({ type: "endStage" }, 409);
     await game.check();
+    const result = await game.send({ type: "endStage" });
+    expect((result.body.view as PlayerView).definingMoment?.status).toBe("choosing");
+  });
+
+  it("lets the student decide at timer expiry without the evidence or essential exchanges", async () => {
+    const game = await session();
+    await game.send({ type: "endStage" }, 409);
+    game.setTime(2_000_000);
+    const tick = await game.send({ type: "tick" });
+    const preparation = (tick.body.view as PlayerView).stage?.preparation;
+    expect(preparation).toMatchObject({ ready: true, timerExpired: true, completed: 0 });
+    expect(preparation?.essentialConversations.every(conversation => !conversation.complete)).toBe(true);
+    expect((tick.body.view as PlayerView).definingMoment?.status).not.toBe("choosing");
     const result = await game.send({ type: "endStage" });
     expect((result.body.view as PlayerView).definingMoment?.status).toBe("choosing");
   });
