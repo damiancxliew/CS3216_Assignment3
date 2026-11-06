@@ -11,7 +11,7 @@ import adventureStyles from "@/components/play/adventure-chrome.module.css";
 import { NotesPanel } from "@/components/play/v3/notes-panel";
 import { StanceTag, StoryToast, stanceShifts, storyKicker, talkLines } from "@/components/play/v3/story-lines";
 import { RevealScreen } from "@/components/play/v3/reveal-screen";
-import { StageIsland, documentActivityText, filterLogByCharacter, filterStoryLines, groupMessagesByStage, groupNotesByStage, journalShortcut, logLineCount } from "@/components/play/v3/stage-island";
+import { JOURNAL_TAB_HELP, StageIsland, documentActivityText, filterLogByCharacter, filterStoryLines, groupMessagesByStage, groupNotesByStage, journalShortcut, logLineCount } from "@/components/play/v3/stage-island";
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3CardDialog } from "@/components/play/v3/card-dialog";
 import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
@@ -481,6 +481,29 @@ describe("v3 stage play screen", () => {
       }));
       expect(markup).toContain("No documents collected yet.");
       expect(markup).toContain("Every document you collect will be saved here.");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("explains how to use Notes and Documents with tab tooltips and a hint in the open tab", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const render = (initialTab: "notes" | "documents") => renderToStaticMarkup(createElement(StageIsland, {
+        view: stagePlayView({ documents: [] }),
+        onOpenDocument: () => {},
+        initialExpanded: true,
+        initialTab,
+      }));
+      const notes = render("notes");
+      expect(notes).toContain(`title="${JOURNAL_TAB_HELP.notes}"`);
+      expect(notes).toContain(`title="${JOURNAL_TAB_HELP.documents}"`);
+      expect(notes).toContain('id="stage-island-hint-notes"');
+      expect(notes).toContain('aria-describedby="stage-island-hint-notes"');
+      const documents = render("documents");
+      expect(documents).toContain('id="stage-island-hint-documents"');
+      expect(documents).toContain(JOURNAL_TAB_HELP.documents);
+      expect(documents).not.toContain('id="stage-island-hint-notes"');
     } finally {
       vi.unstubAllGlobals();
     }

@@ -6,6 +6,7 @@ import {
   Activity,
   BookOpen,
   ChevronDown,
+  Info,
   Lightbulb,
   LoaderCircle,
   MessageCircle,
@@ -19,6 +20,21 @@ import styles from "@/components/play/adventure-chrome.module.css";
 import { pixelFont } from "@/components/play/v3/dialogue-box";
 
 type IslandTab = "notes" | "documents" | "log";
+
+export const JOURNAL_TAB_HELP: Readonly<Record<IslandTab, string>> = {
+  notes: "Notes are key facts saved from conversations and documents. Use them to compare what people said with the record before you decide.",
+  documents: "Documents are the sources you have found. Open one to reread it, check what it can and cannot show, and quote it as evidence.",
+  log: "The log is every line said so far. Use it to look back at a conversation.",
+};
+
+function TabHint({ tab }: { tab: IslandTab }) {
+  return (
+    <p id={`stage-island-hint-${tab}`} className="mx-3 mt-3 flex items-start gap-1.5 rounded-lg bg-[#1f2433]/[0.06] px-2.5 py-2 text-xs leading-snug text-[#3d4352]">
+      <Info size={14} className="mt-px shrink-0" aria-hidden />
+      <span>{JOURNAL_TAB_HELP[tab]}</span>
+    </p>
+  );
+}
 
 export const JOURNAL_TAB_KEYS: Readonly<Record<string, IslandTab>> = { "1": "notes", "2": "documents", "3": "log" };
 
@@ -502,7 +518,8 @@ export function StageIsland({
                     aria-keyshortcuts={String(index + 1)}
                     ref={activeTab === tab ? activeTabButton : undefined}
                     disabled={disabled}
-                    title={disabled ? "Notes are closed during the decision" : undefined}
+                    title={disabled ? "Notes are closed during the decision" : JOURNAL_TAB_HELP[tab]}
+                    aria-describedby={activeTab === tab ? `stage-island-hint-${tab}` : undefined}
                     onClick={() => setActiveTab(tab)}
                     className={`flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-1.5 text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#3659cf] ${
                       activeTab === tab ? "bg-[#1f2433] text-[#fffaf0] shadow-sm" : "text-[#3d4352] hover:bg-white/70"
@@ -516,6 +533,7 @@ export function StageIsland({
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
               <div role="tabpanel" id={`stage-island-tabpanel-${activeTab}`} aria-labelledby={`stage-island-tab-${activeTab}`} className="h-full min-h-0 overflow-y-auto overscroll-contain">
+                <TabHint tab={activeTab} />
                 {activeTab === "notes" ? <NotesList notes={view.notes} /> : null}
                 {activeTab === "documents" ? <DocumentsList documents={view.documents} onOpenDocument={onOpenDocument} /> : null}
                 {activeTab === "log" ? <LogList key="log" view={view} /> : null}
