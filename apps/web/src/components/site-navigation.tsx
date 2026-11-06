@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, ChevronDown, Home, LayoutDashboard, Menu, School } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronDown, Home, LayoutDashboard, Menu, School } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-import styles from "./site-header.module.css";
 
 type OrganizationRole = "admin" | "teacher" | "student";
 type OrganizationNavigation = { name: string; slug: string };
@@ -18,6 +17,7 @@ type NavigationIdentity = { name: string | null; email: string | null };
 
 export function SiteNavigation() {
   const pathname = usePathname();
+  const [membershipLoaded, setMembershipLoaded] = useState(false);
   const [membership, setMembership] = useState<MembershipNavigation | null>(null);
   const [isSysadmin, setIsSysadmin] = useState(false);
   const [identity, setIdentity] = useState<NavigationIdentity | null>(null);
@@ -29,17 +29,22 @@ export function SiteNavigation() {
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return;
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      setMembershipLoaded(true);
+      return;
+    }
     const supabase = createClient();
     let active = true;
     let revision = 0;
     const loadRole = async (user: User | null | undefined) => {
       const current = ++revision;
+      setMembershipLoaded(false);
       if (!user || user.is_anonymous) {
         if (active) {
           setMembership(null);
           setIsSysadmin(false);
           setIdentity(null);
+          setMembershipLoaded(true);
         }
         return;
       }
@@ -62,6 +67,7 @@ export function SiteNavigation() {
         setMembership(membershipResult.data ?? null);
         setIsSysadmin(Boolean(adminResult.data));
         setIdentity({ name, email });
+        setMembershipLoaded(!membershipResult.error);
       }
     };
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -112,6 +118,7 @@ export function SiteNavigation() {
   const organization = Array.isArray(membership?.organization)
     ? membership.organization[0]
     : membership?.organization;
+  const canAuthor = Boolean(organization) && (membership?.role === "admin" || membership?.role === "teacher");
   const roleLabel: Record<OrganizationRole, string> = {
     admin: "Admin",
     teacher: "Teacher",
@@ -150,24 +157,24 @@ export function SiteNavigation() {
   const link = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line-strong px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2";
   const destinations = [
     { href: "/", label: "Home", icon: Home, current: pathname === "/" },
-    ...(membership?.role === "admin" || membership?.role === "teacher" ? [
+    ...(canAuthor ? [
       { href: "/teacher", label: "Console", icon: LayoutDashboard, current: pathname.startsWith("/teacher") || pathname.startsWith("/v3/teacher") },
       ...(organization ? [{ href: `/school/${encodeURIComponent(organization.slug)}`, label: "School", icon: School, current: pathname.startsWith("/school/") }] : []),
-    ] : membership?.role === "student" ? [{ href: "/library", label: "Library", icon: BookOpen, current: pathname.startsWith("/library") }] : []),
+    ] : organization && membership?.role === "student" ? [{ href: "/library", label: "Library", icon: BookOpen, current: pathname.startsWith("/library") }] : []),
     ...(isSysadmin ? [{ href: "/admin", label: "Admin", icon: null, current: pathname.startsWith("/admin") }] : []),
   ];
   const navigationLinks = destinations.map(({ href, label, icon: Icon, current }) => <Link key={href} href={href} className={link} aria-current={current ? "page" : undefined} onClick={() => setNavigationOpen(false)}>{Icon ? <Icon size={16} aria-hidden /> : null}{label}</Link>);
   return (
     <>
-      <nav ref={navigationRef} aria-label="Main navigation" className={styles.navigation}>
-        <div className={styles.links}>{navigationLinks}</div>
-        <div className={styles.dropdown}>
+      <nav ref={navigationRef} aria-label="Main navigation" className="site-header-navigation">
+        <div className="site-header-links">{navigationLinks}</div>
+        <div className="site-header-dropdown">
           <button ref={navigationTrigger} type="button" className={`${link} w-11 !px-0`} aria-label="Navigation" title="Navigation" aria-expanded={navigationOpen} aria-controls="navigation-links" onClick={() => { setNavigationOpen(open => !open); setMenuOpen(false); }}><Menu size={20} aria-hidden /></button>
-          {navigationOpen ? <div id="navigation-links" className={styles.navigationPanel}>{navigationLinks}</div> : null}
+          {navigationOpen ? <div id="navigation-links" className="site-header-navigation-panel">{navigationLinks}</div> : null}
         </div>
       </nav>
       {identity ? (
-        <div ref={accountRef} className={`${styles.account} relative flex shrink-0 items-center gap-2`}>
+        <div ref={accountRef} className="site-header-account relative flex shrink-0 items-center gap-2">
           <span className="hidden h-6 w-px bg-line md:block" aria-hidden />
           <button
             ref={triggerRef}
@@ -180,12 +187,12 @@ export function SiteNavigation() {
             className="inline-flex min-h-11 items-center gap-2 rounded-full px-2 text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-record"
           >
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-record-wash text-sm font-black text-record">{initials}</span>
-            <span className={`${styles.accountDetails} hidden min-w-0 max-w-[12rem] flex-col md:flex`}>
+            <span className="site-header-account-details hidden min-w-0 max-w-[12rem] flex-col md:flex">
               <span className="truncate text-sm font-semibold text-ink">{identityName}</span>
               <span className="truncate text-xs text-muted">{organization?.name ?? "No school"}</span>
             </span>
             {accountRole ? (
-              <span className={`${styles.accountRole} hidden shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide md:inline-flex ${accountRoleStyle}`}>
+              <span className={`site-header-account-role hidden shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide md:inline-flex ${accountRoleStyle}`}>
                 {accountRole}
               </span>
             ) : null}
@@ -196,7 +203,7 @@ export function SiteNavigation() {
               id="account-menu"
               role="menu"
               aria-label="Account"
-              className={`${styles.accountMenu} absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-surface border border-line bg-paper p-4 shadow`}
+              className="site-header-account-menu absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-surface border border-line bg-paper p-4 shadow"
             >
               <div>
                 <p className="font-semibold text-ink">{identity?.name ?? identity?.email ?? "Account"}</p>
@@ -228,6 +235,17 @@ export function SiteNavigation() {
             </div>
           ) : null}
         </div>
+      ) : null}
+      {pathname === "/" && membershipLoaded ? (
+        !organization ? (
+          <a href="#demo" className={`${link} max-sm:w-11 max-sm:px-0`} title="Book a demo">
+            <CalendarDays size={16} aria-hidden /><span className="max-sm:sr-only">Book a demo</span>
+          </a>
+        ) : canAuthor ? (
+          <Link href="/teacher" className={`${link} max-sm:w-11 max-sm:px-0`} title="Teacher console">
+            <LayoutDashboard size={16} aria-hidden /><span className="max-sm:sr-only">Teacher console</span>
+          </Link>
+        ) : null
       ) : null}
     </>
   );
