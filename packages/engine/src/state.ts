@@ -59,6 +59,8 @@ export interface MomentState {
   actId: string | null
   outcomeId: string | null
   nudge: string | null
+  /** Set only when the student opened the moment: they may go back, and the timer resumes with this much left. */
+  returnable?: { remainingMs: number | null }
 }
 
 export interface InterviewAnswerState {
