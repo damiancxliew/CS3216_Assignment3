@@ -236,16 +236,10 @@ export function SiteNavigation() {
           ) : null}
         </div>
       ) : null}
-      {pathname === "/" && membershipLoaded ? (
-        !organization ? (
-          <a href="#demo" className={`${link} max-sm:w-11 max-sm:px-0`} title="Book a demo">
-            <CalendarDays size={16} aria-hidden /><span className="max-sm:sr-only">Book a demo</span>
-          </a>
-        ) : canAuthor ? (
-          <Link href="/teacher" className={`${link} max-sm:w-11 max-sm:px-0`} title="Teacher console">
-            <LayoutDashboard size={16} aria-hidden /><span className="max-sm:sr-only">Teacher console</span>
-          </Link>
-        ) : null
+      {pathname === "/" && membershipLoaded && !organization ? (
+        <a href="#demo" className={`${link} max-sm:w-11 max-sm:px-0`} title="Book a demo">
+          <CalendarDays size={16} aria-hidden /><span className="max-sm:sr-only">Book a demo</span>
+        </a>
       ) : null}
     </>
   );
