@@ -100,10 +100,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         });
       }
       await issues.click();
-      await saved
-        .locator("summary")
-        .filter({ hasText: "Stages, characters and documents" })
-        .click();
+      // Draft sections are always expanded; the cards are editable directly.
       await saved
         .getByRole("button", { name: "Edit", exact: true })
         .first()

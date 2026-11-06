@@ -15,9 +15,12 @@ type Suggestion = Extract<ReviewChatResult, { ok: true }> & {
 };
 export function ReviewChatComposer({
   adventureId,
+  idleHint = "You can send this when the next review is ready.",
   onConversation,
 }: {
   adventureId: string;
+  /** Why sending is unavailable when no review is open. */
+  idleHint?: string;
   onConversation(state: BriefStateV3): void;
 }) {
   const context = useReviewChat();
@@ -53,7 +56,7 @@ export function ReviewChatComposer({
   const upgradeRequest = Boolean(upgrade && (upgrade.active || requestsSchemaUpgrade(text)));
   const canSend = Boolean((upgradeRequest ? !upgrade?.pending : target && !target.pending) && text.trim() && !pending);
   const sendHint = !target
-    ? "You can send this when the next review is ready."
+    ? idleHint
     : pending
       ? "Preparing a suggestion…"
       : target.pending

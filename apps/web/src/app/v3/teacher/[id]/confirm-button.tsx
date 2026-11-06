@@ -36,12 +36,13 @@ export function ConfirmButton({
   const dialog = useRef<HTMLDialogElement>(null);
   return (
     <>
-      <button type="button" onClick={() => dialog.current?.showModal()} disabled={disabled || pending} className={className} aria-label={ariaLabel}>
+      <button type="button" onClick={() => dialog.current?.showModal()} disabled={disabled || pending} className={className} aria-label={ariaLabel} title={ariaLabel}>
         <StableLabel label={label} pending={pending} pendingLabel={<Pending>{pendingLabel ?? "Working…"}</Pending>} />
       </button>
+      {/* Rendered inside toolbars, which set nowrap; the dialog must wrap its own text. */}
       <dialog
         ref={dialog}
-        className="m-auto w-full max-w-md rounded-surface border-2 border-ink bg-surface p-6 shadow-[0_8px_0_color-mix(in_srgb,var(--ink)_15%,transparent)] backdrop:bg-ink/30"
+        className="m-auto w-full max-w-md whitespace-normal text-left rounded-surface border-2 border-ink bg-surface p-6 shadow-[0_8px_0_color-mix(in_srgb,var(--ink)_15%,transparent)] backdrop:bg-ink/30"
       >
         <h3 className="text-lg font-black tracking-tight text-ink">{title}</h3>
         <div className="mt-2 text-sm text-muted">{body}</div>
