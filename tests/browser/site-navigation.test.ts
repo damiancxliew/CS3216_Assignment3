@@ -53,11 +53,8 @@ it.runIf(process.env.RUN_HEADER_BROWSER_TESTS === "1")("collapses role navigatio
     const header = page.locator("header");
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     expect(await header.getByRole("link", { name: "Book a demo", exact: true }).count()).toBe(0);
-    const teacherAction = header.getByRole("link", { name: "Teacher console", exact: true });
-    expect(await teacherAction.count()).toBe(1);
-    expect(await teacherAction.locator("svg").count()).toBe(1);
-    const homeStyle = await nav.getByRole("link", { name: "Home", exact: true }).evaluate(node => ({ radius: getComputedStyle(node).borderRadius, border: getComputedStyle(node).borderWidth }));
-    expect(await teacherAction.evaluate(node => ({ radius: getComputedStyle(node).borderRadius, border: getComputedStyle(node).borderWidth }))).toEqual(homeStyle);
+    expect(await header.getByRole("link", { name: "Teacher console", exact: true }).count()).toBe(0);
+    expect(await header.locator('a[href="/teacher"]').count()).toBe(1);
     for (const theme of ["light", "dark"]) {
       await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
       for (const width of [1440, 1280, 1024, 800, 640, 375, 320]) {
@@ -106,7 +103,7 @@ it.runIf(process.env.RUN_HEADER_BROWSER_TESTS === "1")("collapses role navigatio
         if (role === "guest") await header.getByRole("link", { name: "Book a demo", exact: true }).waitFor();
         else await header.getByRole("button", { name: /Signed in as/ }).waitFor();
         expect(await header.getByRole("link", { name: "Book a demo", exact: true }).count()).toBe(role === "guest" || role === "noschool" ? 1 : 0);
-        expect(await header.getByRole("link", { name: "Teacher console", exact: true }).count()).toBe(role === "teacher" ? 1 : 0);
+        expect(await header.getByRole("link", { name: "Teacher console", exact: true }).count()).toBe(0);
         const links = nav.locator('.site-header-links');
         expect(await links.getByRole("link", { name: "Console", exact: true, includeHidden: true }).count()).toBe(role === "teacher" ? 1 : 0);
         expect(await links.getByRole("link", { name: "School", exact: true, includeHidden: true }).count()).toBe(role === "teacher" ? 1 : 0);
