@@ -24,14 +24,14 @@ it.runIf(process.env.RUN_HEADER_BROWSER_TESTS === "1")("collapses role navigatio
       if (id === "\0link") return "import React from 'react';export default function Link(props){return React.createElement('a',props)}";
       if (id === "\0navigation") return "export function usePathname(){return '/v3/teacher/fixture'}";
       if (id === "\0auth") return `export function createClient(){return {auth:{onAuthStateChange(){return {data:{subscription:{unsubscribe(){}}}}},async getSession(){return {data:{session:{user:{id:'fixture',email:'teacher@local.test',user_metadata:{full_name:'A teacher with a deliberately long display name'}}}}}}},from(table){return {select(){return this},eq(){return this},async maybeSingle(){return {data:table==='platform_admin'?{user_id:'fixture'}:{role:'admin',organization:{name:'A school with a deliberately long name',slug:'test-school'}}}}}}}}`;
-      if (id === "\0header") return (await transformWithEsbuild(`import React from 'react';import {createRoot} from 'react-dom/client';import {SiteHeader} from '/src/components/ui.tsx';import {ThemeProvider} from '/src/components/theme-provider.tsx';import '/src/app/globals.css';createRoot(document.getElementById('root')).render(<ThemeProvider><SiteHeader/></ThemeProvider>);`, "header.tsx", { loader: "tsx", jsx: "automatic" })).code;
+      if (id === "\0header") return (await transformWithEsbuild(`import React from 'react';import {createRoot} from 'react-dom/client';import {SiteHeader,button} from '/src/components/ui.tsx';import {ArrowRight} from 'lucide-react';import {ThemeProvider} from '/src/components/theme-provider.tsx';import '/src/app/globals.css';createRoot(document.getElementById('root')).render(<ThemeProvider><SiteHeader><a href="#demo" className={button.subtle+" max-sm:hidden"}>Book a demo</a><a href="/teacher" className={button.quiet+" whitespace-nowrap max-sm:w-11 max-sm:p-0"}><span className="max-sm:sr-only">Teacher console</span><ArrowRight className="h-4 w-4" aria-hidden/></a></SiteHeader></ThemeProvider>);`, "header.tsx", { loader: "tsx", jsx: "automatic" })).code;
     }, configureServer(server) { server.middlewares.use((req, res, next) => {
       if (req.url !== "/") return next();
       res.setHeader("Content-Type", "text/html");
       res.end('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/@id/__x00__header"></script></body></html>');
     }); } }],
   });
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH });
   const errors: string[] = [];
   const results = [];
   try {
@@ -50,12 +50,12 @@ it.runIf(process.env.RUN_HEADER_BROWSER_TESTS === "1")("collapses role navigatio
         expect(collapsed).toBe(width <= 1024);
         const size = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth, header: document.querySelector("header")!.getBoundingClientRect().height }));
         expect(size.scroll).toBe(size.client);
-        expect(size.header).toBeLessThanOrEqual(80);
+        expect(size.header, `${width}px ${theme}`).toBeLessThanOrEqual(80);
         if (collapsed) {
           await trigger.focus();
           await page.keyboard.press("Enter");
           const panel = await page.locator("#navigation-links").boundingBox();
-          expect(panel!.x).toBeGreaterThanOrEqual(0);
+          expect(panel!.x, `${width}px ${theme}`).toBeGreaterThanOrEqual(0);
           expect(panel!.x + panel!.width).toBeLessThanOrEqual(width);
           for (const label of ["Home", "Console", "School", "Admin"]) expect(await nav.getByRole("link", { name: label, exact: true }).isVisible()).toBe(true);
           expect(await nav.getByRole("link", { name: "School", exact: true }).locator("svg").count()).toBe(1);

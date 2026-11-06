@@ -8,7 +8,6 @@ import Link from "next/link";
 import { SiteNavigation } from "@/components/site-navigation";
 import { ThemeSelect } from "@/components/theme-provider";
 import { Select } from "@/components/select";
-import headerStyles from "./site-header.module.css";
 
 /** Teacher-facing names for the Spec v2 reading bands. */
 export { READING_BAND_LABELS } from "@/lib/brief/schema";
@@ -349,10 +348,10 @@ export function Wordmark({ className = "" }: { className?: string }) {
 
 export function SiteHeader({ children }: { children?: React.ReactNode }) {
   return (
-    <header className={`${headerStyles.header} flex w-full items-center gap-2 px-5 py-4 sm:gap-3 sm:px-8`}>
-      <Wordmark className={headerStyles.brand} />
+    <header className="site-header flex w-full items-center gap-2 px-5 py-4 sm:gap-3 sm:px-8">
+      <Wordmark className="site-header-brand" />
       <SiteNavigation />
-      {children ? <div className="flex min-w-0 flex-wrap items-center gap-2">{children}</div> : null}
+      {children ? <div className="flex shrink-0 items-center gap-2">{children}</div> : null}
       <ThemeSelect />
     </header>
   );

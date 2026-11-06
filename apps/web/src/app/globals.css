@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../components/site-header.css";
 
 /* A bright game shell around a serious learning experience. Historical
  * excerpts keep their serif voice, while the product itself is warm, rounded
