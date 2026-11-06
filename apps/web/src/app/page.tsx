@@ -36,12 +36,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <SiteHeader>
-        <a href="#demo" className={`${button.subtle} max-sm:hidden`}>Book a demo</a>
-        <Link href="/teacher" className={`${button.quiet} whitespace-nowrap max-sm:w-11 max-sm:p-0`}>
-          <span className="max-sm:sr-only">Teacher console</span><ArrowRight className="h-4 w-4" aria-hidden />
-        </Link>
-      </SiteHeader>
+      <SiteHeader />
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-20 overflow-hidden px-5 py-6 sm:px-8 sm:py-8 lg:gap-28">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredDataJson }} />
 

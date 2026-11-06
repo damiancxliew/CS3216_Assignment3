@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, ChevronDown, Home, LayoutDashboard, Menu, School } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronDown, Home, LayoutDashboard, Menu, School } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
@@ -17,6 +17,7 @@ type NavigationIdentity = { name: string | null; email: string | null };
 
 export function SiteNavigation() {
   const pathname = usePathname();
+  const [membershipLoaded, setMembershipLoaded] = useState(false);
   const [membership, setMembership] = useState<MembershipNavigation | null>(null);
   const [isSysadmin, setIsSysadmin] = useState(false);
   const [identity, setIdentity] = useState<NavigationIdentity | null>(null);
@@ -28,17 +29,22 @@ export function SiteNavigation() {
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return;
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      setMembershipLoaded(true);
+      return;
+    }
     const supabase = createClient();
     let active = true;
     let revision = 0;
     const loadRole = async (user: User | null | undefined) => {
       const current = ++revision;
+      setMembershipLoaded(false);
       if (!user || user.is_anonymous) {
         if (active) {
           setMembership(null);
           setIsSysadmin(false);
           setIdentity(null);
+          setMembershipLoaded(true);
         }
         return;
       }
@@ -61,6 +67,7 @@ export function SiteNavigation() {
         setMembership(membershipResult.data ?? null);
         setIsSysadmin(Boolean(adminResult.data));
         setIdentity({ name, email });
+        setMembershipLoaded(!membershipResult.error);
       }
     };
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -111,6 +118,7 @@ export function SiteNavigation() {
   const organization = Array.isArray(membership?.organization)
     ? membership.organization[0]
     : membership?.organization;
+  const canAuthor = Boolean(organization) && (membership?.role === "admin" || membership?.role === "teacher");
   const roleLabel: Record<OrganizationRole, string> = {
     admin: "Admin",
     teacher: "Teacher",
@@ -149,10 +157,10 @@ export function SiteNavigation() {
   const link = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line-strong px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2";
   const destinations = [
     { href: "/", label: "Home", icon: Home, current: pathname === "/" },
-    ...(membership?.role === "admin" || membership?.role === "teacher" ? [
+    ...(canAuthor ? [
       { href: "/teacher", label: "Console", icon: LayoutDashboard, current: pathname.startsWith("/teacher") || pathname.startsWith("/v3/teacher") },
       ...(organization ? [{ href: `/school/${encodeURIComponent(organization.slug)}`, label: "School", icon: School, current: pathname.startsWith("/school/") }] : []),
-    ] : membership?.role === "student" ? [{ href: "/library", label: "Library", icon: BookOpen, current: pathname.startsWith("/library") }] : []),
+    ] : organization && membership?.role === "student" ? [{ href: "/library", label: "Library", icon: BookOpen, current: pathname.startsWith("/library") }] : []),
     ...(isSysadmin ? [{ href: "/admin", label: "Admin", icon: null, current: pathname.startsWith("/admin") }] : []),
   ];
   const navigationLinks = destinations.map(({ href, label, icon: Icon, current }) => <Link key={href} href={href} className={link} aria-current={current ? "page" : undefined} onClick={() => setNavigationOpen(false)}>{Icon ? <Icon size={16} aria-hidden /> : null}{label}</Link>);
@@ -227,6 +235,17 @@ export function SiteNavigation() {
             </div>
           ) : null}
         </div>
+      ) : null}
+      {pathname === "/" && membershipLoaded ? (
+        !organization ? (
+          <a href="#demo" className={`${link} max-sm:w-11 max-sm:px-0`} title="Book a demo">
+            <CalendarDays size={16} aria-hidden /><span className="max-sm:sr-only">Book a demo</span>
+          </a>
+        ) : canAuthor ? (
+          <Link href="/teacher" className={`${link} max-sm:w-11 max-sm:px-0`} title="Teacher console">
+            <LayoutDashboard size={16} aria-hidden /><span className="max-sm:sr-only">Teacher console</span>
+          </Link>
+        ) : null
       ) : null}
     </>
   );

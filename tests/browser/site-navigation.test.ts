@@ -22,11 +22,21 @@ it.runIf(process.env.RUN_HEADER_BROWSER_TESTS === "1")("collapses role navigatio
       if (absolute.endsWith("/lib/supabase/client")) return "\0auth";
     }, async load(id) {
       if (id === "\0link") return "import React from 'react';export default function Link(props){return React.createElement('a',props)}";
-      if (id === "\0navigation") return "export function usePathname(){return '/v3/teacher/fixture'}";
-      if (id === "\0auth") return `export function createClient(){return {auth:{onAuthStateChange(){return {data:{subscription:{unsubscribe(){}}}}},async getSession(){return {data:{session:{user:{id:'fixture',email:'teacher@local.test',user_metadata:{full_name:'A teacher with a deliberately long display name'}}}}}}},from(table){return {select(){return this},eq(){return this},async maybeSingle(){return {data:table==='platform_admin'?{user_id:'fixture'}:{role:'admin',organization:{name:'A school with a deliberately long name',slug:'test-school'}}}}}}}}`;
-      if (id === "\0header") return (await transformWithEsbuild(`import React from 'react';import {createRoot} from 'react-dom/client';import {SiteHeader,button} from '/src/components/ui.tsx';import {ArrowRight} from 'lucide-react';import {ThemeProvider} from '/src/components/theme-provider.tsx';import '/src/app/globals.css';createRoot(document.getElementById('root')).render(<ThemeProvider><SiteHeader><a href="#demo" className={button.subtle+" max-sm:hidden"}>Book a demo</a><a href="/teacher" className={button.quiet+" whitespace-nowrap max-sm:w-11 max-sm:p-0"}><span className="max-sm:sr-only">Teacher console</span><ArrowRight className="h-4 w-4" aria-hidden/></a></SiteHeader></ThemeProvider>);`, "header.tsx", { loader: "tsx", jsx: "automatic" })).code;
+      if (id === "\0navigation") return "export function usePathname(){return '/'}";
+      if (id === "\0auth") return `
+        const mode=new URLSearchParams(location.search).get('role')||'admin';
+        export function createClient(){return {
+          auth:{onAuthStateChange(){return {data:{subscription:{unsubscribe(){}}}}},async getSession(){return {data:{session:mode==='guest'?null:{user:{id:'fixture',email:'teacher@local.test',user_metadata:{full_name:'A teacher with a deliberately long display name'}}}}}}},
+          from(table){return {select(){return this},eq(){return this},async maybeSingle(){
+            if(table==='platform_admin')return {data:mode==='admin'?{user_id:'fixture'}:null};
+            if(mode==='unknown')return {data:null,error:{message:'Membership unavailable'}};
+            return {data:mode==='noschool'||mode==='guest'?null:{role:mode==='student'?'student':mode==='teacher'?'teacher':'admin',organization:{name:'A school with a deliberately long name',slug:'test-school'}}};
+          }}}
+        }}
+      `;
+      if (id === "\0header") return (await transformWithEsbuild(`import React from 'react';import {createRoot} from 'react-dom/client';import {SiteHeader} from '/src/components/ui.tsx';import {ThemeProvider} from '/src/components/theme-provider.tsx';import '/src/app/globals.css';createRoot(document.getElementById('root')).render(<ThemeProvider><SiteHeader/></ThemeProvider>);`, "header.tsx", { loader: "tsx", jsx: "automatic" })).code;
     }, configureServer(server) { server.middlewares.use((req, res, next) => {
-      if (req.url !== "/") return next();
+      if (req.url !== "/" && !req.url?.startsWith("/?")) return next();
       res.setHeader("Content-Type", "text/html");
       res.end('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/@id/__x00__header"></script></body></html>');
     }); } }],
@@ -40,7 +50,14 @@ it.runIf(process.env.RUN_HEADER_BROWSER_TESTS === "1")("collapses role navigatio
     page.on("pageerror", e => errors.push(e.message));
     await page.goto(vite.resolvedUrls!.local[0]!);
     await page.getByRole("button", { name: /Signed in as/ }).waitFor();
+    const header = page.locator("header");
     const nav = page.getByRole("navigation", { name: "Main navigation" });
+    expect(await header.getByRole("link", { name: "Book a demo", exact: true }).count()).toBe(0);
+    const teacherAction = header.getByRole("link", { name: "Teacher console", exact: true });
+    expect(await teacherAction.count()).toBe(1);
+    expect(await teacherAction.locator("svg").count()).toBe(1);
+    const homeStyle = await nav.getByRole("link", { name: "Home", exact: true }).evaluate(node => ({ radius: getComputedStyle(node).borderRadius, border: getComputedStyle(node).borderWidth }));
+    expect(await teacherAction.evaluate(node => ({ radius: getComputedStyle(node).borderRadius, border: getComputedStyle(node).borderWidth }))).toEqual(homeStyle);
     for (const theme of ["light", "dark"]) {
       await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
       for (const width of [1440, 1280, 1024, 800, 640, 375, 320]) {
@@ -59,7 +76,7 @@ it.runIf(process.env.RUN_HEADER_BROWSER_TESTS === "1")("collapses role navigatio
           expect(panel!.x + panel!.width).toBeLessThanOrEqual(width);
           for (const label of ["Home", "Console", "School", "Admin"]) expect(await nav.getByRole("link", { name: label, exact: true }).isVisible()).toBe(true);
           expect(await nav.getByRole("link", { name: "School", exact: true }).locator("svg").count()).toBe(1);
-          expect(await nav.getByRole("link", { name: "Console", exact: true }).getAttribute("aria-current")).toBe("page");
+          expect(await nav.getByRole("link", { name: "Home", exact: true }).getAttribute("aria-current")).toBe("page");
           await page.keyboard.press("Tab");
           expect(await nav.getByRole("link", { name: "Home", exact: true }).evaluate(node => node === document.activeElement)).toBe(true);
           await page.screenshot({ path: `${output}/${width}-${theme}.png` });
@@ -79,6 +96,23 @@ it.runIf(process.env.RUN_HEADER_BROWSER_TESTS === "1")("collapses role navigatio
         expect(accountPanel!.x + accountPanel!.width).toBeLessThanOrEqual(width);
         await page.keyboard.press("Escape");
         results.push({ width, theme, collapsed, ...size });
+      }
+    }
+    // Authoring actions follow the resolved school membership; an unknown membership is not "no school".
+    for (const role of ["guest", "noschool", "teacher", "student", "unknown"]) {
+      for (const width of [1440, 375]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto(`${vite.resolvedUrls!.local[0]!}?role=${role}`);
+        if (role === "guest") await header.getByRole("link", { name: "Book a demo", exact: true }).waitFor();
+        else await header.getByRole("button", { name: /Signed in as/ }).waitFor();
+        expect(await header.getByRole("link", { name: "Book a demo", exact: true }).count()).toBe(role === "guest" || role === "noschool" ? 1 : 0);
+        expect(await header.getByRole("link", { name: "Teacher console", exact: true }).count()).toBe(role === "teacher" ? 1 : 0);
+        const links = nav.locator('.site-header-links');
+        expect(await links.getByRole("link", { name: "Console", exact: true, includeHidden: true }).count()).toBe(role === "teacher" ? 1 : 0);
+        expect(await links.getByRole("link", { name: "School", exact: true, includeHidden: true }).count()).toBe(role === "teacher" ? 1 : 0);
+        expect(await links.getByRole("link", { name: "Library", exact: true, includeHidden: true }).count()).toBe(role === "student" ? 1 : 0);
+        expect(await header.evaluate(node => node.getBoundingClientRect().height)).toBeLessThanOrEqual(80);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
       }
     }
     expect(errors).toEqual([]);

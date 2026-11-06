@@ -17,6 +17,12 @@ it.runIf(process.env.RUN_HEADER_PRODUCTION_TESTS === "1")("loads shared header s
         await page.goto(`${origin}${path}`, { waitUntil: "networkidle" });
         const header = page.locator("header").first();
         const nav = header.getByRole("navigation", { name: "Main navigation" });
+        if (path === "/") {
+          await header.getByRole("link", { name: "Book a demo", exact: true }).waitFor();
+          expect(await header.getByRole("link", { name: "Teacher console", exact: true }).count()).toBe(0);
+          expect(await nav.getByRole("link", { name: "Console", exact: true }).count()).toBe(0);
+          expect(await nav.getByRole("link", { name: "School", exact: true }).count()).toBe(0);
+        }
         for (const width of [1440, 1280, 1024, 800, 375, 320]) {
           await page.setViewportSize({ width, height: 800 });
           const toggle = nav.getByRole("button", { name: "Navigation", exact: true });
