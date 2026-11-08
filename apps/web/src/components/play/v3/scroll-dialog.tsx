@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, ScrollText, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ScrollText, X } from "lucide-react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import styles from "@/components/play/document-reader.module.css";
 
@@ -8,11 +8,7 @@ export function V3ScrollDialog({
   eyebrow,
   title,
   kicker,
-  footerText,
-  footerSaved = false,
   closeLabel,
-  buttonLabel = "Roll up scroll",
-  footerActions,
   onClose,
   navigation,
   banner,
@@ -21,11 +17,7 @@ export function V3ScrollDialog({
   eyebrow: string;
   title: string;
   kicker?: string;
-  footerText: string;
-  footerSaved?: boolean;
   closeLabel: string;
-  buttonLabel?: string;
-  footerActions?: ReactNode;
   onClose: () => void;
   navigation?: {
     items: { id: string; name: string }[];
@@ -113,13 +105,6 @@ export function V3ScrollDialog({
             <div className={styles.divider} aria-hidden="true"><span>◆</span></div>
             {children}
           </div>
-          <footer className={styles.footer}>
-            <p>
-              {footerSaved ? <Check size={17} aria-hidden="true" /> : <ScrollText size={17} aria-hidden="true" />}
-              {footerText}
-            </p>
-            {footerActions ?? <button type="button" className={styles.button} onClick={onClose}>{buttonLabel}</button>}
-          </footer>
         </div>
         <div className={styles.roller} aria-hidden="true" />
       </section>

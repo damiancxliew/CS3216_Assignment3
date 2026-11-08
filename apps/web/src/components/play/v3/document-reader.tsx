@@ -224,10 +224,7 @@ export function DocumentReader({
       eyebrow={document ? (saved ? `Collected scroll ${index + 1} of ${documents.length}` : "Evidence scroll") : "Collected scrolls"}
       title={document ? documentDisplayTitle(document.title) : "Documents"}
       kicker={document ? documentProvenanceLine(document) || "From your travels" : "From your travels"}
-      footerText={document ? (saved ? "Collected" : "Not collected yet") : "A record of your discoveries"}
-      footerSaved={saved}
       closeLabel={document ? `Put down ${documentDisplayTitle(document.title)}` : "Close documents"}
-      buttonLabel={document ? undefined : "Continue exploring"}
       onClose={onClose}
       banner={document && readingCheck ? readingCheck.status === "passed" && status ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={false} status={status} /> : readingCheckHint ? <p className={`${styles.passageHint} ${readingCheck.status === "passed" ? styles.passageAdded : styles.passageTip}`} role="status">{readingCheckHint}</p> : null : document && readingHint ? <p className={styles.passageHint}>{readingHint}</p> : document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
       navigation={document && saved && documents.length > 1 ? {
