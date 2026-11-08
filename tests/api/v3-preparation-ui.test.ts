@@ -23,7 +23,8 @@ describe("preparation guidance and reading checks", () => {
   it("requires an interpretation and a direct supporting highlight", () => {
     const markup = render(createElement(DocumentReader, { document, documents: [document], onClose() {}, onSelectDocument() {}, onSelectPassage() {}, onSubmitReadingCheck() {} }));
     expect(markup).toContain(question.prompt);
-    expect(markup).toContain("If your answer is not supported, you can try again.");
+    expect(markup).not.toContain("Choose an answer, then highlight the sentence or sentences that support it. If your answer is not supported, you can try again.");
+    expect(markup).not.toContain("Read the source, then answer with a short supporting passage.");
     expect(markup).not.toContain("Choose supporting sentences without dragging");
     expect(markup).toMatch(/disabled=""[^>]*>Submit answer and evidence/);
     expect(markup).not.toContain("drag across the line that matters to save it as a note");

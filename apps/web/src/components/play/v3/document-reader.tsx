@@ -213,6 +213,12 @@ export function DocumentReader({
     });
   }
 
+  const readingCheckHint = readingCheck?.status === "passed"
+    ? "Reading complete. You can save other useful passages as notes."
+    : readingCheck?.status === "needsReview"
+      ? readingCheck.revealedAnswer ? "Review the answer and supporting passage." : "Review the evidence and try again."
+      : correctionAccepted ? "Answer the new question to finish this reading check." : null;
+
   return (
     <V3ScrollDialog
       eyebrow={document ? (saved ? `Collected scroll ${index + 1} of ${documents.length}` : "Evidence scroll") : "Collected scrolls"}
@@ -223,7 +229,7 @@ export function DocumentReader({
       closeLabel={document ? `Put down ${documentDisplayTitle(document.title)}` : "Close documents"}
       buttonLabel={document ? undefined : "Continue exploring"}
       onClose={onClose}
-      banner={document && readingCheck ? readingCheck.status === "passed" && status ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={false} status={status} /> : <p className={`${styles.passageHint} ${readingCheck.status === "passed" ? styles.passageAdded : styles.passageTip}`} role="status">{readingCheck.status === "passed" ? "Reading complete. You can save other useful passages as notes." : readingCheck.status === "needsReview" ? readingCheck.revealedAnswer ? "Review the answer and supporting passage." : "Review the evidence and try again." : correctionAccepted ? "Answer the new question to finish this reading check." : "Read the source, then answer with a short supporting passage."}</p> : document && readingHint ? <p className={styles.passageHint}>{readingHint}</p> : document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
+      banner={document && readingCheck ? readingCheck.status === "passed" && status ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={false} status={status} /> : readingCheckHint ? <p className={`${styles.passageHint} ${readingCheck.status === "passed" ? styles.passageAdded : styles.passageTip}`} role="status">{readingCheckHint}</p> : null : document && readingHint ? <p className={styles.passageHint}>{readingHint}</p> : document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
       navigation={document && saved && documents.length > 1 ? {
         items: documents.map((item) => ({ id: item.id, name: documentDisplayTitle(item.title) })),
         selectedId: document.id,
