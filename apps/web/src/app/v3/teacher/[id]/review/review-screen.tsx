@@ -724,18 +724,33 @@ export function ReviewScreen({
                           {Object.entries(stage.preparation.characters).map(([id, groups]) => (
                             <Field key={id} title={`Before speaking with ${name(id)}`}>
                               {groups.length ? groups.map((group, index) => (
-                                <p key={index}>Complete {group.minMet} of: {group.discoveryIds.map(name).join("; ")}</p>
+                                <div key={index} className="mb-3 last:mb-0">
+                                  <p>Complete {group.minMet} of:</p>
+                                  <ul className="list-disc space-y-1 pl-5">
+                                    {group.discoveryIds.map((id) => <li key={id}>{name(id)}</li>)}
+                                  </ul>
+                                </div>
                               )) : "No preparation required."}
                             </Field>
                           ))}
                           <Field title="Before the stage decision">
                             {stage.preparation.decision.map((group, index) => (
-                              <p key={index}>Complete {group.minMet} of: {group.discoveryIds.map(name).join("; ")}</p>
+                              <div key={index} className="mb-3 last:mb-0">
+                                <p>Complete {group.minMet} of:</p>
+                                <ul className="list-disc space-y-1 pl-5">
+                                  {group.discoveryIds.map((id) => <li key={id}>{name(id)}</li>)}
+                                </ul>
+                              </div>
                             ))}
                           </Field>
                           <Field title="Essential conversations">
                             {stage.preparation.essentialCharacters.map((person) => (
-                              <p key={person.characterId}>{name(person.characterId)}: discuss {person.discoveryIds.map(name).join("; ")}</p>
+                              <div key={person.characterId} className="mb-3 last:mb-0">
+                                <p>{name(person.characterId)}: discuss</p>
+                                <ul className="list-disc space-y-1 pl-5">
+                                  {person.discoveryIds.map((id) => <li key={id}>{name(id)}</li>)}
+                                </ul>
+                              </div>
                             ))}
                           </Field>
                           <p className="text-sm text-muted">Every essential conversation is required, even when time expires.</p>
