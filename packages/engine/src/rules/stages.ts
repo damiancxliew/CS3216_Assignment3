@@ -6,8 +6,6 @@
 import { currentMoment, currentStage, type StepContext } from '../context'
 import type { SpecStage } from '../spec'
 import type { EngineState } from '../state'
-import { openMoment } from './moment'
-import { decisionPreparation } from './preparation'
 
 function matchingSituation(state: Pick<EngineState, 'outcomes'>, stage: SpecStage) {
   return stage.situations.find((situation) => state.outcomes[situation.whenOutcome.momentId] === situation.whenOutcome.outcomeId)
@@ -71,21 +69,15 @@ export function stageDurationMs(ctx: { spec: StepContext['spec']; state: StepCon
   return ctx.spec.timer.enabled && minutes !== undefined ? Math.round(minutes * 60_000) : null
 }
 
-/** The final call: when the timer runs out, the defining moment comes to the student; they still choose. */
-export function applyTimer(ctx: StepContext): boolean {
+/** The final call: when the timer runs out, the student is told to decide; the moment waits until they open it. */
+export function applyTimer(ctx: StepContext): void {
   const { state } = ctx
-  if (state.phase !== 'stage' || state.stageIntroPending || state.moment !== null || state.stageEndsAt === null) return false
-  if (ctx.now < state.stageEndsAt) return false
+  if (state.phase !== 'stage' || state.stageIntroPending || state.moment !== null || state.stageEndsAt === null) return
+  if (ctx.now < state.stageEndsAt) return
   const stageId = currentStage(ctx).id
   state.finalCallStages ??= []
-  if (!state.finalCallStages.includes(stageId)) {
-    state.finalCallStages.push(stageId)
-    ctx.say('narration', currentMoment(ctx).finalCallNarration)
-    ctx.touch()
-  }
-  // Checked stages offer a final decision; they never close an active investigation automatically.
-  if (currentStage(ctx).preparation !== undefined) return false
-  if (!decisionPreparation(ctx).ready) return false
-  openMoment(ctx, 'finalCall')
-  return true
+  if (state.finalCallStages.includes(stageId)) return
+  state.finalCallStages.push(stageId)
+  ctx.say('narration', currentMoment(ctx).finalCallNarration)
+  ctx.touch()
 }

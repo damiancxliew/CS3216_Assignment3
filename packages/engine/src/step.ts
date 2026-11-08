@@ -231,13 +231,8 @@ export async function step(input: StepInput<EngineSpec, EngineState, EngineActio
   const action = parsed.data as EngineAction
   const ctx = createContext(input.spec, structuredClone(input.state), action, deps)
   refreshReadingChecks(ctx)
-  const finalCall = applyTimer(ctx)
-  try {
-    await handle(ctx, action)
-  } catch (error) {
-    // The timer ran out just before this action: the final call stands and the action is dropped.
-    if (!(finalCall && error instanceof EngineError && error.code === 'illegal_phase')) throw error
-  }
+  applyTimer(ctx)
+  await handle(ctx, action)
   settle(ctx)
   return { state: ctx.state, events: ctx.events, view: project(input.spec, ctx.state) }
 }

@@ -94,7 +94,7 @@ G4.3) is built into the engine and needs no data.
 |---|---|---|
 | `id`, `stageId`, `deciderId`, `scene` | string | |
 | `nudge` | string | What a character says if core discoveries are missing (P9.6) |
-| `finalCallNarration` | string | Shown when the timer brings the moment to the student (P1.2) |
+| `finalCallNarration` | string | Shown when the timer runs out, prompting the student to decide (P1.2) |
 | `acts[]` | `{ id, text, deception?: true, reaction, secret?: { unlock: Condition[], minMet: number } }` | 2–4 visible acts. `reaction` is the characters' immediate reaction (P9.7). A secret act appears only when at least `minMet` (≥ 2) of its `unlock` conditions hold (P9.11) |
 | `outcomes[]` | `{ id, summary, predictionText, because, closesEndingIds: endingId[], endingId?, secret?: true, historical?: true }` | 3–4 per moment. `predictionText` is the one-tap prediction (P3.3); `because` explains the rule (P3.5). Final moment: every outcome has an `endingId`. `historical` marks what actually happened at this moment, for the reveal's "your path vs history" |
 | `rules[]` | `{ actId, when?: Condition, outcomeId }` | Ordered; the first match wins. Every act needs one rule without `when` as its fallback, so every act and situation leads to an outcome (G15) |

@@ -18,7 +18,7 @@ Through the real API, engine and screens (not the mock).
 | 7 | Start the defining moment | Acts shown; a nudge if a core discovery is missing [P9.1, P9.6] |
 | 8 | Act, then predict | Immediate reaction, then one-tap predictions without secret or closed outcomes [P9.7, P3.3] |
 | 9 | Stage 2 opens | The prediction is revealed with the reason [P3.4, P3.5] |
-| 10 | Let the timer run out | The final call brings the defining moment; you still choose [P1.2] |
+| 10 | Let the timer run out | The final call tells you it is time to decide; the defining moment opens when you choose to continue [P1.2] |
 | 11 | Epilogue, Interview, reveal | Each shows; the reveal leads with what actually happened [E1–E3] |
 | 12 | Engine CI | Reachability, walkthrough and leak tests green |
 
