@@ -1,0 +1,40 @@
+{
+  "fixture": "Actual DocumentReader and V3ScrollDialog with synthetic harbour source and reading question; isolated Vite harness with project styles.",
+  "results": [
+    {
+      "name": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "bounds": {
+        "x": 336,
+        "y": 49.96875,
+        "width": 768,
+        "height": 900.0625
+      },
+      "removedHintsAbsent": true,
+      "footerAbsent": true,
+      "escapeCloses": true,
+      "closeButtonCloses": true
+    },
+    {
+      "name": "mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "bounds": {
+        "x": 12,
+        "y": 25,
+        "width": 366,
+        "height": 794
+      },
+      "removedHintsAbsent": true,
+      "footerAbsent": true,
+      "escapeCloses": true,
+      "closeButtonCloses": true
+    }
+  ],
+  "errors": []
+}
