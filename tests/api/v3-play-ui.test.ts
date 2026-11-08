@@ -677,10 +677,14 @@ describe("v3 stage play screen", () => {
       expect(markup).toContain("Collected");
       expect(markup).not.toContain("Saved in your notes");
       expect(markup).toContain("Tip: drag across the line that matters to save it as a note.");
-      expect(markup).toContain("Roll up scroll");
+      expect(markup).not.toContain("Roll up scroll");
+      expect(markup).not.toContain("<footer");
+      expect(markup).toContain('aria-label="Put down A letter from the harbour"');
       expect(markup).toContain("data-document-paragraph");
       expect(emptyMarkup).toContain("No scrolls collected yet.");
-      expect(emptyMarkup).toContain("Continue exploring");
+      expect(emptyMarkup).not.toContain("Continue exploring");
+      expect(emptyMarkup).not.toContain("<footer");
+      expect(emptyMarkup).toContain('aria-label="Close documents"');
     } finally {
       vi.unstubAllGlobals();
     }

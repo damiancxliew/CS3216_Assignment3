@@ -230,7 +230,6 @@ export function LimBoSengDemo() {
               ? "Japanese occupation · 1942 issue"
               : source.date
           }
-          footerText="Real records · clearly labelled reconstructions"
           closeLabel="Close source archive"
           onClose={() => setArchive(false)}
           navigation={{
