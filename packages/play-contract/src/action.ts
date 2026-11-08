@@ -68,6 +68,9 @@ export const CloseDocumentAction = z.strictObject({ type: z.literal('closeDocume
 /** Start the defining moment when ready (P1.1, P9.5). */
 export const EndStageAction = z.strictObject({ type: z.literal('endStage') })
 
+/** Leave a defining moment the student opened themselves, while still choosing. */
+export const BackToExploringAction = z.strictObject({ type: z.literal('backToExploring') })
+
 /** Choose a go-between act at the defining moment (P9.1). */
 export const ActAction = z.strictObject({ type: z.literal('act'), actId: Id })
 
@@ -98,6 +101,7 @@ export const Action = z.discriminatedUnion('type', [
   OpenDocumentAction,
   CloseDocumentAction,
   EndStageAction,
+  BackToExploringAction,
   ActAction,
   PredictAction,
   InterviewAnswerAction,
@@ -117,6 +121,7 @@ export const ACTION_TYPES = [
   'openDocument',
   'closeDocument',
   'endStage',
+  'backToExploring',
   'act',
   'predict',
   'interviewAnswer',

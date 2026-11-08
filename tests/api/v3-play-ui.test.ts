@@ -385,6 +385,34 @@ describe("v3 stage play screen", () => {
     }
   });
 
+  it("offers Back to exploring only when the moment allows returning", () => {
+    const moment = {
+      momentId: "moment-1",
+      scene: "The landing may decide Singapore's future.",
+      deciderId: "character-1",
+      deciderName: "Temenggong Abdul Rahman",
+      status: "choosing",
+      acts: [{ id: "act-1", text: "Welcome the British ships." }],
+      nudge: null,
+      chosenActId: null,
+      reaction: null,
+      predictionOptions: [],
+    } as unknown as DefiningMomentView;
+    vi.stubGlobal("React", React);
+    try {
+      const render = (canReturn: boolean) => renderToStaticMarkup(createElement(StagePlayScreen, {
+        view: stagePlayView({ definingMoment: { ...moment, canReturn } }),
+        busy: false,
+        send: () => {},
+        attemptId: "preview-attempt",
+      }));
+      expect(render(true)).toContain("Back to exploring");
+      expect(render(false)).not.toContain("Back to exploring");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("renders the expanded island with grouped notes, documents, and transcript speakers outside the room", () => {
     const islandView = stagePlayView({
       stage: { index: 1, count: 2, title: "The council", timePlace: "Singapore, 1820", centralQuestion: "What now?", intro: null },
