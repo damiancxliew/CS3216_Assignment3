@@ -1,0 +1,23 @@
+SOURCE 5: Three treaties: who agreed to what, 1819-1824
+
+Type: (a) Verbatim primary extracts from three treaties, with short (c) prepared notes from a National Archives article.
+Prepared: 11 November 2026.
+Based on: Treaty of Friendship and Alliance, Singapore, 6 February 1819; Treaty between Great Britain and the Netherlands, London, 17 March 1824 (the Anglo-Dutch Treaty); Treaty of Friendship and Alliance, Singapore, 2 August 1824 (the "Crawfurd Treaty"); all as transcribed on Wikisource. Notes from Fiona Tan, Kevin Khoo and Yap Jo Lin, "Making History", BiblioAsia 15:1 (2019), on the National Archives of Singapore's copy of the 1824 treaty.
+Reference URLs: https://en.wikisource.org/wiki/1819_Singapore_Treaty ; https://en.wikisource.org/wiki/Anglo-Dutch_Treaty_of_1824 ; https://en.wikisource.org/wiki/Crawfurd_Treaty ; https://biblioasia.nlb.gov.sg/vol-15/issue-1/apr-jun-2019/making-history
+
+1. 6 February 1819 (Raffles, Sultan Hussein and Temenggong Abdul Rahman). Spelling as in the transcription.
+Article 2: the Company agrees "to pay to His aforesaid Highness the sum of Spanish Dollars Five Thousand annually" (to Sultan Hussein).
+Article 3: the Temenggong had "granted his full permission to the Honble English East India Company to establish a Factory or Factories at Singapoora", and the Company had settled on him "the yearly sum of Spanish Dollars Three Thousand".
+Article 8: "The port of Singapoora is to be considered under the immediate protection and subject to the Regulation of the British Authorities."
+Article 9: on any duties that might be collected, the Temenggong "is to be entitled to a moiety or full half of all the amounts collected from native Vessels."
+
+2. 17 March 1824 (Britain and the Netherlands, signed in London). Article 12:
+"His Netherland Majesty withdraws the objections which have been made to the occupation of the island of Singapore, by the subjects of His Britannic Majesty."
+
+3. 2 August 1824 (John Crawfurd, Sultan Hussein and Temenggong Abdul Rahman). Article 2:
+"Their Highnesses the Sultan Hussain Mahomed Shah and Datu Tumungong Abdul Rahman Sri Maharajah hereby cede in full sovereignty and property to the Honourable the English East India Company, their heirs and successors for ever, the Island of Singapore, situated in the Straits of Malacca, together with the adjacent seas, straits, and islets, to the extent of ten geographical miles, from the coast of the said main Island of Singapore."
+Article 3: the Sultan was to receive "the sum of Spanish Dollars thirty-three thousand two hundred (33,200)" and a monthly stipend of "one thousand three hundred (1,300) Spanish Dollars"; the Temenggong "the sum of twenty-six thousand eight hundred (26,800) Spanish Dollars, with a monthly stipend of seven hundred (700) Spanish Dollars".
+
+Notes from BiblioAsia ("Making History"): the 1819 agreement "only permitted the EIC to set up a trading post on the island". The Sultan and Temenggong "were initially reluctant to sign the treaty as it would strip them of their sovereign rights over Singapore, which had been passed down from their ancestors. When they hesitated, Crawfurd held back their allowances until they agreed to sign the treaty three months later."
+
+Source limitation: Treaties record what was formally agreed, not what each side understood or wanted. The 1819 and 1824 treaties with the Malay rulers were written by the British side in English, and the rulers' view is not recorded in them. The 1819 treaty did not hand over the island: it allowed a trading post. Only in August 1824, after the Dutch dropped their objections, did the rulers cede the island, and BiblioAsia reports they did so under pressure. The wording was checked against the Wikisource transcriptions (the 1824 Crawfurd Treaty page is marked as validated against a scan); in the Wikisource text a stray dot appears in "seven hundred· (700)", which is left out here. Curly quotation marks are written as straight ones.

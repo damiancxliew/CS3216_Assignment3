@@ -1,0 +1,21 @@
+SOURCE 8: How many people? Counting Singapore, 1819-1824
+
+Type: (c) Prepared summary of secondary accounts, with short quotations. The sources disagree, and the disagreement is the point.
+Prepared: 11 November 2026.
+Based on: Ang Seow Leng, "Head Count: The History of Census-taking in Singapore", BiblioAsia 15:4 (2020); Tan Tai Yong, "Looking Back at 700 Years of Singapore", BiblioAsia 14:4 (2019); "The Orang Seletar: Rowing Across Changing Tides", BiblioAsia 18:1 (2022); "A Game of Thrones", Roots.gov.sg; Nadia Wright, "Farquhar & Raffles: The Untold Story", BiblioAsia 14:4 (2019); Jason Heng, "An Old Teochew Oral Account...", BiblioAsia (2018); C. B. Buckley, An Anecdotal History of Old Times in Singapore (1902), volume 1.
+Reference URLs: https://biblioasia.nlb.gov.sg/vol-15/issue-4/jan-mar-2020/head-count-history/ ; https://biblioasia.nlb.gov.sg/vol-14/issue-4/jan-mar-2019/looking-back-at-sg/ ; https://biblioasia.nlb.gov.sg/vol-18/issue-1/apr-to-jun-2022/orang-seletar-changing-tides/ ; https://www.roots.gov.sg/stories-landing/stories/a-game-of-thrones/a-game-of-thrones ; https://biblioasia.nlb.gov.sg/vol-14/issue-4/jan-mar-2019/fnr-untold-story/ ; https://biblioasia.nlb.gov.sg/chapters-of-asia/chapters-on-asia-2014-2017-teochew-1819-founding-singapore/ ; https://archive.org/details/ananecdotalhist00buckgoog
+
+January 1819: estimates that do not agree
+- About 150: a later colonial official, Hayes Marriott, put "the estimated population size was around 150, including 30 Chinese and the Malays who had accompanied Temenggung Abdul Rahman when he settled in Singapore in 1811" (Ang, BiblioAsia).
+- Scarcely 200: Raffles, writing in 1820 (Source 2).
+- 500: Raffles privately to a Penang merchant, "only five hundred"; Farquhar later wrote the Temenggong had "four or five hundred followers" (Heng).
+- About 1,000: Raffles "landed on an island that was home to some 1,000 Chinese, Malay and orang laut" (Tan Tai Yong); "only about 1,000 inhabitants" (Roots). "The Orang Seletar made up a fifth of the 1,000 or so inhabitants recorded by Raffles", with "about 20 to 30 Malays in the temenggong's entourage" (BiblioAsia, 2022).
+- About 2,000: Raffles to Lord Hastings before landing, "about 2,000 inhabitants upon it (new settlers)" (Heng; Source 2).
+- The Temenggong himself "moved to Singapore with 150 followers in 1811" (Heng); Buckley says he told Crawfurd 150 Malays came with him from Johor in 1811 (Source 4).
+- Different Orang Laut groups lived around the island, including "the Orang Gelam who occupied the Singapore River, the Orang Kallang who situated themselves at the Kallang River" (BiblioAsia, 2022).
+
+1821: "By 1821, the population in Singapore had grown to 5,000, many of whom were Malaccans who had followed William Farquhar" (Tan Tai Yong). Wright agrees: "By late 1821, Singapore was a successful commercial settlement of some 5,000 settlers."
+
+January 1824, the first census: "It recorded a population of 10,683, comprising 74 Europeans, 16 Armenians, 15 Arabs, 4,580 Malays, 3,317 Chinese, 756 Indians, and 1,925 Bugis, and others." (Ang, citing Buckley.)
+
+Source limitation: Nobody counted the island in 1819, and every early figure is an estimate made for a purpose. Raffles's own numbers range from fewer than 200 to 2,000, and his figure of 10,000 or more for 1820 is higher than the 1824 census. Ang notes that "primary records of the early censuses of Singapore are no longer available", so the 1824 figures come from later books. Buckley's own book is not consistent: in one place he gives 10,683 as the population at the end of April 1823, and in another as the census of January 1824. The "about 1,000" figure is the most repeated by the National Library and National Heritage Board, but its origin (BiblioAsia cites the NLB's Infopedia article on the 1819 treaty) could not be checked, because the Infopedia site did not respond to automated requests.
