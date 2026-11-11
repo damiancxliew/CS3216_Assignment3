@@ -44,7 +44,7 @@ const ROLE_HINTS: [RegExp, Character[]][] = [
   [/queen|princess|lady|madam|wife|daughter/i, ["Princess", "Woman"]],
   [/temenggong|chief|elder|headman|patriarch|senior/i, ["OldMan", "OldMan2", "OldMan3"]],
   [/monk|priest|imam|abbot|cleric|missionary|scholar/i, ["Monk", "Monk2"]],
-  [/major|captain|colonel|officer|resident|governor|commissioner|official|magistrate|inspector|envoy|agent|secretary/i, ["Inspector", "Knight", "Master"]],
+  [/general|lieutenant|brigadier|commander|major|captain|colonel|officer|resident|governor|commissioner|official|magistrate|inspector|envoy|agent|secretary/i, ["Inspector", "Knight", "Master"]],
   [/soldier|guard|sepoy|sergeant|warrior|bodyguard/i, ["Knight", "Hunter"]],
   [/merchant|trader|shopkeeper|kongsi|towkay|dealer|broker|company/i, ["Villager2", "Villager4", "Villager6", "Village6"]],
   [/farmer|fisherman|boatman|labourer|laborer|worker|miner|villager|peasant|sailor|crew/i, ["Villager", "Villager3", "Villager5", "Hunter"]],

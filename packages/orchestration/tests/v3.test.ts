@@ -100,6 +100,42 @@ describe('v3 persona prompt', () => {
     expect(changed).toContain('the preliminary agreement')
   })
 
+  it('lets the character add personal colour but no new historical specifics, and stay useful when it cannot answer', () => {
+    const system = buildPersonaSystemPrompt(persona)
+    expect(system).toContain('talk freely about your own life at this moment')
+    expect(system).toContain('add no names, numbers, dates, places, orders, quotations, events, or reports and informants you have not been given')
+    expect(system).toContain('If your private context limits what you may say about yourself, those limits come first')
+    expect(system).toContain('Never invent a name')
+    expect(system).toContain('give them a thread to pull')
+    expect(system).toContain('Never repeat a point, a request or a turn of phrase')
+  })
+
+  it('holds NOT YET topics back, allowing only a generic signal that evidence could change things', () => {
+    const system = buildPersonaSystemPrompt(persona)
+    expect(system).toContain('never hint at their content')
+    expect(system).toContain('Never say what that would be or what it would show')
+  })
+
+  it('tells shareable facts fully when asked, without reciting them all', () => {
+    const system = buildPersonaSystemPrompt(persona)
+    expect(system).toContain('tell it clearly and fully enough to be understood')
+    expect(system).toContain('Never recite them as a list')
+    expect(system).not.toContain('share at most one per reply')
+  })
+
+  it('still gives an empty share list something to do, without inventing facts', () => {
+    const user = buildPersonaUserPrompt({ ...persona, mayShare: [] })
+    expect(user).toContain('No facts to tell yet')
+    expect(user).toContain('point to who or where might know more')
+  })
+
+  it('caps length by reading level and paces the request for what they want', () => {
+    expect(buildPersonaSystemPrompt(persona)).toContain('Usually under 80 words')
+    expect(buildPersonaSystemPrompt({ ...persona, readingLevel: 'jc' })).toContain('Usually under 100 words')
+    expect(buildPersonaSystemPrompt(persona)).toContain('do not ask for it in this reply')
+    expect(buildPersonaSystemPrompt({ ...persona, askForWant: true })).toContain('In this reply, ask them for it')
+  })
+
   it('returns the reply, and degrades to an in-character line when the model fails', async () => {
     const ok = await replyAsCharacter(new FakeLlmClient({ replies: ['{"reply":"  My price is a share.  "}'] }), persona)
     expect(ok).toMatchObject({ ok: true, reply: 'My price is a share.' })

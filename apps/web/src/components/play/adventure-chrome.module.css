@@ -44,7 +44,7 @@
   --goal-current-border: #e5be51;
   --goal-current-dot: #e5be51;
 }
-.shell { background: var(--paper); }
+.shell { background: var(--paper); font-variant-ligatures: no-common-ligatures; }
 .header {
   position: relative;
   z-index: 2;

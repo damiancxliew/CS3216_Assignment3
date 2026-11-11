@@ -270,13 +270,16 @@ it.runIf(process.env.RUN_V3_MAP_BROWSER_TESTS === "1").each(["scenery", "room en
         roomEntryGate = null;
       }
       await expect.poll(() => page.getByRole("alert").textContent()).toContain("Room entry test rejection.");
-      const rolledBack = await page.evaluate(() => {
+      // A refused entry never teleports the player back: they stay where they walked, the server keeps its room.
+      const stayed = await page.evaluate(() => {
         const snapshot = (window as any).mapReviewGame.scene.getScene("tiled-map").current;
         return snapshot.actors.find((actor: any) => actor.id === "player").space;
       });
-      expect(rolledBack).toEqual({ kind: "room", roomId: data.golden!.state.playerRoomId });
+      expect(stayed).toEqual({ kind: "room", roomId: nextDoor.roomId });
       expect(data.golden!.state.playerRoomId).not.toBe(nextDoor.roomId);
       await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+      // Stepping out and back in retries the entry.
+      await walkTo(page, nextDoor.outside);
       await walkTo(page, nextDoor.inside);
       await expect.poll(() => data.golden!.state.playerRoomId).toBe(nextDoor.roomId);
       expect(actions).toContain("enterRoom");
