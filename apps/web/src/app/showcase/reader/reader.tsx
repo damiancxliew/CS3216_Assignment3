@@ -26,7 +26,7 @@ const NOTE: NoteView = {
   text: "Singapore sits at the heart of the trade routes, and ships come from all quarters.",
   source: "document",
   stageIndex: 0,
-  at: "2026-10-31T00:00:00.000Z",
+  at: Date.UTC(2026, 9, 31),
 };
 
 function documentView(passed: boolean): DocumentView {
