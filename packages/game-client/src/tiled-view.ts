@@ -125,6 +125,12 @@ class TiledScene extends Phaser.Scene {
   private captionLines?: Phaser.GameObjects.Graphics
   private interactionGlow?: Phaser.GameObjects.Graphics
   private readonly roomPointers = new RoomPointers(this)
+  /** The bouncing gold "go here" arrow for `snapshot.guide`, redrawn every frame. */
+  private guideGraphics?: Phaser.GameObjects.Graphics
+  /** The room label currently recoloured for the guide, so it can be restored. */
+  private guidedLabel: Phaser.GameObjects.Text | null = null
+  /** Actors and props have been drawn once since the map was built: later arrivals fade in instead of popping. */
+  private populated = false
   private hoveredTarget: string | null = null
   private markers = new Map<
     string,
@@ -400,6 +406,8 @@ class TiledScene extends Phaser.Scene {
     this.doors.clear()
     this.labels.forEach((l) => l.destroy())
     this.labels = []
+    this.guidedLabel = null
+    this.populated = false
     this.labelPins.forEach((pin) => pin.destroy())
     this.labelPins = []
     this.markers.forEach((m) => { m.idle?.remove(); m.container.destroy() })
@@ -608,6 +616,7 @@ class TiledScene extends Phaser.Scene {
 
     this.renderProps(snapshot)
     this.renderActors(snapshot, snap)
+    this.populated = true
     this.roomShells?.reveal(snapshot, this.reducedMotion || snap)
     this.applyAmbient(snapshot)
     this.playEffects(snapshot)
@@ -635,7 +644,8 @@ class TiledScene extends Phaser.Scene {
       const y = actor.position.y * T + T / 2 + (offset === 0 ? 0 : Math.round(Math.sin(offset * (Math.PI / 3)) * 5))
 
       let marker = this.markers.get(actor.id)
-      if (marker && marker.key !== key) {
+      const swapped = Boolean(marker && marker.key !== key)
+      if (marker && swapped) {
         marker.idle?.remove()
         marker.container.destroy()
         marker = undefined
@@ -644,6 +654,8 @@ class TiledScene extends Phaser.Scene {
         marker = this.createMarker(key, actor.position)
         this.markers.set(actor.id, marker)
         marker.container.setPosition(x, y)
+        // Someone arriving after the map is up (a room's occupants confirmed by the server) fades in rather than popping.
+        if (!swapped && this.populated && !snap && actor.id !== 'player') this.fadeIn(marker.container, 1)
       }
       const dx = actor.position.x - marker.last.x
       const dy = actor.position.y - marker.last.y
@@ -699,7 +711,8 @@ class TiledScene extends Phaser.Scene {
     for (const prop of props) {
       let entry = this.props.get(prop.id)
       const imageUrl = prop.imageUrl && this.textures.exists(assetTextureKey(prop.imageUrl)) ? prop.imageUrl : null
-      if (entry && entry.imageUrl !== imageUrl) {
+      const swapped = Boolean(entry && entry.imageUrl !== imageUrl)
+      if (entry && swapped) {
         entry.container.destroy()
         this.props.delete(prop.id)
         entry = undefined
@@ -707,6 +720,10 @@ class TiledScene extends Phaser.Scene {
       if (!entry) {
         entry = this.createProp(imageUrl)
         this.props.set(prop.id, entry)
+        if (!swapped && this.populated) {
+          entry.found = prop.found
+          this.fadeIn(entry.container, prop.found ? 0.55 : 1)
+        }
       }
       entry.container.setPosition(prop.position.x * T + T / 2, prop.position.y * T + T / 2)
       entry.container.setDepth(9 + prop.position.y / 1000)
@@ -732,6 +749,17 @@ class TiledScene extends Phaser.Scene {
     const lines = imageUrl ? [] : [-3, 0, 3].map((offset) => this.add.rectangle(0, offset, 6, 1, 0x8a7550))
     container.add([shadow, sheet, ...lines])
     return { container, found: false, imageUrl }
+  }
+
+  /** Fade a newly placed object up to `alpha`. A counter tween, so movement tweens on the object never cut it short. */
+  private fadeIn(object: Phaser.GameObjects.Container, alpha: number): void {
+    if (this.reducedMotion) return
+    object.setAlpha(0)
+    this.tweens.addCounter({
+      from: 0, to: alpha, duration: 260, ease: 'Sine.easeOut',
+      onUpdate: (tween) => { if (object.active) object.setAlpha(tween.getValue() ?? alpha) },
+      onComplete: () => { if (object.active) object.setAlpha(alpha) },
+    })
   }
 
   /** A small white "!" bubble that bobs above a character until the host clears it. */
@@ -779,9 +807,88 @@ class TiledScene extends Phaser.Scene {
     this.layoutCaptions()
     // Room labels are built in map-room order; point toward any that scrolled out of view.
     const roomBounds = this.labels.map((label) => label.getBounds())
-    this.roomPointers.update(this.cameras.main, this.current.map.rooms.flatMap((room, index) =>
-      roomBounds[index] ? [{ id: room.id, name: this.roomName(room.id), bounds: roomBounds[index] }] : []),
-    [...roomBounds, ...[...this.captions.values()].filter((caption) => caption.visible).map((caption) => caption.getBounds())])
+    const guide = this.renderGuide(roomBounds)
+    const places: Array<{ id: string; name: string; bounds: LabelRect }> = this.current.map.rooms.flatMap((room, index) =>
+      roomBounds[index] ? [{ id: room.id, name: this.roomName(room.id), bounds: roomBounds[index] }] : [])
+    // Without room labels (hover discovery) only the guided room earns an edge pointer.
+    const guidedRoom = guide.pointer && !places.some((place) => place.id === guide.pointer) ? this.current.map.rooms.find((room) => room.id === guide.pointer) : undefined
+    if (guidedRoom) places.push({ id: guidedRoom.id, name: this.roomName(guidedRoom.id), bounds: { x: guidedRoom.x * T, y: guidedRoom.y * T, width: guidedRoom.width * T, height: guidedRoom.height * T } })
+    const camera = this.cameras.main
+    const chrome = (this.current.chrome ?? []).map((rect) => {
+      const from = camera.getWorldPoint(rect.x, rect.y)
+      const to = camera.getWorldPoint(rect.x + rect.width, rect.y + rect.height)
+      return { x: from.x, y: from.y, width: to.x - from.x, height: to.y - from.y }
+    })
+    this.roomPointers.update(camera, places,
+      [...roomBounds, ...chrome, ...[...this.captions.values()].filter((caption) => caption.visible).map((caption) => caption.getBounds())],
+      guide.pointer ? { id: guide.pointer, pulse: this.reducedMotion ? 1 : (Math.sin(this.time.now / 260) + 1) / 2 } : null)
+  }
+
+  /** Draws the guide arrow over an on-screen actor, prop or room label, recolours a guided room label, and
+   * returns the room whose edge pointer should be emphasised when none of those is on screen. */
+  private renderGuide(roomBounds: readonly LabelRect[]): { pointer: string | null } {
+    const graphics = this.guideGraphics ??= this.add.graphics().setDepth(64)
+    graphics.clear()
+    const guide = this.current.guide
+    let label: Phaser.GameObjects.Text | null = null
+    let pointer: string | null = null
+    if (guide) {
+      const view = this.cameras.main.worldView
+      const visible = (x: number, y: number) => x >= view.x && x <= view.right && y >= view.y && y <= view.bottom
+      const placeOf = (point: Point) => {
+        const space = spaceAt(this.current.map, point)
+        return space?.kind === 'room' ? space.roomId : space?.kind === 'outdoor' ? space.locationId ?? null : null
+      }
+      const player = this.current.actors.find((actor) => actor.id === 'player')
+      const playerPlace = player ? placeOf(player.position) : null
+      let roomId: string | null = null
+      let tip: { x: number; y: number } | null = null
+      if (guide.kind === 'room') roomId = guide.id
+      else {
+        const target = guide.kind === 'actor'
+          ? (() => { const actor = this.current.actors.find((a) => a.id === guide.id); const marker = this.markers.get(guide.id); return actor && marker ? { position: actor.position, object: marker.container, top: 8 } : null })()
+          : (() => { const prop = this.current.props?.find((p) => p.id === guide.id); const entry = this.props.get(guide.id); return prop && entry ? { position: prop.position, object: entry.container, top: 7 } : null })()
+        if (target) {
+          const caption = this.captions.get(`${guide.kind}:${guide.id}`)
+          if (this.pointRevealed(target.position) && visible(target.object.x, target.object.y)) {
+            const top = target.object.y - target.top
+            const captionTop = caption?.visible && Math.abs(caption.x + caption.width / 2 - target.object.x) < 24 && caption.y < top ? caption.y : top
+            tip = { x: Math.round(target.object.x), y: Math.round(captionTop) - 2 }
+          } else roomId = placeOf(target.position)
+        }
+      }
+      if (roomId && roomId !== playerPlace) {
+        const index = this.current.map.rooms.findIndex((room) => room.id === roomId)
+        const room = this.current.map.rooms[index]
+        const bounds = roomBounds[index]
+        if (bounds && this.labels[index] && visible(bounds.x + bounds.width / 2, bounds.y)) {
+          label = this.labels[index]!
+          tip = { x: Math.round(bounds.x + bounds.width / 2), y: Math.round(bounds.y) - 12 }
+        } else if (!bounds && room && visible((room.x + room.width / 2) * T, room.y * T)) {
+          tip = { x: Math.round((room.x + room.width / 2) * T), y: room.y * T - 2 }
+        } else pointer = roomId
+      }
+      if (tip) this.drawGuideArrow(graphics, tip.x, tip.y + (this.reducedMotion ? 0 : -Math.round((Math.sin(this.time.now / 170) + 1) * 1.5)))
+    }
+    if (label !== this.guidedLabel) {
+      if (this.guidedLabel?.active) this.guidedLabel.setColor('#fffaf0').setBackgroundColor('#1f2433')
+      label?.setColor('#1f2433').setBackgroundColor('#f2c14e')
+      this.guidedLabel = label
+    }
+    return { pointer }
+  }
+
+  /** A chunky pixel arrow pointing down at (x, y): dark outline, gold body, a light glint. */
+  private drawGuideArrow(graphics: Phaser.GameObjects.Graphics, x: number, y: number): void {
+    const rows = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]] as const
+    graphics.fillStyle(0x1f2433, 1)
+    graphics.fillRect(x - 3, y - 12, 6, 8)
+    for (const [row, half] of rows) graphics.fillRect(x - half - 1, y - row - 1, half * 2 + 2, 1)
+    graphics.fillRect(x - 1, y, 2, 1)
+    graphics.fillStyle(0xf2c14e, 1)
+    graphics.fillRect(x - 2, y - 11, 4, 7)
+    for (const [row, half] of rows.slice(1)) graphics.fillRect(x - half, y - row - 1, half * 2, 1)
+    graphics.fillStyle(0xfff1b8, 1).fillRect(x - 2, y - 11, 1, 6)
   }
 
   private roomDescription(id: string): string {
@@ -929,8 +1036,14 @@ class TiledScene extends Phaser.Scene {
     // Room names and speech bubbles are text too: no name tag may sit on top of them. Nor may one hide the
     // player's own sprite, or a student standing just north of someone loses sight of themselves.
     const playerBounds = player ? [{ x: player.x - 7, y: player.y - 8, width: 14, height: 16 }] : []
+    // Nor may another name tag hide the guided object (or, for a document, the arrow bobbing above it).
+    const guide = this.current.guide
+    const guided = guide && guide.kind !== 'room' ? targets.find((target) => target.id === `${guide.kind}:${guide.id}`) : undefined
+    const guideBounds = guided ? [guide!.kind === 'prop'
+      ? { x: guided.bounds.x - 2, y: guided.bounds.y - 16, width: guided.bounds.width + 4, height: guided.bounds.height + 16 }
+      : guided.bounds] : []
     const placed = layoutMapLabels(candidates.filter((candidate) => (!discovery || candidate.id.startsWith('actor:') || candidate.id === focused) && overlaps(candidate.anchor, viewport, 0)), viewport,
-      [...doorBounds, ...targets.map((target) => target.bounds)], focused, [...roomBounds, ...(this.ambientLife?.bubbleBounds() ?? []), ...playerBounds])
+      [...doorBounds, ...targets.map((target) => target.bounds)], focused, [...roomBounds, ...(this.ambientLife?.bubbleBounds() ?? []), ...playerBounds, ...guideBounds])
     this.captionLines?.clear().lineStyle(0.5, 0xe1d1af, 0.7)
     for (const target of targets) {
       const text = this.captions.get(target.id)!

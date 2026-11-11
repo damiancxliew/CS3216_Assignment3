@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import type React from "react";
 
 import { pixelFont } from "@/components/play/v3/pixel-font";
 import styles from "@/components/play/v3/pocket-ui.module.css";
@@ -117,7 +118,7 @@ export function ChoiceButton({ index, text, selected, closed = false, checked, o
       className={`${styles.root} ${styles.choice}`}
     >
       <span aria-hidden className={`${pixelFont.className} ${styles.choiceKey}`}>{checked ? "✓" : CHOICE_KEYS[index] ?? "•"}</span>
-      <span className={`${pixelFont.className} ${styles.choiceText}`}>
+      <span className={styles.choiceText}>
         {text}
         {closed ? <span className="sr-only"> (no longer possible)</span> : null}
       </span>
@@ -127,29 +128,46 @@ export function ChoiceButton({ index, text, selected, closed = false, checked, o
 
 export type ToastTone = "secret" | "note" | "source";
 
-/** A right-hand popover toast. The top layer keeps it above open scrolls, which are modal dialogs. */
-export function PocketToast({ tone, kicker, text, icon, onActivate, actionLabel }: {
+/** Shows `element` in the top layer, above open scrolls (modal dialogs); re-raised whenever `stamp` changes. */
+export function useTopLayer(element: React.RefObject<HTMLElement | null>, enabled = true, stamp: string | null = null) {
+  useEffect(() => {
+    const node = element.current;
+    if (!enabled || !node || typeof node.showPopover !== "function") return;
+    try { if (node.matches(":popover-open")) node.hidePopover(); node.showPopover(); } catch { return; }
+    return () => { try { node.hidePopover(); } catch { /* already hidden */ } };
+  }, [element, enabled, stamp]);
+}
+
+/**
+ * One column for every toast (new note, new source, quest step, story line), so they never stack on
+ * top of each other. "bottom" sits just above the bottom-right HUD; "top" sits under the quest card,
+ * used while the dialogue box owns the bottom of the screen. Phones always use the top.
+ */
+export function ToastStack({ placement, stamp, children }: { placement: "bottom" | "top"; stamp: string; children: ReactNode }) {
+  const stack = useRef<HTMLDivElement>(null);
+  useTopLayer(stack, true, stamp);
+  return <div ref={stack} popover="manual" className={`${styles.root} ${styles.toastStack}`} data-placement={placement}>{children}</div>;
+}
+
+/** A popover toast. The top layer keeps it above open scrolls, which are modal dialogs; `inline` defers to a ToastStack. */
+export function PocketToast({ tone, kicker, text, icon, onActivate, actionLabel, inline = false }: {
   tone: ToastTone;
   kicker: string;
   text: string;
   icon: ReactNode;
   onActivate: () => void;
   actionLabel: string;
+  inline?: boolean;
 }) {
   const popover = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const element = popover.current;
-    if (!element || typeof element.showPopover !== "function") return;
-    try { element.showPopover(); } catch { return; }
-    return () => { try { element.hidePopover(); } catch { /* already hidden */ } };
-  }, []);
+  useTopLayer(popover, !inline);
   return (
-    <div ref={popover} popover="manual" className={`${styles.root} ${styles.toast}`} data-tone={tone}>
+    <div ref={popover} popover={inline ? undefined : "manual"} className={`${styles.root} ${styles.toast} ${inline ? styles.toastInline : ""}`} data-tone={tone}>
       <button type="button" className={styles.toastCard} onClick={onActivate} aria-label={`${kicker}: ${text}. ${actionLabel}`}>
         <span className={styles.toastIcon} aria-hidden>{icon}</span>
         <span className={styles.toastBody}>
           <span className={`${pixelFont.className} ${styles.toastKicker}`}>{kicker}</span>
-          <span className={`${pixelFont.className} ${styles.toastText}`}>{text}</span>
+          <span className={styles.toastText}>{text}</span>
         </span>
       </button>
       <span className="sr-only" role="status">{kicker}: {text}</span>

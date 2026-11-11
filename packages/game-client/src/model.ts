@@ -50,6 +50,11 @@ export interface PlaygroundSnapshot {
   }>
   /** Documents and objects lying on the map, drawn where the compiler placed them. */
   props?: Array<{ id: string; name: string; position: Point; found: boolean; imageUrl?: string }>
+  /** What the host wants the student to notice next: a bouncing gold marker over an actor or prop when it is
+   * on screen, otherwise the room holding it (its label, or its edge pointer when the label is off screen). */
+  guide?: { kind: 'actor' | 'prop' | 'room'; id: string } | null
+  /** Host UI panels drawn over the map, in canvas pixels. Edge pointers keep clear of them. */
+  chrome?: Array<{ x: number; y: number; width: number; height: number }>
   /** Optional public, non-actor markers supplied by a host application. */
   evidence?: Array<{ id: string; name: string; roomId: string; examined: boolean; position: Point }>
   playerGoal: PlayerGoal

@@ -64,7 +64,7 @@ export function SpeakerBox({
         <div className="min-h-0 flex-1 overflow-y-auto pb-7 pr-2">
           {note ? <p className="text-xs font-bold uppercase tracking-wide text-[#5c6472]">{note}</p> : null}
           {before ? <PlayerLine text={before} /> : null}
-          <p aria-live="polite" className={`${pixelFont.className} mt-1 whitespace-pre-line text-lg leading-snug sm:text-2xl`}>
+          <p aria-live="polite" className="mt-1 whitespace-pre-line text-[17px] font-medium leading-relaxed sm:text-[20px]">
             {text}
           </p>
           {after ? (

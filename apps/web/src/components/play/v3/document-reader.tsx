@@ -79,10 +79,16 @@ export function documentProvenanceLine(document: Pick<DocumentView, "kind" | "pr
 
 /** "Historical source · printed 1878": the year in the citation's last parentheses, when there is one. */
 export function sourceTagText(document: Pick<DocumentView, "real" | "sourceLabel">): string {
-  if (!document.real) return "Reconstruction · written for this adventure";
   const label = document.sourceLabel && document.sourceLabel !== "invented" ? document.sourceLabel : "";
+  if (!document.real) return label ? "Summary · based on real sources" : "Reconstruction · written for this adventure";
   const year = [...label.matchAll(/\((?:[^()]*?\b)?(1[0-9]{3}|20[0-9]{2})\b[^()]*\)/g)].at(-1)?.[1];
   return year ? `Historical source · printed ${year}` : "Historical source";
+}
+
+/** Tag colour: original sources, summaries of them, and invented reconstructions each look different. */
+function sourceKind(document: Pick<DocumentView, "real" | "sourceLabel">): "real" | "summary" | "invented" {
+  if (document.real) return "real";
+  return document.sourceLabel && document.sourceLabel !== "invented" ? "summary" : "invented";
 }
 
 function DocumentDetails({ document }: { document: DocumentView }) {
@@ -263,7 +269,7 @@ export function DocumentReader({
       {document ? (
         <>
           <article className={styles.sourceCard} aria-label={sourceTagText(document)}>
-            <span className={`${pixelFont.className} ${styles.sourceTag}`} data-real={document.real} title={document.real ? "From historical source material" : "Written for this adventure"}>{sourceTagText(document)}</span>
+            <span className={`${pixelFont.className} ${styles.sourceTag}`} data-kind={sourceKind(document)} title={document.real ? "From historical source material" : document.sourceLabel && document.sourceLabel !== "invented" ? "A modern summary of real sources" : "Written for this adventure"}>{sourceTagText(document)}</span>
             <DocumentDetails document={document} />
             <DocumentFacsimile key={document.id} facsimile={facsimiles?.[document.id]} />
             <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text">

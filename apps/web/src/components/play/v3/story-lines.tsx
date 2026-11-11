@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, Lightbulb, ScrollText, UserRound } from "lucide-rea
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import styles from "@/components/play/v3/story-lines.module.css";
-import { PocketPill, stanceTone } from "@/components/play/v3/pocket-ui";
+import { PocketPill, stanceTone, useTopLayer } from "@/components/play/v3/pocket-ui";
 
 export const STORY_TOAST_MS = 6_000;
 const STANCE_SHIFT_MS = 6_000;
@@ -132,37 +132,24 @@ export function StoryToast({
   characters,
   shift,
   onDismiss,
+  inline = false,
 }: {
   message: MessageView;
   characters: readonly CharacterView[];
   shift?: StanceShift | null;
   onDismiss: () => void;
+  /** Rendered inside a ToastStack instead of its own top-layer popover. */
+  inline?: boolean;
 }) {
   const popover = useRef<HTMLDivElement>(null);
-
   // The top layer keeps the line above an open scroll, which is itself a modal dialog.
-  useEffect(() => {
-    const element = popover.current;
-    if (!element || typeof element.showPopover !== "function") return;
-    try {
-      element.showPopover();
-    } catch {
-      return;
-    }
-    return () => {
-      try {
-        element.hidePopover();
-      } catch {
-        // Already hidden.
-      }
-    };
-  }, []);
+  useTopLayer(popover, !inline);
 
   const kicker = storyKicker(message, characters);
   const stance = message.kind === "notice" ? characters.find((character) => character.id === message.characterId)?.stance : null;
   const Icon = message.kind === "thought" ? Lightbulb : message.kind === "notice" ? UserRound : ScrollText;
   return (
-    <div ref={popover} popover="manual" className={styles.toast} data-kind={message.kind}>
+    <div ref={popover} popover={inline ? undefined : "manual"} className={`${styles.toast} ${inline ? styles.inline : ""}`} data-kind={message.kind}>
       <button type="button" className={styles.card} onClick={onDismiss} aria-label={`${kicker}: ${message.text}. Dismiss`}>
         <span className={styles.icon} aria-hidden="true"><Icon size={20} /></span>
         <span className={styles.body}>

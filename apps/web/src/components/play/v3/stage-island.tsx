@@ -321,7 +321,12 @@ export function StageIsland({
   openRequest = null,
   onOpenRequestHandled,
   shortcutsLocked = false,
+  opens = "down",
+  onExpandedChange,
 }: {
+  /** Which way the panel unfolds from the Journal button: down from a top HUD, up from a bottom one. */
+  opens?: "up" | "down";
+  onExpandedChange?: (expanded: boolean) => void;
   view: PlayerView;
   onOpenDocument: (id: string) => void;
   onOpenRoleBrief?: () => void;
@@ -426,6 +431,8 @@ export function StageIsland({
     if (definingMoment && activeTab === "notes") setActiveTab("documents");
   }, [activeTab, definingMoment]);
 
+  useEffect(() => { onExpandedChange?.(expanded); }, [expanded, onExpandedChange]);
+
   const showActivity = activity && !view.pendingCheck;
   const layerClass = definingMoment ? "z-30" : "z-10";
   // Notes gained since the Journal was last opened, for the red badge on the HUD button.
@@ -463,8 +470,8 @@ export function StageIsland({
         id="stage-island-panel"
         aria-hidden={!expanded}
         inert={!expanded}
-        className={`absolute right-0 top-full mt-3 grid overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[0_6px_0_rgb(31_36_51/0.55),0_18px_40px_rgb(0_0_0/0.25)] transition-[grid-template-rows,opacity,transform] duration-200 motion-reduce:transition-none motion-reduce:duration-0 w-[min(40rem,calc(100vw_-_1rem))] ${
-          expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : "pointer-events-none grid-rows-[0fr] border-transparent opacity-0 -translate-y-1"
+        className={`absolute right-0 ${opens === "up" ? "bottom-full mb-3" : "top-full mt-3"} grid overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[0_6px_0_rgb(31_36_51/0.55),0_18px_40px_rgb(0_0_0/0.25)] transition-[grid-template-rows,opacity,transform] duration-200 motion-reduce:transition-none motion-reduce:duration-0 w-[min(40rem,calc(100vw_-_1rem))] ${
+          expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : `pointer-events-none grid-rows-[0fr] border-transparent opacity-0 ${opens === "up" ? "translate-y-1" : "-translate-y-1"}`
         }`}
       >
         <div className="min-h-0 overflow-hidden">
@@ -480,10 +487,10 @@ export function StageIsland({
               {view.pendingCheck ? null : showActivity ? <span aria-live="polite">{activity}</span> : <IslandCounts view={view} />}
             </span>
             <button type="button" onClick={closeIsland} aria-label="Close journal" className="grid h-8 w-8 shrink-0 place-items-center rounded-md hover:bg-white/10">
-              <ChevronDown size={16} aria-hidden className="rotate-180" />
+              <ChevronDown size={16} aria-hidden className={opens === "up" ? "" : "rotate-180"} />
             </button>
           </header>
-          <div className="flex h-[min(60vh,28rem)] min-h-0 flex-col">
+          <div className={`flex min-h-0 flex-col ${opens === "up" ? "h-[min(28rem,calc(100dvh-15rem))]" : "h-[min(60vh,28rem)]"}`}>
             <div role="tablist" aria-label="Journal sections" className="m-2 mb-0 flex shrink-0 gap-1 rounded-lg bg-[#1f2433]/[0.08] p-1">
               {([
                 ["notes", "Notes", view.notes.length],

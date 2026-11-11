@@ -3,6 +3,8 @@
    Palette follows the pitch kit: paper #FFF8E9, ink #172033, record blue #3659CF,
    world green #258663, signal orange #D85F35, sunshine #FFE66D. */
 .root {
+  /* Pixelify Sans draws "fi"/"ffi" ligatures as a single blob ("Arst stage"); keep letters separate. */
+  font-variant-ligatures: no-common-ligatures;
   --pa-ink: #1f2433;
   --pa-paper: #fffaf0;
   --pa-paper-deep: #f6ecd4;
@@ -240,6 +242,24 @@
   overflow: visible;
   animation: toast-in 460ms cubic-bezier(.2, 1.4, .4, 1) both;
 }
+/* The shared column (ToastStack) and toasts placed inside it. */
+.toastStack {
+  position: fixed;
+  inset: auto 16px 92px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(23rem, calc(100vw - 32px));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
+}
+.toastStack > * { pointer-events: auto; }
+.toastStack[data-placement="top"] { inset: 96px 16px auto auto; }
+.toastInline { position: static; inset: auto; width: 100%; }
 .toastCard {
   display: flex;
   width: 100%;
@@ -267,7 +287,7 @@
 .toast[data-tone="secret"] .toastKicker { color: var(--pa-secret); }
 .toast[data-tone="note"] .toastKicker { color: #8a5a1c; }
 .toast[data-tone="source"] .toastKicker { color: var(--pa-record); }
-.toastText { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; font-size: clamp(15px, 1.4vw, 18px); font-weight: 600; line-height: 1.35; }
+.toastText { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; font: 600 15px/1.4 var(--font-ui, system-ui), sans-serif; }
 
 /* Big title card shown when a stage begins. */
 .titleCard {
@@ -319,4 +339,6 @@
   .ribbon::after { right: -34px; }
   .hud { min-width: 46px; min-height: 46px; }
   .toast { inset: 76px 8px auto auto; }
+  .toastStack, .toastStack[data-placement="top"] { inset: 112px 8px auto 8px; width: auto; }
+  .toastInline { inset: auto; }
 }

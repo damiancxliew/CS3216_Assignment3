@@ -190,10 +190,35 @@ export function ContinueIndicator() {
   );
 }
 
+/** Neutral, period-agnostic openers so the NPC speaks first; chosen by character id, shown client-side only. */
+export function openingLine(character: Pick<CharacterView, "id" | "name" | "title">): string {
+  const first = character.name.split(/\s+/)[0] ?? character.name;
+  const variants = [
+    `${first} looks up. \u201CYes? What do you need?\u201D`,
+    `${first} turns to you. \u201CYou wanted a word? Go on.\u201D`,
+    `${first} sets the work aside. \u201CI can spare a moment. What is it?\u201D`,
+    `${first} meets your eye. \u201CSpeak plainly. What would you like to know?\u201D`,
+  ];
+  const hash = [...character.id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  return variants[hash % variants.length]!;
+}
+
+function purposeLine(character: CharacterView): string {
+  const first = character.name.split(/\s+/)[0] ?? character.name;
+  // The preparation hint is a to-do for elsewhere on the map (the quest card shows it), not this talk's purpose.
+  const hint: string | undefined = undefined;
+  if (hint) return hint;
+  return `Find out what ${first} knows. Ask a question, or show a note to challenge them.`;
+}
+
 function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = null, onSend, onOpenNotes, onClose }: TalkProps) {
   const [text, setText] = useState("");
   const [sendFailed, setSendFailed] = useState(false);
+  const [sentTexts, setSentTexts] = useState<string[]>([]);
   const input = useRef<HTMLInputElement>(null);
+  const hasCharacterLine = messages.some((message) => message.kind === "character" && message.characterId === character.id);
+  const opening = hasCharacterLine ? null : openingLine(character);
+  const starters = (character.starters ?? []).filter((starter) => !sentTexts.includes(starter));
   const body = useRef<HTMLDivElement>(null);
   const seenAtOpen = useRef(new Set(messages.map((message) => message.id)));
   let animatingMessage: DialogueMessage | undefined;
@@ -261,9 +286,11 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
     const message = text.trim();
     if (!message || busy) return;
     setSendFailed(false);
+    setSentTexts((current) => [...current, message]);
     onSend(message, (succeeded) => {
       if (succeeded) return;
       setSendFailed(true);
+      setSentTexts((current) => current.filter((sent) => sent !== message));
       setText((current) => current.trim() ? current : message);
       input.current?.focus();
     });
@@ -310,7 +337,12 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
           }}
           className="relative min-h-[3.5rem] min-w-0 flex-1 space-y-3 overflow-y-auto pb-7 pr-2 text-sm leading-relaxed sm:text-base"
         >
-          {messages.length ? messages.map((message) => {
+          {opening ? (
+            <article className={`max-w-[95%] break-words ${latestLineId === null ? "" : "opacity-75"}`}>
+              <p className={`whitespace-pre-wrap ${latestLineId === null ? "text-[17px] font-medium leading-relaxed sm:text-[20px]" : "text-[15px] leading-relaxed sm:text-[17px]"}`}>{opening}</p>
+            </article>
+          ) : null}
+          {messages.map((message) => {
             const fromPlayer = message.kind === "player";
             const latest = message.id === latestLineId;
             const speaker = fromPlayer
@@ -328,7 +360,7 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
                 <p className="mb-0.5 text-xs font-bold uppercase tracking-wide text-[#5c6472]">{speaker}</p>
               ) : null}
               {message.text ? (
-                <p className={`whitespace-pre-wrap ${latest && !fromPlayer ? `${pixelFont.className} text-lg leading-snug sm:text-2xl` : "text-[15px] leading-relaxed sm:text-[17px]"} ${message.kind === "narration" || message.kind === "thought" ? "italic text-[#3b4252]" : message.kind === "notice" ? "font-semibold italic text-[#8a5a1c]" : ""}`}>
+                <p className={`whitespace-pre-wrap ${latest && !fromPlayer ? "text-[17px] font-medium leading-relaxed sm:text-[20px]" : "text-[15px] leading-relaxed sm:text-[17px]"} ${message.kind === "narration" || message.kind === "thought" ? "italic text-[#3b4252]" : message.kind === "notice" ? "font-semibold italic text-[#8a5a1c]" : ""}`}>
                   {message.id === animatingMessage?.id ? (
                     <>
                       <span className="sr-only">{message.text}</span>
@@ -344,11 +376,7 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
               ) : null}
             </article>
             );
-          }) : (
-            <p className={`${pixelFont.className} py-2 text-base leading-relaxed text-[#1f2433] sm:text-lg`}>
-              Say hello, or ask {character.name} a question.
-            </p>
-          )}
+          })}
           {sendFailed && !busy ? (
             <p role="alert" className="text-sm font-bold text-[#a3341f]">
               That didn&apos;t reach {character.name}. Your question is back in the box. Try sending it again.
@@ -361,6 +389,25 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
           ) : null}
         </div>
 
+        <p className="mt-1 shrink-0 truncate text-xs leading-snug text-[#5c6472] sm:whitespace-normal sm:text-sm" title={purposeLine(character)}>{purposeLine(character)}</p>
+        {starters.length > 0 && !busy ? (
+          <ul aria-label="Question ideas" className="mt-1.5 flex shrink-0 gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible">
+            {starters.map((starter) => (
+              <li key={starter} className="shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setText(starter);
+                    input.current?.focus();
+                  }}
+                  className="min-h-9 whitespace-nowrap rounded-lg border-2 sm:whitespace-normal border-[#1f2433]/60 bg-[#fffaf0] px-2.5 py-1 text-left text-xs font-semibold text-[#1f2433] hover:bg-[#ffe58a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf] sm:text-sm"
+                >
+                  {starter}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <form onSubmit={submit} className="mt-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2 border-t-2 border-[#1f2433]/20 pt-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
           <label htmlFor="v3-message" className="sr-only">Ask {character.name} a question</label>
           <input
@@ -384,9 +431,10 @@ function TalkDialogue({ character, portraitBase, messages, busy, stanceShift = n
           <button
             type="button"
             onClick={onOpenNotes}
+            title="Show a note to back up what you say. People react to evidence."
             className={`${pixelFont.className} col-span-2 min-h-11 rounded-lg border-[3px] border-[#1f2433] bg-[#fff3cf] px-3 text-base font-bold shadow-[0_3px_0_#1f2433] hover:bg-[#ffe58a] active:translate-y-[2px] active:shadow-none sm:col-span-1`}
           >
-          Insert a note
+          Show a note
           </button>
         </form>
       </div>
@@ -480,7 +528,7 @@ function MomentDialogue({ moment, decider, portraitBase, busy, onAct, onPredict 
             onClickCapture={handleBodyClickCapture}
             className="relative min-h-0 flex-1 overflow-y-auto pb-2 pr-2"
           >
-            <h2 className={`${pixelFont.className} text-lg font-semibold leading-snug sm:text-2xl`}>{moment.scene}</h2>
+            <h2 className="text-[17px] font-semibold leading-snug sm:text-[20px]">{moment.scene}</h2>
             {moment.nudge ? <p className="mt-1 text-sm leading-relaxed text-[#6b5f4c]">{moment.nudge}</p> : null}
 
             {predicting ? (

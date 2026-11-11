@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { pixelFont } from "./pixel-font";
 import { pocketStyles } from "./pocket-ui";
 
-const HOLD_MS = 2600;
+const HOLD_MS = 1700;
 const FADE_MS = 600;
 
 /** "STAGE 2 OF 3 / A port that grew" over the stage painting. Any key or click skips it. */
@@ -24,7 +24,7 @@ export function StageTitleCard({ index, count, title, timePlace, artUrl, onDone 
 
   useEffect(() => {
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(() => done.current(), reduced ? 1200 : HOLD_MS + FADE_MS);
+    const timer = window.setTimeout(() => done.current(), reduced ? 1000 : HOLD_MS + FADE_MS);
     card.current?.focus({ preventScroll: true });
     const skip = (event: KeyboardEvent) => {
       if (event.key === "Tab") return;

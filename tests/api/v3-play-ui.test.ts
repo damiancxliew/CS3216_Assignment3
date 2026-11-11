@@ -15,6 +15,8 @@ import { StageIsland, documentActivityText, filterLogByCharacter, filterStoryLin
 import { StagePlayScreen, firstV3CollectedDocumentId, submitV3NoteInsert, v3InsertNoteAction, v3SelectPassageAction } from "@/components/play/v3/stage-play-screen";
 import { V3CardDialog } from "@/components/play/v3/card-dialog";
 import { V3Cinematic } from "@/components/play/v3/v3-cinematic";
+import { RoleCard, roleMoreGroups, stageTrack } from "@/components/play/v3/role-card";
+import { StageBrief } from "@/components/play/v3/stage-brief";
 import { v3AudioSnapshot } from "@/components/play/v3/v3-map";
 import { V3PlayClient } from "@/components/play/v3/v3-play-client";
 import { V3PreviewClient, V3PreviewHeaderActions } from "@/components/play/v3/v3-preview-client";
@@ -344,6 +346,40 @@ describe("v3 stage play screen", () => {
       expect(markup).not.toContain('id="v3-message"');
       expect(markup).not.toContain("Say hello");
       expect(markup).not.toContain("Move to");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows a quest log with the next step, prerequisites, and a locked decision instead of progress jargon", () => {
+    const view = stagePlayView({
+      stage: {
+        index: 0, count: 1, title: "The landing", timePlace: "Singapore, 1819", centralQuestion: "Who will shape the island?", intro: null,
+        preparation: {
+          completed: 0, required: 1, ready: false, timerExpired: false,
+          hint: "Read “A letter from the harbour” in The landing and complete its reading check.",
+          essentialConversations: [{ characterId: "character-1", name: "Temenggong", complete: false }],
+        },
+      },
+      characters: [{ id: "character-1", name: "Temenggong", title: "Temenggong", stanceId: null, portraitKey: "temenggong", preparation: { completed: 0, required: 1, ready: false, hint: "Read “A letter from the harbour” in The landing and complete its reading check." } }],
+      documentsHere: [{ id: "document-1", kind: "letter", title: "A letter from the harbour", read: false }],
+    } as Partial<PlayerView>);
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(StagePlayScreen, { view, busy: false, send: () => {}, attemptId: "preview-attempt" }));
+      const mission = markup.match(/<section aria-label="Mission"[\s\S]*?<\/section>/)?.[0] ?? "";
+      expect(mission).toContain("Main quest");
+      expect(mission).toContain("Who will shape the island?");
+      expect(mission).toContain('aria-label="Quest steps"');
+      expect(mission).toMatch(/data-state="next"[^>]*>[\s\S]*?Read “A letter from the harbour”/);
+      expect(mission).toContain("Talk to Temenggong");
+      expect(mission).toContain("Read “A letter from the harbour” first");
+      expect(mission).toContain("Make your decision");
+      expect(mission).toContain("Next step: Read “A letter from the harbour”");
+      expect(mission).not.toContain("Evidence preparation");
+      expect(mission).not.toContain("Essential conversations");
+      expect(mission).not.toContain("steps left");
+      expect(markup).not.toContain("You’re ready — make your decision");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -1037,7 +1073,7 @@ describe("v3 dialogue box", () => {
       expect(markup).toContain(message.text);
       expect(markup).toContain("The tide changes before dawn.");
       expect(markup).toContain('id="v3-message"');
-      expect(markup).toContain("Insert a note");
+      expect(markup).toContain("Show a note");
       expect(markup).toContain('aria-label="Close conversation (Esc)"');
     } finally {
       vi.unstubAllGlobals();
@@ -1299,5 +1335,76 @@ describe("v3 reveal screen", () => {
     }));
     expect(markup).toContain('<a href="/teacher">Back to adventures</a>');
     expect(markup).not.toContain("You can close this tab");
+  });
+});
+
+describe("concise role card and stage brief", () => {
+  const briefing = {
+    name: "Sam",
+    position: "Junior liaison officer at army headquarters (fictional)",
+    relationships: ["General Percival is your commander."],
+    reputation: "New, careful.",
+    stakes: "Singapore is called an impregnable fortress. Is it? You can't give orders.",
+    privateBrief: { goals: ["Test Percival's two reasons, and advise him."], fears: ["Giving advice without evidence."], constraints: ["You advise; Percival decides."], knows: ["Japan invaded Malaya on 8 December 1941."] },
+    situation: "February 1942. Singapore is a British colony.",
+  };
+  const look = { character: "Inspector", faceUrl: "/game/ninja/characters/Inspector/face.png", sheetUrl: null, source: "role-match" } as const;
+
+  it("puts the opening on one card: who, where, the big question, one mission line and three actions", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(RoleCard, { briefing, stage: null, stageCount: 3, look, artUrl: null, beginLabel: "Enter the first stage", onBegin: () => {} }));
+      expect(markup).toContain("You play Sam");
+      expect(markup).toContain("Junior liaison officer at army headquarters");
+      expect(markup).toContain("Fictional");
+      expect(markup).toContain("February 1942");
+      expect(markup).toContain("Singapore is called an impregnable fortress. Is it?");
+      expect(markup).toContain("Test Percival&#x27;s two reasons, and advise him.");
+      expect(markup).toContain("Read sources");
+      expect(markup).toContain("Inspector/face.png");
+      expect(markup).toContain('aria-label="Your journey"');
+      // The opening keeps the long lists out; only the in-game brief has "More".
+      expect(markup).not.toContain("More about your role");
+      expect(markup).not.toContain("Giving advice without evidence.");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps at most three groups behind More in the in-game brief", () => {
+    expect(roleMoreGroups(briefing).map((group) => group.title)).toEqual(["Your goals", "People you know", "Remember"]);
+    expect(stageTrack({ count: 3 }).map((stop) => stop.state)).toEqual(["current", "locked", "locked"]);
+    vi.stubGlobal("React", React);
+    try {
+      const markup = renderToStaticMarkup(createElement(RoleCard, { briefing, stage: null, look, artUrl: null, beginLabel: "Back to the map", onBegin: () => {}, onClose: () => {} }));
+      expect(markup).toContain("<summary>More about your role");
+      expect(markup).toContain('aria-label="Close role brief"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("opens a stage on one screen: title, two sentences, the new main quest and what happened", () => {
+    vi.stubGlobal("React", React);
+    try {
+      const stage = {
+        index: 1, count: 3, title: "A port that grew", timePlace: "Singapore, 1823", centralQuestion: "What made the port grow so fast?",
+        intro: { narration: "Four years on, Singapore is a free port. Traders arrive from the Malay world. Settlers come from China and India.", predictionReveal: { predicted: "the Dutch would attack", actual: "the Dutch protested but did not attack", because: "" } },
+      };
+      const markup = renderToStaticMarkup(createElement(StageBrief, { stage, artUrl: null, beginLabel: "Start exploring", onBegin: () => {}, muted: true, onToggleMuted: () => {} }));
+      expect(markup).toContain("Stage 2 of 3");
+      expect(markup).toContain("A port that grew");
+      // Beside "What happened", the narration keeps one sentence; the rest is behind "Read more".
+      expect(markup).toContain("Four years on, Singapore is a free port.");
+      expect(markup).toContain("Read more");
+      expect(markup).not.toContain("Traders arrive from the Malay world");
+      expect(markup).toContain("New main quest");
+      expect(markup).toContain("What made the port grow so fast?");
+      expect(markup).toContain("What happened");
+      expect(markup).toContain("The Dutch protested but did not attack.");
+      expect(markup).toContain("Start exploring");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
