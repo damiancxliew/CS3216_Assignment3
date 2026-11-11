@@ -64,9 +64,7 @@ export function ReadingCheck({ document, selection, onSelect, onSubmit, onContin
           <h3>Review the evidence before trying again</h3>
           <p>{check.feedback ?? "That answer was not supported. Try again below or investigate another relevant source first."}</p>
         </div>
-      ) : (
-        <p className={styles.instructions}>Choose an answer, then highlight the sentence or sentences that support it. If your answer is not supported, you can try again.</p>
-      )}
+      ) : null}
       {question ? (
         <form onSubmit={(event) => {
           event.preventDefault();

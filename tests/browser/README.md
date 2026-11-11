@@ -1,5 +1,33 @@
 # Student browser acceptance
 
+## Teacher creation workspace
+
+```sh
+RUN_CREATION_BROWSER_TESTS=1 npm test -- tests/browser/v3-creation.test.ts
+```
+
+This runs the real creation/chat/source/upload components in an isolated Vite
+fixture with deterministic server transport. It checks desktop light/dark
+layouts, narrow-screen overflow, source-preview keyboard controls and paging,
+brief pencil edits, sequential multi-file picking/dropping, retries, invalid
+files and the source cap. Evidence is saved in `output/v3-creation-check/`.
+
+For an authenticated integration run, start local Supabase and Next on an unused
+port without resetting the database. Configure Next with its normal local
+environment. Export `SUPABASE_URL`,
+`SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` for the test process using the
+same local credentials as Next. The existing testing school must be present.
+
+```sh
+RUN_CREATION_LOCAL_TESTS=1 CREATION_LOCAL_ORIGIN=http://127.0.0.1:3237 \
+  npm test -- tests/browser/v3-creation-local.test.ts
+```
+
+This creates and removes only a disposable teacher, membership and adventure.
+It exercises real TXT/MD/PDF extraction, batch drops, database/brief persistence,
+reload and source previews. It makes no model calls. Evidence is saved in
+`output/v3-creation-local-check/`.
+
 The shared v2/v3 listings regression uses local Next and Supabase with disposable
 accounts and adventures. Apply migrations first. Configure Next with
 `V3_ENABLED=1` and a local test school's UUID in `V3_SCHOOL_IDS`, then run:
@@ -209,3 +237,21 @@ Only the game presentation URL changes to `/api/v3/sprites/<immutable-media-path
 The route accepts UUID/UUID/SHA-256 PNG or WebP paths under the configured asset
 base; it does not accept arbitrary upstream URLs. Already-public sprite bytes
 are cached immutably. Failed reads are not cached as successful images.
+
+## Production header
+
+The shared header stylesheet must load on the actual Next.js entry routes; a Vite
+fixture alone does not verify production CSS extraction. Build the app, then run
+`npm run start --workspace web -- --hostname 127.0.0.1 --port 3239` in another terminal.
+
+```sh
+RUN_HEADER_PRODUCTION_TESTS=1 npx vitest run tests/browser/site-header-production.test.ts
+RUN_HEADER_BROWSER_TESTS=1 npx vitest run tests/browser/site-navigation.test.ts
+RUN_HEADER_ASSET_TESTS=1 npx vitest run tests/build/header-assets.test.ts
+```
+
+The production browser test checks desktop/mobile navigation on the landing and
+teacher entry pages. The authenticated fixture includes the landing-page actions,
+long admin/school names, light/dark themes, keyboard dismissal and menu bounds.
+Set `PLAYWRIGHT_EXECUTABLE_PATH` to reuse an installed Chromium executable if needed.
+CI runs the dependency-free asset check after its production build.

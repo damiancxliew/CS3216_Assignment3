@@ -38,7 +38,7 @@ describe("V3 cinematic beats", () => {
     ]);
   });
 
-  it("builds stage place, prediction reveal, narration, and question beats", () => {
+  it("builds at most two beats: what happened (or narration) and the question", () => {
     const stage: StageView = {
       index: 1,
       count: 3,
@@ -56,11 +56,14 @@ describe("V3 cinematic beats", () => {
     };
 
     expect(stageIntroBeats(stage)).toEqual([
-      { id: "place", kicker: "Stage 2 of 3", title: "The agreement", body: "Singapore, February 1819" },
       { id: "what-happened", kicker: "What happened", body: "The talks continued.", items: ["You predicted: The talks would be delayed.", "Why: Both parties returned to the table."] },
-      { id: "narration", kicker: "Meanwhile", body: "The party returns to the river." },
       { id: "question", kicker: "The question", body: "Whose authority will the agreement recognize?" },
     ]);
+  });
+
+  it("uses narration when there is no prediction and never adds a preparation beat", () => {
+    const stage = { index: 0, count: 2, title: "T", timePlace: "P", centralQuestion: "Q?", intro: { narration: "Meanwhile text.", predictionReveal: null }, preparation: { essentialConversations: [{ name: "Ann" }] } } as unknown as StageView;
+    expect(stageIntroBeats(stage).map((beat) => beat.id)).toEqual(["narration", "question"]);
   });
 
   it("turns a generated reason fragment into a sentence", () => {
@@ -80,9 +83,37 @@ describe("V3 cinematic beats", () => {
       },
     } satisfies StageView;
 
-    expect(stageIntroBeats(stage)[1]?.items).toEqual([
+    expect(stageIntroBeats(stage)[0]?.items).toEqual([
       "You predicted: He will sign, and send for Tengku Hussein.",
       "Why: He did not yet trust the British, and feared what Riau would do.",
     ]);
+  });
+});
+
+describe("concise brief helpers", () => {
+  it("derives the big question from the role's stakes, keeping a short question with its lead-in", async () => {
+    const { bigQuestion } = await import("@/lib/play/v3/cinematic");
+    expect(bigQuestion({ stakes: "Singapore is called an impregnable fortress. Is it? You can't give orders." })).toBe("Singapore is called an impregnable fortress. Is it?");
+    expect(bigQuestion({ stakes: "What will become of the island once the British arrive in force?" })).toBe("What will become of the island once the British arrive in force?");
+    expect(bigQuestion({ stakes: "Your work in Malacca is gone." }, { centralQuestion: "Who will shape the island?" })).toBe("Who will shape the island?");
+    expect(bigQuestion({ stakes: "No question here." })).toBeNull();
+  });
+
+  it("keeps two real sentences on screen and lets a dateline ride along", async () => {
+    const { briefExcerpt } = await import("@/lib/play/v3/cinematic");
+    expect(briefExcerpt('February 1942. The army is back on the island. The enemy is across the strait. A notice says "Singapore is a fortress."')).toEqual({
+      lead: "February 1942. The army is back on the island. The enemy is across the strait.",
+      rest: 'A notice says "Singapore is a fortress."',
+    });
+    expect(briefExcerpt("One short line only.")).toEqual({ lead: "One short line only.", rest: "" });
+  });
+
+  it("finds where and when, and splits a fictional marker off the position", async () => {
+    const { roleWhenWhere, splitFictional } = await import("@/lib/play/v3/cinematic");
+    expect(roleWhenWhere({ situation: "February 1942. Singapore is a British colony." })).toBe("February 1942");
+    expect(roleWhenWhere({ situation: "Ships have anchored at the river mouth." })).toBeNull();
+    expect(roleWhenWhere({ situation: "February 1942." }, { timePlace: "Fort Canning, early February 1942" })).toBe("Fort Canning, early February 1942");
+    expect(splitFictional("Junior liaison officer at army headquarters (fictional)")).toEqual({ position: "Junior liaison officer at army headquarters", fictional: true });
+    expect(splitFictional("Clerk to Stamford Raffles")).toEqual({ position: "Clerk to Stamford Raffles", fictional: false });
   });
 });

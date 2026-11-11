@@ -27,7 +27,8 @@ export default async function V3PlayPage({ params,
   if (!user) redirect("/");
 
   const deps = v3PlayDeps();
-  const result = await getAttempt(deps, user.id, attemptId);
+  // Independent reads: the raw attempt is only used after getAttempt has authorised access to it.
+  const [result, attempt] = await Promise.all([getAttempt(deps, user.id, attemptId), deps.store.loadAttempt(attemptId)]);
   if (result.status === 404) notFound();
   if (result.status !== 200) {
     const error = result.body.error as { message?: string } | undefined;
@@ -35,7 +36,6 @@ export default async function V3PlayPage({ params,
   }
   const body = result.body as { revision: number; view: Parameters<typeof V3PlayClient>[0]["initialView"];
   };
-  const attempt = await deps.store.loadAttempt(attemptId);
   if (!attempt) notFound();
   const phase = body.view.phase;
   const rawSpec = await deps.store.loadVersionSpec(attempt.adventureId, attempt.specVersion,

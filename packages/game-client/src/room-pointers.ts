@@ -26,12 +26,13 @@ export function edgePoint(view: LabelRect, target: { x: number; y: number }, mar
 
 /** One chip per off-screen place, pinned to the view edge in the place's direction.
  * Nearer places claim their spot first; chips slide along the edge rather than cover each other or `obstacles`. */
-export function layoutRoomPointers(candidates: readonly PointerCandidate[], view: LabelRect, obstacles: readonly LabelRect[] = [], margin = 3): PlacedPointer[] {
+export function layoutRoomPointers(candidates: readonly PointerCandidate[], view: LabelRect, obstacles: readonly LabelRect[] = [], margin = 3, priorityId: string | null = null): PlacedPointer[] {
   const cx = view.x + view.width / 2
   const cy = view.y + view.height / 2
   const placed: PlacedPointer[] = []
-  const ordered = [...candidates].sort((a, b) =>
-    Math.hypot(a.target.x - cx, a.target.y - cy) - Math.hypot(b.target.x - cx, b.target.y - cy) || a.id.localeCompare(b.id))
+  // A guided place claims its spot first, so crowding never drops the one pointer the student needs.
+  const ordered = [...candidates].sort((a, b) => Number(b.id === priorityId) - Number(a.id === priorityId)
+    || Math.hypot(a.target.x - cx, a.target.y - cy) - Math.hypot(b.target.x - cx, b.target.y - cy) || a.id.localeCompare(b.id))
   for (const item of ordered) {
     const point = edgePoint(view, item.target, margin)
     if (!point) continue
@@ -81,7 +82,8 @@ export class RoomPointers {
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  update(camera: Phaser.Cameras.Scene2D.Camera, places: ReadonlyArray<{ id: string; name: string; bounds: LabelRect }>, obstacles: readonly LabelRect[]): void {
+  /** `highlight` names a guided place: its chip turns gold and pulses (`pulse` in 0..1) so it stands out from the rest. */
+  update(camera: Phaser.Cameras.Scene2D.Camera, places: ReadonlyArray<{ id: string; name: string; bounds: LabelRect }>, obstacles: readonly LabelRect[], highlight: { id: string; pulse: number } | null = null): void {
     const width = camera.width / camera.zoom
     const height = camera.height / camera.zoom
     const view = { x: camera.scrollX + (camera.width - width) / 2, y: camera.scrollY + (camera.height - height) / 2, width, height }
@@ -102,22 +104,34 @@ export class RoomPointers {
       if (text.text !== place.name) text.setText(place.name)
       return { id: place.id, target: { x: place.bounds.x + place.bounds.width / 2, y: place.bounds.y + place.bounds.height / 2 }, width: text.width, height: text.height }
     })
-    const placed = layoutRoomPointers(candidates, view, obstacles)
+    const placed = layoutRoomPointers(candidates, view, obstacles, 3, highlight?.id ?? null)
     this.placed = placed
     const graphics = this.graphics ??= this.scene.add.graphics().setDepth(61)
     graphics.clear()
     for (const [id, text] of this.texts) text.setVisible(placed.some((pointer) => pointer.id === id))
     for (const pointer of placed) {
-      this.texts.get(pointer.id)!.setPosition(pointer.text.x, pointer.text.y)
+      const text = this.texts.get(pointer.id)!
+      text.setPosition(pointer.text.x, pointer.text.y)
+      const guided = pointer.id === highlight?.id
+      const color = guided ? '#1f2433' : '#fff8e7'
+      if (text.style.color !== color) text.setColor(color)
       const { x, y, width: w, height: h } = pointer.bounds
-      graphics.fillStyle(0x2e2620, 0.92).fillRoundedRect(x, y, w, h, 2)
-      graphics.lineStyle(0.5, 0xf2d49b, 0.8).strokeRoundedRect(x, y, w, h, 2)
+      if (guided) {
+        // A gold chip with a soft pulsing halo: the way to the next step.
+        const glow = 0.25 + highlight!.pulse * 0.45
+        graphics.lineStyle(1, 0xf2c14e, glow).strokeRoundedRect(x - 1.5, y - 1.5, w + 3, h + 3, 3)
+        graphics.fillStyle(0xf2c14e, 1).fillRoundedRect(x, y, w, h, 2)
+        graphics.lineStyle(0.75, 0x1f2433, 1).strokeRoundedRect(x, y, w, h, 2)
+      } else {
+        graphics.fillStyle(0x2e2620, 0.92).fillRoundedRect(x, y, w, h, 2)
+        graphics.lineStyle(0.5, 0xf2d49b, 0.8).strokeRoundedRect(x, y, w, h, 2)
+      }
       const cos = Math.cos(pointer.angle)
       const sin = Math.sin(pointer.angle)
       // A small notched dart, dimmer than the name, so it hints at the way without shouting.
       const { x: ax, y: ay } = pointer.arrow
       const at = (along: number, across: number) => ({ x: ax + cos * along - sin * across, y: ay + sin * along + cos * across })
-      graphics.fillStyle(0xf2d49b, 0.7).fillPoints([
+      graphics.fillStyle(guided ? 0x1f2433 : 0xf2d49b, guided ? 1 : 0.7).fillPoints([
         at(ARROW / 2, 0), at(-ARROW / 2, ARROW * 0.4), at(-ARROW / 5, 0), at(-ARROW / 2, -ARROW * 0.4),
       ], true)
     }
