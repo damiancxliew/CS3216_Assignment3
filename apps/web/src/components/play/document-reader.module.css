@@ -150,7 +150,8 @@
    with a status tag, the citation in view and an optional page facsimile. */
 .sourceCard { position: relative; margin: 6px 0 4px; padding: 30px 26px 18px; border: 3px solid #1f2433; border-radius: 10px; background: #fffaf0; box-shadow: 0 4px 0 rgb(31 36 51 / .35); color: #1f2433; }
 .sourceTag { position: absolute; top: 0; right: 18px; transform: translateY(-55%); display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 36px); border: 2px solid #a8442a; border-radius: 4px; background: #d85f35; color: #fff8e9; padding: 2px 10px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; box-shadow: 0 2px 0 #a8442a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sourceTag[data-real="false"] { border-color: #3d4766; background: #5c6788; box-shadow: 0 2px 0 #3d4766; }
+.sourceTag[data-kind="invented"] { border-color: #3d4766; background: #5c6788; box-shadow: 0 2px 0 #3d4766; }
+.sourceTag[data-kind="summary"] { border-color: #165a41; background: #258663; box-shadow: 0 2px 0 #165a41; }
 .sourceMeta { margin: 0 0 14px; font: 400 .9rem/1.5 var(--font-ui, system-ui), sans-serif; color: #6b5f4c; }
 .sourceCard .text { font-size: 1.15rem; line-height: 1.8; }
 .sourceCard .text::first-letter { color: #a8442a; }
