@@ -87,7 +87,7 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
           if (id === "\0next-navigation") return "const router={refresh(){window.__creation.refreshes=(window.__creation.refreshes??0)+1},push(){}}; export function useRouter(){return router}; export function usePathname(){return '/v3/teacher/fixture'};";
           if (id === "\0next-link") return "import React from 'react'; export default function Link({children,...props}){return React.createElement('a',props,children)}";
           if (id === "\0creation-actions") return actions;
-          if (id === "\0chat-action") return "export async function suggestReviewChangeAction(){return {ok:false,message:'No review target in fixture'}}";
+          if (id === "\0chat-action") return "export async function findEditTargetsAction(){return {ok:false,message:'No review target in fixture'}} export async function suggestReviewChangeAction(){return {ok:false,message:'No review target in fixture'}}";
           if (id === "\0preview-action") return `
             export async function previewBriefSource(id,sourceId) {
               await new Promise(resolve=>setTimeout(resolve,80));

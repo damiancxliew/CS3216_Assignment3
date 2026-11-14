@@ -88,6 +88,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
               return `export async function addV3BriefSource(){}; export async function createFromV3Brief(){}; export async function discardV3Brief(){}`;
             if (id === "\0chat")
               return `import {initialBriefStateV3} from '/src/lib/v3/brief/schema.ts';
+              export async function findEditTargetsAction(){return {ok:true,targets:[{path:['title'],label:'Title',score:1,selected:true}]}}
               export async function suggestReviewChangeAction(id,input,text){
                 if(window.chatFailure) return {ok:false,message:'Could not prepare a suggestion. Try again.'};
                 const state=initialBriefStateV3(id);
@@ -274,18 +275,21 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           Math.abs(element.getBoundingClientRect().top),
         )).toBeLessThanOrEqual(1);
         // Read all geometry in one browser frame while smooth focus scrolling may still run.
-        const { chat, index, content, composer } = await page.evaluate(() => {
+        const { chat, index, content, composer, tabs } = await page.evaluate(() => {
           const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().toJSON();
           return {
             chat: rect('[aria-label="Adventure conversation"]'),
             index: rect('[aria-label="Characters items"]'),
             content: rect('[aria-label="Review details"]'),
             composer: rect('[aria-label="Message"]'),
+            tabs: rect('[role="tablist"]'),
           };
         });
-        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
-        expect(Math.abs(chat!.y - index!.y)).toBeLessThan(2);
-        expect(Math.abs(chat!.y - content!.y)).toBeLessThan(2);
+        // The chat column spans the full workspace height beside the tabs and panes.
+        expect(Math.abs(chat!.y - tabs!.y)).toBeLessThan(2);
+        expect(Math.abs(chat!.bottom - index!.bottom)).toBeLessThan(2);
+        expect(Math.abs(index!.y - content!.y)).toBeLessThan(2);
+        expect(Math.abs(index!.height - content!.height)).toBeLessThan(2);
         expect(chat!.width).toBeGreaterThanOrEqual(300);
         expect(chat!.y + chat!.height).toBeLessThanOrEqual(height);
         expect(composer!.y + composer!.height).toBeLessThanOrEqual(
@@ -488,10 +492,17 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         name: "Message",
         exact: true,
       });
+      const sendChat = async () => {
+        const find = page.getByRole("button", { name: "Find targets", exact: true });
+        const suggest = page.getByRole("button", { name: "Suggest changes", exact: true });
+        if (await find.count()) {
+          await find.click();
+          await page.getByRole("button", { name: "Title", exact: true }).waitFor();
+        }
+        await suggest.click();
+      };
       await message.fill("Give this a clearer title");
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
+      await sendChat();
       await page.getByRole("region", { name: "Suggested changes" }).waitFor();
       await page.setViewportSize({ width: 1440, height: 720 });
       await page.getByRole("tablist").evaluate((element) =>
@@ -509,9 +520,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         .getByRole("button", { name: "Keep my edits", exact: true })
         .click();
       await message.fill("Give this a clearer title");
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
+      await sendChat();
       await page
         .getByRole("button", { name: "Apply changes", exact: true })
         .click();
@@ -547,9 +556,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       ).toBe("A changed teacher voice");
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
       await message.fill("Another suggestion");
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
+      await sendChat();
       await page
         .getByRole("button", { name: "Apply changes", exact: true })
         .waitFor();
@@ -563,9 +570,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         window.chatFailure = true;
       });
       await message.fill("Keep my request on failure");
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
+      await sendChat();
       await page
         .getByText("Could not prepare a suggestion. Try again.", {
           exact: true,

@@ -37,7 +37,7 @@ it.runIf(process.env.RUN_BRIEF_BROWSER_TESTS === "1")("renders sent bubbles and 
       async load(id) {
         if (id === "\0link") return "import React from 'react'; export default function Link(p) { return React.createElement('a', p); }";
         if (id === "\0navigation") return "export const useRouter = () => ({ refresh() {}, push() {} }); export const usePathname = () => '/teacher'; export const useSearchParams = () => new URLSearchParams();";
-        if (id === "\0chat-actions") return "export const suggestReviewChangeAction = async () => ({error: 'Unexpected chat action'});";
+        if (id === "\0chat-actions") return "export const findEditTargetsAction = async () => ({error: 'Unexpected chat action'}); export const suggestReviewChangeAction = async () => ({error: 'Unexpected chat action'});";
         if (id === "\0actions") return ["addV3BriefSource", "createFromV3Brief", "discardV3Brief", "addBriefSource", "discardBrief", "finishBrief", "startBrief"].map((name) => `export const ${name} = async () => ({error:'Unexpected action'});`).join("\n");
         if (id === "\0brief-test") return (await transformWithEsbuild(`
           import React from 'react';

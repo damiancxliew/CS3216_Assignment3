@@ -26,7 +26,7 @@ import {
 } from "@/lib/v3/review-chat/outline";
 
 const input =
-  "w-full min-w-0 rounded-lg border border-line bg-paper p-2 text-sm text-ink";
+  "w-full min-w-0 rounded-control border border-line bg-paper p-2 text-sm text-ink";
 type Props = {
   spec: Spec;
   value: unknown;
@@ -66,7 +66,7 @@ export function Remove({
       {confirm ? (
         <div
           role="alert"
-          className="w-full rounded-lg border border-danger p-3 text-sm"
+          className="w-full rounded-control border border-danger p-3 text-sm"
         >
           <p>
             {dependents.length
@@ -235,7 +235,7 @@ function EditFieldContent({ spec, value, schema, path, name, onEdit }: Props) {
       }),
     );
     return (
-      <fieldset className="min-w-0 space-y-3 rounded-lg border border-line p-3">
+      <fieldset className="min-w-0 space-y-3 rounded-control border border-line p-3">
         <legend className="px-1 font-bold">{name}</legend>
         <label className="block text-sm">
           Form
@@ -280,7 +280,7 @@ function EditFieldContent({ spec, value, schema, path, name, onEdit }: Props) {
       <fieldset
         id={entityId ? reviewAnchor(entityId) : undefined}
         tabIndex={typeof obj.id === "string" ? -1 : undefined}
-        className="min-w-0 space-y-4 rounded-lg border border-line p-3"
+        className="min-w-0 space-y-4 rounded-control border border-line p-3"
       >
         <legend className="px-1 font-bold">{name}</legend>
         {Object.entries((unwrapped as z.ZodObject).shape).map(
@@ -327,7 +327,7 @@ function EditFieldContent({ spec, value, schema, path, name, onEdit }: Props) {
     if (key === "support" && path[0] === "documents")
       return <SupportSelections {...{ spec, value, schema, path, name, onEdit }} />;
     return (
-      <fieldset className="min-w-0 space-y-3 rounded-lg border border-line p-3">
+      <fieldset className="min-w-0 space-y-3 rounded-control border border-line p-3">
         <legend className="px-1 font-bold">{name}</legend>
         {list.map((item, i) => (
           <div
@@ -499,7 +499,7 @@ function SupportSelections({ spec, value, path, name, onEdit }: Props) {
   const spans = value as { start: number; end: number }[];
   const [selection, select] = useState({ start: 0, end: 0 });
   if (!document) return null;
-  return <fieldset className="space-y-3 rounded-lg border border-line p-3">
+  return <fieldset className="space-y-3 rounded-control border border-line p-3">
     <legend className="px-1 font-bold">{name}</legend>
     <p className="text-sm">Select a complete supporting sentence. Each saved passage is an alternative valid answer.</p>
     {spans.map((span, index) => <div key={index} className="space-y-2">
@@ -525,7 +525,7 @@ function RecordField(props: Props) {
     key === "documentPlacement" ? spec.documents : spec.characters;
   const valueSchema = (schema as z.ZodRecord).valueType as z.ZodType;
   return (
-    <fieldset className="min-w-0 space-y-3 rounded-lg border border-line p-3">
+    <fieldset className="min-w-0 space-y-3 rounded-control border border-line p-3">
       <legend className="px-1 font-bold">{name}</legend>
       {Object.entries(obj).map(([id, item]) => (
         <div key={id} className="space-y-2">
@@ -611,7 +611,7 @@ export function EvidenceControls({
   const source = sources.find((s) => s.id === sourceId);
   const doc = spec.documents[index];
   return (
-    <section className="space-y-3 rounded-lg border border-line p-4">
+    <section className="space-y-3 rounded-control border border-line p-4">
       <h3 className="font-bold">Document evidence</h3>
       {doc.real ? (
         <button

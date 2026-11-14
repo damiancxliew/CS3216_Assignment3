@@ -32,7 +32,7 @@ export function EditorConversation({ onClose }: { onClose: () => void }) {
   return (
     <section
       aria-label="Adventure conversation"
-      className="flex h-56 xl:h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-surface border border-line bg-surface p-4"
+      className="flex h-56 xl:h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-surface border border-line bg-surface p-4 shadow-[0_2px_10px_rgb(0_0_0/0.10)]"
     >
       <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
         <h2 className="text-lg font-bold">Edit with chat</h2>
