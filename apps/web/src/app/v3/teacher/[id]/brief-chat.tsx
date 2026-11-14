@@ -155,7 +155,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
         <div ref={endRef} />
       </div>
 
-      <footer className={`flex min-h-0 ${compact ? "shrink flex-col gap-3 border-t border-line pt-4" : `shrink-0 flex-col border-t border-line ${styles.composer} ${sourcesStep ? styles.composerWithActions : ""}`}`}>
+      <footer className={`flex min-h-0 ${compact ? "shrink flex-col gap-3 pt-3" : `shrink-0 flex-col ${styles.composer} ${sourcesStep ? styles.composerWithActions : ""}`}`}>
         {error ? <div className="col-span-full"><ErrorText>{error}</ErrorText></div> : null}
         <div className={compact ? "contents" : styles.composerMain}>
         {!active ? (

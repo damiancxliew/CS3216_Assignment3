@@ -544,6 +544,20 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         name: "Suggested changes",
       });
       await suggestionCard.waitFor();
+      expect(
+        await suggestionCard.getByText("Current", { exact: true }).count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await suggestionCard.getByText("Suggested", { exact: true }).count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await suggestionCard.getByText("Current title", { exact: true }).count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await suggestionCard
+          .getByText("Chat revised title", { exact: true })
+          .count(),
+      ).toBeGreaterThan(0);
       expect(await findCalls()).toBe(initialFindCalls + 2);
       for (const label of [
         "Review changes",

@@ -133,23 +133,37 @@ function DiffPanel({
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
         {caption}
       </p>
-      <p>
-        {parts.map((part, index) => {
-          if (mode === "current" && part.type === "added") return null;
-          if (mode === "suggested" && part.type === "removed") return null;
-          const className =
-            part.type === "removed"
-              ? "rounded-sm bg-danger-wash line-through decoration-danger/60"
-              : part.type === "added"
-                ? "rounded-sm bg-world-wash"
-                : undefined;
-          return (
-            <span key={index} className={className}>
-              {part.text}
-            </span>
-          );
-        })}
-      </p>
+      <DiffText parts={parts} mode={mode} />
     </div>
+  );
+}
+
+export function DiffText({
+  parts,
+  mode,
+  className,
+}: {
+  parts: DiffPart[];
+  mode: "current" | "suggested";
+  className?: string;
+}) {
+  return (
+    <p className={className}>
+      {parts.map((part, index) => {
+        if (mode === "current" && part.type === "added") return null;
+        if (mode === "suggested" && part.type === "removed") return null;
+        const partClassName =
+          part.type === "removed"
+            ? "rounded-sm bg-danger-wash line-through decoration-danger/60"
+            : part.type === "added"
+              ? "rounded-sm bg-world-wash"
+              : undefined;
+        return (
+          <span key={index} className={partClassName}>
+            {part.text}
+          </span>
+        );
+      })}
+    </p>
   );
 }

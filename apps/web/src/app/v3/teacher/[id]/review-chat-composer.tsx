@@ -10,7 +10,8 @@ import {
 } from "./chat-actions";
 import { useReviewChat } from "./review-chat-context";
 import { ChatSendButton } from "./chat-send-button";
-import { ReviewChangesDialog } from "./review-changes-dialog";
+import { DiffText, ReviewChangesDialog } from "./review-changes-dialog";
+import { wordDiff } from "@/lib/v3/review-chat/word-diff";
 import { requestsSchemaUpgrade } from "@/lib/v3/review-chat/upgrade-intent";
 
 type Suggestion = Extract<ReviewChatResult, { ok: true }> & {
@@ -221,12 +222,12 @@ export function ReviewChatComposer({
       {valid ? (
         <section
           aria-label="Suggested changes"
-          className="flex min-h-0 flex-col overflow-hidden rounded-surface border border-line bg-surface text-sm"
+          className="flex min-h-0 flex-col overflow-hidden text-sm"
         >
-          <header className="flex items-center gap-2 border-b border-line px-3 py-2">
-            <div className="flex-1">
+          <header className="flex items-center gap-2 px-3 py-2">
+            <div className="flex min-w-0 flex-1 items-baseline gap-1">
               <h3 className="font-semibold">Suggested changes</h3>
-              <p className="text-xs text-muted">· {groups.length} fields</p>
+              <span className="text-xs text-muted">· {groups.length} fields</span>
             </div>
             <button
               type="button"
@@ -257,17 +258,48 @@ export function ReviewChatComposer({
               <Check size={16} aria-hidden />
             </button>
           </header>
-          <div className="min-h-0 max-h-44 overflow-y-auto divide-y divide-line md:max-h-72">
+          <div className="min-h-0 max-h-44 flex flex-col gap-2 overflow-y-auto md:max-h-96">
             {groups.map((group, index) => {
-              const first = valid.preview[group.preview[0]];
               return (
-                <div key={`${group.label}-${index}`} className="px-3 py-2">
+                <div
+                  key={`${group.label}-${index}`}
+                  className="flex flex-col gap-2 rounded-control bg-paper px-3 py-2"
+                >
                   <p className="text-xs font-semibold text-muted">
                     {group.label}
                   </p>
-                  {first ? (
-                    <p className="line-clamp-2">{first.after}</p>
-                  ) : null}
+                  {group.preview.map((previewIndex) => {
+                    const change = valid.preview[previewIndex];
+                    if (!change) return null;
+                    const parts = wordDiff(change.before, change.after);
+                    return (
+                      <div
+                        key={`${previewIndex}-${change.label}`}
+                        className="space-y-2"
+                      >
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                            Current
+                          </p>
+                          <DiffText
+                            parts={parts}
+                            mode="current"
+                            className="line-clamp-4 whitespace-pre-wrap leading-relaxed"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                            Suggested
+                          </p>
+                          <DiffText
+                            parts={parts}
+                            mode="suggested"
+                            className="line-clamp-4 whitespace-pre-wrap leading-relaxed"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
