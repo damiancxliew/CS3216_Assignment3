@@ -11,6 +11,7 @@ const harness = vi.hoisted(() => ({
   version: 1,
   role: "teacher",
   sysadmin: false,
+  spec: null as unknown,
 }));
 vi.mock("@/lib/auth/viewer", () => ({ getViewer: async () => ({ user: { id: harness.userId }, membership: { role: harness.role, organizationId: "school" }, isSysadmin: harness.sysadmin }), isStaff: () => ["teacher", "admin"].includes(harness.role) }));
 vi.mock("@/lib/play/v3/store", () => ({
@@ -19,7 +20,7 @@ vi.mock("@/lib/play/v3/store", () => ({
       return {
         status: harness.row!.status,
         specVersion: harness.version,
-        spec: JSON.parse(readFileSync("fixtures/golden-1819.json", "utf8")),
+        spec: harness.spec ?? JSON.parse(readFileSync("fixtures/golden-1819.json", "utf8")),
       };
     }
     async loadCheckErrors() { return []; }
@@ -74,11 +75,16 @@ vi.mock("@/lib/v3/review-chat/propose", async (importOriginal) => {
   return {
     ...actual,
     fakeRequestedEditor: () => ({ completeJson: harness.completeJson }),
+    fakeTargetedEditor: () => ({ completeJson: harness.completeJson }),
   };
 });
-import { suggestReviewChangeAction } from "@/app/v3/teacher/[id]/chat-actions";
+import {
+  findEditTargetsAction,
+  suggestReviewChangeAction,
+} from "@/app/v3/teacher/[id]/chat-actions";
 const id = "00000000-0000-4000-8000-000000000226";
 const input = { pass: "sources", removedSourceIds: [] };
+const draftInput = { pass: "draft", version: 1, edits: [] };
 beforeEach(() => {
   harness.role = "teacher"; harness.sysadmin = false;
   vi.stubEnv("V3_FAKE_PASSES", "1");
@@ -97,6 +103,7 @@ beforeEach(() => {
   };
   harness.update.mockReset();
   harness.completeJson.mockReset();
+  harness.spec = null;
   harness.completeJson.mockResolvedValue({
     json: {
       notes: "I suggest excluding Extra.",
@@ -224,6 +231,80 @@ describe("review chat access and persistence", () => {
     expect(
       await suggestReviewChangeAction(id, input, "Remove upload"),
     ).toMatchObject({ ok: false });
+    expect(harness.update).not.toHaveBeenCalled();
+  });
+
+  it("finds draft edit targets without persisting target discovery", async () => {
+    harness.row!.status = "draft";
+    const result = await findEditTargetsAction(
+      id,
+      draftInput,
+      "Change the adventure title",
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      targets: [{ path: ["title"], selected: true }],
+    });
+    expect(harness.update).not.toHaveBeenCalled();
+  });
+
+  it("persists the targeted draft request with its field labels", async () => {
+    harness.row!.status = "draft";
+    harness.completeJson.mockResolvedValue({
+      json: {
+        notes: "I revised the title.",
+        changes: [{ target: "t0", text: "A revised title" }],
+        passages: [],
+      },
+    });
+    const text = "Change the title to “A revised title”";
+    const result = await suggestReviewChangeAction(
+      id,
+      draftInput,
+      text,
+      [["title"]],
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      preview: [{ after: "A revised title" }],
+    });
+    expect(harness.update).toHaveBeenCalledWith({
+      brief_state: expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "user",
+            text: `${text}\n\nTargets: Adventure title`,
+          }),
+        ]),
+      }),
+    });
+  });
+
+  it("rejects missing, protected, and real-document body targets before writing", async () => {
+    harness.row!.status = "draft";
+    const spec = JSON.parse(
+      readFileSync("fixtures/golden-1819.json", "utf8"),
+    ) as {
+      documents: { real: boolean; sourceLabel: string }[];
+      [key: string]: unknown;
+    };
+    spec.documents[0]!.real = true;
+    harness.spec = spec;
+    for (const path of [
+      ["notAnItem"],
+      ["documents", 0, "sourceLabel"],
+      ["documents", 0, "body"],
+    ]) {
+      expect(
+        await suggestReviewChangeAction(id, draftInput, "Change this", [path]),
+      ).toEqual({
+        ok: false,
+        message: "One of the selected fields can no longer be changed. Find targets again.",
+      });
+    }
+    expect(harness.completeJson).not.toHaveBeenCalled();
     expect(harness.update).not.toHaveBeenCalled();
   });
 });
