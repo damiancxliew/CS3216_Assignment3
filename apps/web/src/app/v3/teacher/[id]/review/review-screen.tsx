@@ -578,13 +578,13 @@ export function ReviewScreen({
           role="tabpanel"
           id="review-content"
           aria-labelledby={`tab-${tab}`}
-          className={tab === "assets" ? "min-w-0" : `grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${sidebar ? "xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(20rem,0.9fr)_15rem_minmax(0,2fr)]" : "md:min-h-0 md:flex-1"}`}
+          className={tab === "assets" ? "min-w-0" : `grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${sidebar ? "xl:min-h-0 xl:flex-1 xl:grid-cols-[15rem_minmax(0,2fr)_minmax(20rem,0.9fr)]" : "md:min-h-0 md:flex-1"}`}
         >
           {tab === "assets" ? assets : <>
-          {sidebar ? <div className="min-h-0 min-w-0 md:col-span-2 xl:col-span-1 xl:h-full">{sidebar}</div> : null}
+          {sidebar ? <div className={`min-h-0 min-w-0 md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 xl:h-full ${floatingChecks ? "xl:pb-20" : ""}`}>{sidebar}</div> : null}
           <nav
             aria-label={`${tabs.find((t) => t.id === tab)?.label} items`}
-            className={`h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] ${sidebar ? "xl:h-full" : "md:h-full"}`}
+            className={`h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] ${sidebar ? "xl:col-start-1 xl:row-start-1 xl:h-full" : "md:h-full"}`}
           >
             <h2 className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted">
               Index
@@ -662,7 +662,7 @@ export function ReviewScreen({
             tabIndex={-1}
             role="region"
             aria-label="Review details"
-            className="h-[clamp(28rem,72dvh,56rem)] min-w-0 space-y-5 overflow-y-auto overscroll-contain break-words p-1 [overflow-anchor:none] [overflow-wrap:anywhere] [scrollbar-gutter:stable] md:h-full"
+            className={`h-[clamp(28rem,72dvh,56rem)] min-w-0 space-y-5 overflow-y-auto overscroll-contain break-words p-1 [overflow-anchor:none] [overflow-wrap:anywhere] [scrollbar-gutter:stable] md:h-full ${sidebar ? "xl:col-start-2 xl:row-start-1" : ""}`}
           >
             <React.Fragment key={`${tab}:${selected}`}>
               {editMode && renderEditor ? (

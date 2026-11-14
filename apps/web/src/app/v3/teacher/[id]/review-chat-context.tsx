@@ -12,6 +12,7 @@ import type {
   ReviewChatProposal,
   ReviewChatInput,
 } from "@/lib/v3/review-chat/types";
+import type { Path } from "@/lib/v3/review-chat/outline";
 
 export type ReviewChatTarget = {
   key: string;
@@ -32,21 +33,69 @@ export type UpgradeChatTarget = {
   active: boolean;
   route(message: string): Promise<string>;
 };
-const Context = createContext<{
+export type ReviewChatChip = {
+  path: Path;
+  label: string;
+  selected: boolean;
+};
+type ReviewChatContextValue = {
   target: RegisteredTarget | null;
   register(target: RegisteredTarget | null): void;
   upgrade: UpgradeChatTarget | null;
   registerUpgrade(target: UpgradeChatTarget | null): void;
-} | null>(null);
+  chips: ReviewChatChip[];
+  setChips(chips: ReviewChatChip[]): void;
+  toggleChip(path: Path, label: string): void;
+  clearChips(): void;
+  isDraft: boolean;
+};
+const Context = createContext<ReviewChatContextValue | null>(null);
 export function ReviewChatProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<RegisteredTarget | null>(null);
   const [upgrade, setUpgrade] = useState<UpgradeChatTarget | null>(null);
+  const [chips, setChips] = useState<ReviewChatChip[]>([]);
+  const lastRegisteredKey = useRef<string | null>(null);
   const register = useCallback(
-    (next: RegisteredTarget | null) => setTarget(next),
+    (next: RegisteredTarget | null) => {
+      if (next && lastRegisteredKey.current !== next.key) {
+        lastRegisteredKey.current = next.key;
+        setChips([]);
+      }
+      setTarget(next);
+    },
     [],
   );
+  const toggleChip = useCallback((path: Path, label: string) => {
+    const key = path.join(".");
+    setChips((current) => {
+      const existing = current.find((chip) => chip.path.join(".") === key);
+      return existing
+        ? current.map((chip) =>
+            chip.path.join(".") === key
+              ? { ...chip, selected: !chip.selected }
+              : chip,
+          )
+        : [...current, { path, label, selected: true }];
+    });
+  }, []);
+  const clearChips = useCallback(() => setChips([]), []);
+  const isDraft = target?.current().input.pass === "draft";
   return (
-    <Context.Provider value={{ target, register, upgrade, registerUpgrade: setUpgrade }}>{children}</Context.Provider>
+    <Context.Provider
+      value={{
+        target,
+        register,
+        upgrade,
+        registerUpgrade: setUpgrade,
+        chips,
+        setChips,
+        toggleChip,
+        clearChips,
+        isDraft,
+      }}
+    >
+      {children}
+    </Context.Provider>
   );
 }
 export function useReviewChat() {

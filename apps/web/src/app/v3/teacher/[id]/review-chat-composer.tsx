@@ -1,9 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { Check } from "lucide-react";
 import { compactButton as button, control, Thinking } from "@/components/ui";
 import type { BriefStateV3 } from "@/lib/v3/brief/schema";
 import type { ReviewChatResult } from "@/lib/v3/review-chat/types";
-import { suggestReviewChangeAction } from "./chat-actions";
+import {
+  findEditTargetsAction,
+  suggestReviewChangeAction,
+} from "./chat-actions";
 import { useReviewChat } from "./review-chat-context";
 import { reviewPrimary } from "./creation-styles";
 import { ChatSendButton } from "./chat-send-button";
@@ -26,11 +30,15 @@ export function ReviewChatComposer({
   const context = useReviewChat();
   const target = context?.target;
   const upgrade = context?.upgrade;
+  const chips = context?.chips ?? [];
+  const selectedTargets = chips.filter((chip) => chip.selected);
+  const isDraft = Boolean(context?.isDraft);
   const current = useRef(target);
   current.current = target;
   const [text, setText] = useState("");
   const [restored, setRestored] = useState(false);
   const [pending, setPending] = useState(false);
+  const [activity, setActivity] = useState("Preparing a suggestion…");
   const [message, setMessage] = useState("");
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const storageKey = `v3-review-message:${adventureId}`;
@@ -54,20 +62,26 @@ export function ReviewChatComposer({
   useEffect(() => setSuggestion(null), [target?.key, target?.revision]);
   useEffect(() => setMessage(""), [target?.key]);
   const upgradeRequest = Boolean(upgrade && (upgrade.active || requestsSchemaUpgrade(text)));
+  const targetedDraft = isDraft && !upgradeRequest;
   const canSend = Boolean((upgradeRequest ? !upgrade?.pending : target && !target.pending) && text.trim() && !pending);
   const sendHint = !target
     ? idleHint
     : pending
-      ? "Preparing a suggestion…"
+      ? activity
       : target.pending
         ? "Wait for the current action to finish."
         : !text.trim()
           ? "Write a message to send."
-          : "Send message";
+          : targetedDraft && chips.length
+            ? "Suggest changes to the selected fields."
+            : targetedDraft
+              ? "Find fields to change."
+              : "Send message";
   const send = async () => {
     if (!canSend) return;
     if (upgradeRequest && upgrade) {
       setPending(true);
+      setActivity("Preparing a suggestion…");
       setSuggestion(null);
       setMessage("");
       try {
@@ -82,14 +96,48 @@ export function ReviewChatComposer({
     }
     const snapshot = current.current?.current();
     if (!snapshot || !canSend) return;
+    if (targetedDraft && chips.length > 0 && selectedTargets.length === 0) {
+      setMessage("Select at least one field, or clear the targets to find them again.");
+      return;
+    }
     setPending(true);
     setMessage("");
     setSuggestion(null);
+    setActivity(targetedDraft && chips.length === 0 ? "Finding what to change…" : "Preparing a suggestion…");
     try {
+      if (targetedDraft && chips.length === 0) {
+        const result = await findEditTargetsAction(
+          adventureId,
+          snapshot.input,
+          text,
+        );
+        if (!result.ok) {
+          setMessage(result.message);
+          return;
+        }
+        const latest = current.current?.current();
+        if (
+          !latest ||
+          latest.key !== snapshot.key ||
+          latest.revision !== snapshot.revision
+        ) {
+          setMessage(
+            "Your edits changed while I was finding targets. Send the request again for the current version.",
+          );
+          return;
+        }
+        context?.setChips(result.targets.map(({ path, label, selected }) => ({
+          path,
+          label,
+          selected,
+        })));
+        return;
+      }
       const result = await suggestReviewChangeAction(
         adventureId,
         snapshot.input,
         text,
+        targetedDraft ? selectedTargets.map(({ path }) => path) : undefined,
       );
       if (!result.ok) {
         setMessage(result.message);
@@ -107,13 +155,16 @@ export function ReviewChatComposer({
         );
         return;
       }
-      setText("");
-      if (result.proposal)
+      if (!isDraft || result.proposal) setText("");
+      if (result.proposal) {
         setSuggestion({
           ...result,
           key: snapshot.key,
           revision: snapshot.revision,
         });
+      } else {
+        setMessage(result.notes);
+      }
     } catch {
       setMessage(
         "Could not prepare a suggestion. Your message is still here. Try again.",
@@ -166,6 +217,7 @@ export function ReviewChatComposer({
                   return;
                 latest.apply(valid.proposal);
                 setSuggestion(null);
+                context?.clearChips();
                 setMessage("Applied to the cards.");
               }}
             >
@@ -176,6 +228,7 @@ export function ReviewChatComposer({
               className={button.subtle}
               onClick={() => {
                 setSuggestion(null);
+                context?.clearChips();
                 setMessage("Kept your current edits.");
               }}
             >
@@ -184,7 +237,7 @@ export function ReviewChatComposer({
           </div>
         </section>
       ) : null}
-      {pending ? <Thinking label="Preparing a suggestion…" /> : null}
+      {pending ? <Thinking label={activity} /> : null}
       {message ? (
         <p role="status" className="text-sm text-muted">
           {message}
@@ -195,29 +248,77 @@ export function ReviewChatComposer({
           event.preventDefault();
           void send();
         }}
-        className="flex shrink-0 items-center gap-2"
+        className={`flex shrink-0 gap-2 ${targetedDraft ? "flex-col items-stretch" : "items-center"}`}
       >
-        <textarea
-          aria-label="Message"
-          placeholder="Ask for a change…"
-          value={text}
-          maxLength={4000}
-          disabled={pending}
-          rows={2}
-          className={`${control} max-h-40 min-h-0 flex-1 resize-y text-sm`}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if (
-              event.key === "Enter" &&
-              !event.shiftKey &&
-              !event.nativeEvent.isComposing
-            ) {
-              event.preventDefault();
-              void send();
-            }
-          }}
-        />
-        <ChatSendButton disabled={!canSend} hint={sendHint} />
+        {targetedDraft && chips.length ? (
+          <div className="space-y-1">
+            <p className="text-xs text-muted">
+              {selectedTargets.length} targets selected
+            </p>
+            <div
+              role="group"
+              aria-label="Chat edit targets"
+              className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto overscroll-contain pb-2 pr-1 [scrollbar-gutter:stable] scroll-py-2"
+            >
+              {chips.map((chip) => (
+                <button
+                  key={chip.path.join(".")}
+                  type="button"
+                  aria-pressed={chip.selected}
+                  title={chip.label}
+                  disabled={pending}
+                  className={`inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-left text-xs font-semibold transition-colors ${chip.selected ? "border-ink bg-ink text-paper" : "border-line-strong bg-paper text-muted hover:border-ink hover:text-ink"}`}
+                  onClick={() => context?.toggleChip(chip.path, chip.label)}
+                >
+                  {chip.selected ? <Check size={13} aria-hidden /> : <span className="shrink-0" aria-hidden>○</span>}
+                  <span className="min-w-0 truncate">{chip.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="flex items-end gap-2">
+          <textarea
+            aria-label="Message"
+            placeholder="Ask for a change…"
+            value={text}
+            maxLength={4000}
+            disabled={pending}
+            rows={2}
+            className={`${control} max-h-40 min-h-0 flex-1 resize-y text-sm`}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault();
+                void send();
+              }
+            }}
+          />
+          {targetedDraft ? null : <ChatSendButton disabled={!canSend} hint={sendHint} />}
+        </div>
+        {targetedDraft ? (
+          <div className="flex shrink-0 justify-end gap-2">
+            <button
+              type="button"
+              className={button.quiet}
+              disabled={pending || chips.length === 0}
+              onClick={() => context?.clearChips()}
+            >
+              Clear
+            </button>
+            <button
+              type="submit"
+              className={reviewPrimary}
+              disabled={!canSend || (chips.length > 0 && selectedTargets.length === 0)}
+            >
+              {chips.length ? "Suggest changes" : "Find targets"}
+            </button>
+          </div>
+        ) : null}
       </form>
     </div>
   );
