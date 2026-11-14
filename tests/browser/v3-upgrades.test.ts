@@ -25,7 +25,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === '1')('reviews, refines, resume
     }, async load(id) {
       if (id === '\0upgrade-controls') return (await transformWithEsbuild(`${controls}\nexport function Thinking({label}) { return <p>{label}</p>; }`, 'controls.tsx', { loader: 'tsx', jsx: 'automatic' })).code
       if (id === '\0upgrade-actions') return ['start', 'get', 'refine', 'apply', 'discard'].map(name => `export const ${name}UpgradeAction = async () => { throw Error('Use injected transport'); };`).join('\n')
-      if (id === '\0chat-actions') return `export const suggestReviewChangeAction = async () => ({ok:false,message:'Ordinary edit route'});`
+      if (id === '\0chat-actions') return `export const findEditTargetsAction = async () => ({ok:false,message:'Ordinary edit route'}); export const suggestReviewChangeAction = async () => ({ok:false,message:'Ordinary edit route'});`
       if (id === '\0virtual:upgrade-test') return (await transformWithEsbuild(`
         import React, {useState} from 'react'; import {createRoot} from 'react-dom/client';
         import {UpgradePanel} from '/src/app/v3/teacher/[id]/upgrade-panel.tsx';

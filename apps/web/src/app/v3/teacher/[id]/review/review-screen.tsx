@@ -498,7 +498,7 @@ export function ReviewScreen({
         {warnings.length ? ` · ${warnings.length} ${warnings.length === 1 ? "warning" : "warnings"}` : ""}
         {spec.conflicts.length ? ` · ${spec.conflicts.length} conflicts` : ""}
       </summary>
-      <div className={floatingChecks ? "absolute bottom-full right-0 mb-4 max-h-[min(60dvh,32rem)] w-[min(32rem,calc(100vw-2rem))] space-y-3 overflow-y-auto overscroll-contain rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg" : "mt-3 max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-2"}>
+      <div className={floatingChecks ? "absolute bottom-full left-0 mb-4 max-h-[min(60dvh,32rem)] w-[min(32rem,calc(100vw-2rem))] space-y-3 overflow-y-auto overscroll-contain rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg" : "mt-3 max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-2"}>
         {checkDetails}
       </div>
     </details>
@@ -510,19 +510,21 @@ export function ReviewScreen({
       {checkDetails}
     </section>
   );
+  const chat = tab === "assets" ? undefined : sidebar;
   return (
     <div data-review-screen className="space-y-6 text-ink">
       {renderHeader ? renderHeader(floatingChecks ? null : checks) : floatingChecks ? null : checks}
       {floatingChecks ? (
-        <aside aria-label="Adventure issue controls" className="fixed bottom-5 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-surface border border-line bg-paper p-2 shadow-lg sm:right-6">
+        <aside aria-label="Adventure issue controls" className="fixed bottom-5 left-2 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-surface border border-line bg-paper p-2 shadow-lg sm:left-3">
           {checks}
           {issueActions}
         </aside>
       ) : null}
       <div
         data-review-workspace
-        className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4"
+        className={`min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4 ${chat ? "xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:grid-rows-[auto_minmax(0,1fr)] xl:gap-5" : ""}`}
       >
+        <div className="space-y-5 md:flex md:shrink-0 md:flex-col md:gap-5 md:space-y-0 xl:col-span-2 xl:row-start-1">
         <div
           role="tablist"
           aria-label="Adventure content"
@@ -567,24 +569,25 @@ export function ReviewScreen({
           <button type="button" className={button.subtle} onClick={() => openAsset(`asset-${tab === "stages" ? "stage" : "sprite"}-${tab === "stages" ? selected : `character:${selected}`}`)}>
             Manage {tab === "stages" ? "opening image" : "walking sprite"}
           </button>
-          {tab === "characters" ? <select aria-label="Manage portrait" className="rounded border border-line bg-surface px-3 py-2 text-sm" defaultValue="" onChange={event => { if (event.target.value) openAsset(`asset-portrait-${event.target.value}`); }}>
+          {tab === "characters" ? <select aria-label="Manage portrait" className="h-10 rounded-full border border-line bg-surface px-3.5 text-sm font-semibold" defaultValue="" onChange={event => { if (event.target.value) openAsset(`asset-portrait-${event.target.value}`); }}>
             <option value="">Manage portrait…</option>
             {spec.characters.filter(character => character.id === selected).flatMap(character => character.tier === "major"
               ? character.stances.map(stance => <option key={stance.id} value={`${character.id}:${stance.id}`}>{stance.label}</option>)
               : [<option key={character.id} value={character.id}>{character.name}</option>])}
           </select> : null}
         </div> : null}
+        </div>
+        {chat ? <div className="min-w-0 shrink-0 xl:col-start-2 xl:row-start-2 xl:h-full xl:min-h-0">{chat}</div> : null}
         <div
           role="tabpanel"
           id="review-content"
           aria-labelledby={`tab-${tab}`}
-          className={tab === "assets" ? "min-w-0" : `grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${sidebar ? "xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(20rem,0.9fr)_15rem_minmax(0,2fr)]" : "md:min-h-0 md:flex-1"}`}
+          className={`${tab === "assets" ? "min-w-0" : `grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${chat ? "xl:min-h-0" : "md:min-h-0 md:flex-1"}`} ${chat ? "xl:col-start-1 xl:row-start-2" : ""}`}
         >
           {tab === "assets" ? assets : <>
-          {sidebar ? <div className="min-h-0 min-w-0 md:col-span-2 xl:col-span-1 xl:h-full">{sidebar}</div> : null}
           <nav
             aria-label={`${tabs.find((t) => t.id === tab)?.label} items`}
-            className={`h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] ${sidebar ? "xl:h-full" : "md:h-full"}`}
+            className={`h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] ${chat ? "xl:h-full" : "md:h-full"} ${floatingChecks ? "md:pb-20" : ""}`}
           >
             <h2 className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted">
               Index
@@ -662,7 +665,7 @@ export function ReviewScreen({
             tabIndex={-1}
             role="region"
             aria-label="Review details"
-            className="h-[clamp(28rem,72dvh,56rem)] min-w-0 space-y-5 overflow-y-auto overscroll-contain break-words p-1 [overflow-anchor:none] [overflow-wrap:anywhere] [scrollbar-gutter:stable] md:h-full"
+            className={`h-[clamp(28rem,72dvh,56rem)] min-w-0 space-y-5 overflow-y-auto overscroll-contain break-words [overflow-anchor:none] [overflow-wrap:anywhere] [scrollbar-gutter:stable] md:h-full ${editMode && renderEditor ? "rounded-surface border border-line bg-surface p-4 shadow-[0_2px_10px_rgb(0_0_0/0.10)]" : "p-1"}`}
           >
             <React.Fragment key={`${tab}:${selected}`}>
               {editMode && renderEditor ? (

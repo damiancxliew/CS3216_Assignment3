@@ -114,21 +114,37 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
     <div className={`flex min-h-0 flex-1 flex-col ${compact ? "gap-4" : styles.chatBody}`}>
       <div className={`min-h-0 flex-1 overflow-y-auto [overflow-wrap:anywhere] ${compact ? "px-1 pb-4" : styles.transcript}`} data-conversation-scroll>
         <ol className={`flex flex-col ${compact ? "gap-3 text-base" : styles.messages}`} aria-live="polite">
-          {[...state.messages, ...(stream.preview as BriefStateV3["messages"])].map((message, index) => (
-            <li
-              key={index}
-              className={compact
-                ? message.role === "user"
-                  ? "ml-4 self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper shadow-sm"
-                  : "mr-4 self-start rounded-surface rounded-bl-sm border border-line bg-paper px-4 py-3 text-ink shadow-sm"
-                : `${styles.bubble} ${message.role === "user" ? styles.userBubble : "self-start"}`}
-            >
-              <p className="whitespace-pre-wrap">{message.text}</p>
-              {message.role === "assistant" && message.proposedText ? (
-                <p className="mt-3 border-l-2 border-line-strong pl-3 font-semibold">{message.proposedText}</p>
-              ) : null}
-            </li>
-          ))}
+          {[...state.messages, ...(stream.preview as BriefStateV3["messages"])].map((message, index) => {
+            const targetSuffixIndex = message.role === "user"
+              ? message.text.lastIndexOf("\n\nTargets: ")
+              : -1;
+            const text = targetSuffixIndex >= 0
+              ? message.text.slice(0, targetSuffixIndex)
+              : message.text;
+            const targets = targetSuffixIndex >= 0
+              ? message.text.slice(targetSuffixIndex + "\n\n".length)
+              : null;
+            return (
+              <li
+                key={index}
+                className={compact
+                  ? message.role === "user"
+                    ? "ml-8 self-end rounded-surface rounded-br-sm bg-record-wash px-3 py-2 text-ink"
+                    : "self-start py-0.5 text-ink"
+                  : `${styles.bubble} ${message.role === "user" ? styles.userBubble : "self-start"}`}
+              >
+                <p className="whitespace-pre-wrap">{text}</p>
+                {targets ? (
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-muted">
+                    {targets}
+                  </p>
+                ) : null}
+                {message.role === "assistant" && message.proposedText ? (
+                  <p className="mt-3 border-l-2 border-line-strong pl-3 font-semibold">{message.proposedText}</p>
+                ) : null}
+              </li>
+            );
+          })}
           {pending && !uploads?.busy && !generating ? (
             <li className="mr-10 self-start px-4 py-2 sm:mr-24">
               <Thinking label={thinking} />
@@ -139,7 +155,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
         <div ref={endRef} />
       </div>
 
-      <footer className={`flex min-h-0 ${compact ? "shrink flex-col gap-3 border-t border-line pt-4" : `shrink-0 flex-col border-t border-line ${styles.composer} ${sourcesStep ? styles.composerWithActions : ""}`}`}>
+      <footer className={`flex min-h-0 ${compact ? "shrink flex-col gap-3 pt-3" : `shrink-0 flex-col ${styles.composer} ${sourcesStep ? styles.composerWithActions : ""}`}`}>
         {error ? <div className="col-span-full"><ErrorText>{error}</ErrorText></div> : null}
         <div className={compact ? "contents" : styles.composerMain}>
         {!active ? (

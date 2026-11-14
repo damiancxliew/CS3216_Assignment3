@@ -32,12 +32,14 @@ export type UpgradeChatTarget = {
   active: boolean;
   route(message: string): Promise<string>;
 };
-const Context = createContext<{
+type ReviewChatContextValue = {
   target: RegisteredTarget | null;
   register(target: RegisteredTarget | null): void;
   upgrade: UpgradeChatTarget | null;
   registerUpgrade(target: UpgradeChatTarget | null): void;
-} | null>(null);
+  isDraft: boolean;
+};
+const Context = createContext<ReviewChatContextValue | null>(null);
 export function ReviewChatProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<RegisteredTarget | null>(null);
   const [upgrade, setUpgrade] = useState<UpgradeChatTarget | null>(null);
@@ -45,8 +47,19 @@ export function ReviewChatProvider({ children }: { children: ReactNode }) {
     (next: RegisteredTarget | null) => setTarget(next),
     [],
   );
+  const isDraft = target?.current().input.pass === "draft";
   return (
-    <Context.Provider value={{ target, register, upgrade, registerUpgrade: setUpgrade }}>{children}</Context.Provider>
+    <Context.Provider
+      value={{
+        target,
+        register,
+        upgrade,
+        registerUpgrade: setUpgrade,
+        isDraft,
+      }}
+    >
+      {children}
+    </Context.Provider>
   );
 }
 export function useReviewChat() {

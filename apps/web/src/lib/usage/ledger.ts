@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { LlmClient as GenerationLlmClient } from "@adventure/generation/llm";
+import type {
+  DecisionClient,
+  LlmClient as GenerationLlmClient,
+} from "@adventure/generation/llm";
 import type { LlmClient as PlayLlmClient } from "@adventure/orchestration";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -27,6 +30,10 @@ type UsageRow = UsageTokens & {
 
 type JsonUsageContext = Pick<UsageRow, "adventureId" | "adventureV3Id" | "organizationId" | "userId"> & {
   purpose: "brief" | "generation";
+};
+
+type DecisionUsageContext = Pick<UsageRow, "adventureV3Id" | "organizationId" | "userId"> & {
+  purpose: "generation";
 };
 
 export async function recordLlmUsage(getAdmin: () => SupabaseClient, row: UsageRow): Promise<void> {
@@ -63,6 +70,27 @@ export function withJsonUsage(
         ...context,
         call: request.schemaName,
         model: response.model,
+        inputTokens: response.usage.inputTokens,
+        cachedInputTokens: response.usage.cachedInputTokens,
+        outputTokens: response.usage.outputTokens,
+        reasoningTokens: response.usage.reasoningTokens,
+      });
+      return response;
+    },
+  };
+}
+
+export function withDecisionUsage(
+  client: DecisionClient,
+  context: DecisionUsageContext,
+): DecisionClient {
+  return {
+    async decide(request) {
+      const response = await client.decide(request);
+      await recordLlmUsage(createAdminClient, {
+        ...context,
+        call: "edit_targets",
+        model: "gpt-6-luna-decisions",
         inputTokens: response.usage.inputTokens,
         cachedInputTokens: response.usage.cachedInputTokens,
         outputTokens: response.usage.outputTokens,

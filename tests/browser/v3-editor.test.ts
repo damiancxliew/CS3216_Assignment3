@@ -88,11 +88,42 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
               return `export async function addV3BriefSource(){}; export async function createFromV3Brief(){}; export async function discardV3Brief(){}`;
             if (id === "\0chat")
               return `import {initialBriefStateV3} from '/src/lib/v3/brief/schema.ts';
-              export async function suggestReviewChangeAction(id,input,text){
+              export async function findEditTargetsAction(id,input,text){
+                window.findTargetCalls=(window.findTargetCalls||0)+1;
+                return text.trim().endsWith('?')
+                  ? {ok:true,intent:'reply'}
+                  : {ok:true,intent:'change',targets:[
+                    {path:['title'],label:'Title',score:1,selected:true},
+                    {path:['characters',0,'persona','voice'],label:'Percival · Voice',score:1,selected:true}
+                  ]};
+              }
+              export async function suggestReviewChangeAction(id,input,text,targets,mode){
                 if(window.chatFailure) return {ok:false,message:'Could not prepare a suggestion. Try again.'};
                 const state=initialBriefStateV3(id);
-                state.messages=[{role:'user',text,slot:'review'},{role:'assistant',text:'I suggest a new title.',slot:'review'}];
-                return {ok:true,state,notes:'I suggest a new title.',preview:[{label:'Title',before:'Current title',after:'Chat revised title'}],proposal:{pass:'draft',edits:[...input.edits,{type:'set',path:['title'],value:'Chat revised title'}]}};
+                if(mode==='reply'){
+                  state.messages=[{role:'user',text,slot:'review'},{role:'assistant',text:'Percival sounds steady rather than cheerful.',slot:'review'}];
+                  return {ok:true,state,notes:'Percival sounds steady rather than cheerful.',preview:[],proposal:null};
+                }
+                const edits=[];
+                const preview=[];
+                const groups=[];
+                const detailed=text.includes('Make Percival sound more weary.');
+                const titleAfter=detailed?'More explicit title':'Chat revised title';
+                const voiceAfter=detailed?'More weary voice':'Chat revised voice';
+                if((targets||[]).some(path=>path.join('.')==='title')){
+                  edits.push({type:'set',path:['title'],value:titleAfter});
+                  preview.push({label:'Title',before:'Current title',after:titleAfter});
+                  groups.push({label:'Title',edits:[input.edits.length+edits.length-1],preview:[preview.length-1]});
+                }
+                if((targets||[]).some(path=>path.join('.')==='characters.0.persona.voice')){
+                  edits.push({type:'set',path:['characters',0,'persona','voice'],value:voiceAfter});
+                  preview.push({label:'Percival · Voice',before:'Current voice',after:voiceAfter});
+                  groups.push({label:'Percival · Voice',edits:[input.edits.length+edits.length-1],preview:[preview.length-1]});
+                }
+                const labels=targets?.map(path=>path.join('.')==='title'?'Title':'Percival · Voice')||[];
+                const userText=labels.length?text+'\\n\\nTargets: '+labels.join(', '):text;
+                state.messages=[{role:'user',text:userText,slot:'review'},{role:'assistant',text:'I suggest these changes.',slot:'review'}];
+                return {ok:true,state,notes:'I suggest these changes.',preview,groups,proposal:edits.length?{pass:'draft',edits:[...input.edits,...edits]}:null};
               }`;
             if (id === "\0image")
               return `import React from 'react'; export default function Image({fill,unoptimized,...props}) { return React.createElement('img', {...props, style:fill?{position:'absolute',inset:0,width:'100%',height:'100%'}:undefined}); }`;
@@ -274,18 +305,22 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           Math.abs(element.getBoundingClientRect().top),
         )).toBeLessThanOrEqual(1);
         // Read all geometry in one browser frame while smooth focus scrolling may still run.
-        const { chat, index, content, composer } = await page.evaluate(() => {
+        const { chat, index, content, composer, tabs } = await page.evaluate(() => {
           const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().toJSON();
           return {
             chat: rect('[aria-label="Adventure conversation"]'),
             index: rect('[aria-label="Characters items"]'),
             content: rect('[aria-label="Review details"]'),
             composer: rect('[aria-label="Message"]'),
+            tabs: rect('[role="tablist"]'),
           };
         });
-        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
+        // Index, content and chat columns share the same top and bottom edges below the tabs.
+        expect(chat!.y).toBeGreaterThan(tabs!.bottom);
         expect(Math.abs(chat!.y - index!.y)).toBeLessThan(2);
-        expect(Math.abs(chat!.y - content!.y)).toBeLessThan(2);
+        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
+        expect(Math.abs(index!.y - content!.y)).toBeLessThan(2);
+        expect(Math.abs(index!.height - content!.height)).toBeLessThan(2);
         expect(chat!.width).toBeGreaterThanOrEqual(300);
         expect(chat!.y + chat!.height).toBeLessThanOrEqual(height);
         expect(composer!.y + composer!.height).toBeLessThanOrEqual(
@@ -488,11 +523,49 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         name: "Message",
         exact: true,
       });
-      await message.fill("Give this a clearer title");
+      const sendChat = async () => {
+        await page.getByRole("button", { name: "Send message", exact: true }).click();
+      };
+      const findCalls = () => page.evaluate(() => (window as any).findTargetCalls ?? 0);
+      const initialFindCalls = await findCalls();
+      await message.fill("Does Percival sound too cheerful to you?");
+      await sendChat();
       await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
-      await page.getByRole("region", { name: "Suggested changes" }).waitFor();
+        .getByRole("region", { name: "Adventure conversation" })
+        .locator("ol")
+        .getByText("Percival sounds steady rather than cheerful.", { exact: true })
+        .waitFor();
+      expect(await page.getByRole("region", { name: "Suggested changes" }).count()).toBe(0);
+      expect(await findCalls()).toBe(initialFindCalls + 1);
+
+      await message.fill("Make the title clearer.");
+      await sendChat();
+      const suggestionCard = page.getByRole("region", {
+        name: "Suggested changes",
+      });
+      await suggestionCard.waitFor();
+      expect(
+        await suggestionCard.getByText("Current", { exact: true }).count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await suggestionCard.getByText("Suggested", { exact: true }).count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await suggestionCard.getByText("Current title", { exact: true }).count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await suggestionCard
+          .getByText("Chat revised title", { exact: true })
+          .count(),
+      ).toBeGreaterThan(0);
+      expect(await findCalls()).toBe(initialFindCalls + 2);
+      for (const label of [
+        "Review changes",
+        "Discard suggestion",
+        "Apply suggestion",
+      ]) {
+        expect(await suggestionCard.getByRole("button", { name: label }).count()).toBe(1);
+      }
       await page.setViewportSize({ width: 1440, height: 720 });
       await page.getByRole("tablist").evaluate((element) =>
         element.scrollIntoView({ block: "start", behavior: "instant" }),
@@ -505,22 +578,56 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await page.locator("#edit-title").inputValue()).toBe(
         "Suggested teacher title",
       );
-      await page
-        .getByRole("button", { name: "Keep my edits", exact: true })
-        .click();
-      await message.fill("Give this a clearer title");
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "Apply changes", exact: true })
+      await suggestionCard
+        .getByRole("button", { name: "Apply suggestion", exact: true })
         .click();
       expect(await page.locator("#edit-title").inputValue()).toBe(
         "Chat revised title",
       );
+      await page.getByRole("tab", { name: "Characters", exact: true }).click();
+      expect(await page.locator("#edit-characters-0-persona-voice").inputValue()).toBe(
+        "Chat revised voice",
+      );
+
+      await message.fill("Make Percival sound more weary.");
+      await sendChat();
+      const dialogCard = page.getByRole("region", {
+        name: "Suggested changes",
+      });
+      await dialogCard.waitFor();
+      await dialogCard
+        .getByRole("button", { name: "Review changes", exact: true })
+        .click();
+      const reviewDialog = page.getByRole("dialog", {
+        name: "Review suggested changes",
+      });
+      await reviewDialog.waitFor();
+      expect(await reviewDialog.getByText("Current", { exact: true }).count()).toBeGreaterThan(0);
+      expect(await reviewDialog.getByText("Suggested", { exact: true }).count()).toBeGreaterThan(0);
       expect(
-        await page.getByText("Unpublished changes", { exact: false }).count(),
+        await reviewDialog
+          .locator("span.bg-world-wash")
+          .filter({ hasText: "weary" })
+          .count(),
       ).toBeGreaterThan(0);
+      await page.keyboard.press("Escape");
+      expect(await reviewDialog.isVisible()).toBe(false);
+      expect(await dialogCard.count()).toBe(1);
+      await dialogCard
+        .getByRole("button", { name: "Review changes", exact: true })
+        .click();
+      await reviewDialog.waitFor();
+      await reviewDialog.getByRole("button", { name: "Apply", exact: true }).click();
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      expect(await page.locator("#edit-title").inputValue()).toBe(
+        "More explicit title",
+      );
+      await page.getByRole("tab", { name: "Characters", exact: true }).click();
+      expect(await page.locator("#edit-characters-0-persona-voice").inputValue()).toBe(
+        "More weary voice",
+      );
+      expect(await page.getByText("Unpublished changes", { exact: false }).count()).toBeGreaterThan(0);
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
       await page.evaluate(() => {
         window.saveMode = "success";
       });
@@ -536,36 +643,46 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       ).toBe(0);
       await page.getByRole("button", { name: "Edit", exact: true }).click();
       expect(await page.locator("#edit-title").inputValue()).toBe(
-        "Chat revised title",
+        "More explicit title",
       );
-      expect(
-        await page.locator("#edit-characters-0-persona-voice").count(),
-      ).toBe(0);
       await page.getByRole("tab", { name: "Characters", exact: true }).click();
       expect(
         await page.locator("#edit-characters-0-persona-voice").inputValue(),
-      ).toBe("A changed teacher voice");
-      await page.getByRole("tab", { name: "Settings", exact: true }).click();
-      await message.fill("Another suggestion");
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
+      ).toBe("More weary voice");
+      await page.getByRole("region", { name: "Adventure conversation" }).waitFor();
+      await message.fill("Discard this suggestion.");
+      await sendChat();
+      const discardCard = page.getByRole("region", {
+        name: "Suggested changes",
+      });
+      await discardCard.waitFor();
+      expect(await findCalls()).toBe(initialFindCalls + 4);
+      await discardCard
+        .getByRole("button", { name: "Discard suggestion", exact: true })
         .click();
+      expect(await discardCard.count()).toBe(0);
+      await page.getByRole("status").getByText("Kept your current edits.").waitFor();
+      expect(
+        await page.locator("#edit-characters-0-persona-voice").inputValue(),
+      ).toBe("More weary voice");
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      expect(await page.locator("#edit-title").inputValue()).toBe("More explicit title");
+      await message.fill("Another suggestion");
+      await sendChat();
       await page
-        .getByRole("button", { name: "Apply changes", exact: true })
+        .getByRole("button", { name: "Apply suggestion", exact: true })
         .waitFor();
-      await page.locator("#edit-title").fill("Newer manual title");
+      await page.locator("#edit-title").fill("Newer local title");
       expect(
         await page
-          .getByRole("button", { name: "Apply changes", exact: true })
+          .getByRole("button", { name: "Apply suggestion", exact: true })
           .count(),
       ).toBe(0);
       await page.evaluate(() => {
         window.chatFailure = true;
       });
       await message.fill("Keep my request on failure");
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
+      await sendChat();
       await page
         .getByText("Could not prepare a suggestion. Try again.", {
           exact: true,
@@ -704,7 +821,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await playerSlot.getByRole("button", { name: "Selected", exact: true }).count()).toBe(1);
       await playerSlot.getByRole("button", { name: "Close candidates", exact: true }).click();
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
-      expect(await page.locator("#edit-title").inputValue()).toBe("Newer manual title");
+      expect(await page.locator("#edit-title").inputValue()).toBe("Newer local title");
       await page.evaluate(() => { window.saveMode = "conflict"; });
       await page.getByRole("button", { name: "Save", exact: true }).click();
       await page.getByRole("alert").filter({ hasText: "This adventure changed" }).waitFor();
@@ -716,7 +833,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await page.evaluate(() => localStorage.getItem("v3-editor-draft:fixture"))).toBeNull();
       const assetSavedSpec = await page.evaluate(() => JSON.parse(localStorage.getItem("spec")!));
       expect(assetSavedSpec.authoring.walkingSprites.player.type).toBe("custom");
-      expect(assetSavedSpec.title).toBe("Newer manual title");
+      expect(assetSavedSpec.title).toBe("Newer local title");
       expect(Object.keys(assetSavedSpec.authoring.portraitImages)).toEqual(firstCharacter.stances.map((s: any) => `${firstCharacter.id}:${s.id}`));
       await page.reload();
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
