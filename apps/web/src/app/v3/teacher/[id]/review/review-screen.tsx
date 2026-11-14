@@ -515,7 +515,7 @@ export function ReviewScreen({
     <div data-review-screen className="space-y-6 text-ink">
       {renderHeader ? renderHeader(floatingChecks ? null : checks) : floatingChecks ? null : checks}
       {floatingChecks ? (
-        <aside aria-label="Adventure issue controls" className="fixed bottom-5 left-4 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-surface border border-line bg-paper p-2 shadow-lg sm:left-6">
+        <aside aria-label="Adventure issue controls" className="fixed bottom-5 left-2 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-surface border border-line bg-paper p-2 shadow-lg sm:left-3">
           {checks}
           {issueActions}
         </aside>
