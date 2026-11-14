@@ -98,7 +98,6 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
                   ]};
               }
               export async function suggestReviewChangeAction(id,input,text,targets,mode){
-                window.suggestCalls=[...(window.suggestCalls||[]),{text,targets,mode}];
                 if(window.chatFailure) return {ok:false,message:'Could not prepare a suggestion. Try again.'};
                 const state=initialBriefStateV3(id);
                 if(mode==='reply'){
@@ -108,14 +107,17 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
                 const edits=[];
                 const preview=[];
                 const groups=[];
+                const detailed=text.includes('Make Percival sound more weary.');
+                const titleAfter=detailed?'More explicit title':'Chat revised title';
+                const voiceAfter=detailed?'More weary voice':'Chat revised voice';
                 if((targets||[]).some(path=>path.join('.')==='title')){
-                  edits.push({type:'set',path:['title'],value:'Chat revised title'});
-                  preview.push({label:'Title',before:'Current title',after:'Chat revised title'});
+                  edits.push({type:'set',path:['title'],value:titleAfter});
+                  preview.push({label:'Title',before:'Current title',after:titleAfter});
                   groups.push({label:'Title',edits:[input.edits.length+edits.length-1],preview:[preview.length-1]});
                 }
                 if((targets||[]).some(path=>path.join('.')==='characters.0.persona.voice')){
-                  edits.push({type:'set',path:['characters',0,'persona','voice'],value:'Chat revised voice'});
-                  preview.push({label:'Percival · Voice',before:'Current voice',after:'Chat revised voice'});
+                  edits.push({type:'set',path:['characters',0,'persona','voice'],value:voiceAfter});
+                  preview.push({label:'Percival · Voice',before:'Current voice',after:voiceAfter});
                   groups.push({label:'Percival · Voice',edits:[input.edits.length+edits.length-1],preview:[preview.length-1]});
                 }
                 const labels=targets?.map(path=>path.join('.')==='title'?'Title':'Percival · Voice')||[];
@@ -538,9 +540,18 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
 
       await message.fill("Make the title clearer.");
       await sendChat();
-      await page.getByRole("region", { name: "Suggested changes" }).waitFor();
-      expect(await page.getByText("Only these fields will change").count()).toBe(0);
+      const suggestionCard = page.getByRole("region", {
+        name: "Suggested changes",
+      });
+      await suggestionCard.waitFor();
       expect(await findCalls()).toBe(initialFindCalls + 2);
+      for (const label of [
+        "Review changes",
+        "Discard suggestion",
+        "Apply suggestion",
+      ]) {
+        expect(await suggestionCard.getByRole("button", { name: label }).count()).toBe(1);
+      }
       await page.setViewportSize({ width: 1440, height: 720 });
       await page.getByRole("tablist").evaluate((element) =>
         element.scrollIntoView({ block: "start", behavior: "instant" }),
@@ -553,19 +564,53 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await page.locator("#edit-title").inputValue()).toBe(
         "Suggested teacher title",
       );
-      const titleGroup = page.getByRole("button", { name: "Title", exact: true });
-      expect(await titleGroup.getAttribute("aria-pressed")).toBe("true");
-      await titleGroup.click();
-      expect(await titleGroup.getAttribute("aria-pressed")).toBe("false");
-      await page
-        .getByRole("button", { name: "Apply changes", exact: true })
+      await suggestionCard
+        .getByRole("button", { name: "Apply suggestion", exact: true })
         .click();
       expect(await page.locator("#edit-title").inputValue()).toBe(
-        "Suggested teacher title",
+        "Chat revised title",
       );
       await page.getByRole("tab", { name: "Characters", exact: true }).click();
       expect(await page.locator("#edit-characters-0-persona-voice").inputValue()).toBe(
         "Chat revised voice",
+      );
+
+      await message.fill("Make Percival sound more weary.");
+      await sendChat();
+      const dialogCard = page.getByRole("region", {
+        name: "Suggested changes",
+      });
+      await dialogCard.waitFor();
+      await dialogCard
+        .getByRole("button", { name: "Review changes", exact: true })
+        .click();
+      const reviewDialog = page.getByRole("dialog", {
+        name: "Review suggested changes",
+      });
+      await reviewDialog.waitFor();
+      expect(await reviewDialog.getByText("Current", { exact: true }).count()).toBeGreaterThan(0);
+      expect(await reviewDialog.getByText("Suggested", { exact: true }).count()).toBeGreaterThan(0);
+      expect(
+        await reviewDialog
+          .locator("span.bg-world-wash")
+          .filter({ hasText: "weary" })
+          .count(),
+      ).toBeGreaterThan(0);
+      await page.keyboard.press("Escape");
+      expect(await reviewDialog.isVisible()).toBe(false);
+      expect(await dialogCard.count()).toBe(1);
+      await dialogCard
+        .getByRole("button", { name: "Review changes", exact: true })
+        .click();
+      await reviewDialog.waitFor();
+      await reviewDialog.getByRole("button", { name: "Apply", exact: true }).click();
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      expect(await page.locator("#edit-title").inputValue()).toBe(
+        "More explicit title",
+      );
+      await page.getByRole("tab", { name: "Characters", exact: true }).click();
+      expect(await page.locator("#edit-characters-0-persona-voice").inputValue()).toBe(
+        "More weary voice",
       );
       expect(await page.getByText("Unpublished changes", { exact: false }).count()).toBeGreaterThan(0);
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
@@ -584,37 +629,39 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       ).toBe(0);
       await page.getByRole("button", { name: "Edit", exact: true }).click();
       expect(await page.locator("#edit-title").inputValue()).toBe(
-        "Suggested teacher title",
+        "More explicit title",
       );
       await page.getByRole("tab", { name: "Characters", exact: true }).click();
       expect(
         await page.locator("#edit-characters-0-persona-voice").inputValue(),
-      ).toBe("Chat revised voice");
+      ).toBe("More weary voice");
       await page.getByRole("region", { name: "Adventure conversation" }).waitFor();
-      const beforeManualTargetSend = await findCalls();
-      await page
-        .getByRole("group", { name: "Voice", exact: true })
-        .getByRole("button", { name: "Target this field for chat" })
-        .click();
-      await page.getByText("Only these fields will change", { exact: true }).waitFor();
-      await message.fill("Make this voice more weary.");
+      await message.fill("Discard this suggestion.");
       await sendChat();
-      await page.getByRole("region", { name: "Suggested changes" }).waitFor();
-      expect(await findCalls()).toBe(beforeManualTargetSend);
-      expect(await page.evaluate(() => (window as any).suggestCalls.at(-1).targets)).toEqual([
-        ["characters", 0, "persona", "voice"],
-      ]);
-      await page.getByRole("button", { name: "Keep my edits", exact: true }).click();
+      const discardCard = page.getByRole("region", {
+        name: "Suggested changes",
+      });
+      await discardCard.waitFor();
+      expect(await findCalls()).toBe(initialFindCalls + 4);
+      await discardCard
+        .getByRole("button", { name: "Discard suggestion", exact: true })
+        .click();
+      expect(await discardCard.count()).toBe(0);
+      await page.getByRole("status").getByText("Kept your current edits.").waitFor();
+      expect(
+        await page.locator("#edit-characters-0-persona-voice").inputValue(),
+      ).toBe("More weary voice");
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      expect(await page.locator("#edit-title").inputValue()).toBe("More explicit title");
       await message.fill("Another suggestion");
       await sendChat();
       await page
-        .getByRole("button", { name: "Apply changes", exact: true })
+        .getByRole("button", { name: "Apply suggestion", exact: true })
         .waitFor();
-      await page.locator("#edit-title").fill("Newer manual title");
+      await page.locator("#edit-title").fill("Newer local title");
       expect(
         await page
-          .getByRole("button", { name: "Apply changes", exact: true })
+          .getByRole("button", { name: "Apply suggestion", exact: true })
           .count(),
       ).toBe(0);
       await page.evaluate(() => {
@@ -760,7 +807,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await playerSlot.getByRole("button", { name: "Selected", exact: true }).count()).toBe(1);
       await playerSlot.getByRole("button", { name: "Close candidates", exact: true }).click();
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
-      expect(await page.locator("#edit-title").inputValue()).toBe("Newer manual title");
+      expect(await page.locator("#edit-title").inputValue()).toBe("Newer local title");
       await page.evaluate(() => { window.saveMode = "conflict"; });
       await page.getByRole("button", { name: "Save", exact: true }).click();
       await page.getByRole("alert").filter({ hasText: "This adventure changed" }).waitFor();
@@ -772,7 +819,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await page.evaluate(() => localStorage.getItem("v3-editor-draft:fixture"))).toBeNull();
       const assetSavedSpec = await page.evaluate(() => JSON.parse(localStorage.getItem("spec")!));
       expect(assetSavedSpec.authoring.walkingSprites.player.type).toBe("custom");
-      expect(assetSavedSpec.title).toBe("Newer manual title");
+      expect(assetSavedSpec.title).toBe("Newer local title");
       expect(Object.keys(assetSavedSpec.authoring.portraitImages)).toEqual(firstCharacter.stances.map((s: any) => `${firstCharacter.id}:${s.id}`));
       await page.reload();
       await page.getByRole("tab", { name: "Assets", exact: true }).click();

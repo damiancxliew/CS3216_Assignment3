@@ -1,6 +1,5 @@
 "use client";
 import React, { useId, useState } from "react";
-import { Crosshair } from "lucide-react";
 import { Select } from "@/components/select";
 import { z } from "zod";
 import { AdventureSpec, type AdventureSpec as Spec } from "@adventure/spec-v3";
@@ -18,12 +17,6 @@ import { Citations } from "./review-screen";
 import { issueTarget, reviewAnchor, reviewSectionId, reviewStanceId } from "@/lib/v3/review";
 import { reviewIssueMessage } from "@/lib/v3/review-presentation";
 import { useFieldIssues } from "./field-issues";
-import { useReviewChat } from "../review-chat-context";
-import {
-  isProtectedPath,
-  owningItemPath,
-  textFields,
-} from "@/lib/v3/review-chat/outline";
 
 const input =
   "w-full min-w-0 rounded-control border border-line bg-paper p-2 text-sm text-ink";
@@ -101,25 +94,8 @@ export function Remove({
 /** The schema drives field coverage, optional fields and recursive condition variants. */
 export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
   const issues = useFieldIssues();
-  const chat = useReviewChat();
   const issueId = useId();
   const fieldPath = path.join(".");
-  const targetPath = owningItemPath(spec, path);
-  const textField = targetPath
-    ? textFields(spec, targetPath).find(
-        (field) => field.path.join(".") === fieldPath,
-      )
-    : undefined;
-  const selectedChip = chat?.chips.find(
-    (chip) => chip.path.join(".") === fieldPath,
-  );
-  const showTarget =
-    chat?.isDraft &&
-    typeof value === "string" &&
-    path.at(-1) !== "id" &&
-    Boolean(textField || isProtectedPath(path));
-  const lockReason = textField?.locked ??
-    (isProtectedPath(path) ? "This field is protected and chat can't change it." : undefined);
   const matching = issues.filter((issue) => {
     if (issue.path.replace(/\[(\d+)\]/g, ".$1") === fieldPath) return true;
     // Part-local generation paths only identify their owning entity reliably.
@@ -137,25 +113,9 @@ export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
       aria-label={matching.length ? name : undefined}
       aria-describedby={matching.length ? issueId : undefined}
       aria-invalid={matching.length ? true : undefined}
-      className={`min-w-0 space-y-2 ${showTarget ? "relative" : ""}`}
+      className="min-w-0 space-y-2"
     >
       <EditFieldContent {...{ spec, value, schema, path, name, onEdit }} />
-      {showTarget ? (
-        <button
-          type="button"
-          aria-label={selectedChip ? "Remove from chat targets" : "Target this field for chat"}
-          aria-pressed={Boolean(selectedChip)}
-          title={lockReason}
-          disabled={Boolean(lockReason)}
-          className={`${button.quiet} absolute right-1 top-1 !h-7 !w-7 !px-1 disabled:opacity-40`}
-          onClick={() => {
-            if (!chat) return;
-            chat.toggleChip(path, textField?.label ?? name);
-          }}
-        >
-          <Crosshair size={15} aria-hidden />
-        </button>
-      ) : null}
       {matching.length ? (
         <ul id={issueId} className="space-y-1 text-sm text-danger">
           {matching.map((issue, index) => (

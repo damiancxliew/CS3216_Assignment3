@@ -129,13 +129,13 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
                 key={index}
                 className={compact
                   ? message.role === "user"
-                    ? "ml-4 self-end rounded-surface rounded-br-sm bg-ink px-4 py-3 text-paper shadow-sm"
-                    : "mr-4 self-start rounded-surface rounded-bl-sm border border-line bg-paper px-4 py-3 text-ink shadow-sm"
+                    ? "ml-8 self-end rounded-surface rounded-br-sm bg-record-wash px-3 py-2 text-ink"
+                    : "self-start py-0.5 text-ink"
                   : `${styles.bubble} ${message.role === "user" ? styles.userBubble : "self-start"}`}
               >
                 <p className="whitespace-pre-wrap">{text}</p>
                 {targets ? (
-                  <p className="mt-1 whitespace-pre-wrap text-xs opacity-75">
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-muted">
                     {targets}
                   </p>
                 ) : null}

@@ -12,7 +12,6 @@ import type {
   ReviewChatProposal,
   ReviewChatInput,
 } from "@/lib/v3/review-chat/types";
-import type { Path } from "@/lib/v3/review-chat/outline";
 
 export type ReviewChatTarget = {
   key: string;
@@ -33,46 +32,21 @@ export type UpgradeChatTarget = {
   active: boolean;
   route(message: string): Promise<string>;
 };
-export type ReviewChatChip = {
-  path: Path;
-  label: string;
-};
 type ReviewChatContextValue = {
   target: RegisteredTarget | null;
   register(target: RegisteredTarget | null): void;
   upgrade: UpgradeChatTarget | null;
   registerUpgrade(target: UpgradeChatTarget | null): void;
-  chips: ReviewChatChip[];
-  toggleChip(path: Path, label: string): void;
-  clearChips(): void;
   isDraft: boolean;
 };
 const Context = createContext<ReviewChatContextValue | null>(null);
 export function ReviewChatProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<RegisteredTarget | null>(null);
   const [upgrade, setUpgrade] = useState<UpgradeChatTarget | null>(null);
-  const [chips, setChips] = useState<ReviewChatChip[]>([]);
-  const lastRegisteredKey = useRef<string | null>(null);
   const register = useCallback(
-    (next: RegisteredTarget | null) => {
-      if (next && lastRegisteredKey.current !== next.key) {
-        lastRegisteredKey.current = next.key;
-        setChips([]);
-      }
-      setTarget(next);
-    },
+    (next: RegisteredTarget | null) => setTarget(next),
     [],
   );
-  const toggleChip = useCallback((path: Path, label: string) => {
-    const key = path.join(".");
-    setChips((current) => {
-      const existing = current.find((chip) => chip.path.join(".") === key);
-      return existing
-        ? current.filter((chip) => chip.path.join(".") !== key)
-        : [...current, { path, label }];
-    });
-  }, []);
-  const clearChips = useCallback(() => setChips([]), []);
   const isDraft = target?.current().input.pass === "draft";
   return (
     <Context.Provider
@@ -81,9 +55,6 @@ export function ReviewChatProvider({ children }: { children: ReactNode }) {
         register,
         upgrade,
         registerUpgrade: setUpgrade,
-        chips,
-        toggleChip,
-        clearChips,
         isDraft,
       }}
     >

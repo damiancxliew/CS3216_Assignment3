@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
-import { compactButton as button, control, Thinking } from "@/components/ui";
+import { Check, Maximize2, X } from "lucide-react";
+import { control, Thinking } from "@/components/ui";
 import type { BriefStateV3 } from "@/lib/v3/brief/schema";
 import type { ReviewChatResult } from "@/lib/v3/review-chat/types";
 import {
@@ -9,8 +9,8 @@ import {
   suggestReviewChangeAction,
 } from "./chat-actions";
 import { useReviewChat } from "./review-chat-context";
-import { reviewPrimary } from "./creation-styles";
 import { ChatSendButton } from "./chat-send-button";
+import { ReviewChangesDialog } from "./review-changes-dialog";
 import { requestsSchemaUpgrade } from "@/lib/v3/review-chat/upgrade-intent";
 
 type Suggestion = Extract<ReviewChatResult, { ok: true }> & {
@@ -30,7 +30,6 @@ export function ReviewChatComposer({
   const context = useReviewChat();
   const target = context?.target;
   const upgrade = context?.upgrade;
-  const chips = context?.chips ?? [];
   const isDraft = Boolean(context?.isDraft);
   const current = useRef(target);
   current.current = target;
@@ -40,7 +39,7 @@ export function ReviewChatComposer({
   const [activity, setActivity] = useState("Preparing a suggestion…");
   const [message, setMessage] = useState("");
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
-  const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set());
+  const [reviewOpen, setReviewOpen] = useState(false);
   const storageKey = `v3-review-message:${adventureId}`;
   useEffect(() => {
     try {
@@ -59,7 +58,10 @@ export function ReviewChatComposer({
       /* Keep the in-memory draft. */
     }
   }, [storageKey, text, restored]);
-  useEffect(() => setSuggestion(null), [target?.key, target?.revision]);
+  useEffect(() => {
+    setSuggestion(null);
+    setReviewOpen(false);
+  }, [target?.key, target?.revision]);
   useEffect(() => setMessage(""), [target?.key]);
   const upgradeRequest = Boolean(upgrade && (upgrade.active || requestsSchemaUpgrade(text)));
   const targetedDraft = isDraft && !upgradeRequest;
@@ -79,6 +81,7 @@ export function ReviewChatComposer({
       setPending(true);
       setActivity("Preparing a suggestion…");
       setSuggestion(null);
+      setReviewOpen(false);
       setMessage("");
       try {
         setMessage(await upgrade.route(text));
@@ -95,11 +98,11 @@ export function ReviewChatComposer({
     setPending(true);
     setMessage("");
     setSuggestion(null);
-    setSelectedGroups(new Set());
+    setReviewOpen(false);
     try {
       let result: ReviewChatResult;
       let replyMode = false;
-      if (targetedDraft && chips.length === 0) {
+      if (targetedDraft) {
         setActivity("Reading your request…");
         const intent = await findEditTargetsAction(adventureId, snapshot.input, text);
         if (!intent.ok) {
@@ -137,12 +140,11 @@ export function ReviewChatComposer({
           );
         }
       } else {
-        setActivity(targetedDraft ? "Writing the change…" : "Preparing a suggestion…");
+        setActivity("Preparing a suggestion…");
         result = await suggestReviewChangeAction(
           adventureId,
           snapshot.input,
           text,
-          targetedDraft ? chips.map(({ path }) => path) : undefined,
         );
       }
       if (!result.ok) {
@@ -163,7 +165,6 @@ export function ReviewChatComposer({
       }
       if (!targetedDraft || result.proposal || replyMode) setText("");
       if (result.proposal) {
-        setSelectedGroups(new Set((result.groups ?? []).map((_, index) => index)));
         setSuggestion({
           ...result,
           key: snapshot.key,
@@ -186,117 +187,100 @@ export function ReviewChatComposer({
     target.revision === suggestion.revision
       ? suggestion
       : null;
-  const selectedGroupCount =
-    valid?.groups?.filter((_, index) => selectedGroups.has(index)).length ?? 0;
+  const groups = valid
+    ? valid.groups ??
+      valid.preview.map((change, index) => ({
+        label: change.label,
+        edits: [],
+        preview: [index],
+      }))
+    : [];
+  const applySuggestion = () => {
+    if (!valid) return;
+    const latest = current.current?.current();
+    if (
+      !latest ||
+      latest.pending ||
+      latest.key !== valid.key ||
+      latest.revision !== valid.revision ||
+      !valid.proposal
+    )
+      return;
+    latest.apply(valid.proposal);
+    setSuggestion(null);
+    setReviewOpen(false);
+    setMessage("Applied to the cards.");
+  };
+  const discardSuggestion = () => {
+    setSuggestion(null);
+    setReviewOpen(false);
+    setMessage("Kept your current edits.");
+  };
   return (
     <div className="flex min-h-0 flex-col gap-3">
       {valid ? (
         <section
           aria-label="Suggested changes"
-          className="creation-card min-h-0 max-h-44 md:max-h-80 space-y-3 overflow-y-auto rounded-control border border-line-strong bg-paper p-3 text-sm"
+          className="flex min-h-0 flex-col overflow-hidden rounded-surface border border-line bg-surface text-sm"
         >
-          <h3 className="font-bold">Suggested changes</h3>
-          {valid.groups
-            ? valid.groups.map((group, groupIndex) => {
-                const selected = selectedGroups.has(groupIndex);
-                return (
-                  <div key={`${group.label}-${groupIndex}`} className="space-y-1 border-t border-line pt-2">
-                    <button
-                      type="button"
-                      aria-pressed={selected}
-                      className={`flex w-full items-center gap-2 rounded-control border px-2 py-1.5 text-left font-semibold ${selected ? "border-ink bg-ink text-paper" : "border-line-strong bg-paper text-muted"}`}
-                      onClick={() => setSelectedGroups((current) => {
-                        const next = new Set(current);
-                        if (next.has(groupIndex)) next.delete(groupIndex);
-                        else next.add(groupIndex);
-                        return next;
-                      })}
-                    >
-                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-current" aria-hidden>
-                        {selected ? <Check size={12} /> : null}
-                      </span>
-                      <span className="min-w-0 flex-1">{group.label}</span>
-                    </button>
-                    {group.preview.map((previewIndex) => {
-                      const change = valid.preview[previewIndex];
-                      return change ? (
-                        <div key={previewIndex} className="space-y-1 pl-2">
-                          <p className="text-muted">
-                            <span className="font-semibold">Current: </span>
-                            {change.before}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Suggested: </span>
-                            {change.after}
-                          </p>
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                );
-              })
-            : valid.preview.map((change, index) => (
-                <div key={index} className="space-y-1 border-t border-line pt-2">
-                  <p className="font-semibold">{change.label}</p>
-                  <p className="text-muted">
-                    <span className="font-semibold">Current: </span>
-                    {change.before}
+          <header className="flex items-center gap-2 border-b border-line px-3 py-2">
+            <div className="flex-1">
+              <h3 className="font-semibold">Suggested changes</h3>
+              <p className="text-xs text-muted">· {groups.length} fields</p>
+            </div>
+            <button
+              type="button"
+              aria-label="Review changes"
+              title="Review changes"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-control text-muted hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              onClick={() => setReviewOpen(true)}
+            >
+              <Maximize2 size={16} aria-hidden />
+            </button>
+            <button
+              type="button"
+              aria-label="Discard suggestion"
+              title="Discard suggestion"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-control border border-line text-muted hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              onClick={discardSuggestion}
+            >
+              <X size={16} aria-hidden />
+            </button>
+            <button
+              type="button"
+              aria-label="Apply suggestion"
+              title="Apply suggestion"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-control bg-world text-on-accent hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-world disabled:opacity-50"
+              disabled={Boolean(target?.pending)}
+              onClick={applySuggestion}
+            >
+              <Check size={16} aria-hidden />
+            </button>
+          </header>
+          <div className="min-h-0 max-h-44 overflow-y-auto divide-y divide-line md:max-h-72">
+            {groups.map((group, index) => {
+              const first = valid.preview[group.preview[0]];
+              return (
+                <div key={`${group.label}-${index}`} className="px-3 py-2">
+                  <p className="text-xs font-semibold text-muted">
+                    {group.label}
                   </p>
-                  <p>
-                    <span className="font-semibold">Suggested: </span>
-                    {change.after}
-                  </p>
+                  {first ? (
+                    <p className="line-clamp-2">{first.after}</p>
+                  ) : null}
                 </div>
-              ))}
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={reviewPrimary}
-              disabled={Boolean(target?.pending) || Boolean(valid.groups?.length && selectedGroupCount === 0)}
-              onClick={() => {
-                const latest = current.current?.current();
-                if (
-                  !latest ||
-                  latest.pending ||
-                  latest.key !== valid.key ||
-                  latest.revision !== valid.revision ||
-                  !valid.proposal
-                )
-                  return;
-                if (valid.groups && valid.proposal.pass === "draft") {
-                  const excluded = new Set(
-                    valid.groups.flatMap((group, index) =>
-                      selectedGroups.has(index) ? [] : group.edits,
-                    ),
-                  );
-                  latest.apply({
-                    ...valid.proposal,
-                    edits: valid.proposal.edits.filter(
-                      (_, index) => !excluded.has(index),
-                    ),
-                  });
-                } else {
-                  latest.apply(valid.proposal);
-                }
-                setSuggestion(null);
-                context?.clearChips();
-                setMessage("Applied to the cards.");
-              }}
-            >
-              Apply changes
-            </button>
-            <button
-              type="button"
-              className={button.subtle}
-              onClick={() => {
-                setSuggestion(null);
-                context?.clearChips();
-                setMessage("Kept your current edits.");
-              }}
-            >
-              Keep my edits
-            </button>
+              );
+            })}
           </div>
+          <ReviewChangesDialog
+            open={reviewOpen && Boolean(valid)}
+            onOpenChange={setReviewOpen}
+            preview={valid.preview}
+            groups={valid.groups}
+            disabled={Boolean(target?.pending)}
+            onApply={applySuggestion}
+            onDiscard={discardSuggestion}
+          />
         </section>
       ) : null}
       {pending ? <Thinking label={activity} /> : null}
@@ -312,35 +296,6 @@ export function ReviewChatComposer({
         }}
         className="flex shrink-0 flex-col gap-2"
       >
-        {targetedDraft && chips.length ? (
-          <div className="space-y-1">
-            <p className="text-xs text-muted">Only these fields will change</p>
-            <div
-              role="group"
-              aria-label="Chat edit targets"
-              className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto overscroll-contain py-1 pr-1 [scrollbar-gutter:stable] scroll-py-2"
-            >
-              {chips.map((chip) => (
-                <div
-                  key={chip.path.join(".")}
-                  title={chip.label}
-                  className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-line-strong bg-paper px-2.5 py-1 text-xs font-semibold text-ink"
-                >
-                  <span className="min-w-0 max-w-full truncate">{chip.label}</span>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${chip.label}`}
-                    disabled={pending}
-                    className="shrink-0 rounded-full px-1 text-base leading-none text-muted hover:bg-line hover:text-ink"
-                    onClick={() => context?.toggleChip(chip.path, chip.label)}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
         <div className="flex items-center gap-2">
           <textarea
             aria-label="Message"
