@@ -524,7 +524,7 @@ export function ReviewScreen({
         data-review-workspace
         className={`min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4 ${chat ? "xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:grid-rows-[auto_minmax(0,1fr)] xl:gap-5" : ""}`}
       >
-        <div className="space-y-5 md:flex md:shrink-0 md:flex-col md:gap-5 md:space-y-0 xl:col-start-1 xl:row-start-1">
+        <div className="space-y-5 md:flex md:shrink-0 md:flex-col md:gap-5 md:space-y-0 xl:col-span-2 xl:row-start-1">
         <div
           role="tablist"
           aria-label="Adventure content"
@@ -577,7 +577,7 @@ export function ReviewScreen({
           </select> : null}
         </div> : null}
         </div>
-        {chat ? <div className="min-w-0 shrink-0 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:h-full xl:min-h-0">{chat}</div> : null}
+        {chat ? <div className="min-w-0 shrink-0 xl:col-start-2 xl:row-start-2 xl:h-full xl:min-h-0">{chat}</div> : null}
         <div
           role="tabpanel"
           id="review-content"

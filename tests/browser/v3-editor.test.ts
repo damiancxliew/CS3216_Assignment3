@@ -285,9 +285,10 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
             tabs: rect('[role="tablist"]'),
           };
         });
-        // The chat column spans the full workspace height beside the tabs and panes.
-        expect(Math.abs(chat!.y - tabs!.y)).toBeLessThan(2);
-        expect(Math.abs(chat!.bottom - index!.bottom)).toBeLessThan(2);
+        // Index, content and chat columns share the same top and bottom edges below the tabs.
+        expect(chat!.y).toBeGreaterThan(tabs!.bottom);
+        expect(Math.abs(chat!.y - index!.y)).toBeLessThan(2);
+        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
         expect(Math.abs(index!.y - content!.y)).toBeLessThan(2);
         expect(Math.abs(index!.height - content!.height)).toBeLessThan(2);
         expect(chat!.width).toBeGreaterThanOrEqual(300);
