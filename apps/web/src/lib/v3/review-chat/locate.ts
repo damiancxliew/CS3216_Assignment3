@@ -15,8 +15,15 @@ export type EditTarget = {
   selected: boolean;
 };
 
+export type FindEditTargetsResult =
+  | { ok: true; intent: "reply" }
+  | { ok: true; intent: "change"; targets: EditTarget[] }
+  | { ok: false; message: string };
+
 const NO_TARGET =
-  "I couldn't tell which part to change. Mark a field with the target icon, then send again.";
+  "I couldn't tell which part to change. Name the stage, character or document, or mark a field with its target button.";
+const CHANGE_INTENT_INSTRUCTIONS =
+  "A teacher is chatting about their history adventure. Does the teacher's message ask for the adventure's saved content to be changed? Answer yes for requests, instructions or complaints about the content (including conditional ones like \"if so, trim it\", and statements that something is too long, too hard or sounds wrong). Answer no for questions, requests for an opinion, a summary or an explanation in chat, thanks, approval, or other comments that do not ask for a change.";
 
 type Scored<T> = T & { score: number; index: number };
 
@@ -27,14 +34,56 @@ function score(probabilities: Record<string, number>, name: string): number {
     : 0;
 }
 
-function decisionInput(data: unknown, text: string): DecisionRequest["input"] {
+const ITEM_KINDS: Record<string, string> = {
+  stages: "Stage",
+  characters: "Character",
+  documents: "Document",
+  discoveries: "Discovery",
+  definingMoments: "Decision",
+  endings: "Ending",
+  teacherQuestions: "Discussion question",
+};
+
+function describedItemLabel(key: string, label: string): string {
+  const [collection, rawIndex] = key.split(".");
+  const kind = ITEM_KINDS[collection ?? ""];
+  if (!kind || !/^\d+$/.test(rawIndex ?? "")) return label;
+  if (new RegExp(`^${kind}\\b`, "i").test(label)) return label;
+  return `${kind} ${Number(rawIndex) + 1}: ${label}`;
+}
+
+function decisionInput(
+  data: unknown,
+  text: string,
+  options?: {
+    history?: { role: "assistant" | "user"; text: string }[];
+    prefix?: string;
+  },
+): DecisionRequest["input"] {
+  const content = [
+    ...(data === undefined
+      ? []
+      : [{
+          type: "input_json" as const,
+          data: data as Record<string, unknown>,
+        }]),
+    ...(options?.history?.length
+      ? [{
+          type: "input_text" as const,
+          text: `Earlier conversation:\n${options.history.map(({ role, text }) =>
+            `${role === "user" ? "Teacher" : "Assistant"}: ${text.replace(/\r?\n/g, " ")}`,
+          ).join("\n")}`,
+        }]
+      : []),
+    {
+      type: "input_text" as const,
+      text: `${options?.prefix ?? "Teacher's edit request"}: ${text}`,
+    },
+  ];
   return [
     {
       role: "user",
-      content: [
-        { type: "input_json", data: data as Record<string, unknown> },
-        { type: "input_text", text: `Teacher's edit request: ${text}` },
-      ],
+      content,
     },
   ];
 }
@@ -46,25 +95,41 @@ function fieldLabel(field: TextField, itemPath: Path, itemLabel: string): string
 
 export async function findEditTargets(
   deps: { decide: DecisionClient },
-  input: { spec: unknown; text: string },
-): Promise<{ ok: true; targets: EditTarget[] } | { ok: false; message: string }> {
-  const items = editableItems(input.spec);
+  input: {
+    spec: unknown;
+    text: string;
+    history?: { role: "assistant" | "user"; text: string }[];
+  },
+): Promise<FindEditTargetsResult> {
+  const items = editableItems(input.spec).slice(0, 400);
+  const itemLabels = items.map(({ key, label }) => describedItemLabel(key, label));
+
+  const intentDecision = await deps.decide.decide({
+    input: decisionInput(undefined, input.text, {
+      history: input.history,
+      prefix: "Teacher's message",
+    }),
+    questions: [{ name: "change", instructions: CHANGE_INTENT_INSTRUCTIONS }],
+  });
+  if (score(intentDecision.probabilities, "change") < 0.5)
+    return { ok: true, intent: "reply" };
   if (!items.length) return { ok: false, message: NO_TARGET };
 
   const itemDecision = await deps.decide.decide({
     input: decisionInput(
       {
-        outline: items.map(({ key, label, preview }) => ({
+        outline: items.map(({ key, preview }, index) => ({
           key,
-          label,
+          label: itemLabels[index]!,
           preview,
         })),
       },
       input.text,
+      { history: input.history, prefix: "Teacher's message" },
     ),
-    questions: items.map(({ key, label }, index) => ({
+    questions: items.map(({ key }, index) => ({
       name: `i${index}`,
-      instructions: `To carry out the teacher's edit request, must the text of item "${key}" (${label}) change?`,
+      instructions: `Is the teacher asking for the text of item "${key}" (${itemLabels[index]!}) to be changed? A question, opinion request, summary request or thanks is not a request to change it.`,
     })),
   });
   const rankedItems: Scored<(typeof items)[number]>[] = items
@@ -74,10 +139,7 @@ export async function findEditTargets(
       score: score(itemDecision.probabilities, `i${index}`),
     }))
     .sort((a, b) => b.score - a.score || a.index - b.index);
-  let pickedItems = rankedItems.filter((item) => item.score >= 0.5).slice(0, 3);
-  if (!pickedItems.length && rankedItems[0] && rankedItems[0].score >= 0.3) {
-    pickedItems = [rankedItems[0]];
-  }
+  const pickedItems = rankedItems.filter((item) => item.score >= 0.5).slice(0, 3);
   if (!pickedItems.length) return { ok: false, message: NO_TARGET };
 
   const fields = pickedItems.flatMap((item, itemRank) =>
@@ -109,20 +171,19 @@ export async function findEditTargets(
     index,
     score: score(fieldDecision.probabilities, `f${index}`),
   }));
-  let selectedFields = scoredFields.filter((field) => field.score >= 0.3)
+  let selectedFields = scoredFields.filter((field) => field.score >= 0.5)
     .sort((a, b) => a.itemRank - b.itemRank || b.score - a.score || a.index - b.index);
-  let forceSelection = false;
   if (!selectedFields.length) {
     selectedFields = [scoredFields.sort((a, b) => b.score - a.score || a.index - b.index)[0]!];
-    forceSelection = true;
   }
   return {
     ok: true,
+    intent: "change",
     targets: selectedFields.map(({ path, label, score: probability }) => ({
       path,
       label,
       score: probability,
-      selected: forceSelection || probability >= 0.5,
+      selected: true,
     })),
   };
 }

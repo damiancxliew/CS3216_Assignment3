@@ -47,7 +47,7 @@ export function changePreview(
   };
 }
 
-function readingSupportPath(path: Path): { documentIndex: number; variantIndex: number | null } | null {
+export function readingSupportPath(path: Path): { documentIndex: number; variantIndex: number | null } | null {
   if (path[0] !== "documents" || typeof path[1] !== "number" || path[2] !== "readingCheck")
     return null;
   if (path[3] === "recovery" && path[4] === "support")

@@ -126,8 +126,9 @@ describe("review-chat target outline", () => {
 });
 
 describe("review-chat target discovery", () => {
-  it("selects the top three items and returns likely and maybe fields in item order", async () => {
+  it("selects the top three items and returns only selected fields in item order", async () => {
     const client = new FakeDecisionClient([
+      { change: 1 },
       { i0: 0.95, i1: 0.9, i2: 0.8, i3: 0.7, i4: 0.4, i5: 0.2 },
       { f0: 0.6, f1: 0.4, f2: 0.8, f3: 0.9, f4: 0.3, f5: 0.1, f6: 0.51 },
     ]);
@@ -136,60 +137,119 @@ describe("review-chat target discovery", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(client.requests).toHaveLength(2);
-    expect(client.requests[0]!.questions.map(({ name }) => name)).toEqual(
+    expect(result.intent).toBe("change");
+    expect(client.requests).toHaveLength(3);
+    expect(client.requests[0]!.questions.map(({ name }) => name)).toEqual(["change"]);
+    expect(requestContent(client.requests[0]!)).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "input_json" })]),
+    );
+    expect(client.requests[1]!.questions.map(({ name }) => name)).toEqual(
       editableItems(adventure()).map((_, index) => `i${index}`),
     );
-    expect((requestContent(client.requests[1]!)[0]!.data as { fields: unknown[] }).fields.length).toBeGreaterThan(0);
+    expect((requestContent(client.requests[2]!)[0]!.data as { fields: unknown[] }).fields.length).toBeGreaterThan(0);
     expect(result.targets.map(({ path }) => path[0])).not.toContain("endings");
-    expect(result.targets.some(({ selected }) => !selected)).toBe(true);
-    expect(result.targets.filter(({ selected }) => selected).length).toBeGreaterThan(0);
+    expect(result.targets.every(({ selected, score }) => selected && score >= 0.5)).toBe(true);
   });
 
-  it("falls back to the top item and field at the lower thresholds", async () => {
-    const client = new FakeDecisionClient([
-      { i0: 0.4, i1: 0.29 },
-      { f0: 0.2, f1: 0.1 },
-    ]);
+  it("returns reply intent without a field pass when change intent is below threshold", async () => {
+    const client = new FakeDecisionClient([{ change: 0.49 }]);
     const result = await findEditTargets({ decide: client }, { spec: adventure(), text: "Change the title" });
 
-    expect(result).toMatchObject({
-      ok: true,
-      targets: [{ score: 0.2, selected: true }],
-    });
-    expect(client.requests[1]!.questions.length).toBeGreaterThan(0);
+    expect(result).toEqual({ ok: true, intent: "reply" });
+    expect(client.requests).toHaveLength(1);
+    expect(client.requests[0]!.questions.map(({ name }) => name)).toEqual(["change"]);
+    expect(requestContent(client.requests[0]!)).toEqual([
+      { type: "input_text", text: "Teacher's message: Change the title" },
+    ]);
   });
 
-  it("returns the exact guidance when no item is probable enough", async () => {
-    const client = new FakeDecisionClient([{ i0: 0.29, i1: 0.1 }]);
+  it("does not use a low-confidence item fallback", async () => {
+    const client = new FakeDecisionClient([{ change: 1 }, { i0: 0.49, i1: 0.3 }]);
 
     expect(await findEditTargets(
       { decide: client },
       { spec: { title: "A story" }, text: "Change something" },
     )).toEqual({
       ok: false,
-      message: "I couldn't tell which part to change. Mark a field with the target icon, then send again.",
+      message: "I couldn't tell which part to change. Name the stage, character or document, or mark a field with its target button.",
     });
-    expect(client.requests).toHaveLength(1);
+    expect(client.requests).toHaveLength(2);
+  });
+
+  it("force-selects only the top field when none reaches 0.5", async () => {
+    const client = new FakeDecisionClient([
+      { change: 1 },
+      { i0: 0.9 },
+      { f0: 0.49, f1: 0.2 },
+    ]);
+    const result = await findEditTargets({ decide: client }, { spec: { title: "A story" }, text: "Change the title" });
+
+    expect(result).toMatchObject({
+      ok: true,
+      intent: "change",
+      targets: [{ score: 0.49, selected: true }],
+    });
   });
 
   it("keeps the outline before the request and never puts teacher text in question instructions", async () => {
     const client = new FakeDecisionClient([
+      { change: 1 },
       { i0: 0.9, i1: 0.8 },
       { f0: 0.7 },
     ]);
     const text = "Rewrite ONLY this field";
     await findEditTargets({ decide: client }, { spec: adventure(), text });
 
-    for (const request of client.requests) {
-      const content = requestContent(request);
-      expect(content[0]).toMatchObject({ type: "input_json" });
-      expect(content[1]).toEqual({
-        type: "input_text",
-        text: `Teacher's edit request: ${text}`,
-      });
-      expect(request.questions.every(({ instructions }) => !instructions.includes(text))).toBe(true);
-    }
+    expect(requestContent(client.requests[0]!)).toEqual([
+      { type: "input_text", text: `Teacher's message: ${text}` },
+    ]);
+    expect(client.requests[0]!.questions).toEqual([{
+      name: "change",
+      instructions: "A teacher is chatting about their history adventure. Does the teacher's message ask for the adventure's saved content to be changed? Answer yes for requests, instructions or complaints about the content (including conditional ones like \"if so, trim it\", and statements that something is too long, too hard or sounds wrong). Answer no for questions, requests for an opinion, a summary or an explanation in chat, thanks, approval, or other comments that do not ask for a change.",
+    }]);
+    expect(requestContent(client.requests[1]!)).toEqual([
+      expect.objectContaining({ type: "input_json" }),
+      { type: "input_text", text: `Teacher's message: ${text}` },
+    ]);
+    expect(client.requests[1]!.questions[0]).toEqual({
+      name: "i0",
+      instructions: 'Is the teacher asking for the text of item "title" (Adventure title) to be changed? A question, opinion request, summary request or thanks is not a request to change it.',
+    });
+    expect(requestContent(client.requests[2]!)[1]).toEqual({
+      type: "input_text",
+      text: `Teacher's edit request: ${text}`,
+    });
+    expect(client.requests.flatMap(({ questions }) => questions).every(
+      ({ instructions }) => !instructions.includes(text),
+    )).toBe(true);
+  });
+
+  it("describes collection items by kind and one-based ordinal in Decisions", async () => {
+    const spec = adventure({
+      discoveries: [{ id: "discovery-3", title: "Discovery 3: Original title", text: "An account." }],
+    });
+    const client = new FakeDecisionClient([{ change: 1 }, { i0: 0 }]);
+    await findEditTargets({ decide: client }, { spec, text: "Is this clear?" });
+
+    const content = requestContent(client.requests[1]!);
+    const outline = (content[0]!.data as {
+      outline: { key: string; label: string }[];
+    }).outline;
+    expect(outline).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "title", label: "Adventure title" }),
+      expect.objectContaining({ key: "stages.0", label: "Stage 1: Arrival" }),
+      expect.objectContaining({ key: "characters.0", label: "Character 1: Arthur Percival" }),
+      expect.objectContaining({ key: "documents.0", label: "Document 1: Port register" }),
+      expect.objectContaining({ key: "discoveries.0", label: "Discovery 3: Original title" }),
+      expect.objectContaining({ key: "definingMoments.0", label: "Decision 1: A decision" }),
+      expect.objectContaining({ key: "endings.0", label: "Ending 1: A settlement" }),
+      expect.objectContaining({ key: "teacherQuestions.0", label: "Discussion question 1" }),
+    ]));
+    const stageIndex = outline.findIndex(({ key }) => key === "stages.0");
+    expect(client.requests[1]!.questions[stageIndex]).toEqual({
+      name: `i${stageIndex}`,
+      instructions: 'Is the teacher asking for the text of item "stages.0" (Stage 1: Arrival) to be changed? A question, opinion request, summary request or thanks is not a request to change it.',
+    });
   });
 
   it("caps the field pass at 400 questions while keeping the first item fields", async () => {
@@ -198,17 +258,65 @@ describe("review-chat target discovery", () => {
     const client = new FakeDecisionClient((request) =>
       Object.fromEntries(request.questions.map(({ name }) => [
         name,
-        name.startsWith("i") ? 0.9 : 0.4,
+        name === "change" ? 1 : name.startsWith("i") ? 0.9 : 0.4,
       ])),
     );
     const result = await findEditTargets({ decide: client }, { spec, text: "Change a field" });
 
     expect(result.ok).toBe(true);
-    expect(client.requests[1]!.questions).toHaveLength(400);
-    expect(requestContent(client.requests[1]!)[0]!.data).toMatchObject({
+    expect(client.requests[2]!.questions).toHaveLength(400);
+    expect(requestContent(client.requests[2]!)[0]!.data).toMatchObject({
       fields: expect.arrayContaining([
         expect.objectContaining({ key: "stages.0.field0" }),
       ]),
     });
+  });
+
+  it("keeps the item pass under the 400-question cap", async () => {
+    const stages = Array.from({ length: 401 }, (_, index) => ({
+      id: `stage-${index}`,
+      title: `Stage ${index}`,
+      narration: `Narration ${index}`,
+    }));
+    const client = new FakeDecisionClient((request) =>
+      Object.fromEntries(request.questions.map(({ name }) => [
+        name,
+        name === "change" ? 1 : 0.9,
+      ])),
+    );
+    await findEditTargets({ decide: client }, {
+      spec: { title: "A large story", stages },
+      text: "Change the first scene",
+    });
+
+    expect(client.requests[1]!.questions).toHaveLength(400);
+  });
+
+  it("includes recent conversation before the message in intent and item requests", async () => {
+    const client = new FakeDecisionClient([{ change: 1 }, {}]);
+    const history = [
+      { role: "user" as const, text: "What does the document say?" },
+      { role: "assistant" as const, text: "It says the Company may trade." },
+    ];
+    await findEditTargets(
+      { decide: client },
+      { spec: adventure(), text: "Yes, do that.", history },
+    );
+
+    const historyText =
+      "Earlier conversation:\nTeacher: What does the document say?\nAssistant: It says the Company may trade.";
+    expect(requestContent(client.requests[0]!)).toEqual([
+      { type: "input_text", text: historyText },
+      { type: "input_text", text: "Teacher's message: Yes, do that." },
+    ]);
+    expect(requestContent(client.requests[0]!)).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "input_json" })]),
+    );
+    expect(requestContent(client.requests[1]!)).toEqual([
+      expect.objectContaining({ type: "input_json" }),
+      { type: "input_text", text: historyText },
+      { type: "input_text", text: "Teacher's message: Yes, do that." },
+    ]);
+    expect(client.requests[1]!.questions.some(({ name }) => name === "change")).toBe(false);
   });
 });

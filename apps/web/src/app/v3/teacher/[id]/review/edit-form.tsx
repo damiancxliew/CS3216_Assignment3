@@ -150,10 +150,7 @@ export function EditField({ spec, value, schema, path, name, onEdit }: Props) {
           className={`${button.quiet} absolute right-1 top-1 !h-7 !w-7 !px-1 disabled:opacity-40`}
           onClick={() => {
             if (!chat) return;
-            if (selectedChip)
-              chat.setChips(chat.chips.filter((chip) => chip.path.join(".") !== fieldPath));
-            else
-              chat.toggleChip(path, textField?.label ?? name);
+            chat.toggleChip(path, textField?.label ?? name);
           }}
         >
           <Crosshair size={15} aria-hidden />

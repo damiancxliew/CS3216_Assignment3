@@ -36,7 +36,6 @@ export type UpgradeChatTarget = {
 export type ReviewChatChip = {
   path: Path;
   label: string;
-  selected: boolean;
 };
 type ReviewChatContextValue = {
   target: RegisteredTarget | null;
@@ -44,7 +43,6 @@ type ReviewChatContextValue = {
   upgrade: UpgradeChatTarget | null;
   registerUpgrade(target: UpgradeChatTarget | null): void;
   chips: ReviewChatChip[];
-  setChips(chips: ReviewChatChip[]): void;
   toggleChip(path: Path, label: string): void;
   clearChips(): void;
   isDraft: boolean;
@@ -70,12 +68,8 @@ export function ReviewChatProvider({ children }: { children: ReactNode }) {
     setChips((current) => {
       const existing = current.find((chip) => chip.path.join(".") === key);
       return existing
-        ? current.map((chip) =>
-            chip.path.join(".") === key
-              ? { ...chip, selected: !chip.selected }
-              : chip,
-          )
-        : [...current, { path, label, selected: true }];
+        ? current.filter((chip) => chip.path.join(".") !== key)
+        : [...current, { path, label }];
     });
   }, []);
   const clearChips = useCallback(() => setChips([]), []);
@@ -88,7 +82,6 @@ export function ReviewChatProvider({ children }: { children: ReactNode }) {
         upgrade,
         registerUpgrade: setUpgrade,
         chips,
-        setChips,
         toggleChip,
         clearChips,
         isDraft,

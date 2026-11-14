@@ -24,10 +24,16 @@ export type ReviewChatProposal =
   | { pass: "sources"; removedSourceIds: string[] }
   | { pass: "skeleton"; skeleton: SkeletonShape }
   | { pass: "details" | "endings" | "reveal" | "draft"; edits: V3Edit[] };
+export type ReviewChatGroup = {
+  label: string;
+  edits: number[];
+  preview: number[];
+};
 export type ReviewChatResult =
   | {
       ok: true;
       preview: { label: string; before: string; after: string }[];
+      groups?: ReviewChatGroup[];
       notes: string;
       proposal: ReviewChatProposal | null;
       state: BriefStateV3;

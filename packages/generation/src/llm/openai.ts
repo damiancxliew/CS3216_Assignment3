@@ -94,7 +94,19 @@ export class OpenAiLlmClient implements LlmClient {
     const body = {
       model: request.model,
       instructions: request.system,
-      input: [{ role: 'user' as const, content: request.user }],
+      input: [{
+        role: 'user' as const,
+        content: request.cachedPrefix === undefined
+          ? request.user
+          : [
+              {
+                type: 'input_text' as const,
+                text: request.cachedPrefix,
+                prompt_cache_breakpoint: { mode: 'explicit' as const },
+              },
+              { type: 'input_text' as const, text: request.user },
+            ],
+      }],
       text: {
         format: {
           type: 'json_schema' as const,

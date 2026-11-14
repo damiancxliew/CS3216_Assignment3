@@ -6,7 +6,7 @@ insert into model_price (
 ) values (
   'gpt-6-luna-decisions',
   0.1,
-  0.1,
+  0.01,
   0
 )
 on conflict (model) do nothing;

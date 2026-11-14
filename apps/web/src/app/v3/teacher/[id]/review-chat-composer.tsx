@@ -31,7 +31,6 @@ export function ReviewChatComposer({
   const target = context?.target;
   const upgrade = context?.upgrade;
   const chips = context?.chips ?? [];
-  const selectedTargets = chips.filter((chip) => chip.selected);
   const isDraft = Boolean(context?.isDraft);
   const current = useRef(target);
   current.current = target;
@@ -41,6 +40,7 @@ export function ReviewChatComposer({
   const [activity, setActivity] = useState("Preparing a suggestion…");
   const [message, setMessage] = useState("");
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set());
   const storageKey = `v3-review-message:${adventureId}`;
   useEffect(() => {
     try {
@@ -64,19 +64,15 @@ export function ReviewChatComposer({
   const upgradeRequest = Boolean(upgrade && (upgrade.active || requestsSchemaUpgrade(text)));
   const targetedDraft = isDraft && !upgradeRequest;
   const canSend = Boolean((upgradeRequest ? !upgrade?.pending : target && !target.pending) && text.trim() && !pending);
-  const sendHint = !target
+  const sendHint = !target && !upgrade
     ? idleHint
     : pending
       ? activity
-      : target.pending
+      : target?.pending
         ? "Wait for the current action to finish."
         : !text.trim()
           ? "Write a message to send."
-          : targetedDraft && chips.length
-            ? "Suggest changes to the selected fields."
-            : targetedDraft
-              ? "Find fields to change."
-              : "Send message";
+          : "Send message";
   const send = async () => {
     if (!canSend) return;
     if (upgradeRequest && upgrade) {
@@ -96,23 +92,18 @@ export function ReviewChatComposer({
     }
     const snapshot = current.current?.current();
     if (!snapshot || !canSend) return;
-    if (targetedDraft && chips.length > 0 && selectedTargets.length === 0) {
-      setMessage("Select at least one field, or clear the targets to find them again.");
-      return;
-    }
     setPending(true);
     setMessage("");
     setSuggestion(null);
-    setActivity(targetedDraft && chips.length === 0 ? "Finding what to change…" : "Preparing a suggestion…");
+    setSelectedGroups(new Set());
     try {
+      let result: ReviewChatResult;
+      let replyMode = false;
       if (targetedDraft && chips.length === 0) {
-        const result = await findEditTargetsAction(
-          adventureId,
-          snapshot.input,
-          text,
-        );
-        if (!result.ok) {
-          setMessage(result.message);
+        setActivity("Reading your request…");
+        const intent = await findEditTargetsAction(adventureId, snapshot.input, text);
+        if (!intent.ok) {
+          setMessage(intent.message);
           return;
         }
         const latest = current.current?.current();
@@ -122,23 +113,38 @@ export function ReviewChatComposer({
           latest.revision !== snapshot.revision
         ) {
           setMessage(
-            "Your edits changed while I was finding targets. Send the request again for the current version.",
+            "Your edits changed while I was reading your request. Send it again for the current version.",
           );
           return;
         }
-        context?.setChips(result.targets.map(({ path, label, selected }) => ({
-          path,
-          label,
-          selected,
-        })));
-        return;
+        if (intent.intent === "reply") {
+          replyMode = true;
+          setActivity("Writing a reply…");
+          result = await suggestReviewChangeAction(
+            adventureId,
+            snapshot.input,
+            text,
+            undefined,
+            "reply",
+          );
+        } else {
+          setActivity("Writing the change…");
+          result = await suggestReviewChangeAction(
+            adventureId,
+            snapshot.input,
+            text,
+            intent.targets.map(({ path }) => path),
+          );
+        }
+      } else {
+        setActivity(targetedDraft ? "Writing the change…" : "Preparing a suggestion…");
+        result = await suggestReviewChangeAction(
+          adventureId,
+          snapshot.input,
+          text,
+          targetedDraft ? chips.map(({ path }) => path) : undefined,
+        );
       }
-      const result = await suggestReviewChangeAction(
-        adventureId,
-        snapshot.input,
-        text,
-        targetedDraft ? selectedTargets.map(({ path }) => path) : undefined,
-      );
       if (!result.ok) {
         setMessage(result.message);
         return;
@@ -155,14 +161,15 @@ export function ReviewChatComposer({
         );
         return;
       }
-      if (!isDraft || result.proposal) setText("");
+      if (!targetedDraft || result.proposal || replyMode) setText("");
       if (result.proposal) {
+        setSelectedGroups(new Set((result.groups ?? []).map((_, index) => index)));
         setSuggestion({
           ...result,
           key: snapshot.key,
           revision: snapshot.revision,
         });
-      } else {
+      } else if (!replyMode) {
         setMessage(result.notes);
       }
     } catch {
@@ -179,6 +186,8 @@ export function ReviewChatComposer({
     target.revision === suggestion.revision
       ? suggestion
       : null;
+  const selectedGroupCount =
+    valid?.groups?.filter((_, index) => selectedGroups.has(index)).length ?? 0;
   return (
     <div className="flex min-h-0 flex-col gap-3">
       {valid ? (
@@ -187,24 +196,63 @@ export function ReviewChatComposer({
           className="creation-card min-h-0 max-h-44 md:max-h-80 space-y-3 overflow-y-auto rounded-control border border-line-strong bg-paper p-3 text-sm"
         >
           <h3 className="font-bold">Suggested changes</h3>
-          {valid.preview.map((change, index) => (
-            <div key={index} className="space-y-1 border-t border-line pt-2">
-              <p className="font-semibold">{change.label}</p>
-              <p className="text-muted">
-                <span className="font-semibold">Current: </span>
-                {change.before}
-              </p>
-              <p>
-                <span className="font-semibold">Suggested: </span>
-                {change.after}
-              </p>
-            </div>
-          ))}
+          {valid.groups
+            ? valid.groups.map((group, groupIndex) => {
+                const selected = selectedGroups.has(groupIndex);
+                return (
+                  <div key={`${group.label}-${groupIndex}`} className="space-y-1 border-t border-line pt-2">
+                    <button
+                      type="button"
+                      aria-pressed={selected}
+                      className={`flex w-full items-center gap-2 rounded-control border px-2 py-1.5 text-left font-semibold ${selected ? "border-ink bg-ink text-paper" : "border-line-strong bg-paper text-muted"}`}
+                      onClick={() => setSelectedGroups((current) => {
+                        const next = new Set(current);
+                        if (next.has(groupIndex)) next.delete(groupIndex);
+                        else next.add(groupIndex);
+                        return next;
+                      })}
+                    >
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-current" aria-hidden>
+                        {selected ? <Check size={12} /> : null}
+                      </span>
+                      <span className="min-w-0 flex-1">{group.label}</span>
+                    </button>
+                    {group.preview.map((previewIndex) => {
+                      const change = valid.preview[previewIndex];
+                      return change ? (
+                        <div key={previewIndex} className="space-y-1 pl-2">
+                          <p className="text-muted">
+                            <span className="font-semibold">Current: </span>
+                            {change.before}
+                          </p>
+                          <p>
+                            <span className="font-semibold">Suggested: </span>
+                            {change.after}
+                          </p>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                );
+              })
+            : valid.preview.map((change, index) => (
+                <div key={index} className="space-y-1 border-t border-line pt-2">
+                  <p className="font-semibold">{change.label}</p>
+                  <p className="text-muted">
+                    <span className="font-semibold">Current: </span>
+                    {change.before}
+                  </p>
+                  <p>
+                    <span className="font-semibold">Suggested: </span>
+                    {change.after}
+                  </p>
+                </div>
+              ))}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               className={reviewPrimary}
-              disabled={Boolean(target?.pending)}
+              disabled={Boolean(target?.pending) || Boolean(valid.groups?.length && selectedGroupCount === 0)}
               onClick={() => {
                 const latest = current.current?.current();
                 if (
@@ -215,7 +263,21 @@ export function ReviewChatComposer({
                   !valid.proposal
                 )
                   return;
-                latest.apply(valid.proposal);
+                if (valid.groups && valid.proposal.pass === "draft") {
+                  const excluded = new Set(
+                    valid.groups.flatMap((group, index) =>
+                      selectedGroups.has(index) ? [] : group.edits,
+                    ),
+                  );
+                  latest.apply({
+                    ...valid.proposal,
+                    edits: valid.proposal.edits.filter(
+                      (_, index) => !excluded.has(index),
+                    ),
+                  });
+                } else {
+                  latest.apply(valid.proposal);
+                }
                 setSuggestion(null);
                 context?.clearChips();
                 setMessage("Applied to the cards.");
@@ -248,44 +310,46 @@ export function ReviewChatComposer({
           event.preventDefault();
           void send();
         }}
-        className={`flex shrink-0 gap-2 ${targetedDraft ? "flex-col items-stretch" : "items-center"}`}
+        className="flex shrink-0 flex-col gap-2"
       >
         {targetedDraft && chips.length ? (
           <div className="space-y-1">
-            <p className="text-xs text-muted">
-              {selectedTargets.length} targets selected
-            </p>
+            <p className="text-xs text-muted">Only these fields will change</p>
             <div
               role="group"
               aria-label="Chat edit targets"
-              className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto overscroll-contain pb-2 pr-1 [scrollbar-gutter:stable] scroll-py-2"
+              className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto overscroll-contain py-1 pr-1 [scrollbar-gutter:stable] scroll-py-2"
             >
               {chips.map((chip) => (
-                <button
+                <div
                   key={chip.path.join(".")}
-                  type="button"
-                  aria-pressed={chip.selected}
                   title={chip.label}
-                  disabled={pending}
-                  className={`inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-left text-xs font-semibold transition-colors ${chip.selected ? "border-ink bg-ink text-paper" : "border-line-strong bg-paper text-muted hover:border-ink hover:text-ink"}`}
-                  onClick={() => context?.toggleChip(chip.path, chip.label)}
+                  className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-line-strong bg-paper px-2.5 py-1 text-xs font-semibold text-ink"
                 >
-                  {chip.selected ? <Check size={13} aria-hidden /> : <span className="shrink-0" aria-hidden>○</span>}
-                  <span className="min-w-0 truncate">{chip.label}</span>
-                </button>
+                  <span className="min-w-0 max-w-full truncate">{chip.label}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${chip.label}`}
+                    disabled={pending}
+                    className="shrink-0 rounded-full px-1 text-base leading-none text-muted hover:bg-line hover:text-ink"
+                    onClick={() => context?.toggleChip(chip.path, chip.label)}
+                  >
+                    ×
+                  </button>
+                </div>
               ))}
             </div>
           </div>
         ) : null}
-        <div className="flex items-end gap-2">
+        <div className="flex items-center gap-2">
           <textarea
             aria-label="Message"
-            placeholder="Ask for a change…"
+            placeholder="Ask a question or request a change…"
             value={text}
             maxLength={4000}
             disabled={pending}
-            rows={2}
-            className={`${control} max-h-40 min-h-0 flex-1 resize-y text-sm`}
+            rows={1}
+            className={control + " min-h-0 flex-1 resize-none py-3"}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
               if (
@@ -298,27 +362,12 @@ export function ReviewChatComposer({
               }
             }}
           />
-          {targetedDraft ? null : <ChatSendButton disabled={!canSend} hint={sendHint} />}
+          <ChatSendButton
+            label="Send message"
+            disabled={!canSend}
+            hint={sendHint}
+          />
         </div>
-        {targetedDraft ? (
-          <div className="flex shrink-0 justify-end gap-2">
-            <button
-              type="button"
-              className={button.quiet}
-              disabled={pending || chips.length === 0}
-              onClick={() => context?.clearChips()}
-            >
-              Clear
-            </button>
-            <button
-              type="submit"
-              className={reviewPrimary}
-              disabled={!canSend || (chips.length > 0 && selectedTargets.length === 0)}
-            >
-              {chips.length ? "Suggest changes" : "Find targets"}
-            </button>
-          </div>
-        ) : null}
       </form>
     </div>
   );
