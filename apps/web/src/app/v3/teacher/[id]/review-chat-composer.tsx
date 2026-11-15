@@ -359,7 +359,7 @@ export function ReviewChatComposer({
             value={text}
             maxLength={4000}
             rows={1}
-            className={control + " min-h-0 min-w-0 flex-1 resize-none overflow-hidden text-ellipsis py-3 placeholder:whitespace-nowrap"}
+            className={control + " min-h-0 min-w-0 flex-1 resize-none py-3 placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap"}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
               if (
