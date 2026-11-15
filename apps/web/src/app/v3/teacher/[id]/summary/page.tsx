@@ -447,10 +447,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   self_harm: "Self-harm",
 };
 
-function SeverityBadge({ severity }: { severity: FlagSeverity }) {
+function SeverityBadge({
+  severity,
+  className = "",
+}: {
+  severity: FlagSeverity;
+  className?: string;
+}) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${SEVERITY_STYLES[severity]}`}
+      className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${SEVERITY_STYLES[severity]} ${className}`}
     >
       {SEVERITY_LABELS[severity]}
     </span>
@@ -473,7 +479,10 @@ function FlagSummary({ flagged }: { flagged: FlaggedStudent[] }) {
               <details className="group" open={item.severity === "urgent"}>
                 <summary className="flex cursor-pointer list-none flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
                   <span className="flex min-w-0 items-center gap-3">
-                    <SeverityBadge severity={item.severity} />
+                    <SeverityBadge
+                      severity={item.severity}
+                      className="group-open:hidden"
+                    />
                     <span className="min-w-0 break-all font-semibold text-ink">
                       {item.student}
                     </span>
