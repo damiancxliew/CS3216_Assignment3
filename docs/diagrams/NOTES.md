@@ -16,13 +16,14 @@ Explanations for the nodes in each diagram, for use as captions or body text nex
 | jobs | `packages/jobs`. Job queue stored in Postgres. |
 | engine | `packages/engine`. Pure rules engine: `step()` for play, `summarise()` for class summaries. The LLM is injected, never imported. |
 | orchestration | `packages/orchestration`. The play-time LLM client (`createOpenAiClient`, with `complete` and `decide`) and the post-turn check `checkExchange`. |
-| spec-v3, play-contract | Shared contracts: the adventure schema and checks (`spec-v3`), and the `Action`, `GameEvent` and `PlayerView` types used by the server and client (`play-contract`). |
-| game-core, game-client | Map compiler and the Phaser map bundled into the student client. |
+| spec-v3, play-contract | Shared libraries (faded, dashed boxes): imported rather than called, so no arrows lead to them. `spec-v3` is the adventure schema (zod) and `validateSpec()`, imported by `engine`, `generation` and the teacher pages. `play-contract` holds the `Action`, `PlayerView`, `GameEvent` and `ClassSummary` types shared by the Turn API, `engine` and the student client. |
+| game-core, game-client | Shared libraries (faded, dashed boxes). `game-core` is the deterministic settlement-map compiler and navigation functions; `game-client` is the Phaser map component. Both are bundled into the student play client, and `game-core` is also used by `orchestration`. |
 | LLM providers | External text, image and web-search models. |
 | OpenAI Decisions API | External service that answers yes/no questions as probabilities (model `gpt-6-luna`). Used to locate the fields a teacher wants to edit, and for the post-turn check during play. |
 | Asset bucket | S3-compatible storage for generated portraits and stage art. |
 | Postgres | Application data, the job queue and each attempt's event log. |
 | Supabase Auth | Sign-in for teachers and students via Google OAuth. |
+| Key | Blue: browser UI. White: runtime component. Faded dashed: shared library, imported rather than called. Yellow: data store. Purple: external service. Solid arrows are runtime calls; the dotted arrow is sign-in. |
 
 ## D2 · Generation pipeline (`d2-generation-pipeline`)
 

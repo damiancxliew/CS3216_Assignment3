@@ -44,9 +44,17 @@ flowchart TB
   web --> DB
   browser -.->|sign in| AUTH
 
+  subgraph KEY["Key"]
+    direction LR
+    K1["Browser UI"]:::actor ~~~ K2["Runtime component"] ~~~ K3["Shared library<br/>(imported, not called)"]:::lib ~~~ K4[("Data store")]:::store ~~~ K5["External service"]:::ext
+  end
+  infra ~~~ KEY
+
   classDef actor fill:#eaf2ff,stroke:#8fb0e6
   classDef store fill:#fff6e5,stroke:#e3c27a
   classDef ext fill:#f4effd,stroke:#b9a3e3
   class T,S actor
   class DB,BKT store
+  classDef lib fill:#fbfcfd,stroke:#cfd5dc,stroke-dasharray:4 3,color:#8a94a1
   class AUTH,LLM,DEC ext
+  class SHARED,GC lib
