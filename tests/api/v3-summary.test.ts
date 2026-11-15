@@ -271,6 +271,7 @@ describe("v3 class summary service", () => {
       excerpt: "A proposed act.",
       characterId: "temenggong",
       stageIndex: 0,
+      source: "interview",
       createdAt: "2026-01-01T00:00:00.000Z",
     });
 
@@ -291,6 +292,7 @@ describe("v3 class summary service", () => {
           excerpt: "A proposed act.",
           characterName: goldenSpec.characters.find((character) => character.id === "temenggong")?.name ?? null,
           stageIndex: 0,
+          source: "interview",
           createdAt: "2026-01-01T00:00:00.000Z",
         },
       ],
@@ -468,7 +470,7 @@ describe("Supabase v3 flag loading", () => {
         message_id: "message-later",
         category: "threat",
         excerpt: "A threat",
-        result: { characterId: "temenggong", stageIndex: 2 },
+        result: { characterId: "temenggong", stageIndex: 2, source: "interview" },
         created_at: "2026-01-02T00:00:00.000Z",
       },
       {
@@ -516,6 +518,7 @@ describe("Supabase v3 flag loading", () => {
         excerpt: "A proposal",
         characterId: null,
         stageIndex: null,
+        source: "chat",
         createdAt: "2026-01-01T00:00:00.000Z",
       },
       {
@@ -525,6 +528,7 @@ describe("Supabase v3 flag loading", () => {
         excerpt: "A threat",
         characterId: "temenggong",
         stageIndex: 2,
+        source: "interview",
         createdAt: "2026-01-02T00:00:00.000Z",
       },
     ]);

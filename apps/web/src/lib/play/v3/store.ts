@@ -30,7 +30,12 @@ export interface V3FlagInput {
   messageId: string;
   category: string;
   excerpt: string;
-  result: { reason: string | null; characterId: string; stageIndex: number };
+  result: {
+    reason: string | null;
+    characterId: string | null;
+    stageIndex: number | null;
+    source?: "chat" | "interview";
+  };
 }
 
 export interface V3StoredFlag {
@@ -40,6 +45,7 @@ export interface V3StoredFlag {
   excerpt: string;
   characterId: string | null;
   stageIndex: number | null;
+  source: "chat" | "interview";
   createdAt: string;
 }
 
@@ -354,6 +360,7 @@ export class SupabaseV3PlayStore implements V3PlayStore {
             excerpt: row.excerpt,
             characterId: typeof result.characterId === "string" ? result.characterId : null,
             stageIndex: typeof result.stageIndex === "number" && Number.isFinite(result.stageIndex) ? result.stageIndex : null,
+            source: result.source === "interview" ? "interview" : "chat",
             createdAt: row.created_at,
           });
         }
@@ -701,6 +708,7 @@ export class MemoryV3PlayStore implements V3PlayStore {
           excerpt: flag.excerpt,
           characterId: flag.result.characterId,
           stageIndex: flag.result.stageIndex,
+          source: flag.result.source === "interview" ? "interview" : "chat",
           createdAt: new Date().toISOString(),
         });
       }

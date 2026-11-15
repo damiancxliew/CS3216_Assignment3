@@ -80,6 +80,9 @@ const CHECK_DECISION_QUESTIONS = [
     instructions:
       "Did the STUDENT assert, as true, a fact about the historical people or events that the STUDENT'S NOTES do not support? Answer no for questions, guesses offered as guesses (\"maybe\", \"could it be\"), opinions, insults, greetings and small talk, and for claims backed by one of their notes or by a note they are showing.",
   },
+] as const
+
+export const MODERATION_DECISION_QUESTIONS = [
   {
     name: 'flag_abusive',
     instructions:
@@ -119,6 +122,36 @@ const MODERATION_REASONS = {
   self_harm: 'Flagged as about self-harm by the automatic check.',
 } as const satisfies Record<Exclude<ModerationCategory, 'none'>, string>
 
+export function moderationFromProbabilities(
+  probabilities: Record<string, number>,
+): PostTurnResult['moderation'] {
+  const score = (name: string): number => {
+    const probability = probabilities[name]
+    return probability === undefined || Number.isNaN(probability) ? 0 : Math.max(0, Math.min(1, probability))
+  }
+
+  const categories = ['abusive', 'threat', 'hateful', 'provocative', 'sexual', 'self_harm'] as const
+  let category: (typeof categories)[number] | undefined
+  let highestSeverity = 0
+  let highestProbability = CHECK_DECISION_THRESHOLD
+  for (const candidate of categories) {
+    const probability = score(`flag_${candidate}`)
+    const severity = MODERATION_SEVERITY_RANK[candidate]
+    if (
+      probability >= CHECK_DECISION_THRESHOLD &&
+      (severity > highestSeverity || (severity === highestSeverity && probability > highestProbability))
+    ) {
+      category = candidate
+      highestSeverity = severity
+      highestProbability = probability
+    }
+  }
+
+  return category === undefined
+    ? EMPTY_POST_TURN_RESULT.moderation
+    : { flagged: true, category, reason: MODERATION_REASONS[category] }
+}
+
 function buildDecisionQuestions(input: CheckInput): DecisionQuestion[] {
   return [
     ...input.revealable.map((fact, index) => ({
@@ -126,6 +159,7 @@ function buildDecisionQuestions(input: CheckInput): DecisionQuestion[] {
       instructions: `Does the CHARACTER'S REPLY itself state this fact, so that a listener would come away knowing its main point from the reply alone, even if said briefly, in other words, or mixed with other things (details and exact names may differ)? Fact: "${fact.text}". Answer no if the reply only hints at it, refuses, promises to tell later, gestures vaguely towards it, or if only the student says it.`,
     })),
     ...CHECK_DECISION_QUESTIONS,
+    ...MODERATION_DECISION_QUESTIONS,
   ]
 }
 
@@ -146,23 +180,6 @@ function decisionOutcome(
     conveyed.push(fact.id)
   })
 
-  const categories = ['abusive', 'threat', 'hateful', 'provocative', 'sexual', 'self_harm'] as const
-  let category: (typeof categories)[number] | undefined
-  let highestSeverity = 0
-  let highestProbability = CHECK_DECISION_THRESHOLD
-  for (const candidate of categories) {
-    const probability = score(`flag_${candidate}`)
-    const severity = MODERATION_SEVERITY_RANK[candidate]
-    if (
-      probability >= CHECK_DECISION_THRESHOLD &&
-      (severity > highestSeverity || (severity === highestSeverity && probability > highestProbability))
-    ) {
-      category = candidate
-      highestSeverity = severity
-      highestProbability = probability
-    }
-  }
-
   return {
     ok: true,
     via: 'decisions',
@@ -171,10 +188,7 @@ function decisionOutcome(
       substantive: score('substantive') >= CHECK_DECISION_THRESHOLD,
       assertedUndiscovered: score('asserted') >= CHECK_DECISION_THRESHOLD,
       assertion: null,
-      moderation:
-        category === undefined
-          ? EMPTY_POST_TURN_RESULT.moderation
-          : { flagged: true, category, reason: MODERATION_REASONS[category] },
+      moderation: moderationFromProbabilities(probabilities),
     },
     repairRounds: 0,
     usage,

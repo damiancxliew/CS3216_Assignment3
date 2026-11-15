@@ -13,6 +13,7 @@ export interface FlaggedMessage {
   excerpt: string;
   characterName: string | null;
   stageIndex: number | null;
+  source: "chat" | "interview";
   createdAt: string;
 }
 
@@ -168,6 +169,7 @@ export async function loadClassSummary(
             ? characterNames.get(flag.characterId) ?? null
             : null,
           stageIndex: flag.stageIndex,
+          source: flag.source,
           createdAt: flag.createdAt,
         }))
         .sort(

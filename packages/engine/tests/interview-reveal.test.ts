@@ -1,5 +1,5 @@
 import { PlayerView } from '@adventure/play-contract'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { EngineSpec, project } from '../src'
 import { INTERVIEW_CLOSING } from '../src/interview'
@@ -90,6 +90,19 @@ describe('Interview voice', () => {
     expect(game.llm.requests.filter((request) => request.schemaName === 'v3_interview_line')).toHaveLength(3)
   })
 
+  it('preserves held-first and general rule push-backs when Decisions is unavailable', async () => {
+    const heldGame = new Harness(mini)
+    await reachInterview(heldGame)
+    heldGame.state.discovered.push('d-a2')
+    const held = await heldGame.act({ type: 'interviewAnswer', verdictId: 'yes', evidenceNoteIds: [] })
+    expect(held.interview?.pushBack).toBe('Yet you noted: "A fears Riau.". Doesn\'t that cut the other way?')
+
+    const generalGame = new Harness(mini)
+    await reachInterview(generalGame)
+    const general = await generalGame.act({ type: 'interviewAnswer', verdictId: 'partly', evidenceNoteIds: [] })
+    expect(general.interview?.pushBack).toBe('Others would disagree.')
+  })
+
   it('voices the closing and falls back to the standard closing when it fails', async () => {
     const game = new Harness(mini)
     await reachInterview(game)
@@ -101,6 +114,113 @@ describe('Interview voice', () => {
     const closingRequest = game.llm.requests.filter((request) => request.schemaName === 'v3_interview_line').at(-1)
     expect(closingRequest?.system).toContain('Task: close the interview.')
     expect(closingRequest?.user).toContain('<their_final_answer>Partly.</their_final_answer>')
+  })
+
+  it('skips an addressed held counterpoint and chooses the next core counterpoint', async () => {
+    const cloned = structuredClone(mini)
+    const verdict = cloned.endings[0]?.interview.verdicts.find((candidate) => candidate.id === 'yes')
+    if (!verdict) throw new Error('mini fixture is missing the yes verdict')
+    verdict.counterPoints = ['d-a2', 'd-a1']
+    const game = new Harness(EngineSpec.parse(cloned))
+    await reachInterview(game)
+    game.state.discovered.push('d-a2')
+
+    const decide = vi.fn(async () => ({
+      probabilities: { addressed_0: 0.9 },
+      usage: { promptTokens: 1, completionTokens: 1, cachedPromptTokens: 0, reasoningTokens: 0 },
+    }))
+    Object.assign(game.llm, { decide })
+
+    const pushed = await game.act({
+      type: 'interviewAnswer',
+      verdictId: 'yes',
+      evidenceNoteIds: [],
+      text: 'I know A fears Riau, but the trade still matters.',
+    })
+
+    expect(decide).toHaveBeenCalledTimes(1)
+    expect(pushed.interview?.pushBack).toBe('Some would say: A wants a share. What do you make of that?')
+  })
+
+  it('uses the general counter when all candidates are addressed and skips checking untyped answers', async () => {
+    const game = new Harness(mini)
+    await reachInterview(game)
+    const decide = vi.fn(async () => ({
+      probabilities: { addressed_0: 1 },
+      usage: { promptTokens: 1, completionTokens: 1, cachedPromptTokens: 0, reasoningTokens: 0 },
+    }))
+    Object.assign(game.llm, { decide })
+
+    const untyped = await game.act({ type: 'interviewAnswer', verdictId: 'yes', evidenceNoteIds: [] })
+    expect(decide).not.toHaveBeenCalled()
+    expect(untyped.interview?.pushBack).toBe('Some would say: A fears Riau. What do you make of that?')
+
+    const closed = await game.act({ type: 'interviewAnswer', verdictId: 'partly', evidenceNoteIds: [] })
+    expect(decide).not.toHaveBeenCalled()
+    expect(closed.interview?.closing).toBe('Thank you for telling me.')
+
+    const another = new Harness(mini)
+    await reachInterview(another)
+    Object.assign(another.llm, { decide })
+    const answered = await another.act({
+      type: 'interviewAnswer',
+      verdictId: 'yes',
+      evidenceNoteIds: [],
+      text: 'I know that fear, and I have weighed it.',
+    })
+    expect(answered.interview?.pushBack).toBe('Others would disagree.')
+  })
+
+  it('flags typed answers against their player message and gives reply checks no counterpoints', async () => {
+    const game = new Harness(mini)
+    await reachInterview(game)
+    const requests: { questions: { name: string }[] }[] = []
+    const decide = vi.fn(async (request: { questions: { name: string }[] }) => {
+      requests.push(request)
+      return {
+        probabilities: { flag_abusive: 0.9 },
+        usage: { promptTokens: 1, completionTokens: 1, cachedPromptTokens: 0, reasoningTokens: 0 },
+      }
+    })
+    Object.assign(game.llm, { decide })
+
+    const first = await game.act({
+      type: 'interviewAnswer',
+      verdictId: 'yes',
+      evidenceNoteIds: [],
+      text: 'You are a fool.',
+    })
+    const firstPlayerId = first.messages.filter((message) => message.kind === 'player').at(-1)?.id
+    expect(game.eventsOf('flag')).toContainEqual(expect.objectContaining({
+      type: 'flag',
+      messageId: firstPlayerId,
+      category: 'abusive',
+      reason: 'Flagged as abusive by the automatic check.',
+    }))
+    expect(JSON.stringify(first)).not.toContain('"type":"flag"')
+
+    const second = await game.act({
+      type: 'interviewAnswer',
+      verdictId: 'partly',
+      evidenceNoteIds: [],
+      text: 'You are still a fool.',
+    })
+    const secondPlayerId = second.messages.filter((message) => message.kind === 'player').at(-1)?.id
+    expect(game.eventsOf('flag')).toContainEqual(expect.objectContaining({
+      type: 'flag',
+      messageId: secondPlayerId,
+      category: 'abusive',
+    }))
+    expect(requests).toHaveLength(2)
+    expect(requests[1]?.questions.map(({ name }) => name)).toEqual([
+      'flag_abusive',
+      'flag_threat',
+      'flag_hateful',
+      'flag_provocative',
+      'flag_sexual',
+      'flag_self_harm',
+    ])
+    expect(JSON.stringify(second)).not.toContain('"type":"flag"')
   })
 })
 
