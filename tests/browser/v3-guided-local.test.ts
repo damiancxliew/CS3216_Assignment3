@@ -69,7 +69,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       },
     ]);
     mkdirSync("output/guided-226-redesign", { recursive: true });
-    const browser = await chromium.launch({ headless: true, slowMo: 650 });
+    const browser = process.env.PLAYWRIGHT_CDP_URL ? await chromium.connectOverCDP(process.env.PLAYWRIGHT_CDP_URL) : await chromium.launch({ headless: true, slowMo: 650 });
     const context = await browser.newContext({
       recordVideo: {
         dir: "output/guided-226-redesign",
@@ -629,13 +629,13 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
         .click();
       await conversation
         .getByText(
-          "Could not prepare a suggestion. Your message is still here. Try again.",
+          "Could not prepare a suggestion. Try again.",
           { exact: true },
         )
         .waitFor();
-      expect(await messageInput.inputValue()).toBe(
-        'Rename the first stage to "Suggested stage title"',
-      );
+      expect(await messageInput.inputValue()).toBe("");
+      await conversation.getByRole("button", { name: "Edit message", exact: true }).click();
+      expect(await messageInput.inputValue()).toBe('Rename the first stage to "Suggested stage title"');
       await page.unroute(chatUrl);
       await requestChange('Rename the first stage to "Suggested stage title"');
       const beforeChatApply = await admin

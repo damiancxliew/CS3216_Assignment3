@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { FakeDecisionClient } from "@adventure/generation/llm";
+import { AdventureSpec } from "@adventure/spec-v3";
+import { FakeDecisionClient, type LlmClient } from "@adventure/generation/llm";
 import {
   editableItems,
   isProtectedPath,
@@ -7,6 +9,8 @@ import {
   textFields,
 } from "@/lib/v3/review-chat/outline";
 import { findEditTargets } from "@/lib/v3/review-chat/locate";
+import { proposeTargetedChanges } from "@/lib/v3/review-chat/propose";
+import { checkTeacherEdits } from "@/lib/v3/edit/validation";
 
 function adventure(overrides: Record<string, unknown> = {}) {
   return {
@@ -126,7 +130,7 @@ describe("review-chat target outline", () => {
 });
 
 describe("review-chat target discovery", () => {
-  it("selects the top three items and returns only selected fields in item order", async () => {
+  it("returns selected fields in ranked item order", async () => {
     const client = new FakeDecisionClient([
       { change: 1 },
       { i0: 0.95, i1: 0.9, i2: 0.8, i3: 0.7, i4: 0.4, i5: 0.2 },
@@ -146,7 +150,7 @@ describe("review-chat target discovery", () => {
     expect(client.requests[1]!.questions.map(({ name }) => name)).toEqual(
       editableItems(adventure()).map((_, index) => `i${index}`),
     );
-    expect((requestContent(client.requests[2]!)[0]!.data as { fields: unknown[] }).fields.length).toBeGreaterThan(0);
+    expect(JSON.parse(requestContent(client.requests[2]!)[0]!.text!).fields.length).toBeGreaterThan(0);
     expect(result.targets.map(({ path }) => path[0])).not.toContain("endings");
     expect(result.targets.every(({ selected, score }) => selected && score >= 0.5)).toBe(true);
   });
@@ -171,7 +175,7 @@ describe("review-chat target discovery", () => {
       { spec: { title: "A story" }, text: "Change something" },
     )).toEqual({
       ok: false,
-      message: "I couldn't tell which part to change. Name the stage, character or document, or mark a field with its target button.",
+      message: "I couldn't tell which part to change. Name the stage, character or document you mean.",
     });
     expect(client.requests).toHaveLength(2);
   });
@@ -208,7 +212,7 @@ describe("review-chat target discovery", () => {
       instructions: "A teacher is chatting about their history adventure. Does the teacher's message ask for the adventure's saved content to be changed? Answer yes for requests, instructions or complaints about the content (including conditional ones like \"if so, trim it\", and statements that something is too long, too hard or sounds wrong). Answer no for questions, requests for an opinion, a summary or an explanation in chat, thanks, approval, or other comments that do not ask for a change.",
     }]);
     expect(requestContent(client.requests[1]!)).toEqual([
-      expect.objectContaining({ type: "input_json" }),
+      expect.objectContaining({ type: "input_text", prompt_cache_breakpoint: { mode: "explicit" } }),
       { type: "input_text", text: `Teacher's message: ${text}` },
     ]);
     expect(client.requests[1]!.questions[0]).toEqual({
@@ -232,7 +236,7 @@ describe("review-chat target discovery", () => {
     await findEditTargets({ decide: client }, { spec, text: "Is this clear?" });
 
     const content = requestContent(client.requests[1]!);
-    const outline = (content[0]!.data as {
+    const outline = (JSON.parse(content[0]!.text!) as {
       outline: { key: string; label: string }[];
     }).outline;
     expect(outline).toEqual(expect.arrayContaining([
@@ -252,7 +256,7 @@ describe("review-chat target discovery", () => {
     });
   });
 
-  it("caps the field pass at 400 questions while keeping the first item fields", async () => {
+  it("chunks the field pass at the API limit without dropping fields", async () => {
     const fields = Object.fromEntries(Array.from({ length: 401 }, (_, index) => [`field${index}`, `Value ${index}`]));
     const spec = { title: "A large story", stages: [{ id: "stage-1", ...fields }] };
     const client = new FakeDecisionClient((request) =>
@@ -265,14 +269,16 @@ describe("review-chat target discovery", () => {
 
     expect(result.ok).toBe(true);
     expect(client.requests[2]!.questions).toHaveLength(400);
-    expect(requestContent(client.requests[2]!)[0]!.data).toMatchObject({
+    expect(client.requests[3]!.questions).toHaveLength(2);
+    expect(client.requests[3]!.questions.at(-1)?.name).toBe("f401");
+    expect(JSON.parse(requestContent(client.requests[2]!)[0]!.text!)).toMatchObject({
       fields: expect.arrayContaining([
         expect.objectContaining({ key: "stages.0.field0" }),
       ]),
     });
   });
 
-  it("keeps the item pass under the 400-question cap", async () => {
+  it("chunks the item pass without dropping later items", async () => {
     const stages = Array.from({ length: 401 }, (_, index) => ({
       id: `stage-${index}`,
       title: `Stage ${index}`,
@@ -290,10 +296,12 @@ describe("review-chat target discovery", () => {
     });
 
     expect(client.requests[1]!.questions).toHaveLength(400);
+    expect(client.requests[2]!.questions).toHaveLength(2);
+    expect(client.requests[2]!.questions.at(-1)?.name).toBe("i401");
   });
 
   it("includes recent conversation before the message in intent and item requests", async () => {
-    const client = new FakeDecisionClient([{ change: 1 }, {}]);
+    const client = new FakeDecisionClient([{ change: 1 }, { i0: 1 }, { f0: 1 }]);
     const history = [
       { role: "user" as const, text: "What does the document say?" },
       { role: "assistant" as const, text: "It says the Company may trade." },
@@ -313,10 +321,105 @@ describe("review-chat target discovery", () => {
       expect.arrayContaining([expect.objectContaining({ type: "input_json" })]),
     );
     expect(requestContent(client.requests[1]!)).toEqual([
-      expect.objectContaining({ type: "input_json" }),
+      expect.objectContaining({ type: "input_text", prompt_cache_breakpoint: { mode: "explicit" } }),
       { type: "input_text", text: historyText },
       { type: "input_text", text: "Teacher's message: Yes, do that." },
     ]);
     expect(client.requests[1]!.questions.some(({ name }) => name === "change")).toBe(false);
+    expect(requestContent(client.requests[2]!)).toEqual([
+      expect.objectContaining({ type: "input_text", prompt_cache_breakpoint: { mode: "explicit" } }),
+      { type: "input_text", text: historyText },
+      { type: "input_text", text: "Teacher's edit request: Yes, do that." },
+    ]);
+  });
+
+  it("starts the intent decision while rename extraction is still pending", async () => {
+    let renameStarted = false;
+    let releaseRename!: () => void;
+    const intentStarted = new Promise<void>(resolve => { releaseRename = resolve; });
+    const llm: LlmClient = { async completeJson(request) {
+      renameStarted = true;
+      await intentStarted;
+      return { json: { from: null, to: null }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } };
+    } };
+    const decide = new FakeDecisionClient(() => {
+      expect(renameStarted).toBe(true);
+      releaseRename();
+      return { change: 0 };
+    });
+    expect(await findEditTargets({ decide, llm }, { spec: adventure(), text: "Is this clear?" })).toEqual({ ok: true, intent: "reply" });
+    expect(decide.requests).toHaveLength(1);
+  });
+
+  it("finds rename occurrences beyond previews and across more than three items without an item decision", async () => {
+    const spec = adventure({
+      stages: Array.from({ length: 5 }, (_, index) => ({ id: `s${index}`, title: `Scene ${index}`, narration: `${"A long passage. ".repeat(30)}NADIA's arrival surprises Nadia Rahman.` })),
+      characters: [{ id: "nadia", name: "Nadia Rahman", title: "Guide", persona: { voice: "I am Nadia." } }],
+      documents: [{ id: "locked", title: "Archive", real: true, body: "Nadia signed this." }],
+    });
+    const decide = new FakeDecisionClient([]);
+    const history = [{ role: "user" as const, text: "Rename Nadia Rahman to Aisha Tan" }, { role: "assistant" as const, text: "I suggest renaming her to Aisha Tan." }];
+    const llm: LlmClient = { async completeJson(request) {
+      expect(JSON.parse(request.user).history).toEqual(history);
+      return { json: { from: "Nadia Rahman", to: "Aisha Tan" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } };
+    } };
+    const result = await findEditTargets({ decide, llm }, { spec, text: "Are you sure? There are more references. Change all.", history });
+    expect(decide.requests).toHaveLength(1);
+    expect(decide.requests[0]!.questions.map(question => question.name)).toEqual(["change"]);
+    expect(result).toMatchObject({ ok: true, intent: "change" });
+    if (!result.ok || result.intent !== "change") return;
+    expect(result.targets.map(field => field.path.join("."))).toEqual(expect.arrayContaining([
+      ...Array.from({ length: 5 }, (_, index) => `stages.${index}.narration`), "characters.0.name", "characters.0.persona.voice",
+    ]));
+    expect(result.targets.map(field => field.path.join("."))).not.toContain("documents.0.body");
+  });
+
+  it("does not match name fragments and explains when no unlocked field matches", async () => {
+    const decide = new FakeDecisionClient([]);
+    const llm: LlmClient = { async completeJson(request) { return { json: { from: "Nadia", to: "Aisha" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } }; } };
+    expect(await findEditTargets({ decide, llm }, { spec: { title: "Nadiaville" }, text: "Replace Nadia with Aisha" })).toEqual({ ok: false, message: 'I couldn\'t find "Nadia" anywhere in the adventure.' });
+  });
+
+  it("excludes source-bound fields from rename and general discovery and validates the combined rename", async () => {
+    const spec = AdventureSpec.parse(JSON.parse(readFileSync("fixtures/golden-1819.json", "utf8")));
+    const fields = editableItems(spec).flatMap(item => textFields(spec, item.path));
+    const locked = fields.filter(field => field.locked).map(field => field.path.join("."));
+    expect(locked).toContain("discoveries.10.text");
+    expect(locked).toContain("documents.0.body");
+    expect(locked.some(path => path.startsWith("endings."))).toBe(true);
+    expect(fields.some(field => field.path.includes("citations"))).toBe(false);
+    const llm: LlmClient = { async completeJson(request) { return { json: { from: "Raffles", to: "Stamford" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } }; } };
+    const decide = new FakeDecisionClient(request => Object.fromEntries(request.questions.map(({ name }) => [name, 1])));
+    for (const deps of [{ decide, llm }, { decide }]) {
+      const result = await findEditTargets(deps, { spec, text: "Rename Raffles to Stamford everywhere" });
+      if (!result.ok || result.intent !== "change") throw Error("Expected rename fields");
+      expect(result.targets.length).toBeGreaterThan(0);
+      expect(result.targets.every(field => !locked.includes(field.path.join(".")))).toBe(true);
+      if (!("llm" in deps)) continue;
+      const writer: LlmClient = { async completeJson(request) {
+        const entries = JSON.parse(request.user).targets as { id: string; current: string }[];
+        return { json: { insufficient: false, notes: "Renamed editable references.", passages: [], changes: entries.map(entry => ({ target: entry.id, text: entry.current.replace(/\bRaffles\b/gi, "Stamford") })) }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } };
+      } };
+      const proposal = await proposeTargetedChanges({ llm: writer }, { current: spec, text: "Rename Raffles to Stamford everywhere", targets: result.targets.map(field => field.path), validate: async changes => { const checked = checkTeacherEdits(spec, changes, []); return checked.ok ? [] : checked.errors; } });
+      expect(proposal, JSON.stringify(proposal)).toMatchObject({ ok: true });
+      if (proposal.ok) expect(checkTeacherEdits(spec, proposal.changes, []).ok).toBe(true);
+    }
+  });
+
+  it("explains when a name appears only in immutable source text", async () => {
+    const decide = new FakeDecisionClient([{ change: 1 }]);
+    const llm: LlmClient = { async completeJson(request) { return { json: { from: "Nadia", to: "Aisha" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } }; } };
+    for (const spec of [{ documents: [{ id: "d", title: "Archive", real: true, body: "Nadia arrived." }] }, { discoveries: [{ id: "d", text: "A fact", citations: [{ sourceId: "s", quote: "Nadia arrived." }] }] }]) {
+      expect(await findEditTargets({ decide, llm }, { spec, text: "Rename Nadia to Aisha" })).toEqual({ ok: false, message: '"Nadia" appears only in quoted sources, which can\'t be changed.' });
+    }
+  });
+
+  it("widens to every unlocked field of matching items without the three-item cap", async () => {
+    const decide = new FakeDecisionClient(request => Object.fromEntries(request.questions.map(({ name }) => [name, 1])));
+    const result = await findEditTargets({ decide }, { spec: adventure(), text: "Change the scenes and character", wide: true });
+    expect(decide.requests).toHaveLength(2);
+    if (!result.ok || result.intent !== "change") throw Error("Expected edit");
+    expect(result.targets.map(field => field.path.join("."))).toContain("stages.3.narration");
+    expect(result.targets.map(field => field.path.join("."))).toContain("characters.0.persona.voice");
   });
 });

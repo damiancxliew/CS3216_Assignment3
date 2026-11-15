@@ -90,6 +90,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
               return `import {initialBriefStateV3} from '/src/lib/v3/brief/schema.ts';
               export async function findEditTargetsAction(id,input,text){
                 window.findTargetCalls=(window.findTargetCalls||0)+1;
+                await new Promise(resolve=>setTimeout(resolve,1000));
                 return text.trim().endsWith('?')
                   ? {ok:true,intent:'reply'}
                   : {ok:true,intent:'change',targets:[
@@ -98,6 +99,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
                   ]};
               }
               export async function suggestReviewChangeAction(id,input,text,targets,mode){
+                await new Promise(resolve=>setTimeout(resolve,1000));
                 if(window.chatFailure) return {ok:false,message:'Could not prepare a suggestion. Try again.'};
                 const state=initialBriefStateV3(id);
                 if(mode==='reply'){
@@ -121,7 +123,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
                   groups.push({label:'Percival · Voice',edits:[input.edits.length+edits.length-1],preview:[preview.length-1]});
                 }
                 const labels=targets?.map(path=>path.join('.')==='title'?'Title':'Percival · Voice')||[];
-                const userText=labels.length?text+'\\n\\nTargets: '+labels.join(', '):text;
+                const userText=text;
                 state.messages=[{role:'user',text:userText,slot:'review'},{role:'assistant',text:'I suggest these changes.',slot:'review'}];
                 return {ok:true,state,notes:'I suggest these changes.',preview,groups,proposal:edits.length?{pass:'draft',edits:[...input.edits,...edits]}:null};
               }`;
@@ -184,7 +186,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
     let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
     try {
       await vite.listen();
-      browser = await chromium.launch({ headless: true });
+      browser = process.env.PLAYWRIGHT_CDP_URL ? await chromium.connectOverCDP(process.env.PLAYWRIGHT_CDP_URL) : await chromium.launch({ headless: true });
       const page = await browser.newPage();
       const errors: string[] = [];
       page.on("pageerror", (e) => {
@@ -530,6 +532,14 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       const initialFindCalls = await findCalls();
       await message.fill("Does Percival sound too cheerful to you?");
       await sendChat();
+      const transcript = page.getByRole("region", { name: "Adventure conversation" }).locator("ol");
+      await transcript.getByText("Reading your request…", { exact: true }).waitFor();
+      expect(await message.inputValue()).toBe("");
+      expect(await message.isEnabled()).toBe(true);
+      expect(await transcript.getByText("Does Percival sound too cheerful to you?", { exact: true }).count()).toBe(1);
+      expect(await transcript.locator("[data-review-assistant]").count()).toBe(1);
+      await transcript.getByText("Writing a reply…", { exact: true }).waitFor();
+      expect(await transcript.locator("[data-review-assistant]").count()).toBe(1);
       await page
         .getByRole("region", { name: "Adventure conversation" })
         .locator("ol")
@@ -537,13 +547,17 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         .waitFor();
       expect(await page.getByRole("region", { name: "Suggested changes" }).count()).toBe(0);
       expect(await findCalls()).toBe(initialFindCalls + 1);
+      expect(await transcript.getByText("Does Percival sound too cheerful to you?", { exact: true }).count()).toBe(1);
 
       await message.fill("Make the title clearer.");
       await sendChat();
+      await transcript.getByText("Writing the change…", { exact: true }).waitFor();
       const suggestionCard = page.getByRole("region", {
         name: "Suggested changes",
       });
       await suggestionCard.waitFor();
+      expect(await transcript.getByRole("region", { name: "Suggested changes" }).count()).toBe(1);
+      expect(await transcript.getByText("Make the title clearer.", { exact: true }).count()).toBe(1);
       expect(
         await suggestionCard.getByText("Current", { exact: true }).count(),
       ).toBeGreaterThan(0);
@@ -584,6 +598,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await page.locator("#edit-title").inputValue()).toBe(
         "Chat revised title",
       );
+      await transcript.getByText("Applied to the cards.", { exact: true }).waitFor();
       await page.getByRole("tab", { name: "Characters", exact: true }).click();
       expect(await page.locator("#edit-characters-0-persona-voice").inputValue()).toBe(
         "Chat revised voice",
@@ -688,7 +703,32 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           exact: true,
         })
         .waitFor();
+      expect(await message.inputValue()).toBe("");
+      await page.getByRole("button", { name: "Edit message", exact: true }).click();
       expect(await message.inputValue()).toBe("Keep my request on failure");
+      expect(await transcript.getByText("Keep my request on failure", { exact: true }).count()).toBe(0);
+      await sendChat();
+      await page.getByRole("button", { name: "Retry", exact: true }).waitFor();
+      await page.evaluate(() => { window.chatFailure = false; });
+      await page.getByRole("button", { name: "Retry", exact: true }).click();
+      await suggestionCard.waitFor();
+      expect(await transcript.getByText("Keep my request on failure", { exact: true }).count()).toBe(1);
+      expect(await page.getByRole("button", { name: "Retry", exact: true }).count()).toBe(0);
+      await page.setViewportSize({ width: 375, height: 812 });
+      const resize = page.getByRole("separator", { name: "Resize chat height" });
+      await resize.waitFor();
+      const oldHeight = Number(await resize.getAttribute("aria-valuenow"));
+      await resize.focus();
+      await page.keyboard.press("ArrowDown");
+      expect(Number(await resize.getAttribute("aria-valuenow"))).toBe(oldHeight + 24);
+      const grip = await resize.boundingBox();
+      await page.mouse.move(grip!.x + 10, grip!.y + 10);
+      await page.mouse.down();
+      await page.mouse.move(grip!.x + 10, grip!.y + 60);
+      await page.mouse.up();
+      expect(Number(await resize.getAttribute("aria-valuenow"))).toBeGreaterThan(oldHeight + 24);
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      expect(await resize.isVisible()).toBe(false);
       for (const width of [1440, 375, 320]) {
         await page.setViewportSize({ width, height: 812 });
         expect(

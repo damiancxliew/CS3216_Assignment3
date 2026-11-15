@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { Check, Maximize2, X } from "lucide-react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Check, Maximize2, X, Pencil, RotateCcw } from "lucide-react";
 import { control, Thinking } from "@/components/ui";
 import type { BriefStateV3 } from "@/lib/v3/brief/schema";
 import type { ReviewChatResult } from "@/lib/v3/review-chat/types";
@@ -17,16 +17,24 @@ import { requestsSchemaUpgrade } from "@/lib/v3/review-chat/upgrade-intent";
 type Suggestion = Extract<ReviewChatResult, { ok: true }> & {
   key: string;
   revision: string;
+  anchor: number;
 };
+type LocalTurn = { id: number; text: string; anchor: number; status: string; error?: boolean };
 export function ReviewChatComposer({
   adventureId,
   idleHint = "You can send this when the next review is ready.",
   onConversation,
+  messageCount,
+  userClassName,
+  render,
 }: {
   adventureId: string;
   /** Why sending is unavailable when no review is open. */
   idleHint?: string;
   onConversation(state: BriefStateV3): void;
+  messageCount: number;
+  userClassName: string;
+  render(form: ReactNode, at: (index: number) => ReactNode): ReactNode;
 }) {
   const context = useReviewChat();
   const target = context?.target;
@@ -38,7 +46,10 @@ export function ReviewChatComposer({
   const [restored, setRestored] = useState(false);
   const [pending, setPending] = useState(false);
   const [activity, setActivity] = useState("Preparing a suggestion…");
-  const [message, setMessage] = useState("");
+  const [turns, setTurns] = useState<LocalTurn[]>([]);
+  const [collapsed, setCollapsed] = useState<{ anchor: number; text: string } | null>(null);
+  const sequence = useRef(0);
+  const end = useRef<HTMLSpanElement>(null);
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const storageKey = `v3-review-message:${adventureId}`;
@@ -63,7 +74,7 @@ export function ReviewChatComposer({
     setSuggestion(null);
     setReviewOpen(false);
   }, [target?.key, target?.revision]);
-  useEffect(() => setMessage(""), [target?.key]);
+  useEffect(() => { end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [turns, activity, suggestion, collapsed]);
   const upgradeRequest = Boolean(upgrade && (upgrade.active || requestsSchemaUpgrade(text)));
   const targetedDraft = isDraft && !upgradeRequest;
   const canSend = Boolean((upgradeRequest ? !upgrade?.pending : target && !target.pending) && text.trim() && !pending);
@@ -76,36 +87,42 @@ export function ReviewChatComposer({
         : !text.trim()
           ? "Write a message to send."
           : "Send message";
-  const send = async () => {
-    if (!canSend) return;
-    if (upgradeRequest && upgrade) {
+  const send = async (retryText?: string) => {
+    const request = retryText ?? text;
+    const upgrading = Boolean(upgrade && (upgrade.active || requestsSchemaUpgrade(request)));
+    if (pending || !request.trim() || (upgrading ? upgrade?.pending : !target || target.pending)) return;
+    const snapshot = current.current?.current();
+    if (!upgrading && !snapshot) return;
+    const id = ++sequence.current;
+    setTurns(previous => [...previous, { id, text: request, anchor: messageCount, status: "" }]);
+    if (retryText === undefined) {
+      setText("");
+      try { sessionStorage.removeItem(storageKey); } catch { /* Keep the in-memory draft. */ }
+    }
+    const setMessage = (status: string, error = true) => setTurns(previous => previous.map(turn => turn.id === id ? { ...turn, status, error } : turn));
+    if (upgrading && upgrade) {
       setPending(true);
       setActivity("Preparing a suggestion…");
       setSuggestion(null);
       setReviewOpen(false);
-      setMessage("");
       try {
-        setMessage(await upgrade.route(text));
-        setText("");
+        setMessage(await upgrade.route(request), false);
       } catch {
-        setMessage("Could not prepare the upgrade. Your message is still here. Try again.");
+        setMessage("Could not prepare the upgrade. Try again.");
       } finally {
         setPending(false);
       }
       return;
     }
-    const snapshot = current.current?.current();
-    if (!snapshot || !canSend) return;
+    if (!snapshot) return;
     setPending(true);
-    setMessage("");
     setSuggestion(null);
     setReviewOpen(false);
     try {
       let result: ReviewChatResult;
-      let replyMode = false;
       if (targetedDraft) {
         setActivity("Reading your request…");
-        const intent = await findEditTargetsAction(adventureId, snapshot.input, text);
+        const intent = await findEditTargetsAction(adventureId, snapshot.input, request);
         if (!intent.ok) {
           setMessage(intent.message);
           return;
@@ -122,12 +139,11 @@ export function ReviewChatComposer({
           return;
         }
         if (intent.intent === "reply") {
-          replyMode = true;
           setActivity("Writing a reply…");
           result = await suggestReviewChangeAction(
             adventureId,
             snapshot.input,
-            text,
+            request,
             undefined,
             "reply",
           );
@@ -136,7 +152,7 @@ export function ReviewChatComposer({
           result = await suggestReviewChangeAction(
             adventureId,
             snapshot.input,
-            text,
+            request,
             intent.targets.map(({ path }) => path),
           );
         }
@@ -145,14 +161,13 @@ export function ReviewChatComposer({
         result = await suggestReviewChangeAction(
           adventureId,
           snapshot.input,
-          text,
+          request,
         );
       }
       if (!result.ok) {
         setMessage(result.message);
         return;
       }
-      onConversation(result.state);
       const latest = current.current?.current();
       if (
         !latest ||
@@ -164,19 +179,20 @@ export function ReviewChatComposer({
         );
         return;
       }
-      if (!targetedDraft || result.proposal || replyMode) setText("");
+      onConversation(result.state);
+      setTurns(previous => previous.filter(turn => turn.id !== id));
+      setCollapsed(null);
       if (result.proposal) {
         setSuggestion({
           ...result,
           key: snapshot.key,
           revision: snapshot.revision,
+          anchor: result.state.messages.length,
         });
-      } else if (!replyMode) {
-        setMessage(result.notes);
       }
     } catch {
       setMessage(
-        "Could not prepare a suggestion. Your message is still here. Try again.",
+        "Could not prepare a suggestion. Try again.",
       );
     } finally {
       setPending(false);
@@ -207,19 +223,17 @@ export function ReviewChatComposer({
       !valid.proposal
     )
       return;
+    setCollapsed({ anchor: valid.anchor, text: "Applied to the cards." });
     latest.apply(valid.proposal);
     setSuggestion(null);
     setReviewOpen(false);
-    setMessage("Applied to the cards.");
   };
   const discardSuggestion = () => {
+    if (valid) setCollapsed({ anchor: valid.anchor, text: "Kept your current edits." });
     setSuggestion(null);
     setReviewOpen(false);
-    setMessage("Kept your current edits.");
   };
-  return (
-    <div className="flex min-h-0 flex-col gap-3">
-      {valid ? (
+  const card = valid ? (
         <section
           aria-label="Suggested changes"
           className="flex min-h-0 flex-col overflow-hidden text-sm"
@@ -314,13 +328,23 @@ export function ReviewChatComposer({
             onDiscard={discardSuggestion}
           />
         </section>
-      ) : null}
-      {pending ? <Thinking label={activity} /> : null}
-      {message ? (
-        <p role="status" className="text-sm text-muted">
-          {message}
-        </p>
-      ) : null}
+      ) : null;
+  const at = (index: number) => <>
+    {valid?.anchor === index ? <li className="min-w-0 self-stretch">{card}</li> : null}
+    {collapsed?.anchor === index ? <li role="status" className="text-sm text-muted">{collapsed.text}</li> : null}
+    {turns.filter(turn => turn.anchor === index).map(turn => <Fragment key={turn.id}>
+      <li className={userClassName}><p className="whitespace-pre-wrap">{turn.text}</p></li>
+      <li className="self-start py-0.5 text-ink" data-review-assistant>
+        {turn.status ? <><p role="status" className={turn.error ? "text-danger" : "whitespace-pre-wrap"}>{turn.status}</p>
+          {turn.error ? <div className="mt-1 flex gap-1">
+            <button type="button" aria-label="Retry" disabled={pending} className="rounded-control p-1.5 text-muted hover:bg-sunken hover:text-ink disabled:opacity-50" onClick={() => { setTurns(previous => previous.filter(item => item.id !== turn.id)); void send(turn.text); }}><RotateCcw size={14} aria-hidden /></button>
+            <button type="button" aria-label="Edit message" className="rounded-control p-1.5 text-muted hover:bg-sunken hover:text-ink" onClick={() => { setTurns(previous => previous.filter(item => item.id !== turn.id)); setText(previous => previous || turn.text); }}><Pencil size={14} aria-hidden /></button>
+          </div> : null}</> : <Thinking label={activity} />}
+        <span ref={end} />
+      </li>
+    </Fragment>)}
+  </>;
+  return render(
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -334,7 +358,6 @@ export function ReviewChatComposer({
             placeholder="Ask a question or request a change…"
             value={text}
             maxLength={4000}
-            disabled={pending}
             rows={1}
             className={control + " min-h-0 flex-1 resize-none py-3"}
             onChange={(event) => setText(event.target.value)}
@@ -356,6 +379,6 @@ export function ReviewChatComposer({
           />
         </div>
       </form>
-    </div>
+    , at
   );
 }
