@@ -1,0 +1,38 @@
+%% D4: engine.step internals (packages/engine/src/step.ts)
+flowchart TD
+  subgraph R1["1–3a · Prepare"]
+    direction LR
+    IN(["step(spec, state,<br/>action, deps)"]) --> P["parse action<br/>client Action or<br/>server-only postTurn"]
+    P --> CP["copy state<br/>structuredClone; a refusal<br/>leaves input untouched"]
+    CP --> TIME["time rules first<br/>refreshReadingChecks,<br/>applyTimer (final call)"]
+  end
+
+  subgraph R2["3b · Action handler (switch on action.type)"]
+    direction TB
+    subgraph LLMH["Calls the LLM (injected deps.llm)"]
+      MSG["message, insertNote<br/>character reply"]
+      IA["interviewAnswer<br/>interviewer push-back,<br/>closing lines"]
+    end
+    subgraph RULEH["Pure rules"]
+      MOVE["continue, enterRoom,<br/>openDocument, closeDocument,<br/>selectPassage, submitReadingCheck"]
+      MOM["endStage, act, predict<br/>(narration is spec text),<br/>postTurn, tick"]
+    end
+  end
+
+  subgraph R3["4 · Rule loop to a fixpoint"]
+    direction LR
+    LOOP["settleTriggers (stance triggers)<br/>→ refreshReadingChecks → refreshActs<br/>→ evaluateStoryEvents → applyTimer"]
+    LOOP -->|"state touched: repeat<br/>(≤ MAX_RULE_ROUNDS = 10)"| LOOP
+    LOOP -->|settled| HINT["evaluateHints"]
+  end
+
+  subgraph R4["5 · Output"]
+    OUT(["{ state, events, view = project(spec, state) }"])
+  end
+
+  R1 --> R2 --> R3 --> R4
+
+  classDef llm fill:#ffe9e3,stroke:#c0563b,color:#222
+  classDef pure fill:#e8f5e9,stroke:#4f8a55,color:#222
+  class MSG,IA llm
+  class MOVE,MOM pure

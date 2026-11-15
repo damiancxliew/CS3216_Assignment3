@@ -1,0 +1,37 @@
+%% D5: data flow from attempt events to the teacher's class summary
+flowchart TD
+  LOG[("attempt_event log (Postgres, one stream per attempt)<br/>GameEvent types: discovery, stanceChange, challenge, act,<br/>outcome, prediction, verdict, hint, storyEvent, flag, phase, readingCheck")]
+
+  LOG -->|"events of the class's attempts"| LCS["loadClassSummary (apps/web/src/lib/play/v3/summary.ts)<br/>pick version, load pinned spec, loadEvents"]
+  LCS --> SUM["summarise(spec, attempts) (packages/engine/src/summary/index.ts)<br/>pure function, counts each attempt once → ClassSummary"]
+
+  S1["stuck<br/>points"]
+  S2["prediction<br/>splits"]
+  S3["interview verdicts,<br/>changedAfterPushBack,<br/>anonymised<br/>answers"]
+  S4["discoveries<br/>found / missed<br/>per holder,<br/>reading checks"]
+  S5["endings<br/>reached"]
+  S7["flags"]
+  SUM --> S1 & S2 & S3 & S4 & S5 & S7
+
+  T1["Stuck tab"]
+  T2["Predictions tab"]
+  T3["Interview tab"]
+  T4["Discoveries tab"]
+  T0["Overview tab"]
+  T5["Flags tab"]
+
+  S1 --> T1
+  S2 --> T2
+  S3 --> T3
+  S4 --> T4
+  S5 --> T0
+  S7 -->|"+ student names"| T5
+
+  KEY1["ClassSummary section"]:::section
+  KEY2["Tab on teacher summary page<br/>(app/v3/teacher/[id]/summary/page.tsx)"]:::tab
+  KEY1 ~~~ KEY2
+
+  classDef section fill:#e8f5e9,stroke:#4f8a55,color:#222
+  classDef tab fill:#e3f0ff,stroke:#3d6fb6,color:#222
+  class S1,S2,S3,S4,S5,S7 section
+  class T0,T1,T2,T3,T4,T5 tab

@@ -1,0 +1,30 @@
+%% D3: one student message through the Turn API (apps/web/src/lib/play/v3/service.ts)
+sequenceDiagram
+  participant C as Student client
+  participant API as Turn API<br/>(postAction)
+  participant ENG as engine.step
+  participant LLM as LLM provider
+  participant DB as Postgres
+
+  C->>API: POST /attempts/:id/actions {revision, message}
+  API->>DB: loadAttempt, permittedAdventure
+  Note over API: rate limit, revision check,<br/>token ceiling
+  API->>ENG: step(spec, state, message)
+  ENG->>LLM: character reply (replyAsCharacter)
+  LLM-->>ENG: reply text
+  ENG-->>API: state, events, view (pendingChecks queued)
+  API->>DB: save state + append GameEvents (revision-guarded)
+  API-->>C: 200 {revision, view, pendingCheckIds}
+
+  Note over API,DB: after the response (Next.js after())
+  Note over API: runPostTurnChecks<br/>(pendingCheckIds)
+  API->>LLM: runPostTurnCheck: cheap structured call
+  LLM-->>API: conveyed discoveries, challenged claims, moderation flag
+  API->>ENG: step(spec, state, internal postTurn action)
+  ENG-->>API: state, events (discovery, challenge, flag)
+  API->>DB: save state + events + flags (revision-guarded, up to 3 tries)
+
+  loop while view.pendingCheck
+    C->>API: GET /attempts/:id (refresh with backoff)
+    API-->>C: updated view (new notes)
+  end

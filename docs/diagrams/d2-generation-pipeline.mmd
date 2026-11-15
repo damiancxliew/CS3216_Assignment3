@@ -1,0 +1,52 @@
+%% D2: v3 generation job (apps/web/src/lib/v3/generation/steps.ts + service.ts)
+flowchart TD
+  subgraph R1["① Brief, research and skeleton"]
+    direction LR
+    BRIEF(["Teacher<br/>confirms brief"]) --> ENQ["enqueueGeneration<br/>quick: all 7 steps<br/>standard: sources, skeleton<br/>guided: sources only<br/>(then one pass at a time)"]
+    ENQ --> SRC["<b>sources</b> (G)<br/>allowlisted web search,<br/>source snapshots"]
+    SRC --> SK["<b>skeleton</b> (G)<br/>LLM call, then<br/>validateSkeleton, checkSkeleton,<br/>quoteIssues"]
+    SK -->|"issues: repair turn,<br/>≤ MAX_REPAIRS = 2"| SK
+  end
+
+  subgraph R2["② Review gate and details"]
+    direction LR
+    GATE[/"Teacher review gate<br/>standard, guided: pause;<br/>approveSkeleton queues the rest<br/>quick: skipped"/]
+    subgraph DET["<b>details</b> (G) (details/generate.ts, calls.ts)"]
+      direction TB
+      ST["stage<br/>× each stage"]
+      PE["persona<br/>× each major character"]
+      MI["minors<br/>one call"]
+      LK["link call"]
+      ST & PE & MI -->|"in parallel,<br/>then"| LK
+    end
+    GATE --> DET
+  end
+
+  subgraph R3["③ Endings, reveal, check and save"]
+    direction LR
+    END["<b>endings</b> (G)<br/>moments, endings,<br/>interview"] --> RV["<b>reveal</b> (G)<br/>uses slanted<br/>documents"]
+    RV --> CHK{"<b>check</b><br/>errors?"}
+    CHK -->|yes| FR["finalRepair<br/>redo each blamed part<br/>once; keep if fewer errors"]
+    CHK -->|no| SAVE
+    FR --> SAVE["<b>save</b><br/>validateSpec,<br/>draft spec version"]
+  end
+
+  subgraph R4["④ Assets, review and publish"]
+    direction LR
+    POR["portrait jobs<br/>queuePortraits"] --> REVIEW[/"Teacher<br/>review screen"/]
+    ART["stage-art jobs<br/>on request"] -.-> REVIEW
+    REVIEW --> PUB(["Publish<br/>blocked while<br/>errors remain"])
+  end
+
+  subgraph R5["Notes"]
+    direction LR
+    DEPS["STEP_DEPS<br/>skeleton ← sources<br/>details ← skeleton<br/>endings ← details<br/>reveal ← details, endings<br/>check ← details, endings, reveal<br/>save ← check"]
+    PAUSE["(G) = guided mode pauses after<br/>this pass; the teacher reviews,<br/>edits, then continues"]
+    PAUSE -.->|"paused pass or saved draft<br/>= edit base"| D2B[["Review chat<br/>editing (D2b)"]]
+  end
+
+  R1 --> R2 --> R3 --> R4
+  R4 ~~~ R5
+
+  classDef note fill:#fff8e1,stroke:#c9a227,color:#333
+  class DEPS,PAUSE note

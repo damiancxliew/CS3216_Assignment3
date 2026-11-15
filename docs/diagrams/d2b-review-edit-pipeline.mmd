@@ -1,0 +1,42 @@
+%% D2b: chat-based targeted editing (PR #396)
+flowchart TD
+  subgraph R1["① Request (chat-actions.ts)"]
+    direction LR
+    MSG(["Teacher message<br/>in review chat"]) -->|"saved draft"| FA["findEditTargetsAction"]
+    FA --> LT1["loadReviewChatTarget<br/>review-chat/target.ts"]
+    MSG -->|"paused guided pass"| SKIP["no target search;<br/>go straight to ③"]
+  end
+
+  subgraph R2["② findEditTargets (review-chat/locate.ts): up to three decision passes"]
+    direction LR
+    QA["(a) intent<br/>predicate 'change'"] -->|"≥ 0.5"| QB["(b) item predicates<br/>over editableItems<br/>cap 400, ≥ 0.5, top 3"]
+    QB --> QC["(c) field predicates<br/>over textFields<br/>cap 400, ≥ 0.5,<br/>else top field"]
+    QC --> TGT["selected<br/>EditTargets"]
+    QA -->|"< 0.5"| ANS["reply intent:<br/>answerReviewQuestion<br/>plain LLM answer, no edits"]
+    QA & QB & QC -.-> DECAPI["OpenAI Decisions API<br/>DecisionClient.decide via<br/>OpenAiDecisionClient<br/>model gpt-6-luna"]
+  end
+
+  subgraph R3["③ Propose (suggestReviewChangeAction, review-chat/propose.ts)"]
+    direction LR
+    LT2["loadReviewChatTarget<br/>authoritative base"] -->|draft| BD["saved draft<br/>SupabaseV3PlayStore"]
+    LT2 -->|"guided pass"| BP["paused pass<br/>requirePause, loadPause"]
+    BD --> PT["proposeTargetedChanges<br/>rewrite only targeted fields;<br/>re-derive reading-check<br/>support quotes"]
+    BP --> PR["proposeRequestedChanges<br/>edits for the pass"]
+    PT & PR --> VAL["validate<br/>checkTeacherEdits /<br/>skeletonIssues;<br/>on failure retry once"]
+  end
+
+  subgraph R4["④ Preview and apply"]
+    direction LR
+    PREV[/"Proposal preview<br/>changePreview, groups;<br/>teacher accepts"/]
+    PREV -->|draft| APPLY["applyTeacherEdits<br/>validateEditedSpec,<br/>introducedErrors"]
+    APPLY --> SAVE["saveAdventureEdits<br/>→ saveDraft<br/>specVersion conflict check"]
+    PREV -->|"guided pass"| RES["savePauseEdits,<br/>resume paused pass"]
+    SAVE & RES --> DB[("Postgres<br/>adventures,<br/>job steps")]
+  end
+
+  R1 --> R2
+  R2 -->|"EditTargets"| R3
+  R3 --> R4
+
+  classDef ext fill:#f3e8ff,stroke:#7b4bb7,color:#222
+  class DECAPI ext

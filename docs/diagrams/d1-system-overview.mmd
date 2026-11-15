@@ -1,0 +1,52 @@
+%% D1: high-level system architecture (deployment / component level only)
+flowchart TB
+  subgraph browser["Browser"]
+    direction LR
+    T["Teacher console"]
+    S["Student play client<br/>chat, notes, documents, map"]
+  end
+
+  subgraph web["Next.js app (apps/web)"]
+    direction LR
+    PAGES["Pages and<br/>server actions"]
+    TURN["Turn API<br/>lib/play/v3/service.ts"]
+    GEN["Generation service<br/>lib/v3/generation/service.ts"]
+    TICK["Job tick route<br/>/api/v3/jobs/tick"]
+  end
+
+  subgraph pkgs["Internal packages (packages/*)"]
+    ENG["engine<br/>pure rules engine"]
+    GP["generation<br/>LLM passes, DecisionClient"]
+    JOBS["jobs<br/>Postgres job queue"]
+    PC["play-contract<br/>Action, GameEvent, PlayerView"]
+    SPEC["spec-v3<br/>adventure schema, checks"]
+    GC["game-core / game-client<br/>map compiler, Phaser map"]
+    ENG ~~~ PC
+    GP ~~~ SPEC
+    JOBS ~~~ GC
+  end
+
+  DB[("Postgres<br/>app data, job queue,<br/>attempt events")]
+  AUTH["Supabase Auth<br/>Google OAuth"]
+  LLM["LLM providers<br/>text, image, web search"]
+  DEC["OpenAI<br/>Decisions API"]
+  BKT@{ shape: trap-t, label: "Asset storage<br/>bucket (S3)" }
+
+  T -->|HTTPS| PAGES
+  S -->|"JSON actions"| TURN
+  T -.->|sign in| AUTH
+  S -.-> AUTH
+
+  PAGES --> GEN
+  TURN --> ENG
+  GEN --> JOBS
+  TICK -->|runs queued steps| GP
+  PAGES -->|review chat| GP
+  S -.->|bundles| GC
+
+  JOBS --> DB
+  PAGES & TURN --> DB
+  GP --> LLM
+  GP --> DEC
+  ENG -.->|"injected LLM client"| LLM
+  GP -->|images| BKT
