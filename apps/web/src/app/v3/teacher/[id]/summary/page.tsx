@@ -15,6 +15,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { ClassSummary, FlagSeverity } from "@adventure/play-contract";
 import { V3ReadingSummary } from "@/components/teacher/v3-reading-summary";
 
+import { FlagDisclosure } from "./flag-disclosure";
+
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
@@ -476,36 +478,16 @@ function FlagSummary({ flagged }: { flagged: FlaggedStudent[] }) {
         <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
           {flagged.map((item) => (
             <li key={item.attemptId}>
-              <details className="group" open={item.severity === "urgent"}>
-                <summary className="flex cursor-pointer list-none flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className="min-w-0 break-all font-semibold text-ink">
-                      {item.student}
-                    </span>
-                    <SeverityBadge
-                      severity={item.severity}
-                      className="group-open:hidden"
-                    />
+              <FlagDisclosure
+                defaultOpen={item.severity === "urgent"}
+                title={
+                  <span className="min-w-0 break-all font-semibold text-ink">
+                    {item.student}
                   </span>
-                  <span className="flex shrink-0 items-center gap-2 text-sm text-muted">
-                    {item.count} {item.count === 1 ? "message" : "messages"}{" "}
-                    flagged
-                    <svg
-                      aria-hidden
-                      viewBox="0 0 20 20"
-                      className="size-4 transition-transform group-open:rotate-180"
-                    >
-                      <path
-                        d="M5 7.5l5 5 5-5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </span>
-                </summary>
+                }
+                badge={<SeverityBadge severity={item.severity} />}
+                meta={`${item.count} ${item.count === 1 ? "message" : "messages"} flagged`}
+              >
                 <div className="flex flex-col gap-3 px-4 pb-4">
                   {item.messages.map((message) => (
                     <FlaggedMessageRow
@@ -525,7 +507,7 @@ function FlagSummary({ flagged }: { flagged: FlaggedStudent[] }) {
                     </p>
                   ) : null}
                 </div>
-              </details>
+              </FlagDisclosure>
             </li>
           ))}
         </ul>
