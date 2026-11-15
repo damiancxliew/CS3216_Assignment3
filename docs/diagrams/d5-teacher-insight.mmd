@@ -1,6 +1,7 @@
 %% D5: attempt events to the teacher's class summary. Node notes: NOTES.md
 flowchart TB
   LOG[("attempt_event")] --> LCS["loadClassSummary"] --> SUM["summarise()"]
+  FLG[("flags_v3")] --> LCS
 
   SUM --> S1["stuck"] --> T1["Stuck"]
   SUM --> S2["predictions"] --> T2["Predictions"]
@@ -18,7 +19,7 @@ flowchart TB
   classDef store fill:#fff6e5,stroke:#e3c27a
   classDef section fill:#eaf6ee,stroke:#92c6a3
   classDef tab fill:#eaf2ff,stroke:#8fb0e6
-  class LOG store
+  class LOG,FLG store
   class S1,S2,S3,S4,S5,S6 section
   class T0,T1,T2,T3,T4,T5 tab
   style KEY fill:#ffffff,stroke:#ffffff

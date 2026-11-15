@@ -19,6 +19,7 @@ flowchart TB
     GP["generation"]
     JOBS["jobs"]
     ENG["engine"]
+    ORCH["orchestration"]
     SHARED["spec-v3<br/>play-contract"]
     GC["game-core<br/>game-client"]
   end
@@ -36,8 +37,9 @@ flowchart TB
   S --> TURN
   PAGES --> GEN --> JOBS
   TICK --> GP
-  TURN --> ENG
+  TURN --> ENG --> ORCH
   GP --> LLM & DEC & BKT
+  ORCH --> LLM & DEC
   JOBS --> DB
   web --> DB
   browser -.->|sign in| AUTH

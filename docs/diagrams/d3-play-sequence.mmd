@@ -1,9 +1,11 @@
 %% D3: one student message through the Turn API. Step notes: NOTES.md
+%%{init: {"sequence": {"actorMargin": 24, "width": 130}}}%%
 sequenceDiagram
   participant C as Student client
   participant API as Turn API
   participant ENG as engine.step
   participant LLM as LLM
+  participant DEC as Decisions API
   participant DB as Postgres
 
   C->>API: POST action
@@ -17,11 +19,16 @@ sequenceDiagram
   API-->>C: view, pendingCheckIds
 
   Note over API,DB: after the response
-  API->>LLM: post-turn check
-  LLM-->>API: findings
+  alt Decisions
+    API->>DEC: post-turn check
+    DEC-->>API: probabilities
+  else fallback
+    API->>LLM: post-turn check
+    LLM-->>API: findings
+  end
   API->>ENG: step(postTurn)
   ENG-->>API: events
-  API->>DB: save
+  API->>DB: save events, flags
 
   loop check pending
     C->>API: refresh

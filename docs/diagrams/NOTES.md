@@ -15,10 +15,11 @@ Explanations for the nodes in each diagram, for use as captions or body text nex
 | generation | `packages/generation`. LLM generation passes, asset generation and the `DecisionClient` used for review-chat targeting. |
 | jobs | `packages/jobs`. Job queue stored in Postgres. |
 | engine | `packages/engine`. Pure rules engine: `step()` for play, `summarise()` for class summaries. The LLM is injected, never imported. |
+| orchestration | `packages/orchestration`. The play-time LLM client (`createOpenAiClient`, with `complete` and `decide`) and the post-turn check `checkExchange`. |
 | spec-v3, play-contract | Shared contracts: the adventure schema and checks (`spec-v3`), and the `Action`, `GameEvent` and `PlayerView` types used by the server and client (`play-contract`). |
 | game-core, game-client | Map compiler and the Phaser map bundled into the student client. |
 | LLM providers | External text, image and web-search models. |
-| OpenAI Decisions API | External scoring service used to locate the fields a teacher wants to edit (model `gpt-6-luna`). |
+| OpenAI Decisions API | External service that answers yes/no questions as probabilities (model `gpt-6-luna`). Used to locate the fields a teacher wants to edit, and for the post-turn check during play. |
 | Asset bucket | S3-compatible storage for generated portraits and stage art. |
 | Postgres | Application data, the job queue and each attempt's event log. |
 | Supabase Auth | Sign-in for teachers and students via Google OAuth. |
@@ -108,11 +109,13 @@ Source: `apps/web/src/lib/play/v3/service.ts`; post-turn work is started with Ne
 | save | Saves state and appends events, guarded by the revision. |
 | view, pendingCheckIds | The response returns at once; the client shows the reply. |
 | after the response | `runPostTurnChecks` runs the queued checks after the response is sent. |
-| post-turn check | `runPostTurnCheck`: one cheap structured LLM call. |
-| findings | Discoveries the character conveyed, claims the student challenged, and a moderation flag. |
+| post-turn check (Decisions) | `runPostTurnCheck` calls `checkExchange` (`packages/orchestration/src/v3/check.ts`), which sends one `v3_post_turn_check` request to the Decisions API. It asks one question per revealable fact (`conveyed_<i>`), plus `substantive`, `asserted`, and one per moderation category: abusive, threat, hateful, provocative, sexual, self-harm. |
+| probabilities | Each answer is a probability; 0.5 or above counts as yes (`CHECK_DECISION_THRESHOLD`), and a missing answer counts as no. If several moderation categories fire, the most severe wins, with ties broken by the higher probability. |
+| post-turn check (fallback) | If the client has no `decide`, the Decisions call fails, or the request would exceed 400 questions, the check falls back to one cheap structured LLM completion. `CheckOutcome.via` records which path ran. |
+| findings | Discoveries the character conveyed, claims the student challenged, and a moderation flag with its category. |
 | step(postTurn) | Applies the findings through the engine as an internal `postTurn` action. |
 | events | Discovery, challenge and flag events. |
-| save | Saves events and flags, revision-guarded, with up to three tries. |
+| save events, flags | Appends the events and writes each flagged message to `flags_v3` (excerpt, character, stage), revision-guarded, with up to three tries. |
 | refresh | While a check is pending the client re-fetches the attempt with backoff to pick up new notes. |
 
 ## D4 · engine.step (`d4-engine-step`)
@@ -141,13 +144,14 @@ Sources: `packages/engine/src/summary/index.ts`, `apps/web/src/lib/play/v3/summa
 
 | Node | Notes |
 | --- | --- |
+| flags_v3 | Postgres table holding the text of each flagged message, with its category, character and stage. |
 | attempt_event | Postgres log of each attempt's `GameEvent`s: discovery, stanceChange, challenge, act, outcome, prediction, verdict, hint, storyEvent, flag, phase, readingCheck. |
-| loadClassSummary | Picks the published version, loads its pinned spec and the class's attempt events, then adds student names to flags. |
+| loadClassSummary | Picks the published version, loads its pinned spec and the class's attempt events, then adds student names to flags. For flagged attempts it reads their `flags_v3` rows (`V3PlayStore.listFlags`) and attaches the flagged messages. |
 | summarise() | `summarise(spec, attempts)`: a pure function that counts each attempt once and returns a `ClassSummary`. |
 | stuck | Where students got stuck: stage and the discovery they were missing. |
 | predictions | How predictions split at each defining moment (last prediction per attempt). |
 | verdicts, answers | Interview verdicts before and after push-back (`changedAfterPushBack`) and a seeded sample of anonymised answers. |
 | discoveries, readingChecks | Discoveries found or missed, grouped by the character who holds them, and reading-check results per document. |
 | endings | How many attempts reached each ending. |
-| flags | Attempts flagged by moderation. |
-| Overview, Stuck, Predictions, Interview, Discoveries, Flags | Tabs on the teacher summary page. Overview also shows attempt and completion counts; Flags lists flagged attempts with student names. |
+| flags | Attempts flagged by moderation. Each flag's severity follows from its category (`FLAG_SEVERITY` in `packages/play-contract/src/flag.ts`): self-harm and threat are urgent; hateful, sexual and abusive are serious; provocative is for review. |
+| Overview, Stuck, Predictions, Interview, Discoveries, Flags | Tabs on the teacher summary page. Overview also shows attempt and completion counts; Overview counts urgent flags. Flags lists flagged students, ordered by their most severe flag and then by flag count, each with a severity badge; each one expands to show the flagged messages (severity, category, character, stage and text), and urgent students start expanded. |
