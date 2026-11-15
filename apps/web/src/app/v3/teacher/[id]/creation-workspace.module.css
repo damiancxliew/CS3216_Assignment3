@@ -67,8 +67,8 @@
 .chatBody { gap: 8px; }
 .transcript { padding: 2px 2px 8px; }
 .messages { gap: 8px; font-size: 15px; }
-.bubble { max-width: 94%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 16px 16px 16px 4px; background: var(--paper); box-shadow: 0 2px 3px #17203314; line-height: 1.5; }
-.userBubble { align-self: flex-end; border-color: #172033; border-radius: 16px 16px 4px 16px; background: #172033; color: #fff8e9; }
+.bubble { max-width: 100%; padding: 2px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; line-height: 1.55; }
+.userBubble { align-self: flex-end; max-width: 85%; padding: 8px 12px; border: 0; border-radius: 16px 16px 4px 16px; background: var(--record-wash); color: var(--ink); }
 .composer { gap: 8px; padding-top: 12px; }
 .composerWithActions { display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: start; }
 .composerMain { min-width: 0; }
@@ -87,8 +87,8 @@
 
 :global([data-theme="dark"]) .workspace { --creation-frame: #738195; --creation-control: #7f8e9f; --creation-mint: #254137; --creation-lavender: #40324f; }
 :global([data-theme="dark"]) .card, :global([data-theme="dark"]) .chat { box-shadow: 0 3px 12px #00000020; }
-:global([data-theme="dark"]) .bubble { background: #2a3342; border-color: #4b586a; box-shadow: 0 2px 5px #00000020; }
-:global([data-theme="dark"]) .userBubble { background: #3a4c6b; border-color: #52678b; color: #f3ecdf; }
+:global([data-theme="dark"]) .bubble { background: transparent; border: 0; box-shadow: none; }
+:global([data-theme="dark"]) .userBubble { background: var(--record-wash); border: 0; color: var(--ink); }
 :global([data-theme="dark"]) .tag { background: #b34f2d; border-color: #0c111b; box-shadow: 1px 1px 0 #0c111b; }
 :global([data-theme="dark"]) .badge { background: #553b2e; color: #ffcaab; box-shadow: inset 0 0 0 1px #ffcaab38; }
 :global([data-theme="dark"]) .trusted, :global([data-theme="dark"]) .ready { background: var(--creation-mint); color: #afe7c8; box-shadow: inset 0 0 0 1px #afe7c838; }

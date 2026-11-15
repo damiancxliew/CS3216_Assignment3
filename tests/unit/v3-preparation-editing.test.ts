@@ -44,6 +44,18 @@ describe('teacher editing of reading checks', () => {
     expect(checkTeacherEdits(spec, edits, [])).toMatchObject({ ok: false })
   })
 
+  it('accepts set edits that replace a reading question support array', () => {
+    const spec = fixture()
+    const support = [{ start: 4, end: 42 }]
+    const edited = applyV3Edits(spec, [{
+      type: 'set',
+      path: ['documents', 0, 'readingCheck', 'variants', 0, 'support'],
+      value: support,
+    }], [])
+
+    expect(edited.documents[0].readingCheck!.variants[0]!.support).toEqual(support)
+  })
+
   it('records reviewed question prose as a teacher contribution', () => {
     const spec = fixture()
     const edited = applyTeacherEdits(spec, [{ type: 'set', path: ['documents', 0, 'readingCheck', 'variants', 0, 'prompt'], value: 'What permission does the article grant?' }], [])
