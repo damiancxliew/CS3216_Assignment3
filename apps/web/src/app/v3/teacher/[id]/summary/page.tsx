@@ -517,10 +517,13 @@ function FlagSummary({ flagged }: { flagged: FlaggedStudent[] }) {
 }
 
 function FlaggedMessageRow({ message }: { message: FlaggedMessage }) {
-  const context = [
-    message.characterName ? `To ${message.characterName}` : null,
-    message.stageIndex === null ? null : `Stage ${message.stageIndex + 1}`,
-  ].filter(Boolean);
+  const context =
+    message.source === "interview"
+      ? ["Interview"]
+      : [
+          message.characterName ? `To ${message.characterName}` : null,
+          message.stageIndex === null ? null : `Stage ${message.stageIndex + 1}`,
+        ].filter(Boolean);
   return (
     <div className="flex flex-col gap-2 rounded-control bg-paper p-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">

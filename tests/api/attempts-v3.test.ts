@@ -2,7 +2,7 @@ import { publishedVersionId } from "../fixtures/v3-publication";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { EngineSpec, type EngineState, type PendingCheck, pendingCheckIds } from "@adventure/engine";
+import { createState, EngineSpec, type EngineState, type PendingCheck, pendingCheckIds } from "@adventure/engine";
 import { FakeLlmClient, type LlmRequest } from "@adventure/orchestration";
 import type { GameEvent } from "@adventure/play-contract";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -11,6 +11,7 @@ import {
   createAttempt,
   getAttempt,
   flagsFromEvents,
+  interviewFlagsFromEvents,
   postAction,
   runPostTurnChecks,
   type V3PlayServiceDeps,
@@ -78,6 +79,16 @@ function setup(options: {
     env: { V3_RATE_LIMIT_PER_10S: "20", ...options.env },
   };
   return { store, deps, llm, setTime: (next: number) => { time = next; } };
+}
+
+class InterviewStore extends MemoryV3PlayStore {
+  override async createAttempt(input: Parameters<MemoryV3PlayStore["createAttempt"]>[0]) {
+    const state = createState(goldenSpec, "interview-test");
+    state.phase = "interview";
+    state.endingId = goldenSpec.endings[0]!.id;
+    state.interview = { answer: null, pushBack: null, response: null, closing: null, closed: false };
+    return super.createAttempt({ ...input, state });
+  }
 }
 
 async function create(deps: V3PlayServiceDeps) {
@@ -342,6 +353,7 @@ describe("v3 attempts API service", () => {
       excerpt: text,
       characterId: "temenggong",
       stageIndex: 0,
+      source: "chat",
       createdAt: expect.any(String),
     }]);
     expect(fixture.store.savedEvents.flatMap((save) => save.events)).toContainEqual(
@@ -355,6 +367,56 @@ describe("v3 attempts API service", () => {
 
     await runPostTurnChecks(fixture.deps, created.attemptId, [pending.messageId]);
     expect(fixture.store.flags).toHaveLength(1);
+  });
+
+  it("saves Interview moderation flags against the typed answer", async () => {
+    const fixture = setup({ store: new InterviewStore() });
+    const created = await create(fixture.deps);
+    Object.assign(fixture.llm, {
+      decide: async () => ({
+        probabilities: { flag_threat: 0.8 },
+        usage: { promptTokens: 1, completionTokens: 1, cachedPromptTokens: 0, reasoningTokens: 0 },
+      }),
+    });
+    const text = "  I will hurt someone after school.  ";
+
+    const result = await postAction(fixture.deps, USER_ID, created.attemptId, {
+      revision: 0,
+      action: { type: "interviewAnswer", verdictId: goldenSpec.endings[0]!.interview.verdicts[0]!.id, evidenceNoteIds: [], text },
+    });
+
+    expect(result.status).toBe(200);
+    expect(fixture.store.flags).toMatchObject([{
+      messageId: expect.any(String),
+      category: "threat",
+      excerpt: text.trim(),
+      characterId: null,
+      stageIndex: null,
+      source: "interview",
+    }]);
+    expect(fixture.store.flags[0]?.createdAt).toEqual(expect.any(String));
+  });
+
+  it("builds Interview excerpts from typed answers", () => {
+    const event: GameEvent = {
+      type: "flag",
+      at: 1,
+      stageIndex: 0,
+      messageId: "interview-message",
+      category: "abusive",
+      reason: "reason",
+    };
+    expect(interviewFlagsFromEvents([event], "  typed answer  ")).toEqual([{
+      messageId: "interview-message",
+      category: "abusive",
+      excerpt: "typed answer",
+      result: {
+        reason: "reason",
+        characterId: null,
+        stageIndex: null,
+        source: "interview",
+      },
+    }]);
   });
 
   it("does not save a moderation flag for a non-flagged check", async () => {
