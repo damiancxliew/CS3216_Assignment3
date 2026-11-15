@@ -1,8 +1,28 @@
 import { EngineSpec, summarise } from "@adventure/engine";
-import type { ClassSummary } from "@adventure/play-contract";
+import { compareSeverity, flagSeverity, type ClassSummary, type FlagSeverity } from "@adventure/play-contract";
 
 import { canStaffAdventure } from "./access";
-import type { V3PlayStore } from "./store";
+import type { V3PlayStore, V3StoredFlag } from "./store";
+
+export type { FlagSeverity } from "@adventure/play-contract";
+
+export interface FlaggedMessage {
+  messageId: string;
+  category: string;
+  severity: FlagSeverity;
+  excerpt: string;
+  characterName: string | null;
+  stageIndex: number | null;
+  createdAt: string;
+}
+
+export interface FlaggedStudent {
+  attemptId: string;
+  count: number;
+  student: string;
+  severity: FlagSeverity;
+  messages: FlaggedMessage[];
+}
 
 export interface V3SummaryDeps {
   store: V3PlayStore;
@@ -19,7 +39,7 @@ export type ClassSummaryResult =
       version: number;
       versions: { version: number; attempts: number }[];
       summary: ClassSummary;
-      flagged: { attemptId: string; count: number; student: string }[];
+      flagged: FlaggedStudent[];
     };
 
 export async function loadClassSummary(
@@ -113,16 +133,62 @@ export async function loadClassSummary(
   const attemptsById = new Map(
     versionAttempts.map((attempt) => [attempt.id, attempt]),
   );
+  const flaggedAttemptIds = summary.flags.map(({ attemptId }) => attemptId);
+  const storedFlags = flaggedAttemptIds.length
+    ? await deps.store.listFlags(flaggedAttemptIds)
+    : [];
+  const flagsByAttempt = new Map<string, V3StoredFlag[]>();
+  for (const flag of storedFlags) {
+    const attemptFlags = flagsByAttempt.get(flag.attemptId) ?? [];
+    attemptFlags.push(flag);
+    flagsByAttempt.set(flag.attemptId, attemptFlags);
+  }
+  const characterNames = new Map(
+    parsedSpec.data.characters.map((character) => [character.id, character.name]),
+  );
   const flagged = await Promise.all(
     summary.flags.map(async ({ attemptId, count }) => {
       const studentId = attemptsById.get(attemptId)!.studentId;
       const email = await deps.store.studentEmail(studentId);
+      const severity = (events.get(attemptId) ?? [])
+        .filter((event) => event.type === "flag")
+        .map((event) => flagSeverity(event.category))
+        .reduce<FlagSeverity>(
+          (highest, current) =>
+            compareSeverity(current, highest) < 0 ? current : highest,
+          "review",
+        );
+      const messages = (flagsByAttempt.get(attemptId) ?? [])
+        .map((flag) => ({
+          messageId: flag.messageId,
+          category: flag.category,
+          severity: flagSeverity(flag.category),
+          excerpt: flag.excerpt,
+          characterName: flag.characterId
+            ? characterNames.get(flag.characterId) ?? null
+            : null,
+          stageIndex: flag.stageIndex,
+          createdAt: flag.createdAt,
+        }))
+        .sort(
+          (a, b) =>
+            compareSeverity(a.severity, b.severity) ||
+            a.createdAt.localeCompare(b.createdAt),
+        );
       return {
         attemptId,
         count,
         student: email ?? `Student ${studentId.slice(0, 8)}`,
+        severity,
+        messages,
       };
     }),
+  );
+  flagged.sort(
+    (a, b) =>
+      compareSeverity(a.severity, b.severity) ||
+      b.count - a.count ||
+      a.student.localeCompare(b.student),
   );
 
   return {

@@ -1,5 +1,6 @@
 export * from './action'
 export * from './event'
+export * from './flag'
 export * from './ids'
 export * from './summary'
 export * from './view'

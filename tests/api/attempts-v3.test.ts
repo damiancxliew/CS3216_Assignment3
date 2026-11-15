@@ -340,7 +340,9 @@ describe("v3 attempts API service", () => {
       messageId: pending.messageId,
       category: "abusive",
       excerpt: text,
-      result: { reason: "insult", characterId: "temenggong", stageIndex: 0 },
+      characterId: "temenggong",
+      stageIndex: 0,
+      createdAt: expect.any(String),
     }]);
     expect(fixture.store.savedEvents.flatMap((save) => save.events)).toContainEqual(
       expect.objectContaining({
@@ -382,12 +384,12 @@ describe("v3 attempts API service", () => {
       at: 1,
       stageIndex: 2,
       messageId: "message-1",
-      category: "abusive",
+      category: "threat",
       reason: "insult",
     };
 
     expect(flagsFromEvents(pending, [flag])).toMatchObject([
-      { excerpt: "Quoted words\nStudent note", result: { characterId: "temenggong", stageIndex: 2 } },
+      { category: "threat", excerpt: "Quoted words\nStudent note", result: { characterId: "temenggong", stageIndex: 2 } },
     ]);
     expect(flagsFromEvents({
       ...pending,

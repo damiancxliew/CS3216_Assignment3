@@ -1,4 +1,5 @@
-import { GameEvent, PlayerView } from '@adventure/play-contract'
+import { FLAG_CATEGORIES, FLAG_SEVERITY, GameEvent, PlayerView } from '@adventure/play-contract'
+import { MODERATION_CATEGORIES, MODERATION_SEVERITY_RANK } from '@adventure/orchestration/v3'
 import { describe, expect, it } from 'vitest'
 
 import { EngineError, createState, engine, project } from '../src'
@@ -6,6 +7,18 @@ import { Harness } from './fixtures/harness'
 import { LETTER_KEY, mini } from './fixtures/mini'
 
 const MINUTE = 60_000
+
+describe('moderation categories', () => {
+  it('matches play-contract categories and severity ranks', () => {
+    const orchestrationCategories = MODERATION_CATEGORIES.filter((category) => category !== 'none')
+    expect(orchestrationCategories).toEqual(FLAG_CATEGORIES)
+
+    const rankBySeverity = { urgent: 3, serious: 2, review: 1 } as const
+    for (const category of FLAG_CATEGORIES) {
+      expect(MODERATION_SEVERITY_RANK[category]).toBe(rankBySeverity[FLAG_SEVERITY[category]])
+    }
+  })
+})
 
 describe('flow', () => {
   it('opens with the briefing, then the stage opening, then play with the timer', async () => {

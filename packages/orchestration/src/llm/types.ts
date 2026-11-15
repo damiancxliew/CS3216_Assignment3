@@ -29,6 +29,25 @@ export interface TokenUsage {
   reasoningTokens?: number
 }
 
+export interface DecisionQuestion {
+  name: string
+  instructions: string
+}
+
+export interface DecisionRequest {
+  /** Name for usage-ledger attribution. */
+  name: string
+  input: unknown
+  questions: DecisionQuestion[]
+}
+
+export interface DecisionResponse {
+  probabilities: Record<string, number>
+  usage: TokenUsage
+  model?: string
+  latencyMs?: number
+}
+
 export interface LlmRequest {
   modelTier: ModelTier
   model?: string
@@ -57,4 +76,5 @@ export interface LlmResponse {
 
 export interface LlmClient {
   complete(request: LlmRequest): Promise<LlmResponse>
+  decide?(request: DecisionRequest): Promise<DecisionResponse>
 }

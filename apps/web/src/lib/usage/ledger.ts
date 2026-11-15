@@ -141,6 +141,26 @@ export function withPlayUsageV3(
       });
       return response;
     },
+    ...(client.decide === undefined
+      ? {}
+      : {
+          async decide(request) {
+            const response = await client.decide!(request);
+            await recordLlmUsage(createAdminClient, {
+              purpose: "play",
+              call: request.name,
+              model: "gpt-6-luna-decisions",
+              attemptV3Id: context.attemptId,
+              organizationId: context.organizationId,
+              userId: context.userId,
+              inputTokens: response.usage.promptTokens,
+              cachedInputTokens: response.usage.cachedPromptTokens ?? 0,
+              outputTokens: response.usage.completionTokens,
+              reasoningTokens: response.usage.reasoningTokens ?? 0,
+            });
+            return response;
+          },
+        }),
   };
 }
 
@@ -164,5 +184,24 @@ export function withPreviewUsageV3(
       });
       return response;
     },
+    ...(client.decide === undefined
+      ? {}
+      : {
+          async decide(request) {
+            const response = await client.decide!(request);
+            await recordLlmUsage(createAdminClient, {
+              purpose: "play",
+              call: request.name,
+              model: "gpt-6-luna-decisions",
+              organizationId: context.organizationId,
+              userId: context.userId,
+              inputTokens: response.usage.promptTokens,
+              cachedInputTokens: response.usage.cachedPromptTokens ?? 0,
+              outputTokens: response.usage.completionTokens,
+              reasoningTokens: response.usage.reasoningTokens ?? 0,
+            });
+            return response;
+          },
+        }),
   };
 }

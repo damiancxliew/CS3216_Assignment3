@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { FakeLlmClient } from '../src/llm/fake'
 import { toOpenAiStrictSchema } from '../src/llm/openai'
+import type { DecisionRequest, LlmClient } from '../src/llm/types'
 import {
+  buildCheckUserPrompt,
   buildPersonaSystemPrompt,
   buildPersonaUserPrompt,
+  CHECK_DECISION_CONTEXT,
   checkExchange,
   checkSchema,
   personaReplySchema,
@@ -161,6 +164,20 @@ describe('v3 post-turn check', () => {
     turn: { kind: 'message', text: 'Raffles told me he will pay double.' },
     reply: 'Did he? My price is a share of the trade for my people.',
   }
+  const completionReply = JSON.stringify({
+    conveyed: [],
+    substantive: false,
+    assertedUndiscovered: false,
+    assertion: null,
+    moderation: { flagged: false, category: 'none', reason: null },
+  })
+
+  const decisionResponse = (probabilities: Record<string, number>) => ({
+    probabilities,
+    usage: { promptTokens: 41, completionTokens: 7, cachedPromptTokens: 5, reasoningTokens: 2 },
+    model: 'gpt-6-luna',
+    latencyMs: 12,
+  })
 
   it('offers only revealable ids in the schema, and is strict-mode safe', () => {
     const schema = checkSchema(['d-price'])
@@ -178,6 +195,7 @@ describe('v3 post-turn check', () => {
     })
     const outcome = await checkExchange(new FakeLlmClient({ replies: [reply] }), input)
     expect(outcome.ok).toBe(true)
+    expect(outcome.via).toBe('completion')
     expect(outcome.result).toEqual({
       conveyed: ['d-price'],
       substantive: false,
@@ -202,6 +220,176 @@ describe('v3 post-turn check', () => {
   it('fails safe: no progress, no challenge, no flag', async () => {
     const outcome = await checkExchange(new FakeLlmClient({ replies: ['{"conveyed":"nope"}'] }), input)
     expect(outcome.ok).toBe(false)
+    expect(outcome.via).toBe('completion')
     expect(outcome.result).toEqual({ conveyed: [], assertedUndiscovered: false, assertion: null, moderation: { flagged: false, category: 'none', reason: null } })
+  })
+
+  it('uses Decisions for the exact predicate batch and maps thresholded results', async () => {
+    const decide = vi.fn(async (_request: DecisionRequest) =>
+      decisionResponse({
+        conveyed_0: 0.5,
+        conveyed_1: 0.49,
+        substantive: 0.5,
+        asserted: 0.5,
+        flag_abusive: 0.7,
+        flag_threat: 0.49,
+        flag_hateful: 0.8,
+        flag_provocative: 0.6,
+        flag_sexual: 0.49,
+        flag_self_harm: 0.49,
+      }),
+    )
+    const llm: LlmClient = {
+      complete: vi.fn(async () => {
+        throw new Error('completion should not run')
+      }),
+      decide,
+    }
+
+    const outcome = await checkExchange(llm, input)
+
+    expect(outcome).toMatchObject({
+      ok: true,
+      via: 'decisions',
+      repairRounds: 0,
+      usage: { promptTokens: 41, completionTokens: 7, cachedPromptTokens: 5, reasoningTokens: 2 },
+      result: {
+        conveyed: ['d-price'],
+        substantive: true,
+        assertedUndiscovered: true,
+        assertion: null,
+        moderation: {
+          flagged: true,
+          category: 'hateful',
+          reason: 'Flagged as hateful by the automatic check.',
+        },
+      },
+    })
+
+    const request = decide.mock.calls[0]?.[0]
+    expect(request).toMatchObject({
+      name: 'v3_post_turn_check',
+      input: [
+        {
+          role: 'user',
+          content: [
+            { type: 'input_text', text: CHECK_DECISION_CONTEXT },
+            { type: 'input_text', text: buildCheckUserPrompt(input) },
+          ],
+        },
+      ],
+      questions: [
+        { name: 'conveyed_0' },
+        { name: 'conveyed_1' },
+        { name: 'substantive' },
+        { name: 'asserted' },
+        { name: 'flag_abusive' },
+        { name: 'flag_threat' },
+        { name: 'flag_hateful' },
+        { name: 'flag_provocative' },
+        { name: 'flag_sexual' },
+        { name: 'flag_self_harm' },
+      ],
+    })
+    expect(request?.questions).toHaveLength(input.revealable.length + 8)
+    expect(request?.questions[0]?.instructions).toContain(`Fact: "${input.revealable[0]?.text}".`)
+  })
+
+  it('selects moderation by severity, then probability within the same severity', async () => {
+    const cases = [
+      { probabilities: { flag_threat: 0.6, flag_provocative: 0.9 }, category: 'threat' },
+      { probabilities: { flag_hateful: 0.7, flag_abusive: 0.8 }, category: 'abusive' },
+    ] as const
+
+    for (const { probabilities, category } of cases) {
+      const outcome = await checkExchange({
+        complete: vi.fn(),
+        decide: vi.fn(async () => decisionResponse(probabilities)),
+      }, input)
+
+      expect(outcome.result.moderation).toEqual({
+        flagged: true,
+        category,
+        reason: `Flagged as ${category === 'threat' ? 'a threat' : category} by the automatic check.`,
+      })
+    }
+  })
+
+  it('treats missing and NaN probabilities as no', async () => {
+    const llm: LlmClient = {
+      complete: vi.fn(),
+      decide: vi.fn(async () => decisionResponse({ substantive: Number.NaN })),
+    }
+
+    const outcome = await checkExchange(llm, input)
+
+    expect(outcome.via).toBe('decisions')
+    expect(outcome.result).toMatchObject({
+      conveyed: [],
+      substantive: false,
+      assertedUndiscovered: false,
+      assertion: null,
+      moderation: { flagged: false, category: 'none', reason: null },
+    })
+  })
+
+  it('falls back to completion when Decisions is unavailable', async () => {
+    const llm = new FakeLlmClient({ replies: [completionReply] })
+
+    const outcome = await checkExchange(llm, input)
+
+    expect(outcome.via).toBe('completion')
+    expect(llm.requests).toHaveLength(1)
+  })
+
+  it('falls back to completion when Decisions throws', async () => {
+    const base = new FakeLlmClient({ replies: [completionReply] })
+    const complete = vi.fn((request: Parameters<LlmClient['complete']>[0]) => base.complete(request))
+    const decide = vi.fn(async () => {
+      throw new Error('private provider detail')
+    })
+    const llm: LlmClient = { complete, decide }
+
+    const outcome = await checkExchange(llm, input)
+
+    expect(outcome.via).toBe('completion')
+    expect(decide).toHaveBeenCalledOnce()
+    expect(complete).toHaveBeenCalledOnce()
+  })
+
+  it('uses completion when explicitly requested', async () => {
+    const llm: LlmClient = {
+      complete: vi.fn(async () => ({
+        content: completionReply,
+        usage: { promptTokens: 3, completionTokens: 2 },
+      })),
+      decide: vi.fn(async () => decisionResponse({})),
+    }
+
+    const outcome = await checkExchange(llm, input, { via: 'completion' })
+
+    expect(outcome.via).toBe('completion')
+    expect(llm.decide).not.toHaveBeenCalled()
+    expect(llm.complete).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to completion when the question count would exceed 400', async () => {
+    const manyFactsInput: CheckInput = {
+      ...input,
+      revealable: Array.from({ length: 394 }, (_, index) => ({ id: `fact-${index}`, text: `Fact ${index}` })),
+    }
+    const llm: LlmClient = {
+      complete: vi.fn(async () => ({
+        content: completionReply,
+        usage: { promptTokens: 3, completionTokens: 2 },
+      })),
+      decide: vi.fn(async () => decisionResponse({})),
+    }
+
+    const outcome = await checkExchange(llm, manyFactsInput)
+
+    expect(outcome.via).toBe('completion')
+    expect(llm.decide).not.toHaveBeenCalled()
+    expect(llm.complete).toHaveBeenCalledOnce()
   })
 })
