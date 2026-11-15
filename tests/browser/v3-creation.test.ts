@@ -427,6 +427,11 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
       const answer = page.getByRole("textbox", { name: "Your answer", exact: true });
       await answer.waitFor();
       await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Your answer");
+      await page.setViewportSize({ width: 390, height: 844 });
+      expect(await answer.getAttribute("placeholder")).toBe("Type your answer…");
+      expect(await answer.evaluate(element => element.scrollHeight <= element.clientHeight)).toBe(true);
+      await answer.screenshot({ path: resolve(output, "mobile-placeholder.png") });
+      await page.setViewportSize({ width: 1280, height: 800 });
       await answer.fill("60");
       await answer.press("Enter");
       await page.getByText("60 minutes", { exact: true }).waitFor();

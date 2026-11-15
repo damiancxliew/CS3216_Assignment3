@@ -714,7 +714,16 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await suggestionCard.waitFor();
       expect(await transcript.getByText("Keep my request on failure", { exact: true }).count()).toBe(1);
       expect(await page.getByRole("button", { name: "Retry", exact: true }).count()).toBe(0);
-      await page.setViewportSize({ width: 375, height: 812 });
+      await page.setViewportSize({ width: 390, height: 812 });
+      expect(await message.getAttribute("placeholder")).toBe("Ask a question or request a change…");
+      const placeholder = await message.evaluate(element => {
+        const style = getComputedStyle(element, "::placeholder");
+        return { whiteSpace: style.whiteSpace, textOverflow: getComputedStyle(element).textOverflow };
+      });
+      expect(placeholder).toEqual({ whiteSpace: "nowrap", textOverflow: "ellipsis" });
+      const sendBounds = await page.getByRole("button", { name: "Send message", exact: true }).boundingBox();
+      expect(sendBounds?.width).toBe(44);
+      expect(sendBounds?.height).toBe(44);
       const resize = page.getByRole("separator", { name: "Resize chat height" });
       await resize.waitFor();
       const oldHeight = Number(await resize.getAttribute("aria-valuenow"));

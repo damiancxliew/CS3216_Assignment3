@@ -513,17 +513,15 @@ export async function proposeTargetedChanges(
   if (input.targets.length <= 20) return proposeTargetedBatch(deps, input);
   const changes: TextChange[] = [];
   const groups: TargetedChangeGroup[] = [];
-  const notes: string[] = [];
   for (let index = 0; index < input.targets.length; index += 20) {
     const result = await proposeTargetedBatch(deps, { ...input, targets: input.targets.slice(index, index + 20), batch: true, validate: async () => [] });
     if (!result.ok) return result;
     const offset = changes.length;
     groups.push(...(result.groups ?? []).map(group => ({ ...group, edits: group.edits.map(i => i + offset), preview: group.preview.map(i => i + offset) })));
     changes.push(...result.changes);
-    notes.push(result.notes);
   }
   const errors = await input.validate(changes);
-  return errors.length ? finalFailure(errors, "") : { ok: true, changes, groups, notes: [...new Set(notes)].join("\n") };
+  return errors.length ? finalFailure(errors, "") : { ok: true, changes, groups, notes: `I've prepared one suggestion with ${changes.length} text changes. Review it below before applying.` };
 }
 
 /** Deterministic local walkthrough support; production always uses the model. */
