@@ -479,13 +479,13 @@ function FlagSummary({ flagged }: { flagged: FlaggedStudent[] }) {
               <details className="group" open={item.severity === "urgent"}>
                 <summary className="flex cursor-pointer list-none flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
                   <span className="flex min-w-0 items-center gap-3">
+                    <span className="min-w-0 break-all font-semibold text-ink">
+                      {item.student}
+                    </span>
                     <SeverityBadge
                       severity={item.severity}
                       className="group-open:hidden"
                     />
-                    <span className="min-w-0 break-all font-semibold text-ink">
-                      {item.student}
-                    </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2 text-sm text-muted">
                     {item.count} {item.count === 1 ? "message" : "messages"}{" "}
