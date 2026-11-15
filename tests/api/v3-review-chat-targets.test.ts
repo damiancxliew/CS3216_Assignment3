@@ -329,6 +329,24 @@ describe("review-chat target discovery", () => {
     ]);
   });
 
+  it("starts the intent decision while rename extraction is still pending", async () => {
+    let renameStarted = false;
+    let releaseRename!: () => void;
+    const intentStarted = new Promise<void>(resolve => { releaseRename = resolve; });
+    const llm: LlmClient = { async completeJson(request) {
+      renameStarted = true;
+      await intentStarted;
+      return { json: { from: null, to: null }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } };
+    } };
+    const decide = new FakeDecisionClient(() => {
+      expect(renameStarted).toBe(true);
+      releaseRename();
+      return { change: 0 };
+    });
+    expect(await findEditTargets({ decide, llm }, { spec: adventure(), text: "Is this clear?" })).toEqual({ ok: true, intent: "reply" });
+    expect(decide.requests).toHaveLength(1);
+  });
+
   it("finds rename occurrences beyond previews and across more than three items without an item decision", async () => {
     const spec = adventure({
       stages: Array.from({ length: 5 }, (_, index) => ({ id: `s${index}`, title: `Scene ${index}`, narration: `${"A long passage. ".repeat(30)}NADIA's arrival surprises Nadia Rahman.` })),
@@ -342,7 +360,8 @@ describe("review-chat target discovery", () => {
       return { json: { from: "Nadia Rahman", to: "Aisha Tan" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } };
     } };
     const result = await findEditTargets({ decide, llm }, { spec, text: "Are you sure? There are more references. Change all.", history });
-    expect(decide.requests).toHaveLength(0);
+    expect(decide.requests).toHaveLength(1);
+    expect(decide.requests[0]!.questions.map(question => question.name)).toEqual(["change"]);
     expect(result).toMatchObject({ ok: true, intent: "change" });
     if (!result.ok || result.intent !== "change") return;
     expect(result.targets.map(field => field.path.join("."))).toEqual(expect.arrayContaining([

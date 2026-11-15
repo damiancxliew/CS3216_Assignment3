@@ -355,7 +355,7 @@ export function ReviewChatComposer({
         <div className="flex items-center gap-2">
           <textarea
             aria-label="Message"
-            placeholder="Message the editor…"
+            placeholder="Ask a question or request a change…"
             value={text}
             maxLength={4000}
             rows={1}
