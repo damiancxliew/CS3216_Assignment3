@@ -1,9 +1,15 @@
 import { PendingResponseError } from "@adventure/generation/llm";
 import type { LlmClient as GenerationLlmClient, LlmJsonRequest, LlmJsonResponse } from "@adventure/generation/llm";
-import type { LlmClient as PlayLlmClient, LlmRequest, LlmResponse } from "@adventure/orchestration";
+import type {
+  DecisionRequest,
+  DecisionResponse,
+  LlmClient as PlayLlmClient,
+  LlmRequest,
+  LlmResponse,
+} from "@adventure/orchestration";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { withJsonUsage, withPlayUsage } from "@/lib/usage/ledger";
+import { withJsonUsage, withPlayUsage, withPlayUsageV3, withPreviewUsageV3 } from "@/lib/usage/ledger";
 
 const { createAdminClient, insert } = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
@@ -46,6 +52,14 @@ const playResponse: LlmResponse = {
   content: "{}",
   usage: { promptTokens: 80, cachedPromptTokens: 30, completionTokens: 15, reasoningTokens: 4 },
   latencyMs: 10,
+};
+
+const decisionRequest: DecisionRequest = { name: "v3_post_turn_check", input: [], questions: [] };
+const decisionResponse: DecisionResponse = {
+  probabilities: { substantive: 0.8 },
+  usage: { promptTokens: 50, cachedPromptTokens: 20, completionTokens: 6, reasoningTokens: 3 },
+  model: "gpt-6-luna",
+  latencyMs: 4,
 };
 
 beforeEach(() => {
@@ -162,5 +176,64 @@ describe("withPlayUsage", () => {
 
     await expect(wrapped.complete(playRequest)).rejects.toBe(error);
     expect(insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("v3 play and preview Decisions usage", () => {
+  it("forwards Decisions and records the play attempt context", async () => {
+    const decide = vi.fn().mockResolvedValue(decisionResponse);
+    const client: PlayLlmClient = { complete: vi.fn().mockResolvedValue(playResponse), decide };
+    const wrapped = withPlayUsageV3(client, {
+      attemptId: "attempt-v3-1",
+      organizationId: "school-1",
+      userId: "user-1",
+    });
+
+    await expect(wrapped.decide?.(decisionRequest)).resolves.toBe(decisionResponse);
+
+    expect(decide).toHaveBeenCalledWith(decisionRequest);
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+      purpose: "play",
+      call: "v3_post_turn_check",
+      model: "gpt-6-luna-decisions",
+      attempt_v3_id: "attempt-v3-1",
+      organization_id: "school-1",
+      user_id: "user-1",
+      input_tokens: 50,
+      cached_input_tokens: 20,
+      output_tokens: 6,
+      reasoning_tokens: 3,
+    }));
+  });
+
+  it("forwards and records preview Decisions while omitting decide when unavailable", async () => {
+    const decide = vi.fn().mockResolvedValue(decisionResponse);
+    const client: PlayLlmClient = { complete: vi.fn().mockResolvedValue(playResponse), decide };
+    const wrapped = withPreviewUsageV3(client, { organizationId: "school-2", userId: "user-2" });
+
+    await expect(wrapped.decide?.(decisionRequest)).resolves.toBe(decisionResponse);
+
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+      purpose: "play",
+      call: "v3_post_turn_check",
+      model: "gpt-6-luna-decisions",
+      organization_id: "school-2",
+      user_id: "user-2",
+      input_tokens: 50,
+      cached_input_tokens: 20,
+      output_tokens: 6,
+      reasoning_tokens: 3,
+    }));
+
+    const completionOnly: PlayLlmClient = { complete: vi.fn().mockResolvedValue(playResponse) };
+    expect(withPlayUsageV3(completionOnly, {
+      attemptId: "attempt-v3-2",
+      organizationId: "school-2",
+      userId: "user-2",
+    })).not.toHaveProperty("decide");
+    expect(withPreviewUsageV3(completionOnly, {
+      organizationId: "school-2",
+      userId: "user-2",
+    })).not.toHaveProperty("decide");
   });
 });

@@ -33,6 +33,16 @@ export interface V3FlagInput {
   result: { reason: string | null; characterId: string; stageIndex: number };
 }
 
+export interface V3StoredFlag {
+  attemptId: string;
+  messageId: string;
+  category: string;
+  excerpt: string;
+  characterId: string | null;
+  stageIndex: number | null;
+  createdAt: string;
+}
+
 export interface V3Publication {
   id: string;
   adventureId: string;
@@ -58,6 +68,7 @@ export interface V3PlayStore {
   isSchoolAdmin(schoolId: string, userId: string): Promise<boolean>;
   listAttempts(adventureId: string): Promise<{ id: string; specVersion: number; studentId: string }[]>;
   loadEvents(attemptIds: readonly string[]): Promise<Map<string, GameEvent[]>>;
+  listFlags(attemptIds: readonly string[]): Promise<V3StoredFlag[]>;
   studentEmail(userId: string): Promise<string | null>;
   findLatestAttempt(adventureId: string, studentId: string, version: number): Promise<V3Attempt | null>;
   createAttempt(input: {
@@ -109,6 +120,15 @@ type AttemptEventRow = {
   seq: number;
   type: string;
   payload: Record<string, unknown> | null;
+};
+
+type StoredFlagRow = {
+  attempt_id: string;
+  message_id: string;
+  category: string;
+  excerpt: string;
+  result: unknown;
+  created_at: string;
 };
 
 export class SupabaseV3PlayStore implements V3PlayStore {
@@ -308,6 +328,42 @@ export class SupabaseV3PlayStore implements V3PlayStore {
     return events;
   }
 
+  async listFlags(attemptIds: readonly string[]): Promise<V3StoredFlag[]> {
+    const ids = [...new Set(attemptIds)];
+    const flags: V3StoredFlag[] = [];
+
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const chunk = ids.slice(offset, offset + 100);
+      for (let from = 0; ; from += 1_000) {
+        const { data, error } = await this.admin
+          .from("flags_v3")
+          .select("attempt_id, message_id, category, excerpt, result, created_at")
+          .in("attempt_id", chunk)
+          .order("created_at", { ascending: true })
+          .range(from, from + 999);
+        if (error) throw error;
+        for (const row of (data ?? []) as StoredFlagRow[]) {
+          const result =
+            row.result !== null && typeof row.result === "object" && !Array.isArray(row.result)
+              ? row.result as Record<string, unknown>
+              : {};
+          flags.push({
+            attemptId: row.attempt_id,
+            messageId: row.message_id,
+            category: row.category,
+            excerpt: row.excerpt,
+            characterId: typeof result.characterId === "string" ? result.characterId : null,
+            stageIndex: typeof result.stageIndex === "number" && Number.isFinite(result.stageIndex) ? result.stageIndex : null,
+            createdAt: row.created_at,
+          });
+        }
+        if ((data?.length ?? 0) < 1_000) break;
+      }
+    }
+
+    return flags.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
   async studentEmail(userId: string): Promise<string | null> {
     const { data, error } = await this.admin.auth.admin.getUserById(userId);
     if (error) throw error;
@@ -415,7 +471,7 @@ export class MemoryV3PlayStore implements V3PlayStore {
   private readonly tokenCounts = new Map<string, number>();
   private sequence = 0;
   readonly savedEvents: { attemptId: string; events: GameEvent[] }[] = [];
-  readonly flags: ({ attemptId: string } & V3FlagInput)[] = [];
+  readonly flags: V3StoredFlag[] = [];
 
   addAdventure(adventure: V3Adventure): void {
     this.adventures.set(adventure.id, structuredClone({ ...adventure, publishedVersion: adventure.publishedVersion === undefined ? (adventure.status === "published" ? adventure.specVersion : null) : adventure.publishedVersion }));
@@ -478,6 +534,10 @@ export class MemoryV3PlayStore implements V3PlayStore {
 
   setTokensUsed(attemptId: string, tokens: number): void {
     this.tokenCounts.set(attemptId, tokens);
+  }
+
+  addFlag(flag: V3StoredFlag): void {
+    this.flags.push(structuredClone(flag));
   }
 
   async loadPublication(versionId: string): Promise<V3Publication | null> {
@@ -566,6 +626,15 @@ export class MemoryV3PlayStore implements V3PlayStore {
     return events;
   }
 
+  async listFlags(attemptIds: readonly string[]): Promise<V3StoredFlag[]> {
+    const ids = new Set(attemptIds);
+    return structuredClone(
+      this.flags
+        .filter((flag) => ids.has(flag.attemptId))
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    );
+  }
+
   async studentEmail(userId: string): Promise<string | null> {
     return this.studentEmails.get(userId) ?? null;
   }
@@ -625,7 +694,15 @@ export class MemoryV3PlayStore implements V3PlayStore {
         && saved.messageId === flag.messageId
         && saved.category === flag.category
       ))) {
-        this.flags.push({ attemptId: id, ...structuredClone(flag) });
+        this.flags.push({
+          attemptId: id,
+          messageId: flag.messageId,
+          category: flag.category,
+          excerpt: flag.excerpt,
+          characterId: flag.result.characterId,
+          stageIndex: flag.result.stageIndex,
+          createdAt: new Date().toISOString(),
+        });
       }
     }
     return { saved: true, revision: attempt.revision };

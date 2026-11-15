@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { ACTION_TYPES, Action, ClassSummary, DefiningMomentView, DocumentHereView, GameEvent, MAX_MESSAGE_LENGTH, PlayerView } from '../src'
+import { ACTION_TYPES, Action, ClassSummary, compareSeverity, DefiningMomentView, DocumentHereView, FLAG_CATEGORIES, FLAG_SEVERITY, FlagCategory, GameEvent, flagSeverity, MAX_MESSAGE_LENGTH, PlayerView } from '../src'
 
 const examples: Action[] = [
   { type: 'message', characterId: 'temenggong', text: 'Why did you leave Riau?' },
@@ -80,11 +80,24 @@ describe('GameEvent', () => {
       { ...base, type: 'hint', level: 2, targetDiscoveryId: 'd' },
       { ...base, type: 'storyEvent', eventId: 'se' },
       { ...base, type: 'flag', messageId: 'm', category: 'abusive', reason: null },
+      { ...base, type: 'flag', messageId: 'm2', category: 'threat', reason: null },
       { ...base, type: 'phase', to: 'epilogue' },
       { ...base, type: 'readingCheck', documentId: 'd', questionId: 'q', correct: false, recovery: false },
       { ...base, type: 'essentialConversation', characterId: 'c' },
     ]
     for (const event of events) expect(GameEvent.parse(event)).toEqual(event)
+  })
+})
+
+describe('flag severity', () => {
+  it('maps categories to severity, defaults unknown values to review, and orders severity', () => {
+    expect(Object.fromEntries(FLAG_CATEGORIES.map((category) => [category, flagSeverity(category)]))).toEqual(FLAG_SEVERITY)
+    expect(flagSeverity('unknown')).toBe('review')
+    expect(compareSeverity('urgent', 'serious')).toBeLessThan(0)
+    expect(compareSeverity('serious', 'review')).toBeLessThan(0)
+    expect(compareSeverity('review', 'urgent')).toBeGreaterThan(0)
+    expect(FlagCategory.safeParse('threat').success).toBe(true)
+    expect(FlagCategory.safeParse('none').success).toBe(false)
   })
 })
 
