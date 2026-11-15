@@ -178,7 +178,7 @@ export async function loadClassSummary(
       return {
         attemptId,
         count,
-        student: email ?? `Student ${studentId.slice(0, 8)}`,
+        student: email || `Anonymous player ${studentId.slice(0, 8)}`,
         severity,
         messages,
       };

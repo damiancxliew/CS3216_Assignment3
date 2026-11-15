@@ -281,7 +281,7 @@ describe("v3 class summary service", () => {
     expect(result.flagged[0]).toEqual({
       attemptId,
       count: 1,
-      student: "Student flagged-",
+      student: "Anonymous player flagged-",
       severity: "review",
       messages: [
         {
@@ -327,7 +327,7 @@ describe("v3 class summary service", () => {
     ]);
   });
 
-  it("uses an opaque label when a flagged student's email is unavailable", async () => {
+  it("uses anonymous-player labels for null and empty emails", async () => {
     const fixture = setup();
     fixture.store.addAttemptWithEvents({
       adventureId: ADVENTURE_ID,
@@ -335,11 +335,21 @@ describe("v3 class summary service", () => {
       studentId: "flagged-student",
       events: eventsFor({ flag: true }),
     });
+    fixture.store.addAttemptWithEvents({
+      adventureId: ADVENTURE_ID,
+      specVersion: 1,
+      studentId: "empty-student",
+      events: eventsFor({ flag: true }),
+    });
+    fixture.store.setStudentEmail("empty-student", "");
 
     const result = await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID);
     expect(result).toMatchObject({
       status: 200,
-      flagged: [{ student: "Student flagged-" }],
+      flagged: [
+        { student: "Anonymous player empty-st" },
+        { student: "Anonymous player flagged-" },
+      ],
     });
   });
 
