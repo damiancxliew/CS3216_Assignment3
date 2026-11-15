@@ -45,7 +45,7 @@ import {
 const failure = (message: string): ReviewChatResult => ({ ok: false, message });
 const selectedTargetsSchema = z.array(
   z.array(z.union([z.string().max(80), z.number().int().nonnegative()])).min(1).max(12),
-).min(1).max(20);
+).min(1).max(20_000);
 
 function fakeDecisionClient() {
   return new FakeDecisionClient((request: DecisionRequest) => {
@@ -60,9 +60,8 @@ function fakeDecisionClient() {
       (requestText.match(/[a-z0-9]+/gi) ?? [])
         .map((word) => word.toLowerCase().replace(/s$/, "")),
     );
-    const json = (request.input as {
-      content?: { type: string; data?: unknown }[];
-    }[])[0]?.content?.find(({ type }) => type === "input_json")?.data;
+    const stable = content?.find(block => block.type === "input_text" && block.text?.startsWith("{"))?.text;
+    const json: unknown = stable ? JSON.parse(stable) : undefined;
     const data = json && typeof json === "object"
       ? Object.values(json as Record<string, unknown>).find(Array.isArray)
       : undefined;
@@ -93,7 +92,7 @@ export async function suggestReviewChangeAction(
     return failure("Not found.");
   const viewer = await getViewer(await createClient());
   const { user } = viewer;
-  if (!user) return failure("Sign in again. Your message is still here.");
+  if (!user) return failure("Sign in again, then retry your message.");
   if (!isStaff(viewer) && !viewer.isSysadmin) return failure("Not found.");
   const admin = createAdminClient();
   const briefs = supabaseV3BriefStore(admin);
@@ -115,7 +114,7 @@ export async function suggestReviewChangeAction(
   if (rawTargets !== undefined && input.pass === "draft") {
     const selected = selectedTargetsSchema.safeParse(rawTargets);
     if (!selected.success)
-      return failure("One of the selected fields can no longer be changed. Find targets again.");
+      return failure("That content can no longer be changed. Try your request again.");
     targets = selected.data;
   }
   const state = row.state ?? initialBriefStateV3(adventureId);
@@ -142,11 +141,10 @@ export async function suggestReviewChangeAction(
   const target = await loadReviewChatTarget(admin, row, user.id, input);
   if (!target.ok) return target;
   const { current, roots, validate, proposal, stillCurrent } = target;
-  let targetLabels: string[] = [];
   const history = state.messages
     .filter((message) => message.slot === "review")
     .slice(-8)
-    .map(({ role, text }) => ({ role, text }));
+    .map(({ role, text }) => ({ role, text: text.split("\n\nTargets: ")[0]! }));
   let notes: string;
   let changes: Extract<V3Edit, { type: "set" }>[] = [];
   let groups: TargetedChangeGroup[] | undefined;
@@ -169,8 +167,7 @@ export async function suggestReviewChangeAction(
         editable.find((field) => field.path.join(".") === path.join(".")),
       );
       if (requested.some((field) => !field))
-        return failure("One of the selected fields can no longer be changed. Find targets again.");
-      targetLabels = requested.map((field) => field!.label);
+        return failure("That content can no longer be changed. Try your request again.");
       result = await proposeTargetedChanges(
         { llm },
         {
@@ -181,6 +178,15 @@ export async function suggestReviewChangeAction(
           validate,
         },
       );
+      if (!result.ok && result.widen) {
+        const decide = process.env.V3_FAKE_PASSES && process.env.NODE_ENV !== "production"
+          ? fakeDecisionClient()
+          : withDecisionUsage(new OpenAiDecisionClient(), { purpose: "generation", adventureV3Id: adventureId, organizationId: row.schoolId, userId: user.id });
+        const wider = await findEditTargets({ decide }, { spec: current, text: text.data, history, wide: true });
+        if (!wider.ok || wider.intent !== "change") return failure("I couldn't make that change. Try naming the stage, character or document.");
+        result = await proposeTargetedChanges({ llm }, { text: text.data, current, targets: wider.targets.map(field => field.path), history, validate });
+        if (!result.ok && result.widen) return failure("I couldn't make that change. Try naming the stage, character or document.");
+      }
     } else {
       result = await proposeRequestedChanges(
         { llm },
@@ -212,7 +218,7 @@ export async function suggestReviewChangeAction(
     JSON.stringify(latest.state) !== JSON.stringify(row.state)
   )
     return failure(
-      "The conversation changed while I was working. Your message is still here. Reload before trying again.",
+      "The conversation changed while I was working. Reload before trying again.",
     );
   const next = briefStateV3Schema.parse({
     ...state,
@@ -220,9 +226,7 @@ export async function suggestReviewChangeAction(
       ...state.messages,
       {
         role: "user",
-        text: targets
-          ? `${text.data}\n\nTargets: ${targetLabels.join(", ")}`
-          : text.data,
+        text: text.data,
         slot: "review",
       },
       { role: "assistant", text: notes, slot: "review" },
@@ -238,11 +242,11 @@ export async function suggestReviewChangeAction(
   const saved = await update.select("id");
   if (saved.error)
     return failure(
-      "Could not save this conversation. Your message is still here. Try again.",
+      "Could not save this conversation. Try again.",
     );
   if (!saved.data?.length)
     return failure(
-      "The adventure changed while I was working. Your message is still here. Try again.",
+      "The adventure changed while I was working. Try again.",
     );
   return {
     ok: true,
@@ -275,7 +279,7 @@ export async function findEditTargetsAction(
   const viewer = await getViewer(await createClient());
   const { user } = viewer;
   if (!user)
-    return { ok: false, message: "Sign in again. Your message is still here." };
+    return { ok: false, message: "Sign in again, then retry your message." };
   if (!isStaff(viewer) && !viewer.isSysadmin)
     return { ok: false, message: "Not found." };
   const admin = createAdminClient();
@@ -302,9 +306,9 @@ export async function findEditTargetsAction(
   const history = (row.state?.messages ?? [])
     .filter((message) => message.slot === "review")
     .slice(-4)
-    .map(({ role, text }) => ({ role, text }));
+    .map(({ role, text }) => ({ role, text: text.split("\n\nTargets: ")[0]! }));
   return findEditTargets(
-    { decide: decisionClient },
+    { decide: decisionClient, ...(process.env.V3_FAKE_PASSES && process.env.NODE_ENV !== "production" ? {} : { llm: withJsonUsage(new OpenAiLlmClient({ timeoutMs: 30_000, maxRetries: 0 }), { purpose: "generation", adventureV3Id: adventureId, organizationId: row.schoolId, userId: user.id }) }) },
     { spec: target.current, text: text.data, history },
   );
 }

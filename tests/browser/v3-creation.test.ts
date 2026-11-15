@@ -147,7 +147,7 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
     const measurements: unknown[] = [];
     try {
       await vite.listen();
-      browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || undefined });
+      browser = process.env.PLAYWRIGHT_CDP_URL ? await chromium.connectOverCDP(process.env.PLAYWRIGHT_CDP_URL) : await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || undefined });
       const page = await browser.newPage({ reducedMotion: "reduce" });
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("console", (message) => { if (message.type() === "error") errors.push(`${message.text()} ${message.location().url}`); });
@@ -247,8 +247,7 @@ it.runIf(process.env.RUN_CREATION_BROWSER_TESTS === "1")(
         await motion.getByRole("button", { name: "Next simulated pass", exact: true }).click();
         const samples: number[] = [];
         for (let i = 0; i < 20; i++) { samples.push(await pane.evaluate(node => node.scrollTop)); await motion.waitForTimeout(25); }
-        const final = await pane.evaluate(node => node.querySelector("[data-generation-current]")!.getBoundingClientRect().top - node.getBoundingClientRect().top);
-        expect(Math.abs(final)).toBeLessThanOrEqual(1);
+        await expect.poll(async () => Math.abs(await pane.evaluate(node => node.querySelector("[data-generation-current]")!.getBoundingClientRect().top - node.getBoundingClientRect().top))).toBeLessThanOrEqual(1);
         expect(samples.some(top => top > 0 && top < samples[samples.length - 1] - 1)).toBe(true);
         await motion.close();
       }

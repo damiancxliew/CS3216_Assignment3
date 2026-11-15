@@ -282,7 +282,7 @@ describe("review chat access and persistence", () => {
     }
   });
 
-  it("persists the targeted draft request with its field labels", async () => {
+  it("persists the request without internal field labels", async () => {
     harness.row!.status = "draft";
     harness.completeJson.mockResolvedValue({
       json: {
@@ -308,11 +308,35 @@ describe("review chat access and persistence", () => {
         messages: expect.arrayContaining([
           expect.objectContaining({
             role: "user",
-            text: `${text}\n\nTargets: Adventure title`,
+            text,
           }),
         ]),
       }),
     });
+  });
+
+  it("widens field discovery and writes once more when the first writer cannot complete the change", async () => {
+    harness.row!.status = "draft";
+    const decide = vi.spyOn(FakeDecisionClient.prototype, "decide").mockImplementation(async request => ({ probabilities: Object.fromEntries(request.questions.map(({ name }) => [name, name === "change" || name === "i0" ? 1 : 0])), model: "fake", latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } }));
+    harness.completeJson.mockResolvedValueOnce({ json: { insufficient: true, notes: "Cannot revise this entry", changes: [], passages: [] } });
+    harness.completeJson.mockImplementation(async request => {
+      const entry = JSON.parse(request.user).targets.find((field: { label: string }) => field.label === "Adventure title");
+      return { json: { insufficient: false, notes: "Revised the title.", changes: [{ target: entry.id, text: "A revised title" }], passages: [] } };
+    });
+    const result = await suggestReviewChangeAction(id, draftInput, "Make the title clearer", [["stages", 0, "openingNarration"]]);
+    expect(result).toMatchObject({ ok: true, preview: expect.arrayContaining([expect.objectContaining({ after: "A revised title" })]) });
+    expect(harness.completeJson).toHaveBeenCalledTimes(2);
+    expect(harness.update).toHaveBeenCalledTimes(1);
+    decide.mockRestore();
+  });
+
+  it("returns a plain failure without persisting when wider writing is still insufficient", async () => {
+    harness.row!.status = "draft";
+    harness.completeJson.mockResolvedValue({ json: { insufficient: true, notes: "Cannot revise this entry", changes: [], passages: [] } });
+    const result = await suggestReviewChangeAction(id, draftInput, "Make the title clearer", [["title"]]);
+    expect(result).toEqual({ ok: false, message: "I couldn't make that change. Try naming the stage, character or document." });
+    expect(harness.completeJson).toHaveBeenCalledTimes(2);
+    expect(harness.update).not.toHaveBeenCalled();
   });
 
   it("persists a reply without a proposal", async () => {
@@ -419,7 +443,7 @@ describe("review chat access and persistence", () => {
         await suggestReviewChangeAction(id, draftInput, "Change this", [path]),
       ).toEqual({
         ok: false,
-        message: "One of the selected fields can no longer be changed. Find targets again.",
+        message: "That content can no longer be changed. Try your request again.",
       });
     }
     expect(harness.completeJson).not.toHaveBeenCalled();

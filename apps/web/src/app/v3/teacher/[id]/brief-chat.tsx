@@ -2,7 +2,7 @@
 
 import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useImperativeHandle, useRef, useState, useTransition, type Ref } from "react";
+import { Fragment, useEffect, useImperativeHandle, useRef, useState, useTransition, type Ref, type ReactNode } from "react";
 
 import { useBriefStream } from "@/lib/brief/use-brief-stream";
 import { button, control, ErrorText, Thinking } from "@/components/ui";
@@ -110,7 +110,10 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
   const sourcesStep = active && slot.name === "sources";
   const thinking = generating ? "Preparing your adventure" : slot.name === "sources" ? "Reading your sources" : "Updating your brief";
 
-  return (
+  const userClassName = compact
+    ? "ml-8 self-end rounded-surface rounded-br-sm bg-record-wash px-3 py-2 text-ink"
+    : `${styles.bubble} ${styles.userBubble}`;
+  const body = (reviewForm?: ReactNode, reviewAt?: (index: number) => ReactNode) => (
     <div className={`flex min-h-0 flex-1 flex-col ${compact ? "gap-4" : styles.chatBody}`}>
       <div className={`min-h-0 flex-1 overflow-y-auto [overflow-wrap:anywhere] ${compact ? "px-1 pb-4" : styles.transcript}`} data-conversation-scroll>
         <ol className={`flex flex-col ${compact ? "gap-3 text-base" : styles.messages}`} aria-live="polite">
@@ -121,12 +124,10 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
             const text = targetSuffixIndex >= 0
               ? message.text.slice(0, targetSuffixIndex)
               : message.text;
-            const targets = targetSuffixIndex >= 0
-              ? message.text.slice(targetSuffixIndex + "\n\n".length)
-              : null;
             return (
+              <Fragment key={index}>
+              {reviewAt?.(index)}
               <li
-                key={index}
                 className={compact
                   ? message.role === "user"
                     ? "ml-8 self-end rounded-surface rounded-br-sm bg-record-wash px-3 py-2 text-ink"
@@ -134,17 +135,14 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
                   : `${styles.bubble} ${message.role === "user" ? styles.userBubble : "self-start"}`}
               >
                 <p className="whitespace-pre-wrap">{text}</p>
-                {targets ? (
-                  <p className="mt-1 whitespace-pre-wrap text-xs text-muted">
-                    {targets}
-                  </p>
-                ) : null}
                 {message.role === "assistant" && message.proposedText ? (
                   <p className="mt-3 border-l-2 border-line-strong pl-3 font-semibold">{message.proposedText}</p>
                 ) : null}
               </li>
+              </Fragment>
             );
           })}
+          {reviewAt?.(state.messages.length)}
           {pending && !uploads?.busy && !generating ? (
             <li className="mr-10 self-start px-4 py-2 sm:mr-24">
               <Thinking label={thinking} />
@@ -159,7 +157,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
         {error ? <div className="col-span-full"><ErrorText>{error}</ErrorText></div> : null}
         <div className={compact ? "contents" : styles.composerMain}>
         {!active ? (
-          <ReviewChatComposer adventureId={state.adventureId} idleHint={reviewIdleHint} onConversation={next => { setState(next); onStateChange?.(next); }} />
+          reviewForm
         ) : slot.name === "confirm" ? (
           <p className="text-sm text-muted">Use the pencil icons on the cards to change your brief.</p>
         ) : slot.name === "sources" ? (
@@ -216,6 +214,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
       </footer>
     </div>
   );
+  return active ? body() : <ReviewChatComposer adventureId={state.adventureId} idleHint={reviewIdleHint} messageCount={state.messages.length} userClassName={userClassName} onConversation={next => { setState(next); onStateChange?.(next); }} render={body} />;
 }
 
 function autoGrow(field: HTMLTextAreaElement | null, maxPx: number) {

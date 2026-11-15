@@ -77,6 +77,27 @@ function validReadings(text: string, ids: string[]) {
 }
 
 describe("targeted review-chat proposals", () => {
+  it("signals insufficient editable content without exposing internal selection mechanics", async () => {
+    const { llm, requests } = scriptedLlm([{ insufficient: true, notes: "Internal selection was insufficient", changes: [], passages: [] }]);
+    const result = await proposeTargetedChanges({ llm }, { text: "Change her role title", current: { title: "A story" }, targets: [["title"]], validate: async () => [] });
+    expect(result).toEqual({ ok: false, widen: true, message: "I couldn't make that change. Try naming the stage, character or document." });
+    expect(requests).toHaveLength(1);
+  });
+
+  it("chunks every matching field and validates the combined proposal atomically", async () => {
+    const current = { stages: Array.from({ length: 25 }, (_, index) => ({ id: `s${index}`, narration: "Nadia arrived." })) };
+    const targets = current.stages.map((_, index) => ["stages", index, "narration"]);
+    const { llm, requests } = scriptedLlm([20, 5].map(count => ({ notes: "Renamed Nadia to Aisha.", changes: Array.from({ length: count }, (_, index) => ({ target: `t${index}`, text: "Aisha arrived." })), passages: [] })));
+    let validated = 0;
+    const result = await proposeTargetedChanges({ llm }, { text: "Replace Nadia with Aisha", current, targets, validate: async changes => { validated = changes.length; return []; } });
+    expect(result.ok).toBe(true);
+    expect(requests).toHaveLength(2);
+    expect(requests.every(request => JSON.parse(request.user).scope.includes("one batch"))).toBe(true);
+    expect(validated).toBe(25);
+    if (!result.ok) return;
+    expect(result.changes).toHaveLength(25);
+    expect(result.groups?.at(-1)?.edits).toEqual([24]);
+  });
   it("answers a question with the local fake without changing the adventure", async () => {
     await expect(answerReviewQuestion(
       { llm: fakeReviewQuestionAnswerer() },
