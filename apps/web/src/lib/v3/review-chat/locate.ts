@@ -105,6 +105,14 @@ async function decideAll(client: DecisionClient, request: DecisionRequest) {
   return { probabilities };
 }
 
+function citationQuotes(value: unknown): string[] {
+  if (!value || typeof value !== "object") return [];
+  if (Array.isArray(value)) return value.flatMap(citationQuotes);
+  return Object.entries(value).flatMap(([key, child]) => key === "citations" && Array.isArray(child)
+    ? child.flatMap(citation => typeof citation?.quote === "string" ? [citation.quote] : [])
+    : citationQuotes(child));
+}
+
 export async function findEditTargets(
   deps: { decide: DecisionClient; llm?: LlmClient },
   input: {
@@ -141,8 +149,11 @@ export async function findEditTargets(
       const names = rename.from.trim().split(/\s+/).filter(Boolean);
       const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${[rename.from.trim(), ...names].map(escape).join("|")})(?![\\p{L}\\p{N}_])`, "iu");
-      const fields = editableItems(input.spec).flatMap(item => textFields(input.spec, item.path)).filter(field => !field.locked && pattern.test(field.text));
+      const allFields = editableItems(input.spec).flatMap(item => textFields(input.spec, item.path));
+      const fields = allFields.filter(field => !field.locked && pattern.test(field.text));
       const unique = [...new Map(fields.map(field => [field.path.join("."), field])).values()];
+      if (!unique.length && (allFields.some(field => field.locked && pattern.test(field.text)) || citationQuotes(input.spec).some(quote => pattern.test(quote))))
+        return { ok: false, message: `"${rename.from}" appears only in quoted sources, which can't be changed.` };
       return unique.length ? { ok: true, intent: "change", targets: unique.map(({ path, label }) => ({ path, label, score: 1, selected: true })) } : { ok: false, message: `I couldn't find "${rename.from}" anywhere in the adventure.` };
     }
   }

@@ -33,6 +33,9 @@ const protectedFields = new Set([
   'sourceId',
   'documentId',
   'characterId',
+  'deciderId',
+  'slantConfronted',
+  'counterPoints',
   'stageId',
   'endingId',
   'correctOptionId',
@@ -270,6 +273,22 @@ function isPrefix(prefix: Path, path: Path): boolean {
 
 const textFieldCache = new WeakMap<object, Map<string, TextField[]>>()
 
+function sourceBound(spec: unknown, path: Path): boolean {
+  for (let index = 0; index < path.length; index++) {
+    const parent = atPath(spec, path.slice(0, index))
+    if (!isRecord(parent)) continue
+    if (Array.isArray(parent.citations) && parent.citations.length && parent.real !== true)
+      return true
+    if (typeof parent.start === 'number' && typeof parent.end === 'number')
+      return true
+  }
+  if (path[0] !== 'documents') return false
+  const document = atPath(spec, path.slice(0, 2))
+  return isRecord(document) && (path.includes('keyPassages') ||
+    (path[2] === 'body' && (document.real === true ||
+      (Array.isArray(document.keyPassages) && document.keyPassages.length > 0))))
+}
+
 export function textFields(spec: unknown, itemPath: Path): TextField[] {
   if (!spec || typeof spec !== 'object') return collectTextFields(spec, itemPath)
   let bySpec = textFieldCache.get(spec)
@@ -286,8 +305,6 @@ function collectTextFields(spec: unknown, itemPath: Path): TextField[] {
   stringLeaves(spec, item, itemPath, leaves)
   const itemInfo = editableItems(spec).find(({ path }) => path.join('.') === itemPath.join('.'))
   if (!itemInfo) return []
-  const isRealDocument = itemPath[0] === 'documents' &&
-    isRecord(item) && item.real === true
   return leaves
     .filter(({ path }) => !isProtectedPath(path))
     .map(({ path, text }) => {
@@ -295,7 +312,7 @@ function collectTextFields(spec: unknown, itemPath: Path): TextField[] {
       const label = relative.length
         ? `${itemInfo.label} · ${pathLabel(relative)}`
         : itemInfo.label
-      const locked = isRealDocument && path.at(-1) === 'body'
+      const locked = sourceBound(spec, path)
         ? "Quoted from your source — chat can't rewrite it."
         : undefined
       return { path, label, text, ...(locked ? { locked } : {}) }

@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { AdventureSpec } from "@adventure/spec-v3";
 import { FakeDecisionClient, type LlmClient } from "@adventure/generation/llm";
 import {
   editableItems,
@@ -7,6 +9,8 @@ import {
   textFields,
 } from "@/lib/v3/review-chat/outline";
 import { findEditTargets } from "@/lib/v3/review-chat/locate";
+import { proposeTargetedChanges } from "@/lib/v3/review-chat/propose";
+import { checkTeacherEdits } from "@/lib/v3/edit/validation";
 
 function adventure(overrides: Record<string, unknown> = {}) {
   return {
@@ -374,6 +378,40 @@ describe("review-chat target discovery", () => {
     const decide = new FakeDecisionClient([]);
     const llm: LlmClient = { async completeJson(request) { return { json: { from: "Nadia", to: "Aisha" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } }; } };
     expect(await findEditTargets({ decide, llm }, { spec: { title: "Nadiaville" }, text: "Replace Nadia with Aisha" })).toEqual({ ok: false, message: 'I couldn\'t find "Nadia" anywhere in the adventure.' });
+  });
+
+  it("excludes source-bound fields from rename and general discovery and validates the combined rename", async () => {
+    const spec = AdventureSpec.parse(JSON.parse(readFileSync("fixtures/golden-1819.json", "utf8")));
+    const fields = editableItems(spec).flatMap(item => textFields(spec, item.path));
+    const locked = fields.filter(field => field.locked).map(field => field.path.join("."));
+    expect(locked).toContain("discoveries.10.text");
+    expect(locked).toContain("documents.0.body");
+    expect(locked.some(path => path.startsWith("endings."))).toBe(true);
+    expect(fields.some(field => field.path.includes("citations"))).toBe(false);
+    const llm: LlmClient = { async completeJson(request) { return { json: { from: "Raffles", to: "Stamford" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } }; } };
+    const decide = new FakeDecisionClient(request => Object.fromEntries(request.questions.map(({ name }) => [name, 1])));
+    for (const deps of [{ decide, llm }, { decide }]) {
+      const result = await findEditTargets(deps, { spec, text: "Rename Raffles to Stamford everywhere" });
+      if (!result.ok || result.intent !== "change") throw Error("Expected rename fields");
+      expect(result.targets.length).toBeGreaterThan(0);
+      expect(result.targets.every(field => !locked.includes(field.path.join(".")))).toBe(true);
+      if (!("llm" in deps)) continue;
+      const writer: LlmClient = { async completeJson(request) {
+        const entries = JSON.parse(request.user).targets as { id: string; current: string }[];
+        return { json: { insufficient: false, notes: "Renamed editable references.", passages: [], changes: entries.map(entry => ({ target: entry.id, text: entry.current.replace(/\bRaffles\b/gi, "Stamford") })) }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } };
+      } };
+      const proposal = await proposeTargetedChanges({ llm: writer }, { current: spec, text: "Rename Raffles to Stamford everywhere", targets: result.targets.map(field => field.path), validate: async changes => { const checked = checkTeacherEdits(spec, changes, []); return checked.ok ? [] : checked.errors; } });
+      expect(proposal, JSON.stringify(proposal)).toMatchObject({ ok: true });
+      if (proposal.ok) expect(checkTeacherEdits(spec, proposal.changes, []).ok).toBe(true);
+    }
+  });
+
+  it("explains when a name appears only in immutable source text", async () => {
+    const decide = new FakeDecisionClient([{ change: 1 }]);
+    const llm: LlmClient = { async completeJson(request) { return { json: { from: "Nadia", to: "Aisha" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } }; } };
+    for (const spec of [{ documents: [{ id: "d", title: "Archive", real: true, body: "Nadia arrived." }] }, { discoveries: [{ id: "d", text: "A fact", citations: [{ sourceId: "s", quote: "Nadia arrived." }] }] }]) {
+      expect(await findEditTargets({ decide, llm }, { spec, text: "Rename Nadia to Aisha" })).toEqual({ ok: false, message: '"Nadia" appears only in quoted sources, which can\'t be changed.' });
+    }
   });
 
   it("widens to every unlocked field of matching items without the three-item cap", async () => {
