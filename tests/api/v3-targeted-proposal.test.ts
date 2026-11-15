@@ -84,10 +84,10 @@ describe("targeted review-chat proposals", () => {
     expect(requests).toHaveLength(1);
   });
 
-  it("chunks every matching field and validates the combined proposal atomically", async () => {
+  it("chunks every matching field, combines similar batch notes once and validates atomically", async () => {
     const current = { stages: Array.from({ length: 25 }, (_, index) => ({ id: `s${index}`, narration: "Nadia arrived." })) };
     const targets = current.stages.map((_, index) => ["stages", index, "narration"]);
-    const { llm, requests } = scriptedLlm([20, 5].map(count => ({ notes: "Renamed Nadia to Aisha.", changes: Array.from({ length: count }, (_, index) => ({ target: `t${index}`, text: "Aisha arrived." })), passages: [] })));
+    const { llm, requests } = scriptedLlm([20, 5].map((count, index) => ({ notes: index ? "Changed Nadia to Aisha in the available prose, leaving everything else unchanged." : "Renamed Nadia to Aisha throughout the editable text.", changes: Array.from({ length: count }, (_, index) => ({ target: `t${index}`, text: "Aisha arrived." })), passages: [] })));
     let validated = 0;
     const result = await proposeTargetedChanges({ llm }, { text: "Replace Nadia with Aisha", current, targets, validate: async changes => { validated = changes.length; return []; } });
     expect(result.ok).toBe(true);
@@ -96,6 +96,7 @@ describe("targeted review-chat proposals", () => {
     expect(validated).toBe(25);
     if (!result.ok) return;
     expect(result.changes).toHaveLength(25);
+    expect(result.notes).toBe("I've prepared one suggestion with 25 text changes. Review it below before applying.");
     expect(result.groups?.at(-1)?.edits).toEqual([24]);
   });
   it("answers a question with the local fake without changing the adventure", async () => {

@@ -714,7 +714,16 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await suggestionCard.waitFor();
       expect(await transcript.getByText("Keep my request on failure", { exact: true }).count()).toBe(1);
       expect(await page.getByRole("button", { name: "Retry", exact: true }).count()).toBe(0);
-      await page.setViewportSize({ width: 375, height: 812 });
+      await page.setViewportSize({ width: 390, height: 812 });
+      expect(await message.getAttribute("placeholder")).toBe("Ask a question or request a change…");
+      const placeholder = await message.evaluate(element => {
+        const style = getComputedStyle(element, "::placeholder");
+        return { whiteSpace: style.whiteSpace, overflowY: getComputedStyle(element).overflowY };
+      });
+      expect(placeholder).toEqual({ whiteSpace: "nowrap", overflowY: "auto" });
+      const sendBounds = await page.getByRole("button", { name: "Send message", exact: true }).boundingBox();
+      expect(sendBounds?.width).toBe(44);
+      expect(sendBounds?.height).toBe(44);
       const resize = page.getByRole("separator", { name: "Resize chat height" });
       await resize.waitFor();
       const oldHeight = Number(await resize.getAttribute("aria-valuenow"));
@@ -729,6 +738,15 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(Number(await resize.getAttribute("aria-valuenow"))).toBeGreaterThan(oldHeight + 24);
       await page.setViewportSize({ width: 1440, height: 1000 });
       expect(await resize.isVisible()).toBe(false);
+      await page.setViewportSize({ width: 390, height: 812 });
+      await message.fill(Array.from({ length: 20 }, (_, index) => `Line ${index + 1}: Please make this passage clearer for my class.`).join("\n"));
+      expect(await message.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+      await message.press("Control+Home");
+      const initialScroll = await message.evaluate(element => element.scrollTop);
+      await message.hover();
+      await page.mouse.wheel(0, 180);
+      await expect.poll(() => message.evaluate(element => element.scrollTop)).toBeGreaterThan(initialScroll);
+      await message.fill("");
       for (const width of [1440, 375, 320]) {
         await page.setViewportSize({ width, height: 812 });
         expect(
