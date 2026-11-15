@@ -1,0 +1,29 @@
+%% D2b-3: proposal, preview and apply. Node notes: NOTES.md
+flowchart TB
+  subgraph P["Propose"]
+    direction LR
+    PT["proposeTargetedChanges"]
+    PR["proposeRequestedChanges"]
+    V["Validate"]
+    PT & PR --> V
+    V -->|"retry once"| V
+  end
+
+  P --> PREV[/"Preview"/]
+
+  subgraph A["Apply"]
+    direction LR
+    AP["applyTeacherEdits"] --> SV["saveAdventureEdits"]
+    PS["savePauseEdits"]
+  end
+
+  PREV -->|draft| AP
+  PREV -->|"paused pass"| PS
+  A --> DB[("Postgres")]
+
+  classDef actor fill:#eaf2ff,stroke:#8fb0e6
+  classDef llm fill:#fdeeee,stroke:#e3a3a3
+  classDef store fill:#fff6e5,stroke:#e3c27a
+  class PREV actor
+  class PT,PR llm
+  class DB store

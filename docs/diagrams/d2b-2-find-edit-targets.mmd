@@ -1,0 +1,11 @@
+%% D2b-2: findEditTargets decision passes. Node notes: NOTES.md
+flowchart TB
+  IN(["Message + saved draft"]) --> A["Intent pass"]
+  A -->|"< 0.5"| ANS["Reply only"]
+  A -->|"≥ 0.5"| B["Item pass"] --> C["Field pass"] --> OUT(["EditTargets"])
+  A & B & C -.-> DEC["OpenAI<br/>Decisions API"]
+
+  classDef actor fill:#eaf2ff,stroke:#8fb0e6
+  classDef ext fill:#f4effd,stroke:#b9a3e3
+  class IN,OUT actor
+  class DEC ext

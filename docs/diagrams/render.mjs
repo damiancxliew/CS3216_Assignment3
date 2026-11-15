@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Renders docs/diagrams/*.mmd to png/*.png sized for an A4 portrait report.
 // Each diagram is rendered once as SVG to measure its natural size, then as PNG at a
-// scale that makes it about TARGET_WIDTH px wide. The report line printed per diagram is
-// the font size the body text will have when the PNG is placed on an A4 page
-// (190 mm printable width, 277 mm printable height).
+// scale that makes it about TARGET_WIDTH px wide. For each diagram it prints the body text
+// size at the largest width that fits an A4 page (190 x 277 mm printable), and the width at
+// which the text is BODY_PT, so every figure in the report can share one text size.
+// Labels use Inter when it is installed, otherwise Arial.
 // Usage: node docs/diagrams/render.mjs [name ...]
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
@@ -15,6 +16,7 @@ const CLI = "@mermaid-js/mermaid-cli@12.2.0";
 const TARGET_WIDTH = 1600;
 const MAX_SCALE = 2.5;
 const FONT_PX = 16;
+const BODY_PT = 9;
 const A4 = { width: 190, height: 277 };
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -53,9 +55,11 @@ try {
     const out = pngSize(png);
     const printedWidth = Math.min(A4.width, (A4.height * out.width) / out.height);
     const fontPt = ((FONT_PX * scale * printedWidth) / out.width) / 0.3528;
+    const evenWidth = Math.min(printedWidth, (natural.width * BODY_PT * 0.3528) / FONT_PX);
     console.log(
       `${name}: natural ${Math.round(natural.width)}x${Math.round(natural.height)}, png ${out.width}x${out.height}, ` +
-        `A4 width ${printedWidth.toFixed(0)} mm, body text ${fontPt.toFixed(1)} pt${fontPt < 7 ? "  <-- too small" : ""}`,
+        `max A4 width ${printedWidth.toFixed(0)} mm (text ${fontPt.toFixed(1)} pt${fontPt < 7 ? ", too small" : ""}), ` +
+        `${BODY_PT} pt text at ${evenWidth.toFixed(0)} mm`,
     );
   }
 } finally {

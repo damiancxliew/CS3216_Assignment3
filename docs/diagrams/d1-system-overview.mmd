@@ -1,52 +1,50 @@
-%% D1: high-level system architecture (deployment / component level only)
+%% D1: high-level system architecture. Node notes: NOTES.md
 flowchart TB
   subgraph browser["Browser"]
     direction LR
     T["Teacher console"]
-    S["Student play client<br/>chat, notes, documents, map"]
+    S["Student play client"]
   end
 
-  subgraph web["Next.js app (apps/web)"]
+  subgraph web["Next.js app"]
     direction LR
     PAGES["Pages and<br/>server actions"]
-    TURN["Turn API<br/>lib/play/v3/service.ts"]
-    GEN["Generation service<br/>lib/v3/generation/service.ts"]
-    TICK["Job tick route<br/>/api/v3/jobs/tick"]
+    GEN["Generation<br/>service"]
+    TICK["Job tick"]
+    TURN["Turn API"]
   end
 
-  subgraph pkgs["Internal packages (packages/*)"]
-    ENG["engine<br/>pure rules engine"]
-    GP["generation<br/>LLM passes, DecisionClient"]
-    JOBS["jobs<br/>Postgres job queue"]
-    PC["play-contract<br/>Action, GameEvent, PlayerView"]
-    SPEC["spec-v3<br/>adventure schema, checks"]
-    GC["game-core / game-client<br/>map compiler, Phaser map"]
-    ENG ~~~ PC
-    GP ~~~ SPEC
-    JOBS ~~~ GC
+  subgraph pkgs["Internal packages"]
+    direction LR
+    GP["generation"]
+    JOBS["jobs"]
+    ENG["engine"]
+    SHARED["spec-v3<br/>play-contract"]
+    GC["game-core<br/>game-client"]
   end
 
-  DB[("Postgres<br/>app data, job queue,<br/>attempt events")]
-  AUTH["Supabase Auth<br/>Google OAuth"]
-  LLM["LLM providers<br/>text, image, web search"]
-  DEC["OpenAI<br/>Decisions API"]
-  BKT@{ shape: trap-t, label: "Asset storage<br/>bucket (S3)" }
+  subgraph infra["Data and external services"]
+    direction LR
+    LLM["LLM providers"]
+    DEC["OpenAI<br/>Decisions API"]
+    BKT@{ shape: trap-t, label: "Asset bucket" }
+    DB[("Postgres")]
+    AUTH["Supabase Auth"]
+  end
 
-  T -->|HTTPS| PAGES
-  S -->|"JSON actions"| TURN
-  T -.->|sign in| AUTH
-  S -.-> AUTH
-
-  PAGES --> GEN
+  T --> PAGES
+  S --> TURN
+  PAGES --> GEN --> JOBS
+  TICK --> GP
   TURN --> ENG
-  GEN --> JOBS
-  TICK -->|runs queued steps| GP
-  PAGES -->|review chat| GP
-  S -.->|bundles| GC
-
+  GP --> LLM & DEC & BKT
   JOBS --> DB
-  PAGES & TURN --> DB
-  GP --> LLM
-  GP --> DEC
-  ENG -.->|"injected LLM client"| LLM
-  GP -->|images| BKT
+  web --> DB
+  browser -.->|sign in| AUTH
+
+  classDef actor fill:#eaf2ff,stroke:#8fb0e6
+  classDef store fill:#fff6e5,stroke:#e3c27a
+  classDef ext fill:#f4effd,stroke:#b9a3e3
+  class T,S actor
+  class DB,BKT store
+  class AUTH,LLM,DEC ext

@@ -1,38 +1,37 @@
-%% D4: engine.step internals (packages/engine/src/step.ts)
-flowchart TD
-  subgraph R1["1–3a · Prepare"]
+%% D4: engine.step internals. Node notes: NOTES.md
+flowchart TB
+  subgraph PREP["Prepare"]
     direction LR
-    IN(["step(spec, state,<br/>action, deps)"]) --> P["parse action<br/>client Action or<br/>server-only postTurn"]
-    P --> CP["copy state<br/>structuredClone; a refusal<br/>leaves input untouched"]
-    CP --> TIME["time rules first<br/>refreshReadingChecks,<br/>applyTimer (final call)"]
+    IN(["step()"]) --> P["Parse action"] --> CP["Copy state"] --> TIME["Time rules"]
   end
 
-  subgraph R2["3b · Action handler (switch on action.type)"]
-    direction TB
-    subgraph LLMH["Calls the LLM (injected deps.llm)"]
-      MSG["message, insertNote<br/>character reply"]
-      IA["interviewAnswer<br/>interviewer push-back,<br/>closing lines"]
-    end
-    subgraph RULEH["Pure rules"]
-      MOVE["continue, enterRoom,<br/>openDocument, closeDocument,<br/>selectPassage, submitReadingCheck"]
-      MOM["endStage, act, predict<br/>(narration is spec text),<br/>postTurn, tick"]
-    end
-  end
-
-  subgraph R3["4 · Rule loop to a fixpoint"]
+  subgraph H["Action handler"]
     direction LR
-    LOOP["settleTriggers (stance triggers)<br/>→ refreshReadingChecks → refreshActs<br/>→ evaluateStoryEvents → applyTimer"]
-    LOOP -->|"state touched: repeat<br/>(≤ MAX_RULE_ROUNDS = 10)"| LOOP
-    LOOP -->|settled| HINT["evaluateHints"]
+    MSG["message<br/>insertNote"]
+    IA["interviewAnswer"]
+    MOVE["enterRoom<br/>documents"]
+    READ["selectPassage<br/>readingCheck"]
+    MOM["act, predict<br/>endStage"]
+    SYS["postTurn<br/>tick"]
+    MSG ~~~ IA ~~~ MOVE ~~~ READ ~~~ MOM ~~~ SYS
   end
 
-  subgraph R4["5 · Output"]
-    OUT(["{ state, events, view = project(spec, state) }"])
+  subgraph SETTLE["Settle"]
+    direction LR
+    LOOP["Rule loop"] -->|repeat| LOOP
+    LOOP --> HINT["Hints"] --> OUT(["state, events, view"])
   end
 
-  R1 --> R2 --> R3 --> R4
+  PREP --> H --> SETTLE
 
-  classDef llm fill:#ffe9e3,stroke:#c0563b,color:#222
-  classDef pure fill:#e8f5e9,stroke:#4f8a55,color:#222
+  subgraph KEY[" "]
+    direction LR
+    KL["calls the LLM"]:::llm ~~~ KP["pure rules"]:::pure
+  end
+  SETTLE ~~~ KEY
+
+  classDef llm fill:#fdeeee,stroke:#e3a3a3
+  classDef pure fill:#eaf6ee,stroke:#92c6a3
   class MSG,IA llm
-  class MOVE,MOM pure
+  class MOVE,READ,MOM,SYS,P,CP,TIME,LOOP,HINT pure
+  style KEY fill:#ffffff,stroke:#ffffff

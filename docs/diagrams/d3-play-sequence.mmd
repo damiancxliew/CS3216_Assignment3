@@ -1,30 +1,29 @@
-%% D3: one student message through the Turn API (apps/web/src/lib/play/v3/service.ts)
+%% D3: one student message through the Turn API. Step notes: NOTES.md
 sequenceDiagram
   participant C as Student client
-  participant API as Turn API<br/>(postAction)
+  participant API as Turn API
   participant ENG as engine.step
-  participant LLM as LLM provider
+  participant LLM as LLM
   participant DB as Postgres
 
-  C->>API: POST /attempts/:id/actions {revision, message}
-  API->>DB: loadAttempt, permittedAdventure
-  Note over API: rate limit, revision check,<br/>token ceiling
-  API->>ENG: step(spec, state, message)
-  ENG->>LLM: character reply (replyAsCharacter)
-  LLM-->>ENG: reply text
-  ENG-->>API: state, events, view (pendingChecks queued)
-  API->>DB: save state + append GameEvents (revision-guarded)
-  API-->>C: 200 {revision, view, pendingCheckIds}
+  C->>API: POST action
+  API->>DB: load attempt
+  Note over API: safeguards
+  API->>ENG: step(message)
+  ENG->>LLM: character reply
+  LLM-->>ENG: reply
+  ENG-->>API: state, events, view
+  API->>DB: save
+  API-->>C: view, pendingCheckIds
 
-  Note over API,DB: after the response (Next.js after())
-  Note over API: runPostTurnChecks<br/>(pendingCheckIds)
-  API->>LLM: runPostTurnCheck: cheap structured call
-  LLM-->>API: conveyed discoveries, challenged claims, moderation flag
-  API->>ENG: step(spec, state, internal postTurn action)
-  ENG-->>API: state, events (discovery, challenge, flag)
-  API->>DB: save state + events + flags (revision-guarded, up to 3 tries)
+  Note over API,DB: after the response
+  API->>LLM: post-turn check
+  LLM-->>API: findings
+  API->>ENG: step(postTurn)
+  ENG-->>API: events
+  API->>DB: save
 
-  loop while view.pendingCheck
-    C->>API: GET /attempts/:id (refresh with backoff)
-    API-->>C: updated view (new notes)
+  loop check pending
+    C->>API: refresh
+    API-->>C: view
   end
