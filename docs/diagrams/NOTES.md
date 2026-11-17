@@ -46,7 +46,6 @@ Sources: `apps/web/src/lib/v3/generation/steps.ts`, `service.ts`.
 | Teacher review | The review screen where the teacher reads and edits the draft. |
 | Publish | Makes the draft playable; blocked while errors remain. |
 | guided mode pauses after this pass | Passes drawn with a dashed amber border (sources, skeleton, details, endings, reveal). In guided mode the pipeline pauses after each of them so the teacher can review and edit it before continuing. |
-| Review-chat editing (D2b) | Paused guided passes and saved drafts are the bases the review chat edits (see D2b). |
 
 Step dependencies (`STEP_DEPS`): skeleton ← sources; details ← skeleton; endings ← details; reveal ← details, endings; check ← details, endings, reveal; save ← check.
 
@@ -58,13 +57,13 @@ Source: `apps/web/src/app/v3/teacher/[id]/chat-actions.ts`.
 | --- | --- |
 | Teacher message | A message in the review chat, either about a saved draft or about a paused guided pass. |
 | findEditTargetsAction | Server action, saved drafts only. Loads the draft and runs `findEditTargets` to pick the fields to change. |
-| findEditTargets (D2b-2) | Decision passes that choose the target fields (see D2b-2). |
+| findEditTargets | Decision passes that choose the target fields (see D2b-2). |
 | suggestReviewChangeAction | Server action that asks the LLM for a proposal. For drafts it receives the chosen targets; for paused passes it is called directly. |
 | loadReviewChatTarget | `apps/web/src/lib/v3/review-chat/target.ts`. Loads the authoritative base and returns a validator for proposed changes against it. |
 | Saved draft | The current draft spec, loaded through `SupabaseV3PlayStore`. |
 | Paused pass | The output of the paused guided pass, loaded with `requirePause` and `loadPause`. |
 | Postgres | Stores drafts and generation job steps. |
-| Propose and apply (D2b-3) | Proposal, preview and save (see D2b-3). |
+| Propose and apply | Proposal, preview and save (see D2b-3). |
 
 ## D2b-2 · Finding edit targets (`d2b-2-find-edit-targets`)
 

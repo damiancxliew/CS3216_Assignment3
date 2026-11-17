@@ -2,17 +2,15 @@
 flowchart TB
   MSG(["Teacher message"])
   MSG -->|draft| FA["findEditTargetsAction"]
-  FA --> FET[["findEditTargets (D2b-2)"]]
+  FA --> FET["findEditTargets"]
   FET -->|targets| SUG
   MSG -->|"paused pass"| SUG["suggestReviewChangeAction"]
   FA & SUG --> LT["loadReviewChatTarget"]
   LT --> BD["Saved draft"] & BP["Paused pass"]
   BD & BP --- DB[("Postgres")]
-  SUG --> PROP[["Propose and apply (D2b-3)"]]
+  SUG --> PROP["Propose and apply"]
 
   classDef actor fill:#eaf2ff,stroke:#8fb0e6
   classDef store fill:#fff6e5,stroke:#e3c27a
-  classDef xref fill:#ffffff,stroke:#8fb0e6,stroke-dasharray:4 3
   class MSG actor
   class DB,BD,BP store
-  class FET,PROP xref

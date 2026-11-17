@@ -33,16 +33,12 @@ flowchart TB
   subgraph KEY[" "]
     direction LR
     K1["guided mode pauses after this pass"]
-    D2B[["Review-chat editing (D2b)"]]
-    K1 ~~~ D2B
   end
   R4 ~~~ KEY
 
   classDef actor fill:#eaf2ff,stroke:#8fb0e6
-  classDef xref fill:#ffffff,stroke:#8fb0e6,stroke-dasharray:4 3
   class BRIEF,GATE,REV,PUB actor
   classDef guided fill:#fffbea,stroke:#d9b55a,stroke-dasharray:5 3
   class SRC,SK,END,RV,K1 guided
   style DET fill:#fffdf3,stroke:#d9b55a,stroke-dasharray:5 3
-  class D2B xref
   style KEY fill:#ffffff,stroke:#ffffff
