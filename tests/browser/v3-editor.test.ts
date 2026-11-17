@@ -533,12 +533,30 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         await page.getByRole("button", { name: "Send message", exact: true }).click();
       };
       const findCalls = () => page.evaluate(() => (window as any).findTargetCalls ?? 0);
+      const transcript = page.getByRole("region", { name: "Adventure conversation" }).locator("ol");
+      const scrollBox = page.getByRole("region", { name: "Adventure conversation" }).locator("[data-conversation-scroll]");
+      const scrollToLatest = page.locator('button[aria-label="Scroll to latest message"]');
+      const overflowingQuestion = Array.from({ length: 30 }, (_, index) =>
+        `For my students, compare how Percival expresses uncertainty in detail ${index + 1} and explain which wording supports the interpretation.`,
+      ).join(" ") + " What does that suggest about his mood?";
+      await message.fill(overflowingQuestion);
+      await sendChat();
+      await transcript.getByText("Percival sounds steady rather than cheerful.", { exact: true }).waitFor();
+      await expect.poll(() => scrollBox.evaluate(element =>
+        element.scrollHeight > element.clientHeight + 200,
+      )).toBe(true);
+      await expect.poll(() => scrollToLatest.getAttribute("aria-hidden")).toBe("true");
+      await scrollBox.evaluate(element => element.scrollTo({ top: 0 }));
+      await expect.poll(() => scrollToLatest.getAttribute("aria-hidden")).toBe("false");
+      await scrollToLatest.click();
+      await expect.poll(() => scrollBox.evaluate(element =>
+        element.scrollHeight - element.scrollTop - element.clientHeight < 2,
+      )).toBe(true);
+      await expect.poll(() => scrollToLatest.getAttribute("aria-hidden")).toBe("true");
       const initialFindCalls = await findCalls();
       await message.fill("Does Percival sound too cheerful to you?");
       await sendChat();
-      const transcript = page.getByRole("region", { name: "Adventure conversation" }).locator("ol");
       await transcript.getByText("Reading your request…", { exact: true }).waitFor();
-      const scrollBox = page.getByRole("region", { name: "Adventure conversation" }).locator("[data-conversation-scroll]");
       await expect.poll(() => scrollBox.evaluate(element =>
         element.scrollTop + element.clientHeight >= element.scrollHeight - 2,
       )).toBe(true);

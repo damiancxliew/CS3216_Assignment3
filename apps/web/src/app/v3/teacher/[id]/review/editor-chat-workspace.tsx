@@ -3,7 +3,7 @@
 import {
   createContext, useContext, useEffect, useRef, useState, type ReactNode,
 } from "react";
-import { Grip } from "lucide-react";
+import { Grip, X } from "lucide-react";
 import type { BriefStateV3 } from "@/lib/v3/brief/schema";
 import { ReviewChatProvider } from "../review-chat-context";
 import { V3BriefChat } from "../brief-chat";
@@ -58,7 +58,7 @@ export function EditorConversation({ onClose }: { onClose: () => void }) {
     >
       <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
         <h2 className="text-lg font-bold">Edit with chat</h2>
-        <button type="button" onClick={onClose} aria-label="Close chat" className="text-sm text-muted underline underline-offset-4 hover:text-ink">Close</button>
+        <button type="button" onClick={onClose} aria-label="Close chat" className="-mr-1.5 rounded-control p-1.5 text-muted hover:bg-sunken hover:text-ink"><X size={18} aria-hidden /></button>
       </div>
       <V3BriefChat
         initial={conversation.brief}
