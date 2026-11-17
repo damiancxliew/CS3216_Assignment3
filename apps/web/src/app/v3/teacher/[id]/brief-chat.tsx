@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useImperativeHandle, useRef, useState, useTransition, type Ref, type ReactNode } from "react";
 
@@ -47,8 +47,6 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
   const pending = actionPending || stream.streaming || Boolean(uploads?.busy);
   const router = useRouter();
   const endRef = useRef<HTMLDivElement>(null);
-  const scrollBox = useRef<HTMLDivElement>(null);
-  const [awayFromEnd, setAwayFromEnd] = useState(false);
   const composer = useRef<HTMLTextAreaElement>(null);
   const focusRequested = useRef(false);
 
@@ -58,24 +56,6 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [state.messages.length, stream.preview, pending, statusMessage]);
-
-  useEffect(() => {
-    const box = scrollBox.current;
-    if (!box) return;
-    const update = () => setAwayFromEnd(box.scrollHeight - box.scrollTop - box.clientHeight > 80);
-    update();
-    box.addEventListener("scroll", update, { passive: true });
-    const observer = new ResizeObserver(update);
-    observer.observe(box);
-    return () => { box.removeEventListener("scroll", update); observer.disconnect(); };
-  }, []);
-
-  function scrollToEnd() {
-    const box = scrollBox.current;
-    if (!box) return;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    box.scrollTo({ top: box.scrollHeight, behavior: reduced ? "auto" : "smooth" });
-  }
 
   useEffect(() => {
     autoGrow(composer.current, 240);
@@ -136,8 +116,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
     : `${styles.bubble} ${styles.userBubble}`;
   const body = (reviewForm?: ReactNode, reviewAt?: (index: number) => ReactNode) => (
     <div className={`flex min-h-0 flex-1 flex-col ${compact ? "gap-4" : styles.chatBody}`}>
-      <div className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={scrollBox} className={`min-h-0 flex-1 overflow-y-auto [overflow-wrap:anywhere] ${compact ? "px-1 pb-4" : styles.transcript}`} data-conversation-scroll>
+      <div className={`min-h-0 flex-1 overflow-y-auto [overflow-wrap:anywhere] ${compact ? "px-1 pb-4" : styles.transcript}`} data-conversation-scroll>
         <ol className={`flex flex-col ${compact ? "gap-3 text-base" : styles.messages}`} aria-live="polite">
           {[...state.messages, ...(stream.preview as BriefStateV3["messages"])].map((message, index) => {
             const text = visibleReviewText(message);
@@ -168,17 +147,6 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
         </ol>
         {!active && statusMessage ? <div className="mt-4 px-4 py-2 text-center text-sm text-muted" role="status">{statusMessage}</div> : null}
         <div ref={endRef} />
-      </div>
-      <button
-        type="button"
-        aria-label="Scroll to latest message"
-        aria-hidden={!awayFromEnd}
-        tabIndex={awayFromEnd ? 0 : -1}
-        onClick={scrollToEnd}
-        className={`absolute bottom-2 left-1/2 flex size-8 -translate-x-1/2 items-center justify-center rounded-full border border-line bg-surface/95 text-muted shadow-[0_2px_8px_color-mix(in_srgb,var(--shadow)_14%,transparent)] transition-opacity duration-150 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none ${awayFromEnd ? "opacity-100" : "pointer-events-none opacity-0"}`}
-      >
-        <ArrowDown size={16} aria-hidden />
-      </button>
       </div>
 
       <footer className={`flex min-h-0 ${compact ? "shrink flex-col gap-3 pt-3" : `shrink-0 flex-col ${styles.composer} ${sourcesStep ? styles.composerWithActions : ""}`}`}>
