@@ -1,12 +1,12 @@
 %% D2: v3 generation job. Node notes: NOTES.md
 flowchart TB
-  subgraph R1["Research and skeleton"]
+  subgraph R1["Outline"]
     direction LR
     BRIEF(["Brief confirmed"]) --> ENQ["Enqueue"] --> SRC["sources"] --> SK["skeleton"]
     SK -->|repair| SK
   end
 
-  subgraph R2["Review and details"]
+  subgraph R2["Content"]
     direction LR
     GATE{{"Review gate"}}
     subgraph DET["details"]
@@ -16,7 +16,7 @@ flowchart TB
     GATE --> DET
   end
 
-  subgraph R3["Finish"]
+  subgraph R3["Endings and debrief"]
     direction LR
     END["endings"] --> RV["reveal"] --> CHK["check"]
     CHK -->|errors| FR["final repair"] --> SAVE
