@@ -49,7 +49,7 @@ export function ReviewChatComposer({
   const [turns, setTurns] = useState<LocalTurn[]>([]);
   const [collapsed, setCollapsed] = useState<{ anchor: number; text: string } | null>(null);
   const sequence = useRef(0);
-  const end = useRef<HTMLSpanElement>(null);
+  const form = useRef<HTMLFormElement>(null);
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const storageKey = `v3-review-message:${adventureId}`;
@@ -74,7 +74,15 @@ export function ReviewChatComposer({
     setSuggestion(null);
     setReviewOpen(false);
   }, [target?.key, target?.revision]);
-  useEffect(() => { end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [turns, activity, suggestion, collapsed]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const box = form.current?.closest("section")?.querySelector<HTMLElement>("[data-conversation-scroll]");
+      if (!box) return;
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      box.scrollTo({ top: box.scrollHeight, behavior: reduced ? "auto" : "smooth" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [turns, activity, suggestion, collapsed]);
   const upgradeRequest = Boolean(upgrade && (upgrade.active || requestsSchemaUpgrade(text)));
   const targetedDraft = isDraft && !upgradeRequest;
   const canSend = Boolean((upgradeRequest ? !upgrade?.pending : target && !target.pending) && text.trim() && !pending);
@@ -340,12 +348,12 @@ export function ReviewChatComposer({
             <button type="button" aria-label="Retry" disabled={pending} className="rounded-control p-1.5 text-muted hover:bg-sunken hover:text-ink disabled:opacity-50" onClick={() => { setTurns(previous => previous.filter(item => item.id !== turn.id)); void send(turn.text); }}><RotateCcw size={14} aria-hidden /></button>
             <button type="button" aria-label="Edit message" className="rounded-control p-1.5 text-muted hover:bg-sunken hover:text-ink" onClick={() => { setTurns(previous => previous.filter(item => item.id !== turn.id)); setText(previous => previous || turn.text); }}><Pencil size={14} aria-hidden /></button>
           </div> : null}</> : <Thinking label={activity} />}
-        <span ref={end} />
       </li>
     </Fragment>)}
   </>;
   return render(
       <form
+        ref={form}
         onSubmit={(event) => {
           event.preventDefault();
           void send();

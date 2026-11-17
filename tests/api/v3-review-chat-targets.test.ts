@@ -180,18 +180,27 @@ describe("review-chat target discovery", () => {
     expect(client.requests).toHaveLength(2);
   });
 
-  it("force-selects only the top field when none reaches 0.5", async () => {
+  it("returns all unlocked fields of picked items when no field reaches 0.5", async () => {
+    const spec = adventure();
+    const items = editableItems(spec);
+    const fields = items.slice(0, 2).flatMap((item) =>
+      textFields(spec, item.path).filter((field) => !field.locked),
+    );
     const client = new FakeDecisionClient([
       { change: 1 },
-      { i0: 0.9 },
+      Object.fromEntries(items.map((_, index) => [`i${index}`, index < 2 ? 1 : 0])),
       { f0: 0.49, f1: 0.2 },
     ]);
-    const result = await findEditTargets({ decide: client }, { spec: { title: "A story" }, text: "Change the title" });
+    const result = await findEditTargets({ decide: client }, { spec, text: "Change the title" });
 
     expect(result).toMatchObject({
       ok: true,
       intent: "change",
-      targets: [{ score: 0.49, selected: true }],
+      targets: fields.map((field, index) => ({
+        path: field.path,
+        score: index === 0 ? 0.49 : 0.2,
+        selected: true,
+      })),
     });
   });
 
@@ -374,10 +383,77 @@ describe("review-chat target discovery", () => {
     expect(result.targets.map(field => field.path.join("."))).not.toContain("documents.0.body");
   });
 
-  it("does not match name fragments and explains when no unlocked field matches", async () => {
-    const decide = new FakeDecisionClient([]);
+  it("falls through to Decisions when a rename phrase does not match a field", async () => {
+    const decide = new FakeDecisionClient([
+      { change: 1 },
+      { i0: 1 },
+      { f0: 1 },
+    ]);
     const llm: LlmClient = { async completeJson(request) { return { json: { from: "Nadia", to: "Aisha" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } }; } };
-    expect(await findEditTargets({ decide, llm }, { spec: { title: "Nadiaville" }, text: "Replace Nadia with Aisha" })).toEqual({ ok: false, message: 'I couldn\'t find "Nadia" anywhere in the adventure.' });
+    const result = await findEditTargets(
+      { decide, llm },
+      { spec: { title: "Nadiaville" }, text: "Replace Nadia with Aisha" },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      intent: "change",
+      targets: [{ path: ["title"] }],
+    });
+    expect(decide.requests).toHaveLength(3);
+  });
+
+  it("matches a full multiword rename phrase without matching unrelated words", async () => {
+    const spec = adventure({
+      title: "Class note editor",
+      stages: [{ id: "stage-1", title: "Arrival", narration: "A note for the class." }],
+    });
+    const decide = new FakeDecisionClient([{ change: 1 }]);
+    const llm: LlmClient = { async completeJson(request) { return { json: { from: "class note editor", to: "newspaper reporter" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } }; } };
+
+    const result = await findEditTargets({ decide, llm }, {
+      spec,
+      text: "Change class note editor to newspaper reporter",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      intent: "change",
+      targets: [{ path: ["title"] }],
+    });
+    expect(decide.requests).toHaveLength(1);
+  });
+
+  it("skips rename extraction when widening targets", async () => {
+    const spec = adventure();
+    const items = editableItems(spec);
+    const characterIndex = items.findIndex((item) => item.key === "characters.0");
+    const decide = new FakeDecisionClient((request) =>
+      Object.fromEntries(request.questions.map(({ name }) => [
+        name,
+        name === "change" || name === `i${characterIndex}` ? 1 : 0,
+      ])),
+    );
+    let renameExtractionCalled = false;
+    const llm: LlmClient = {
+      async completeJson(request) {
+        renameExtractionCalled = true;
+        return { json: { from: "A harbour story", to: "A new story" }, text: "", refusal: null, model: request.model, latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } };
+      },
+    };
+
+    const result = await findEditTargets({ decide, llm }, {
+      spec,
+      text: "Change the character's voice",
+      wide: true,
+    });
+
+    expect(renameExtractionCalled).toBe(false);
+    expect(decide.requests).toHaveLength(2);
+    expect(result).toMatchObject({ ok: true, intent: "change" });
+    if (!result.ok || result.intent !== "change") return;
+    expect(result.targets.map(({ path }) => path.join("."))).toContain("characters.0.name");
+    expect(result.targets.map(({ path }) => path.join("."))).not.toContain("title");
   });
 
   it("excludes source-bound fields from rename and general discovery and validates the combined rename", async () => {

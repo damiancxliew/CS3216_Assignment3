@@ -157,7 +157,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           import {ImportAdventureJson} from '/src/app/v3/teacher/import-json.tsx';
           if(!localStorage.getItem('spec')) localStorage.setItem('spec',${JSON.stringify(JSON.stringify(spec))});
           const spec=AdventureSpec.parse(JSON.parse(localStorage.getItem('spec'))); localStorage.setItem('spec',JSON.stringify(spec));
-          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><ImportAdventureJson /><EditorChatWorkspace brief={initialBriefStateV3('fixture')}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} isPublic={localStorage.getItem("isPublic")==="true"} sources={spec.sources} capturedSources={[]} assets={{version:Number(localStorage.getItem('version')||1),items:${JSON.stringify(inventory)}.map(asset=>({...asset,url:asset.url?.startsWith('/')?new URL(asset.url,location.origin).href:asset.url}))}} errors={new URLSearchParams(location.search).has('clean')?[]:[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
+          const brief=initialBriefStateV3('fixture');
+          brief.messages=Array.from({length:24},(_,index)=>({role:index%2?'assistant':'user',text:'Earlier review context '.repeat(12)+index,slot:'review'}));
+          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><ImportAdventureJson /><EditorChatWorkspace brief={brief}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} isPublic={localStorage.getItem("isPublic")==="true"} sources={spec.sources} capturedSources={[]} assets={{version:Number(localStorage.getItem('version')||1),items:${JSON.stringify(inventory)}.map(asset=>({...asset,url:asset.url?.startsWith('/')?new URL(asset.url,location.origin).href:asset.url}))}} errors={new URLSearchParams(location.search).has('clean')?[]:[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
         `,
                   "editor.tsx",
                   { loader: "tsx", jsx: "automatic" },
@@ -534,6 +536,18 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await sendChat();
       const transcript = page.getByRole("region", { name: "Adventure conversation" }).locator("ol");
       await transcript.getByText("Reading your request…", { exact: true }).waitFor();
+      const scrollBox = page.getByRole("region", { name: "Adventure conversation" }).locator("[data-conversation-scroll]");
+      await expect.poll(() => scrollBox.evaluate(element =>
+        element.scrollTop + element.clientHeight >= element.scrollHeight - 2,
+      )).toBe(true);
+      const assistantBounds = await transcript.locator("[data-review-assistant]").last().boundingBox();
+      const scrollBounds = await scrollBox.boundingBox();
+      expect(assistantBounds).not.toBeNull();
+      expect(scrollBounds).not.toBeNull();
+      expect(assistantBounds!.x).toBeGreaterThanOrEqual(scrollBounds!.x);
+      expect(assistantBounds!.x + assistantBounds!.width).toBeLessThanOrEqual(scrollBounds!.x + scrollBounds!.width);
+      expect(assistantBounds!.y).toBeGreaterThanOrEqual(scrollBounds!.y);
+      expect(assistantBounds!.y + assistantBounds!.height).toBeLessThanOrEqual(scrollBounds!.y + scrollBounds!.height);
       expect(await message.inputValue()).toBe("");
       expect(await message.isEnabled()).toBe(true);
       expect(await transcript.getByText("Does Percival sound too cheerful to you?", { exact: true }).count()).toBe(1);
