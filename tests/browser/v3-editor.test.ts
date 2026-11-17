@@ -334,8 +334,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       for (const width of [1024, 768, 375, 320]) {
         await page.setViewportSize({ width, height: 812 });
         const chat = await page.getByRole("region", { name: "Adventure conversation" }).boundingBox();
-        const index = await page.getByRole("navigation", { name: "Characters items" }).boundingBox();
-        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
+        expect(chat!.height).toBeGreaterThanOrEqual(400);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       }
       await page.setViewportSize({ width: 1440, height: 1000 });
@@ -513,8 +512,11 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         ),
       ).toBe("A saved teacher title");
       // Closing chat preserves the local draft and restores space to the index.
-      for (const width of [1440, 375]) {
-        await page.setViewportSize({ width, height: 1000 });
+      for (const viewport of [
+        { width: 1440, height: 1000 },
+        { width: 390, height: 844 },
+      ]) {
+        await page.setViewportSize(viewport);
         await page.getByRole("button", { name: "Close chat", exact: true }).click();
         expect(await page.getByRole("region", { name: "Adventure conversation" }).count()).toBe(0);
         expect(await page.locator("#edit-title").inputValue()).toBe("Suggested teacher title");
@@ -594,6 +596,17 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       ]) {
         expect(await suggestionCard.getByRole("button", { name: label }).count()).toBe(1);
       }
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect.poll(() => scrollBox.evaluate(element => element.clientHeight))
+        .toBeGreaterThanOrEqual(200);
+      const mobileCardBounds = await suggestionCard.boundingBox();
+      const mobileScrollBounds = await scrollBox.boundingBox();
+      expect(mobileCardBounds).not.toBeNull();
+      expect(mobileScrollBounds).not.toBeNull();
+      expect(mobileCardBounds!.y).toBeGreaterThanOrEqual(mobileScrollBounds!.y);
+      expect(mobileCardBounds!.y).toBeLessThanOrEqual(
+        mobileScrollBounds!.y + mobileScrollBounds!.height,
+      );
       await page.setViewportSize({ width: 1440, height: 720 });
       await page.getByRole("tablist").evaluate((element) =>
         element.scrollIntoView({ block: "start", behavior: "instant" }),
@@ -744,6 +757,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await resize.focus();
       await page.keyboard.press("ArrowDown");
       expect(Number(await resize.getAttribute("aria-valuenow"))).toBe(oldHeight + 24);
+      await page.keyboard.press("ArrowDown");
+      expect(Number(await resize.getAttribute("aria-valuenow"))).toBe(oldHeight + 48);
+      await resize.scrollIntoViewIfNeeded();
       const grip = await resize.boundingBox();
       await page.mouse.move(grip!.x + 10, grip!.y + 10);
       await page.mouse.down();

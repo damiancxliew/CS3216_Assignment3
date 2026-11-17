@@ -35,6 +35,7 @@ export function EditorConversation({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const query = window.matchMedia("(max-width: 1279px)");
     const update = () => setNarrow(query.matches);
+    setHeight(Math.round(Math.min(440, window.innerHeight * 0.6)));
     update();
     query.addEventListener("change", update);
     try {

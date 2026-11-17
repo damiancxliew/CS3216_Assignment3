@@ -15,7 +15,7 @@ import { canAccessV3Authoring } from "@/lib/v3/access";
 import { briefStateV3Schema, initialBriefStateV3 } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { withDecisionUsage, withJsonUsage } from "@/lib/usage/ledger";
-import type { V3Edit } from "@/lib/v3/edit/commands";
+import { atPath, type V3Edit } from "@/lib/v3/edit/commands";
 import {
   answerReviewQuestion,
   fakeReviewQuestionAnswerer,
@@ -38,9 +38,11 @@ import {
 } from "@/lib/v3/review-chat/locate";
 import {
   editableItems,
+  pathLabel,
   textFields,
   type Path,
 } from "@/lib/v3/review-chat/outline";
+import { withChangeLog } from "@/lib/v3/review-chat/history";
 
 const failure = (message: string): ReviewChatResult => ({ ok: false, message });
 const selectedTargetsSchema = z.array(
@@ -229,6 +231,24 @@ export async function suggestReviewChangeAction(
     return failure(
       "The conversation changed while I was working. Reload before trying again.",
     );
+  const assistantText = changes.length
+    ? withChangeLog(notes, changes.flatMap((change, index) => {
+        if (change.type !== "set" || typeof change.value !== "string") return [];
+        let before: unknown;
+        try {
+          before = atPath(current, change.path);
+        } catch {
+          return [];
+        }
+        if (typeof before !== "string") return [];
+        return [{
+          label: groups?.find(group => group.edits.includes(index))?.label ??
+            pathLabel(change.path),
+          before,
+          after: change.value,
+        }];
+      }))
+    : notes;
   const next = briefStateV3Schema.parse({
     ...state,
     messages: [
@@ -238,7 +258,7 @@ export async function suggestReviewChangeAction(
         text: text.data,
         slot: "review",
       },
-      { role: "assistant", text: notes, slot: "review" },
+      { role: "assistant", text: assistantText, slot: "review" },
     ],
   });
   // Compare-and-swap prevents two chat tabs from overwriting each other's messages.

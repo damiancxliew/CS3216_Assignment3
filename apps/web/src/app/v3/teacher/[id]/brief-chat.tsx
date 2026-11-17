@@ -18,6 +18,7 @@ import { createFromV3Brief, discardV3Brief } from "../actions";
 import { ReviewChatComposer } from "./review-chat-composer";
 import { ChatSendButton } from "./chat-send-button";
 import { SourceUpload } from "./source-upload";
+import { visibleReviewText } from "@/lib/v3/review-chat/history";
 import type { BriefUploads } from "./use-brief-uploads";
 import styles from "./creation-workspace.module.css";
 
@@ -118,12 +119,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
       <div className={`min-h-0 flex-1 overflow-y-auto [overflow-wrap:anywhere] ${compact ? "px-1 pb-4" : styles.transcript}`} data-conversation-scroll>
         <ol className={`flex flex-col ${compact ? "gap-3 text-base" : styles.messages}`} aria-live="polite">
           {[...state.messages, ...(stream.preview as BriefStateV3["messages"])].map((message, index) => {
-            const targetSuffixIndex = message.role === "user"
-              ? message.text.lastIndexOf("\n\nTargets: ")
-              : -1;
-            const text = targetSuffixIndex >= 0
-              ? message.text.slice(0, targetSuffixIndex)
-              : message.text;
+            const text = visibleReviewText(message);
             return (
               <Fragment key={index}>
               {reviewAt?.(index)}
