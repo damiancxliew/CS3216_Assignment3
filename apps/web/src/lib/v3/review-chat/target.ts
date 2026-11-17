@@ -73,6 +73,7 @@ export async function loadReviewChatTarget(
     }
     roots = [
       "title",
+      "role",
       "stages",
       "characters",
       "documents",

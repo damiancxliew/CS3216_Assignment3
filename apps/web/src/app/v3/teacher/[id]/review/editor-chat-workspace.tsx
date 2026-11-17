@@ -63,6 +63,7 @@ export function EditorConversation({ onClose }: { onClose: () => void }) {
       <V3BriefChat
         initial={conversation.brief}
         active={false}
+        reviewOnly
         onStateChange={conversation.update}
       />
       <div
