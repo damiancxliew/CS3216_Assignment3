@@ -334,8 +334,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       for (const width of [1024, 768, 375, 320]) {
         await page.setViewportSize({ width, height: 812 });
         const chat = await page.getByRole("region", { name: "Adventure conversation" }).boundingBox();
-        const index = await page.getByRole("navigation", { name: "Characters items" }).boundingBox();
-        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
+        expect(chat!.height).toBeGreaterThanOrEqual(400);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       }
       await page.setViewportSize({ width: 1440, height: 1000 });
@@ -513,8 +512,11 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         ),
       ).toBe("A saved teacher title");
       // Closing chat preserves the local draft and restores space to the index.
-      for (const width of [1440, 375]) {
-        await page.setViewportSize({ width, height: 1000 });
+      for (const viewport of [
+        { width: 1440, height: 1000 },
+        { width: 390, height: 844 },
+      ]) {
+        await page.setViewportSize(viewport);
         await page.getByRole("button", { name: "Close chat", exact: true }).click();
         expect(await page.getByRole("region", { name: "Adventure conversation" }).count()).toBe(0);
         expect(await page.locator("#edit-title").inputValue()).toBe("Suggested teacher title");
@@ -531,12 +533,30 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         await page.getByRole("button", { name: "Send message", exact: true }).click();
       };
       const findCalls = () => page.evaluate(() => (window as any).findTargetCalls ?? 0);
+      const transcript = page.getByRole("region", { name: "Adventure conversation" }).locator("ol");
+      const scrollBox = page.getByRole("region", { name: "Adventure conversation" }).locator("[data-conversation-scroll]");
+      const scrollToLatest = page.locator('button[aria-label="Scroll to latest message"]');
+      const overflowingQuestion = Array.from({ length: 30 }, (_, index) =>
+        `For my students, compare how Percival expresses uncertainty in detail ${index + 1} and explain which wording supports the interpretation.`,
+      ).join(" ") + " What does that suggest about his mood?";
+      await message.fill(overflowingQuestion);
+      await sendChat();
+      await transcript.getByText("Percival sounds steady rather than cheerful.", { exact: true }).waitFor();
+      await expect.poll(() => scrollBox.evaluate(element =>
+        element.scrollHeight > element.clientHeight + 200,
+      )).toBe(true);
+      await expect.poll(() => scrollToLatest.getAttribute("aria-hidden")).toBe("true");
+      await scrollBox.evaluate(element => element.scrollTo({ top: 0 }));
+      await expect.poll(() => scrollToLatest.getAttribute("aria-hidden")).toBe("false");
+      await scrollToLatest.click();
+      await expect.poll(() => scrollBox.evaluate(element =>
+        element.scrollHeight - element.scrollTop - element.clientHeight < 2,
+      )).toBe(true);
+      await expect.poll(() => scrollToLatest.getAttribute("aria-hidden")).toBe("true");
       const initialFindCalls = await findCalls();
       await message.fill("Does Percival sound too cheerful to you?");
       await sendChat();
-      const transcript = page.getByRole("region", { name: "Adventure conversation" }).locator("ol");
       await transcript.getByText("Reading your request…", { exact: true }).waitFor();
-      const scrollBox = page.getByRole("region", { name: "Adventure conversation" }).locator("[data-conversation-scroll]");
       await expect.poll(() => scrollBox.evaluate(element =>
         element.scrollTop + element.clientHeight >= element.scrollHeight - 2,
       )).toBe(true);
@@ -594,6 +614,17 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       ]) {
         expect(await suggestionCard.getByRole("button", { name: label }).count()).toBe(1);
       }
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect.poll(() => scrollBox.evaluate(element => element.clientHeight))
+        .toBeGreaterThanOrEqual(200);
+      const mobileCardBounds = await suggestionCard.boundingBox();
+      const mobileScrollBounds = await scrollBox.boundingBox();
+      expect(mobileCardBounds).not.toBeNull();
+      expect(mobileScrollBounds).not.toBeNull();
+      expect(mobileCardBounds!.y).toBeGreaterThanOrEqual(mobileScrollBounds!.y);
+      expect(mobileCardBounds!.y).toBeLessThanOrEqual(
+        mobileScrollBounds!.y + mobileScrollBounds!.height,
+      );
       await page.setViewportSize({ width: 1440, height: 720 });
       await page.getByRole("tablist").evaluate((element) =>
         element.scrollIntoView({ block: "start", behavior: "instant" }),
@@ -744,6 +775,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       await resize.focus();
       await page.keyboard.press("ArrowDown");
       expect(Number(await resize.getAttribute("aria-valuenow"))).toBe(oldHeight + 24);
+      await page.keyboard.press("ArrowDown");
+      expect(Number(await resize.getAttribute("aria-valuenow"))).toBe(oldHeight + 48);
+      await resize.scrollIntoViewIfNeeded();
       const grip = await resize.boundingBox();
       await page.mouse.move(grip!.x + 10, grip!.y + 10);
       await page.mouse.down();

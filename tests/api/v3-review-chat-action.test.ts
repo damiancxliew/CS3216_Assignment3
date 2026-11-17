@@ -315,6 +315,60 @@ describe("review chat access and persistence", () => {
     });
   });
 
+  it("stores prior values and passes them into later target discovery", async () => {
+    harness.row!.status = "draft";
+    const previousTitle = (JSON.parse(
+      readFileSync("fixtures/golden-1819.json", "utf8"),
+    ) as { title: string }).title;
+    const nextTitle = "Newspaper reporter (fictional character)";
+    harness.completeJson.mockImplementation(async (request) => {
+      const target = (JSON.parse(request.user) as {
+        targets: { id: string; label: string }[];
+      }).targets.find(({ label }) => label === "Adventure title");
+      return {
+        json: {
+          notes: "Changed the adventure title.",
+          changes: [{ target: target!.id, text: nextTitle }],
+          passages: [],
+        },
+      };
+    });
+
+    const first = await suggestReviewChangeAction(
+      id,
+      draftInput,
+      "Change the title",
+      [["title"]],
+    );
+
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const assistantText = `Changed the adventure title.\n\nChanges (before → after):\n- Adventure title: "${previousTitle}" → "${nextTitle}"`;
+    expect(first.state.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      text: assistantText,
+      slot: "review",
+    });
+
+    harness.row!.state = first.state;
+    const decide = vi.spyOn(FakeDecisionClient.prototype, "decide");
+    try {
+      await findEditTargetsAction(id, draftInput, "Change it back");
+      const historyText = decide.mock.calls.flatMap(([request]) =>
+        (request.input as {
+          content: { type: string; text?: string }[];
+        }[]).flatMap(({ content }) =>
+          content.map(({ text }) => text ?? ""),
+        ),
+      ).join("\n");
+      expect(historyText).toContain(
+        `Assistant: ${assistantText.replace(/\r?\n/g, " ")}`,
+      );
+    } finally {
+      decide.mockRestore();
+    }
+  });
+
   it("widens a zero-change targeted result and writes again for different targets", async () => {
     harness.row!.status = "draft";
     const decide = vi.spyOn(FakeDecisionClient.prototype, "decide").mockImplementation(async request => ({

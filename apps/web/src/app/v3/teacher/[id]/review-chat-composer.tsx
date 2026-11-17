@@ -79,7 +79,18 @@ export function ReviewChatComposer({
       const box = form.current?.closest("section")?.querySelector<HTMLElement>("[data-conversation-scroll]");
       if (!box) return;
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      box.scrollTo({ top: box.scrollHeight, behavior: reduced ? "auto" : "smooth" });
+      const newest = box.querySelector<HTMLElement>("[data-review-suggestion]");
+      const bottom = box.scrollHeight - box.clientHeight;
+      const top = newest
+        ? Math.min(
+            bottom,
+            newest.getBoundingClientRect().top -
+              box.getBoundingClientRect().top +
+              box.scrollTop -
+              8,
+          )
+        : bottom;
+      box.scrollTo({ top, behavior: reduced ? "auto" : "smooth" });
     });
     return () => cancelAnimationFrame(frame);
   }, [turns, activity, suggestion, collapsed]);
@@ -244,6 +255,7 @@ export function ReviewChatComposer({
   const card = valid ? (
         <section
           aria-label="Suggested changes"
+          data-review-suggestion
           className="flex min-h-0 flex-col overflow-hidden text-sm"
         >
           <header className="flex items-center gap-2 px-3 py-2">
