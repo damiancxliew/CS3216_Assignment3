@@ -79,9 +79,7 @@ export function ReviewChatComposer({
       const box = form.current?.closest("section")?.querySelector<HTMLElement>("[data-conversation-scroll]");
       if (!box) return;
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const suggestion = box.querySelector<HTMLElement>("[data-review-suggestion]");
-      const assistants = box.querySelectorAll<HTMLElement>("[data-review-assistant]");
-      const newest = suggestion ?? assistants.item(assistants.length - 1);
+      const newest = box.querySelector<HTMLElement>("[data-review-suggestion]");
       const bottom = box.scrollHeight - box.clientHeight;
       const top = newest
         ? Math.min(
