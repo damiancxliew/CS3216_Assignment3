@@ -30,9 +30,9 @@ export type BriefChatActions = { change(slot: string): void; create(): void; dis
  * current slot allows; afterwards it is the review chat composer. State lives
  * on the server; each turn posts the input and renders the state that comes back.
  */
-export function V3BriefChat({ initial, active = true, statusMessage, generating = false, reviewIdleHint, onStateChange, onGenerationStart, onGenerationError, compact = false, controlledState, uploads, actionsRef, onBusyChange }: {
+export function V3BriefChat({ initial, active = true, statusMessage, generating = false, reviewIdleHint, onStateChange, onGenerationStart, onGenerationError, compact = false, reviewOnly = false, controlledState, uploads, actionsRef, onBusyChange }: {
   controlledState?: BriefStateV3; uploads?: BriefUploads; actionsRef?: Ref<BriefChatActions>; onBusyChange?: (busy: boolean) => void;
-  compact?: boolean; initial: BriefStateV3; active?: boolean; statusMessage?: string; generating?: boolean; reviewIdleHint?: string;
+  compact?: boolean; reviewOnly?: boolean; initial: BriefStateV3; active?: boolean; statusMessage?: string; generating?: boolean; reviewIdleHint?: string;
   onStateChange?: (state: BriefStateV3) => void; onGenerationStart?: () => void; onGenerationError?: () => void;
 }) {
   const [localState, setState] = useState<BriefStateV3>(initial);
@@ -144,7 +144,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
             return (
               <Fragment key={index}>
               {reviewAt?.(index)}
-              <li
+              {reviewOnly && message.slot !== "review" ? null : <li
                 className={compact
                   ? message.role === "user"
                     ? "ml-8 self-end rounded-surface rounded-br-sm bg-record-wash px-3 py-2 text-ink"
@@ -155,7 +155,7 @@ export function V3BriefChat({ initial, active = true, statusMessage, generating 
                 {message.role === "assistant" && message.proposedText ? (
                   <p className="mt-3 border-l-2 border-line-strong pl-3 font-semibold">{message.proposedText}</p>
                 ) : null}
-              </li>
+              </li>}
               </Fragment>
             );
           })}

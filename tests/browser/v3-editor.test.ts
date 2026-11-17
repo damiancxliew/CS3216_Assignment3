@@ -524,6 +524,12 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         await page.getByRole("region", { name: "Adventure conversation" }).waitFor();
       }
       await page.setViewportSize({ width: 1440, height: 1000 });
+      expect(
+        await page
+          .getByRole("region", { name: "Adventure conversation" })
+          .getByText(/Let.s start with the material/)
+          .count(),
+      ).toBe(0);
       // Chat uses the same local draft and leaves saving/publishing explicit.
       const message = page.getByRole("textbox", {
         name: "Message",

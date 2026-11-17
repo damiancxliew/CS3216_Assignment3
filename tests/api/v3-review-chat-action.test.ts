@@ -466,6 +466,39 @@ describe("review chat access and persistence", () => {
     decide.mockRestore();
   });
 
+  it("targets and validates player-role text on the draft pass", async () => {
+    harness.row!.status = "draft";
+    const spec = JSON.parse(
+      readFileSync("fixtures/golden-1819.json", "utf8"),
+    ) as { role: { position: string } };
+    harness.spec = spec;
+    const before = spec.role.position;
+    const after = `${before} (a little older)`;
+    harness.completeJson.mockResolvedValue({
+      json: {
+        notes: "I updated the player character.",
+        changes: [{ target: "t0", text: after }],
+        passages: [],
+      },
+    });
+
+    const result = await suggestReviewChangeAction(
+      id,
+      draftInput,
+      "Make the player character a little older",
+      [["role", "position"]],
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      preview: [{ before, after }],
+      proposal: {
+        pass: "draft",
+        edits: [{ type: "set", path: ["role", "position"], value: after }],
+      },
+    });
+  });
+
   it("returns a plain failure without persisting when wider writing is still insufficient", async () => {
     harness.row!.status = "draft";
     harness.completeJson.mockResolvedValue({ json: { insufficient: true, notes: "Cannot revise this entry", changes: [], passages: [] } });

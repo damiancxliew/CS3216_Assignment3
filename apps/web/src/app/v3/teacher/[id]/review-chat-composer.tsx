@@ -11,7 +11,7 @@ import {
 import { useReviewChat } from "./review-chat-context";
 import { ChatSendButton } from "./chat-send-button";
 import { DiffText, ReviewChangesDialog } from "./review-changes-dialog";
-import { wordDiff } from "@/lib/v3/review-chat/word-diff";
+import { condenseDiff, wordDiff } from "@/lib/v3/review-chat/word-diff";
 import { requestsSchemaUpgrade } from "@/lib/v3/review-chat/upgrade-intent";
 
 type Suggestion = Extract<ReviewChatResult, { ok: true }> & {
@@ -261,7 +261,7 @@ export function ReviewChatComposer({
           <header className="flex items-center gap-2 px-3 py-2">
             <div className="flex min-w-0 flex-1 items-baseline gap-1">
               <h3 className="font-semibold">Suggested changes</h3>
-              <span className="text-xs text-muted">· {groups.length} fields</span>
+              <span className="text-xs text-muted">· {groups.length} {groups.length === 1 ? "field" : "fields"}</span>
             </div>
             <button
               type="button"
@@ -305,7 +305,7 @@ export function ReviewChatComposer({
                   {group.preview.map((previewIndex) => {
                     const change = valid.preview[previewIndex];
                     if (!change) return null;
-                    const parts = wordDiff(change.before, change.after);
+                    const parts = condenseDiff(wordDiff(change.before, change.after));
                     return (
                       <div
                         key={`${previewIndex}-${change.label}`}
@@ -318,7 +318,7 @@ export function ReviewChatComposer({
                           <DiffText
                             parts={parts}
                             mode="current"
-                            className="line-clamp-4 whitespace-pre-wrap leading-relaxed"
+                            className="line-clamp-6 whitespace-pre-wrap leading-relaxed"
                           />
                         </div>
                         <div className="space-y-1">
@@ -328,7 +328,7 @@ export function ReviewChatComposer({
                           <DiffText
                             parts={parts}
                             mode="suggested"
-                            className="line-clamp-4 whitespace-pre-wrap leading-relaxed"
+                            className="line-clamp-6 whitespace-pre-wrap leading-relaxed"
                           />
                         </div>
                       </div>

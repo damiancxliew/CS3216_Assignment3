@@ -96,6 +96,33 @@ describe("review-chat target outline", () => {
     expect(items.find(({ key }) => key === "characters.0")?.preview).toContain("I have little strength left.");
   });
 
+  it("includes the player character and its editable role text", () => {
+    const spec = adventure({
+      role: {
+        name: "Mei Ling",
+        position: "14-year-old daughter of a provision-shop family in Chinatown",
+      },
+    });
+    const items = editableItems(spec);
+    const role = items.find(({ key }) => key === "role");
+
+    expect(role).toMatchObject({
+      path: ["role"],
+      label: "Player character: Mei Ling",
+    });
+    expect(items.findIndex(({ key }) => key === "role")).toBe(
+      items.findIndex(({ key }) => key === "reveal") + 1,
+    );
+    expect(textFields(spec, ["role"]).map(({ path }) => path.join("."))).toContain(
+      "role.position",
+    );
+    expect(
+      editableItems(adventure({ role: { position: "A student" } })).find(
+        ({ key }) => key === "role",
+      )?.label,
+    ).toBe("Player character");
+  });
+
   it("excludes protected leaves and returns real document bodies as locked fields", () => {
     const spec = adventure();
     const documentFields = textFields(spec, ["documents", 0]);

@@ -57,7 +57,7 @@ export function ReviewChangesDialog({
         <h2 id="review-changes-title" className="font-semibold">
           Review suggested changes
         </h2>
-        <span className="text-sm text-muted">· {displayGroups.length} fields</span>
+        <span className="text-sm text-muted">· {displayGroups.length} {displayGroups.length === 1 ? "field" : "fields"}</span>
         <button
           ref={closeButton}
           type="button"

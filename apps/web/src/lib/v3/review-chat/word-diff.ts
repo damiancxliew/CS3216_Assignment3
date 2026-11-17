@@ -1,5 +1,49 @@
 export type DiffPart = { type: "same" | "removed" | "added"; text: string };
 
+export function condenseDiff(parts: DiffPart[], context = 8): DiffPart[] {
+  const firstChange = parts.findIndex(({ type }) => type !== "same");
+  if (firstChange === -1) return parts;
+  let lastChange = parts.length - 1;
+  while (parts[lastChange]?.type === "same") lastChange--;
+
+  const wordsToKeep = Math.max(0, Math.floor(context));
+  return parts.map((part, index) => {
+    if (part.type !== "same") return part;
+    const tokens = part.text.split(/(\s+)/).filter(Boolean);
+    const wordIndexes = tokens.flatMap((token, tokenIndex) =>
+      /\S/.test(token) ? [tokenIndex] : [],
+    );
+    if (index < firstChange && wordIndexes.length > wordsToKeep) {
+      if (wordsToKeep === 0) return { ...part, text: "…" };
+      let start = wordIndexes[wordIndexes.length - wordsToKeep]!;
+      if (start > 0 && /^\s+$/.test(tokens[start - 1]!)) start--;
+      const kept = tokens.slice(start).join("");
+      return {
+        ...part,
+        text: `…${/^\s/.test(kept) ? "" : " "}${kept}`,
+      };
+    }
+    if (index > lastChange && wordIndexes.length > wordsToKeep) {
+      if (wordsToKeep === 0) return { ...part, text: "…" };
+      const end = wordIndexes[wordsToKeep - 1]! + 1;
+      return { ...part, text: `${tokens.slice(0, end).join("")}…` };
+    }
+    if (
+      index > firstChange &&
+      index < lastChange &&
+      wordIndexes.length > wordsToKeep * 2
+    ) {
+      if (wordsToKeep === 0) return { ...part, text: " … " };
+      const firstEnd = wordIndexes[wordsToKeep - 1]! + 1;
+      const lastStart = wordIndexes[wordIndexes.length - wordsToKeep]!;
+      const first = tokens.slice(0, firstEnd).join("").trimEnd();
+      const last = tokens.slice(lastStart).join("").trimStart();
+      return { ...part, text: `${first} … ${last}` };
+    }
+    return part;
+  });
+}
+
 export function wordDiff(before: string, after: string): DiffPart[] {
   const a = before.split(/(\s+)/).filter(Boolean);
   const b = after.split(/(\s+)/).filter(Boolean);

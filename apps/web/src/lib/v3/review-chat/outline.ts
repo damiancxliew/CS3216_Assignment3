@@ -240,6 +240,16 @@ export function editableItems(spec: unknown): EditableItem[] {
       preview: preview(spec, spec.reveal, path),
     })
   }
+  if (isRecord(spec.role)) {
+    const path: Path = ['role']
+    const name = typeof spec.role.name === 'string' ? spec.role.name : ''
+    items.push({
+      key: path.join('.'),
+      path,
+      label: name.trim() ? `Player character: ${name}` : 'Player character',
+      preview: preview(spec, spec.role, path),
+    })
+  }
   for (const [collection, kind] of collections) {
     const values = spec[collection]
     if (!Array.isArray(values)) continue
