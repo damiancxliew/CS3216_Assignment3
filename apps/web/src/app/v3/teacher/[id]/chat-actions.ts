@@ -178,14 +178,23 @@ export async function suggestReviewChangeAction(
           validate,
         },
       );
-      if (!result.ok && result.widen) {
+      const shouldWiden = !result.ok ? result.widen : result.changes.length === 0;
+      if (shouldWiden) {
         const decide = process.env.V3_FAKE_PASSES && process.env.NODE_ENV !== "production"
           ? fakeDecisionClient()
           : withDecisionUsage(new OpenAiDecisionClient(), { purpose: "generation", adventureV3Id: adventureId, organizationId: row.schoolId, userId: user.id });
         const wider = await findEditTargets({ decide }, { spec: current, text: text.data, history, wide: true });
         if (!wider.ok || wider.intent !== "change") return failure("I couldn't make that change. Try naming the stage, character or document.");
-        result = await proposeTargetedChanges({ llm }, { text: text.data, current, targets: wider.targets.map(field => field.path), history, validate });
-        if (!result.ok && result.widen) return failure("I couldn't make that change. Try naming the stage, character or document.");
+        const originalPaths = new Set(targets.map(path => JSON.stringify(path)));
+        const widerPaths = new Set(wider.targets.map(({ path }) => JSON.stringify(path)));
+        const sameTargets = originalPaths.size === widerPaths.size &&
+          [...originalPaths].every(path => widerPaths.has(path));
+        if (sameTargets) {
+          if (!result.ok) return failure("I couldn't make that change. Try naming the stage, character or document.");
+        } else {
+          result = await proposeTargetedChanges({ llm }, { text: text.data, current, targets: wider.targets.map(field => field.path), history, validate });
+          if (!result.ok && result.widen) return failure("I couldn't make that change. Try naming the stage, character or document.");
+        }
       }
     } else {
       result = await proposeRequestedChanges(

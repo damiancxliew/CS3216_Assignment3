@@ -315,6 +315,88 @@ describe("review chat access and persistence", () => {
     });
   });
 
+  it("widens a zero-change targeted result and writes again for different targets", async () => {
+    harness.row!.status = "draft";
+    const decide = vi.spyOn(FakeDecisionClient.prototype, "decide").mockImplementation(async request => ({
+      probabilities: Object.fromEntries(request.questions.map(({ name }) => [
+        name,
+        name === "change" || name === "i0" ? 1 : 0,
+      ])),
+      model: "fake",
+      latencyMs: 0,
+      usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 },
+    }));
+    harness.completeJson.mockResolvedValueOnce({
+      json: { notes: "No changes needed.", changes: [], passages: [] },
+    });
+    harness.completeJson.mockImplementation(async request => {
+      const targets = JSON.parse(request.user).targets as { id: string; label: string }[];
+      const title = targets.find(({ label }) => label === "Adventure title");
+      return {
+        json: {
+          notes: "I revised the title.",
+          changes: [{ target: title!.id, text: "A revised title" }],
+          passages: [],
+        },
+      };
+    });
+
+    try {
+      const result = await suggestReviewChangeAction(
+        id,
+        draftInput,
+        "Change the title back",
+        [["stages", 0, "openingNarration"]],
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        preview: [expect.objectContaining({ after: "A revised title" })],
+      });
+      expect(harness.completeJson).toHaveBeenCalledTimes(2);
+      expect(decide).toHaveBeenCalledTimes(2);
+      expect(harness.update).toHaveBeenCalledTimes(1);
+    } finally {
+      decide.mockRestore();
+    }
+  });
+
+  it("does not write again when zero-change widening finds the same targets", async () => {
+    harness.row!.status = "draft";
+    const decide = vi.spyOn(FakeDecisionClient.prototype, "decide").mockImplementation(async request => ({
+      probabilities: Object.fromEntries(request.questions.map(({ name }) => [
+        name,
+        name === "change" || name === "i0" ? 1 : 0,
+      ])),
+      model: "fake",
+      latencyMs: 0,
+      usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 },
+    }));
+    harness.completeJson.mockResolvedValue({
+      json: { notes: "No changes needed.", changes: [], passages: [] },
+    });
+
+    try {
+      const result = await suggestReviewChangeAction(
+        id,
+        draftInput,
+        "Change the title back",
+        [["title"]],
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        notes: "No changes needed.",
+        proposal: null,
+      });
+      expect(harness.completeJson).toHaveBeenCalledTimes(1);
+      expect(decide).toHaveBeenCalledTimes(2);
+      expect(harness.update).toHaveBeenCalledTimes(1);
+    } finally {
+      decide.mockRestore();
+    }
+  });
+
   it("widens field discovery and writes once more when the first writer cannot complete the change", async () => {
     harness.row!.status = "draft";
     const decide = vi.spyOn(FakeDecisionClient.prototype, "decide").mockImplementation(async request => ({ probabilities: Object.fromEntries(request.questions.map(({ name }) => [name, name === "change" || name === "i0" ? 1 : 0])), model: "fake", latencyMs: 0, usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 } }));
