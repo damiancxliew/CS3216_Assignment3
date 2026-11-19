@@ -179,7 +179,7 @@ export function EditorWorkspace(props: Props) {
                 </div>
                 {dirty ? (
                   <span className="text-sm">
-                    Unsaved edits. Save before previewing, transferring or publishing.
+                    {browserDraft.notice ? "Unsaved edits recovered from this browser." : "Unsaved edits."} Save them before previewing, transferring or publishing.
                   </span>
                 ) : null}
               </section>
@@ -205,8 +205,8 @@ export function EditorWorkspace(props: Props) {
                 />
               </div>
             </div>
-            {browserDraft.notice ? <p role="status" className="text-sm">{browserDraft.notice}</p> : null}
-            {browserDraft.error ? <p role="alert" className="text-sm">{browserDraft.error}</p> : dirty ? <p className="text-sm text-muted">Draft kept in this browser. Press Save to create a saved version.</p> : null}
+            {browserDraft.notice && !dirty ? <p role="status" className="text-sm">{browserDraft.notice}</p> : null}
+            {browserDraft.error ? <p role="alert" className="text-sm">{browserDraft.error}</p> : null}
             {recoveryConflict ? <button type="button" className={button.subtle} onClick={() => {
               const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2)], { type: "application/json" }));
               const link = document.createElement("a");

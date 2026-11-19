@@ -925,7 +925,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       page.once("dialog", dialog => dialog.accept());
       await page.goto("about:blank");
       await page.goto(vite.resolvedUrls!.local[0]!);
-      await page.getByRole("status").filter({ hasText: "Recovered your unsaved draft" }).waitFor();
+      await page.getByText("Unsaved edits recovered from this browser.", { exact: false }).waitFor();
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
       await playerSlot.getByText(/Unsaved selection/).waitFor();
       expect(await playerSlot.getByRole("article", { name: "Asset candidate" }).count()).toBe(0);
