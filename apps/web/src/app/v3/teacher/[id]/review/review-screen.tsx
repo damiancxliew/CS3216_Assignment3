@@ -247,6 +247,11 @@ export function ReviewScreen({
     setTab("assets");
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "center" }));
   };
+  const assetLink = (id: string, label: string) => assets ? (
+    <button type="button" className="w-fit text-sm font-semibold underline decoration-line-strong underline-offset-4 transition-colors hover:text-record" onClick={() => openAsset(id)}>
+      {label}
+    </button>
+  ) : null;
   const [selection, setSelection] = useState<Record<ScreenTab, string>>(() => ({
     stages: spec.stages[0]?.id ?? "",
     characters: spec.characters[0]?.id ?? "",
@@ -565,17 +570,6 @@ export function ReviewScreen({
             </button>
           ))}
         </div>
-        {assets && (tab === "stages" || tab === "characters") ? <div className="flex flex-wrap gap-2">
-          <button type="button" className={button.subtle} onClick={() => openAsset(`asset-${tab === "stages" ? "stage" : "sprite"}-${tab === "stages" ? selected : `character:${selected}`}`)}>
-            Manage {tab === "stages" ? "opening image" : "walking sprite"}
-          </button>
-          {tab === "characters" ? <select aria-label="Manage portrait" className="h-10 rounded-full border border-line bg-surface px-3.5 text-sm font-semibold" defaultValue="" onChange={event => { if (event.target.value) openAsset(`asset-portrait-${event.target.value}`); }}>
-            <option value="">Manage portrait…</option>
-            {spec.characters.filter(character => character.id === selected).flatMap(character => character.tier === "major"
-              ? character.stances.map(stance => <option key={stance.id} value={`${character.id}:${stance.id}`}>{stance.label}</option>)
-              : [<option key={character.id} value={character.id}>{character.name}</option>])}
-          </select> : null}
-        </div> : null}
         </div>
         {chat ? <div className="min-w-0 shrink-0 xl:col-start-2 xl:row-start-2 xl:h-full xl:min-h-0">{chat}</div> : null}
         <div
@@ -707,6 +701,7 @@ export function ReviewScreen({
                     <>
                       <Card id={stage.id} title={name(stage.id)}>
                         <p>{stage.timePlace}</p>
+                        {assetLink(`asset-stage-${stage.id}`, "Opening image")}
                         <Field title="Central question">
                           {stage.centralQuestion}
                         </Field>
@@ -976,6 +971,10 @@ export function ReviewScreen({
                   {character ? (
                     <>
                       <Card id={character.id} title={name(character.id)}>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1">
+                          {assetLink(`asset-sprite-character:${character.id}`, "Walking sprite")}
+                          {character.tier === "major" ? null : assetLink(`asset-portrait-${character.id}`, "Portrait")}
+                        </div>
                         <p>
                           {character.title} ·{" "}
                           {character.tier === "major"
@@ -1043,6 +1042,7 @@ export function ReviewScreen({
                             title={s.label}
                           >
                             <p>{s.demeanour}</p>
+                            {assetLink(`asset-portrait-${character.id}:${s.id}`, "Portrait")}
                             <p>
                               {s.id === character.initialStanceId
                                 ? "Initial stance"
