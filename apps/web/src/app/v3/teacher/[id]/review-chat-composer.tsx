@@ -222,6 +222,9 @@ export function ReviewChatComposer({
     target.revision === suggestion.revision
       ? suggestion
       : null;
+  const reportWaiting = context?.setSuggestionWaiting;
+  useEffect(() => { reportWaiting?.(Boolean(valid)); }, [reportWaiting, valid]);
+  useEffect(() => () => reportWaiting?.(false), [reportWaiting]);
   const groupsOf = (item: Suggestion) =>
     item.groups ??
     item.preview.map((change, index) => ({

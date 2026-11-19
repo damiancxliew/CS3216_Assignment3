@@ -150,10 +150,15 @@ export async function suggestReviewChangeAction(
   let notes: string;
   let changes: Extract<V3Edit, { type: "set" }>[] = [];
   let groups: TargetedChangeGroup[] | undefined;
+  const context = input.pass === "draft" ? input.context : undefined;
+  // The preview's focus reaches the models as an earlier note, never as the stored message.
+  const modelHistory = context
+    ? [{ role: "user" as const, text: `(What I'm looking at in the preview)\n${context}` }, ...history]
+    : history;
   if (replyMode) {
     const result = await answerReviewQuestion(
       { llm },
-      { text: text.data, current, history },
+      { text: text.data, current, history: modelHistory },
     );
     if (!result.ok) return result;
     notes = result.notes;
@@ -176,7 +181,7 @@ export async function suggestReviewChangeAction(
           text: text.data,
           current,
           targets,
-          history,
+          history: modelHistory,
           validate,
         },
       );
@@ -185,7 +190,7 @@ export async function suggestReviewChangeAction(
         const decide = process.env.V3_FAKE_PASSES && process.env.NODE_ENV !== "production"
           ? fakeDecisionClient()
           : withDecisionUsage(new OpenAiDecisionClient(), { purpose: "generation", adventureV3Id: adventureId, organizationId: row.schoolId, userId: user.id });
-        const wider = await findEditTargets({ decide }, { spec: current, text: text.data, history, wide: true });
+        const wider = await findEditTargets({ decide }, { spec: current, text: text.data, history, wide: true, context });
         if (!wider.ok || wider.intent !== "change") return failure("I couldn't make that change. Try naming the stage, character or document.");
         const originalPaths = new Set(targets.map(path => JSON.stringify(path)));
         const widerPaths = new Set(wider.targets.map(({ path }) => JSON.stringify(path)));
@@ -194,7 +199,7 @@ export async function suggestReviewChangeAction(
         if (sameTargets) {
           if (!result.ok) return failure("I couldn't make that change. Try naming the stage, character or document.");
         } else {
-          result = await proposeTargetedChanges({ llm }, { text: text.data, current, targets: wider.targets.map(field => field.path), history, validate });
+          result = await proposeTargetedChanges({ llm }, { text: text.data, current, targets: wider.targets.map(field => field.path), history: modelHistory, validate });
           if (!result.ok && result.widen) return failure("I couldn't make that change. Try naming the stage, character or document.");
         }
       }
@@ -207,7 +212,7 @@ export async function suggestReviewChangeAction(
           current,
           roots,
           selection: input.pass === "sources",
-          history,
+          history: modelHistory,
           validate,
         },
       );
@@ -338,6 +343,6 @@ export async function findEditTargetsAction(
     .map(({ role, text }) => ({ role, text: text.split("\n\nTargets: ")[0]! }));
   return findEditTargets(
     { decide: decisionClient, ...(process.env.V3_FAKE_PASSES && process.env.NODE_ENV !== "production" ? {} : { llm: withJsonUsage(new OpenAiLlmClient({ timeoutMs: 30_000, maxRetries: 0 }), { purpose: "generation", adventureV3Id: adventureId, organizationId: row.schoolId, userId: user.id }) }) },
-    { spec: target.current, text: text.data, history },
+    { spec: target.current, text: text.data, history, context: parsed.data.context },
   );
 }

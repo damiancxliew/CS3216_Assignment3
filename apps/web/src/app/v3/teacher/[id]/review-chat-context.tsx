@@ -38,11 +38,15 @@ type ReviewChatContextValue = {
   upgrade: UpgradeChatTarget | null;
   registerUpgrade(target: UpgradeChatTarget | null): void;
   isDraft: boolean;
+  /** Whether a suggestion is waiting for Apply or Discard. */
+  suggestionWaiting: boolean;
+  setSuggestionWaiting(waiting: boolean): void;
 };
 const Context = createContext<ReviewChatContextValue | null>(null);
 export function ReviewChatProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<RegisteredTarget | null>(null);
   const [upgrade, setUpgrade] = useState<UpgradeChatTarget | null>(null);
+  const [suggestionWaiting, setSuggestionWaiting] = useState(false);
   const register = useCallback(
     (next: RegisteredTarget | null) => setTarget(next),
     [],
@@ -56,6 +60,8 @@ export function ReviewChatProvider({ children }: { children: ReactNode }) {
         upgrade,
         registerUpgrade: setUpgrade,
         isDraft,
+        suggestionWaiting,
+        setSuggestionWaiting,
       }}
     >
       {children}

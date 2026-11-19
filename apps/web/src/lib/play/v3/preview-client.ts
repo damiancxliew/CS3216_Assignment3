@@ -15,7 +15,8 @@ export type PreviewDraftEdits = { version: number; edits: V3Edit[] };
 export type PreviewClientOptions = {
   /** The teacher's unsaved edits, read before every request so the next step plays them. */
   draft?: () => PreviewDraftEdits | null;
-  onInsight?: (insight: PreviewInsight) => void;
+  /** Teacher-only insight and the new view after every successful step. */
+  onUpdate?: (update: { insight: PreviewInsight | null; view: PlayerView }) => void;
 };
 
 export function createV3PreviewClient(
@@ -65,7 +66,7 @@ export function createV3PreviewClient(
           ? result.pendingCheckIds.filter((id): id is string => typeof id === "string")
           : [];
         revision += 1;
-        if (result.insight && typeof result.insight === "object") options.onInsight?.(result.insight as PreviewInsight);
+        options.onUpdate?.({ insight: result.insight && typeof result.insight === "object" ? result.insight as PreviewInsight : null, view });
         return { ok: true, revision, view };
       }
       return failureOf(response, raw);

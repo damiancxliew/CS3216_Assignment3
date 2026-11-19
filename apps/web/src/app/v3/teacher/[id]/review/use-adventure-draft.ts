@@ -40,6 +40,8 @@ export function useAdventureDraft(props: {
   /** Ask before leaving the page with unsaved edits. */
   guardLeaving?: boolean;
   appliedMessage?: string;
+  /** Plain-text context for the editor chat, such as what the preview shows. */
+  chatContext?: string;
   onSaved?: () => void;
 }) {
   const legacyStages = Object.fromEntries(
@@ -139,7 +141,7 @@ export function useAdventureDraft(props: {
     key: `draft:${version}`,
     revision: JSON.stringify(edits),
     pending,
-    input: { pass: "draft", version, edits },
+    input: { pass: "draft", version, edits, ...(props.chatContext ? { context: props.chatContext } : {}) },
     apply: (proposal) => {
       if (proposal.pass !== "draft" || pending) return;
       if (!replaceEdits(proposal.edits, props.appliedMessage ?? "Suggested changes applied. Save when you’re ready."))

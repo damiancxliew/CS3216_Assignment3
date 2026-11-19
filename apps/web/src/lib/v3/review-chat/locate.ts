@@ -60,6 +60,7 @@ function decisionInput(
   options?: {
     history?: { role: "assistant" | "user"; text: string }[];
     prefix?: string;
+    context?: string;
   },
 ): DecisionRequest["input"] {
   const content = [
@@ -76,6 +77,12 @@ function decisionInput(
           text: `Earlier conversation:\n${options.history.map(({ role, text }) =>
             `${role === "user" ? "Teacher" : "Assistant"}: ${text.replace(/\r?\n/g, " ")}`,
           ).join("\n")}`,
+        }]
+      : []),
+    ...(options?.context
+      ? [{
+          type: "input_text" as const,
+          text: `What the teacher is looking at while previewing:\n${options.context}`,
         }]
       : []),
     {
@@ -120,6 +127,8 @@ export async function findEditTargets(
     text: string;
     history?: { role: "assistant" | "user"; text: string }[];
     wide?: boolean;
+    /** What the teacher is looking at, so "make her warmer" resolves to it. */
+    context?: string;
   },
 ): Promise<FindEditTargetsResult> {
   const schema = z.strictObject({ from: z.string().nullable(), to: z.string().nullable() });
@@ -138,6 +147,7 @@ export async function findEditTargets(
       input: decisionInput(undefined, input.text, {
         history: input.history,
         prefix: "Teacher's message",
+        context: input.context,
       }),
       questions: [{ name: "change", instructions: CHANGE_INTENT_INSTRUCTIONS }],
     }),
@@ -193,7 +203,7 @@ export async function findEditTargets(
         })),
       },
       input.text,
-      { history: input.history, prefix: "Teacher's message" },
+      { history: input.history, prefix: "Teacher's message", context: input.context },
     ),
     questions: items.map(({ key }, index) => ({
       name: `i${index}`,
@@ -230,7 +240,7 @@ export async function findEditTargets(
         })),
       },
       input.text,
-      { history: input.history },
+      { history: input.history, context: input.context },
     ),
     questions: fields.map(({ path, item }, index) => ({
       name: `f${index}`,

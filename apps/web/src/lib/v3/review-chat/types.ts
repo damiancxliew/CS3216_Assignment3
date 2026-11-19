@@ -17,6 +17,8 @@ export const reviewChatInput = z.discriminatedUnion("pass", [
     pass: z.literal("draft"),
     version: z.number().int().nonnegative(),
     edits: z.array(V3Edit).max(2000),
+    /** What the teacher is looking at in the preview, in plain text. */
+    context: z.string().max(6000).optional(),
   }),
 ]);
 export type ReviewChatInput = z.infer<typeof reviewChatInput>;
