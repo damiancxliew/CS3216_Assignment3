@@ -47,7 +47,7 @@ export function ReviewChatComposer({
   const [pending, setPending] = useState(false);
   const [activity, setActivity] = useState("Preparing a suggestion…");
   const [turns, setTurns] = useState<LocalTurn[]>([]);
-  const [collapsed, setCollapsed] = useState<{ anchor: number; text: string } | null>(null);
+  const [resolved, setResolved] = useState<{ suggestion: Suggestion; applied: boolean }[]>([]);
   const sequence = useRef(0);
   const form = useRef<HTMLFormElement>(null);
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
@@ -93,7 +93,7 @@ export function ReviewChatComposer({
       box.scrollTo({ top, behavior: reduced ? "auto" : "smooth" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [turns, activity, suggestion, collapsed]);
+  }, [turns, activity, suggestion, resolved]);
   const upgradeRequest = Boolean(upgrade && (upgrade.active || requestsSchemaUpgrade(text)));
   const targetedDraft = isDraft && !upgradeRequest;
   const canSend = Boolean((upgradeRequest ? !upgrade?.pending : target && !target.pending) && text.trim() && !pending);
@@ -200,7 +200,6 @@ export function ReviewChatComposer({
       }
       onConversation(result.state);
       setTurns(previous => previous.filter(turn => turn.id !== id));
-      setCollapsed(null);
       if (result.proposal) {
         setSuggestion({
           ...result,
@@ -223,14 +222,13 @@ export function ReviewChatComposer({
     target.revision === suggestion.revision
       ? suggestion
       : null;
-  const groups = valid
-    ? valid.groups ??
-      valid.preview.map((change, index) => ({
-        label: change.label,
-        edits: [],
-        preview: [index],
-      }))
-    : [];
+  const groupsOf = (item: Suggestion) =>
+    item.groups ??
+    item.preview.map((change, index) => ({
+      label: change.label,
+      edits: [],
+      preview: [index],
+    }));
   const applySuggestion = () => {
     if (!valid) return;
     const latest = current.current?.current();
@@ -242,27 +240,33 @@ export function ReviewChatComposer({
       !valid.proposal
     )
       return;
-    setCollapsed({ anchor: valid.anchor, text: "Applied to the cards." });
+    setResolved(previous => [...previous, { suggestion: valid, applied: true }]);
     latest.apply(valid.proposal);
     setSuggestion(null);
     setReviewOpen(false);
   };
   const discardSuggestion = () => {
-    if (valid) setCollapsed({ anchor: valid.anchor, text: "Kept your current edits." });
+    if (valid) setResolved(previous => [...previous, { suggestion: valid, applied: false }]);
     setSuggestion(null);
     setReviewOpen(false);
   };
-  const card = valid ? (
+  /** Applied suggestions stay in the transcript tinted green, discarded ones grey. */
+  const renderCard = (item: Suggestion, applied?: boolean) => {
+    const groups = groupsOf(item);
+    const settled = applied !== undefined;
+    return (
         <section
-          aria-label="Suggested changes"
-          data-review-suggestion
-          className="flex min-h-0 flex-col overflow-hidden text-sm"
+          aria-label={!settled ? "Suggested changes" : applied ? "Applied changes" : "Discarded changes"}
+          data-review-suggestion={settled ? undefined : true}
+          data-settled={settled ? (applied ? "applied" : "discarded") : undefined}
+          className={`flex min-h-0 flex-col overflow-hidden text-sm ${!settled ? "" : applied ? "rounded-surface bg-world-wash" : "rounded-surface bg-sunken text-muted"}`}
         >
           <header className="flex items-center gap-2 px-3 py-2">
             <div className="flex min-w-0 flex-1 items-baseline gap-1">
               <h3 className="font-semibold">Suggested changes</h3>
               <span className="text-xs text-muted">· {groups.length} {groups.length === 1 ? "field" : "fields"}</span>
             </div>
+            {settled ? null : <>
             <button
               type="button"
               aria-label="Review changes"
@@ -291,19 +295,20 @@ export function ReviewChatComposer({
             >
               <Check size={16} aria-hidden />
             </button>
+            </>}
           </header>
           <div className="min-h-0 max-h-44 flex flex-col gap-2 overflow-y-auto md:max-h-96">
             {groups.map((group, index) => {
               return (
                 <div
                   key={`${group.label}-${index}`}
-                  className="flex flex-col gap-2 rounded-control bg-paper px-3 py-2"
+                  className={`flex flex-col gap-2 rounded-control px-3 py-2 ${settled ? "" : "bg-paper"}`}
                 >
                   <p className="text-xs font-semibold text-muted">
                     {group.label}
                   </p>
                   {group.preview.map((previewIndex) => {
-                    const change = valid.preview[previewIndex];
+                    const change = item.preview[previewIndex];
                     if (!change) return null;
                     const parts = condenseDiff(wordDiff(change.before, change.after));
                     return (
@@ -338,20 +343,21 @@ export function ReviewChatComposer({
               );
             })}
           </div>
-          <ReviewChangesDialog
-            open={reviewOpen && Boolean(valid)}
+          {settled ? null : <ReviewChangesDialog
+            open={reviewOpen}
             onOpenChange={setReviewOpen}
-            preview={valid.preview}
-            groups={valid.groups}
+            preview={item.preview}
+            groups={item.groups}
             disabled={Boolean(target?.pending)}
             onApply={applySuggestion}
             onDiscard={discardSuggestion}
-          />
+          />}
         </section>
-      ) : null;
+    );
+  };
   const at = (index: number) => <>
-    {valid?.anchor === index ? <li className="min-w-0 self-stretch">{card}</li> : null}
-    {collapsed?.anchor === index ? <li role="status" className="text-sm text-muted">{collapsed.text}</li> : null}
+    {resolved.filter(item => item.suggestion.anchor === index).map((item, position) => <li key={position} className="min-w-0 self-stretch">{renderCard(item.suggestion, item.applied)}</li>)}
+    {valid?.anchor === index ? <li className="min-w-0 self-stretch">{renderCard(valid)}</li> : null}
     {turns.filter(turn => turn.anchor === index).map(turn => <Fragment key={turn.id}>
       <li className={userClassName}><p className="whitespace-pre-wrap">{turn.text}</p></li>
       <li className="self-start py-0.5 text-ink" data-review-assistant>
