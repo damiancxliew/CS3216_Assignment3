@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight, ScrollText, X } from "lucide-react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import styles from "@/components/play/document-reader.module.css";
+import { openPlayDialog, useModalDialogs } from "@/components/play/dialog-mode";
 
 export function V3ScrollDialog({
   eyebrow,
@@ -29,30 +30,33 @@ export function V3ScrollDialog({
   children: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const modal = useModalDialogs();
   const titleId = useId();
   const selectedIndex = navigation?.items.findIndex((item) => item.id === navigation.selectedId) ?? -1;
 
   useEffect(() => {
     const previousFocus = document.activeElement;
     const previousOverflow = document.body.style.overflow;
-    const modal = dialog.current!;
+    const element = dialog.current!;
     document.body.style.overflow = "hidden";
-    modal.showModal();
+    openPlayDialog(element, modal);
     return () => {
-      modal.close();
+      element.close();
       document.body.style.overflow = previousOverflow;
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
         previousFocus.focus({ preventScroll: true });
       }
     };
-  }, []);
+  }, [modal]);
 
   return (
     <dialog
       ref={dialog}
       className={styles.dialog}
+      style={modal ? undefined : { zIndex: 60 }}
       aria-labelledby={titleId}
       onCancel={onClose}
+      onKeyDown={modal ? undefined : (event) => { if (event.key === "Escape") { event.preventDefault(); onClose(); } }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

@@ -3,6 +3,7 @@
 import { ClipboardList, Compass, Flag, NotebookPen, ScrollText, UserRound, X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import styles from "./adventure-chrome.module.css";
+import { openPlayDialog, useModalDialogs } from "./dialog-mode";
 
 /** The browser's modal layer keeps keyboard focus (and map input) inside the card. */
 export function AdventureDialog({ kind, titleId, descriptionId, onClose, closeLabel = "Close", children }: {
@@ -14,18 +15,19 @@ export function AdventureDialog({ kind, titleId, descriptionId, onClose, closeLa
   children: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const modal = useModalDialogs();
   useEffect(() => {
     const previousFocus = document.activeElement;
     const previousOverflow = document.body.style.overflow;
-    const modal = dialog.current!;
+    const element = dialog.current!;
     document.body.style.overflow = "hidden";
-    modal.showModal();
+    openPlayDialog(element, modal);
     return () => {
-      modal.close();
+      element.close();
       document.body.style.overflow = previousOverflow;
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
     };
-  }, []);
+  }, [modal]);
 
   const { icon: Icon, label } = {
     landmark: { icon: Compass, label: "A closer look" },
@@ -37,10 +39,11 @@ export function AdventureDialog({ kind, titleId, descriptionId, onClose, closeLa
     activity: { icon: Compass, label: "Explore" },
   }[kind];
   return (
-    <dialog ref={dialog} className={`${styles.dialog} ${styles[kind]}`} aria-labelledby={titleId} aria-describedby={descriptionId} onCancel={onClose} onClick={(event) => {
+    <dialog ref={dialog} className={`${styles.dialog} ${styles[kind]}`} aria-labelledby={titleId} aria-describedby={descriptionId} style={modal ? undefined : { zIndex: 60 }} onCancel={onClose} onClick={(event) => {
       // The frame fills the dialog, so only a click on the backdrop lands on the dialog itself, as with the evidence reader.
       if (event.target === event.currentTarget) onClose();
     }} onKeyDown={(event) => {
+      if (!modal && event.key === "Escape") { event.preventDefault(); onClose(); return; }
       if (event.key !== "Tab") return;
       const targets = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')].filter((element) => element.getClientRects().length > 0);
       const first = targets[0];

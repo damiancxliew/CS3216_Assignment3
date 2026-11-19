@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { bigQuestion, roleWhenWhere, splitFictional } from "@/lib/play/v3/cinematic";
 import type { PlayerLook } from "@/lib/play/v3/player-look";
 import styles from "./brief.module.css";
+import { openPlayDialog, useModalDialogs } from "../dialog-mode";
 import { pixelFont } from "./pixel-font";
 import { PlayerPortrait } from "./player-portrait";
 import { NotesGlyph, PocketLogo, PocketTag, pocketStyles } from "./pocket-ui";
@@ -85,6 +86,7 @@ export function RoleCard({ briefing, stage, stageCount, look, artUrl, beginLabel
   busy?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const modal = useModalDialogs();
   const begin = useRef<HTMLButtonElement>(null);
   const [artFailed, setArtFailed] = useState(false);
   const titleId = useId();
@@ -98,10 +100,10 @@ export function RoleCard({ briefing, stage, stageCount, look, artUrl, beginLabel
   useEffect(() => {
     const element = dialog.current;
     if (!element || typeof element.showModal !== "function") return;
-    if (!element.open) element.showModal();
+    if (!element.open) openPlayDialog(element, modal);
     begin.current?.focus({ preventScroll: true });
     return () => { if (element.open) element.close(); };
-  }, []);
+  }, [modal]);
 
   return (
     <dialog
@@ -112,6 +114,8 @@ export function RoleCard({ briefing, stage, stageCount, look, artUrl, beginLabel
         event.preventDefault();
         if (onClose) onClose();
       }}
+      onKeyDown={modal ? undefined : (event) => { if (event.key === "Escape" && onClose) { event.preventDefault(); onClose(); } }}
+      style={modal ? undefined : { zIndex: 60 }}
       className={`${pocketStyles.root} ${styles.dialog}`}
     >
       {artUrl && !artFailed ? (
