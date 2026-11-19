@@ -52,12 +52,14 @@ function Block({
   id,
   title,
   reference,
+  actions,
   children,
   card = false,
 }: {
   id?: string;
   title: string;
   reference?: string;
+  actions?: ReactNode;
   children: ReactNode;
   card?: boolean;
 }) {
@@ -72,7 +74,10 @@ function Block({
       }
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="text-lg font-bold">{title}</h3>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h3 className="text-lg font-bold">{title}</h3>
+          {actions}
+        </div>
         {reference ? (
           <code className="break-all text-xs font-normal text-muted">
             {reference}
@@ -83,7 +88,7 @@ function Block({
     </section>
   );
 }
-function Card(props: { id?: string; title: string; children: ReactNode }) {
+function Card(props: { id?: string; title: string; actions?: ReactNode; children: ReactNode }) {
   return <Block {...props} card />;
 }
 
@@ -699,9 +704,8 @@ export function ReviewScreen({
                   ) : null}
                   {stage ? (
                     <>
-                      <Card id={stage.id} title={name(stage.id)}>
+                      <Card id={stage.id} title={name(stage.id)} actions={assetLink(`asset-stage-${stage.id}`, "Opening image")}>
                         <p>{stage.timePlace}</p>
-                        {assetLink(`asset-stage-${stage.id}`, "Opening image")}
                         <Field title="Central question">
                           {stage.centralQuestion}
                         </Field>
@@ -970,11 +974,14 @@ export function ReviewScreen({
                   ) : null}
                   {character ? (
                     <>
-                      <Card id={character.id} title={name(character.id)}>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      <Card
+                        id={character.id}
+                        title={name(character.id)}
+                        actions={<>
                           {assetLink(`asset-sprite-character:${character.id}`, "Walking sprite")}
                           {character.tier === "major" ? null : assetLink(`asset-portrait-${character.id}`, "Portrait")}
-                        </div>
+                        </>}
+                      >
                         <p>
                           {character.title} ·{" "}
                           {character.tier === "major"
@@ -1040,9 +1047,9 @@ export function ReviewScreen({
                             key={s.id}
                             id={reviewStanceId(character.id, s.id)}
                             title={s.label}
+                            actions={assetLink(`asset-portrait-${character.id}:${s.id}`, "Portrait")}
                           >
                             <p>{s.demeanour}</p>
-                            {assetLink(`asset-portrait-${character.id}:${s.id}`, "Portrait")}
                             <p>
                               {s.id === character.initialStanceId
                                 ? "Initial stance"
