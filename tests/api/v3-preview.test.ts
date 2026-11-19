@@ -293,4 +293,65 @@ describe("v3 teacher preview service", () => {
     expect(previewBodyTooLarge("界".repeat(700_000))).toBe(true);
     expect(previewBodyTooLarge("a".repeat(2_000_000))).toBe(false);
   });
+
+  async function toStage(fixture: ReturnType<typeof setup>) {
+    let { token, view } = previewBody(await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID));
+    while (view.phase !== "stage" || view.stage?.intro) {
+      const next = await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, { token, action: { type: "continue" } });
+      expect(next.status).toBe(200);
+      ({ token, view } = previewBody(next));
+    }
+    return { token, view };
+  }
+
+  it("returns teacher-only character insight beside the player view", async () => {
+    const fixture = setup();
+    const started = await startPreview(fixture.deps, OWNER_ID, ADVENTURE_ID);
+    const insight = (started.body as { insight: { characters: Record<string, { stance: { label: string } | null; mayShare: string[]; notYet: string[] }> } }).insight;
+    expect(insight.characters.temenggong?.stance?.label).toBe("wary");
+    expect(Array.isArray(insight.characters.temenggong?.mayShare)).toBe(true);
+    expect(JSON.stringify(previewBody(started).view)).not.toContain("polite but closed");
+  });
+
+  it("plays unsaved draft edits on the next step without restarting", async () => {
+    const fixture = setup();
+    const { token, view } = await toStage(fixture);
+    const character = view.characters.find((item) => item.id === "temenggong") ?? view.characters[0]!;
+    const index = goldenSpec.characters.findIndex((item) => item.id === character.id);
+    const draft = { version: 1, edits: [{ type: "set", path: ["characters", index, "persona", "voice"], value: "Speaks only in riddles about the tide." }] };
+    const messaged = await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
+      token,
+      draft,
+      action: { type: "message", characterId: character.id, text: "Hello." },
+    });
+    expect(messaged.status).toBe(200);
+    expect(fixture.llm.requests.some((request) => JSON.stringify(request).includes("Speaks only in riddles about the tide."))).toBe(true);
+    const pending = previewBody(messaged).pendingCheckIds ?? [];
+    const checked = await previewCheck(fixture.deps, OWNER_ID, ADVENTURE_ID, {
+      token: previewBody(messaged).token,
+      messageId: pending[0],
+      draft,
+    });
+    expect(checked.status).toBe(200);
+  });
+
+  it("asks for a restart when the draft is based on an older saved version", async () => {
+    const fixture = setup();
+    const { token } = await toStage(fixture);
+    expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
+      token,
+      draft: { version: 2, edits: [{ type: "set", path: ["title"], value: "Another title" }] },
+      action: { type: "continue" },
+    })).toMatchObject({ status: 409, body: { error: { code: "preview_reset" } } });
+  });
+
+  it("keeps the previous version playable when a draft edit is invalid", async () => {
+    const fixture = setup();
+    const { token } = await toStage(fixture);
+    expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
+      token,
+      draft: { version: 1, edits: [{ type: "set", path: ["characters", 0, "persona", "voice"], value: 7 }] },
+      action: { type: "continue" },
+    })).toMatchObject({ status: 422, body: { error: { code: "draft_invalid" } } });
+  });
 });

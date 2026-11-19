@@ -37,6 +37,7 @@ export function v3PreviewDeps(): V3PreviewDeps {
       llm: (context) => withPreviewUsageV3(baseLlm, context),
       now: () => Date.now(),
       env: process.env,
+      sources: async id => (await supabaseV3SourceStore(createAdminClient).load(id)).map(d => ({ id: d.id, title: d.title, text: d.pages.map(p => p.text).join("\n") })),
     };
   }
   return previewDeps;

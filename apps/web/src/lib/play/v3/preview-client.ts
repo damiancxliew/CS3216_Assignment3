@@ -1,4 +1,6 @@
+import type { PreviewInsight } from "@adventure/engine";
 import type { Action, PlayerView } from "@adventure/play-contract";
+import type { V3Edit } from "@/lib/v3/edit/commands";
 
 import { failureOf, readBody, type V3PlayClient, type V3PlayResult } from "./client";
 
@@ -6,6 +8,14 @@ type PreviewResponseBody = {
   token?: unknown;
   view?: unknown;
   pendingCheckIds?: unknown;
+  insight?: unknown;
+};
+
+export type PreviewDraftEdits = { version: number; edits: V3Edit[] };
+export type PreviewClientOptions = {
+  /** The teacher's unsaved edits, read before every request so the next step plays them. */
+  draft?: () => PreviewDraftEdits | null;
+  onInsight?: (insight: PreviewInsight) => void;
 };
 
 export function createV3PreviewClient(
@@ -13,6 +23,7 @@ export function createV3PreviewClient(
   initialToken: string,
   initialView: PlayerView,
   fetchImpl: typeof fetch = fetch,
+  options: PreviewClientOptions = {},
 ): V3PlayClient {
   const base = `/api/v3/preview/${encodeURIComponent(adventureId)}`;
   let token = initialToken;
@@ -27,12 +38,17 @@ export function createV3PreviewClient(
     return result;
   }
 
+  function withDraft(body: Record<string, unknown>) {
+    const draft = options.draft?.();
+    return draft && draft.edits.length > 0 ? { ...body, draft } : body;
+  }
+
   async function post(path: string, body: Record<string, unknown>): Promise<V3PlayResult> {
     try {
       const response = await fetchImpl(path, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(withDraft(body)),
       });
       const raw = await readBody(response);
       const result = raw as (typeof raw & PreviewResponseBody) | null;
@@ -49,6 +65,7 @@ export function createV3PreviewClient(
           ? result.pendingCheckIds.filter((id): id is string => typeof id === "string")
           : [];
         revision += 1;
+        if (result.insight && typeof result.insight === "object") options.onInsight?.(result.insight as PreviewInsight);
         return { ok: true, revision, view };
       }
       return failureOf(response, raw);

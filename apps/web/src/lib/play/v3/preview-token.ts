@@ -5,7 +5,8 @@ import type { EngineState } from "@adventure/engine";
 type PreviewStateContext = {
   userId: string;
   adventureId: string;
-  spec: unknown;
+  /** The saved version the preview started from; teacher draft edits ride on top of it. */
+  version: number;
 };
 
 function hmacKey(secret?: string): Buffer {
@@ -15,10 +16,7 @@ function hmacKey(secret?: string): Buffer {
 }
 
 function messageFor(context: PreviewStateContext, payload: string): string {
-  const serializedSpec = JSON.stringify(context.spec);
-  if (serializedSpec === undefined) throw new Error("Preview spec cannot be serialized.");
-  const specHash = createHash("sha256").update(serializedSpec).digest("hex");
-  return ["v3-preview", context.userId, context.adventureId, specHash, payload].join("\n");
+  return ["v3-preview", context.userId, context.adventureId, String(context.version), payload].join("\n");
 }
 
 export function signPreviewState(
