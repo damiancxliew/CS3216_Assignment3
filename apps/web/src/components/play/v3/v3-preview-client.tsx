@@ -43,14 +43,23 @@ export function V3PreviewHeaderActions({ adventureId, panel,
           <span className="hidden sm:inline">Edit panel</span>
         </button>
       ) : null}
+      {panel ? (
+        // A full load, so the editor starts fresh and recovers the draft edited here.
+        // eslint-disable-next-line @next/next/no-html-link-for-pages
+        <a href={`/v3/teacher/${adventureId}`} aria-label="Back to adventure" className={actionClass}>
+          <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="hidden sm:inline">Back to adventure</span>
+        </a>
+      ) : (
       <Link
-        href={`/v3/teacher/${adventureId}`}
-        aria-label="Back to adventure"
-        className={actionClass}
-      >
-        <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
-        <span className="hidden sm:inline">Back to adventure</span>
-      </Link>
+          href={`/v3/teacher/${adventureId}`}
+          aria-label="Back to adventure"
+          className={actionClass}
+        >
+          <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="hidden sm:inline">Back to adventure</span>
+        </Link>
+      )}
     </div>
   );
 }

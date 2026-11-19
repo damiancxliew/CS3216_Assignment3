@@ -25,7 +25,10 @@ function InlineEditor({ edit, label, onDone }: { edit: ContextEdit; label: strin
       className="mt-1 w-full resize-y rounded-control border border-record bg-surface px-3 py-2 font-serif text-[15px] leading-relaxed text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-record"
       onBlur={(event) => onDone(event.currentTarget.value)}
       onKeyDown={(event) => {
-        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onDone(null); }
+        if (event.key === "Escape") {
+          // The game listens on document too; keep Escape from closing its conversation.
+          event.preventDefault(); event.nativeEvent.stopImmediatePropagation(); onDone(null);
+        }
         if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); event.currentTarget.blur(); }
       }}
     />
@@ -161,7 +164,7 @@ export function PreviewEditPanel({ context, edited, pending, onEdit, onClose }: 
       <div
         hidden={!chatOpen}
         className="absolute inset-x-3 bottom-3 z-20 h-[68%] min-h-0"
-        onKeyDown={(event) => { if (event.key === "Escape") closeChat(); }}
+        onKeyDown={(event) => { if (event.key === "Escape") { event.nativeEvent.stopImmediatePropagation(); closeChat(); } }}
       >
         <EditorConversation
           onClose={closeChat}
