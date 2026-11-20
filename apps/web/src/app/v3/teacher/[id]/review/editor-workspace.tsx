@@ -363,7 +363,7 @@ export function EditorWorkspace(props: Props) {
                 <AdventureTransfer adventureId={props.adventureId} version={version} publishedVersion={publishedVersion} disabled={dirty || pending} variant="subtle" />
                 <AdventureAccess adventureId={props.adventureId} kind="v3" isPublic={props.isPublic} compact />
               </div>
-              <div className="sm:ml-auto">
+              <div className="ml-auto">
                   <V3PublishPanel
                     key={`${version}:${publishedVersion}`}
                     adventureId={props.adventureId}
