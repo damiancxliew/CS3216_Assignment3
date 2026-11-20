@@ -98,11 +98,13 @@ function PreviewEditing(props: Props) {
   const focusId = focus.kind === "character" || focus.kind === "document" ? focus.id
     : focus.kind === "stage" ? draft.draft.stages[focus.index]?.id : undefined;
   const lock = locked.find((item) => item.kind === focus.kind && item.id === focusId);
-  const notice = stale
-    ? "Unsaved edits made on an older version are waiting in the editor. The preview plays the saved version until you keep or discard them there."
-    : lock
-      ? `Paused in the preview until this is fixed: ${lock.message}`
-      : draft.failure && draft.message ? draft.message : undefined;
+  const notice = draft.failure && draft.message
+    ? draft.message
+    : stale
+      ? "Unsaved edits made on an older version are waiting in the editor. The preview plays the saved version until you keep or discard them there."
+      : lock
+        ? `Paused in the preview until this is fixed: ${lock.message}`
+        : undefined;
   return (
     <div className="flex h-dvh min-h-0 flex-col lg:flex-row">
       <div ref={game} className="relative min-h-0 min-w-0 flex-1 overflow-hidden [transform:translateZ(0)]">
