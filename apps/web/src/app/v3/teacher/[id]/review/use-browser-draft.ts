@@ -18,6 +18,7 @@ export function useBrowserDraft({ adventureId, value, dirty, sources, onRecover 
   const [blocked, setBlocked] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const wrote = useRef(false);
   useEffect(() => {
     if (restored.current === key) return;
     restored.current = key;
@@ -36,9 +37,13 @@ export function useBrowserDraft({ adventureId, value, dirty, sources, onRecover 
   useEffect(() => {
     if (!ready || blocked) return;
     try {
-      if (dirty) localStorage.setItem(key, JSON.stringify(value));
-      else {
+      if (dirty) {
+        localStorage.setItem(key, JSON.stringify(value));
+        wrote.current = true;
+      } else if (wrote.current) {
+        // Only drop a copy this page wrote, so a clean page never erases another tab's draft.
         localStorage.removeItem(key);
+        wrote.current = false;
         setNotice("");
       }
       setError("");
