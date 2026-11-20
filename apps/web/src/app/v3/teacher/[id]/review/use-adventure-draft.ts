@@ -148,10 +148,15 @@ export function useAdventureDraft(props: {
   useReviewChatTarget({
     key: `draft:${version}`,
     revision: JSON.stringify(edits),
-    pending: pending || frozen,
+    pending,
     input: { pass: "draft", version, edits, ...(props.chatContext ? { context: props.chatContext } : {}) },
     apply: (proposal) => {
-      if (proposal.pass !== "draft" || pending || frozen) return;
+      if (proposal.pass !== "draft" || pending) return;
+      if (frozen) {
+        setFailure(true);
+        setMessage("Keep or discard the older unsaved edits in the editor before applying changes here.");
+        return;
+      }
       if (!replaceEdits(proposal.edits, props.appliedMessage ?? "Suggested changes applied. Save when you’re ready."))
         setFailure(true);
     },
