@@ -18,7 +18,8 @@ export type ReviewChatTarget = {
   revision: string;
   pending: boolean;
   input: ReviewChatInput;
-  apply(proposal: ReviewChatProposal): void;
+  /** Returns false when the proposal was refused, so it stays open. */
+  apply(proposal: ReviewChatProposal): boolean | void;
 };
 type RegisteredTarget = Pick<
   ReviewChatTarget,

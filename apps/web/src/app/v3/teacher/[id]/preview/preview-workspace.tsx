@@ -102,7 +102,7 @@ function PreviewEditing(props: Props) {
     ? "Unsaved edits made on an older version are waiting in the editor. The preview plays the saved version until you keep or discard them there."
     : lock
       ? `Paused in the preview until this is fixed: ${lock.message}`
-      : undefined;
+      : draft.failure && draft.message ? draft.message : undefined;
   return (
     <div className="flex h-dvh min-h-0 flex-col lg:flex-row">
       <div ref={game} className="relative min-h-0 min-w-0 flex-1 overflow-hidden [transform:translateZ(0)]">
@@ -128,7 +128,6 @@ function PreviewEditing(props: Props) {
             onClose={toggle}
           />
       </div>
-      {draft.message && draft.failure ? <p role="alert" className="sr-only">{draft.message}</p> : null}
     </div>
   );
 }

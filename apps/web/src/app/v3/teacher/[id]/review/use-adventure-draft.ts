@@ -155,7 +155,7 @@ export function useAdventureDraft(props: {
       if (frozen) {
         setFailure(true);
         setMessage("Keep or discard the older unsaved edits in the editor before applying changes here.");
-        return;
+        return false;
       }
       if (!replaceEdits(proposal.edits, props.appliedMessage ?? "Suggested changes applied. Save when you’re ready."))
         setFailure(true);

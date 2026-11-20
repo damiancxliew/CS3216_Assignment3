@@ -243,8 +243,8 @@ export function ReviewChatComposer({
       !valid.proposal
     )
       return;
+    if (latest.apply(valid.proposal) === false) return;
     setResolved(previous => [...previous, { suggestion: valid, applied: true }]);
-    latest.apply(valid.proposal);
     setSuggestion(null);
     setReviewOpen(false);
   };
