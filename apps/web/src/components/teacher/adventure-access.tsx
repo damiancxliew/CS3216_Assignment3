@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Users } from "lucide-react";
 import { setAdventurePublic } from "./adventure-access-actions";
 
 export function AdventureAccess({ adventureId, kind, isPublic, compact = false }: {
@@ -11,9 +12,9 @@ export function AdventureAccess({ adventureId, kind, isPublic, compact = false }
   const [error, setError] = useState(false);
   return (
     <div className={compact ? "space-y-1 text-sm" : "space-y-2 rounded-surface border border-line bg-surface p-4"}>
-      <label className="flex flex-wrap items-center gap-3 font-bold">
-        Who can play
-        <select className="rounded-control border border-line bg-paper px-3 py-2 text-sm font-normal"
+      <label className={compact ? "inline-flex h-10 items-center gap-2 rounded-full border border-line bg-surface pl-3.5 text-muted transition-colors focus-within:border-ink hover:border-line-strong" : "flex flex-wrap items-center gap-3 font-bold"} title={compact ? "Who can play" : undefined}>
+        {compact ? <><Users className="size-4" aria-hidden /><span className="sr-only">Who can play</span></> : "Who can play"}
+        <select className={compact ? "h-full cursor-pointer rounded-full bg-transparent pr-3 text-sm font-semibold text-ink focus:outline-none" : "rounded-control border border-line bg-paper px-3 py-2 text-sm font-normal"}
           value={value ? "public" : "school"} disabled={pending}
           onChange={event => {
             const next = event.target.value === "public";
