@@ -93,8 +93,7 @@ function PreviewEditing(props: Props) {
           />
         </ModalDialogsProvider>
       </div>
-      {open ? (
-        <div className="flex h-[55dvh] min-h-0 lg:h-auto">
+      <div className={open ? "fixed inset-x-0 bottom-0 z-50 flex h-[60dvh] min-h-0 shadow-[0_-4px_20px_rgb(0_0_0/0.15)] lg:static lg:h-auto lg:shadow-none" : "hidden"}>
           <PreviewEditPanel
             context={context}
             edited={edited}
@@ -102,8 +101,7 @@ function PreviewEditing(props: Props) {
             onEdit={draft.edit}
             onClose={toggle}
           />
-        </div>
-      ) : null}
+      </div>
       {draft.message && draft.failure ? <p role="alert" className="sr-only">{draft.message}</p> : null}
     </div>
   );
