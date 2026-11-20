@@ -3,7 +3,7 @@ import { AdventureTransfer } from "@/components/teacher/v3-version-controls";
 import { AdventureAccess } from "@/components/teacher/adventure-access";
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { MessageSquare, Pencil, Play } from "lucide-react";
+import { MessageSquare, Pencil, Play, Save, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { reviewAssets } from "@/lib/v3/review-assets";
 import {
@@ -308,19 +308,20 @@ export function EditorWorkspace(props: Props) {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <div role="group" aria-label="Draft" className="flex flex-wrap items-center gap-2">
                 {!editMode ? (
-                  <button type="button" className={button.quiet} onClick={() => setEditMode(true)}>
-                    <Pencil className="size-4" aria-hidden />Edit
+                  <button type="button" className={button.quiet + " max-sm:w-10 max-sm:px-0"} title="Edit" onClick={() => setEditMode(true)}>
+                    <Pencil className="size-4" aria-hidden /><span className="max-sm:sr-only">Edit</span>
                   </button>
                 ) : (
                   <>
                     {dirty || pending ? (
-                      <button type="button" className={button.primary} disabled={pending} onClick={save}>
-                        {pending ? "Saving…" : "Save"}
+                      <button type="button" className={button.primary + " max-sm:w-10 max-sm:px-0"} title="Save" disabled={pending} onClick={save}>
+                        <Save className="size-4" aria-hidden /><span className="max-sm:sr-only">{pending ? "Saving…" : "Save"}</span>
                       </button>
                     ) : null}
                     <button
                       type="button"
-                      className={button.subtle}
+                      className={button.subtle + " max-sm:w-10 max-sm:px-0"}
+                      title="Discard edits"
                       disabled={pending}
                     onClick={() => {
                       if (
@@ -342,20 +343,20 @@ export function EditorWorkspace(props: Props) {
                       }
                     }}
                     >
-                      Discard edits
+                      <Undo2 className="size-4" aria-hidden /><span className="max-sm:sr-only">Discard edits</span>
                     </button>
                   </>
                 )}
                 {dirty || pending ? (
-                  <button type="button" disabled className={button.quiet}>
-                    <Play className="size-4" aria-hidden />Preview
+                  <button type="button" disabled className={button.quiet + " max-sm:w-10 max-sm:px-0"} title="Preview">
+                    <Play className="size-4" aria-hidden /><span className="max-sm:sr-only">Preview</span>
                   </button>
                 ) : (
-                  <Link href={`/v3/teacher/${props.adventureId}/preview`} className={button.quiet}>
-                    <Play className="size-4" aria-hidden />Preview
+                  <Link href={`/v3/teacher/${props.adventureId}/preview`} className={button.quiet + " max-sm:w-10 max-sm:px-0"} title="Preview">
+                    <Play className="size-4" aria-hidden /><span className="max-sm:sr-only">Preview</span>
                   </Link>
                 )}
-                {chatClosed ? <button type="button" className={button.quiet} onClick={() => { setChatClosed(false); setEditMode(true); }}><MessageSquare className="size-4" aria-hidden />Edit with chat</button> : null}
+                {chatClosed ? <button type="button" className={button.quiet + " max-sm:w-10 max-sm:px-0"} title="Edit with chat" onClick={() => { setChatClosed(false); setEditMode(true); }}><MessageSquare className="size-4" aria-hidden /><span className="max-sm:sr-only">Edit with chat</span></button> : null}
               </div>
               <span aria-hidden className="hidden h-6 w-px bg-line-strong sm:block" />
               <div role="group" aria-label="Sharing" className="flex flex-wrap items-center gap-2">
