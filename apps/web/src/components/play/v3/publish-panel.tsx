@@ -84,13 +84,13 @@ export function V3PublishPanel({
 
   const publishBlocked = disabled || pending || !!blockedReason;
   return (
-    <section aria-label="Publication" className="min-w-0 space-y-3">
+    <section aria-label="Publication" className={compact ? "flex min-w-0 flex-wrap items-center gap-3" : "min-w-0 space-y-3"}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="text-sm">
           <p className="font-bold text-ink">
             {isPublished
               ? `Published${pointer ? ` · v${pointer}` : ""}`
-              : "Draft"}
+              : `Draft${compact && version ? ` · v${version}` : ""}`}
           </p>
           {isPublished && changes ? (
             <p className="mt-1 text-muted">Unpublished changes</p>
@@ -140,7 +140,7 @@ export function V3PublishPanel({
               aria-describedby={
                 blockedReason ? `publish-block-${adventureId}` : undefined
               }
-              className={styles.quiet + " disabled:pointer-events-none"}
+              className={(compact ? styles.primary : styles.quiet) + " disabled:pointer-events-none"}
             >
               {pending
                 ? "Publishing…"
@@ -161,7 +161,7 @@ export function V3PublishPanel({
         </div>
       ) : null}
       {message ? (
-        <p role="alert" className="text-sm text-ink">
+        <p role="alert" className="basis-full text-sm text-ink">
           {message}
         </p>
       ) : null}

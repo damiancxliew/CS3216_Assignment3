@@ -52,12 +52,14 @@ function Block({
   id,
   title,
   reference,
+  actions,
   children,
   card = false,
 }: {
   id?: string;
   title: string;
   reference?: string;
+  actions?: ReactNode;
   children: ReactNode;
   card?: boolean;
 }) {
@@ -72,7 +74,10 @@ function Block({
       }
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="text-lg font-bold">{title}</h3>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h3 className="text-lg font-bold">{title}</h3>
+          {actions}
+        </div>
         {reference ? (
           <code className="break-all text-xs font-normal text-muted">
             {reference}
@@ -83,7 +88,7 @@ function Block({
     </section>
   );
 }
-function Card(props: { id?: string; title: string; children: ReactNode }) {
+function Card(props: { id?: string; title: string; actions?: ReactNode; children: ReactNode }) {
   return <Block {...props} card />;
 }
 
@@ -247,6 +252,11 @@ export function ReviewScreen({
     setTab("assets");
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "center" }));
   };
+  const assetLink = (id: string, label: string) => assets ? (
+    <button type="button" className="w-fit text-sm font-semibold underline decoration-line-strong underline-offset-4 transition-colors hover:text-record" onClick={() => openAsset(id)}>
+      {label}
+    </button>
+  ) : null;
   const [selection, setSelection] = useState<Record<ScreenTab, string>>(() => ({
     stages: spec.stages[0]?.id ?? "",
     characters: spec.characters[0]?.id ?? "",
@@ -565,17 +575,6 @@ export function ReviewScreen({
             </button>
           ))}
         </div>
-        {assets && (tab === "stages" || tab === "characters") ? <div className="flex flex-wrap gap-2">
-          <button type="button" className={button.subtle} onClick={() => openAsset(`asset-${tab === "stages" ? "stage" : "sprite"}-${tab === "stages" ? selected : `character:${selected}`}`)}>
-            Manage {tab === "stages" ? "opening image" : "walking sprite"}
-          </button>
-          {tab === "characters" ? <select aria-label="Manage portrait" className="h-10 rounded-full border border-line bg-surface px-3.5 text-sm font-semibold" defaultValue="" onChange={event => { if (event.target.value) openAsset(`asset-portrait-${event.target.value}`); }}>
-            <option value="">Manage portrait…</option>
-            {spec.characters.filter(character => character.id === selected).flatMap(character => character.tier === "major"
-              ? character.stances.map(stance => <option key={stance.id} value={`${character.id}:${stance.id}`}>{stance.label}</option>)
-              : [<option key={character.id} value={character.id}>{character.name}</option>])}
-          </select> : null}
-        </div> : null}
         </div>
         {chat ? <div className="min-w-0 shrink-0 xl:col-start-2 xl:row-start-2 xl:h-full xl:min-h-0">{chat}</div> : null}
         <div
@@ -705,7 +704,7 @@ export function ReviewScreen({
                   ) : null}
                   {stage ? (
                     <>
-                      <Card id={stage.id} title={name(stage.id)}>
+                      <Card id={stage.id} title={name(stage.id)} actions={assetLink(`asset-stage-${stage.id}`, "Opening image")}>
                         <p>{stage.timePlace}</p>
                         <Field title="Central question">
                           {stage.centralQuestion}
@@ -975,7 +974,14 @@ export function ReviewScreen({
                   ) : null}
                   {character ? (
                     <>
-                      <Card id={character.id} title={name(character.id)}>
+                      <Card
+                        id={character.id}
+                        title={name(character.id)}
+                        actions={<>
+                          {assetLink(`asset-sprite-character:${character.id}`, "Walking sprite")}
+                          {character.tier === "major" ? null : assetLink(`asset-portrait-${character.id}`, "Portrait")}
+                        </>}
+                      >
                         <p>
                           {character.title} ·{" "}
                           {character.tier === "major"
@@ -1041,6 +1047,7 @@ export function ReviewScreen({
                             key={s.id}
                             id={reviewStanceId(character.id, s.id)}
                             title={s.label}
+                            actions={assetLink(`asset-portrait-${character.id}:${s.id}`, "Portrait")}
                           >
                             <p>{s.demeanour}</p>
                             <p>

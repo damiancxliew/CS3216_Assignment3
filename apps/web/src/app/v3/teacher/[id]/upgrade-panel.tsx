@@ -42,10 +42,10 @@ export function UpgradePanel({ adventureId, spec, revision, dirty = false, disab
     const message = [...new Set(finding.message.split(/(?<=\.)\s+/))].join(' ');
     return [`${title ?? finding.path}:${message}`, { ...finding, message, title }];
   })).values()];
-  return <section aria-label="Adventure format upgrade" className="rounded-control border border-line-strong bg-surface p-4 text-sm [overflow-wrap:anywhere]" aria-busy={busy}>
+  return <section aria-label="Adventure format upgrade" className="rounded-control border border-line-strong bg-surface px-4 py-2 text-sm [overflow-wrap:anywhere]" aria-busy={busy}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p>Format {version}. Older formats have limited support.</p>
-      <button type="button" className={button.quiet} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Close review' : 'Upgrade adventure'}</button>
+      <button type="button" className={button.subtle} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Close review' : 'Upgrade adventure'}</button>
     </div>
     {open ? <div className="mt-4 space-y-4">
       <h2 className="text-lg font-bold">Upgrade to format {CURRENT_SCHEMA_VERSION}</h2>
