@@ -3,6 +3,7 @@ import { AdventureTransfer } from "@/components/teacher/v3-version-controls";
 import { AdventureAccess } from "@/components/teacher/adventure-access";
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { MessageSquare, Pencil, Play, Save, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { reviewAssets } from "@/lib/v3/review-assets";
 import {
@@ -298,111 +299,97 @@ export function EditorWorkspace(props: Props) {
         }
         onEditIssue={() => setEditMode(true)}
         renderHeader={() => (
-          <header className="space-y-4" aria-busy={pending}>
+          <header className="space-y-3" aria-busy={pending}>
             <V3AdventureNav adventureId={props.adventureId} page="adventure" />
             <UpgradePanel adventureId={props.adventureId} spec={saved} revision={version} dirty={dirty} disabled={localPending} onPendingChange={setUpgradePending} onReviewOpen={setUpgradeOpen} onApplied={(spec, nextVersion) => {
               setSaved(spec); setDraft(spec); setVersion(nextVersion); setEdits([]); setSavedErrors([]); setEditMode(false);
               setMessage('Draft saved. Preview it before publishing.'); router.refresh();
             }} />
-            <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-              <section aria-label="Draft controls" className="space-y-3 py-2">
-                <p className="text-sm font-bold">
-                  {editMode ? "Editing draft" : "Adventure draft"}{" "}
-                  <span className="font-normal text-muted">· v{version}</span>
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  {!editMode ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <div role="group" aria-label="Draft" className="flex flex-wrap items-center gap-2">
+                {!editMode ? (
+                  <button type="button" className={button.quiet + " max-sm:w-10 max-sm:px-0"} title="Edit" onClick={() => setEditMode(true)}>
+                    <Pencil className="size-4" aria-hidden /><span className="max-sm:sr-only">Edit</span>
+                  </button>
+                ) : (
+                  <>
+                    {dirty || pending ? (
+                      <button type="button" className={button.primary + " max-sm:w-10 max-sm:px-0"} title="Save" disabled={pending} onClick={save}>
+                        <Save className="size-4" aria-hidden /><span className="max-sm:sr-only">{pending ? "Saving…" : "Save"}</span>
+                      </button>
+                    ) : null}
                     <button
                       type="button"
-                      className={button.quiet}
-                      onClick={() => setEditMode(true)}
+                      className={button.subtle + " max-sm:w-10 max-sm:px-0"}
+                      title="Discard edits"
+                      disabled={pending}
+                    onClick={() => {
+                      if (
+                        !dirty ||
+                        window.confirm("Discard your unsaved edits?")
+                      ) {
+                        browserDraft.clear();
+                        if (recoveryConflict) {
+                          setSaved(props.initial);
+                          setDraft(props.initial);
+                          setVersion(props.initialVersion);
+                          setSavedErrors(props.errors);
+                          setRecoveryConflict(false);
+                        } else setDraft(saved);
+                        setEdits([]);
+                        setEditMode(false);
+                        setMessage("Edits discarded.");
+                        setFailure(false);
+                      }
+                    }}
                     >
-                      Edit
+                      <Undo2 className="size-4" aria-hidden /><span className="max-sm:sr-only">Discard edits</span>
                     </button>
-                  ) : (
-                    <>
-                      {dirty || pending ? (
-                        <button
-                          type="button"
-                          className={button.primary}
-                          disabled={pending}
-                          onClick={save}
-                        >
-                          {pending ? "Saving…" : "Save"}
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className={button.subtle}
-                        disabled={pending}
-                        onClick={() => {
-                          if (
-                            !dirty ||
-                            window.confirm("Discard your unsaved edits?")
-                          ) {
-                            browserDraft.clear();
-                            if (recoveryConflict) {
-                              setSaved(props.initial);
-                              setDraft(props.initial);
-                              setVersion(props.initialVersion);
-                              setSavedErrors(props.errors);
-                              setRecoveryConflict(false);
-                            } else setDraft(saved);
-                            setEdits([]);
-                            setEditMode(false);
-                            setMessage("Edits discarded.");
-                            setFailure(false);
-                          }
-                        }}
-                      >
-                        Discard edits
-                      </button>
-                    </>
-                  )}
-                  {dirty || pending ? (
-                    <button type="button" disabled className={button.subtle}>
-                      Preview
-                    </button>
-                  ) : (
-                    <Link
-                      href={`/v3/teacher/${props.adventureId}/preview`}
-                      className={button.quiet}
-                    >
-                      Preview
-                    </Link>
-                  )}
-                  {chatClosed ? <button type="button" className={button.quiet} onClick={() => { setChatClosed(false); setEditMode(true); }}>Edit with chat</button> : null}
-                  <AdventureTransfer adventureId={props.adventureId} version={version} publishedVersion={publishedVersion} disabled={dirty || pending} />
-                  <AdventureAccess adventureId={props.adventureId} kind="v3" isPublic={props.isPublic} compact />
-                </div>
-                {dirty ? (
-                  <span className="text-sm">
-                    Unsaved edits. Save before previewing, transferring or publishing.
-                  </span>
-                ) : null}
-              </section>
-              <div className="py-2 md:border-l md:border-line md:pl-6">
-                <V3PublishPanel
-                  key={`${version}:${publishedVersion}`}
-                  adventureId={props.adventureId}
-                  version={version}
-                  publishedVersion={publishedVersion}
-                  published={published}
-                  unpublishedChanges={published && version !== publishedVersion}
-                  onPublicationChange={(live, pointer) => {
-                    setPublished(live);
-                    setPublishedVersion(pointer);
-                  }}
-                  disabled={dirty || pending}
-                  blockedReason={
-                    errors.length
-                      ? "Fix blocking errors before publishing."
-                      : undefined
-                  }
-                  compact
-                />
+                  </>
+                )}
+                {dirty || pending ? (
+                  <button type="button" disabled className={button.quiet + " max-sm:w-10 max-sm:px-0"} title="Preview">
+                    <Play className="size-4" aria-hidden /><span className="max-sm:sr-only">Preview</span>
+                  </button>
+                ) : (
+                  <Link href={`/v3/teacher/${props.adventureId}/preview`} className={button.quiet + " max-sm:w-10 max-sm:px-0"} title="Preview">
+                    <Play className="size-4" aria-hidden /><span className="max-sm:sr-only">Preview</span>
+                  </Link>
+                )}
+                {chatClosed ? <button type="button" className={button.quiet + " max-sm:w-10 max-sm:px-0"} title="Edit with chat" onClick={() => { setChatClosed(false); setEditMode(true); }}><MessageSquare className="size-4" aria-hidden /><span className="max-sm:sr-only">Edit with chat</span></button> : null}
+              </div>
+              <span aria-hidden className="hidden h-6 w-px bg-line-strong sm:block" />
+              <div role="group" aria-label="Sharing" className="flex flex-wrap items-center gap-2">
+                <AdventureTransfer adventureId={props.adventureId} version={version} publishedVersion={publishedVersion} disabled={dirty || pending} variant="subtle" />
+                <AdventureAccess adventureId={props.adventureId} kind="v3" isPublic={props.isPublic} compact />
+              </div>
+              <div className="ml-auto">
+                  <V3PublishPanel
+                    key={`${version}:${publishedVersion}`}
+                    adventureId={props.adventureId}
+                    version={version}
+                    publishedVersion={publishedVersion}
+                    published={published}
+                    unpublishedChanges={published && version !== publishedVersion}
+                    onPublicationChange={(live, pointer) => {
+                      setPublished(live);
+                      setPublishedVersion(pointer);
+                    }}
+                    disabled={dirty || pending}
+                    blockedReason={
+                      errors.length
+                        ? "Fix blocking errors before publishing."
+                        : undefined
+                    }
+                    compact
+                  />
               </div>
             </div>
+            {dirty ? (
+              <p className="text-sm">
+                Unsaved edits. Save before previewing, transferring or publishing.
+              </p>
+            ) : null}
             {browserDraft.notice ? <p role="status" className="text-sm">{browserDraft.notice}</p> : null}
             {browserDraft.error ? <p role="alert" className="text-sm">{browserDraft.error}</p> : dirty ? <p className="text-sm text-muted">Draft kept in this browser. Press Save to create a saved version.</p> : null}
             {recoveryConflict ? <button type="button" className={button.subtle} onClick={() => {

@@ -6,13 +6,13 @@ import { compactButton as button } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
 import { updateAdventureFromFile } from "@/app/v3/teacher/import-actions";
 
-export function AdventureTransfer({ adventureId, version, publishedVersion, disabled = false }: {
-  adventureId: string; version: number; publishedVersion: number | null; disabled?: boolean;
+export function AdventureTransfer({ adventureId, version, publishedVersion, disabled = false, variant = "quiet" }: {
+  adventureId: string; version: number; publishedVersion: number | null; disabled?: boolean; variant?: "quiet" | "subtle";
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   return (
     <>
-      <button type="button" disabled={disabled} onClick={() => dialog.current?.showModal()} className={button.quiet}><ArrowDownUp className="size-4" aria-hidden />Import / export</button>
+      <button type="button" disabled={disabled} onClick={() => dialog.current?.showModal()} className={`${button[variant]} max-sm:w-10 max-sm:px-0`} title="Import / export"><ArrowDownUp className="size-4" aria-hidden /><span className="max-sm:sr-only">Import / export</span></button>
       <dialog ref={dialog} aria-label="Import and export" className="fixed inset-0 m-auto max-h-[90dvh] w-[min(28rem,calc(100vw-2rem))] space-y-5 overflow-y-auto rounded-surface border-2 border-ink bg-surface p-6 text-ink shadow-xl backdrop:bg-ink/40">
         <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-extrabold">Import / export</h2><button type="button" onClick={() => dialog.current?.close()} aria-label="Close import and export" className={button.quiet}>Close</button></div>
         <section className="space-y-3 border-b border-line pb-5">
