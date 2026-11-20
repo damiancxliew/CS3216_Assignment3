@@ -64,6 +64,8 @@ export function useAdventureDraft(props: {
   const [localPending, setPending] = useState(false);
   const pending = localPending || Boolean(props.externalPending);
   const [recoveryConflict, setRecoveryConflict] = useState(false);
+  // An outdated browser draft left for the editor: nothing here may edit or overwrite it.
+  const frozen = Boolean(props.ignoreStaleRecovery) && recoveryConflict;
   const [message, setMessage] = useState("");
   const [failure, setFailure] = useState(false);
   const [savedErrors, setSavedErrors] = useState(props.errors);
@@ -96,12 +98,12 @@ export function useAdventureDraft(props: {
   const browserDraft = useBrowserDraft({
     adventureId: props.adventureId,
     value: { version, base: preserveStages(saved), edits, candidates: mediaCandidates },
-    dirty,
+    dirty: dirty && !frozen,
     sources: props.capturedSources,
     onRecover: recovered => {
       if (props.ignoreStaleRecovery && recovered.version !== props.initialVersion) {
         setRecoveryConflict(true);
-        return;
+        return false;
       }
       setSaved(recovered.base);
       setDraft(recovered.draft);
@@ -146,16 +148,16 @@ export function useAdventureDraft(props: {
   useReviewChatTarget({
     key: `draft:${version}`,
     revision: JSON.stringify(edits),
-    pending,
+    pending: pending || frozen,
     input: { pass: "draft", version, edits, ...(props.chatContext ? { context: props.chatContext } : {}) },
     apply: (proposal) => {
-      if (proposal.pass !== "draft" || pending) return;
+      if (proposal.pass !== "draft" || pending || frozen) return;
       if (!replaceEdits(proposal.edits, props.appliedMessage ?? "Suggested changes applied. Save when you’re ready."))
         setFailure(true);
     },
   });
   const edit = (command: V3Edit, candidate?: MediaCandidate) => {
-    if (pending) return;
+    if (pending || frozen) return;
     try {
       const candidates = candidate?.snapshot
         ? {
