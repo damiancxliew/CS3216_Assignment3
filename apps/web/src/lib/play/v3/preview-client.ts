@@ -9,7 +9,11 @@ type PreviewResponseBody = {
   view?: unknown;
   pendingCheckIds?: unknown;
   insight?: unknown;
+  locked?: unknown;
 };
+
+/** A character, document or stage left out of the preview because its edits have errors. */
+export type PreviewLock = { kind: "character" | "document" | "stage"; id: string; message: string };
 
 export type PreviewDraftEdits = { version: number; edits: V3Edit[] };
 export type PreviewClientOptions = {
@@ -17,6 +21,8 @@ export type PreviewClientOptions = {
   draft?: () => PreviewDraftEdits | null;
   /** Teacher-only insight and the new view after every successful step. */
   onUpdate?: (update: { insight: PreviewInsight | null; view: PlayerView }) => void;
+  /** Items paused in the preview, reported with every response that carries them. */
+  onLocked?: (locked: PreviewLock[]) => void;
 };
 
 export function createV3PreviewClient(
@@ -53,6 +59,7 @@ export function createV3PreviewClient(
       });
       const raw = await readBody(response);
       const result = raw as (typeof raw & PreviewResponseBody) | null;
+      if (Array.isArray(result?.locked)) options.onLocked?.(result.locked as PreviewLock[]);
       if (
         response.status === 200 &&
         typeof result?.token === "string" &&

@@ -39,6 +39,8 @@ export function useAdventureDraft(props: {
   externalPending?: boolean;
   /** Ask before leaving the page with unsaved edits. */
   guardLeaving?: boolean;
+  /** Leave a browser draft made on an older saved version for the editor to resolve. */
+  ignoreStaleRecovery?: boolean;
   appliedMessage?: string;
   /** Plain-text context for the editor chat, such as what the preview shows. */
   chatContext?: string;
@@ -97,6 +99,10 @@ export function useAdventureDraft(props: {
     dirty,
     sources: props.capturedSources,
     onRecover: recovered => {
+      if (props.ignoreStaleRecovery && recovered.version !== props.initialVersion) {
+        setRecoveryConflict(true);
+        return;
+      }
       setSaved(recovered.base);
       setDraft(recovered.draft);
       setVersion(recovered.version);

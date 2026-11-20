@@ -3,6 +3,7 @@ import { createOpenAiClient } from "@adventure/orchestration";
 import type { LlmClient } from "@adventure/orchestration";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { supabaseMediaRepository } from "@/lib/v3/media/repository";
 import { withPlayUsageV3, withPreviewUsageV3 } from "@/lib/usage/ledger";
 
 import type { V3PreviewDeps } from "./preview";
@@ -38,6 +39,7 @@ export function v3PreviewDeps(): V3PreviewDeps {
       now: () => Date.now(),
       env: process.env,
       sources: async id => (await supabaseV3SourceStore(createAdminClient).load(id)).map(d => ({ id: d.id, title: d.title, text: d.pages.map(p => p.text).join("\n") })),
+      media: supabaseMediaRepository(createAdminClient()),
     };
   }
   return previewDeps;

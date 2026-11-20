@@ -54,8 +54,10 @@ function EditButton({ label, onClick, disabled }: { label: string; onClick(): vo
  * The teacher's panel beside the running preview: the readable text the game gives the model for
  * whatever is in focus, editable in place, with the editor chat floating over it on demand.
  */
-export function PreviewEditPanel({ context, edited, pending, onEdit, onClose }: {
+export function PreviewEditPanel({ context, edited, pending, notice, onEdit, onClose }: {
   context: PreviewContext | null;
+  /** Why the item in focus can't be played or edited here right now. */
+  notice?: string;
   /** Paths changed by unsaved edits. */
   edited: ReadonlySet<string>;
   pending: boolean;
@@ -145,6 +147,7 @@ export function PreviewEditPanel({ context, edited, pending, onEdit, onClose }: 
           <X size={18} aria-hidden />
         </button>
       </header>
+      {notice ? <p role="alert" className="border-t border-line bg-sunken px-5 py-2 text-sm">{notice}</p> : null}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-line px-5 pb-24 [overflow-wrap:anywhere]" inert={chatOpen || undefined}>
         {!context ? (
           <p className="pt-4 text-sm text-muted">Talk to a character, open a document or walk the map to see what the game uses here.</p>

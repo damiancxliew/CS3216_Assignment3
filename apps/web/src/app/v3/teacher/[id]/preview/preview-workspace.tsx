@@ -1,6 +1,7 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import type { PreviewInsight } from "@adventure/engine";
+import type { PreviewLock } from "@/lib/play/v3/preview-client";
 import type { PlayerView } from "@adventure/play-contract";
 import type { AdventureSpec as Spec } from "@adventure/spec-v3";
 import { ModalDialogsProvider } from "@/components/play/dialog-mode";
@@ -64,6 +65,7 @@ function PreviewEditing(props: Props) {
     capturedSources: props.capturedSources,
     errors: [],
     guardLeaving: false,
+    ignoreStaleRecovery: true,
     appliedMessage: "",
     chatContext,
   });
@@ -78,26 +80,50 @@ function PreviewEditing(props: Props) {
     [draft.edits],
   );
   const { version, edits } = draft;
-  const readDraft = useCallback(() => ({ version, edits }), [version, edits]);
+  // On narrow screens the panel covers the game, so it steps aside while a game dialog is open.
+  const game = useRef<HTMLDivElement>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  useEffect(() => {
+    const root = game.current;
+    if (!root) return;
+    const update = () => setDialogOpen(Boolean(root.querySelector("dialog[open]")));
+    const observer = new MutationObserver(update);
+    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] });
+    update();
+    return () => observer.disconnect();
+  }, []);
+  const stale = draft.recoveryConflict;
+  const readDraft = useCallback(() => (stale ? null : { version, edits }), [stale, version, edits]);
+  const [locked, setLocked] = useState<PreviewLock[]>([]);
+  const focusId = focus.kind === "character" || focus.kind === "document" ? focus.id
+    : focus.kind === "stage" ? draft.draft.stages[focus.index]?.id : undefined;
+  const lock = locked.find((item) => item.kind === focus.kind && item.id === focusId);
+  const notice = stale
+    ? "Unsaved edits made on an older version are waiting in the editor. The preview plays the saved version until you keep or discard them there."
+    : lock
+      ? `Paused in the preview until this is fixed: ${lock.message}`
+      : undefined;
   return (
     <div className="flex h-dvh min-h-0 flex-col lg:flex-row">
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden [transform:translateZ(0)]">
+      <div ref={game} className="relative min-h-0 min-w-0 flex-1 overflow-hidden [transform:translateZ(0)]">
         <ModalDialogsProvider value={false}>
           <V3PreviewClient
             {...props.game}
             adventureId={props.adventureId}
             draft={readDraft}
             onUpdate={setLive}
+            onLocked={setLocked}
             onFocusChange={setFocus}
             panel={{ open, toggle }}
           />
         </ModalDialogsProvider>
       </div>
-      <div className={open ? "fixed inset-x-0 bottom-0 z-50 flex h-[60dvh] min-h-0 shadow-[0_-4px_20px_rgb(0_0_0/0.15)] lg:static lg:h-auto lg:shadow-none" : "hidden"}>
+      <div className={open ? `${dialogOpen ? "max-lg:hidden " : ""}fixed inset-x-0 bottom-0 z-50 flex h-[60dvh] min-h-0 shadow-[0_-4px_20px_rgb(0_0_0/0.15)] lg:static lg:h-auto lg:shadow-none` : "hidden"}>
           <PreviewEditPanel
             context={context}
             edited={edited}
-            pending={draft.pending}
+            pending={draft.pending || stale}
+            notice={notice}
             onEdit={draft.edit}
             onClose={toggle}
           />

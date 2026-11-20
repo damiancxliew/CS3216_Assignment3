@@ -345,12 +345,34 @@ describe("v3 teacher preview service", () => {
     })).toMatchObject({ status: 409, body: { error: { code: "preview_reset" } } });
   });
 
-  it("keeps the previous version playable when a draft edit is invalid", async () => {
+  it("pauses only the character whose draft edit is invalid", async () => {
+    const fixture = setup();
+    const { token, view } = await toStage(fixture);
+    const character = view.characters.find((item) => item.id === "temenggong") ?? view.characters[0]!;
+    const index = goldenSpec.characters.findIndex((item) => item.id === character.id);
+    const draft = {
+      version: 1,
+      edits: [
+        { type: "set" as const, path: ["characters", index, "persona", "voice"], value: 7 },
+        { type: "set" as const, path: ["title"], value: "Still playable" },
+      ],
+    };
+    const message = { type: "message" as const, characterId: character.id, text: "Hello." };
+    expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, { token, draft, action: message }))
+      .toMatchObject({ status: 423, body: { error: { code: "draft_locked" }, locked: [{ kind: "character", id: character.id }] } });
+    expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
+      token,
+      draft: { version: 1, edits: draft.edits.slice(1) },
+      action: message,
+    })).toMatchObject({ status: 200, body: { locked: [] } });
+  });
+
+  it("rejects a draft whose errors don't belong to one item", async () => {
     const fixture = setup();
     const { token } = await toStage(fixture);
     expect(await previewAction(fixture.deps, OWNER_ID, ADVENTURE_ID, {
       token,
-      draft: { version: 1, edits: [{ type: "set", path: ["characters", 0, "persona", "voice"], value: 7 }] },
+      draft: { version: 1, edits: [{ type: "set", path: ["title"], value: 7 }] },
       action: { type: "continue" },
     })).toMatchObject({ status: 422, body: { error: { code: "draft_invalid" } } });
   });

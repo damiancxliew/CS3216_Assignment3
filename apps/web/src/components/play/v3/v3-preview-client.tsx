@@ -73,11 +73,13 @@ export function V3PreviewClient({
   stageImages,
   draft,
   onUpdate,
+  onLocked,
   onFocusChange,
   panel,
 }: {
   draft?: PreviewClientOptions["draft"];
   onUpdate?: PreviewClientOptions["onUpdate"];
+  onLocked?: PreviewClientOptions["onLocked"];
   onFocusChange?: (focus: PlayFocus) => void;
   panel?: { open: boolean; toggle(): void };
   adventureId: string;
@@ -89,12 +91,13 @@ export function V3PreviewClient({
   stageImages?: ResolvedImage[];
 }) {
   // Read through refs so a new draft never recreates the client and restarts the game.
-  const latest = useRef({ draft, onUpdate });
-  latest.current = { draft, onUpdate };
+  const latest = useRef({ draft, onUpdate, onLocked });
+  latest.current = { draft, onUpdate, onLocked };
   const makeClient = useCallback(
     () => createV3PreviewClient(adventureId, initialToken, initialView, fetch, {
       draft: () => latest.current.draft?.() ?? null,
       onUpdate: (update) => latest.current.onUpdate?.(update),
+      onLocked: (locked) => latest.current.onLocked?.(locked),
     }),
     [adventureId, initialToken, initialView],
   );
