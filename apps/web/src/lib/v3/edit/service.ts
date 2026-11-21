@@ -81,16 +81,7 @@ export async function saveAdventureEdits(
   const sources = await deps.sources(id);
   let spec: AdventureSpec;
   try {
-    const candidateIds = commands.data.flatMap((command) =>
-      command.type === "stageImage" || command.type === "portraitImage"
-        ? command.candidateId
-          ? [command.candidateId]
-          : []
-        : command.type === "walkingSprite" &&
-            command.selection.kind === "candidate"
-          ? [command.selection.id]
-          : [],
-    );
+    const candidateIds = mediaCandidateIds(commands.data);
     if (candidateIds.length && !deps.media)
       throw Error("Media candidates are unavailable.");
     const media: MediaEditContext = {
@@ -162,4 +153,17 @@ export async function saveAdventureEdits(
     };
   const version = saved.version!;
   return { ok: true, spec, version, ...checks };
+}
+
+/** Generated images that edits select and that must be loaded before applying them. */
+export function mediaCandidateIds(commands: V3Edit[]): string[] {
+  return commands.flatMap((command) =>
+    command.type === "stageImage" || command.type === "portraitImage"
+      ? command.candidateId
+        ? [command.candidateId]
+        : []
+      : command.type === "walkingSprite" && command.selection.kind === "candidate"
+        ? [command.selection.id]
+        : [],
+  );
 }

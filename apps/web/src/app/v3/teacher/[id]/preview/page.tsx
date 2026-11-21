@@ -7,10 +7,18 @@ import { V3PreviewClient } from "@/components/play/v3/v3-preview-client";
 import { v3AdventureScenery } from "@/lib/play/v3/scenery";
 import { startPreview } from "@/lib/play/v3/preview";
 import { v3PreviewDeps, v3PublishDeps } from "@/lib/play/v3/http";
-import { EngineSpec } from "@adventure/engine";
+import { EngineSpec, type PreviewInsight } from "@adventure/engine";
+import { validateSpec } from "@adventure/spec-v3";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getViewer } from "@/lib/auth/viewer";
+import { canAccessV3Authoring } from "@/lib/v3/access";
+import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
+import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
+import { reviewAssets } from "@/lib/v3/review-assets";
 
 import type { PlayerView } from "@adventure/play-contract";
+import { PreviewWorkspace } from "./preview-workspace";
 
 export const metadata: Metadata = {
   title: "Preview",
@@ -53,18 +61,38 @@ export default async function V3TeacherPreviewPage({
     );
   }
 
-  const body = result.body as { token: string; view: PlayerView };
+  const body = result.body as { token: string; view: PlayerView; insight?: PreviewInsight };
   const adventure = await v3PublishDeps().store.loadAdventure(id);
   const parsed = EngineSpec.safeParse(adventure?.spec);
+  const game = {
+    ...(adventure && parsed.success
+      ? resolveAdventureImages(parsed.data, id, adventure.specVersion)
+      : {}),
+    scenery: parsed.success ? v3AdventureScenery(parsed.data) : [],
+    initialToken: body.token,
+    initialView: body.view,
+  };
+  const editable = adventure ? await editingContext(id, adventure.spec) : null;
+  if (!adventure || !editable) return <V3PreviewClient {...game} adventureId={id} />;
   return (
-    <V3PreviewClient
-      {...(adventure && parsed.success
-        ? resolveAdventureImages(parsed.data, id, adventure.specVersion)
-        : {})}
-      scenery={parsed.success ? v3AdventureScenery(parsed.data) : []}
+    <PreviewWorkspace
       adventureId={id}
-      initialToken={body.token}
-      initialView={body.view}
+      brief={editable.brief}
+      initial={editable.spec}
+      initialVersion={adventure.specVersion}
+      assets={{ version: adventure.specVersion, items: reviewAssets(editable.spec, id, adventure.specVersion) }}
+      capturedSources={(await v3PublishDeps().sources?.(id)) ?? []}
+      insight={body.insight ?? null}
+      game={game}
     />
   );
+}
+
+/** Teachers who can edit the adventure get the edit panel; others see the plain preview. */
+async function editingContext(id: string, spec: unknown) {
+  const viewer = await getViewer(await createClient());
+  const row = await supabaseV3BriefStore(createAdminClient()).load(id);
+  const parsed = validateSpec(spec);
+  if (!row || !parsed.ok || !canAccessV3Authoring(viewer, row)) return null;
+  return { brief: row.state ?? initialBriefStateV3(id), spec: parsed.spec };
 }

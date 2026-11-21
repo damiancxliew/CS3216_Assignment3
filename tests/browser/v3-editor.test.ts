@@ -649,7 +649,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await page.locator("#edit-title").inputValue()).toBe(
         "Chat revised title",
       );
-      await transcript.getByText("Applied to the cards.", { exact: true }).waitFor();
+      await transcript.getByRole("region", { name: "Applied changes", exact: true }).last().waitFor();
       await page.getByRole("tab", { name: "Characters", exact: true }).click();
       expect(await page.locator("#edit-characters-0-persona-voice").inputValue()).toBe(
         "Chat revised voice",
@@ -727,7 +727,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         .getByRole("button", { name: "Discard suggestion", exact: true })
         .click();
       expect(await discardCard.count()).toBe(0);
-      await page.getByRole("status").getByText("Kept your current edits.").waitFor();
+      await page.getByRole("region", { name: "Discarded changes", exact: true }).last().waitFor();
       expect(
         await page.locator("#edit-characters-0-persona-voice").inputValue(),
       ).toBe("More weary voice");
@@ -925,7 +925,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       page.once("dialog", dialog => dialog.accept());
       await page.goto("about:blank");
       await page.goto(vite.resolvedUrls!.local[0]!);
-      await page.getByRole("status").filter({ hasText: "Recovered your unsaved draft" }).waitFor();
+      await page.getByText("Unsaved edits recovered from this browser.", { exact: false }).waitFor();
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
       await playerSlot.getByText(/Unsaved selection/).waitFor();
       expect(await playerSlot.getByRole("article", { name: "Asset candidate" }).count()).toBe(0);
