@@ -1,23 +1,37 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import type { GenerationProgress as ProgressData } from "@/lib/v3/generation/service";
+import styles from "./progress.module.css";
 
-import { Thinking } from "@/components/ui";
 import { ProgressBar } from "@/components/teacher/progress-bar";
-import { PASS_LABELS, PASS_ORDER, stepDisplayStatus } from "@/lib/v3/generation/labels";
+import { PASS_ORDER, type PassName } from "@/lib/v3/generation/labels";
 
 import { getV3GenerationProgress } from "../actions";
 
-const activity = { sources: "Reading sources…", skeleton: "Planning the story…", details: "Writing scenes…", endings: "Writing endings…", reveal: "Writing the reveal…", check: "Checking the story…", save: "Saving the draft…" };
+const activity: Record<PassName, string> = { sources: "Reading sources", skeleton: "Planning the story", details: "Writing scenes", endings: "Writing endings", reveal: "Writing the reveal", check: "Checking the story", save: "Saving the draft" };
+const stepNames: Record<PassName, string> = { sources: "sources", skeleton: "story outline", details: "scenes", endings: "endings", reveal: "reveal", check: "checks", save: "save" };
 
-type Progress = Awaited<ReturnType<typeof getV3GenerationProgress>>;
+// Only changes to the rendered steps need a server refresh; clock/cost polling does not.
+function contentRevision(data: ProgressData | null) {
+  return JSON.stringify(data && [data.status, data.pausedAt, data.steps.map(step => [step.name, step.status])]);
+}
 
-/** The generating view: one row per pass, refreshed every 4 s like the artwork poller. */
-export function GenerationProgress({ adventureId, seesCost, compact = false }: { adventureId: string; seesCost: boolean; compact?: boolean }) {
+/** Polls progress every 4 s, starting from the server's snapshot so the bar never resets. */
+export function GenerationProgress({ adventureId, seesCost, initial = null }: { adventureId: string; seesCost: boolean; initial?: ProgressData | null }) {
   const router = useRouter();
-  const [progress, setProgress] = useState<Progress | null>(null);
+  const [progress, setProgress] = useState<ProgressData | null>(initial);
+  const renderedRevision = useRef(contentRevision(initial));
   const [retrying, setRetrying] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const clockRunning = !retrying && isWorking(progress) && !!progress?.steps.some((step) => step.status === "running" && step.startedAt);
+
+  useEffect(() => {
+    if (!clockRunning) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [clockRunning]);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +42,12 @@ export function GenerationProgress({ adventureId, seesCost, compact = false }: {
         if ("error" in result) { setRetrying(true); return; }
         setRetrying(false);
         setProgress(result);
-        if (result.status !== "generating") router.refresh();
+        setNow(Date.now());
+        const revision = contentRevision(result);
+        if (revision !== renderedRevision.current) {
+          renderedRevision.current = revision;
+          router.refresh();
+        }
       } catch { if (!cancelled) setRetrying(true); }
     };
     void tick();
@@ -39,31 +58,47 @@ export function GenerationProgress({ adventureId, seesCost, compact = false }: {
     };
   }, [adventureId, router]);
 
-  const steps = progress && !("error" in progress) ? progress.steps : [];
-  const byName = new Map(steps.map((step) => [step.name, step]));
-  const done = PASS_ORDER.filter((name) => stepDisplayStatus(byName.get(name)?.status) === "done").length;
-  const anyRunning = PASS_ORDER.some((name) => stepDisplayStatus(byName.get(name)?.status) === "running");
+  return <GenerationProgressCard progress={progress} reconnecting={retrying} seesCost={seesCost} now={now} />;
+}
 
-  const running = PASS_ORDER.find(name => stepDisplayStatus(byName.get(name)?.status) === "running") ?? PASS_ORDER.find(name => stepDisplayStatus(byName.get(name)?.status) !== "done");
-  if (compact) return <section className="creation-card rounded-surface border border-line-strong bg-surface px-5 py-4" aria-label="Generation progress"><Thinking label={retrying ? "Reconnecting…" : running ? activity[running] : "Finishing up…"} /><p className="mt-2 text-xs text-muted">{done} of {PASS_ORDER.length} steps complete</p>{seesCost && progress && !("error" in progress) ? <p className="mt-1 text-xs text-muted">Cost so far: ${progress.costUsd.toFixed(4)}</p> : null}</section>;
+/** Still generating, including the moment a pass has paused the row but its step is not yet recorded. */
+function isWorking(progress: ProgressData | null) {
+  return !progress || progress.status === "generating" || (progress.status === "needs_review" && !progress.pausedAt);
+}
+
+/** The toolbar's overall-build bar. Activity text is visible only while a step runs or after a stop. */
+export function GenerationProgressCard({ progress, reconnecting = false, seesCost, now }: {
+  progress: ProgressData | null;
+  reconnecting?: boolean;
+  seesCost: boolean;
+  now: number;
+}) {
+  const byName = new Map((progress?.steps ?? []).map((step) => [step.name, step]));
+  const done = PASS_ORDER.filter((name) => byName.get(name)?.status === "succeeded").length;
+  const running = PASS_ORDER.find((name) => byName.get(name)?.status === "running");
+  const failedStep = PASS_ORDER.find((name) => byName.get(name)?.status === "failed");
+  const failed = progress?.status === "failed" || !!failedStep;
+  const working = isWorking(progress) && !failed;
+  const active = working && !reconnecting;
+  const start = running ? Date.parse(byName.get(running)?.startedAt ?? "") : NaN;
+  const seconds = Math.max(0, Math.floor((now - start) / 1000));
+  const clock = active && Number.isFinite(seconds)
+    ? `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}` : null;
+  const visible = reconnecting && working ? "Reconnecting…"
+    : failed ? `Stopped${failedStep ? ` at ${stepNames[failedStep]}` : ""}`
+    : active ? `${running ? activity[running] : "Preparing"}${clock ? ` · ${clock}` : "…"}`
+    : null;
+  const status = visible ?? (progress?.status === "needs_review" ? "Ready for your review" : progress?.status === "draft" || progress?.status === "published" ? "Adventure ready" : "");
+  const summary = `Overall build: ${done} of ${PASS_ORDER.length} steps${seesCost && progress ? ` · $${progress.costUsd.toFixed(4)}` : ""}`;
+
   return (
-    <div className="flex max-w-2xl flex-col gap-4">
-      {retrying ? <p role="status" className="text-sm">Could not refresh progress. Retrying…</p> : null}
-      <ProgressBar value={done} max={PASS_ORDER.length} indeterminate={done === 0 && !anyRunning} label="Generation progress" />
-      <ol className="flex flex-col gap-1">
-        {PASS_ORDER.map((name) => {
-          const status = stepDisplayStatus(byName.get(name)?.status);
-          return (
-            <li key={name} className="flex items-center justify-between gap-4 py-1.5 text-sm">
-              <span className="font-semibold text-ink">{PASS_LABELS[name]}</span>
-              <span className={status === "failed" ? "font-bold text-signal" : "text-muted"}>
-                {status === "waiting" ? "waiting" : status === "running" ? "running" : status === "done" ? "done" : "failed"}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      {seesCost && progress && !("error" in progress) ? <p className="text-xs text-muted">Cost so far: ${progress.costUsd.toFixed(4)}</p> : null}
-    </div>
+    <section aria-label="Generation progress" className={`${styles.toolbar} ${active ? "" : styles.still}`} title={summary}>
+      <span role="status" className="sr-only">{status}</span>
+      <div className={styles.inlineRow}>
+        {visible ? <span aria-hidden className={failed ? styles.inlineFailure : styles.inlineActivity}>{visible}</span> : null}
+        <div className={styles.inlineTrack}><ProgressBar value={done} max={PASS_ORDER.length} label="Generation steps" indeterminate={!progress && !reconnecting} /></div>
+        <span className={styles.inlineMeta}>{done}/{PASS_ORDER.length}</span>
+      </div>
+    </section>
   );
 }

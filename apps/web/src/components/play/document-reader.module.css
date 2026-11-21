@@ -145,3 +145,28 @@
   .footer { margin-inline: 16px; }
   .roller { height: 23px; }
 }
+
+/* v3 source card: the scroll stays the outer frame; inside, the source sits on its own card
+   with a status tag, the citation in view and an optional page facsimile. */
+.sourceCard { position: relative; margin: 6px 0 4px; padding: 30px 26px 18px; border: 3px solid #1f2433; border-radius: 10px; background: #fffaf0; box-shadow: 0 4px 0 rgb(31 36 51 / .35); color: #1f2433; }
+.sourceTag { position: absolute; top: 0; right: 18px; transform: translateY(-55%); display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 36px); border: 2px solid #a8442a; border-radius: 4px; background: #d85f35; color: #fff8e9; padding: 2px 10px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; box-shadow: 0 2px 0 #a8442a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sourceTag[data-kind="invented"] { border-color: #3d4766; background: #5c6788; box-shadow: 0 2px 0 #3d4766; }
+.sourceTag[data-kind="summary"] { border-color: #165a41; background: #258663; box-shadow: 0 2px 0 #165a41; }
+.sourceMeta { margin: 0 0 14px; font: 400 .9rem/1.5 var(--font-ui, system-ui), sans-serif; color: #6b5f4c; }
+.sourceCard .text { font-size: 1.15rem; line-height: 1.8; }
+.sourceCard .text::first-letter { color: #a8442a; }
+.citation { margin: 16px 0 0; padding-top: 10px; border-top: 2px dashed #d9c7a0; font: 400 .85rem/1.5 var(--font-ui, system-ui), sans-serif; color: #6b5f4c; overflow-wrap: anywhere; }
+.facsimile { margin: 0 0 16px; }
+.facsimile img { display: block; width: 100%; max-height: min(52vh, 34rem); object-fit: contain; border: 2px solid #1f2433; border-radius: 6px; background: #f3ead6; }
+.facsimile figcaption { margin-top: 6px; font: 400 .8rem/1.5 var(--font-ui, system-ui), sans-serif; color: #6b5f4c; }
+.facsimileToggle { display: inline-flex; min-height: 36px; align-items: center; gap: 6px; margin: 0 0 12px; padding: 4px 12px; border: 2px solid #1f2433; border-radius: 6px; background: #fff3cf; color: #1f2433; font: 700 13px/1.2 var(--font-ui, system-ui), sans-serif; box-shadow: 0 2px 0 #1f2433; cursor: pointer; }
+.facsimileToggle:hover { background: #ffe58a; }
+.glossaryChips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; font-style: normal; }
+.glossaryChips div { border: 2px solid #d9c7a0; border-radius: 8px; background: #fff; padding: 4px 10px; font: 400 .9rem/1.45 var(--font-ui, system-ui), sans-serif; }
+.glossaryChips dt { display: inline; font-weight: 700; color: #1f2433; }
+.glossaryChips dt::after { content: ": "; }
+.glossaryChips dd { display: inline; margin: 0; color: #3d4352; }
+@media (max-width: 540px) {
+  .sourceCard { padding: 28px 14px 14px; }
+  .sourceTag { right: 10px; font-size: 11px; }
+}

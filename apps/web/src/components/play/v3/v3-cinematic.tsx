@@ -9,6 +9,7 @@ import Image from "next/image";
 import { useFullscreen } from "@/lib/play/fullscreen";
 import type { V3CinematicBeat } from "@/lib/play/v3/cinematic";
 import styles from "@/components/play/stage-cutscene.module.css";
+import { pixelFont } from "./pixel-font";
 
 function beatDuration(text: string): number {
   const words = text.split(/\s+/).filter(Boolean).length;
@@ -198,8 +199,8 @@ export function V3Cinematic({
               </figure>
             ) : null}
             <div className={styles.beatCopy}>
-            <p className={styles.kicker}>{beat.kicker}</p>
-            {beat.title ? <h2 className={styles.title}>{beat.title}</h2> : null}
+            <p className={`${pixelFont.className} ${styles.kicker}`}>{beat.kicker}</p>
+            {beat.title ? <h2 className={`${pixelFont.className} ${styles.title}`}>{beat.title}</h2> : null}
             {beat.body ? <p className={styles.text}>{beat.body}</p> : null}
             {beat.items ? (
               <ul className={styles.list}>
@@ -224,7 +225,7 @@ export function V3Cinematic({
                 More about your role
               </button>
             ) : null}
-            <button ref={beginButton} type="button" className={styles.begin} onClick={onBegin}>
+            <button ref={beginButton} type="button" className={`${pixelFont.className} ${styles.begin}`} onClick={onBegin}>
               {beginLabel} <ArrowRight size={18} aria-hidden />
             </button>
           </div>
@@ -248,7 +249,7 @@ export function V3Cinematic({
               <button type="button" className={styles.skip} onClick={() => setStep(beats.length)}>
                 <FastForward size={15} aria-hidden /> Skip
               </button>
-              <button type="button" className={styles.next} onClick={next}>
+              <button type="button" className={`${pixelFont.className} ${styles.next}`} onClick={next}>
                 Continue <ChevronRight size={17} aria-hidden />
               </button>
             </div>

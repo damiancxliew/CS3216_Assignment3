@@ -4,12 +4,18 @@ import { V3AdventureNav } from "@/components/teacher/v3-adventure-nav";
 import { notFound, redirect } from "next/navigation";
 
 import { EmptyState, Page, Section } from "@/components/ui";
-import { loadClassSummary } from "@/lib/play/v3/summary";
+import {
+  loadClassSummary,
+  type FlaggedMessage,
+  type FlaggedStudent,
+} from "@/lib/play/v3/summary";
 import { v3SummaryDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
 
-import type { ClassSummary } from "@adventure/play-contract";
+import type { ClassSummary, FlagSeverity } from "@adventure/play-contract";
 import { V3ReadingSummary } from "@/components/teacher/v3-reading-summary";
+
+import { FlagDisclosure } from "./flag-disclosure";
 
 export const dynamic = "force-dynamic";
 
@@ -144,7 +150,7 @@ function SummaryContent({
 }: {
   tab: SummaryTab;
   summary: ClassSummary;
-  flagged: { attemptId: string; count: number; student: string }[];
+  flagged: FlaggedStudent[];
 }) {
   switch (tab) {
     case "stuck":
@@ -159,7 +165,13 @@ function SummaryContent({
       return <FlagSummary flagged={flagged} />;
     default:
       return (
-        <OverviewSummary summary={summary} flaggedCount={flagged.length} />
+        <OverviewSummary
+          summary={summary}
+          flaggedCount={flagged.length}
+          urgentCount={
+            flagged.filter((item) => item.severity === "urgent").length
+          }
+        />
       );
   }
 }
@@ -167,9 +179,11 @@ function SummaryContent({
 function OverviewSummary({
   summary,
   flaggedCount,
+  urgentCount,
 }: {
   summary: ClassSummary;
   flaggedCount: number;
+  urgentCount: number;
 }) {
   const endingTotal = Math.max(summary.attempts, 1);
   return (
@@ -177,7 +191,11 @@ function OverviewSummary({
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat label="Attempts" value={summary.attempts} />
         <Stat label="Completed / reached reveal" value={summary.completed} />
-        <Stat label="Flagged attempts" value={flaggedCount} />
+        <Stat
+          label="Flagged attempts"
+          value={flaggedCount}
+          note={urgentCount > 0 ? `${urgentCount} urgent` : undefined}
+        />
       </dl>
       <Section title="Endings reached">
         {summary.endings.length ? (
@@ -410,31 +428,86 @@ function DiscoverySummary({ summary }: { summary: ClassSummary }) {
   );
 }
 
-function FlagSummary({
-  flagged,
+const SEVERITY_LABELS: Record<FlagSeverity, string> = {
+  urgent: "Urgent",
+  serious: "Serious",
+  review: "Review",
+};
+
+const SEVERITY_STYLES: Record<FlagSeverity, string> = {
+  urgent: "bg-danger text-on-accent",
+  serious: "bg-signal-wash text-ink",
+  review: "bg-sunken text-muted",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  abusive: "Abusive",
+  threat: "Threat",
+  hateful: "Hateful",
+  provocative: "Provocative",
+  sexual: "Sexual",
+  self_harm: "Self-harm",
+};
+
+function SeverityBadge({
+  severity,
+  className = "",
 }: {
-  flagged: { attemptId: string; count: number; student: string }[];
+  severity: FlagSeverity;
+  className?: string;
 }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${SEVERITY_STYLES[severity]} ${className}`}
+    >
+      {SEVERITY_LABELS[severity]}
+    </span>
+  );
+}
+
+function FlagSummary({ flagged }: { flagged: FlaggedStudent[] }) {
   return (
     <Section title="Flags">
       <p className="text-sm text-muted">
-        Only flagged students are named here, so you can follow up.
+        Only flagged students are named here, so you can follow up. Flags come
+        from an automatic check and can be wrong.
       </p>
       {flagged.length === 0 ? (
         <EmptyState title="No messages were flagged." />
       ) : (
-        <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface px-4">
+        <ul className="flex flex-col divide-y divide-line rounded-surface border border-line bg-surface">
           {flagged.map((item) => (
-            <li
-              key={item.attemptId}
-              className="flex flex-col gap-1 py-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <span className="min-w-0 break-all font-semibold text-ink">
-                {item.student}
-              </span>
-              <span className="shrink-0 text-sm text-muted">
-                {item.count} {item.count === 1 ? "message" : "messages"} flagged
-              </span>
+            <li key={item.attemptId}>
+              <FlagDisclosure
+                defaultOpen={item.severity === "urgent"}
+                title={
+                  <span className="min-w-0 break-all font-semibold text-ink">
+                    {item.student}
+                  </span>
+                }
+                badge={<SeverityBadge severity={item.severity} />}
+                meta={`${item.count} ${item.count === 1 ? "message" : "messages"} flagged`}
+              >
+                <div className="flex flex-col gap-3 px-4 pb-4">
+                  {item.messages.map((message) => (
+                    <FlaggedMessageRow
+                      key={`${message.messageId}-${message.category}`}
+                      message={message}
+                    />
+                  ))}
+                  {item.count > item.messages.length ? (
+                    <p className="text-sm text-muted">
+                      {item.messages.length === 0
+                        ? "The flagged message text wasn't saved."
+                        : `The text of ${item.count - item.messages.length} more flagged ${
+                            item.count - item.messages.length === 1
+                              ? "message wasn't"
+                              : "messages weren't"
+                          } saved.`}
+                    </p>
+                  ) : null}
+                </div>
+              </FlagDisclosure>
             </li>
           ))}
         </ul>
@@ -443,12 +516,51 @@ function FlagSummary({
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function FlaggedMessageRow({ message }: { message: FlaggedMessage }) {
+  const context =
+    message.source === "interview"
+      ? ["Interview"]
+      : [
+          message.characterName ? `To ${message.characterName}` : null,
+          message.stageIndex === null ? null : `Stage ${message.stageIndex + 1}`,
+        ].filter(Boolean);
+  return (
+    <div className="flex flex-col gap-2 rounded-control bg-paper p-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <SeverityBadge severity={message.severity} />
+        <span className="font-semibold text-ink">
+          {CATEGORY_LABELS[message.category] ?? message.category}
+        </span>
+        {context.length ? (
+          <span className="text-muted">· {context.join(" · ")}</span>
+        ) : null}
+      </div>
+      <p className="whitespace-pre-wrap break-words text-base text-ink">
+        {message.excerpt}
+      </p>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: number;
+  note?: string;
+}) {
   return (
     <div className="flex min-h-24 flex-col justify-between gap-2 rounded-control border border-line bg-surface p-3.5">
       <dt className="text-sm text-muted">{label}</dt>
-      <dd className="text-2xl font-extrabold tracking-tight text-ink tabular-nums">
+      <dd className="flex items-baseline gap-2 text-2xl font-extrabold tracking-tight text-ink tabular-nums">
         {value}
+        {note ? (
+          <span className="text-sm font-bold tracking-normal text-danger">
+            {note}
+          </span>
+        ) : null}
       </dd>
     </div>
   );

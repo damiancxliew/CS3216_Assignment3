@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { supabaseJobStore } from "@adventure/jobs";
+import { supabaseJobStore, type JobStep } from "@adventure/jobs";
 import {
   validateSkeleton,
   validateSpec,
   type SkeletonShape,
 } from "@adventure/spec-v3";
-import { SiteHeader, compactButton as button } from "@/components/ui";
+import { SiteHeader, Thinking } from "@/components/ui";
 import { getViewer, isStaff } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -17,20 +16,28 @@ import { AdventureTransfer } from "@/components/teacher/v3-version-controls";
 import { initialBriefStateV3 } from "@/lib/v3/brief/schema";
 import { supabaseV3BriefStore } from "@/lib/v3/brief/store";
 import { defaultGenerationDeps } from "@/lib/v3/generation/deps";
+import { PASS_ORDER, type PassName } from "@/lib/v3/generation/labels";
 import {
   loadPause,
   storedBrief,
   viewerSeesCost,
+  type GuidedPass,
 } from "@/lib/v3/generation/service";
 import { capturedSources } from "@/lib/v3/edit/apply";
 import { getV3GenerationProgress } from "../actions";
-import { GenerationProgress } from "./generation-progress";
+import { GenerationProgress, GenerationProgressCard } from "./generation-progress";
 import { SkeletonEditor } from "./skeleton-editor";
-import { StartAgain } from "./review-actions";
+import { PendingContent, StartAgain } from "./review-actions";
 import AdventureWorkspace from "./review/adventure-workspace";
 import { SourcesReview, PauseEditor } from "./guided-review";
+import { GenerationToolbar, ReviewToolbar } from "./review-toolbar";
+import { DraftLinks } from "./draft-links";
 import { CreationWorkspace } from "./creation-workspace";
+import { SourceMaterial } from "./brief-sources";
+import { BriefSummary } from "./brief-overview";
+import creationStyles from "./creation-workspace.module.css";
 import { GenerationHistory } from "./generation-history";
+import { GenerationSection, generationSections, type SectionKey } from "./generation-section";
 import { DraftReview } from "./draft-review";
 import { validateEditedSpec } from "@/lib/v3/edit/validation";
 
@@ -39,6 +46,26 @@ export const metadata: Metadata = {
   title: "Adventure",
   robots: { index: false },
 };
+
+const sectionOf = (name: PassName): SectionKey => (name === "check" || name === "save" ? "finish" : name);
+const GUIDED_STEPS: GuidedPass[] = ["sources", "skeleton", "details", "endings", "reveal"];
+const activity: Record<SectionKey, string> = {
+  sources: "Reading your sources…", skeleton: "Planning the story…", details: "Writing scenes, characters and documents…",
+  endings: "Writing decisions and endings…", reveal: "Writing the reveal and questions…", finish: "Checking the story and saving your draft…",
+};
+const stoppedAt: Record<SectionKey, string> = {
+  sources: "reading the sources", skeleton: "planning the outline", details: "writing the scenes",
+  endings: "writing the endings", reveal: "writing the reveal", finish: "the final checks",
+};
+
+/** The section being written now: the first pass that hasn't succeeded, else the one after the last success. */
+function workingSection(steps: readonly JobStep[]): SectionKey {
+  const status = (name: PassName) => steps.find((step) => step.name === name)?.status;
+  const open = PASS_ORDER.find((name) => status(name) !== undefined && status(name) !== "succeeded");
+  if (open) return sectionOf(open);
+  const next = PASS_ORDER.find((name) => status(name) === undefined);
+  return sectionOf(next ?? "save");
+}
 
 export default async function V3AdventurePage({
   params,
@@ -55,10 +82,10 @@ export default async function V3AdventurePage({
   if (!row || !canAccessV3Authoring(viewer, row))
     notFound();
   const query = await searchParams;
+  // Every mode finishes in this workspace; only rows without a brief, or an explicit request, open the editor.
   if (
     ["published", "archived"].includes(row.status) ||
-    (row.status === "draft" &&
-      (row.state?.draft.mode !== "guided" || query?.view === "editor"))
+    (row.status === "draft" && (!row.state || query?.view === "editor"))
   )
     return AdventureWorkspace({ params: Promise.resolve({ id }) });
 
@@ -86,8 +113,9 @@ export default async function V3AdventurePage({
     ];
   }
   const validProgress = progress && !("error" in progress) ? progress : null;
+  const guided = validProgress?.mode === "guided";
   const pause =
-    row.status === "needs_review" && validProgress?.mode === "guided"
+    row.status === "needs_review" && guided
       ? await loadPause(deps, store, {
           id,
           schoolId: row.schoolId,
@@ -96,32 +124,38 @@ export default async function V3AdventurePage({
         })
       : null;
   const pass = pause?.pass ?? validProgress?.pausedAt;
+  // A pass marks the row for review a moment before its step is recorded as done.
   const generating =
     row.status === "generating" || (row.status === "needs_review" && !pass);
+  const failed = row.status === "failed";
+  const working = generating ? workingSection(steps) : null;
+  // Without a pause (quick/standard), each finished step is what to read next; Guided reviews it at the pause instead.
+  const justDone = generating && !guided
+    ? (["reveal", "endings", "details", "skeleton", "sources"] as const).find((name) => steps.some((step) => step.name === name && step.status === "succeeded")) ?? null
+    : null;
+  const failedStep = failed ? steps.find((step) => step.status === "failed") : undefined;
+  const failedSection = failedStep && (PASS_ORDER as readonly string[]).includes(failedStep.name)
+    ? sectionOf(failedStep.name as PassName) : null;
   const title =
-    pass === "skeleton"
-      ? "Story outline"
-      : pass
-        ? {
-            sources: "Choose sources",
-            details: "Stages and characters",
-            endings: "Decisions and endings",
-            reveal: "Reveal and questions",
-          }[pass]
-        : row.status === "draft"
-          ? "Your adventure is ready"
-          : row.status === "failed"
-            ? "Generation paused"
-            : "Building your adventure";
+    row.status === "draft"
+      ? "Your adventure is ready"
+      : failed
+        ? "Generation stopped"
+        : generationSections[pass ?? working ?? "sources"].title;
+  // Guided mode counts its five review steps; the step label stays put while each is written.
+  const stepSection = pass ?? working;
+  const stepLabel = guided && row.status !== "draft" && !failed && stepSection
+    ? stepSection === "finish" ? "Final checks" : `Step ${GUIDED_STEPS.indexOf(stepSection) + 1} of 5`
+    : null;
   const statusMessage =
     row.status === "briefing"
       ? ""
       : row.status === "draft"
         ? "Preview the adventure to see what students will play. You can keep editing the cards or ask for changes here."
-        : row.status === "failed"
-          ? "Something went wrong. You can start again with the same sources."
+        : failed
+          ? `Generation stopped${failedSection ? ` while ${stoppedAt[failedSection]}` : ""}. Your sources and answers are saved, so you can start again with them.`
           : generating
-            ? "Working on the next step…"
+            ? "Working on the next step. Each part appears here when it’s ready."
             : pass === "sources"
               ? "Choose which sources to use. Your uploads stay included."
               : pass === "skeleton"
@@ -146,6 +180,12 @@ export default async function V3AdventurePage({
           .single()
       : null;
   const finalSpec = final?.data ? validateSpec(final.data.spec) : null;
+  const sources = capturedSources([...documents]);
+  const placeholder = (key: SectionKey) => (
+    <div className={creationStyles.card} data-generation-placeholder>
+      <Thinking label={activity[key]} />
+    </div>
+  );
 
   return (
     <div className="min-h-screen md:flex md:h-dvh md:flex-col md:overflow-hidden">
@@ -156,101 +196,72 @@ export default async function V3AdventurePage({
           brief={brief}
           active={row.status === "briefing"}
           complete={row.status === "draft"}
+          failed={failed}
           generating={generating}
           statusMessage={statusMessage}
-        >
-          {row.status !== "briefing" ? (
-            <>
-              <header className="flex items-center justify-between gap-3">
+          generationProgress={row.status === "briefing" ? null : generating ? <GenerationProgress adventureId={id} seesCost={viewerSeesCost(viewer)} initial={validProgress} /> : validProgress ? <GenerationProgressCard progress={validProgress} seesCost={viewerSeesCost(viewer)} now={Date.now()} /> : null}
+          contentHeader={row.status !== "briefing" ? <header className="flex items-center justify-between gap-3">
                 <h2 className="text-xl font-extrabold tracking-tight text-ink">
                   {title}
                 </h2>
                 {row.status === "draft" && final?.data ? <AdventureTransfer adventureId={id} version={final.data.spec_version} publishedVersion={null} /> : null}
-                {pass && validProgress?.mode === "guided" ? (
-                  <span className="text-xs text-muted">
-                    Step {pause?.index ?? 2} of 5
-                  </span>
-                ) : null}
-              </header>
+                {stepLabel ? <span className="text-xs text-muted">{stepLabel}</span> : null}
+              </header> : null}
+        >
+          {row.status !== "briefing" ? (
+            <>
+              {row.state ? <BriefSummary brief={row.state} /> : null}
+              <GenerationSection pass="sources" current={justDone === "sources" || (!justDone && working === "sources") || pause?.pass === "sources"} pending={!justDone && working === "sources"}>
+                <SourceMaterial adventureId={id} sources={documents.length ? documents.map(({ id, title, kind }) => ({ id, title, kind })) : brief.sources} />
+                {!generating && pause?.pass === "sources" ? <SourcesReview adventureId={id} pause={pause} /> : null}
+                {working === "sources" ? placeholder("sources") : null}
+              </GenerationSection>
               <GenerationHistory
                 steps={
                   row.status === "draft"
-                    ? steps.filter(
-                        (step) =>
-                          step.name === "sources" || step.name === "skeleton",
-                      )
+                    ? steps.filter((step) => step.name === "skeleton")
                     : [...steps]
                 }
                 documents={[...documents]}
                 current={pass}
-                finalSpec={finalSpec?.ok ? finalSpec.spec : undefined}
+                focus={justDone ?? undefined}
               />
               {row.status === "draft" && finalSpec?.ok && final?.data ? (
                 <DraftReview
                   adventureId={id}
                   initial={finalSpec.spec}
                   initialVersion={final.data.spec_version}
-                  initialErrors={
-                    validateEditedSpec(
-                      finalSpec.spec,
-                      capturedSources([...documents]),
-                      validProgress?.checkErrors,
-                    ).errors
-                  }
-                  sources={capturedSources([...documents])}
+                  initialErrors={validateEditedSpec(finalSpec.spec, sources, validProgress?.checkErrors).errors}
+                  sources={sources}
                 />
               ) : null}
               {generating ? (
-                <GenerationProgress
-                  adventureId={id}
-                  seesCost={viewerSeesCost(viewer)}
-                  compact
-                />
-              ) : pause?.pass === "sources" ? (
-                <SourcesReview adventureId={id} pause={pause} />
-              ) : pause && "base" in pause ? (
-                <PauseEditor
+                <>
+                  {working && working !== "sources" ? <GenerationSection pass={working} current={!justDone} pending>{placeholder(working)}</GenerationSection> : null}
+                  <GenerationToolbar />
+                </>
+              ) : pause?.pass === "sources" ? null : pause && "base" in pause ? (
+                <GenerationSection pass={pause.pass} current><PauseEditor
                   key={pause.pass}
                   adventureId={id}
                   pause={pause}
-                  sources={capturedSources([...documents])}
-                />
+                  sources={sources}
+                /></GenerationSection>
               ) : skeleton && pass === "skeleton" ? (
-                <SkeletonEditor
+                <GenerationSection pass="skeleton" current><SkeletonEditor
                   adventureId={id}
                   initial={skeleton}
                   hasDraft={validProgress?.hasDraft === true}
-                  compact
-                />
+                /></GenerationSection>
               ) : row.status === "draft" ? (
-                <section className="creation-card rounded-surface border-2 border-ink bg-surface p-5">
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      className={button.primary}
-                      href={`/v3/teacher/${id}/preview`}
-                    >
-                      Preview adventure
-                    </Link>
-                    <Link
-                      className={button.quiet}
-                      href={`/v3/teacher/${id}?view=editor`}
-                    >
-                      Open adventure editor
-                    </Link>
-                  </div>
-                </section>
-              ) : row.status === "failed" ? (
+                // DraftReview carries these links in its bar; this covers a draft whose spec didn't parse.
+                finalSpec?.ok ? null : <ReviewToolbar discard={null} resolve={null} primary={<DraftLinks adventureId={id} />} />
+              ) : failed ? (
                 <StartAgain adventureId={id} />
               ) : (
                 <>
-                  <p role="status" className="text-sm text-muted">
-                    The content is arriving. Retrying…
-                  </p>
-                  <GenerationProgress
-                    adventureId={id}
-                    seesCost={viewerSeesCost(viewer)}
-                    compact
-                  />
+                  <PendingContent />
+                  <GenerationToolbar />
                 </>
               )}
             </>

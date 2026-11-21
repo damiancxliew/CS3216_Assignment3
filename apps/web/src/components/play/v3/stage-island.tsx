@@ -16,7 +16,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import styles from "@/components/play/adventure-chrome.module.css";
-import { pixelFont } from "@/components/play/v3/dialogue-box";
+import { pixelFont } from "@/components/play/v3/pixel-font";
+import { NotesGlyph, pocketStyles } from "@/components/play/v3/pocket-ui";
 
 type IslandTab = "notes" | "documents" | "log";
 
@@ -320,7 +321,12 @@ export function StageIsland({
   openRequest = null,
   onOpenRequestHandled,
   shortcutsLocked = false,
+  opens = "down",
+  onExpandedChange,
 }: {
+  /** Which way the panel unfolds from the Journal button: down from a top HUD, up from a bottom one. */
+  opens?: "up" | "down";
+  onExpandedChange?: (expanded: boolean) => void;
   view: PlayerView;
   onOpenDocument: (id: string) => void;
   onOpenRoleBrief?: () => void;
@@ -425,65 +431,66 @@ export function StageIsland({
     if (definingMoment && activeTab === "notes") setActiveTab("documents");
   }, [activeTab, definingMoment]);
 
+  useEffect(() => { onExpandedChange?.(expanded); }, [expanded, onExpandedChange]);
+
   const showActivity = activity && !view.pendingCheck;
   const layerClass = definingMoment ? "z-30" : "z-10";
+  // Notes gained since the Journal was last opened, for the red badge on the HUD button.
+  const [seenNotes, setSeenNotes] = useState(view.notes.length);
+  const unseen = expanded ? 0 : Math.max(0, view.notes.length - seenNotes);
+  useEffect(() => {
+    if (expanded) setSeenNotes(view.notes.length);
+  }, [expanded, view.notes.length]);
 
   return (
     <section
       ref={island}
       aria-label="Journal"
-      className={`absolute bottom-2 left-2 ${expanded ? "w-[min(40rem,calc(100%_-_1rem))] sm:max-w-[calc(100%_-_2rem)]" : "w-[min(22rem,calc(100%_-_1rem))]"} rounded-xl border-[3px] border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[3px_3px_0_#1f2433] sm:bottom-4 sm:left-4 ${layerClass}`}
+      className={`relative ${layerClass}`}
     >
-      <header className="shrink-0 rounded-t-[9px] bg-[#1f2433] px-3 py-2 text-[#fffaf0]">
-        <h2 className="text-xs font-bold">
-          <button
-            ref={headerButton}
-            type="button"
-            aria-expanded={expanded}
-            aria-controls="stage-island-panel"
-            aria-keyshortcuts="J"
-            aria-label={`Stage ${stage ? stage.index + 1 : 1} of ${stage?.count ?? 1}; ${view.notes.length} notes, ${view.documents.length} documents, ${logLineCount(view.messages)} log lines, ${expanded ? "collapse" : "expand"} island`}
-            onClick={() => toggleIsland()}
-            className="grid min-h-7 w-full grid-cols-[1fr_auto_auto] items-center gap-x-2 gap-y-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#fffaf0]"
-          >
-            <span className={`${pixelFont.className} mr-auto flex shrink-0 items-center gap-2 text-base font-bold`}>
-              Journal
-              <kbd aria-hidden className={`${kbdClass} border-[#fffaf0]/40 text-[#fffaf0]/80`}>J</kbd>
-            </span>
-            <span className="shrink-0 whitespace-nowrap rounded-full border border-[#fffaf0]/35 px-2 py-0.5 text-xs font-bold">
-              Stage {stage ? stage.index + 1 : 1}/{stage?.count ?? 1}
-            </span>
-            <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-md">
-              <ChevronDown size={16} className={`transition-transform duration-200 motion-reduce:transition-none ${expanded ? "" : "rotate-180"}`} />
-            </span>
-            <span className={`col-span-3 min-h-5 min-w-0 text-[#fffaf0]/85 ${expanded && !view.pendingCheck && !showActivity ? "hidden" : ""}`}>
-              {view.pendingCheck ? (
-                <span role="status" className="flex min-w-0 items-center gap-1.5 truncate normal-case text-xs font-bold tracking-normal">
-                  <LoaderCircle size={14} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none" />
-                  <span className="truncate">Adding to your notes…</span>
-                </span>
-              ) : showActivity ? (
-                <span aria-live="polite" className="block min-w-0 truncate normal-case text-xs font-bold tracking-normal">
-                  {activity}
-                </span>
-              ) : (
-                <IslandCounts view={view} />
-              )}
-            </span>
-          </button>
-        </h2>
-      </header>
+      <h2 className="text-xs font-bold">
+        <button
+          ref={headerButton}
+          type="button"
+          aria-expanded={expanded}
+          aria-controls="stage-island-panel"
+          aria-keyshortcuts="J"
+          aria-label={`Stage ${stage ? stage.index + 1 : 1} of ${stage?.count ?? 1}; ${view.notes.length} notes, ${view.documents.length} documents, ${logLineCount(view.messages)} log lines${unseen ? `, ${unseen} new` : ""}, ${expanded ? "collapse" : "expand"} island`}
+          title="Journal (J)"
+          onClick={() => toggleIsland()}
+          className={`${pocketStyles.root} ${pocketStyles.hud} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3659cf]`}
+        >
+          {view.pendingCheck ? <LoaderCircle size={30} aria-hidden className="animate-spin motion-reduce:animate-none" /> : <NotesGlyph size={34} />}
+          {unseen ? <span key={unseen} aria-hidden className={`${pixelFont.className} ${pocketStyles.badge}`}>{unseen > 99 ? "99+" : unseen}</span> : null}
+        </button>
+      </h2>
+      {view.pendingCheck ? <span role="status" className="sr-only">Adding to your notes…</span> : null}
 
       <div
         id="stage-island-panel"
         aria-hidden={!expanded}
         inert={!expanded}
-        className={`grid overflow-hidden transition-[grid-template-rows,opacity,transform] duration-200 motion-reduce:transition-none motion-reduce:duration-0 ${
-          expanded ? "grid-rows-[1fr] border-t border-[#1f2433]/15 opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-1"
+        className={`absolute right-0 ${opens === "up" ? "bottom-full mb-3" : "top-full mt-3"} grid overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] text-[#1f2433] shadow-[0_6px_0_rgb(31_36_51/0.55),0_18px_40px_rgb(0_0_0/0.25)] transition-[grid-template-rows,opacity,transform] duration-200 motion-reduce:transition-none motion-reduce:duration-0 w-[min(40rem,calc(100vw_-_1rem))] ${
+          expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : `pointer-events-none grid-rows-[0fr] border-transparent opacity-0 ${opens === "up" ? "translate-y-1" : "-translate-y-1"}`
         }`}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="flex h-[min(55vh,26rem)] min-h-0 flex-col">
+          <header className="flex items-center gap-2 bg-[#1f2433] px-3 py-2 text-[#fffaf0]">
+            <span className={`${pixelFont.className} flex shrink-0 items-center gap-2 text-lg font-bold`}>
+              Journal
+              <kbd aria-hidden className={`${kbdClass} border-[#fffaf0]/40 text-[#fffaf0]/80`}>J</kbd>
+            </span>
+            <span className="ml-auto shrink-0 whitespace-nowrap rounded-full border border-[#fffaf0]/35 px-2 py-0.5 text-xs font-bold">
+              Stage {stage ? stage.index + 1 : 1}/{stage?.count ?? 1}
+            </span>
+            <span className="min-w-0 truncate text-xs font-bold text-[#fffaf0]/85">
+              {view.pendingCheck ? null : showActivity ? <span aria-live="polite">{activity}</span> : <IslandCounts view={view} />}
+            </span>
+            <button type="button" onClick={closeIsland} aria-label="Close journal" className="grid h-8 w-8 shrink-0 place-items-center rounded-md hover:bg-white/10">
+              <ChevronDown size={16} aria-hidden className={opens === "up" ? "" : "rotate-180"} />
+            </button>
+          </header>
+          <div className={`flex min-h-0 flex-col ${opens === "up" ? "h-[min(28rem,calc(100dvh-15rem))]" : "h-[min(60vh,28rem)]"}`}>
             <div role="tablist" aria-label="Journal sections" className="m-2 mb-0 flex shrink-0 gap-1 rounded-lg bg-[#1f2433]/[0.08] p-1">
               {([
                 ["notes", "Notes", view.notes.length],

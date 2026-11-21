@@ -22,6 +22,8 @@ The source texts are short prepared adaptations, not downloads of full original 
 | 04 | A decision made amid several pressures and involving more than one commander |
 | 05 | Civilian expectations compared with experiences of bombing |
 | 06 | A check against explaining victory only through the losing side's mistakes |
+| 07 | Added 11 November 2026: Heath's words at the 15 February conference, from Percival's notes as quoted by BiblioAsia (Source G) |
+| 08 | Added 11 November 2026: one line of Churchill's broadcast on the fall, as quoted by the International Churchill Society (Source H) |
 
 ## Maps and fuller originals
 

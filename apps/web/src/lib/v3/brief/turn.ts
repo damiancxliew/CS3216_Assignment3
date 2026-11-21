@@ -44,6 +44,15 @@ const SLOT_DOCUMENT_CHARS = 30_000;
 
 const UNAVAILABLE = "The assistant couldn’t answer just now. Try again in a moment.";
 
+/** The teacher sees UNAVAILABLE; the server log records why (never the prompt or the key). */
+function unavailable(reason: string, error?: unknown): { ok: false; error: string } {
+  const detail = error && typeof error === "object"
+    ? { name: (error as Error).name, status: (error as { status?: unknown }).status, code: (error as { code?: unknown }).code, message: String((error as Error).message ?? "").slice(0, 300) }
+    : undefined;
+  console.error("v3 brief assistant unavailable:", reason, detail ?? "");
+  return { ok: false, error: UNAVAILABLE };
+}
+
 type TurnDeps = { llm: LlmClient; documents: readonly ExtractedDocument[] };
 
 export async function briefTurnV3(state: BriefStateV3, input: BriefInputV3, deps: TurnDeps): Promise<TurnResultV3> {
@@ -254,15 +263,16 @@ async function readSources(ctx: Context): Promise<{ ok: true; sources: NonNullab
       maxOutputTokens: 700,
       reasoningEffort: "low",
     });
-  } catch {
-    return { ok: false, error: UNAVAILABLE };
+  } catch (error) {
+    return unavailable("sources digest: model request failed", error);
   }
-  if (response.refusal || response.json === null) return { ok: false, error: UNAVAILABLE };
+  if (response.refusal) return unavailable("sources digest: model refused");
+  if (response.json === null) return unavailable("sources digest: model returned no JSON");
   const parsed = digestReply.safeParse(response.json);
-  if (!parsed.success) return { ok: false, error: UNAVAILABLE };
+  if (!parsed.success) return unavailable("sources digest: reply did not match the expected shape");
   const summary = parsed.data.summary.trim().slice(0, 800);
   const episode = parsed.data.episode.trim().slice(0, EPISODE_MAX);
-  if (summary === "" || episode === "") return { ok: false, error: UNAVAILABLE };
+  if (summary === "" || episode === "") return unavailable("sources digest: empty summary or episode");
   const count = ctx.documents.length;
   const reply = parsed.data.reply.trim() || `I’ve read ${count === 1 ? "the source" : `all ${count} sources`}. ${summary}`;
   return { ok: true, sources: { summary, episodeProposal: episode }, reply };
@@ -315,12 +325,13 @@ async function consult(draft: BriefDraftV3, slot: ConsultedSlot, ctx: Context): 
       maxOutputTokens: 700,
       reasoningEffort: "low",
     });
-  } catch {
-    return { ok: false, error: UNAVAILABLE };
+  } catch (error) {
+    return unavailable(`${slot} answer: model request failed`, error);
   }
-  if (response.refusal || response.json === null) return { ok: false, error: UNAVAILABLE };
+  if (response.refusal) return unavailable(`${slot} answer: model refused`);
+  if (response.json === null) return unavailable(`${slot} answer: model returned no JSON`);
   const parsed = consultReply.safeParse(response.json);
-  if (!parsed.success) return { ok: false, error: UNAVAILABLE };
+  if (!parsed.success) return unavailable(`${slot} answer: reply did not match the expected shape`);
 
   const answer = parsed.data.answer.trim();
   const usable = answer !== "" || slot === "focus";

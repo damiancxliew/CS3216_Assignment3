@@ -33,6 +33,7 @@ export function NotesPanel({
       </div>
     ) : (
       <div className="space-y-6">
+        <p className={styles.hint}>Show a note to back up what you say. People react to evidence — it can change their mind.</p>
         {groups.map(([stageIndex, stageNotes]) => (
           <section key={stageIndex}>
             <p className={styles.eyebrow}>Stage {stageIndex + 1}</p>

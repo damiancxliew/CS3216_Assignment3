@@ -1,3 +1,4 @@
 import { runCheckEval } from './v3-check'
 
-await runCheckEval()
+const via = process.argv[2] === 'completion' ? 'completion' : 'decisions'
+await runCheckEval(via)

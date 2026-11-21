@@ -133,3 +133,152 @@ export function unreadDocumentAt(
 ): string | null {
   return props.find(({ found, position }) => !found && position.x === point.x && position.y === point.y)?.id ?? null;
 }
+
+/** The room or outdoor location a map point belongs to, if any. */
+export function placeAt(map: StageMap, point: Point): string | null {
+  const space = spaceAt(map, point);
+  return space?.kind === "room" ? space.roomId : space?.kind === "outdoor" ? space.locationId ?? null : null;
+}
+
+export interface RoomEntrySync {
+  /** Report the place the player now stands in, after every step. Sends room entries in order without blocking movement. */
+  arrive(place: string | null): void;
+  /** Adopt the server's room after it changed outside this map (only while nothing is in flight). */
+  sync(): void;
+  /** True while an entry is in flight, so the visible occupants may still belong to the previous room. */
+  pending(): boolean;
+  /** The last room asked for (or confirmed): the room the player is treated as being in for new entries. */
+  claimed(): string | null;
+  destroy(): void;
+}
+
+/**
+ * Keeps engine room entries in step with free movement under latency. At most one entry is in flight; later
+ * rooms coalesce into the most recent one and are sent, in order, when it settles. A rejected entry never moves
+ * the player: they stay put, the claim falls back to the server's room, and the same room is retried when the
+ * player steps out of it and back in, or takes another step there once `retryAfterMs` has passed.
+ */
+export function createRoomEntrySync(options: {
+  enter: (roomId: string) => Promise<boolean>;
+  serverRoom: () => string | null;
+  place: () => string | null;
+  onSettled: () => void;
+  retryAfterMs?: number;
+  now?: () => number;
+}): RoomEntrySync {
+  const now = options.now ?? Date.now;
+  let claimed = options.serverRoom();
+  let inFlight: string | null = null;
+  let queued: string | null = null;
+  let refused: string | null = null;
+  let refusedAt = 0;
+  let destroyed = false;
+
+  const request = (roomId: string) => {
+    claimed = roomId;
+    if (inFlight !== null) {
+      queued = roomId;
+      return;
+    }
+    void send(roomId);
+  };
+
+  const send = async (roomId: string) => {
+    inFlight = roomId;
+    let accepted = false;
+    try {
+      accepted = await options.enter(roomId);
+    } catch {
+      accepted = false;
+    }
+    if (destroyed) return;
+    inFlight = null;
+    const next = queued;
+    queued = null;
+    if (accepted) {
+      if (next !== null && next !== roomId) request(next);
+    } else {
+      claimed = options.serverRoom();
+      refused = options.place() === roomId ? roomId : null;
+      refusedAt = now();
+      if (next !== null && next !== roomId && next !== claimed) request(next);
+    }
+    options.onSettled();
+  };
+
+  return {
+    arrive(place) {
+      if (refused !== null && (place !== refused || now() - refusedAt >= (options.retryAfterMs ?? 2_000))) refused = null;
+      if (place !== null && place !== claimed && place !== refused) request(place);
+    },
+    sync() {
+      if (inFlight === null) claimed = options.serverRoom();
+    },
+    pending: () => inFlight !== null,
+    claimed: () => claimed,
+    destroy() {
+      destroyed = true;
+    },
+  };
+}
+
+export interface HeldKeyMover {
+  /** A fresh key press: steps once now, then auto-repeats only if the key is still held after the initial delay. */
+  press(code: string, direction: Point): void;
+  release(code: string): void;
+  /** Forget every held key and stop repeating (blur, hidden tab, a dialog taking over). */
+  clear(): void;
+  active(): boolean;
+}
+
+/** One tap moves exactly one tile; holding walks after a short delay, like a game pad. */
+export function createHeldKeyMover(options: {
+  step: (direction: Point) => void;
+  canRepeat: () => boolean;
+  initialDelayMs?: number;
+  intervalMs?: number;
+}): HeldKeyMover {
+  const held = new Map<string, Point>();
+  let delay: ReturnType<typeof setTimeout> | undefined;
+  let interval: ReturnType<typeof setInterval> | undefined;
+
+  const stop = () => {
+    if (delay !== undefined) clearTimeout(delay);
+    if (interval !== undefined) clearInterval(interval);
+    delay = undefined;
+    interval = undefined;
+  };
+  const clear = () => {
+    held.clear();
+    stop();
+  };
+  const repeatStep = () => {
+    const direction = [...held.values()].at(-1);
+    if (!direction || !options.canRepeat()) {
+      clear();
+      return;
+    }
+    options.step(direction);
+  };
+
+  return {
+    press(code, direction) {
+      if (held.has(code)) return;
+      held.set(code, direction);
+      options.step(direction);
+      // Restart the delay on every new key, so a second key's own step is never followed by an instant repeat.
+      stop();
+      delay = setTimeout(() => {
+        delay = undefined;
+        repeatStep();
+        if (held.size > 0) interval = setInterval(repeatStep, options.intervalMs ?? 160);
+      }, options.initialDelayMs ?? 240);
+    },
+    release(code) {
+      held.delete(code);
+      if (held.size === 0) stop();
+    },
+    clear,
+    active: () => held.size > 0 || delay !== undefined || interval !== undefined,
+  };
+}

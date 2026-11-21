@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium } from "playwright";
 import { createServer, transformWithEsbuild } from "vite";
@@ -158,6 +158,20 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           if (tab === "stages") {
             await panel.getByRole("heading", { name: "Preparation and essential conversations", exact: true }).waitFor();
             expect(await panel.getByText("Every essential conversation is required, even when time expires.", { exact: true }).count()).toBe(1);
+            const preparation = panel.locator("section").filter({ has: page.getByRole("heading", { name: "Preparation and essential conversations", exact: true }) });
+            const lists = preparation.locator("ul");
+            expect(await lists.count()).toBe(3);
+            expect(await lists.evaluateAll((elements) => elements.map((element) => ({
+              items: element.querySelectorAll(":scope > li").length,
+              marker: getComputedStyle(element).listStyleType,
+            })))).toEqual([
+              { items: 1, marker: "disc" },
+              { items: 2, marker: "disc" },
+              { items: 1, marker: "disc" },
+            ]);
+            await preparation.scrollIntoViewIfNeeded();
+            await mkdir("output/editor-preparation-lists", { recursive: true });
+            await page.screenshot({ path: `output/editor-preparation-lists/${viewport.width}.png` });
           }
           if (tab === "documents") {
             await panel.getByRole("heading", { name: "Reading check", exact: true }).waitFor();

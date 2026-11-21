@@ -43,11 +43,13 @@ export type Profile = keyof typeof PROFILES
 
 /** OpenAI strict mode wants every property required, so the action is flattened with nulls. */
 const StudentAction = z.object({
-  type: z.enum(['message', 'insertNote', 'selectPassage', 'enterRoom', 'openDocument', 'closeDocument', 'endStage', 'act', 'predict', 'interviewAnswer', 'continue', 'tick']),
+  type: z.enum(['message', 'insertNote', 'selectPassage', 'submitReadingCheck', 'continueReadingCheck', 'enterRoom', 'openDocument', 'closeDocument', 'endStage', 'act', 'predict', 'interviewAnswer', 'continue', 'tick']),
   characterId: z.string().nullable(),
   text: z.string().nullable(),
   noteId: z.string().nullable(),
   documentId: z.string().nullable(),
+  questionId: z.string().nullable(),
+  choiceId: z.string().nullable(),
   roomId: z.string().nullable(),
   start: z.number().nullable(),
   end: z.number().nullable(),
@@ -67,6 +69,10 @@ function toAction(choice: StudentAction): Action {
       return { type: 'insertNote', characterId: s(choice.characterId), noteId: s(choice.noteId), ...(choice.text ? { text: choice.text } : {}) }
     case 'selectPassage':
       return { type: 'selectPassage', documentId: s(choice.documentId), start: Math.max(0, Math.floor(choice.start ?? 0)), end: Math.max(1, Math.floor(choice.end ?? 1)) }
+    case 'submitReadingCheck':
+      return { type: 'submitReadingCheck', documentId: s(choice.documentId), questionId: s(choice.questionId), choiceId: s(choice.choiceId), start: Math.max(0, Math.floor(choice.start ?? 0)), end: Math.max(1, Math.floor(choice.end ?? 1)) }
+    case 'continueReadingCheck':
+      return { type: 'continueReadingCheck', documentId: s(choice.documentId), questionId: s(choice.questionId) }
     case 'enterRoom':
       return { type: 'enterRoom', roomId: s(choice.roomId) }
     case 'openDocument':
@@ -83,40 +89,68 @@ function toAction(choice: StudentAction): Action {
   }
 }
 
-/** What the student agent sees: the view, made compact, with sentence offsets for passage selection. */
-function describe(view: PlayerView): string {
+/** What the student agent sees: what a real player sees on screen, made compact, with sentence offsets for passage selection. */
+export function describe(view: PlayerView, lastRefusal: string | null = null): string {
   const lines = [`Phase: ${view.phase}.`]
+  if (lastRefusal) lines.push(`YOUR LAST ACTION WAS REFUSED: ${lastRefusal}`)
   if (view.phase === 'briefing') lines.push(`You are ${view.briefing.name}, ${view.briefing.position}. ${view.briefing.situation} (Send continue to begin.)`)
   if (view.stage) {
     lines.push(`Stage ${view.stage.index + 1}/${view.stage.count}: ${view.stage.title}. Central question: ${view.stage.centralQuestion}`)
     if (view.stage.intro) lines.push(`Stage opening (send continue to start): ${view.stage.intro.narration}`)
+    const prep = view.stage.preparation
+    if (prep && prep.required > 0) {
+      lines.push(`Preparation before the defining moment: ${prep.completed}/${prep.required} done${prep.ready ? ' - READY, you may send endStage' : ' - NOT READY, endStage will be refused'}.${prep.hint ? ` Hint: ${prep.hint}` : ''}`)
+    }
+    if (prep && prep.essentialConversations.length > 0) {
+      lines.push(`Essential conversations: ${prep.essentialConversations.map((c) => `${c.name} (${c.characterId}) ${c.complete ? 'done' : 'still needed'}`).join(', ')}.${prep.timerExpired ? ' (Time is up: you may decide anyway.)' : ''}`)
+    }
     lines.push(`Rooms: ${view.rooms.map((room) => `${room.id} (${room.name})`).join(', ')}. You are in: ${view.currentRoomId}.`)
-    lines.push(`Characters here: ${view.characters.map((character) => `${character.id} (${character.name})`).join(', ') || 'nobody'}.`)
+    lines.push(`Characters here: ${view.characters.map((character) => `${character.id} (${character.name}, ${character.title})${character.preparation && !character.preparation.ready ? ` LOCKED - they will not talk to you yet.${character.preparation.hint ? ` Hint: ${character.preparation.hint}` : ''}` : ''}${character.starters?.length ? ` [you could ask: ${character.starters.join(' / ')}]` : ''}`).join('; ') || 'nobody'}.`)
     const unreadDocuments = view.documentsHere
       .filter((document) => !document.read)
       .map((document) => `${document.id} (${document.title})`)
     lines.push(`Documents lying here: ${unreadDocuments.join(', ') || 'none'}.`)
   }
-  lines.push(`Your documents: ${view.documents.map((document) => `${document.id} (${document.title}${document.open ? ', open' : ''})`).join(', ') || 'none'}.`)
+  lines.push(`Your documents: ${view.documents.map((document) => `${document.id} (${document.title}${document.open ? ', open' : ''}${document.readingCheck ? `, reading check ${document.readingCheck.status}` : ''})`).join(', ') || 'none'}.`)
   const open = view.documents.find((document) => document.open)
   if (open) {
-    lines.push(`Open document "${open.title}", sentences with [start,end] offsets for selectPassage:`)
+    const provenance = Object.values(open.provenance).filter(Boolean).join(' | ')
+    lines.push(`Open document "${open.title}"${provenance ? ` (${provenance})` : ''}${open.glossary.length ? `. Glossary: ${open.glossary.map((g) => `${g.term} = ${g.meaning}`).join('; ')}` : ''}. Sentences with [start,end] offsets for selectPassage / submitReadingCheck:`)
     const sentences = [...open.body.matchAll(/[^.!?\n]+[.!?]?/g)]
     for (const sentence of sentences) if (sentence[0].trim()) lines.push(`  [${sentence.index},${(sentence.index ?? 0) + sentence[0].length}] ${sentence[0].trim()}`)
+    const check = open.readingCheck
+    if (check) {
+      const question = check.question ?? check.recovery
+      if (check.status === 'passed') lines.push(`Reading check passed. ${check.explanation ?? ''} You earned the note.`)
+      else if (check.revealedAnswer) lines.push(`Reading check answer review: the answer was "${check.revealedAnswer.answer}". ${check.revealedAnswer.explanation} Send continueReadingCheck (documentId ${open.id}, questionId ${check.revealedAnswer.questionId}) to get a different question.`)
+      else if (question) {
+        lines.push(`READING CHECK (${check.recovery ? 'second try' : 'answer it to earn the note from this document; you cannot highlight passages until you pass'}): ${question.prompt}`)
+        lines.push(`  questionId: ${question.id}. Options: ${question.options.map((option) => `${option.id}: ${option.text}`).join(' | ')}`)
+        lines.push('  To answer, send submitReadingCheck with documentId, questionId, your choiceId, and start/end of the sentence offsets (a sentence or two, from the text above) that back up your answer.')
+        if (check.feedback) lines.push(`  ${check.feedback}`)
+      }
+    }
   }
   lines.push(`Your notes: ${view.notes.map((note) => `${note.id}: ${note.text}`).join(' | ') || 'none'}.`)
   lines.push('Recent story:', ...view.messages.slice(-8).map((message) => `  ${message.kind}${message.characterId ? ` (${message.characterId})` : ''}: ${message.text}`))
   if (view.definingMoment) {
     const moment = view.definingMoment
-    lines.push(`Defining moment: ${moment.scene}`)
-    if (moment.status === 'choosing') lines.push(`You must now choose an act (type "act"); talking is over. Acts: ${moment.acts.map((act) => `${act.id}: ${act.text}`).join(' | ')}`)
-    else lines.push(`You must now predict (type "predict"): ${moment.predictionOptions.map((option) => `${option.outcomeId}: ${option.text}`).join(' | ')}`)
+    lines.push(`Defining moment (decider: ${moment.deciderName}): ${moment.scene}`)
+    if (moment.status === 'choosing') {
+      lines.push(`You must now choose an act (type "act"); talking is over. Acts: ${moment.acts.map((act) => `${act.id}: ${act.text}${act.available === false ? ' (no longer possible)' : ''}`).join(' | ')}`)
+      if (moment.nudge) lines.push(`Reminder: ${moment.nudge}`)
+    } else {
+      if (moment.reaction) lines.push(`Reaction to your act: ${moment.reaction}`)
+      lines.push(`You must now predict (type "predict") what ${moment.deciderName} will decide: ${moment.predictionOptions.map((option) => `${option.outcomeId}: ${option.text}`).join(' | ')}`)
+    }
   }
   if (view.epilogue && view.phase === 'epilogue') lines.push(`Epilogue: ${view.epilogue.text} (send continue)`)
   if (view.interview) {
     const interview = view.interview
-    lines.push(`Interview question: ${interview.question} Verdicts: ${interview.verdicts.map((verdict) => `${verdict.id}: ${verdict.text}`).join(' | ')}`)
+    lines.push(`Interview (${interview.interviewer}) question: ${interview.question} Verdicts: ${interview.verdicts.map((verdict) => `${verdict.id}: ${verdict.text}`).join(' | ')}`)
+    if (interview.answer) lines.push(`You already answered: ${interview.answer.verdictId}.`)
     if (interview.pushBack) lines.push(`Push-back: ${interview.pushBack}`)
+    if (interview.closing) lines.push(`Closing: ${interview.closing}`)
     if (interview.closed) lines.push('The Interview is over (send continue).')
   }
   return lines.join('\n')
@@ -125,9 +159,10 @@ function describe(view: PlayerView): string {
 const STUDENT_SYSTEM = [
   'You play a secondary-school student in a classroom history game. Choose your next single action as JSON.',
   'Action types: message (characterId, text) to a character in your room; insertNote (characterId, noteId, optional text) to show a note;',
-  'enterRoom (roomId); openDocument / closeDocument (documentId); selectPassage (documentId, start, end) using the sentence offsets shown;',
+  'submitReadingCheck (documentId, questionId, choiceId, start, end) to answer a document\'s reading check; continueReadingCheck (documentId, questionId) after reviewing a wrong answer; enterRoom (roomId); openDocument / closeDocument (documentId); selectPassage (documentId, start, end) using the sentence offsets shown;',
   'endStage to start the defining moment; act (actId); predict (outcomeId); interviewAnswer (verdictId, evidenceNoteIds, optional text); continue to move past a screen; tick to wait.',
   'To tell someone what one of your notes says, use insertNote with its id rather than retyping it: only inserted notes count as evidence.',
+  'Read the screen: a document with a READING CHECK must be answered (choose the option the text supports, and select the supporting sentences) before you can highlight or earn its note. A LOCKED character will not talk until you do what their hint says. endStage is refused until Preparation is READY. If your last action was refused, do not repeat it: follow the hint.',
   'Set fields you do not use to null (evidenceNoteIds to []). Use only ids shown to you.',
 ].join('\n')
 
@@ -172,9 +207,54 @@ export interface RunResult {
   crashes: string[]
   leaks: string[]
   stalls: number
+  /** Refusals split by cause: the on-screen hint said so (ignored) versus nothing on screen explained it (dead end). */
+  ignoredHint: number
+  deadEnds: string[]
+  /** Furthest point reached. */
+  stageCount: number
+  furthestStage: number
+  decisionsReached: boolean[]
+  readingChecksPassed: number
+  readingChecksFailed: number
+  trace: string[]
+  /** The preparation panel as the student last saw it. */
+  finalPreparation: string | null
   calls: CallRecord[]
   events: GameEvent[]
   transcript: { kind: string; characterId: string | null; text: string }[]
+}
+
+function summarise(action: Action): string {
+  const { type, ...rest } = action as Action & Record<string, unknown>
+  const detail = Object.entries(rest).map(([key, value]) => `${key}=${typeof value === 'string' ? JSON.stringify(value.slice(0, 90)) : JSON.stringify(value)}`).join(' ')
+  return `${type}${detail ? ` ${detail}` : ''}`
+}
+
+function replyOf(state: EngineState, action: Action): string {
+  if (action.type !== 'message' && action.type !== 'insertNote') return ''
+  const reply = [...state.transcript].reverse().find((line) => line.kind === 'character')
+  return reply ? ` | NPC (${reply.characterId}): ${reply.text.slice(0, 160)}` : ''
+}
+
+/** Would a real player have seen, on screen, that this action was not yet allowed? */
+function wasExplainedOnScreen(view: PlayerView, action: Action, code: string): boolean {
+  if (code === 'illegal_phase' && action.type === 'enterRoom') return view.stage?.intro != null
+  if (code !== 'preparation_required') return false
+  if (action.type === 'endStage') return view.stage?.preparation?.ready === false
+  if (action.type === 'message' || action.type === 'insertNote') return view.characters.some((character) => character.id === action.characterId && character.preparation?.ready === false)
+  if (action.type === 'submitReadingCheck') return view.documents.some((document) => document.id === action.documentId && document.readingCheck?.status === 'needsReview')
+  return false
+}
+
+function askStudent(llm: LlmClient, profile: Profile, current: PlayerView | null, lastRefusal: string | null) {
+  return callStructured(llm, {
+    schema: StudentAction,
+    schemaName: 'sim_student_action',
+    modelTier: 'cheap',
+    reasoningEffort: 'low',
+    system: `${STUDENT_SYSTEM}\n\n${PROFILES[profile]}`,
+    user: current === null ? 'The game is loading. Send tick.' : describe(current, lastRefusal),
+  })
 }
 
 export async function runOne(spec: EngineSpec, profile: Profile, turns: number, seed: string, client: LlmClient, stepSeconds = 30): Promise<RunResult> {
@@ -183,9 +263,10 @@ export async function runOne(spec: EngineSpec, profile: Profile, turns: number, 
   let now = Date.UTC(2026, 9, 14, 9, 0, 0)
   let state: EngineState = createState(spec, seed)
   const events: GameEvent[] = []
-  const result: RunResult = { profile, turns: 0, phaseReached: 'briefing', endingId: null, notes: 0, stanceChanges: 0, challenges: 0, flags: 0, playerMessages: 0, refused: {}, crashes: [], leaks: [], stalls: 0, calls: llm.calls, events, transcript: [] }
+  const result: RunResult = { profile, turns: 0, phaseReached: 'briefing', endingId: null, notes: 0, stanceChanges: 0, challenges: 0, flags: 0, playerMessages: 0, refused: {}, crashes: [], leaks: [], stalls: 0, ignoredHint: 0, deadEnds: [], stageCount: spec.stages.length, furthestStage: 0, decisionsReached: spec.stages.map(() => false), readingChecksPassed: 0, readingChecksFailed: 0, trace: [], finalPreparation: null, calls: llm.calls, events, transcript: [] }
   let view: PlayerView | null = null
   let sinceProgress = 0
+  let lastRefusal: string | null = null
 
   const apply = async (action: Parameters<typeof step>[0]['action']) => {
     const out = await step({ spec, state, action }, { llm, now, rng })
@@ -201,16 +282,16 @@ export async function runOne(spec: EngineSpec, profile: Profile, turns: number, 
     result.turns = turn + 1
     now += stepSeconds * 1000
     const current = view as PlayerView | null
-    const choice = await callStructured(llm, {
-      schema: StudentAction,
-      schemaName: 'sim_student_action',
-      modelTier: 'cheap',
-      reasoningEffort: 'low',
-      system: `${STUDENT_SYSTEM}\n\n${PROFILES[profile]}`,
-      user: current === null ? 'The game is loading. Send tick.' : describe(current),
-    })
+    const choice = await askStudent(llm, profile, current, lastRefusal)
     let action: Action = choice.ok ? toAction(choice.value) : { type: 'tick' }
     if (profile === 'abusive' && action.type === 'message') action = { ...action, text: ABUSIVE_LINES[result.playerMessages % ABUSIVE_LINES.length] as string }
+    if (action.type === 'submitReadingCheck' && current) {
+      const documentId = action.documentId
+      const check = current.documents.find((document) => document.id === documentId)?.readingCheck
+      if (check?.recovery) action = { ...action, recovery: true }
+      const shown = check?.question ?? check?.recovery
+      if (shown && !action.questionId) action = { ...action, questionId: shown.id }
+    }
     if (action.type === 'message' || action.type === 'insertNote') result.playerMessages += 1
     const before = events.length
     try {
@@ -220,17 +301,40 @@ export async function runOne(spec: EngineSpec, profile: Profile, turns: number, 
         const checked = await runPostTurnCheck(spec, state, pending.messageId, { llm })
         await apply({ type: 'postTurn', messageId: pending.messageId, result: checked })
       }
+      lastRefusal = null
+      result.trace.push(`${summarise(action)} -> ok${replyOf(state, action)}`)
     } catch (error) {
-      if (error instanceof EngineError) result.refused[`${error.code}:${action.type}`] = (result.refused[`${error.code}:${action.type}`] ?? 0) + 1
-      else result.crashes.push(`${action.type}: ${(error as Error).message}`)
+      if (error instanceof EngineError) {
+        const key = `${error.code}:${action.type}`
+        result.refused[key] = (result.refused[key] ?? 0) + 1
+        lastRefusal = `${error.code}: ${error.message}`
+        const explained = current !== null && wasExplainedOnScreen(current, action, error.code)
+        if (explained) result.ignoredHint += 1
+        else result.deadEnds.push(`turn ${turn + 1} ${summarise(action)}: ${error.code} (${error.message})`)
+        result.trace.push(`${summarise(action)} -> REFUSED ${error.code}: ${error.message}${explained ? ' [on-screen hint ignored]' : ' [NOT explained on screen]'}`)
+      } else {
+        result.crashes.push(`${action.type}: ${(error as Error).message}`)
+        result.trace.push(`${summarise(action)} -> CRASH ${(error as Error).message}`)
+      }
     }
-    const progressed = events.slice(before).some((event) => event.type === 'discovery' || event.type === 'stanceChange')
+    const nowView = view as PlayerView | null
+    if (nowView?.stage) {
+      result.furthestStage = Math.max(result.furthestStage, nowView.stage.index)
+      if (nowView.definingMoment) result.decisionsReached[nowView.stage.index] = true
+    }
+    const progressed = events.slice(before).some((event) => event.type === 'discovery' || event.type === 'stanceChange' || event.type === 'essentialConversation' || (event.type === 'readingCheck' && event.correct) || event.type === 'act' || event.type === 'prediction')
     sinceProgress = progressed ? 0 : sinceProgress + 1
     if (state.phase === 'stage' && sinceProgress === 8) result.stalls += 1
   }
+  const last = view as PlayerView | null
+  const prep = last?.stage?.preparation
+  if (prep) result.finalPreparation = `${prep.completed}/${prep.required} ready=${prep.ready} hint=${prep.hint ?? 'none'}; essential: ${prep.essentialConversations.map((c) => `${c.characterId}=${c.complete ? 'done' : 'needed'}`).join(', ')}; characters here: ${last?.characters.map((c) => `${c.id}${c.preparation ? (c.preparation.ready ? ' ok' : ` locked(${c.preparation.hint})`) : ''}`).join(', ')}`
   result.phaseReached = state.phase
   result.endingId = state.endingId
   result.notes = state.notes.length
+  result.readingChecksPassed = events.filter((event) => event.type === 'readingCheck' && event.correct).length
+  result.readingChecksFailed = events.filter((event) => event.type === 'readingCheck' && !event.correct).length
+  if (state.phase !== 'stage' && state.phase !== 'briefing') result.furthestStage = Math.max(result.furthestStage, spec.stages.length - 1)
   result.stanceChanges = events.filter((event) => event.type === 'stanceChange' && event.cause === 'trigger').length
   result.challenges = events.filter((event) => event.type === 'challenge').length
   result.flags = events.filter((event) => event.type === 'flag').length
@@ -257,6 +361,8 @@ export function report(results: RunResult[], startedAt: string, specId = 'golden
     const tag = `${run.profile}`
     for (const crash of run.crashes) failures.push(`${tag}: **crash** ${crash}`)
     for (const leak of run.leaks) failures.push(`${tag}: **leak** ${leak}`)
+    if (run.ignoredHint > 0) failures.push(`${tag}: ${run.ignoredHint} refusal(s) of actions the on-screen hint/lock already said were not available (student ignored the hint)`)
+    for (const dead of run.deadEnds.slice(0, 6)) failures.push(`${tag}: **dead end** (refused with nothing on screen explaining it) ${dead}`)
     if (run.profile === 'abusive') {
       const abusive = run.transcript.filter((line) => line.kind === 'player' && ABUSIVE_LINES.some((abuse) => abuse === line.text && !abuse.startsWith('Ignore'))).length
       if (run.flags < abusive) failures.push(`${tag}: ${run.flags} flags for ${abusive} abusive messages`)
@@ -274,6 +380,15 @@ export function report(results: RunResult[], startedAt: string, specId = 'golden
     '| Profile | Turns | Reached | Ending | Notes | Trigger stance changes | Challenges | Flags | Player messages | Refused actions | Crashes | Leaks |',
     '|---|---|---|---|---|---|---|---|---|---|---|---|',
     ...results.map((run) => `| ${run.profile} | ${run.turns} | ${run.phaseReached} | ${run.endingId ?? '—'} | ${run.notes} | ${run.stanceChanges} | ${run.challenges} | ${run.flags} | ${run.playerMessages} | ${Object.entries(run.refused).map(([code, count]) => `${code}×${count}`).join(' ') || 0} | ${run.crashes.length} | ${run.leaks.length} |`),
+    '',
+    '## Furthest point reached',
+    '',
+    '| Profile | Furthest stage | Decisions reached | Phase | Ending | Reading checks passed / failed | Ignored-hint refusals | Unexplained refusals |',
+    '|---|---|---|---|---|---|---|---|',
+    ...results.map((run) => `| ${run.profile} | ${run.furthestStage + 1}/${run.stageCount} | ${run.decisionsReached.map((reached, index) => `S${index + 1}:${reached ? 'yes' : 'no'}`).join(' ')} | ${run.phaseReached} | ${run.endingId ?? 'none'} | ${run.readingChecksPassed} / ${run.readingChecksFailed} | ${run.ignoredHint} | ${run.deadEnds.length} |`),
+    '',
+    '## Last turns of runs that did not finish',
+    ...results.filter((run) => !run.endingId).flatMap((run) => [`### ${run.profile}`, ...run.trace.slice(-6).map((line) => `- ${line}`), `- Preparation panel at the end: ${run.finalPreparation ?? 'n/a'}`]),
     '',
     '| Call | Count | p50 ms | p95 ms |',
     '|---|---|---|---|',
@@ -304,11 +419,13 @@ export async function main(): Promise<void> {
   const stepSeconds = argument('step-seconds', 45)
   const client = createOpenAiClient()
   const startedAt = new Date().toISOString()
-  const jobs = (Object.keys(PROFILES) as Profile[]).flatMap((profile) => Array.from({ length: perProfile }, (_, index) => ({ profile, seed: `${profile}-${index}` })))
+  const filterIndex = process.argv.indexOf('--profiles')
+  const only = filterIndex < 0 ? null : process.argv[filterIndex + 1]!.split(',')
+  const jobs = (Object.keys(PROFILES) as Profile[]).filter((profile) => only === null || only.includes(profile)).flatMap((profile) => Array.from({ length: perProfile }, (_, index) => ({ profile, seed: `${profile}-${index}` })))
   const results = await Promise.all(jobs.map(({ profile, seed }) => runOne(spec, profile, turns, seed, client, stepSeconds)))
   const dir = resolve(import.meta.dirname, 'results', `sim-${startedAt.replace(/[:.]/g, '-')}`)
   mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, 'runs.jsonl'), results.map((run) => JSON.stringify({ ...run, calls: undefined })).join('\n'))
+  writeFileSync(join(dir, 'runs.jsonl'), results.map((run) => JSON.stringify({ ...run, calls: undefined, trace: run.trace })).join('\n'))
   const summary = report(results, startedAt, spec.id)
   writeFileSync(join(dir, 'summary.md'), `${summary}\n`)
   console.log(summary)

@@ -52,12 +52,14 @@ function Block({
   id,
   title,
   reference,
+  actions,
   children,
   card = false,
 }: {
   id?: string;
   title: string;
   reference?: string;
+  actions?: ReactNode;
   children: ReactNode;
   card?: boolean;
 }) {
@@ -72,7 +74,10 @@ function Block({
       }
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="text-lg font-bold">{title}</h3>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h3 className="text-lg font-bold">{title}</h3>
+          {actions}
+        </div>
         {reference ? (
           <code className="break-all text-xs font-normal text-muted">
             {reference}
@@ -83,7 +88,7 @@ function Block({
     </section>
   );
 }
-function Card(props: { id?: string; title: string; children: ReactNode }) {
+function Card(props: { id?: string; title: string; actions?: ReactNode; children: ReactNode }) {
   return <Block {...props} card />;
 }
 
@@ -247,6 +252,11 @@ export function ReviewScreen({
     setTab("assets");
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "center" }));
   };
+  const assetLink = (id: string, label: string) => assets ? (
+    <button type="button" className="w-fit text-sm font-semibold underline decoration-line-strong underline-offset-4 transition-colors hover:text-record" onClick={() => openAsset(id)}>
+      {label}
+    </button>
+  ) : null;
   const [selection, setSelection] = useState<Record<ScreenTab, string>>(() => ({
     stages: spec.stages[0]?.id ?? "",
     characters: spec.characters[0]?.id ?? "",
@@ -498,7 +508,7 @@ export function ReviewScreen({
         {warnings.length ? ` · ${warnings.length} ${warnings.length === 1 ? "warning" : "warnings"}` : ""}
         {spec.conflicts.length ? ` · ${spec.conflicts.length} conflicts` : ""}
       </summary>
-      <div className={floatingChecks ? "absolute bottom-full right-0 mb-4 max-h-[min(60dvh,32rem)] w-[min(32rem,calc(100vw-2rem))] space-y-3 overflow-y-auto overscroll-contain rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg" : "mt-3 max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-2"}>
+      <div className={floatingChecks ? "absolute bottom-full left-0 mb-4 max-h-[min(60dvh,32rem)] w-[min(32rem,calc(100vw-2rem))] space-y-3 overflow-y-auto overscroll-contain rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg" : "mt-3 max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-2"}>
         {checkDetails}
       </div>
     </details>
@@ -510,19 +520,21 @@ export function ReviewScreen({
       {checkDetails}
     </section>
   );
+  const chat = tab === "assets" ? undefined : sidebar;
   return (
     <div data-review-screen className="space-y-6 text-ink">
       {renderHeader ? renderHeader(floatingChecks ? null : checks) : floatingChecks ? null : checks}
       {floatingChecks ? (
-        <aside aria-label="Adventure issue controls" className="fixed bottom-5 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-surface border border-line bg-paper p-2 shadow-lg sm:right-6">
+        <aside aria-label="Adventure issue controls" className="fixed bottom-5 left-2 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-surface border border-line bg-paper p-2 shadow-lg sm:left-3">
           {checks}
           {issueActions}
         </aside>
       ) : null}
       <div
         data-review-workspace
-        className="min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4"
+        className={`min-h-dvh space-y-5 md:flex md:h-dvh md:flex-col md:gap-5 md:space-y-0 md:pb-4 ${chat ? "xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:grid-rows-[auto_minmax(0,1fr)] xl:gap-5" : ""}`}
       >
+        <div className="space-y-5 md:flex md:shrink-0 md:flex-col md:gap-5 md:space-y-0 xl:col-span-2 xl:row-start-1">
         <div
           role="tablist"
           aria-label="Adventure content"
@@ -563,28 +575,18 @@ export function ReviewScreen({
             </button>
           ))}
         </div>
-        {assets && (tab === "stages" || tab === "characters") ? <div className="flex flex-wrap gap-2">
-          <button type="button" className={button.subtle} onClick={() => openAsset(`asset-${tab === "stages" ? "stage" : "sprite"}-${tab === "stages" ? selected : `character:${selected}`}`)}>
-            Manage {tab === "stages" ? "opening image" : "walking sprite"}
-          </button>
-          {tab === "characters" ? <select aria-label="Manage portrait" className="rounded border border-line bg-surface px-3 py-2 text-sm" defaultValue="" onChange={event => { if (event.target.value) openAsset(`asset-portrait-${event.target.value}`); }}>
-            <option value="">Manage portrait…</option>
-            {spec.characters.filter(character => character.id === selected).flatMap(character => character.tier === "major"
-              ? character.stances.map(stance => <option key={stance.id} value={`${character.id}:${stance.id}`}>{stance.label}</option>)
-              : [<option key={character.id} value={character.id}>{character.name}</option>])}
-          </select> : null}
-        </div> : null}
+        </div>
+        {chat ? <div className="min-w-0 shrink-0 xl:col-start-2 xl:row-start-2 xl:h-full xl:min-h-0">{chat}</div> : null}
         <div
           role="tabpanel"
           id="review-content"
           aria-labelledby={`tab-${tab}`}
-          className={tab === "assets" ? "min-w-0" : `grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${sidebar ? "xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(20rem,0.9fr)_15rem_minmax(0,2fr)]" : "md:min-h-0 md:flex-1"}`}
+          className={`${tab === "assets" ? "min-w-0" : `grid min-w-0 gap-5 md:grid-cols-[16rem_minmax(0,1fr)] ${chat ? "xl:min-h-0" : "md:min-h-0 md:flex-1"}`} ${chat ? "xl:col-start-1 xl:row-start-2" : ""}`}
         >
           {tab === "assets" ? assets : <>
-          {sidebar ? <div className="min-h-0 min-w-0 md:col-span-2 xl:col-span-1 xl:h-full">{sidebar}</div> : null}
           <nav
             aria-label={`${tabs.find((t) => t.id === tab)?.label} items`}
-            className={`h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] ${sidebar ? "xl:h-full" : "md:h-full"}`}
+            className={`h-56 min-w-0 overflow-y-auto overscroll-contain rounded-surface border border-line bg-surface p-3 shadow-[0_2px_10px_rgb(0_0_0/0.10)] [scrollbar-gutter:stable] ${chat ? "xl:h-full" : "md:h-full"} ${floatingChecks ? "md:pb-20" : ""}`}
           >
             <h2 className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted">
               Index
@@ -662,7 +664,7 @@ export function ReviewScreen({
             tabIndex={-1}
             role="region"
             aria-label="Review details"
-            className="h-[clamp(28rem,72dvh,56rem)] min-w-0 space-y-5 overflow-y-auto overscroll-contain break-words p-1 [overflow-anchor:none] [overflow-wrap:anywhere] [scrollbar-gutter:stable] md:h-full"
+            className={`h-[clamp(28rem,72dvh,56rem)] min-w-0 space-y-5 overflow-y-auto overscroll-contain break-words [overflow-anchor:none] [overflow-wrap:anywhere] [scrollbar-gutter:stable] md:h-full ${editMode && renderEditor ? "rounded-surface border border-line bg-surface p-4 shadow-[0_2px_10px_rgb(0_0_0/0.10)]" : "p-1"}`}
           >
             <React.Fragment key={`${tab}:${selected}`}>
               {editMode && renderEditor ? (
@@ -702,7 +704,7 @@ export function ReviewScreen({
                   ) : null}
                   {stage ? (
                     <>
-                      <Card id={stage.id} title={name(stage.id)}>
+                      <Card id={stage.id} title={name(stage.id)} actions={assetLink(`asset-stage-${stage.id}`, "Opening image")}>
                         <p>{stage.timePlace}</p>
                         <Field title="Central question">
                           {stage.centralQuestion}
@@ -724,18 +726,33 @@ export function ReviewScreen({
                           {Object.entries(stage.preparation.characters).map(([id, groups]) => (
                             <Field key={id} title={`Before speaking with ${name(id)}`}>
                               {groups.length ? groups.map((group, index) => (
-                                <p key={index}>Complete {group.minMet} of: {group.discoveryIds.map(name).join("; ")}</p>
+                                <div key={index} className="mb-3 last:mb-0">
+                                  <p>Complete {group.minMet} of:</p>
+                                  <ul className="list-disc space-y-1 pl-5">
+                                    {group.discoveryIds.map((id) => <li key={id}>{name(id)}</li>)}
+                                  </ul>
+                                </div>
                               )) : "No preparation required."}
                             </Field>
                           ))}
                           <Field title="Before the stage decision">
                             {stage.preparation.decision.map((group, index) => (
-                              <p key={index}>Complete {group.minMet} of: {group.discoveryIds.map(name).join("; ")}</p>
+                              <div key={index} className="mb-3 last:mb-0">
+                                <p>Complete {group.minMet} of:</p>
+                                <ul className="list-disc space-y-1 pl-5">
+                                  {group.discoveryIds.map((id) => <li key={id}>{name(id)}</li>)}
+                                </ul>
+                              </div>
                             ))}
                           </Field>
                           <Field title="Essential conversations">
                             {stage.preparation.essentialCharacters.map((person) => (
-                              <p key={person.characterId}>{name(person.characterId)}: discuss {person.discoveryIds.map(name).join("; ")}</p>
+                              <div key={person.characterId} className="mb-3 last:mb-0">
+                                <p>{name(person.characterId)}: discuss</p>
+                                <ul className="list-disc space-y-1 pl-5">
+                                  {person.discoveryIds.map((id) => <li key={id}>{name(id)}</li>)}
+                                </ul>
+                              </div>
                             ))}
                           </Field>
                           <p className="text-sm text-muted">Every essential conversation is required, even when time expires.</p>
@@ -957,7 +974,14 @@ export function ReviewScreen({
                   ) : null}
                   {character ? (
                     <>
-                      <Card id={character.id} title={name(character.id)}>
+                      <Card
+                        id={character.id}
+                        title={name(character.id)}
+                        actions={<>
+                          {assetLink(`asset-sprite-character:${character.id}`, "Walking sprite")}
+                          {character.tier === "major" ? null : assetLink(`asset-portrait-${character.id}`, "Portrait")}
+                        </>}
+                      >
                         <p>
                           {character.title} ·{" "}
                           {character.tier === "major"
@@ -1023,6 +1047,7 @@ export function ReviewScreen({
                             key={s.id}
                             id={reviewStanceId(character.id, s.id)}
                             title={s.label}
+                            actions={assetLink(`asset-portrait-${character.id}:${s.id}`, "Portrait")}
                           >
                             <p>{s.demeanour}</p>
                             <p>

@@ -11,6 +11,7 @@ import {
 
 import { nextChoiceIndex, pixelFont, useTypewriter } from "@/components/play/v3/dialogue-box";
 import { SpeakerBox } from "@/components/play/v3/speaker-box";
+import { CHOICE_KEYS, ChoiceButton, choiceKeyIndex, pocketRoot, pocketStyles, PocketPill, PocketRibbon, PocketTag } from "@/components/play/v3/pocket-ui";
 import { buildInterviewAnswerAction } from "@/lib/play/v3/interview-form";
 import { interviewDraftStart, interviewLine } from "@/lib/play/v3/interview-flow";
 
@@ -34,14 +35,26 @@ function answerLine(interview: InterviewView, verdictId: string, text: string | 
  * The Interview happens over the last stage's map: the interviewer's question, push-back and closing type out in
  * the bottom dialogue box, and the student's answer (verdict, then notes as evidence) pops up above it.
  */
+/** "3 notes collected · 2 sources read · 2 decisions made": what the student brings to the debrief. */
+export function journeyPills({ notes, documents, decisions }: { notes: number; documents: number; decisions: number }): string[] {
+  const count = (n: number, one: string, many: string) => `${n === 0 ? "No" : n} ${n === 1 ? one : many}`;
+  return [
+    count(notes, "note collected", "notes collected"),
+    count(documents, "source read", "sources read"),
+    ...(decisions > 0 ? [count(decisions, "decision made", "decisions made")] : []),
+  ];
+}
+
 export function InterviewScreen({
   interview,
   notes,
   busy,
   send,
+  journey = [],
 }: {
   interview: InterviewView;
   notes: NoteView[];
+  journey?: string[];
   busy: boolean;
   send: (action: Action) => void;
 }) {
@@ -81,6 +94,7 @@ export function InterviewScreen({
           key={line.kind}
           interview={interview}
           notes={notes}
+          journey={journey}
           responding={line.next === "respond"}
           busy={busy}
           send={sendAnswer}
@@ -104,6 +118,7 @@ export function InterviewScreen({
 function AnswerPanel({
   interview,
   notes,
+  journey,
   responding,
   busy,
   send,
@@ -111,6 +126,7 @@ function AnswerPanel({
   interview: InterviewView;
   notes: NoteView[];
   responding: boolean;
+  journey: string[];
   busy: boolean;
   send: (action: Action) => void;
 }) {
@@ -165,7 +181,11 @@ function AnswerPanel({
       if (isTextEntryTarget(event.target)) return;
       const delta = choiceDelta(event.key);
       if (step === "verdict") {
-        if (delta !== 0) {
+        const lettered = event.altKey || event.ctrlKey || event.metaKey ? -1 : choiceKeyIndex(event.key, interview.verdicts.length);
+        if (lettered >= 0) {
+          event.preventDefault();
+          setVerdictIndex(lettered);
+        } else if (delta !== 0) {
           event.preventDefault();
           setVerdictIndex((index) => nextChoiceIndex(index, delta, interview.verdicts.length));
         } else if (event.key === "Enter" || event.key === " ") {
@@ -188,118 +208,107 @@ function AnswerPanel({
     return () => document.removeEventListener("keydown", handleKeyDown);
   });
 
-  const rowClass = (selected: boolean) =>
-    `flex min-h-10 w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left leading-snug transition disabled:cursor-not-allowed disabled:opacity-60 ${
-      selected ? "bg-[#e7edff] text-[#3659cf]" : "text-[#1f2433] hover:bg-[#1f2433]/5"
-    }`;
-
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 bottom-[9.5rem] z-30 flex items-center justify-center p-2 sm:bottom-[11rem] sm:p-4">
-    <section
-      aria-label={responding ? "Your response" : "Your answer"}
-      className="pointer-events-auto flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border-4 border-[#1f2433] bg-[#fffaf0] font-sans text-[#1f2433] shadow-[4px_4px_0_#1f2433]"
-    >
-      <header className="flex items-center justify-between gap-3 border-b-4 border-[#1f2433] bg-[#1f2433] px-4 py-2 text-[#fffaf0]">
-        <h2 className={`${pixelFont.className} text-base font-bold`}>{responding ? "Your response" : "Your answer"}</h2>
-        <span className="text-xs font-semibold text-[#e9dcc0]">
-          {step === "verdict" ? "↑↓ to choose · Enter to pick" : `${evidenceNoteIds.length}/${MAX_EVIDENCE_NOTES} notes · Esc to go back`}
-        </span>
-      </header>
-
-      {step === "verdict" ? (
-        <div role="listbox" aria-label="Verdict" className="min-h-0 overflow-y-auto p-2">
-          {responding ? (
-            <p className="px-2 pb-1 text-sm text-[#1f2433]/75">Keep your answer, or change it now you&apos;ve heard the push-back.</p>
-          ) : null}
-          {interview.verdicts.map((option, index) => (
-            <button
-              key={option.id}
-              type="button"
-              role="option"
-              aria-selected={index === verdictIndex}
-              disabled={busy}
-              onMouseEnter={() => setVerdictIndex(index)}
-              onClick={() => chooseVerdict(index)}
-              className={rowClass(index === verdictIndex)}
-            >
-              <span aria-hidden className="w-4 shrink-0 text-sm font-black text-[#e36b33]">{index === verdictIndex ? "▶" : ""}</span>
-              <span className="text-[15px] font-semibold sm:text-base">
-                {option.text}
-                {responding && option.id === interview.answer?.verdictId ? (
-                  <span className="ml-2 inline-block rounded border border-current px-1.5 text-[11px] font-bold uppercase tracking-wide opacity-70">Your answer</span>
-                ) : null}
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <form
-          className="flex min-h-0 flex-col"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-        >
-          <p className="border-b-2 border-[#1f2433]/15 px-4 py-2 text-sm">
-            <span className="font-black">{verdict?.text}</span>
-            <span className="block text-[#1f2433]/70">Back it up with notes from your notebook (optional).</span>
-          </p>
-          <div className="min-h-0 overflow-y-auto p-2">
-            {notes.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-[#1f2433]/70">You didn&apos;t write any notes.</p>
-            ) : (
-              notes.map((note, index) => {
-                const checked = evidenceNoteIds.includes(note.id);
-                return (
-                  <button
-                    key={note.id}
-                    type="button"
-                    role="checkbox"
-                    aria-checked={checked}
-                    disabled={busy}
-                    onMouseEnter={() => setCursor(index)}
-                    onClick={() => toggleNote(note.id)}
-                    className={rowClass(index === cursor)}
-                  >
-                    <span aria-hidden className="w-4 shrink-0 text-sm font-black text-[#e36b33]">{index === cursor ? "▶" : ""}</span>
-                    <span aria-hidden className="mt-1 grid size-4 shrink-0 place-items-center rounded border-2 border-[#1f2433] text-[10px] leading-none">
-                      {checked ? "✓" : ""}
-                    </span>
-                    <span className="text-sm font-medium sm:text-base">{note.text}</span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-          <div className="grid gap-2 border-t-2 border-[#1f2433]/15 p-3">
-            <input
-              value={text}
-              maxLength={MAX_INTERVIEW_TEXT_LENGTH}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Add a line in your own words (optional)"
-              aria-label="Your reasoning (optional)"
-              className="min-h-10 w-full rounded-lg border-2 border-[#1f2433] bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#ffd65a]"
-            />
-            {error ? <p role="alert" className="text-sm font-bold text-signal">{error}</p> : null}
-            <div className="flex items-center justify-between gap-2">
-              <button type="button" onClick={() => setStep("verdict")} className="min-h-10 rounded-lg px-3 text-sm font-bold underline">
-                Back
-              </button>
-              <button
-                type="submit"
-                disabled={busy}
-                onMouseEnter={() => setCursor(submitRow)}
-                className={`min-h-10 rounded-lg border-2 border-[#1f2433] px-4 text-sm font-black shadow-[2px_2px_0_#1f2433] disabled:opacity-50 ${
-                  cursor === submitRow ? "bg-[#e7edff] text-[#3659cf]" : "bg-white"
-                }`}
-              >
-                {cursor === submitRow ? "▶ " : ""}{responding ? "Give my response" : "Give my answer"}
-              </button>
+    <div className={`${pocketRoot} pointer-events-none absolute inset-x-0 top-0 bottom-[9.5rem] z-30 flex flex-col items-center justify-center gap-0 overflow-y-auto p-2 pt-4 sm:bottom-[11rem] sm:p-4`}>
+      <div className="relative z-10 -mb-5 w-full max-w-3xl">
+        <PocketRibbon>{responding ? "Your response" : "Debrief"}</PocketRibbon>
+      </div>
+      <section
+        aria-label={responding ? "Your response" : "Your answer"}
+        className={`${pocketStyles.panel} ${pocketStyles.panelRaised} pointer-events-auto flex max-h-full w-full max-w-3xl flex-col overflow-hidden`}
+      >
+        <div className="min-h-0 overflow-y-auto px-4 pb-4 pt-9 sm:px-7">
+          {journey.length ? (
+            <div className="mb-4 border-b-[3px] border-[#d9c7a0] pb-4">
+              <PocketTag>Your journey</PocketTag>
+              <ul aria-label="Your journey" className="mt-3 flex flex-wrap gap-2">
+                {journey.map((item, index) => <li key={item}><PocketPill tone={(["record", "world", "good", "secret"] as const)[index % 4]}>{item}</PocketPill></li>)}
+              </ul>
             </div>
-          </div>
-        </form>
-      )}
-    </section>
+          ) : null}
+          <PocketTag>{responding ? "Think again" : "The big question"}</PocketTag>
+          <h2 className={`${pixelFont.className} mt-2 text-xl font-bold leading-snug sm:text-2xl`}>{interview.question}</h2>
+          {responding ? <p className="mt-1 text-sm text-[#6b5f4c]">Keep your answer, or change it now you&apos;ve heard the push-back.</p> : null}
+
+          {step === "verdict" ? (
+            <div role="listbox" aria-label="Verdict" className="mt-4 grid gap-2.5">
+              {interview.verdicts.map((option, index) => (
+                <ChoiceButton
+                  key={option.id}
+                  index={index}
+                  selected={index === verdictIndex}
+                  disabled={busy}
+                  onHover={() => setVerdictIndex(index)}
+                  onSelect={() => chooseVerdict(index)}
+                  text={<>
+                    {option.text}
+                    {responding && option.id === interview.answer?.verdictId ? (
+                      <span className="ml-2 inline-block rounded border-2 border-current px-1.5 text-[11px] font-bold uppercase tracking-wide opacity-70">Your answer</span>
+                    ) : null}
+                  </>}
+                />
+              ))}
+              <p className="text-xs text-[#6b5f4c]">Press A–{"ABCDEF"[Math.max(0, Math.min(interview.verdicts.length, 6) - 1)]} or ↑↓, then Enter.</p>
+            </div>
+          ) : (
+            <form
+              className="mt-4 grid gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submit();
+              }}
+            >
+              <p className="flex flex-wrap items-center gap-2 text-sm">
+                <PocketPill tone="ink">{CHOICE_KEYS[verdictIndex]}</PocketPill>
+                <span className="font-bold">{verdict?.text}</span>
+                <button type="button" onClick={() => setStep("verdict")} className="ml-auto min-h-9 rounded-lg px-2 text-sm font-bold underline">Change</button>
+              </p>
+              <label htmlFor="interview-reasoning" className={`${pixelFont.className} text-sm font-bold uppercase tracking-[0.08em] text-[#a8442a]`}>Your answer, in your own words</label>
+              <textarea
+                id="interview-reasoning"
+                value={text}
+                maxLength={MAX_INTERVIEW_TEXT_LENGTH}
+                rows={3}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="Explain your answer (optional)"
+                aria-label="Your reasoning (optional)"
+                className={`${pixelFont.className} min-h-24 w-full resize-y rounded-lg border-[3px] border-[#1f2433] bg-white px-3 py-2 text-base outline-none focus:ring-4 focus:ring-[#ffe66d]`}
+              />
+              <fieldset className="grid gap-2">
+                <legend className={`${pixelFont.className} mb-1 text-sm font-bold uppercase tracking-[0.08em] text-[#a8442a]`}>
+                  Evidence <span className="font-sans text-xs font-semibold normal-case tracking-normal text-[#6b5f4c]">({evidenceNoteIds.length}/{MAX_EVIDENCE_NOTES} notes, optional)</span>
+                </legend>
+                {notes.length === 0 ? (
+                  <p className="text-sm text-[#6b5f4c]">You didn&apos;t write any notes.</p>
+                ) : notes.map((note, index) => (
+                  <ChoiceButton
+                    key={note.id}
+                    role="checkbox"
+                    index={index}
+                    checked={evidenceNoteIds.includes(note.id)}
+                    selected={index === cursor}
+                    disabled={busy}
+                    onHover={() => setCursor(index)}
+                    onSelect={() => toggleNote(note.id)}
+                    text={<span className="font-sans text-sm font-medium sm:text-base">{note.text}</span>}
+                  />
+                ))}
+              </fieldset>
+              {error ? <p role="alert" className="text-sm font-bold text-[#c2412d]">{error}</p> : null}
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="submit"
+                  disabled={busy}
+                  onMouseEnter={() => setCursor(submitRow)}
+                  className={`${pixelFont.className} min-h-12 rounded-lg border-[3px] border-[#1f2433] bg-[#d85f35] px-5 text-lg font-bold text-white shadow-[0_4px_0_#1f2433] hover:bg-[#c04f28] active:translate-y-[2px] active:shadow-none disabled:opacity-50 ${cursor === submitRow ? "outline outline-4 outline-offset-2 outline-[#ffe66d]" : ""}`}
+                >
+                  {responding ? "Give my response" : "Submit answer"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

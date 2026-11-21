@@ -228,6 +228,7 @@ describe("v3 class summary service", () => {
       events: eventsFor(),
     });
     const lookup = vi.spyOn(fixture.store, "studentEmail");
+    const listFlags = vi.spyOn(fixture.store, "listFlags");
 
     const result = await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID);
     expect(result.status).toBe(200);
@@ -244,15 +245,91 @@ describe("v3 class summary service", () => {
         attemptId: flaggedAttemptId,
         count: 1,
         student: "flagged@example.test",
+        severity: "review",
+        messages: [],
       },
     ]);
     expect(lookup.mock.calls).toEqual([["flagged-student"]]);
+    expect(listFlags).toHaveBeenCalledWith([flaggedAttemptId]);
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain("unflagged-student");
     expect(serialized).not.toContain("unflagged@example.test");
   });
 
-  it("uses an opaque label when a flagged student's email is unavailable", async () => {
+  it("returns stored flag details with severity and matching character names", async () => {
+    const fixture = setup();
+    const attemptId = fixture.store.addAttemptWithEvents({
+      adventureId: ADVENTURE_ID,
+      specVersion: 1,
+      studentId: "flagged-student",
+      events: eventsFor({ flag: true }),
+    });
+    fixture.store.addFlag({
+      attemptId,
+      messageId: "flagged-message",
+      category: "provocative",
+      excerpt: "A proposed act.",
+      characterId: "temenggong",
+      stageIndex: 0,
+      source: "interview",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const result = await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID);
+
+    expect(result.status).toBe(200);
+    if (result.status !== 200) return;
+    expect(result.flagged[0]).toEqual({
+      attemptId,
+      count: 1,
+      student: "Anonymous player flagged-",
+      severity: "review",
+      messages: [
+        {
+          messageId: "flagged-message",
+          category: "provocative",
+          severity: "review",
+          excerpt: "A proposed act.",
+          characterName: goldenSpec.characters.find((character) => character.id === "temenggong")?.name ?? null,
+          stageIndex: 0,
+          source: "interview",
+          createdAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+  });
+
+  it("sorts urgent flagged students before students with only review flags", async () => {
+    const fixture = setup();
+    const provocativeAttemptId = fixture.store.addAttemptWithEvents({
+      adventureId: ADVENTURE_ID,
+      specVersion: 1,
+      studentId: "z-student",
+      events: eventsFor({ flag: true }),
+    });
+    const threatEvents = eventsFor({ flag: true }).map((event) =>
+      event.type === "flag" ? { ...event, category: "threat" as const } : event,
+    );
+    const threatAttemptId = fixture.store.addAttemptWithEvents({
+      adventureId: ADVENTURE_ID,
+      specVersion: 1,
+      studentId: "a-student",
+      events: threatEvents,
+    });
+    fixture.store.setStudentEmail("z-student", "z@example.test");
+    fixture.store.setStudentEmail("a-student", "a@example.test");
+
+    const result = await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID);
+
+    expect(result.status).toBe(200);
+    if (result.status !== 200) return;
+    expect(result.flagged.map(({ attemptId, severity }) => ({ attemptId, severity }))).toEqual([
+      { attemptId: threatAttemptId, severity: "urgent" },
+      { attemptId: provocativeAttemptId, severity: "review" },
+    ]);
+  });
+
+  it("uses anonymous-player labels for null and empty emails", async () => {
     const fixture = setup();
     fixture.store.addAttemptWithEvents({
       adventureId: ADVENTURE_ID,
@@ -260,11 +337,21 @@ describe("v3 class summary service", () => {
       studentId: "flagged-student",
       events: eventsFor({ flag: true }),
     });
+    fixture.store.addAttemptWithEvents({
+      adventureId: ADVENTURE_ID,
+      specVersion: 1,
+      studentId: "empty-student",
+      events: eventsFor({ flag: true }),
+    });
+    fixture.store.setStudentEmail("empty-student", "");
 
     const result = await loadClassSummary(fixture.deps, OWNER_ID, ADVENTURE_ID);
     expect(result).toMatchObject({
       status: 200,
-      flagged: [{ student: "Student flagged-" }],
+      flagged: [
+        { student: "Anonymous player empty-st" },
+        { student: "Anonymous player flagged-" },
+      ],
     });
   });
 
@@ -368,6 +455,83 @@ describe("Supabase v3 event loading", () => {
     } finally {
       logger.mockRestore();
     }
+  });
+});
+
+describe("Supabase v3 flag loading", () => {
+  it("chunks attempt IDs and defensively maps details in creation order", async () => {
+    const attemptIds = Array.from({ length: 101 }, (_, index) => `attempt-${index}`);
+    const chunks: string[][] = [];
+    const orders: { column: string; options: { ascending: boolean } }[] = [];
+    let activeChunk: string[] = [];
+    const rows = [
+      {
+        attempt_id: "attempt-0",
+        message_id: "message-later",
+        category: "threat",
+        excerpt: "A threat",
+        result: { characterId: "temenggong", stageIndex: 2, source: "interview" },
+        created_at: "2026-01-02T00:00:00.000Z",
+      },
+      {
+        attempt_id: "attempt-100",
+        message_id: "message-earlier",
+        category: "provocative",
+        excerpt: "A proposal",
+        result: { characterId: 4, stageIndex: "1" },
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+    const query = {
+      select: vi.fn(() => query),
+      in: vi.fn((_column: string, values: string[]) => {
+        activeChunk = values;
+        chunks.push([...values]);
+        return query;
+      }),
+      order: vi.fn((column: string, options: { ascending: boolean }) => {
+        orders.push({ column, options });
+        return query;
+      }),
+      range: vi.fn(async () => ({
+        data: rows.filter((row) => activeChunk.includes(row.attempt_id)),
+        error: null,
+      })),
+    };
+    const admin = { from: vi.fn(() => query) } as unknown as SupabaseClient;
+
+    const flags = await new SupabaseV3PlayStore(admin).listFlags(attemptIds);
+
+    expect(query.select).toHaveBeenCalledWith(
+      "attempt_id, message_id, category, excerpt, result, created_at",
+    );
+    expect(chunks.map((chunk) => chunk.length)).toEqual([100, 1]);
+    expect(orders).toEqual([
+      { column: "created_at", options: { ascending: true } },
+      { column: "created_at", options: { ascending: true } },
+    ]);
+    expect(flags).toEqual([
+      {
+        attemptId: "attempt-100",
+        messageId: "message-earlier",
+        category: "provocative",
+        excerpt: "A proposal",
+        characterId: null,
+        stageIndex: null,
+        source: "chat",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        attemptId: "attempt-0",
+        messageId: "message-later",
+        category: "threat",
+        excerpt: "A threat",
+        characterId: "temenggong",
+        stageIndex: 2,
+        source: "interview",
+        createdAt: "2026-01-02T00:00:00.000Z",
+      },
+    ]);
   });
 });
 

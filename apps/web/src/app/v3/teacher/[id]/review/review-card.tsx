@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Pencil, Check } from "lucide-react";
 import { reviewEdit } from "../creation-styles";
 
+/** A generated item. Without editor `children` it is read-only (completed steps). */
 export function ReviewCard({
   title,
   subtitle,
@@ -12,9 +13,10 @@ export function ReviewCard({
   title: string;
   subtitle?: string;
   preview: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
+  const editable = children !== undefined;
   return (
     <section
       className="creation-card min-w-0 rounded-surface border border-line-strong bg-surface"
@@ -30,22 +32,24 @@ export function ReviewCard({
             <p className="mt-1 text-xs text-muted">{subtitle}</p>
           ) : null}
         </div>
-        <button
-          type="button"
-          aria-expanded={editing}
-          onClick={() => setEditing(!editing)}
-          className={reviewEdit}
-        >
-          {editing ? (
-            <Check size={14} aria-hidden />
-          ) : (
-            <Pencil size={14} aria-hidden />
-          )}
-          {editing ? "Done" : "Edit"}
-        </button>
+        {editable ? (
+          <button
+            type="button"
+            aria-expanded={editing}
+            onClick={() => setEditing(!editing)}
+            className={reviewEdit}
+          >
+            {editing ? (
+              <Check size={14} aria-hidden />
+            ) : (
+              <Pencil size={14} aria-hidden />
+            )}
+            {editing ? "Done" : "Edit"}
+          </button>
+        ) : null}
       </header>
       <div className="min-w-0 px-4 pb-4 text-sm leading-relaxed sm:px-5">
-        {editing ? children : preview}
+        {editable && editing ? children : preview}
       </div>
     </section>
   );

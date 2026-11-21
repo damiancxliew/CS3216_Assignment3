@@ -7,13 +7,15 @@
 import OpenAI from 'openai'
 import type { ResponseCreateParamsNonStreaming } from 'openai/resources/responses/responses'
 
-import type { LlmClient, LlmRequest, ModelTier } from './types'
+import type { DecisionRequest, DecisionResponse, LlmClient, LlmRequest, ModelTier } from './types'
 
 export const MODEL_BY_TIER: Record<ModelTier, string> = {
   frontier: 'gpt-5',
   mid: 'gpt-6-luna',
   cheap: 'gpt-6-luna',
 }
+
+export const DECISION_MODEL = 'gpt-6-luna'
 
 export interface OpenAiClientOptions {
   apiKey?: string
@@ -23,6 +25,7 @@ export interface OpenAiClientOptions {
 
 export interface OpenAiTransport {
   responses: Pick<OpenAI['responses'], 'create'>
+  decisions?: Pick<OpenAI['decisions'], 'create'>
 }
 
 export function toOpenAiStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
@@ -97,6 +100,40 @@ export function createOpenAiClient(options: OpenAiClientOptions = {}): LlmClient
         ...(response.service_tier === undefined || response.service_tier === null
           ? {}
           : { serviceTier: response.service_tier }),
+      }
+    },
+    async decide(request: DecisionRequest): Promise<DecisionResponse> {
+      if (client === undefined) throw new MissingApiKeyError()
+      if (client.decisions === undefined) throw new Error('OpenAI transport does not support Decisions')
+      if (request.questions.length > 400) throw new Error('OpenAI Decisions supports at most 400 questions')
+
+      const startedAt = performance.now()
+      const response = await client.decisions.create({
+        model: DECISION_MODEL,
+        input: request.input as never,
+        questions: request.questions.map((question) => ({
+          type: 'predicate',
+          name: question.name,
+          instructions: question.instructions,
+        })),
+      })
+      const latencyMs = Math.max(0, Math.round(performance.now() - startedAt))
+      const probabilities: Record<string, number> = {}
+      response.answers.forEach((answer, index) => {
+        if (answer.type !== 'predicate') return
+        const name = answer.name ?? request.questions[index]?.name
+        if (name !== undefined) probabilities[name] = answer.probability
+      })
+      return {
+        probabilities,
+        usage: {
+          promptTokens: response.usage.input_tokens,
+          cachedPromptTokens: response.usage.input_tokens_details.cached_tokens,
+          completionTokens: response.usage.output_tokens,
+          reasoningTokens: response.usage.output_tokens_details.reasoning_tokens,
+        },
+        model: response.model,
+        latencyMs,
       }
     },
   }

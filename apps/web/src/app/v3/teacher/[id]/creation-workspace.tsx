@@ -1,14 +1,62 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import {
-  timerLabel,
-  sourcePolicyLabel,
-  type BriefStateV3,
-} from "@/lib/v3/brief/schema";
-import { Thinking } from "@/components/ui";
-import { V3BriefChat } from "./brief-chat";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Check, Trash2 } from "lucide-react";
+import { currentSlot, type BriefStateV3 } from "@/lib/v3/brief/schema";
+import { Pending, StableLabel } from "@/components/ui";
+import { V3BriefChat, type BriefChatActions } from "./brief-chat";
 import { ReviewChatProvider } from "./review-chat-context";
+import { ConfirmButton } from "./confirm-button";
+import { BriefOverview } from "./brief-overview";
+import { useBriefUploads } from "./use-brief-uploads";
+import styles from "./creation-workspace.module.css";
+import { ReviewToolbar, ReviewToolbarProvider } from "./review-toolbar";
+import { reviewCreate } from "./creation-styles";
+
+/**
+ * Brings each step into view from its top, so the teacher can read everything
+ * that step produced: when the current step changes or finishes generating
+ * (the section marked `data-generation-current`), and when a new brief card
+ * appears. Nothing else moves the pane, so opening or editing cards never does.
+ */
+function useStepScroll(content: HTMLElement | null, body: HTMLElement | null) {
+  useEffect(() => {
+    if (!content || !body) return;
+    const target = (): { key: string; node: Element } | null => {
+      const current = body.querySelector("[data-generation-current]");
+      if (current) return { key: `${current.getAttribute("data-generation-section")}:${current.getAttribute("data-generation-current")}`, node: current };
+      const steps = body.querySelectorAll("[data-brief-step]");
+      const last = steps[steps.length - 1];
+      return last ? { key: `brief:${steps.length}`, node: last } : null;
+    };
+    // Glide to each new step; land instantly on first load or when motion is reduced.
+    const toTop = (node: Element, smooth: boolean) => {
+      // Room below a short last step, so its top can always reach the top of the pane.
+      body.style.paddingBottom = "0px";
+      const below = body.getBoundingClientRect().bottom - node.getBoundingClientRect().top;
+      body.style.paddingBottom = `${Math.max(0, content.clientHeight - below)}px`;
+      const top = content.scrollTop + node.getBoundingClientRect().top - content.getBoundingClientRect().top;
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      content.scrollTo({ top, behavior: smooth && !reduced ? "smooth" : "auto" });
+    };
+    let seen: string | null = null;
+    let frame = 0;
+    const check = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const next = target();
+        if (!next || next.key === seen) return;
+        const first = seen === null;
+        seen = next.key;
+        toTop(next.node, !first);
+      });
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-generation-current"] });
+    check();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+  }, [content, body]);
+}
 
 /** The same two panes survive every refresh from briefing through review. */
 export function CreationWorkspace({
@@ -17,151 +65,95 @@ export function CreationWorkspace({
   statusMessage,
   generating,
   complete = false,
+  failed = false,
   children,
+  generationProgress,
+  contentHeader,
 }: {
   brief: BriefStateV3;
   active: boolean;
   statusMessage: string;
   generating: boolean;
   complete?: boolean;
+  failed?: boolean;
   children: ReactNode;
+  generationProgress?: ReactNode;
+  contentHeader?: ReactNode;
 }) {
   const [liveBrief, setLiveBrief] = useState(brief);
+  const [busy, setBusy] = useState(false);
   const [startingGeneration, setStartingGeneration] = useState(false);
+  const [content, setContent] = useState<HTMLDivElement | null>(null);
+  const [contentBody, setContentBody] = useState<HTMLDivElement | null>(null);
+  const actions = useRef<BriefChatActions>(null);
+  const uploads = useBriefUploads({ adventureId: brief.adventureId, sourceCount: liveBrief.sources.length, onState: setLiveBrief });
   const starting = active && startingGeneration;
+  const disabled = busy || uploads.busy || starting;
+  const slot = currentSlot(liveBrief.draft);
+  const ready = active && slot.name === "confirm";
+  useStepScroll(content, contentBody);
+
   return (
+    <ReviewToolbarProvider progress={generationProgress ?? null} busy={generating || starting}>
     <ReviewChatProvider>
-      <div
-        className="mx-auto flex w-full max-w-[1440px] flex-col md:h-full md:min-h-0 px-4 pb-5 pt-4 sm:px-6 lg:px-8"
-        data-creation-workspace
-      >
-        <header className="mb-4 flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink">
-            {brief.draft.episode ?? "New adventure"}
-          </h1>
-          <span className="shrink-0 rounded-full border border-line-strong bg-surface px-3 py-1 text-xs font-semibold text-muted">
-            {generating || starting
-              ? "Creating"
-              : active
-                ? "The brief"
-                : complete
-                  ? "Ready"
-                  : "Review"}
+      <div className={styles.workspace} data-creation-workspace>
+        <header className={styles.header}>
+          <div className={styles.titleGroup}>
+            <h1 className={styles.title}>{liveBrief.draft.episode ?? "New adventure"}</h1>
+            {active ? <ConfirmButton
+              label={<Trash2 size={16} aria-hidden />}
+              ariaLabel="Discard brief"
+              className={styles.discard}
+              title="Discard this brief?"
+              body="The conversation and any sources you added are thrown away."
+              confirmLabel="Discard"
+              disabled={disabled || generating}
+              onConfirm={() => actions.current?.discard()}
+            /> : null}
+          </div>
+          <span className={`${styles.status} ${ready || complete ? styles.ready : ""} ${failed ? styles.stopped : ""}`}>
+            {ready || complete ? <Check size={14} aria-hidden /> : null}
+            {generating || starting ? "Creating" : ready ? "Brief ready" : active ? "The brief" : complete ? "Ready" : failed ? "Stopped" : "Review"}
           </span>
         </header>
-        <div className="grid min-h-0 gap-5 md:flex-1 md:min-h-0 md:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.35fr)]">
-          <section
-            aria-label="Adventure conversation"
-            className="game-shadow flex h-[28rem] min-h-[24rem] min-w-0 flex-col rounded-surface border-2 border-ink bg-surface p-4 md:h-full md:min-h-0 sm:p-5"
-          >
+        <div className={styles.panes}>
+          <section aria-label="Adventure conversation" className={styles.chat}>
             <V3BriefChat
               initial={brief}
+              controlledState={liveBrief}
               active={active}
               statusMessage={statusMessage}
               generating={generating || starting}
+              reviewIdleHint={failed ? "Generation stopped. Start again to make changes." : undefined}
+              uploads={uploads}
+              actionsRef={actions}
+              onBusyChange={setBusy}
               onStateChange={setLiveBrief}
               onGenerationStart={() => setStartingGeneration(true)}
               onGenerationError={() => setStartingGeneration(false)}
             />
           </section>
-          <section
-            aria-label="Generated content"
-            className="relative min-h-0 min-w-0"
-          >
-            <div
-              data-generated-content
-              className="block md:h-full min-h-0 min-w-0 space-y-5 pb-52 sm:pb-36 md:overflow-y-auto md:overscroll-contain md:px-2 [scrollbar-gutter:stable] [overflow-wrap:anywhere]"
-            >
-              {active ? (
-                <>
-                  <BriefOverview brief={liveBrief} />
-                  {startingGeneration ? (
-                    <section
-                      aria-label="Generation progress"
-                      className="creation-card rounded-surface border border-line-strong bg-surface p-5"
-                    >
-                      <Thinking label="Preparing your adventure…" />
-                    </section>
-                  ) : null}
-                </>
-              ) : (
-                children
-              )}
+          <section aria-label="Generated content" className={styles.right}>
+            {contentHeader ? <div className={styles.contentHeader}>{contentHeader}</div> : null}
+            <div ref={setContent} data-generated-content className={styles.content}>
+              <div ref={setContentBody} className={styles.contentBody}>
+                {active ? <BriefOverview brief={liveBrief} disabled={disabled} onChange={slot => actions.current?.change(slot)} onFiles={slot.name === "sources" ? uploads.addFiles : undefined} onRemove={slot.name === "sources" ? (id) => void uploads.remove(id) : undefined} removing={uploads.removing} removeError={uploads.removeError} /> : children}
+              </div>
             </div>
-            <div
-              data-review-dock
-              className="fixed bottom-4 left-4 right-4 z-40 md:absolute md:bottom-4 md:left-2 md:right-2"
-            />
+            {/* Create uses the same bottom bar that carries Continue later. */}
+            {ready ? <ReviewToolbar
+              discard={null}
+              resolve={null}
+              disabled={disabled}
+              primary={<button type="button" onClick={() => actions.current?.create()} className={reviewCreate}>
+                <StableLabel label="Create adventure" pending={starting} pendingLabel={<Pending>Creating…</Pending>} />
+              </button>}
+            /> : null}
+            <div data-review-dock className={styles.dock} />
           </section>
         </div>
       </div>
     </ReviewChatProvider>
-  );
-}
-
-function BriefOverview({ brief }: { brief: BriefStateV3 }) {
-  const rows = [
-    ["Episode", brief.draft.episode],
-    [
-      "Focus",
-      brief.draft.focus === "" ? "No additional guidance" : brief.draft.focus,
-    ],
-    [
-      "Timer",
-      brief.draft.timerMinutes !== undefined
-        ? timerLabel(brief.draft.timerMinutes)
-        : undefined,
-    ],
-    [
-      "Outside sources",
-      brief.draft.sourcePolicy !== undefined
-        ? sourcePolicyLabel(brief.draft.sourcePolicy ?? undefined)
-        : undefined,
-    ],
-    [
-      "Reading level",
-      brief.draft.readingLevel === "sec"
-        ? "Secondary"
-        : brief.draft.readingLevel === "jc"
-          ? "Junior college"
-          : undefined,
-    ],
-    [
-      "Generation",
-      brief.draft.mode
-        ? brief.draft.mode[0].toUpperCase() + brief.draft.mode.slice(1)
-        : undefined,
-    ],
-  ].filter((row): row is [string, string] => row[1] !== undefined);
-  return (
-    <section className="creation-card rounded-surface border-2 border-ink bg-surface p-5 sm:p-6">
-      <h2 className="text-xl font-extrabold tracking-tight">The brief</h2>
-      {brief.sources.length ? (
-        <div className="mt-5">
-          <h3 className="text-xs font-bold uppercase tracking-wide text-muted">
-            Source material
-          </h3>
-          <ul className="mt-2 space-y-2 text-sm">
-            {brief.sources.map((source) => (
-              <li key={source.id}>{source.title}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {rows.length ? (
-        <dl className="mt-5 divide-y divide-line">
-          {rows.map(([label, value]) => (
-            <div key={label} className="py-3">
-              <dt className="text-xs font-semibold text-muted">{label}</dt>
-              <dd className="mt-1 text-sm">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <p className="mt-6 text-sm text-muted">
-          Start by adding the material your students will work from.
-        </p>
-      )}
-    </section>
+    </ReviewToolbarProvider>
   );
 }

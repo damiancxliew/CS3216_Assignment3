@@ -1,0 +1,19 @@
+SOURCE 1: Raffles writes from Singapore, 10 June 1819
+
+Type: (a) Verbatim primary extract. A private letter from Sir Stamford Raffles to Colonel John Addenbrooke, as printed in 1878. Short extracts only; "..." marks words left out.
+Prepared: 11 November 2026.
+Based on: "The Founding of Singapore", Journal of the Straits Branch of the Royal Asiatic Society, No. 2 (December 1878), pages 175-179. The journal printed the letter from the original, then owned by T. H. Scholefield, when it was given to the Raffles Museum. A shorter version, with the passage about the harbour left out, is in Sophia Raffles, Memoir of the Life and Public Services of Sir Thomas Stamford Raffles (London, 1830), pages 379-380.
+Reference URL: https://archive.org/details/journalofstrait121878roya (page images: https://archive.org/download/journalofstrait121878roya/page/175_w800.jpg, 176, 178 and 179)
+Also: https://archive.org/details/memoiroflifepubl00raff
+
+Singapore, 10th June, 1819.
+
+[page 175] "On one of these are the ruins of the ancient Capital of "Singapura," or "City of the Lion" as it is called by the Malays. Here I have just planted the British Flag, and a more commanding and promising Station for the protection and improvement of all our interests in this quarter cannot well be conceived."
+
+[page 176] "Even our right to the spot on which I write this, though yesterday a wilderness and without inhabitant, is disputed; and, in return for our unparallelled generosity, we are left almost without a resting place in the Archipelago."
+
+[page 178] "I shall say nothing of the importance which I attach to the permanence of the position I have taken up at Singapore; it is a child of my own. But for my Malay studies I should hardly have known that such a place existed; not only the European but the Indian world also was ignorant of it. It is impossible to conceive a place combining more advantages; it is within a week's sail of China, still closer to Siam, Cochin-China, &c. in the very heart of the Archipelago, or as the Malays call it, it is "the Navel of the Malay countries"; already a population of above five thousand souls has collected under our flag, the number is daily increasing, the harbour, in every way superior, is filled with Shipping from all quarters; ..."
+
+[page 179] "Our object is not territory but trade, a great commercial Emporium, and a fulcrum whence we may extend our influence politically, as circumstances may hereafter require. By taking immediate possession we put a negative to the Dutch claim of exclusion, and at the same time revive the drooping confidence of our allies and friends; one Free Port in these Seas must eventually destroy the spell of Dutch monopoly; and what Malta is in the West, that may Singapore become in the East."
+
+Source limitation: Raffles wrote this four months after the treaty of 6 February 1819, on his second visit (he was in Singapore from 31 May to 27 June 1819, according to BiblioAsia). In the game it is shown in his tent in January 1819; the date on the document must stay "10 June 1819". It is a private letter written to win support: Raffles calls Singapore "a child of my own" and gives no credit to Farquhar or the Malay rulers. Two of his claims are contradicted by other sources in this pack: "without inhabitant" (see Sources 3, 8 and 9) and the Dutch claim (see Source 6). "Above five thousand souls" is his own estimate, four months after landing; other writers give 5,000 for 1821 (Source 8). The wording was checked by eye against the scanned page images of the 1878 printing, and against three separate computer transcriptions of that journal on archive.org (which contain reading errors such as "Impossible" and "he Navel"). Curly quotation marks are written as straight ones, and words split across lines ("col-lected", "Co-chin-China") are joined. The covering note in the journal misprints the letter's year as 1879; the letter itself is headed 1819.
