@@ -6,6 +6,7 @@ import { createState, step } from './step'
 import type { Engine } from './types'
 
 export { evaluate, type ConditionScope } from './conditions'
+export { previewInsight, type CharacterInsight, type PreviewInsight } from './insight'
 export type { EngineAction, StepContext } from './context'
 export * from './errors'
 export { project } from './project'

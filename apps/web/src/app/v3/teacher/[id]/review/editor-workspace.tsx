@@ -1,42 +1,28 @@
 "use client";
 import { AdventureTransfer } from "@/components/teacher/v3-version-controls";
 import { AdventureAccess } from "@/components/teacher/adventure-access";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { MessageSquare, Pencil, Play, Save, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { reviewAssets } from "@/lib/v3/review-assets";
-import {
-  preserveLegacyStageImages,
-  type ReadyCandidate,
-} from "@/lib/v3/media/resolvers";
-import type { MediaCandidate } from "@/lib/v3/media/repository";
 import type { ReviewAsset } from "@/lib/v3/review-assets";
 import { GeneratedAssets } from "./generated-assets";
-import { newLocalErrors } from "@/lib/v3/edit/local-checks";
 import { V3AdventureNav } from "@/components/teacher/v3-adventure-nav";
 import {
-  checkSpec,
-  validateSpec,
   type AdventureSpec as Spec,
   type CheckIssue,
   type SpecSource,
 } from "@adventure/spec-v3";
 import { compactButton as button } from "@/components/ui";
 import { V3PublishPanel } from "@/components/play/v3/publish-panel";
-import {
-  applyV3Edits,
-  type CapturedSource,
-  type V3Edit,
-} from "@/lib/v3/edit/commands";
+import { type CapturedSource, type V3Edit } from "@/lib/v3/edit/commands";
 import { AiFixPanel } from "./ai-fix-panel";
-import { saveV3AdventureEdits, fixV3EditsWithAiAction } from "../edit-actions";
-import { useBrowserDraft } from "./use-browser-draft";
-import { useUnsavedEdits } from "./use-unsaved-edits";
+import { fixV3EditsWithAiAction } from "../edit-actions";
+import { useAdventureDraft } from "./use-adventure-draft";
 import { ReviewEditorFields } from "./editor-fields";
 import { ReviewScreen } from "./review-screen";
 import { EditorConversation } from "./editor-chat-workspace";
-import { useReviewChatTarget } from "../review-chat-context";
 import { UpgradePanel } from "../upgrade-panel";
 
 type Props = {
@@ -63,174 +49,24 @@ export function EditorWorkspace(props: Props) {
     setPublished(props.published);
     setPublishedVersion(props.publishedVersion);
   }, [props.published, props.publishedVersion]);
-  const legacyStages = Object.fromEntries(
-    (props.assets?.items ?? [])
-      .filter((asset) => asset.kind === "stage")
-      .map((asset) => [asset.id, asset.url]),
-  );
-  const preserveStages = (spec: Spec) =>
-    preserveLegacyStageImages(spec, props.adventureId, version, legacyStages);
-  const [saved, setSaved] = useState(props.initial);
-  const [draft, setDraft] = useState(props.initial);
-  const [version, setVersion] = useState(props.initialVersion);
-  const [mediaCandidates, setMediaCandidates] = useState<
-    Record<string, ReadyCandidate>
-  >({});
-  const [edits, setEdits] = useState<V3Edit[]>([]);
-  const [editMode, setEditMode] = useState(false);
   const [chatClosed, setChatClosed] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
-  const [localPending, setPending] = useState(false);
   const [upgradePending, setUpgradePending] = useState(false);
-  const pending = localPending || upgradePending;
-  const [recoveryConflict, setRecoveryConflict] = useState(false);
-  const [message, setMessage] = useState("");
-  const [failure, setFailure] = useState(false);
-  const [savedErrors, setSavedErrors] = useState(props.errors);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
-  const checks = useMemo(() => {
-    const parsed = validateSpec(draft);
-    if (!parsed.ok)
-      return {
-        errors: parsed.issues.map((i) => ({ ...i, code: "schema" })),
-        warnings: [],
-      };
-    // Match server review for untouched legacy specs; stricter editing checks
-    // report only issues introduced by local changes against that saved baseline.
-    const current = checkSpec(parsed.spec);
-    return {
-      ...current,
-      errors: [...current.errors, ...(!parsed.spec.authoring && dirty ? newLocalErrors(saved, draft) : []),
-      ],
-    };
-  }, [draft, saved, dirty]);
-  // Generation obligations remain visible locally; authoritative Save replaces this list.
-  const errors = [
-    ...new Map(
-      [...checks.errors, ...savedErrors].map((e) => [
-        `${e.code}|${e.path}|${e.message}`,
-        e,
-      ]),
-    ).values(),
-  ];
-  const browserDraft = useBrowserDraft({
+  const {
+    saved, draft, version, edits, editMode, setEditMode,
+    localPending, pending, dirty, checks, errors,
+    message, failure, recoveryConflict, browserDraft,
+    edit, replaceEdits, save, discard, adoptSaved,
+  } = useAdventureDraft({
     adventureId: props.adventureId,
-    value: { version, base: preserveStages(saved), edits, candidates: mediaCandidates },
-    dirty,
-    sources: props.capturedSources,
-    onRecover: recovered => {
-      setSaved(recovered.base);
-      setDraft(recovered.draft);
-      setVersion(recovered.version);
-      setEdits(recovered.edits);
-      setMediaCandidates(recovered.candidates);
-      setEditMode(true);
-      if (recovered.version !== props.initialVersion) {
-        setRecoveryConflict(true);
-        setFailure(true);
-        setMessage("The saved adventure changed while you were away. Download your recovered draft before discarding it to load the latest saved version.");
-      }
-    },
+    assets: props.assets,
+    initial: props.initial,
+    initialVersion: props.initialVersion,
+    capturedSources: props.capturedSources,
+    errors: props.errors,
+    externalPending: upgradePending,
+    onSaved: () => router.refresh(),
   });
-  useUnsavedEdits(dirty);
-  useReviewChatTarget({
-    key: `draft:${version}`,
-    revision: JSON.stringify(edits),
-    pending,
-    input: { pass: "draft", version, edits },
-    apply: (proposal) => {
-      if (proposal.pass !== "draft" || pending) return;
-      try {
-        setDraft(
-          applyV3Edits(
-            preserveStages(saved),
-            proposal.edits,
-            props.capturedSources,
-            true,
-            { candidates: mediaCandidates },
-          ),
-        );
-        setEdits(proposal.edits);
-        setEditMode(true);
-        setMessage("Suggested changes applied. Save when you’re ready.");
-        setFailure(false);
-      } catch (error) {
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : "Could not apply suggestion.",
-        );
-        setFailure(true);
-      }
-    },
-  });
-  const edit = (command: V3Edit, candidate?: MediaCandidate) => {
-    if (pending) return;
-    try {
-      const candidates = candidate?.snapshot
-        ? {
-            ...mediaCandidates,
-            [candidate.id]: {
-              id: candidate.id,
-              adventureId: props.adventureId,
-              target: candidate.target,
-              snapshot: candidate.snapshot,
-            },
-          }
-        : mediaCandidates;
-      setDraft(
-        applyV3Edits(
-          preserveStages(draft),
-          [command],
-          props.capturedSources,
-          true,
-          { candidates },
-        ),
-      );
-      setMediaCandidates(candidates);
-      setEditMode(true);
-      setEdits([...edits, command]);
-      setMessage("");
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not apply that edit.",
-      );
-    }
-  };
-  const save = async () => {
-    setPending(true);
-    setFailure(false);
-    setMessage("Saving…");
-    try {
-      const result = await saveV3AdventureEdits(
-        props.adventureId,
-        version,
-        edits,
-      );
-      if (result.ok) {
-        setSaved(result.spec);
-        setDraft(result.spec);
-        setVersion(result.version);
-        setEdits([]);
-        setEditMode(false);
-        setSavedErrors(result.errors);
-        router.refresh();
-        setMessage(
-          `Saved version ${result.version}.${result.errors.length ? " Fix blocking errors before publishing." : ""}`,
-        );
-      } else {
-        setMessage(result.message);
-        setFailure(true);
-      }
-    } catch {
-      setMessage(
-        "Could not save. Your local work is still here. Try Save again.",
-      );
-      setFailure(true);
-    } finally {
-      setPending(false);
-    }
-  };
 
   return (
     <>
@@ -272,29 +108,7 @@ export function EditorWorkspace(props: Props) {
             request={() =>
               fixV3EditsWithAiAction(props.adventureId, version, edits)
             }
-            apply={(proposal) => {
-              try {
-                setDraft(
-                  applyV3Edits(
-                    preserveStages(saved),
-                    proposal.edits,
-                    props.capturedSources,
-                    true,
-                    { candidates: mediaCandidates },
-                  ),
-                );
-                setEdits(proposal.edits);
-                setEditMode(true);
-                setMessage("");
-                setFailure(false);
-              } catch (error) {
-                setMessage(
-                  error instanceof Error
-                    ? error.message
-                    : "Could not apply suggestion.",
-                );
-              }
-            }}
+            apply={(proposal) => { replaceEdits(proposal.edits, ""); }}
           />
         }
         onEditIssue={() => setEditMode(true)}
@@ -302,8 +116,7 @@ export function EditorWorkspace(props: Props) {
           <header className="space-y-3" aria-busy={pending}>
             <V3AdventureNav adventureId={props.adventureId} page="adventure" />
             <UpgradePanel adventureId={props.adventureId} spec={saved} revision={version} dirty={dirty} disabled={localPending} onPendingChange={setUpgradePending} onReviewOpen={setUpgradeOpen} onApplied={(spec, nextVersion) => {
-              setSaved(spec); setDraft(spec); setVersion(nextVersion); setEdits([]); setSavedErrors([]); setEditMode(false);
-              setMessage('Draft saved. Preview it before publishing.'); router.refresh();
+              adoptSaved(spec, nextVersion, 'Draft saved. Preview it before publishing.'); router.refresh();
             }} />
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <div role="group" aria-label="Draft" className="flex flex-wrap items-center gap-2">
@@ -328,18 +141,7 @@ export function EditorWorkspace(props: Props) {
                         !dirty ||
                         window.confirm("Discard your unsaved edits?")
                       ) {
-                        browserDraft.clear();
-                        if (recoveryConflict) {
-                          setSaved(props.initial);
-                          setDraft(props.initial);
-                          setVersion(props.initialVersion);
-                          setSavedErrors(props.errors);
-                          setRecoveryConflict(false);
-                        } else setDraft(saved);
-                        setEdits([]);
-                        setEditMode(false);
-                        setMessage("Edits discarded.");
-                        setFailure(false);
+                        discard();
                       }
                     }}
                     >
@@ -387,11 +189,11 @@ export function EditorWorkspace(props: Props) {
             </div>
             {dirty ? (
               <p className="text-sm">
-                Unsaved edits. Save before previewing, transferring or publishing.
+                {browserDraft.notice ? "Unsaved edits recovered from this browser." : "Unsaved edits."} Save them before previewing, transferring or publishing.
               </p>
             ) : null}
-            {browserDraft.notice ? <p role="status" className="text-sm">{browserDraft.notice}</p> : null}
-            {browserDraft.error ? <p role="alert" className="text-sm">{browserDraft.error}</p> : dirty ? <p className="text-sm text-muted">Draft kept in this browser. Press Save to create a saved version.</p> : null}
+            {browserDraft.notice && !dirty ? <p role="status" className="text-sm">{browserDraft.notice}</p> : null}
+            {browserDraft.error ? <p role="alert" className="text-sm">{browserDraft.error}</p> : null}
             {recoveryConflict ? <button type="button" className={button.subtle} onClick={() => {
               const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2)], { type: "application/json" }));
               const link = document.createElement("a");

@@ -10,7 +10,8 @@ export function useBrowserDraft({ adventureId, value, dirty, sources, onRecover 
   value: BrowserDraft;
   dirty: boolean;
   sources: CapturedSource[];
-  onRecover: (draft: RecoveredDraft) => void;
+  /** Return false to leave the stored draft untouched instead of adopting it. */
+  onRecover: (draft: RecoveredDraft) => boolean | void;
 }) {
   const key = browserDraftKey(adventureId);
   const restored = useRef<string | null>(null);
@@ -18,14 +19,19 @@ export function useBrowserDraft({ adventureId, value, dirty, sources, onRecover 
   const [blocked, setBlocked] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const wrote = useRef(false);
+  /** The draft clear() removed: not written back on a re-render before a reload, but later edits are. */
+  const cleared = useRef<string | null>(null);
   useEffect(() => {
     if (restored.current === key) return;
     restored.current = key;
     try {
       const raw = localStorage.getItem(key);
       if (raw) {
-        onRecover(recoverBrowserDraft(raw, adventureId, sources));
-        setNotice("Recovered your unsaved draft from this browser.");
+        if (onRecover(recoverBrowserDraft(raw, adventureId, sources)) !== false) {
+          wrote.current = true;
+          setNotice("Recovered your unsaved draft from this browser.");
+        }
       }
     } catch {
       setBlocked(true);
@@ -35,10 +41,17 @@ export function useBrowserDraft({ adventureId, value, dirty, sources, onRecover 
   }, [key, adventureId, sources, onRecover]);
   useEffect(() => {
     if (!ready || blocked) return;
+    const serialized = JSON.stringify(value);
+    if (dirty && serialized === cleared.current) return;
+    cleared.current = null;
     try {
-      if (dirty) localStorage.setItem(key, JSON.stringify(value));
-      else {
+      if (dirty) {
+        localStorage.setItem(key, serialized);
+        wrote.current = true;
+      } else if (wrote.current) {
+        // Only drop a copy this page wrote, so a clean page never erases another tab's draft.
         localStorage.removeItem(key);
+        wrote.current = false;
         setNotice("");
       }
       setError("");
@@ -48,6 +61,8 @@ export function useBrowserDraft({ adventureId, value, dirty, sources, onRecover 
   }, [key, ready, blocked, dirty, value]);
   function clear() {
     try { localStorage.removeItem(key); } catch { /* Keep the storage warning visible. */ }
+    cleared.current = JSON.stringify(value);
+    wrote.current = false;
     setNotice("");
     setBlocked(false);
   }

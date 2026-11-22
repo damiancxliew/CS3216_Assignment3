@@ -27,6 +27,7 @@ import { NotesGlyph, PocketToast, StagePill, ToastStack, useArrivals } from "./p
 import questStyles from "./quest-ui.module.css";
 import { emptyQuestMemory, parsePreparationHint, questPlan, rememberQuest, type GuideTarget, type QuestMemory, type QuestStep } from "./quest-steps";
 import { ControlsCoachMark, DecisionCallToAction, QuestPeek, QuestSteps, QuestToast, useQuestToasts } from "./quest-ui";
+import { playFocusKey, type PlayFocus } from "./play-focus";
 
 export function v3InsertNoteAction(characterId: string, noteId: string, text?: string): Action {
   return { type: "insertNote", characterId, noteId, ...(text ? { text } : {}) };
@@ -72,8 +73,10 @@ export type StageExperience = {
   onInspect?: (id: string, walkTo: (point: Point) => void) => boolean;
 };
 
-export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] }, onOpenRoleBrief, experience, hud }: {
+export function StagePlayScreen({ view, busy, send, portraitBase = null, attemptId, scenery, movementLocked: externalMovementLock = false, ambient = { id: "clear", intensity: 1 }, audio = { muted: true, cues: [] }, onOpenRoleBrief, experience, hud, onFocusChange }: {
   experience?: StageExperience;
+  /** Reports the character being talked to, the open document, or else the stage. */
+  onFocusChange?: (focus: PlayFocus) => void;
   /** Extra square HUD buttons, shown left of the Journal in the top-right cluster. */
   hud?: ReactNode;
   view: PlayerView;
@@ -126,6 +129,15 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
   const isTalkOpen = openCharacter !== null;
   const activeDocumentId = experience?.activeDocumentId === undefined ? documentId : experience.activeDocumentId;
   const openedDocument = view.documents.find((document) => document.id === activeDocumentId) ?? null;
+  const focus: PlayFocus = openCharacter
+    ? { kind: "character", id: openCharacter.id }
+    : openedDocument
+      ? { kind: "document", id: openedDocument.id }
+      : { kind: "stage", index: stage?.index ?? 0 };
+  const focusKey = playFocusKey(focus);
+  const latestFocus = useRef(focus);
+  latestFocus.current = focus;
+  useEffect(() => { onFocusChange?.(latestFocus.current); }, [focusKey, onFocusChange]);
   const movementLocked = externalMovementLock || isTalkOpen || isMoment || Boolean(experience?.movementLocked) || Boolean(openedDocument) || notesOpen || guidance !== null;
   const preparation = stage?.preparation;
   const essential = preparation?.essentialConversations ?? [];
@@ -479,7 +491,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                   {experience?.hideDecision || (quest && !experience?.mission) ? null : preparation ? (
                     <button type="button" disabled={busy || isTalkOpen} onClick={() => setGuidance({ type: preparation.ready ? "confirm" : "decision" })} aria-haspopup="dialog" className={`${styles.primary} min-h-11 px-3 text-xs font-black disabled:opacity-50`}>Make your decision</button>
                   ) : confirmEndStage ? (
-                    <div role="alert" className="space-y-2">
+                    <div role="alert" data-game-dialog={questFolded ? undefined : ""} className="space-y-2">
                       <p className="text-xs font-bold">{experience?.decisionHint ?? "You won’t be able to explore after this."}</p>
                       <div className="flex flex-wrap gap-2">
                         <button

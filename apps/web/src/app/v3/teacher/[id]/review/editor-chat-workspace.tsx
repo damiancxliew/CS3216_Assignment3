@@ -27,7 +27,13 @@ export function EditorChatWorkspace({ brief, children }: {
   );
 }
 
-export function EditorConversation({ onClose }: { onClose: () => void }) {
+export function EditorConversation({ onClose, className, closeLabel = "Close chat", closeIcon }: {
+  onClose: () => void;
+  /** Replaces the default docked sizing, e.g. for a floating chat. */
+  className?: string;
+  closeLabel?: string;
+  closeIcon?: ReactNode;
+}) {
   const conversation = useContext(Conversation);
   const [height, setHeight] = useState(224);
   const [narrow, setNarrow] = useState(false);
@@ -53,12 +59,12 @@ export function EditorConversation({ onClose }: { onClose: () => void }) {
   return (
     <section
       aria-label="Adventure conversation"
-      style={narrow ? { height, minHeight: 160, maxHeight: "80vh" } : undefined}
-      className="relative flex h-56 xl:h-full min-h-0 min-w-0 shrink-0 flex-col overflow-hidden rounded-surface border border-line bg-surface p-4 shadow-[0_2px_10px_rgb(0_0_0/0.10)]"
+      style={narrow && !className ? { height, minHeight: 160, maxHeight: "80vh" } : undefined}
+      className={className ?? "relative flex h-56 xl:h-full min-h-0 min-w-0 shrink-0 flex-col overflow-hidden rounded-surface border border-line bg-surface p-4 shadow-[0_2px_10px_rgb(0_0_0/0.10)]"}
     >
       <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
         <h2 className="text-lg font-bold">Edit with chat</h2>
-        <button type="button" onClick={onClose} aria-label="Close chat" className="-mr-1.5 rounded-control p-1.5 text-muted hover:bg-sunken hover:text-ink"><X size={18} aria-hidden /></button>
+        <button type="button" onClick={onClose} aria-label={closeLabel} className="-mr-1.5 rounded-control p-1.5 text-muted hover:bg-sunken hover:text-ink">{closeIcon ?? <X size={18} aria-hidden />}</button>
       </div>
       <V3BriefChat
         initial={conversation.brief}
@@ -74,6 +80,7 @@ export function EditorConversation({ onClose }: { onClose: () => void }) {
         aria-valuemax={narrow ? Math.round(window.innerHeight * 0.8) : 800}
         aria-valuenow={Math.round(height)}
         tabIndex={0}
+        hidden={Boolean(className)}
         className="absolute bottom-0 right-0 flex h-5 w-5 touch-none cursor-ns-resize items-center justify-center rounded-control text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-ink xl:hidden"
         onPointerDown={event => { drag.current = { y: event.clientY, height }; event.currentTarget.setPointerCapture(event.pointerId); }}
         onPointerMove={event => { if (drag.current) resize(drag.current.height + event.clientY - drag.current.y); }}

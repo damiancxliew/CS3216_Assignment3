@@ -505,7 +505,7 @@ it.runIf(process.env.RUN_GUIDED_LOCAL_TESTS === "1")(
       await waitTitle("Story outline");
       expect(
         await conversation
-          .getByText("Applied to the cards.", { exact: true })
+          .getByRole("region", { name: "Applied changes", exact: true })
           .count(),
       ).toBe(0);
       expect(await composer.inputValue()).toBe(
