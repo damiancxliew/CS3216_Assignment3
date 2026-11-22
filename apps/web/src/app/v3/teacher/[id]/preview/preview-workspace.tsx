@@ -86,9 +86,9 @@ function PreviewEditing(props: Props) {
   useEffect(() => {
     const root = game.current;
     if (!root) return;
-    const update = () => setDialogOpen(Boolean(root.querySelector("dialog[open], [data-game-dialog]")));
+    const update = () => setDialogOpen(Boolean(root.querySelector('dialog[open], [aria-modal="true"], [data-game-dialog]')));
     const observer = new MutationObserver(update);
-    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] });
+    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["open", "aria-modal"] });
     update();
     return () => observer.disconnect();
   }, []);
