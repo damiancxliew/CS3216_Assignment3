@@ -7,6 +7,7 @@ import {
   toOpenAiStrictSchema,
   type OpenAiClientOptions,
 } from '../src/llm/openai'
+import type { DecisionRequest } from '../src/llm/types'
 
 const request = {
   modelTier: 'cheap' as const,
@@ -14,6 +15,15 @@ const request = {
   user: 'user data',
   schemaName: 'answer',
   jsonSchema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
+}
+
+const decisionRequest: DecisionRequest = {
+  name: 'v3_post_turn_check',
+  input: [{ role: 'user', content: [{ type: 'input_text', text: 'context' }] }],
+  questions: [
+    { name: 'asserted', instructions: 'Did the student assert this?' },
+    { name: 'flag_abusive', instructions: 'Are the words abusive?' },
+  ],
 }
 
 afterEach(() => {
@@ -28,6 +38,7 @@ describe('OpenAI Responses API adapter', () => {
       const client = createOpenAiClient()
       await expect(client.complete(request)).rejects.toBeInstanceOf(MissingApiKeyError)
       await expect(client.complete(request)).rejects.toThrow('OPENAI_API_KEY')
+      await expect(client.decide?.(decisionRequest)).rejects.toBeInstanceOf(MissingApiKeyError)
     } finally {
       if (originalKey === undefined) delete process.env.OPENAI_API_KEY
       else process.env.OPENAI_API_KEY = originalKey
@@ -198,5 +209,78 @@ describe('OpenAI Responses API adapter', () => {
     expect(create).toHaveBeenNthCalledWith(1, expect.objectContaining({ model: 'gpt-6-luna' }))
     expect(create).toHaveBeenNthCalledWith(2, expect.objectContaining({ model: 'gpt-6-luna' }))
     expect(create).toHaveBeenNthCalledWith(3, expect.objectContaining({ model: 'gpt-6-sol' }))
+  })
+
+  it('maps predicate questions, named probabilities, usage and latency through Decisions', async () => {
+    const create = vi.fn().mockResolvedValue({
+      answers: [
+        { type: 'predicate', name: null, probability: 0.75 },
+        { type: 'predicate', name: 'abuse_override', probability: 0.25 },
+        { type: 'refusal', name: 'skipped' },
+      ],
+      model: 'gpt-6-luna',
+      usage: {
+        input_tokens: 120,
+        input_tokens_details: { cached_tokens: 80 },
+        output_tokens: 9,
+        output_tokens_details: { reasoning_tokens: 4 },
+      },
+    })
+    const client = createOpenAiClient({
+      apiKey: 'test-key',
+      client: {
+        responses: { create: vi.fn() },
+        decisions: { create },
+      } as unknown as NonNullable<OpenAiClientOptions['client']>,
+    })
+
+    const result = await client.decide?.(decisionRequest)
+
+    expect(result).toMatchObject({
+      probabilities: { asserted: 0.75, abuse_override: 0.25 },
+      usage: { promptTokens: 120, cachedPromptTokens: 80, completionTokens: 9, reasoningTokens: 4 },
+      model: 'gpt-6-luna',
+      latencyMs: expect.any(Number),
+    })
+    expect(result?.latencyMs).toBeGreaterThanOrEqual(0)
+    expect(create).toHaveBeenCalledWith({
+      model: 'gpt-6-luna',
+      input: decisionRequest.input,
+      questions: [
+        { type: 'predicate', name: 'asserted', instructions: 'Did the student assert this?' },
+        { type: 'predicate', name: 'flag_abusive', instructions: 'Are the words abusive?' },
+      ],
+    })
+  })
+
+  it('rejects Decisions when the transport does not provide it', async () => {
+    const client = createOpenAiClient({
+      apiKey: 'test-key',
+      client: { responses: { create: vi.fn() } } as unknown as NonNullable<OpenAiClientOptions['client']>,
+    })
+
+    await expect(client.decide?.(decisionRequest)).rejects.toThrow('Decisions')
+    await expect(client.decide?.(decisionRequest)).rejects.not.toBeInstanceOf(MissingApiKeyError)
+  })
+
+  it('rejects more than 400 Decisions questions before calling the transport', async () => {
+    const create = vi.fn()
+    const client = createOpenAiClient({
+      apiKey: 'test-key',
+      client: {
+        responses: { create: vi.fn() },
+        decisions: { create },
+      } as unknown as NonNullable<OpenAiClientOptions['client']>,
+    })
+    const tooMany: DecisionRequest = {
+      ...decisionRequest,
+      questions: Array.from({ length: 401 }, (_, index) => ({
+        name: `question_${index}`,
+        instructions: 'Is this true?',
+      })),
+    }
+
+    await expect(client.decide?.(tooMany)).rejects.toThrow('400')
+    expect(create).not.toHaveBeenCalled()
   })
 })

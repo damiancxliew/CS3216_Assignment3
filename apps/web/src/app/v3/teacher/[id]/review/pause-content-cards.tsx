@@ -15,7 +15,8 @@ export function PauseContentCards({
   pass: EditablePass;
   draft: Spec;
   sources: CapturedSource[];
-  edit: (command: V3Edit) => void;
+  /** Omitted for completed steps: the cards are read-only. */
+  edit?: (command: V3Edit) => void;
 }) {
   if (pass === "reveal")
     return (
@@ -33,13 +34,13 @@ export function PauseContentCards({
           </div>
         }
       >
-        <ReviewEditorFields
+        {edit && <ReviewEditorFields
           draft={draft}
           sources={sources}
           edit={edit}
           tab="reveal"
           selected="reveal"
-        />
+        />}
       </ReviewCard>
     );
   if (pass === "endings")
@@ -79,14 +80,14 @@ export function PauseContentCards({
                     </div>
                   }
                 >
-                  <EditField
+                  {edit && <EditField
                     spec={draft}
                     schema={AdventureSpec.shape.definingMoments.element}
                     value={moment}
                     path={["definingMoments", index]}
                     name="Decision"
                     onEdit={edit}
-                  />
+                  />}
                 </ReviewCard>
               ) : null,
             )}
@@ -99,13 +100,13 @@ export function PauseContentCards({
             subtitle={`${ending.type[0].toUpperCase() + ending.type.slice(1)} ending`}
             preview={<p>{ending.summary}</p>}
           >
-            <ReviewEditorFields
+            {edit && <ReviewEditorFields
               draft={draft}
               sources={sources}
               edit={edit}
               tab="endings"
               selected={ending.id}
-            />
+            />}
           </ReviewCard>
         ))}
       </div>
@@ -133,14 +134,14 @@ export function PauseContentCards({
             </div>
           }
         >
-          <ReviewEditorFields
+          {edit && <ReviewEditorFields
             draft={draft}
             sources={sources}
             edit={edit}
             tab="stages"
             selected={stage.id}
             detailsOnly
-          />
+          />}
         </ReviewCard>
       ))}
       <h2 className="text-lg font-bold">Characters</h2>
@@ -151,14 +152,14 @@ export function PauseContentCards({
           subtitle={character.title}
           preview={<p>{character.persona.publicPosition}</p>}
         >
-          <ReviewEditorFields
+          {edit && <ReviewEditorFields
             draft={draft}
             sources={sources}
             edit={edit}
             tab="characters"
             selected={character.id}
             detailsOnly
-          />
+          />}
         </ReviewCard>
       ))}
       <h2 className="text-lg font-bold">Documents</h2>
@@ -171,14 +172,14 @@ export function PauseContentCards({
             <p className="line-clamp-5 whitespace-pre-wrap">{document.body}</p>
           }
         >
-          <ReviewEditorFields
+          {edit && <ReviewEditorFields
             draft={draft}
             sources={sources}
             edit={edit}
             tab="documents"
             selected={document.id}
             detailsOnly
-          />
+          />}
         </ReviewCard>
       ))}
     </div>

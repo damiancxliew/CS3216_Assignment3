@@ -216,7 +216,16 @@ export async function postAction(
     throw cause;
   }
 
-  const saved = await deps.store.save(attempt.id, attempt.revision, result.state, result.events as GameEvent[]);
+  const flags = parsed.data.action.type === "interviewAnswer"
+    ? interviewFlagsFromEvents(result.events, parsed.data.action.text)
+    : [];
+  const saved = await deps.store.save(
+    attempt.id,
+    attempt.revision,
+    result.state,
+    result.events as GameEvent[],
+    flags,
+  );
   if (!saved.saved) {
     const latest = await deps.store.loadAttempt(attempt.id);
     if (!latest || latest.studentId !== userId) return error(404, "not_found", "Not found.");
@@ -298,6 +307,28 @@ export function flagsFromEvents(
             reason: event.reason,
             characterId: pending.characterId,
             stageIndex: pending.stageIndex,
+          },
+        }]
+      : []
+  ));
+}
+
+export function interviewFlagsFromEvents(
+  events: readonly GameEvent[],
+  text: string | undefined,
+): V3FlagInput[] {
+  const excerpt = (text ?? "").trim().slice(0, 1000);
+  return events.flatMap((event) => (
+    event.type === "flag"
+      ? [{
+          messageId: event.messageId,
+          category: event.category,
+          excerpt,
+          result: {
+            reason: event.reason,
+            characterId: null,
+            stageIndex: null,
+            source: "interview" as const,
           },
         }]
       : []

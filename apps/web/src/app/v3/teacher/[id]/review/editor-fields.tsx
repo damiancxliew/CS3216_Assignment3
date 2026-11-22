@@ -39,7 +39,7 @@ export function ReviewEditorFields({
   );
   if (tab === "settings")
     return (
-      <div className="space-y-4 rounded-surface border border-line bg-surface p-4">
+      <div className="space-y-4">
         <p className="text-sm">
           Reading level and source policy do not rewrite existing prose or fetch
           new sources.
@@ -89,7 +89,7 @@ export function ReviewEditorFields({
     );
   if (tab === "reveal")
     return (
-      <div className="space-y-4 rounded-surface border border-line bg-surface p-4">
+      <div className="space-y-4">
         {field("reveal")}
         {field("teacherQuestions")}
       </div>
@@ -109,7 +109,7 @@ export function ReviewEditorFields({
         ? (["triggers"] as const)
         : [];
   return (
-    <div className="space-y-4 rounded-surface border border-line bg-surface p-4">
+    <div className="space-y-4">
       {index >= 0 ? (
         <>
           {tab === "documents" ? (

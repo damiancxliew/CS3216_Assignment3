@@ -7,7 +7,14 @@ import { DocumentReader } from "@/components/play/v3/document-reader";
 import { PreparationProgress } from "@/components/play/v3/preparation-progress";
 import { ReadingCheck } from "@/components/play/v3/reading-check";
 import { guidanceWasSeen, rememberGuidance } from "@/components/play/v3/preparation-dialog";
+import { StagePreparationGuidance } from "@/components/play/v3/stage-preparation-guidance";
+import type { QuestStep } from "@/components/play/v3/quest-steps";
+import type { PlayerView } from "@adventure/play-contract";
 import { stageIntroBeats } from "@/lib/play/v3/cinematic";
+
+vi.mock("next/font/google", () => ({
+  Pixelify_Sans: () => ({ className: "pixel-font" }),
+}));
 
 const question = { id: "q1", prompt: "What does this account support?", options: [{ id: "a", text: "Supplies were limited." }, { id: "b", text: "Everyone had enough." }, { id: "c", text: "The account says nothing about supplies." }] };
 const document: DocumentView = {
@@ -23,7 +30,8 @@ describe("preparation guidance and reading checks", () => {
   it("requires an interpretation and a direct supporting highlight", () => {
     const markup = render(createElement(DocumentReader, { document, documents: [document], onClose() {}, onSelectDocument() {}, onSelectPassage() {}, onSubmitReadingCheck() {} }));
     expect(markup).toContain(question.prompt);
-    expect(markup).toContain("If your answer is not supported, you can try again.");
+    expect(markup).not.toContain("Choose an answer, then highlight the sentence or sentences that support it. If your answer is not supported, you can try again.");
+    expect(markup).not.toContain("Read the source, then answer with a short supporting passage.");
     expect(markup).not.toContain("Choose supporting sentences without dragging");
     expect(markup).toMatch(/disabled=""[^>]*>Submit answer and evidence/);
     expect(markup).not.toContain("drag across the line that matters to save it as a note");
@@ -92,11 +100,11 @@ describe("preparation guidance and reading checks", () => {
     expect(markup).not.toContain('choose sentences below');
   });
 
-  it("introduces the essential people in the stage cinematic without changing legacy introductions", () => {
+  it("leaves preparation to the map's quest card, not the stage cinematic", () => {
     const stage: StageView = { index: 0, count: 1, title: "Harbour", timePlace: "Morning", centralQuestion: "How should supplies be shared?", intro: null };
     expect(stageIntroBeats(stage).some((beat) => beat.id === "preparation")).toBe(false);
     stage.preparation = { completed: 0, required: 2, ready: false, hint: null, timerExpired: false, essentialConversations: [{ characterId: "ada", name: "Ada", complete: false }, { characterId: "ben", name: "Ben", complete: false }] };
-    expect(stageIntroBeats(stage).find((beat) => beat.id === "preparation")?.items).toEqual(["Speak with Ada.", "Speak with Ben."]);
+    expect(stageIntroBeats(stage).some((beat) => beat.id === "preparation")).toBe(false);
   });
 
   it("does not interrupt play when cosmetic acknowledgement storage is unavailable", () => {
@@ -123,5 +131,22 @@ describe("preparation progress", () => {
     expect(markup).toContain('No tasks required');
     expect(markup).toContain('width:100%');
     expect(markup).not.toContain('NaN');
+  });
+});
+
+describe("stage preparation guidance", () => {
+  const step = (overrides: Partial<QuestStep>): QuestStep => ({ id: "s", kind: "read", text: "", where: null, done: false, locked: false, lockReason: null, target: null, documentId: null, characterId: null, ...overrides });
+  const view = { stage: { centralQuestion: "How should supplies be shared?", preparation: { completed: 0, required: 1, ready: false, hint: null, timerExpired: false, essentialConversations: [{ characterId: "a", name: "Ada", complete: false }] } }, characters: [] } as unknown as PlayerView;
+  it("lists the quest steps in help instead of progress counters", () => {
+    const next = step({ id: "read", text: "Read “The harbour letter”", where: "Here in this room" });
+    const steps = [next, step({ id: "talk-a", kind: "talk", text: "Talk to Ada", locked: true, lockReason: "Read “The harbour letter” first" }), step({ id: "decide", kind: "decide", text: "Make your decision", locked: true })];
+    const markup = render(createElement(StagePreparationGuidance, { guidance: { type: "help" }, view, busy: false, steps, next, onClose() {}, onReview() {}, onDecide() {} }));
+    expect(markup).toContain("How to play this stage");
+    expect(markup).toContain('aria-label="Quest steps"');
+    expect(markup).toContain("Talk to Ada");
+    expect(markup).toContain("Read “The harbour letter” first");
+    expect(markup).not.toContain("Evidence preparation");
+    expect(markup).not.toContain("Essential conversations");
+    expect(markup).not.toMatch(/<button[^>]*data-state="next"/);
   });
 });

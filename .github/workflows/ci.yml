@@ -29,6 +29,12 @@ jobs:
       - run: npx vitest run tests/api
       - run: npm test --workspace @adventure/generation -- tests/assets.test.ts tests/sprite-sheet.test.ts
       - run: npm run build
+      - name: Verify production header stylesheet delivery
+        run: |
+          npm run start --workspace web -- --hostname 127.0.0.1 --port 3239 > /tmp/header-production.log 2>&1 &
+          header_pid=$!
+          trap 'kill "$header_pid" 2>/dev/null || true' EXIT
+          RUN_HEADER_ASSET_TESTS=1 npx vitest run tests/build/header-assets.test.ts
 
   database:
     runs-on: ubuntu-latest

@@ -1,7 +1,7 @@
 "use client";
 
 import type { DocumentView } from "@adventure/play-contract";
-import { Check, Highlighter, ScrollText } from "lucide-react";
+import { Check, Highlighter, ImageIcon, ScrollText } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { V3ScrollDialog } from "@/components/play/v3/scroll-dialog";
@@ -10,6 +10,7 @@ import { documentDisplayTitle } from "@/lib/play/v3/document-labels";
 import styles from "@/components/play/document-reader.module.css";
 import readingStyles from "./reading-check.module.css";
 import { offsetsFromParagraphs } from "@/lib/play/v3/passage-offsets";
+import { pixelFont } from "./pixel-font";
 
 function endpointFor(container: HTMLElement, node: Node, offset: number) {
   const paragraphs = Array.from(container.querySelectorAll<HTMLParagraphElement>("[data-document-paragraph]"));
@@ -76,36 +77,68 @@ export function documentProvenanceLine(document: Pick<DocumentView, "kind" | "pr
   return [masthead ?? KIND_LABELS[document.kind], date, place].filter(Boolean).join(" · ");
 }
 
+/** "Historical source · printed 1878": the year in the citation's last parentheses, when there is one. */
+export function sourceTagText(document: Pick<DocumentView, "real" | "sourceLabel">): string {
+  const label = document.sourceLabel && document.sourceLabel !== "invented" ? document.sourceLabel : "";
+  if (!document.real) return label ? "Summary · based on real sources" : "Reconstruction · written for this adventure";
+  const year = [...label.matchAll(/\((?:[^()]*?\b)?(1[0-9]{3}|20[0-9]{2})\b[^()]*\)/g)].at(-1)?.[1];
+  return year ? `Historical source · printed ${year}` : "Historical source";
+}
+
+/** Tag colour: original sources, summaries of them, and invented reconstructions each look different. */
+function sourceKind(document: Pick<DocumentView, "real" | "sourceLabel">): "real" | "summary" | "invented" {
+  if (document.real) return "real";
+  return document.sourceLabel && document.sourceLabel !== "invented" ? "summary" : "invented";
+}
+
 function DocumentDetails({ document }: { document: DocumentView }) {
   const { sender, recipient } = document.provenance;
   const fromTo = [sender ? `From ${sender}` : null, recipient ? `To ${recipient}` : null].filter(Boolean).join(" · ");
-  return <div className={styles.documentInfo}>
-    <span className={styles.sourceBadge} title={document.real ? "From historical source material" : "Written for this adventure"}>{document.real ? "Historical source" : "Reconstruction"}</span>
-    {fromTo ? <p>{fromTo}</p> : null}
-  </div>;
+  return fromTo ? <p className={styles.sourceMeta}>{fromTo}</p> : null;
+}
+
+function DocumentCitation({ document }: { document: DocumentView }) {
+  const label = document.sourceLabel && document.sourceLabel !== "invented" ? document.sourceLabel : null;
+  return <p className={styles.citation}>{label ?? (document.real ? "From the historical record." : "Written for this adventure.")}</p>;
 }
 
 function DocumentNotes({ document }: { document: DocumentView }) {
+  if (document.glossary.length === 0) return null;
   return (
     <div className={styles.source}>
-      {document.glossary.length > 0 ? (
-        <>
-          <p className={styles.glossaryHeading}>Words to know</p>
-          <dl className={styles.glossary}>
-            {document.glossary.map((entry) => (
-              <div key={entry.term}>
-                <dt>{entry.term}</dt>
-                <dd>{entry.meaning}</dd>
-              </div>
-            ))}
-          </dl>
-        </>
-      ) : null}
-      <details className={styles.realSource}>
-          <summary>Source details</summary>
-          <p>{document.sourceLabel && document.sourceLabel !== "invented" ? document.sourceLabel : document.real ? "From the historical record." : "Written for this adventure."}</p>
-        </details>
+      <p className={styles.glossaryHeading}>Words to know</p>
+      <dl className={styles.glossaryChips}>
+        {document.glossary.map((entry) => (
+          <div key={entry.term}>
+            <dt>{entry.term}</dt>
+            <dd>{entry.meaning}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
+  );
+}
+
+export type DocumentFacsimileImage = { url: string; alt: string; caption: string; credit: string };
+
+/** The scanned page, when the teacher attached one. The transcription below stays the text students select. */
+function DocumentFacsimile({ facsimile }: { facsimile: DocumentFacsimileImage | null | undefined }) {
+  const [shown, setShown] = useState(true);
+  const [failed, setFailed] = useState(false);
+  if (!facsimile || failed) return null;
+  return (
+    <>
+      <button type="button" className={styles.facsimileToggle} aria-expanded={shown} onClick={() => setShown((open) => !open)}>
+        <ImageIcon size={15} aria-hidden /> {shown ? "Hide the original page" : "Show the original page"}
+      </button>
+      {shown ? (
+        <figure className={styles.facsimile}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- teacher-selected archive scans use storage URLs */}
+          <img src={facsimile.url} alt={facsimile.alt} loading="lazy" onError={() => setFailed(true)} />
+          <figcaption>{facsimile.caption}{facsimile.credit ? ` · ${facsimile.credit}` : ""} · Transcription below. Highlight evidence in the transcription.</figcaption>
+        </figure>
+      ) : null}
+    </>
   );
 }
 
@@ -133,7 +166,10 @@ export function DocumentReader({
   onSubmitReadingCheck,
   onContinueReadingCheck,
   busy = false,
+  facsimiles,
 }: {
+  /** Scanned original pages by document id, resolved on the server like stage art. */
+  facsimiles?: Readonly<Record<string, DocumentFacsimileImage>>;
   supplement?: ReactNode;
   readingHint?: string;
   onSubmitReadingCheck?: (submission: ReadingCheckSubmission, onSettled: (succeeded: boolean) => void) => void;
@@ -213,17 +249,20 @@ export function DocumentReader({
     });
   }
 
+  const readingCheckHint = readingCheck?.status === "passed"
+    ? "Reading complete. You can save other useful passages as notes."
+    : readingCheck?.status === "needsReview"
+      ? readingCheck.revealedAnswer ? "Review the answer and supporting passage." : "Review the evidence and try again."
+      : correctionAccepted ? "Answer the new question to finish this reading check." : null;
+
   return (
     <V3ScrollDialog
       eyebrow={document ? (saved ? `Collected scroll ${index + 1} of ${documents.length}` : "Evidence scroll") : "Collected scrolls"}
       title={document ? documentDisplayTitle(document.title) : "Documents"}
       kicker={document ? documentProvenanceLine(document) || "From your travels" : "From your travels"}
-      footerText={document ? (saved ? "Collected" : "Not collected yet") : "A record of your discoveries"}
-      footerSaved={saved}
       closeLabel={document ? `Put down ${documentDisplayTitle(document.title)}` : "Close documents"}
-      buttonLabel={document ? undefined : "Continue exploring"}
       onClose={onClose}
-      banner={document && readingCheck ? readingCheck.status === "passed" && status ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={false} status={status} /> : <p className={`${styles.passageHint} ${readingCheck.status === "passed" ? styles.passageAdded : styles.passageTip}`} role="status">{readingCheck.status === "passed" ? "Reading complete. You can save other useful passages as notes." : readingCheck.status === "needsReview" ? readingCheck.revealedAnswer ? "Review the answer and supporting passage." : "Review the evidence and try again." : correctionAccepted ? "Answer the new question to finish this reading check." : "Read the source, then answer with a short supporting passage."}</p> : document && readingHint ? <p className={styles.passageHint}>{readingHint}</p> : document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
+      banner={document && readingCheck ? readingCheck.status === "passed" && status ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={false} status={status} /> : readingCheckHint ? <p className={`${styles.passageHint} ${readingCheck.status === "passed" ? styles.passageAdded : styles.passageTip}`} role="status">{readingCheckHint}</p> : null : document && readingHint ? <p className={styles.passageHint}>{readingHint}</p> : document ? <PassageHint canSelect={Boolean(onSelectPassage)} firstTime={!hasDocumentNote} status={status} /> : undefined}
       navigation={document && saved && documents.length > 1 ? {
         items: documents.map((item) => ({ id: item.id, name: documentDisplayTitle(item.title) })),
         selectedId: document.id,
@@ -232,10 +271,15 @@ export function DocumentReader({
     >
       {document ? (
         <>
-          <DocumentDetails document={document} />
-          <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text">
-            <p data-document-paragraph="" className={styles.text}>{highlightedBody(document.body, readingCheck?.revealedAnswer?.support ?? [])}</p>
-          </div>
+          <article className={styles.sourceCard} aria-label={sourceTagText(document)}>
+            <span className={`${pixelFont.className} ${styles.sourceTag}`} data-kind={sourceKind(document)} title={document.real ? "From historical source material" : document.sourceLabel && document.sourceLabel !== "invented" ? "A modern summary of real sources" : "Written for this adventure"}>{sourceTagText(document)}</span>
+            <DocumentDetails document={document} />
+            <DocumentFacsimile key={document.id} facsimile={facsimiles?.[document.id]} />
+            <div ref={content} onMouseUp={selectPassage} onTouchEnd={selectPassage} className="select-text">
+              <p data-document-paragraph="" className={styles.text}>{highlightedBody(document.body, readingCheck?.revealedAnswer?.support ?? [])}</p>
+            </div>
+            <DocumentCitation document={document} />
+          </article>
           {readingCheck ? <ReadingCheck key={`${document.id}:${taskId}`} document={document} selection={checkedSelection} onSelect={(selection) => {
             if (!selection) window.getSelection()?.removeAllRanges();
             setSupport({ documentId: document.id, taskId, selection });

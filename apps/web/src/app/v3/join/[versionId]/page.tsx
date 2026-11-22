@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { EnterLink } from "./enter-link";
 import { SignInButton } from "@/components/sign-in-button";
-import { ErrorText, SiteHeader, button } from "@/components/ui";
+import { ErrorText, SiteHeader } from "@/components/ui";
 import { loadJoinView } from "@/lib/play/v3/publish";
 import { v3PublishDeps } from "@/lib/play/v3/http";
 import { createClient } from "@/lib/supabase/server";
@@ -62,9 +62,7 @@ export default async function V3JoinPage({ params, searchParams }: {
   return (
     <Shell intro="You’ve been invited to play" title={title}>
       <div className="pt-2">
-        <Link href={`/v3/play/start/${versionId}`} prefetch={false} className={button.primary}>
-          Enter the adventure
-        </Link>
+        <EnterLink href={`/v3/play/start/${versionId}`} />
       </div>
     </Shell>
   );

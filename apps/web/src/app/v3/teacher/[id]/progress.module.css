@@ -1,0 +1,13 @@
+.still * { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .toolbar * { animation: none !important; transition: none !important; }
+}
+
+.toolbar { width: 100%; min-width: 0; }
+.inlineRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.inlineActivity, .inlineFailure { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
+.inlineActivity { color: var(--ink-muted); }
+.inlineFailure { color: var(--signal); font-weight: 650; }
+.inlineMeta { color: var(--ink-muted); font-size: 11px; line-height: 14px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.inlineTrack { min-width: 48px; flex: 1; }
+.inlineTrack > [role="progressbar"] { height: 6px; border-width: 0; box-shadow: inset 0 0 0 1px var(--line-strong); }

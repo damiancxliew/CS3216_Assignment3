@@ -92,6 +92,8 @@ export const CharacterView = z.object({
   /** `${characterId}` for characters without stances, `${characterId}:${stanceId}` otherwise. */
   portraitKey: z.string(),
   preparation: PreparationView.optional(),
+  /** Short questions the student could ask this character (max 3); never contain undiscovered content. */
+  starters: z.array(z.string()).max(3).optional(),
 })
 export type CharacterView = z.infer<typeof CharacterView>
 

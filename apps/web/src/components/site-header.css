@@ -1,0 +1,21 @@
+.site-header { container-type: inline-size; position: relative; }
+.site-header .site-header-brand { flex: 1 1 auto; min-width: 0; }
+.site-header-navigation, .site-header-account { flex-shrink: 0; }
+.site-header-links { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.site-header-dropdown { display: none; position: relative; }
+.site-header-navigation-panel { position: absolute; left: 0; right: auto; top: 100%; z-index: 60; display: flex; flex-direction: column; gap: 4px; width: 192px; max-width: calc(100vw - 32px); margin-top: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: 0 4px 16px #00000020; }
+.site-header-navigation-panel a { justify-content: flex-start; border-color: transparent; }
+.site-header-navigation-panel a[aria-current="page"] { background: var(--surface-sunken); }
+@container (max-width: 1120px) {
+  .site-header-links { display: none; }
+  .site-header-dropdown { display: block; }
+  .site-header-account { position: static; }
+  .site-header-account-menu { right: 16px; }
+}
+@container (max-width: 760px) {
+  .site-header-account .site-header-account-details, .site-header-account .site-header-account-role { display: none; }
+}
+@container (max-width: 480px) {
+  .site-header .site-header-dropdown, .site-header .site-header-account { position: static; }
+  .site-header-navigation-panel, .site-header-account-menu { left: 16px; right: 16px; width: auto; max-width: none; }
+}

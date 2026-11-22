@@ -39,4 +39,14 @@ describe('room pointers', () => {
     expect(pointer!.edge).toBe('right')
     expect(overlaps(pointer!.bounds, caption, 0)).toBe(false)
   })
+
+  it('lets the guided place claim its spot first when the edge is crowded', () => {
+    // Twelve chips cannot all fit on a short edge; without priority the farthest one is dropped.
+    const candidates = Array.from({ length: 12 }, (_, index) => ({ id: `room-${index}`, target: { x: -40 - index * 10, y: 160 }, width: 40, height: 30 }))
+    const unguided = layoutRoomPointers(candidates, view)
+    const dropped = candidates.find((candidate) => !unguided.some((pointer) => pointer.id === candidate.id))
+    expect(dropped).toBeDefined()
+    const guided = layoutRoomPointers(candidates, view, [], 3, dropped!.id)
+    expect(guided[0]!.id).toBe(dropped!.id)
+  })
 })

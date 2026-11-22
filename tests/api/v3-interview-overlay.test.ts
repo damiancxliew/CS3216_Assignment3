@@ -61,7 +61,7 @@ describe("interview flow", () => {
     expect(html).toContain("A Company clerk, 1824");
     expect(html).toContain("Was the treaty inevitable?");
     expect(html).toContain("Your answer");
-    expect(html).toMatch(/aria-selected="true"[^>]*>.*▶.*Yes, it was coming either way\./);
+    expect(html).toMatch(/aria-selected="true"[^>]*>.*>A<\/span>.*Yes, it was coming either way\./);
   });
 
   it("shows the push-back and waits for the student before the response panel", () => {

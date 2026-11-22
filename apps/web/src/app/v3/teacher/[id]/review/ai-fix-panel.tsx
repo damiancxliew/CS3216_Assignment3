@@ -2,17 +2,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 import { compactButton as button } from "@/components/ui";
-import { reviewPrimary } from "../creation-styles";
+import { reviewResolve, reviewPrimary } from "../creation-styles";
 
 type Proposal<T> = { ok: true; notes: string } & T;
-/** A proposal is tied to the exact edits it was requested for. */
+/** The bottom bar's Resolve issues button. A proposal is tied to the exact edits it was requested for. */
 export function AiFixPanel<T>({
   revision,
   request,
   apply,
   disabled = false,
-  floating = true,
-  inToolbar = false,
   hasIssues = true,
 }: {
   revision: string;
@@ -21,8 +19,6 @@ export function AiFixPanel<T>({
   >;
   apply: (proposal: Proposal<T>) => void;
   disabled?: boolean;
-  floating?: boolean;
-  inToolbar?: boolean;
   hasIssues?: boolean;
 }) {
   const [proposal, setProposal] = useState<{
@@ -40,23 +36,16 @@ export function AiFixPanel<T>({
   const current = proposal?.revision === revision ? proposal.value : null;
   return (
     <section
-      className={
-        floating
-          ? "fixed bottom-5 right-4 z-40 flex w-fit max-w-[calc(100vw-2rem)] flex-col-reverse items-end gap-3 sm:right-6"
-          : inToolbar
-            ? "relative ml-auto"
-            : "space-y-3"
-      }
+      className="relative ml-auto"
       aria-label="Issue suggestions"
       aria-busy={pending}
     >
       <button
         type="button"
-        className={
-          floating
-            ? "inline-flex min-h-11 items-center gap-2 rounded-full border border-line-strong bg-ink px-4 py-3 text-sm font-semibold text-paper shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:opacity-50"
-            : button.quiet
-        }
+        className={reviewResolve}
+        data-review-resolve
+        aria-label={pending ? "Reviewing…" : "Resolve issues"}
+        title={pending ? "Reviewing…" : "Resolve issues"}
         disabled={disabled || pending || !hasIssues}
         onClick={async () => {
           const requested = generation.current;
@@ -88,7 +77,7 @@ export function AiFixPanel<T>({
       </button>
       {current || message ? (
         <div
-          className={`${inToolbar ? "absolute bottom-full right-0 mb-3 w-80 max-w-[calc(100vw-4rem)]" : "w-80 max-w-full"} space-y-3 rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg`}
+          className={`absolute bottom-full right-0 mb-3 w-80 max-w-[calc(100vw-4rem)] space-y-3 rounded-surface border border-line-strong bg-surface p-4 text-ink shadow-lg`}
           aria-label="Suggested correction"
         >
           {current ? (

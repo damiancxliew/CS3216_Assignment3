@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { estimateCostUsd } from '../src/llm/client'
 import { OpenAiLlmClient, PendingResponseError } from '../src/llm/openai'
 
 const request = {
@@ -13,6 +14,17 @@ const request = {
 } as const
 
 afterEach(() => vi.useRealTimers())
+
+describe('LLM usage pricing', () => {
+  it('prices Decisions input with the cached-input rate and no output charge', () => {
+    expect(estimateCostUsd('gpt-6-luna-decisions', {
+      inputTokens: 2_000_000,
+      cachedInputTokens: 1_000_000,
+      outputTokens: 500_000,
+      reasoningTokens: 0,
+    })).toBeCloseTo(0.11)
+  })
+})
 
 describe('OpenAiLlmClient deadlines', () => {
   it('caps each request at the time left in the shared deadline', async () => {
@@ -58,6 +70,55 @@ describe('OpenAiLlmClient deadlines', () => {
   })
 })
 
+describe('OpenAiLlmClient prompt cache input', () => {
+  it('keeps the user input string unchanged without a cached prefix', async () => {
+    const client = new OpenAiLlmClient({ apiKey: 'test-key', maxRetries: 0 })
+    const create = vi.fn().mockResolvedValue({
+      output: [],
+      output_text: '{}',
+      model: 'gpt-test',
+      usage: null,
+    })
+    ;(client as unknown as { client: { responses: { create: typeof create } } }).client = {
+      responses: { create },
+    }
+
+    await client.completeJson(request)
+
+    expect(create.mock.calls[0]?.[0].input).toEqual([
+      { role: 'user', content: request.user },
+    ])
+  })
+
+  it('marks the stable user prefix with an explicit cache breakpoint', async () => {
+    const client = new OpenAiLlmClient({ apiKey: 'test-key', maxRetries: 0 })
+    const create = vi.fn().mockResolvedValue({
+      output: [],
+      output_text: '{}',
+      model: 'gpt-test',
+      usage: null,
+    })
+    ;(client as unknown as { client: { responses: { create: typeof create } } }).client = {
+      responses: { create },
+    }
+    const cachedPrefix = '{"adventure":{"title":"Fortress"}}'
+
+    await client.completeJson({ ...request, cachedPrefix })
+
+    expect(create.mock.calls[0]?.[0].input).toEqual([{
+      role: 'user',
+      content: [
+        {
+          type: 'input_text',
+          text: cachedPrefix,
+          prompt_cache_breakpoint: { mode: 'explicit' },
+        },
+        { type: 'input_text', text: request.user },
+      ],
+    }])
+  })
+})
+
 describe('OpenAiLlmClient background responses', () => {
   it('persists the response id before throwing when polling exceeds its budget', async () => {
     vi.useFakeTimers()
@@ -88,14 +149,29 @@ describe('OpenAiLlmClient background responses', () => {
       responses: { create, retrieve },
     }
 
-    const pending = client.completeJson(request).catch((error: unknown) => error)
+    const cachedPrefix = '{"items":[{"key":"stages.0"}]}'
+    const pending = client.completeJson({ ...request, cachedPrefix }).catch((error: unknown) => error)
     await vi.advanceTimersByTimeAsync(1_000)
 
     const error = await pending
     expect(error).toBeInstanceOf(PendingResponseError)
     expect(error).toMatchObject({ responseId: 'resp_pending' })
     expect(events).toEqual(['created:resp_pending', 'poll'])
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ background: true, store: false }), expect.any(Object))
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      background: true,
+      store: false,
+      input: [{
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: cachedPrefix,
+            prompt_cache_breakpoint: { mode: 'explicit' },
+          },
+          { type: 'input_text', text: request.user },
+        ],
+      }],
+    }), expect.any(Object))
     expect(retrieve).toHaveBeenCalledOnce()
   })
 
@@ -120,7 +196,7 @@ describe('OpenAiLlmClient background responses', () => {
       responses: { create, retrieve },
     }
 
-    const result = await client.completeJson(request)
+    const result = await client.completeJson({ ...request, cachedPrefix: 'stable context' })
 
     expect(create).not.toHaveBeenCalled()
     expect(retrieve).toHaveBeenCalledWith('resp_done', undefined, expect.any(Object))

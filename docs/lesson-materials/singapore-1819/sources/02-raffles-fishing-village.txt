@@ -1,0 +1,20 @@
+SOURCE 2: "An insignificant fishing village": how Raffles described Singapore, 1819-1822
+
+Type: (a) Verbatim primary extracts from Raffles's letters, as printed by his widow in 1830 or quoted in later articles. Short extracts only.
+Prepared: 11 November 2026.
+Based on: Sophia Raffles, Memoir of the Life and Public Services of Sir Thomas Stamford Raffles (London, 1830), pages 465-466 and 525; Ang Seow Leng, "Head Count: The History of Census-taking in Singapore", BiblioAsia 15:4 (2020); Jason Heng, "An Old Teochew Oral Account Sheds New Light on the 1819 Founding of Singapore", BiblioAsia (Chapters on Asia, 2018).
+Reference URLs: https://archive.org/details/memoiroflifepubl00raff ; https://archive.org/details/b22017707 (a second scan of the same book) ; https://biblioasia.nlb.gov.sg/vol-15/issue-4/jan-mar-2020/head-count-history/ ; https://biblioasia.nlb.gov.sg/chapters-of-asia/chapters-on-asia-2014-2017-teochew-1819-founding-singapore/
+
+To the Duke of Somerset, Bencoolen, 20 August 1820 (Memoir, pages 465-466):
+"From an insignificant fishing village, the port is now surrounded by an extensive town, and the population does not fall short of ten or twelve thousand souls, principally Chinese."
+
+To Lord Lansdowne, 15 April 1820 (as quoted by Ang Seow Leng, BiblioAsia):
+"When I hoisted the British flag the population scarcely amounted to 200 souls, in three months the number was not less than 3,000 and it now exceeds 10,000 principally Chinese..."
+
+To the Duchess of Somerset, Singapore, 30 November 1822 (Memoir, page 525):
+"In little more than three years it has risen from an insignificant fishing village, to a large and prosperous town, containing at least 10,000 inhabitants of all nations, actively engaged in commercial pursuits, which afford to each and all a handsome livelihood, and abundant profit."
+"This may be considered as the simple, but almost magic result of that perfect freedom of trade, which it has been my good fortune to establish."
+
+What Raffles knew before he landed (as reported by Jason Heng, BiblioAsia): in a private letter to Lord Hastings dated 8 January 1819, Raffles wrote that the island had "about 2,000 inhabitants upon it (new settlers) under a respectable Chief". Heng also reports that Raffles later told Hastings "when the British flag was first hoisted, there were not perhaps fifty-three Chinese on the island", and privately told a merchant in Penang that Singapore had "only five hundred" people at the end of January 1819.
+
+Source limitation: These are the words of the man who wanted the credit. The phrase "insignificant fishing village" comes from Raffles himself, and Jason Heng argues that by repeating it Raffles played down the role of Temenggong Abdul Rahman and the Chinese planters. Raffles's own numbers do not agree with each other: about 2,000 (before landing), only 500, scarcely 200, and not perhaps 53 Chinese. His later totals (10,000 or "ten or twelve thousand" by 1820) are higher than the first census, which counted 10,683 people in January 1824 (Source 8). The Lansdowne and Hastings wording was checked against the BiblioAsia articles that quote them, not against the original letters. The Memoir wording was checked against two scans of the 1830 book on archive.org; the transcriptions contain reading errors ("may he considered") and a page break in the first quotation, which have been corrected by comparing the two scans. Curly quotation marks are written as straight ones.

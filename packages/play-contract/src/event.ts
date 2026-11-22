@@ -4,6 +4,7 @@
  */
 import { z } from 'zod'
 
+import { FlagCategory } from './flag'
 import { Id, StageIndex, Timestamp } from './ids'
 import { Phase } from './view'
 
@@ -69,7 +70,7 @@ export const FlagEvent = z.object({
   ...base,
   type: z.literal('flag'),
   messageId: Id,
-  category: z.enum(['abusive', 'hateful', 'provocative', 'sexual', 'self_harm']),
+  category: FlagCategory,
   reason: z.string().nullable(),
 })
 

@@ -88,11 +88,44 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
               return `export async function addV3BriefSource(){}; export async function createFromV3Brief(){}; export async function discardV3Brief(){}`;
             if (id === "\0chat")
               return `import {initialBriefStateV3} from '/src/lib/v3/brief/schema.ts';
-              export async function suggestReviewChangeAction(id,input,text){
+              export async function findEditTargetsAction(id,input,text){
+                window.findTargetCalls=(window.findTargetCalls||0)+1;
+                await new Promise(resolve=>setTimeout(resolve,1000));
+                return text.trim().endsWith('?')
+                  ? {ok:true,intent:'reply'}
+                  : {ok:true,intent:'change',targets:[
+                    {path:['title'],label:'Title',score:1,selected:true},
+                    {path:['characters',0,'persona','voice'],label:'Percival · Voice',score:1,selected:true}
+                  ]};
+              }
+              export async function suggestReviewChangeAction(id,input,text,targets,mode){
+                await new Promise(resolve=>setTimeout(resolve,1000));
                 if(window.chatFailure) return {ok:false,message:'Could not prepare a suggestion. Try again.'};
                 const state=initialBriefStateV3(id);
-                state.messages=[{role:'user',text,slot:'review'},{role:'assistant',text:'I suggest a new title.',slot:'review'}];
-                return {ok:true,state,notes:'I suggest a new title.',preview:[{label:'Title',before:'Current title',after:'Chat revised title'}],proposal:{pass:'draft',edits:[...input.edits,{type:'set',path:['title'],value:'Chat revised title'}]}};
+                if(mode==='reply'){
+                  state.messages=[{role:'user',text,slot:'review'},{role:'assistant',text:'Percival sounds steady rather than cheerful.',slot:'review'}];
+                  return {ok:true,state,notes:'Percival sounds steady rather than cheerful.',preview:[],proposal:null};
+                }
+                const edits=[];
+                const preview=[];
+                const groups=[];
+                const detailed=text.includes('Make Percival sound more weary.');
+                const titleAfter=detailed?'More explicit title':'Chat revised title';
+                const voiceAfter=detailed?'More weary voice':'Chat revised voice';
+                if((targets||[]).some(path=>path.join('.')==='title')){
+                  edits.push({type:'set',path:['title'],value:titleAfter});
+                  preview.push({label:'Title',before:'Current title',after:titleAfter});
+                  groups.push({label:'Title',edits:[input.edits.length+edits.length-1],preview:[preview.length-1]});
+                }
+                if((targets||[]).some(path=>path.join('.')==='characters.0.persona.voice')){
+                  edits.push({type:'set',path:['characters',0,'persona','voice'],value:voiceAfter});
+                  preview.push({label:'Percival · Voice',before:'Current voice',after:voiceAfter});
+                  groups.push({label:'Percival · Voice',edits:[input.edits.length+edits.length-1],preview:[preview.length-1]});
+                }
+                const labels=targets?.map(path=>path.join('.')==='title'?'Title':'Percival · Voice')||[];
+                const userText=text;
+                state.messages=[{role:'user',text:userText,slot:'review'},{role:'assistant',text:'I suggest these changes.',slot:'review'}];
+                return {ok:true,state,notes:'I suggest these changes.',preview,groups,proposal:edits.length?{pass:'draft',edits:[...input.edits,...edits]}:null};
               }`;
             if (id === "\0image")
               return `import React from 'react'; export default function Image({fill,unoptimized,...props}) { return React.createElement('img', {...props, style:fill?{position:'absolute',inset:0,width:'100%',height:'100%'}:undefined}); }`;
@@ -124,7 +157,9 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           import {ImportAdventureJson} from '/src/app/v3/teacher/import-json.tsx';
           if(!localStorage.getItem('spec')) localStorage.setItem('spec',${JSON.stringify(JSON.stringify(spec))});
           const spec=AdventureSpec.parse(JSON.parse(localStorage.getItem('spec'))); localStorage.setItem('spec',JSON.stringify(spec));
-          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><ImportAdventureJson /><EditorChatWorkspace brief={initialBriefStateV3('fixture')}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} isPublic={localStorage.getItem("isPublic")==="true"} sources={spec.sources} capturedSources={[]} assets={{version:Number(localStorage.getItem('version')||1),items:${JSON.stringify(inventory)}.map(asset=>({...asset,url:asset.url?.startsWith('/')?new URL(asset.url,location.origin).href:asset.url}))}} errors={new URLSearchParams(location.search).has('clean')?[]:[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
+          const brief=initialBriefStateV3('fixture');
+          brief.messages=Array.from({length:24},(_,index)=>({role:index%2?'assistant':'user',text:'Earlier review context '.repeat(12)+index,slot:'review'}));
+          createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-[100rem] p-5"><ImportAdventureJson /><EditorChatWorkspace brief={brief}><EditorWorkspace adventureId="fixture" initial={spec} initialVersion={Number(localStorage.getItem('version')||1)} publishedVersion={1} published={true} isPublic={localStorage.getItem("isPublic")==="true"} sources={spec.sources} capturedSources={[]} assets={{version:Number(localStorage.getItem('version')||1),items:${JSON.stringify(inventory)}.map(asset=>({...asset,url:asset.url?.startsWith('/')?new URL(asset.url,location.origin).href:asset.url}))}} errors={new URLSearchParams(location.search).has('clean')?[]:[{code:'fixture',path:'characters.0.persona.voice',message:'Check this character voice'}]} warnings={[]} /></EditorChatWorkspace></main>);
         `,
                   "editor.tsx",
                   { loader: "tsx", jsx: "automatic" },
@@ -153,7 +188,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
     let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
     try {
       await vite.listen();
-      browser = await chromium.launch({ headless: true });
+      browser = process.env.PLAYWRIGHT_CDP_URL ? await chromium.connectOverCDP(process.env.PLAYWRIGHT_CDP_URL) : await chromium.launch({ headless: true });
       const page = await browser.newPage();
       const errors: string[] = [];
       page.on("pageerror", (e) => {
@@ -274,18 +309,22 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
           Math.abs(element.getBoundingClientRect().top),
         )).toBeLessThanOrEqual(1);
         // Read all geometry in one browser frame while smooth focus scrolling may still run.
-        const { chat, index, content, composer } = await page.evaluate(() => {
+        const { chat, index, content, composer, tabs } = await page.evaluate(() => {
           const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().toJSON();
           return {
             chat: rect('[aria-label="Adventure conversation"]'),
             index: rect('[aria-label="Characters items"]'),
             content: rect('[aria-label="Review details"]'),
             composer: rect('[aria-label="Message"]'),
+            tabs: rect('[role="tablist"]'),
           };
         });
-        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
+        // Index, content and chat columns share the same top and bottom edges below the tabs.
+        expect(chat!.y).toBeGreaterThan(tabs!.bottom);
         expect(Math.abs(chat!.y - index!.y)).toBeLessThan(2);
-        expect(Math.abs(chat!.y - content!.y)).toBeLessThan(2);
+        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
+        expect(Math.abs(index!.y - content!.y)).toBeLessThan(2);
+        expect(Math.abs(index!.height - content!.height)).toBeLessThan(2);
         expect(chat!.width).toBeGreaterThanOrEqual(300);
         expect(chat!.y + chat!.height).toBeLessThanOrEqual(height);
         expect(composer!.y + composer!.height).toBeLessThanOrEqual(
@@ -295,8 +334,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       for (const width of [1024, 768, 375, 320]) {
         await page.setViewportSize({ width, height: 812 });
         const chat = await page.getByRole("region", { name: "Adventure conversation" }).boundingBox();
-        const index = await page.getByRole("navigation", { name: "Characters items" }).boundingBox();
-        expect(Math.abs(chat!.height - index!.height)).toBeLessThan(2);
+        expect(chat!.height).toBeGreaterThanOrEqual(400);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       }
       await page.setViewportSize({ width: 1440, height: 1000 });
@@ -474,8 +512,11 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         ),
       ).toBe("A saved teacher title");
       // Closing chat preserves the local draft and restores space to the index.
-      for (const width of [1440, 375]) {
-        await page.setViewportSize({ width, height: 1000 });
+      for (const viewport of [
+        { width: 1440, height: 1000 },
+        { width: 390, height: 844 },
+      ]) {
+        await page.setViewportSize(viewport);
         await page.getByRole("button", { name: "Close chat", exact: true }).click();
         expect(await page.getByRole("region", { name: "Adventure conversation" }).count()).toBe(0);
         expect(await page.locator("#edit-title").inputValue()).toBe("Suggested teacher title");
@@ -483,16 +524,113 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
         await page.getByRole("region", { name: "Adventure conversation" }).waitFor();
       }
       await page.setViewportSize({ width: 1440, height: 1000 });
+      expect(
+        await page
+          .getByRole("region", { name: "Adventure conversation" })
+          .getByText(/Let.s start with the material/)
+          .count(),
+      ).toBe(0);
       // Chat uses the same local draft and leaves saving/publishing explicit.
       const message = page.getByRole("textbox", {
         name: "Message",
         exact: true,
       });
-      await message.fill("Give this a clearer title");
+      const sendChat = async () => {
+        await page.getByRole("button", { name: "Send message", exact: true }).click();
+      };
+      const findCalls = () => page.evaluate(() => (window as any).findTargetCalls ?? 0);
+      const transcript = page.getByRole("region", { name: "Adventure conversation" }).locator("ol");
+      const scrollBox = page.getByRole("region", { name: "Adventure conversation" }).locator("[data-conversation-scroll]");
+      const scrollToLatest = page.locator('button[aria-label="Scroll to latest message"]');
+      const overflowingQuestion = Array.from({ length: 30 }, (_, index) =>
+        `For my students, compare how Percival expresses uncertainty in detail ${index + 1} and explain which wording supports the interpretation.`,
+      ).join(" ") + " What does that suggest about his mood?";
+      await message.fill(overflowingQuestion);
+      await sendChat();
+      await transcript.getByText("Percival sounds steady rather than cheerful.", { exact: true }).waitFor();
+      await expect.poll(() => scrollBox.evaluate(element =>
+        element.scrollHeight > element.clientHeight + 200,
+      )).toBe(true);
+      await expect.poll(() => scrollToLatest.getAttribute("aria-hidden")).toBe("true");
+      await scrollBox.evaluate(element => element.scrollTo({ top: 0 }));
+      await expect.poll(() => scrollToLatest.getAttribute("aria-hidden")).toBe("false");
+      await scrollToLatest.click();
+      await expect.poll(() => scrollBox.evaluate(element =>
+        element.scrollHeight - element.scrollTop - element.clientHeight < 2,
+      )).toBe(true);
+      await expect.poll(() => scrollToLatest.getAttribute("aria-hidden")).toBe("true");
+      const initialFindCalls = await findCalls();
+      await message.fill("Does Percival sound too cheerful to you?");
+      await sendChat();
+      await transcript.getByText("Reading your request…", { exact: true }).waitFor();
+      await expect.poll(() => scrollBox.evaluate(element =>
+        element.scrollTop + element.clientHeight >= element.scrollHeight - 2,
+      )).toBe(true);
+      const assistantBounds = await transcript.locator("[data-review-assistant]").last().boundingBox();
+      const scrollBounds = await scrollBox.boundingBox();
+      expect(assistantBounds).not.toBeNull();
+      expect(scrollBounds).not.toBeNull();
+      expect(assistantBounds!.x).toBeGreaterThanOrEqual(scrollBounds!.x);
+      expect(assistantBounds!.x + assistantBounds!.width).toBeLessThanOrEqual(scrollBounds!.x + scrollBounds!.width);
+      expect(assistantBounds!.y).toBeGreaterThanOrEqual(scrollBounds!.y);
+      expect(assistantBounds!.y + assistantBounds!.height).toBeLessThanOrEqual(scrollBounds!.y + scrollBounds!.height);
+      expect(await message.inputValue()).toBe("");
+      expect(await message.isEnabled()).toBe(true);
+      expect(await transcript.getByText("Does Percival sound too cheerful to you?", { exact: true }).count()).toBe(1);
+      expect(await transcript.locator("[data-review-assistant]").count()).toBe(1);
+      await transcript.getByText("Writing a reply…", { exact: true }).waitFor();
+      expect(await transcript.locator("[data-review-assistant]").count()).toBe(1);
       await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
-      await page.getByRole("region", { name: "Suggested changes" }).waitFor();
+        .getByRole("region", { name: "Adventure conversation" })
+        .locator("ol")
+        .getByText("Percival sounds steady rather than cheerful.", { exact: true })
+        .waitFor();
+      expect(await page.getByRole("region", { name: "Suggested changes" }).count()).toBe(0);
+      expect(await findCalls()).toBe(initialFindCalls + 1);
+      expect(await transcript.getByText("Does Percival sound too cheerful to you?", { exact: true }).count()).toBe(1);
+
+      await message.fill("Make the title clearer.");
+      await sendChat();
+      await transcript.getByText("Writing the change…", { exact: true }).waitFor();
+      const suggestionCard = page.getByRole("region", {
+        name: "Suggested changes",
+      });
+      await suggestionCard.waitFor();
+      expect(await transcript.getByRole("region", { name: "Suggested changes" }).count()).toBe(1);
+      expect(await transcript.getByText("Make the title clearer.", { exact: true }).count()).toBe(1);
+      expect(
+        await suggestionCard.getByText("Current", { exact: true }).count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await suggestionCard.getByText("Suggested", { exact: true }).count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await suggestionCard.getByText("Current title", { exact: true }).count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await suggestionCard
+          .getByText("Chat revised title", { exact: true })
+          .count(),
+      ).toBeGreaterThan(0);
+      expect(await findCalls()).toBe(initialFindCalls + 2);
+      for (const label of [
+        "Review changes",
+        "Discard suggestion",
+        "Apply suggestion",
+      ]) {
+        expect(await suggestionCard.getByRole("button", { name: label }).count()).toBe(1);
+      }
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect.poll(() => scrollBox.evaluate(element => element.clientHeight))
+        .toBeGreaterThanOrEqual(200);
+      const mobileCardBounds = await suggestionCard.boundingBox();
+      const mobileScrollBounds = await scrollBox.boundingBox();
+      expect(mobileCardBounds).not.toBeNull();
+      expect(mobileScrollBounds).not.toBeNull();
+      expect(mobileCardBounds!.y).toBeGreaterThanOrEqual(mobileScrollBounds!.y);
+      expect(mobileCardBounds!.y).toBeLessThanOrEqual(
+        mobileScrollBounds!.y + mobileScrollBounds!.height,
+      );
       await page.setViewportSize({ width: 1440, height: 720 });
       await page.getByRole("tablist").evaluate((element) =>
         element.scrollIntoView({ block: "start", behavior: "instant" }),
@@ -505,22 +643,57 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await page.locator("#edit-title").inputValue()).toBe(
         "Suggested teacher title",
       );
-      await page
-        .getByRole("button", { name: "Keep my edits", exact: true })
-        .click();
-      await message.fill("Give this a clearer title");
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "Apply changes", exact: true })
+      await suggestionCard
+        .getByRole("button", { name: "Apply suggestion", exact: true })
         .click();
       expect(await page.locator("#edit-title").inputValue()).toBe(
         "Chat revised title",
       );
+      await transcript.getByText("Applied to the cards.", { exact: true }).waitFor();
+      await page.getByRole("tab", { name: "Characters", exact: true }).click();
+      expect(await page.locator("#edit-characters-0-persona-voice").inputValue()).toBe(
+        "Chat revised voice",
+      );
+
+      await message.fill("Make Percival sound more weary.");
+      await sendChat();
+      const dialogCard = page.getByRole("region", {
+        name: "Suggested changes",
+      });
+      await dialogCard.waitFor();
+      await dialogCard
+        .getByRole("button", { name: "Review changes", exact: true })
+        .click();
+      const reviewDialog = page.getByRole("dialog", {
+        name: "Review suggested changes",
+      });
+      await reviewDialog.waitFor();
+      expect(await reviewDialog.getByText("Current", { exact: true }).count()).toBeGreaterThan(0);
+      expect(await reviewDialog.getByText("Suggested", { exact: true }).count()).toBeGreaterThan(0);
       expect(
-        await page.getByText("Unpublished changes", { exact: false }).count(),
+        await reviewDialog
+          .locator("span.bg-world-wash")
+          .filter({ hasText: "weary" })
+          .count(),
       ).toBeGreaterThan(0);
+      await page.keyboard.press("Escape");
+      expect(await reviewDialog.isVisible()).toBe(false);
+      expect(await dialogCard.count()).toBe(1);
+      await dialogCard
+        .getByRole("button", { name: "Review changes", exact: true })
+        .click();
+      await reviewDialog.waitFor();
+      await reviewDialog.getByRole("button", { name: "Apply", exact: true }).click();
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      expect(await page.locator("#edit-title").inputValue()).toBe(
+        "More explicit title",
+      );
+      await page.getByRole("tab", { name: "Characters", exact: true }).click();
+      expect(await page.locator("#edit-characters-0-persona-voice").inputValue()).toBe(
+        "More weary voice",
+      );
+      expect(await page.getByText("Unpublished changes", { exact: false }).count()).toBeGreaterThan(0);
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
       await page.evaluate(() => {
         window.saveMode = "success";
       });
@@ -536,42 +709,98 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       ).toBe(0);
       await page.getByRole("button", { name: "Edit", exact: true }).click();
       expect(await page.locator("#edit-title").inputValue()).toBe(
-        "Chat revised title",
+        "More explicit title",
       );
-      expect(
-        await page.locator("#edit-characters-0-persona-voice").count(),
-      ).toBe(0);
       await page.getByRole("tab", { name: "Characters", exact: true }).click();
       expect(
         await page.locator("#edit-characters-0-persona-voice").inputValue(),
-      ).toBe("A changed teacher voice");
-      await page.getByRole("tab", { name: "Settings", exact: true }).click();
-      await message.fill("Another suggestion");
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
+      ).toBe("More weary voice");
+      await page.getByRole("region", { name: "Adventure conversation" }).waitFor();
+      await message.fill("Discard this suggestion.");
+      await sendChat();
+      const discardCard = page.getByRole("region", {
+        name: "Suggested changes",
+      });
+      await discardCard.waitFor();
+      expect(await findCalls()).toBe(initialFindCalls + 4);
+      await discardCard
+        .getByRole("button", { name: "Discard suggestion", exact: true })
         .click();
+      expect(await discardCard.count()).toBe(0);
+      await page.getByRole("status").getByText("Kept your current edits.").waitFor();
+      expect(
+        await page.locator("#edit-characters-0-persona-voice").inputValue(),
+      ).toBe("More weary voice");
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      expect(await page.locator("#edit-title").inputValue()).toBe("More explicit title");
+      await message.fill("Another suggestion");
+      await sendChat();
       await page
-        .getByRole("button", { name: "Apply changes", exact: true })
+        .getByRole("button", { name: "Apply suggestion", exact: true })
         .waitFor();
-      await page.locator("#edit-title").fill("Newer manual title");
+      await page.locator("#edit-title").fill("Newer local title");
       expect(
         await page
-          .getByRole("button", { name: "Apply changes", exact: true })
+          .getByRole("button", { name: "Apply suggestion", exact: true })
           .count(),
       ).toBe(0);
       await page.evaluate(() => {
         window.chatFailure = true;
       });
       await message.fill("Keep my request on failure");
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
+      await sendChat();
       await page
         .getByText("Could not prepare a suggestion. Try again.", {
           exact: true,
         })
         .waitFor();
+      expect(await message.inputValue()).toBe("");
+      await page.getByRole("button", { name: "Edit message", exact: true }).click();
       expect(await message.inputValue()).toBe("Keep my request on failure");
+      expect(await transcript.getByText("Keep my request on failure", { exact: true }).count()).toBe(0);
+      await sendChat();
+      await page.getByRole("button", { name: "Retry", exact: true }).waitFor();
+      await page.evaluate(() => { window.chatFailure = false; });
+      await page.getByRole("button", { name: "Retry", exact: true }).click();
+      await suggestionCard.waitFor();
+      expect(await transcript.getByText("Keep my request on failure", { exact: true }).count()).toBe(1);
+      expect(await page.getByRole("button", { name: "Retry", exact: true }).count()).toBe(0);
+      await page.setViewportSize({ width: 390, height: 812 });
+      expect(await message.getAttribute("placeholder")).toBe("Ask a question or request a change…");
+      const placeholder = await message.evaluate(element => {
+        const style = getComputedStyle(element, "::placeholder");
+        return { whiteSpace: style.whiteSpace, overflowY: getComputedStyle(element).overflowY };
+      });
+      expect(placeholder).toEqual({ whiteSpace: "nowrap", overflowY: "auto" });
+      const sendBounds = await page.getByRole("button", { name: "Send message", exact: true }).boundingBox();
+      expect(sendBounds?.width).toBe(44);
+      expect(sendBounds?.height).toBe(44);
+      const resize = page.getByRole("separator", { name: "Resize chat height" });
+      await resize.waitFor();
+      const oldHeight = Number(await resize.getAttribute("aria-valuenow"));
+      await resize.focus();
+      await page.keyboard.press("ArrowDown");
+      expect(Number(await resize.getAttribute("aria-valuenow"))).toBe(oldHeight + 24);
+      await page.keyboard.press("ArrowDown");
+      expect(Number(await resize.getAttribute("aria-valuenow"))).toBe(oldHeight + 48);
+      await resize.scrollIntoViewIfNeeded();
+      const grip = await resize.boundingBox();
+      await page.mouse.move(grip!.x + 10, grip!.y + 10);
+      await page.mouse.down();
+      await page.mouse.move(grip!.x + 10, grip!.y + 60);
+      await page.mouse.up();
+      expect(Number(await resize.getAttribute("aria-valuenow"))).toBeGreaterThan(oldHeight + 24);
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      expect(await resize.isVisible()).toBe(false);
+      await page.setViewportSize({ width: 390, height: 812 });
+      await message.fill(Array.from({ length: 20 }, (_, index) => `Line ${index + 1}: Please make this passage clearer for my class.`).join("\n"));
+      expect(await message.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+      await message.press("Control+Home");
+      const initialScroll = await message.evaluate(element => element.scrollTop);
+      await message.hover();
+      await page.mouse.wheel(0, 180);
+      await expect.poll(() => message.evaluate(element => element.scrollTop)).toBeGreaterThan(initialScroll);
+      await message.fill("");
       for (const width of [1440, 375, 320]) {
         await page.setViewportSize({ width, height: 812 });
         expect(
@@ -704,7 +933,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await playerSlot.getByRole("button", { name: "Selected", exact: true }).count()).toBe(1);
       await playerSlot.getByRole("button", { name: "Close candidates", exact: true }).click();
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
-      expect(await page.locator("#edit-title").inputValue()).toBe("Newer manual title");
+      expect(await page.locator("#edit-title").inputValue()).toBe("Newer local title");
       await page.evaluate(() => { window.saveMode = "conflict"; });
       await page.getByRole("button", { name: "Save", exact: true }).click();
       await page.getByRole("alert").filter({ hasText: "This adventure changed" }).waitFor();
@@ -716,7 +945,7 @@ it.runIf(process.env.RUN_REVIEW_BROWSER_TESTS === "1")(
       expect(await page.evaluate(() => localStorage.getItem("v3-editor-draft:fixture"))).toBeNull();
       const assetSavedSpec = await page.evaluate(() => JSON.parse(localStorage.getItem("spec")!));
       expect(assetSavedSpec.authoring.walkingSprites.player.type).toBe("custom");
-      expect(assetSavedSpec.title).toBe("Newer manual title");
+      expect(assetSavedSpec.title).toBe("Newer local title");
       expect(Object.keys(assetSavedSpec.authoring.portraitImages)).toEqual(firstCharacter.stances.map((s: any) => `${firstCharacter.id}:${s.id}`));
       await page.reload();
       await page.getByRole("tab", { name: "Assets", exact: true }).click();
