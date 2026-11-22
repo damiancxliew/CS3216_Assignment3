@@ -86,7 +86,7 @@ function PreviewEditing(props: Props) {
   useEffect(() => {
     const root = game.current;
     if (!root) return;
-    const update = () => setDialogOpen(Boolean(root.querySelector("dialog[open]")));
+    const update = () => setDialogOpen(Boolean(root.querySelector("dialog[open], [data-game-dialog]")));
     const observer = new MutationObserver(update);
     observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] });
     update();
