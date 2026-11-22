@@ -491,7 +491,7 @@ export function StagePlayScreen({ view, busy, send, portraitBase = null, attempt
                   {experience?.hideDecision || (quest && !experience?.mission) ? null : preparation ? (
                     <button type="button" disabled={busy || isTalkOpen} onClick={() => setGuidance({ type: preparation.ready ? "confirm" : "decision" })} aria-haspopup="dialog" className={`${styles.primary} min-h-11 px-3 text-xs font-black disabled:opacity-50`}>Make your decision</button>
                   ) : confirmEndStage ? (
-                    <div role="alert" data-game-dialog className="space-y-2">
+                    <div role="alert" data-game-dialog={questFolded ? undefined : ""} className="space-y-2">
                       <p className="text-xs font-bold">{experience?.decisionHint ?? "You won’t be able to explore after this."}</p>
                       <div className="flex flex-wrap gap-2">
                         <button
