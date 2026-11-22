@@ -23,6 +23,16 @@ describe("preview edit panel context", () => {
     expect(text).toContain(spec.characters[0]!.persona.voice);
   });
 
+  it("keeps a cleared field as an editable row and leaves it out of the chat context", () => {
+    const cleared = structuredClone(spec);
+    cleared.characters[0]!.persona.voice = "";
+    const context = previewContext(cleared, { kind: "character", id: "temenggong" }, insight, view)!;
+    const voice = context.entries.find((entry) => entry.label === "Voice")!;
+    expect(voice.cleared).toBe(true);
+    expect(voice.lines[0]?.edit).toEqual({ path: ["characters", 0, "persona", "voice"], value: "" });
+    expect(previewContextText(context)).not.toContain("Voice:");
+  });
+
   it("keeps source-bound document text and key passages read-only", () => {
     const index = spec.documents.findIndex((document) => document.keyPassages.length > 0);
     const document = spec.documents[index]!;

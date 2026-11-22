@@ -8,7 +8,8 @@ import { textFields, type Path } from "@/lib/v3/review-chat/outline";
 /** A line the teacher can change in place: the field path and its current text. */
 export type ContextEdit = { path: Path; value: string };
 export type ContextLine = { text: string; edit?: ContextEdit };
-export type ContextEntry = { label: string; lines: ContextLine[]; list?: boolean };
+/** `cleared`: an editable single field whose text is empty; shown as a small row to fill in again. */
+export type ContextEntry = { label: string; lines: ContextLine[]; list?: boolean; cleared?: boolean };
 export type PreviewContext = {
   title: string;
   /** Teacher-facing description of what is in focus, also sent to the chat. */
@@ -27,7 +28,11 @@ function builder(spec: AdventureSpec, itemPath: Path) {
   const line = (text: string, path?: Path, value = text): ContextLine =>
     path && editable.has(path.join(".")) ? { text, edit: { path, value } } : { text };
   const field = (label: string, text: string | undefined, path: Path): ContextEntry[] =>
-    present(text) ? [{ label, lines: [line(text, path)] }] : [];
+    present(text)
+      ? [{ label, lines: [line(text, path)] }]
+      : text !== undefined && editable.has(path.join("."))
+        ? [{ label, lines: [line("", path, text)], cleared: true }]
+        : [];
   const list = (label: string, lines: ContextLine[]): ContextEntry[] =>
     lines.length ? [{ label, lines, list: true }] : [];
   return { line, field, list };
@@ -188,6 +193,6 @@ export function previewContextText(context: PreviewContext): string {
   return [
     `The teacher is previewing the adventure and looking at the ${context.subject}.`,
     ...context.live.map((entry) => `Right now in the preview, ${block(entry)}`),
-    ...context.entries.map(block),
+    ...context.entries.filter((entry) => !entry.cleared).map(block),
   ].join("\n").slice(0, 6000);
 }

@@ -98,6 +98,31 @@ export function PreviewEditPanel({ context, edited, pending, notice, onEdit, onC
   };
 
   const entryView = (entry: ContextEntry, live = false) => {
+    if (entry.cleared && entry.lines[0]?.edit) {
+      const edit = entry.lines[0].edit;
+      const key = pathKey(edit.path);
+      return (
+        <section key={entry.label} className="pt-2">
+          <div className="flex min-h-7 items-center gap-2 text-sm text-muted">
+            <span className="font-semibold">{entry.label}</span>
+            <span className="rounded-full bg-sunken px-2 text-xs">Cleared</span>
+            {editing !== key ? (
+              <button
+                type="button"
+                aria-label={`Write ${entry.label}`}
+                title={`Write ${entry.label}`}
+                disabled={pending}
+                onClick={() => setEditing(key)}
+                className="ml-auto rounded-control p-1.5 hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:hidden"
+              >
+                <Pencil size={14} aria-hidden />
+              </button>
+            ) : null}
+          </div>
+          {editing === key ? lineBody(entry, entry.lines[0], 0) : null}
+        </section>
+      );
+    }
     const single = !entry.list && entry.lines.length === 1 ? entry.lines[0] : null;
     const singleKey = single?.edit ? pathKey(single.edit.path) : null;
     const changed = entry.lines.some((line) => line.edit && edited.has(pathKey(line.edit.path)));
