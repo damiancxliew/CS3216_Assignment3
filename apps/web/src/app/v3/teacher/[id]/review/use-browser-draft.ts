@@ -20,6 +20,8 @@ export function useBrowserDraft({ adventureId, value, dirty, sources, onRecover 
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const wrote = useRef(false);
+  /** Set by clear(): keep the stored copy gone until the draft is clean again, even if the page re-renders before a reload. */
+  const cleared = useRef(false);
   useEffect(() => {
     if (restored.current === key) return;
     restored.current = key;
@@ -39,6 +41,10 @@ export function useBrowserDraft({ adventureId, value, dirty, sources, onRecover 
   }, [key, adventureId, sources, onRecover]);
   useEffect(() => {
     if (!ready || blocked) return;
+    if (cleared.current) {
+      if (dirty) return;
+      cleared.current = false;
+    }
     try {
       if (dirty) {
         localStorage.setItem(key, JSON.stringify(value));
@@ -56,6 +62,8 @@ export function useBrowserDraft({ adventureId, value, dirty, sources, onRecover 
   }, [key, ready, blocked, dirty, value]);
   function clear() {
     try { localStorage.removeItem(key); } catch { /* Keep the storage warning visible. */ }
+    cleared.current = true;
+    wrote.current = false;
     setNotice("");
     setBlocked(false);
   }
